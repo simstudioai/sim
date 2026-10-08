@@ -84,6 +84,7 @@ export interface PerformCreateCredentialParams {
   certificateId?: string
   orgId?: string
   dataCenter?: string
+  scope?: string
   authMethod?: string
   privateKey?: string
   username?: string
@@ -305,6 +306,7 @@ export async function createCredentialRecord(
           certificateId: params.certificateId,
           orgId: params.orgId,
           dataCenter: params.dataCenter,
+          scope: params.scope,
           authMethod: params.authMethod,
           privateKey: params.privateKey,
           username: params.username,

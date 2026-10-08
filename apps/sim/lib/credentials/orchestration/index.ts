@@ -87,6 +87,7 @@ const ROTATABLE_SECRET_FIELDS: readonly ServiceAccountFieldId[] = [
   'certificateId',
   'orgId',
   'dataCenter',
+  'scope',
   'authMethod',
   'privateKey',
   'username',
@@ -140,7 +141,7 @@ async function readStoredSecretBlob(credentialId: string): Promise<Record<string
  */
 function readStoredField(
   blob: Record<string, unknown> | null,
-  field: 'dataCenter' | 'authMethod' | 'username' | 'atlassianProduct'
+  field: 'dataCenter' | 'scope' | 'authMethod' | 'username' | 'atlassianProduct'
 ): string | undefined {
   const value = blob?.[field]
   return typeof value === 'string' && value ? value : undefined
@@ -200,6 +201,7 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   certificateId?: string
   orgId?: string
   dataCenter?: string
+  scope?: string
   authMethod?: string
   privateKey?: string
   username?: string
@@ -302,6 +304,13 @@ export async function updateCredentialRecord(
       // when the caller did not supply one.
       const isClientCredentialProvider = isClientCredentialAccountProviderId(providerId)
       const needsStoredDataCenter = params.dataCenter === undefined && isClientCredentialProvider
+      const needsStoredScope =
+        params.scope === undefined &&
+        Boolean(
+          getClientCredentialAccountDescriptor(providerId)?.fields.some(
+            (field) => field.id === 'scope'
+          )
+        )
       // Only a multi-grant provider stores these, so single-grant ones must not
       // pay for a row read + decrypt that can only ever return undefined.
       const isMultiGrantProvider = Boolean(
@@ -325,6 +334,7 @@ export async function updateCredentialRecord(
       // One read + decrypt at most, and only for the providers that can use it.
       const storedBlob =
         needsStoredDataCenter ||
+        needsStoredScope ||
         needsStoredAuthMethod ||
         needsStoredUsername ||
         needsStoredIdentity ||
@@ -396,6 +406,7 @@ export async function updateCredentialRecord(
           dataCenter: needsStoredDataCenter
             ? readStoredField(storedBlob, 'dataCenter')
             : params.dataCenter,
+          scope: needsStoredScope ? readStoredField(storedBlob, 'scope') : params.scope,
           authMethod: needsStoredAuthMethod
             ? readStoredField(storedBlob, 'authMethod')
             : params.authMethod,

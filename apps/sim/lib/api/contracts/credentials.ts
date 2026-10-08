@@ -161,6 +161,7 @@ export const createCredentialFieldsSchema = z.object({
   orgId: z.string().trim().min(1).max(255).optional(),
   /** Optional provider region selector (Zoho Desk data center). */
   dataCenter: z.string().trim().min(1).max(32).optional(),
+  scope: z.string().trim().min(1).max(512).optional(),
   /**
    * Grant selector for providers offering more than one server-to-server
    * flow (Salesforce: `client_credentials` | `jwt_bearer`). The descriptor's
@@ -280,6 +281,7 @@ export const updateCredentialByIdBodySchema = z
     certificateId: z.string().trim().min(1).max(512).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
     dataCenter: z.string().trim().min(1).max(32).optional(),
+    scope: z.string().trim().min(1).max(512).optional(),
     authMethod: z.string().trim().min(1).max(64).optional(),
     privateKey: z.string().trim().min(1).max(8192).optional(),
     username: z.string().trim().min(1).max(255).optional(),
@@ -301,6 +303,7 @@ export const updateCredentialByIdBodySchema = z
       data.certificateId !== undefined ||
       data.orgId !== undefined ||
       data.dataCenter !== undefined ||
+      data.scope !== undefined ||
       data.authMethod !== undefined ||
       data.privateKey !== undefined ||
       data.username !== undefined,

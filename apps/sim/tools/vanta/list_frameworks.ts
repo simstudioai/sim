@@ -16,24 +16,20 @@ export const vantaListFrameworksTool: InternalToolConfig<
     'List the compliance frameworks (e.g., SOC 2, ISO 27001) available in a Vanta account with completion counts',
   version: '1.0.0',
 
+  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+
   params: {
-    clientId: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client ID',
+      visibility: 'hidden',
+      description: 'Access token supplied by the saved Vanta credential',
     },
-    clientSecret: {
+    apiDomain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client secret',
-    },
-    region: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Vanta API region: "us" (api.vanta.com, default) or "gov" (api.vanta-gov.com)',
+      visibility: 'hidden',
+      description: 'API origin supplied by the saved Vanta credential',
     },
     pageSize: {
       type: 'number',
@@ -53,9 +49,8 @@ export const vantaListFrameworksTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       operation: 'vanta_list_frameworks',
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
+      accessToken: params.accessToken,
+      apiDomain: params.apiDomain,
       pageSize: params.pageSize,
       pageCursor: params.pageCursor,
     }),
@@ -75,7 +70,7 @@ export const vantaListFrameworksTool: InternalToolConfig<
       type: 'json',
       description:
         'Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page',
-      optional: true,
+      nullable: true,
       properties: VANTA_PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },

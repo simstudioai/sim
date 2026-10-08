@@ -15,24 +15,20 @@ export const vantaDownloadDocumentFileTool: InternalToolConfig<
     'Download a file previously uploaded to a Vanta evidence document and store it in execution files',
   version: '1.0.0',
 
+  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+
   params: {
-    clientId: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client ID',
+      visibility: 'hidden',
+      description: 'Access token supplied by the saved Vanta credential',
     },
-    clientSecret: {
+    apiDomain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client secret',
-    },
-    region: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Vanta API region: "us" (api.vanta.com, default) or "gov" (api.vanta-gov.com)',
+      visibility: 'hidden',
+      description: 'API origin supplied by the saved Vanta credential',
     },
     documentId: {
       type: 'string',
@@ -50,9 +46,8 @@ export const vantaDownloadDocumentFileTool: InternalToolConfig<
 
   operation: {
     input: (params) => ({
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
+      accessToken: params.accessToken,
+      apiDomain: params.apiDomain,
       documentId: params.documentId,
       uploadedFileId: params.uploadedFileId,
     }),

@@ -16,24 +16,20 @@ export const vantaGetVulnerableAssetTool: InternalToolConfig<
     'Get a vulnerable asset in Vanta by ID, including the scanners reporting it and per-scanner asset details',
   version: '1.0.0',
 
+  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+
   params: {
-    clientId: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client ID',
+      visibility: 'hidden',
+      description: 'Access token supplied by the saved Vanta credential',
     },
-    clientSecret: {
+    apiDomain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client secret',
-    },
-    region: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Vanta API region: "us" (api.vanta.com, default) or "gov" (api.vanta-gov.com)',
+      visibility: 'hidden',
+      description: 'API origin supplied by the saved Vanta credential',
     },
     vulnerableAssetId: {
       type: 'string',
@@ -46,9 +42,8 @@ export const vantaGetVulnerableAssetTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       operation: 'vanta_get_vulnerable_asset',
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
+      accessToken: params.accessToken,
+      apiDomain: params.apiDomain,
       vulnerableAssetId: params.vulnerableAssetId,
     }),
   },

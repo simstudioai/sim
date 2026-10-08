@@ -57,6 +57,7 @@ export interface ServiceAccountSecretFields {
   certificateId?: string
   orgId?: string
   dataCenter?: string
+  scope?: string
   authMethod?: string
   privateKey?: string
   username?: string
@@ -305,6 +306,7 @@ async function buildClientCredentialAccountSecret(
       : undefined,
     orgId: fields.orgId?.trim() ?? '',
     dataCenter: fields.dataCenter?.trim() || undefined,
+    scope: usesField('scope') ? fields.scope?.trim() || undefined : undefined,
     authMethod: resolvedAuthMethod,
     clientSecret: usesField('clientSecret') ? fields.clientSecret?.trim() || undefined : undefined,
     privateKey: usesField('privateKey') ? fields.privateKey?.trim() || undefined : undefined,

@@ -242,6 +242,7 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     mockIsClientCredentialAccountProviderId.mockReturnValue(true)
     mockGetClientCredentialAccountDescriptor.mockReturnValue({
       defaultAuthMethod: 'client_credentials',
+      fields: [],
     } as never)
     mockStoredBlob({
       type: 'client_credential_account',

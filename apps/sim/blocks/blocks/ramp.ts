@@ -72,11 +72,12 @@ export const RampBlock: BlockConfig = {
     },
     {
       id: 'credential',
-      title: 'Ramp account',
+      title: 'Credential',
       type: 'oauth-input',
       canonicalParamId: 'oauthCredential',
       serviceId: 'ramp',
       requiredScopes: getScopesForService('ramp'),
+      placeholder: 'Select Ramp credential',
       required: true,
     },
     {
@@ -471,7 +472,7 @@ export const RampBlock: BlockConfig = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    oauthCredential: { type: 'string', description: 'Connected Ramp account' },
+    oauthCredential: { type: 'string', description: 'Saved Ramp credential' },
     email: { type: 'string', description: 'filter by email' },
     status: {
       type: 'string',
@@ -486,12 +487,12 @@ export const RampBlock: BlockConfig = {
     from_date: {
       type: 'string',
       description:
-        'Filter for transactions with a `user_transaction_time` after the given date, in ISO8601 format.',
+        'Filter by transaction time or reimbursement creation time after this ISO 8601 timestamp.',
     },
     to_date: {
       type: 'string',
       description:
-        'Filter for transactions with a `user_transaction_time` before the given date, in ISO8601 format.',
+        'Filter by transaction time or reimbursement creation time before this ISO 8601 timestamp.',
     },
     transaction_state: {
       type: 'string',
@@ -715,7 +716,7 @@ export const RampBlockMeta = {
       name: 'review-pending-reimbursements',
       description: 'Prepare a reimbursement review queue with employee and expense context.',
       content:
-        '# Review Pending Reimbursements\n\nPrepare a reimbursement review queue with employee and expense context.\n\n## Steps\n1. Use list_reimbursements with state PENDING.\n2. Fetch selected reimbursement details and corresponding users when more context is needed.\n3. Summarize employee, merchant, memo, submitted date, and entity_amount.\n\n## Output\nReturn a review queue with reimbursement IDs and currency-aware amounts; retain unknown values as unknown.',
+        '# Review Pending Reimbursements\n\nPrepare a reimbursement review queue with employee and expense context.\n\n## Steps\n1. Use list_reimbursements with reimbursement_state PENDING.\n2. Fetch selected reimbursement details and corresponding users when more context is needed.\n3. Summarize employee, merchant, memo, submitted date, and entity_amount.\n\n## Output\nReturn a review queue with reimbursement IDs and currency-aware amounts; retain unknown values as unknown.',
     },
     {
       name: 'review-upcoming-bills',

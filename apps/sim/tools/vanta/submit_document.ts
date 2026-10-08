@@ -12,24 +12,20 @@ export const vantaSubmitDocumentTool: InternalToolConfig<
     'Submit a Vanta document collection for review so uploaded evidence becomes visible to auditors. Requires credentials with write access.',
   version: '1.0.0',
 
+  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+
   params: {
-    clientId: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client ID',
+      visibility: 'hidden',
+      description: 'Access token supplied by the saved Vanta credential',
     },
-    clientSecret: {
+    apiDomain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client secret',
-    },
-    region: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Vanta API region: "us" (api.vanta.com, default) or "gov" (api.vanta-gov.com)',
+      visibility: 'hidden',
+      description: 'API origin supplied by the saved Vanta credential',
     },
     documentId: {
       type: 'string',
@@ -42,9 +38,8 @@ export const vantaSubmitDocumentTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       operation: 'vanta_submit_document',
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
+      accessToken: params.accessToken,
+      apiDomain: params.apiDomain,
       documentId: params.documentId,
     }),
   },

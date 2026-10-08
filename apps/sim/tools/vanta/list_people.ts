@@ -16,24 +16,20 @@ export const vantaListPeopleTool: InternalToolConfig<
     'List the people tracked in a Vanta account with employment status, group membership, and security task completion',
   version: '1.0.0',
 
+  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+
   params: {
-    clientId: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client ID',
+      visibility: 'hidden',
+      description: 'Access token supplied by the saved Vanta credential',
     },
-    clientSecret: {
+    apiDomain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client secret',
-    },
-    region: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Vanta API region: "us" (api.vanta.com, default) or "gov" (api.vanta-gov.com)',
+      visibility: 'hidden',
+      description: 'API origin supplied by the saved Vanta credential',
     },
     emailAndNameFilter: {
       type: 'string',
@@ -91,9 +87,8 @@ export const vantaListPeopleTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       operation: 'vanta_list_people',
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
+      accessToken: params.accessToken,
+      apiDomain: params.apiDomain,
       emailAndNameFilter: params.emailAndNameFilter,
       employmentStatus: params.employmentStatus,
       groupIdsMatchesAny: params.groupIdsMatchesAny,
@@ -119,7 +114,7 @@ export const vantaListPeopleTool: InternalToolConfig<
       type: 'json',
       description:
         'Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page',
-      optional: true,
+      nullable: true,
       properties: VANTA_PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },

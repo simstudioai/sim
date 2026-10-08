@@ -20,6 +20,7 @@ export type ClientCredentialAccountFieldId =
   | 'certificateId'
   | 'orgId'
   | 'dataCenter'
+  | 'scope'
   | 'authMethod'
   | 'privateKey'
   | 'username'
@@ -110,7 +111,19 @@ export const ZOOM_SERVICE_ACCOUNT_PROVIDER_ID = 'zoom-service-account' as const
 export const BOX_SERVICE_ACCOUNT_PROVIDER_ID = 'box-service-account' as const
 export const SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID = 'salesforce-service-account' as const
 export const ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zoho-desk-service-account' as const
+export const RAMP_SERVICE_ACCOUNT_PROVIDER_ID = 'ramp-service-account' as const
+export const VANTA_SERVICE_ACCOUNT_PROVIDER_ID = 'vanta-service-account' as const
 export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' as const
+
+/** Permissions requested when connecting a Manage Vanta application. */
+export const VANTA_PERMISSION_OPTIONS = [
+  { value: 'vanta-api.all:read', label: 'Read only' },
+  { value: 'vanta-api.all:read vanta-api.all:write', label: 'Read and write' },
+  {
+    value: 'vanta-api.all:read vanta-api.all:write vanta-api.documents:upload',
+    label: 'Read, write, and upload documents',
+  },
+] as const
 
 export type ClientCredentialAccountProviderId =
   | typeof ZOOM_SERVICE_ACCOUNT_PROVIDER_ID
@@ -118,6 +131,8 @@ export type ClientCredentialAccountProviderId =
   | typeof SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof RAMP_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof VANTA_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -323,6 +338,69 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
   ClientCredentialAccountProviderId,
   ClientCredentialAccountDescriptor
 > = {
+  [RAMP_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Ramp',
+    connectNoun: 'application',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+        hint: 'Use a production app owned by your Ramp business with the Client Credentials grant enabled.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/ramp',
+  },
+  [VANTA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Vanta',
+    connectNoun: 'application',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+        hint: 'Use a dedicated Manage Vanta app for Sim. Connecting replaces tokens issued outside Sim for this app.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+      {
+        id: 'scope',
+        label: 'Permissions',
+        placeholder: 'Select permissions',
+        secret: false,
+        optional: true,
+        options: VANTA_PERMISSION_OPTIONS,
+        hint: 'New connections default to read only. On reconnect, leave blank to keep current permissions. All connections to one app must use the same permissions.',
+      },
+      {
+        id: 'dataCenter',
+        label: 'Deployment',
+        placeholder: 'Select a deployment',
+        secret: false,
+        optional: true,
+        options: [
+          { value: 'us', label: 'Standard (US, EU, Australia)' },
+          { value: 'gov', label: 'Vanta Government' },
+        ],
+        hint: 'New connections default to Standard. On reconnect, leave blank to keep the current deployment.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/vanta',
+  },
   [ZOOM_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Zoom',

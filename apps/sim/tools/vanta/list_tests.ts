@@ -14,24 +14,20 @@ export const vantaListTestsTool: InternalToolConfig<VantaListTestsParams, VantaL
       'List the automated compliance tests in a Vanta account, with filters for status, framework, integration, control, owner, and category',
     version: '1.0.0',
 
+    oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+
     params: {
-      clientId: {
+      accessToken: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'Vanta OAuth application client ID',
+        visibility: 'hidden',
+        description: 'Access token supplied by the saved Vanta credential',
       },
-      clientSecret: {
+      apiDomain: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'Vanta OAuth application client secret',
-      },
-      region: {
-        type: 'string',
-        required: false,
-        visibility: 'user-only',
-        description: 'Vanta API region: "us" (api.vanta.com, default) or "gov" (api.vanta-gov.com)',
+        visibility: 'hidden',
+        description: 'API origin supplied by the saved Vanta credential',
       },
       statusFilter: {
         type: 'string',
@@ -95,9 +91,8 @@ export const vantaListTestsTool: InternalToolConfig<VantaListTestsParams, VantaL
     operation: {
       input: (params) => ({
         operation: 'vanta_list_tests',
-        clientId: params.clientId,
-        clientSecret: params.clientSecret,
-        region: params.region,
+        accessToken: params.accessToken,
+        apiDomain: params.apiDomain,
         statusFilter: params.statusFilter,
         frameworkFilter: params.frameworkFilter,
         integrationFilter: params.integrationFilter,
@@ -124,7 +119,7 @@ export const vantaListTestsTool: InternalToolConfig<VantaListTestsParams, VantaL
         type: 'json',
         description:
           'Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page',
-        optional: true,
+        nullable: true,
         properties: VANTA_PAGE_INFO_OUTPUT_PROPERTIES,
       },
     },

@@ -782,6 +782,24 @@ export const resumeQueue = pgTable(
   })
 )
 
+/** Shared encrypted tokens for providers that permit only one active token per application. */
+export const clientCredentialToken = pgTable(
+  'client_credential_token',
+  {
+    id: text('id').primaryKey(),
+    encryptedValue: text('encrypted_value').notNull(),
+    accessTokenDigest: text('access_token_digest'),
+    expiresAt: timestamp('expires_at').notNull(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('client_credential_token_expires_at_idx').on(table.expiresAt),
+    index('client_credential_token_access_token_digest_idx')
+      .on(table.accessTokenDigest)
+      .where(sql`${table.accessTokenDigest} IS NOT NULL`),
+  ]
+)
+
 export const environment = pgTable('environment', {
   /** Use the user id as the key */
   id: text('id').primaryKey(),

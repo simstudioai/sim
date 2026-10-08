@@ -13006,6 +13006,7 @@ export type UpdateCredentialBody = {
   certificateId?: string
   orgId?: string
   dataCenter?: string
+  scope?: string
   authMethod?: string
   privateKey?: string
   username?: string
@@ -21976,6 +21977,10 @@ export const V2_OPERATIONS = {
       certificateId: { kind: 'string', describe: 'Provider certificate mapping identifier.' },
       orgId: { kind: 'string', describe: 'Provider organization ID.' },
       dataCenter: { kind: 'string', describe: 'Provider data center.' },
+      scope: {
+        kind: 'string',
+        describe: 'Provider permissions; preserved on reconnect when omitted.',
+      },
       authMethod: { kind: 'string', describe: 'Provider authentication method.' },
       privateKey: { kind: 'string', describe: 'Write-only PEM private key.' },
       username: { kind: 'string', describe: 'Provider run-as username.' },

@@ -19,24 +19,20 @@ export const vantaListTestEntitiesTool: InternalToolConfig<
     'List the failing or deactivated resource entities for a specific Vanta test, useful for finding exactly which resources need remediation',
   version: '1.0.0',
 
+  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+
   params: {
-    clientId: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client ID',
+      visibility: 'hidden',
+      description: 'Access token supplied by the saved Vanta credential',
     },
-    clientSecret: {
+    apiDomain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client secret',
-    },
-    region: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Vanta API region: "us" (api.vanta.com, default) or "gov" (api.vanta-gov.com)',
+      visibility: 'hidden',
+      description: 'API origin supplied by the saved Vanta credential',
     },
     testId: {
       type: 'string',
@@ -68,9 +64,8 @@ export const vantaListTestEntitiesTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       operation: 'vanta_list_test_entities',
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
+      accessToken: params.accessToken,
+      apiDomain: params.apiDomain,
       testId: params.testId,
       entityStatus: params.entityStatus,
       pageSize: params.pageSize,
@@ -92,7 +87,7 @@ export const vantaListTestEntitiesTool: InternalToolConfig<
       type: 'json',
       description:
         'Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page',
-      optional: true,
+      nullable: true,
       properties: VANTA_PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
