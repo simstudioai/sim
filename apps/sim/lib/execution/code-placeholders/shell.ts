@@ -28,100 +28,27 @@ interface HeredocDeclaration {
 type ShellQuote = 'none' | 'single' | 'double' | 'ansi'
 
 interface ShellScanFrame {
-  /**
-   * `parameter` is a `${...}` expansion, which ends on its own `}`, not a command boundary.
-   * `keysubscript` is an associative array's `[key]`, scanned like a subscript but not arithmetic.
-   * `arrayliteral` is a compound assignment's `( … )`, where element keys `[k]=` are subscripts.
-   * `subshell` is a bare `( … )` group — it reads commands but, unlike a substitution, feeds no output.
-   */
-  kind:
-    | 'root'
-    | 'command'
-    | 'arithmetic'
-    | 'backtick'
-    | 'parameter'
-    | 'keysubscript'
-    | 'arrayliteral'
-    | 'subshell'
+  kind: 'root' | 'command' | 'arithmetic' | 'backtick' | 'parameter'
   quote: ShellQuote
   parenthesisDepth: number
-  /** Open `[`/`]` depth of a bracketed frame — a `$[ ]`, an indexed subscript, or an associative key. */
   bracketDepth?: number
   literalRoot: boolean
-  /** Inside `[[ ]]`, where only `&&` and `||` end a clause. */
-  conditional?: boolean
-  /** On a `parameter` frame opened inside double quotes, where single quotes stay literal. */
   inDoubleQuotes?: boolean
-  /** On a `parameter` frame, the cursor is still at the operator right after the name. */
-  atOperator?: boolean
-  /** On a `parameter` frame, its substring offset/length is being read as arithmetic. */
-  arithmeticTail?: boolean
-  /** The integer attribute this frame's scope sets (`-i` → true) or clears (`+i` → false) per name. */
-  integerAttribute?: Map<string, boolean>
-  /** Names this frame's scope declared associative (`declare -A`), whose subscripts are string keys. */
-  associativeArrays?: Set<string>
-  /** On a `parameter` frame, the expanded name, so a `${name[…]}` subscript can check its array type. */
-  parameterName?: string
-  /** On an `arrayliteral` frame, the array being assigned, so its element keys check the array type. */
-  arrayName?: string
-  /** A substitution opened inside a non-arithmetic assignment prefix, so a keyword must not mark it. */
-  prefixExcluded?: boolean
-  /** Opened inside an integer assignment's value, so everything here is an arithmetic operand. */
-  valueOperand?: boolean
-  command?: ShellCommandScan
-  /** Earlier commands of a substitution, whose output still reaches the enclosing command. */
-  endedCommands?: ShellCommandScan[]
-}
-
-/**
- * The command (or `[[ ]]` clause) being scanned in a frame. A later word can make the whole
- * command arithmetic — `-eq` after its left operand, `-i` after `declare` — so the contexts
- * already recorded in it, and the commands of substitutions it closed, are kept to be marked then.
- */
-interface ShellCommandScan {
-  contexts: ShellOccurrenceContext[]
-  nested: ShellCommandScan[]
-  arithmetic: boolean
-  /** The declaration builtin being read, if any — only `declare`/`typeset` give a global attribute. */
-  declarationBuiltin?: 'declare' | 'typeset' | 'local'
-  /** The integer attribute the last declaration option set (`-i`) or cleared (`+i`). */
-  integerOption?: 'set' | 'clear'
-  /** A `declare -A` was read, so the declared names are associative (string-keyed) arrays. */
-  associativeOption?: boolean
-  /** A `declare -a` was read, so the declared names are indexed arrays (resetting any prior type). */
-  indexedOption?: boolean
-  /** The command is a builtin (`unset`/`read`/…) whose name arguments carry arithmetic subscripts. */
-  nameArgumentBuiltin?: boolean
-  /** An `unset -f` was read, so its arguments name functions and leave variable attributes alone. */
-  unsetsFunctions?: boolean
-  /**
-   * Names whose attributes this command changes. Bash expands the command's words and heredocs
-   * before running it, so an expansion inside the command cannot rely on them yet.
-   */
-  declaredNames?: Set<string>
-  /** True once the command word (past any `name=value` assignment prefix) has been read. */
-  sawCommandWord: boolean
-  /** A non-arithmetic assignment prefix is being read, so a later keyword must not mark its value. */
-  inPrefixValue: boolean
-  /** An integer assignment's value is being read — arithmetic, but only this value, not the command. */
-  valueArithmetic: boolean
-  /** An integer assignment was seen; its value becomes arithmetic once the `=` is passed, not its subscript. */
-  pendingValue?: boolean
-  /** A redirect target (a filename) is being read, never an arithmetic operand of its command. */
-  inRedirectTarget: boolean
-}
-
-/** The variable attributes visible at a point in the scan, which a heredoc body read there inherits. */
-interface ShellAttributeScope {
-  integerAttribute: Map<string, boolean>
-  associativeArrays: Set<string>
+  commandStarted?: boolean
+  commandPrefix?: 'time' | 'coproc'
+  wordEnd?: number
+  conditional?: {
+    start: number
+    arithmetic: boolean
+    words: number
+    wordOpen: boolean
+    unary: boolean
+  }
 }
 
 interface ShellOccurrenceContext {
   quote: ShellQuote
-  /** On a heredoc operator, the attributes in scope there, so its body scan sees the same arrays. */
-  scope?: ShellAttributeScope
-  /** Its value reaches an arithmetic evaluation — a frame, or a command marked arithmetic later. */
+  /** Includes nested command substitutions whose output can become an arithmetic operand. */
   arithmetic?: boolean
   unsupported?: 'escaped sequence'
 }
@@ -131,45 +58,45 @@ interface ShellSpan {
   end: number
 }
 
-const ARITHMETIC_CONDITIONAL_OPERATOR = /^-(?:eq|ne|lt|le|gt|ge)$/
-/** A declaration option word (`-i`, `+i`, `-A`, `-iA`, …); its letters set each attribute. */
-const DECLARATION_OPTION = /^([-+])([A-Za-z]+)$/
-/** Invocation prefixes that run the following word as the command, so they are not the command. */
-const SHELL_COMMAND_PREFIXES = new Set(['command', 'builtin', 'exec', 'nohup'])
-/**
- * Builtins whose every argument names a variable, so an indexed-array subscript there is arithmetic.
- * Limited to `unset`, whose arguments are all names; `read`/`mapfile` mix name and option-value
- * arguments (`read -p prompt name`), so their subscripts are left to a conservative compile.
- */
-const NAME_ARGUMENT_BUILTINS = new Set(['unset'])
-/** Reserved words that introduce a command rather than being one, so the next word is the command. */
-const SHELL_RESERVED_WORDS = new Set([
+const ARITHMETIC_COMPARISON = /^-(?:eq|ne|lt|le|gt|ge)$/
+const SHELL_WORD = /(?:\\[\s\S]|[^\s;&|()<>\\])+/y
+const COMMAND_INTRODUCERS = new Set([
   'if',
   'then',
   'elif',
   'else',
-  'fi',
-  'do',
-  'done',
   'while',
   'until',
-  'for',
-  'select',
-  'case',
-  'esac',
-  'time',
+  'do',
   '!',
+  'time',
+  'coproc',
 ])
-const SHELL_WORD = /[^\s;&|()<>]+/y
-const PARAMETER_NAME = /[!#]?(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+|[@*#?$!-])/y
-const SHELL_NAME_SOURCE = '[A-Za-z_][A-Za-z0-9_]*'
-const SHELL_NAME = new RegExp(`^${SHELL_NAME_SOURCE}`)
-/** A word that is exactly a bare shell name (no subscript or suffix). */
-const SHELL_BARE_NAME = new RegExp(`^${SHELL_NAME_SOURCE}$`)
-/** A `name=`, `name+=` or `name[subscript]=` assignment word; group 1 is the bare name. */
-const SHELL_ASSIGNMENT_WORD = new RegExp(`^(${SHELL_NAME_SOURCE})(?:\\[.*\\])?\\+?=`)
-/** A command word ending in an unescaped backslash — a line continuation to join with the next line. */
-const TRAILING_LINE_CONTINUATION = /(?:^|[^\\])(?:\\\\)*\\$/
+
+function shellWordStarts(code: string, index: number): boolean {
+  return index === 0 || /[\s;&|()<>]/.test(code[index - 1])
+}
+
+function followsRedirect(code: string, index: number): boolean {
+  let previous = index - 1
+  while (code[previous] === ' ' || code[previous] === '\t') previous -= 1
+  return code[previous] === '<' || code[previous] === '>'
+}
+
+function effectiveQuote(frame: ShellScanFrame): ShellQuote {
+  return frame.kind === 'parameter' && frame.quote === 'none' && frame.inDoubleQuotes
+    ? 'double'
+    : frame.quote
+}
+
+function readShellWord(code: string, index: number): { word: string; end: number } {
+  SHELL_WORD.lastIndex = index
+  const raw = SHELL_WORD.exec(code)?.[0] ?? ''
+  return {
+    word: raw.replace(/\\([\s\S])/g, (escaped, character) => (character === '\n' ? '' : escaped)),
+    end: index + raw.length,
+  }
+}
 
 function lineEndAfterNewline(code: string, start: number): number {
   const newline = code.indexOf('\n', start)
@@ -192,25 +119,16 @@ function logicalLineEndAfterContinuations(code: string, start: number): number {
   return end
 }
 
-function shellWordStarts(code: string, index: number): boolean {
+function shellCommentStarts(code: string, index: number): boolean {
+  if (code[index] !== '#') return false
   const previous = code[index - 1]
   return previous === undefined || /\s|[;&|()<>]/.test(previous)
 }
 
-function shellCommentStarts(code: string, index: number): boolean {
-  return code[index] === '#' && shellWordStarts(code, index)
-}
-
 function shellArithmeticCommandStarts(code: string, index: number): boolean {
-  return code[index] === '(' && code[index + 1] === '(' && shellWordStarts(code, index)
-}
-
-/** `;`, `&` and `|` end a command unless they belong to a redirection such as `>&2` or `&>`. */
-function shellCommandSeparator(code: string, index: number): boolean {
-  const character = code[index]
-  if (character === '\n') return true
-  if (character !== ';' && character !== '&' && character !== '|') return false
-  return !/[<>]/.test(code[index - 1] ?? '') && !(character === '&' && code[index + 1] === '>')
+  if (code[index] !== '(' || code[index + 1] !== '(') return false
+  const previous = code[index - 1]
+  return previous === undefined || /\s|[;&|()<>]/.test(previous)
 }
 
 function decodeAnsiCCharacter(code: string, index: number): { value: string; end: number } {
@@ -560,48 +478,9 @@ function shellExpansion(name: string, quote: ShellQuote): string {
   return expansion
 }
 
-/** Whether an expansion (`$…`, a backtick, `<(`/`>(`) starts at `index`. */
-function expansionStarts(value: string, index: number): boolean {
-  const character = value[index]
-  if (character === '$' || character === '`') return true
-  return (character === '<' || character === '>') && value[index + 1] === '('
-}
-
-/**
- * The reason a value could run a command if it reached arithmetic evaluation, or undefined if it
- * cannot. Arithmetic expands an array subscript again, so a subscript holding an expansion runs it.
- * This backs up the position scan: any `[ … ]` holding an expansion is refused, as is an
- * unbalanced bracket or an open quote inside one, since bash would then find the subscript's end in
- * surrounding code. Quotes and escapes count inside a subscript, so a quoted `]` does not end it.
- */
-function unsafeArithmeticSubscript(value: string): string | undefined {
-  let depth = 0
-  let quote: '"' | "'" | undefined
-  for (let index = 0; index < value.length; index += 1) {
-    const character = value[index]
-    if (depth > 0 && expansionStarts(value, index)) return 'an array subscript with an expansion'
-    if (quote === "'") {
-      if (character === "'") quote = undefined
-    } else if (character === '\\') {
-      index += 1
-      if (depth > 0 && expansionStarts(value, index)) return 'an array subscript with an expansion'
-    } else if (quote === '"') {
-      if (character === '"') quote = undefined
-    } else if (depth > 0 && (character === '"' || character === "'")) {
-      quote = character
-    } else if (character === '[') {
-      depth += 1
-    } else if (character === ']') {
-      if (depth === 0) return 'an unbalanced array subscript'
-      depth -= 1
-    }
-  }
-  return depth > 0 || quote ? 'an unbalanced array subscript' : undefined
-}
-
 function isLegacyShellPlaceholder(occurrence: CodePlaceholderOccurrence): boolean {
   const inner = occurrence.raw.slice(2, -2)
-  return inner.trim() === occurrence.name && SHELL_BARE_NAME.test(occurrence.name)
+  return inner.trim() === occurrence.name && /^[A-Za-z_][A-Za-z0-9_]*$/.test(occurrence.name)
 }
 
 function blankPreservingLines(value: string): string {
@@ -648,101 +527,8 @@ function heredocBodyRanges(heredocs: HeredocDeclaration[]): Array<[number, numbe
 }
 
 /**
- * Removes shell quoting from a word so a keyword, option or name is recognized as bash would after
- * quote removal — `declare "-i"` and `'let'` match. Values keep their own quoting; this only feeds
- * the command-position checks, never a placeholder's emitted expansion.
- */
-function unquoteShellWord(word: string): string {
-  return word.replace(/'([^']*)'|"((?:[^"\\]|\\.)*)"|\\(.)/g, (_match, single, double, escaped) =>
-    single !== undefined ? single : double !== undefined ? double : escaped
-  )
-}
-
-/** Frames whose text is a command line, where words are classified and separators end a command. */
-function readsCommands(frame: ShellScanFrame): boolean {
-  return (
-    frame.kind === 'root' ||
-    frame.kind === 'command' ||
-    frame.kind === 'backtick' ||
-    frame.kind === 'subshell'
-  )
-}
-
-/** A command substitution — `$( )` or backticks — whose output the enclosing command receives. */
-function isSubstitution(frame: ShellScanFrame): boolean {
-  return frame.kind === 'command' || frame.kind === 'backtick'
-}
-
-/**
- * Whether a frame puts the cursor in arithmetic — an arithmetic expansion, an integer-value operand,
- * a `${…}` substring tail, or a command marked arithmetic. `arithmeticDepth` counts these as they
- * open and close; this predicate reads the same set for a point-in-time check of the frame stack.
- */
-function frameIsArithmetic(frame: ShellScanFrame): boolean {
-  return (
-    frame.kind === 'arithmetic' ||
-    frame.valueOperand === true ||
-    (frame.kind === 'parameter' && frame.arithmeticTail === true) ||
-    frame.command?.arithmetic === true
-  )
-}
-
-/** Where a `name=…` word is an assignment: a command prefix, or an argument to a declaration builtin. */
-function inAssignmentPosition(command: ShellCommandScan): boolean {
-  return !command.sawCommandWord || command.declarationBuiltin !== undefined
-}
-
-function commandScanOf(frame: ShellScanFrame): ShellCommandScan {
-  frame.command ??= {
-    contexts: [],
-    nested: [],
-    arithmetic: false,
-    sawCommandWord: false,
-    inPrefixValue: false,
-    valueArithmetic: false,
-    inRedirectTarget: false,
-  }
-  return frame.command
-}
-
-/**
- * A `[`/`]`-nesting frame: `arithmetic` for a `$[ ]` or an indexed-array subscript (whose index is
- * evaluated), `keysubscript` for an associative array's `[key]` (a string, scanned but not arithmetic).
- */
-function subscriptFrame(kind: 'arithmetic' | 'keysubscript'): ShellScanFrame {
-  return { kind, quote: 'none', parenthesisDepth: 0, bracketDepth: 1, literalRoot: false }
-}
-
-/** A `( )`-delimited command frame: a `$( )` command substitution, or a bare `( )` subshell. */
-function parenCommandFrame(kind: 'command' | 'subshell'): ShellScanFrame {
-  return { kind, quote: 'none', parenthesisDepth: 1, literalRoot: false }
-}
-
-/**
- * Whether the `name[...]` opening at `open` is an indexed assignment (`a[i]=`, `a[i]+=`), whose
- * subscript bash evaluates as arithmetic. Brackets nest so `a[b[0]]=` pairs correctly; the scan
- * stops at the first unbracketed word boundary, since an unquoted assignment word cannot cross it.
- */
-function opensIndexedAssignment(code: string, open: number, end: number): boolean {
-  let depth = 0
-  for (let index = open; index < end; index += 1) {
-    const character = code[index]
-    if (character === '[') depth += 1
-    else if (character === ']') {
-      depth -= 1
-      if (depth === 0) {
-        const after = code[index + 1]
-        return after === '=' || (after === '+' && code[index + 2] === '=')
-      }
-    } else if (depth === 0 && /[\s;&|()<>]/.test(character)) return false
-  }
-  return false
-}
-
-/**
  * Jumps over `skippedRanges` (sorted heredoc bodies, which bash reads as data) so body prose
  * cannot shift quote context; bodies that need contexts are scanned on their own with `literalRoot`.
- * Spans other than placeholders (heredoc operators) get a context too, for where their body lands.
  */
 function collectShellOccurrenceContexts<T extends ShellSpan>(
   code: string,
@@ -750,9 +536,7 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
   start: number,
   end: number,
   literalRoot: boolean,
-  skippedRanges: Array<[number, number]> = [],
-  operatorStarts: ReadonlySet<number> = new Set(),
-  inheritedScope?: ShellAttributeScope
+  skippedRanges: Array<[number, number]> = []
 ): Map<T, ShellOccurrenceContext> {
   const occurrenceByStart = new Map(
     occurrencesWithin(occurrences, start, end).map(
@@ -761,280 +545,18 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
   )
   const contexts = new Map<T, ShellOccurrenceContext>()
   const frames: ShellScanFrame[] = [
-    {
-      kind: 'root',
-      quote: 'none',
-      parenthesisDepth: 0,
-      literalRoot,
-      integerAttribute: new Map(inheritedScope?.integerAttribute),
-      associativeArrays: new Set(inheritedScope?.associativeArrays),
-    },
+    { kind: 'root', quote: 'none', parenthesisDepth: 0, literalRoot },
   ]
   let skippedRangeIndex = 0
-  /**
-   * How many open frames put the cursor in arithmetic: `$(( ))`/`(( ))`/`$[ ]`/subscript frames,
-   * integer-value operands, `${…}` substring tails, and commands marked arithmetic. Kept as a count
-   * so each placeholder reads it in O(1) rather than walking the whole frame stack.
-   */
   let arithmeticDepth = 0
-
-  const pushFrame = (frame: ShellScanFrame) => {
-    const enclosing = frames.at(-1)
-    if (enclosing?.command?.inPrefixValue) frame.prefixExcluded = true
-    if (enclosing?.command?.valueArithmetic) frame.valueOperand = true
-    frames.push(frame)
-    if (frame.kind === 'arithmetic' || frame.valueOperand) arithmeticDepth += 1
-  }
-  /**
-   * A closed substitution or `${…}` passes its recorded values to the enclosing command, so a later
-   * `-eq`/`let`/`-i` still reaches a value read inside it — unless it was part of a non-arithmetic
-   * assignment prefix, which a keyword must not reach.
-   */
-  const popFrame = () => {
-    const closed = frames.pop()
-    if (!closed) return
-    if (closed.kind === 'arithmetic' || closed.valueOperand) arithmeticDepth -= 1
-    if (closed.kind === 'parameter' && closed.arithmeticTail) arithmeticDepth -= 1
-    if (closed.command?.arithmetic) arithmeticDepth -= 1
-    const enclosing = frames.at(-1)
-    // Only arithmetic frames have no values to pass up; every other closable frame is a command
-    // substitution or a `${…}`, whose values the enclosing command may still mark.
-    if (!enclosing || closed.kind === 'arithmetic' || closed.prefixExcluded) return
-    const enclosingCommand = commandScanOf(enclosing)
-    for (const ended of closed.endedCommands ?? []) enclosingCommand.nested.push(ended)
-    if (closed.command) enclosingCommand.nested.push(closed.command)
-  }
-  /**
-   * Whether a command still being read, below the innermost `ownFrames` frames, changes `name`'s
-   * attributes. An expansion inside that command runs before the change, so its attribute is
-   * unknown there and lookups take the arithmetic side: integer, indexed.
-   */
-  const declaredByEnclosingCommand = (name: string, ownFrames = 1) =>
-    frames
-      .slice(0, frames.length - ownFrames)
-      .some((frame) => frame.command?.declaredNames?.has(name))
-  /** Whether `name` has the integer attribute here: the nearest scope that sets or clears it wins. */
-  const declaresInteger = (name: string): boolean => {
-    if (declaredByEnclosingCommand(name)) return true
-    for (let depth = frames.length - 1; depth >= 0; depth -= 1) {
-      const attribute = frames[depth].integerAttribute?.get(name)
-      if (attribute !== undefined) return attribute
-    }
-    return false
-  }
-  /** The attributes visible here, outermost scope first so a nearer one overrides an integer flag. */
-  const visibleScope = (): ShellAttributeScope => {
-    const scope: ShellAttributeScope = { integerAttribute: new Map(), associativeArrays: new Set() }
-    for (const frame of frames) {
-      for (const [name, attribute] of frame.integerAttribute ?? []) {
-        scope.integerAttribute.set(name, attribute)
-      }
-      for (const name of frame.associativeArrays ?? []) scope.associativeArrays.add(name)
-    }
-    // A heredoc body expands before any command still being read runs, its receiver included.
-    for (const frame of frames) {
-      for (const name of frame.command?.declaredNames ?? []) {
-        scope.integerAttribute.set(name, true)
-        scope.associativeArrays.delete(name)
-      }
-    }
-    return scope
-  }
-  /** Whether `name` is a `declare -A` associative array, whose subscript is a string key, not arithmetic. */
-  const isAssociativeArray = (name: string, ownFrames = 1) =>
-    !declaredByEnclosingCommand(name, ownFrames) &&
-    frames.some((frame) => frame.associativeArrays?.has(name))
-  /** A subscript frame for `name`'s array: a string key for an associative array, else an arithmetic index. */
-  const subscriptFrameFor = (name: string | undefined, ownFrames = 1) =>
-    subscriptFrame(isAssociativeArray(name ?? '', ownFrames) ? 'keysubscript' : 'arithmetic')
-  /** Forget a name's tracked array type in every scope — a re-declaration as `-a`/`-A` resets it. */
-  const clearArrayType = (name: string) => {
-    for (const frame of frames) frame.associativeArrays?.delete(name)
-  }
-  /** Forget everything tracked about a name in every scope — `unset` removes its attributes too. */
-  const clearNameType = (name: string) => {
-    clearArrayType(name)
-    for (const frame of frames) frame.integerAttribute?.delete(name)
-  }
-  /** Whether a `>`/`<` redirect operator immediately precedes `at`, across any intervening blanks. */
-  const precededByRedirect = (at: number): boolean => {
-    let cursor = at - 1
-    while (cursor >= start && (code[cursor] === ' ' || code[cursor] === '\t')) cursor -= 1
-    return code[cursor] === '>' || code[cursor] === '<'
-  }
-  /** The array name immediately before the subscript `[` at `bracket`, if a valid identifier precedes it. */
-  const arrayNameBefore = (bracket: number): { name: string; start: number } | undefined => {
-    let nameStart = bracket - 1
-    while (nameStart >= start && /[A-Za-z0-9_]/.test(code[nameStart])) nameStart -= 1
-    nameStart += 1
-    if (nameStart >= bracket || !/[A-Za-z_]/.test(code[nameStart])) return undefined
-    return { name: code.slice(nameStart, bracket), start: nameStart }
-  }
-  /** Inside a double-quoted `${…}` single quotes are literal, so the binding keeps its double-quoting. */
-  const effectiveQuote = (frame: ShellScanFrame): ShellQuote =>
-    frame.kind === 'parameter' && frame.quote === 'none'
-      ? frame.inDoubleQuotes
-        ? 'double'
-        : 'none'
-      : frame.quote
-  const endCommand = (frame: ShellScanFrame) => {
-    if (!frame.command) return
-    if (frame.command.arithmetic) arithmeticDepth -= 1
-    else if (frame.kind !== 'root') (frame.endedCommands ??= []).push(frame.command)
-    frame.command = undefined
-  }
-  /** True wherever a placeholder's value would be re-read as arithmetic at this point in the scan. */
-  const inArithmetic = () => arithmeticDepth > 0
-  const record = (occurrence: T, occurrenceContext: ShellOccurrenceContext) => {
-    contexts.set(occurrence, occurrenceContext)
-    const innermost = frames.at(-1)
-    // A non-arithmetic assignment prefix's value, and a redirect target, are left out so a later
-    // keyword cannot mark them arithmetic.
-    if (innermost && !innermost.command?.inPrefixValue && !innermost.command?.inRedirectTarget)
-      commandScanOf(innermost).contexts.push(occurrenceContext)
-  }
-  /** Marks the frame's command, and every context already recorded in it, as arithmetic. */
-  const markCommandArithmetic = (frame: ShellScanFrame) => {
-    const command = commandScanOf(frame)
-    if (command.arithmetic) return
-    command.arithmetic = true
-    arithmeticDepth += 1
-    const pending = [command]
-    for (let scan = pending.pop(); scan; scan = pending.pop()) {
-      for (const commandContext of scan.contexts) commandContext.arithmetic = true
-      for (const nested of scan.nested) pending.push(nested)
-      scan.contexts = []
-      scan.nested = []
-    }
-  }
-  /**
-   * Reads one word at a command boundary and applies the syntax that depends on command position.
-   * `let`, `[[` and the declaration builtins are keywords only as the command name — past any
-   * `name=value` prefix, invocation prefix (`command`/`builtin`) or reserved word, and never a
-   * redirect target — so an argument of the same spelling (`echo let …`) is left alone. The `[[`
-   * operators and the declaration `-i` option are read wherever they appear; an assignment to an
-   * integer-declared name counts only in assignment position.
-   */
-  const scanWord = (frame: ShellScanFrame, index: number) => {
-    SHELL_WORD.lastIndex = index
-    const raw = SHELL_WORD.exec(code)?.[0]
-    if (raw === undefined) return
-    // Join line continuations so a split command name is still recognized (`le\<newline>t` → `let`).
-    // `SHELL_WORD` stops at the newline, so each continued segment is read and appended here.
-    let joined = raw
-    let after = index + raw.length
-    while (
-      TRAILING_LINE_CONTINUATION.test(joined) &&
-      (code[after] === '\n' || code[after] === '\r')
-    ) {
-      joined = joined.slice(0, -1)
-      after += code[after] === '\r' && code[after + 1] === '\n' ? 2 : 1
-      SHELL_WORD.lastIndex = after
-      const next = SHELL_WORD.exec(code)
-      if (!next || next.index !== after) break
-      joined += next[0]
-      after += next[0].length
-    }
-    const word = unquoteShellWord(joined)
-    const command = commandScanOf(frame)
-    command.valueArithmetic = false
-    command.pendingValue = false
-    command.inPrefixValue = false
-    command.inRedirectTarget = false
-    // `]]` and the `[[` comparison operators are syntax only unquoted; a quoted `"]]"` or `"-eq"` is
-    // a string operand, so these read the raw word, not the quote-stripped one.
-    if (raw === ']]') {
-      frame.conditional = false
-      return
+  const conditionalArithmeticRanges: Array<[number, number]> = []
+  const endConditionalOperand = (frame: ShellScanFrame, end: number) => {
+    if (frame.conditional?.arithmetic) {
+      conditionalArithmeticRanges.push([frame.conditional.start, end])
     }
     if (frame.conditional) {
-      if (ARITHMETIC_CONDITIONAL_OPERATOR.test(raw)) markCommandArithmetic(frame)
-      return
+      frame.conditional = { start: end, arithmetic: false, words: 0, wordOpen: false, unary: false }
     }
-    // A redirect target (possibly after whitespace, `> file`) or leading file descriptor is not the
-    // command word, and is a filename — never an arithmetic operand even when the command does
-    // arithmetic (`let x=1 >file`), so its placeholders are flagged out of the command's marking.
-    if (precededByRedirect(index)) {
-      command.inRedirectTarget = true
-      return
-    }
-    if (
-      /^\d+$/.test(word) &&
-      (code[index + raw.length] === '>' || code[index + raw.length] === '<')
-    )
-      return
-    // Declaration options, read together so a combined `-iA` sets both: the integer attribute (`-i`
-    // sets, `+i` clears — last wins, and `-i` is not marked until a value appears so `+i` can still
-    // undo it) and `-A` (an associative array, whose subscripts are string keys, not arithmetic).
-    if (command.declarationBuiltin) {
-      const option = DECLARATION_OPTION.exec(word)
-      if (option) {
-        if (option[2].includes('i')) command.integerOption = option[1] === '-' ? 'set' : 'clear'
-        if (option[1] === '-' && option[2].includes('A')) command.associativeOption = true
-        if (option[1] === '-' && option[2].includes('a')) command.indexedOption = true
-        return
-      }
-    }
-    // A declaration argument names an integer (`-i`), clears one (`+i`), and/or names an associative
-    // array (`-A`); the name lives in this frame's scope and pops with it. `local` is function-scoped
-    // and this scanner has no function frame to drop it with, so its attributes are not tracked across
-    // statements — same-command arithmetic still marks, and an untracked array stays indexed (a
-    // conservative reject) rather than leaking out as text.
-    if (
-      command.declarationBuiltin &&
-      command.declarationBuiltin !== 'local' &&
-      word[0] !== '-' &&
-      word[0] !== '+'
-    ) {
-      const declared = SHELL_NAME.exec(word)?.[0]
-      if (declared) {
-        // A re-declaration resets the name's array type before this one's attributes apply, so a
-        // later `declare -a` (indexed) clears an earlier `-A` (associative) and vice versa. The
-        // integer attribute survives it — only `+i` or `unset` removes that.
-        if (command.associativeOption || command.indexedOption || command.integerOption) {
-          ;(command.declaredNames ??= new Set()).add(declared)
-        }
-        if (command.associativeOption || command.indexedOption) clearArrayType(declared)
-        if (command.associativeOption) (frame.associativeArrays ??= new Set()).add(declared)
-        if (command.integerOption) {
-          ;(frame.integerAttribute ??= new Map()).set(declared, command.integerOption === 'set')
-        }
-      }
-    }
-    // `unset name` removes the variable and its attributes, so a later indexed reuse is arithmetic
-    // again. A bare name only — `unset name[i]` removes one element, not the array's type — and not
-    // under `-f`, which removes a function of that name and leaves the variable alone.
-    if (command.nameArgumentBuiltin && command.sawCommandWord) {
-      const option = DECLARATION_OPTION.exec(word)
-      if (option?.[1] === '-' && option[2].includes('f')) command.unsetsFunctions = true
-      else if (!command.unsetsFunctions && SHELL_BARE_NAME.test(word)) {
-        ;(command.declaredNames ??= new Set()).add(word)
-        clearNameType(word)
-      }
-    }
-    // An assignment is one only in command-prefix or declaration-argument position; `echo n=1` or
-    // `printf a[i]=1` passes an ordinary string that bash never evaluates.
-    const assignment = inAssignmentPosition(command) ? SHELL_ASSIGNMENT_WORD.exec(word) : null
-    if (assignment) {
-      // A `declare -i` argument, or any assignment to an already-integer name not cleared here, has
-      // an arithmetic value. A declaration marks the whole command (every arg shares the attribute);
-      // a plain prefix marks only this value, so `n=1 printf "{{x}}"` leaves the printed arg as text.
-      const integerTarget =
-        (command.declarationBuiltin !== undefined && command.integerOption === 'set') ||
-        (command.integerOption !== 'clear' && declaresInteger(assignment[1]))
-      if (integerTarget && command.declarationBuiltin) markCommandArithmetic(frame)
-      else if (integerTarget) command.pendingValue = true
-      else if (!command.sawCommandWord) command.inPrefixValue = true
-      return
-    }
-    if (command.sawCommandWord) return
-    if (SHELL_RESERVED_WORDS.has(word) || SHELL_COMMAND_PREFIXES.has(word)) return
-    command.sawCommandWord = true
-    if (word === '[[') frame.conditional = true
-    else if (word === 'let') markCommandArithmetic(frame)
-    else if (word === 'declare' || word === 'typeset' || word === 'local') {
-      command.declarationBuiltin = word
-    } else if (NAME_ARGUMENT_BUILTINS.has(word)) command.nameArgumentBuiltin = true
   }
 
   for (let index = start; index < end; ) {
@@ -1053,118 +575,106 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
       continue
     }
 
-    const occurrence = occurrenceByStart.get(index)
-    if (occurrence && operatorStarts.has(occurrence.start)) {
-      // A heredoc operator: its body is an arithmetic operand when the substitution reading it is in
-      // an arithmetic context — an enclosing `$(( ))`, or an enclosing command/value that evaluates
-      // the substitution's output (`let x="$(cat <<EOF)"`). It is NOT an operand merely because the
-      // heredoc's own command does arithmetic on its words (`$(let x=1 <<EOF)` feeds `let` stdin), so
-      // only what encloses the innermost substitution counts, which a later `-eq` can still mark.
-      let sub = frames.length - 1
-      while (sub >= 0 && !isSubstitution(frames[sub])) sub -= 1
-      const enclosingArithmetic = frames
-        .slice(0, sub)
-        .some((enclosing) => frameIsArithmetic(enclosing) || enclosing.command?.valueArithmetic)
-      const operatorContext: ShellOccurrenceContext = {
-        quote: 'none',
-        arithmetic: enclosingArithmetic,
-        scope: visibleScope(),
-      }
-      contexts.set(occurrence, operatorContext)
-      if (sub >= 0) commandScanOf(frames[sub - 1]).contexts.push(operatorContext)
-      index = occurrence.end
-      continue
-    }
-    if (occurrence) {
-      // A placeholder that is itself the redirect target (`> {{x}}`) is a filename, never arithmetic;
-      // `scanWord` never ran on it (the occurrence is consumed first), so the immediately preceding
-      // `>`/`<` — across any whitespace — is checked here, but only in a command frame: inside `$(( ))`
-      // a `<`/`>` is a comparison operator, not a redirect.
-      const redirectTarget =
-        frame.command?.inRedirectTarget === true ||
-        (readsCommands(frame) && precededByRedirect(index))
-      const arithmetic =
-        !redirectTarget && (inArithmetic() || frame.command?.valueArithmetic === true)
-      record(occurrence, { quote: effectiveQuote(frame), arithmetic })
-      index = occurrence.end
-      continue
-    }
-
     const character = code[index]
-    // The redirect-target and assignment-value flags cover only their one word; unquoted whitespace
-    // ends that word. `scanWord` clears them at the next word too, but a placeholder-only word never
-    // reaches it, so `let x=1 >/dev/null {{x}}` is marked by the command again while the command name
-    // in `n=1 {{x}} arg` is not read as `n`'s integer value.
-    if (frame.command && frame.quote === 'none' && /\s/.test(character)) {
-      frame.command.inRedirectTarget = false
-      frame.command.valueArithmetic = false
-      frame.command.pendingValue = false
-      frame.command.inPrefixValue = false
-    }
-    // Classify each command word before the quote branches consume a quote-initial word such as
-    // `"-i"` or `'let'`. `scanWord` only sets state, never advances `index`; the characters below
-    // still process the word's text.
     if (
-      readsCommands(frame) &&
-      !frame.literalRoot &&
       frame.quote === 'none' &&
-      shellWordStarts(code, index) &&
-      !shellCommentStarts(code, index) &&
-      !shellCommandSeparator(code, index)
-    ) {
-      scanWord(frame, index)
-    }
-    // An integer assignment's value turns arithmetic at its `=` — not its subscript, so an index
-    // placeholder in `m[{{x}}]=1` is judged by the array type, not by the value's attribute.
-    if (character === '=' && frame.command?.pendingValue) {
-      frame.command.valueArithmetic = true
-      frame.command.pendingValue = false
-    }
-    // A name-taking builtin's argument subscript (`unset a[i]`, `unset "a[i]"`, `unset 'a[i]'`) is
-    // arithmetic — even single-quoted, since the subscript is still evaluated. This runs before the
-    // quote branches, which would otherwise consume the `[` of a quoted argument.
-    if (
-      character === '[' &&
       !frame.literalRoot &&
-      readsCommands(frame) &&
-      frame.command?.nameArgumentBuiltin &&
-      frame.command.sawCommandWord
+      frame.kind !== 'arithmetic' &&
+      frame.kind !== 'parameter'
     ) {
-      const named = arrayNameBefore(index)
-      if (
-        named &&
-        /[\s;&|()<>"']/.test(code[named.start - 1] ?? ' ') &&
-        !isAssociativeArray(named.name)
+      if (frame.conditional) {
+        if ((character === '&' || character === '|') && code[index + 1] === character) {
+          endConditionalOperand(frame, index)
+        }
+        if (/\s|[()]/.test(character)) {
+          frame.conditional.wordOpen = false
+        } else if (!frame.conditional.wordOpen && character !== '&' && character !== '|') {
+          const { word } = readShellWord(code, index)
+          if (word === ']]') {
+            endConditionalOperand(frame, index)
+            frame.conditional = undefined
+          } else {
+            const conditional = frame.conditional
+            conditional.wordOpen = true
+            if (word !== '!' || conditional.words > 0) {
+              if (
+                conditional.words === 1 &&
+                !conditional.unary &&
+                word &&
+                ARITHMETIC_COMPARISON.test(word)
+              ) {
+                conditional.arithmetic = true
+              }
+              if (conditional.words === 0) conditional.unary = /^-[a-zA-Z]$/.test(word ?? '')
+              conditional.words += 1
+            }
+          }
+        }
+      } else if (
+        /[\n;()]/.test(character) ||
+        ((character === '&' || character === '|') &&
+          !/[<>]/.test(code[index - 1] ?? '') &&
+          !(character === '&' && code[index + 1] === '>')) ||
+        (character === '{' &&
+          shellWordStarts(code, index) &&
+          readShellWord(code, index).word === '{')
       ) {
-        pushFrame(subscriptFrame('arithmetic'))
-        index += 1
-        continue
+        frame.commandStarted = false
+        frame.commandPrefix = undefined
+      } else if (
+        !frame.commandStarted &&
+        index >= (frame.wordEnd ?? start) &&
+        shellWordStarts(code, index)
+      ) {
+        const { word, end: wordEnd } = readShellWord(code, index)
+        frame.wordEnd = wordEnd
+        if (
+          word &&
+          !followsRedirect(code, index) &&
+          !/^\d+(?=[<>])/.test(code.slice(index)) &&
+          !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word)
+        ) {
+          const prefixArgument =
+            (frame.commandPrefix === 'time' && word === '-p') ||
+            (frame.commandPrefix === 'coproc' && word !== '[[' && !COMMAND_INTRODUCERS.has(word))
+          frame.commandPrefix = word === 'time' || word === 'coproc' ? word : undefined
+          if (!COMMAND_INTRODUCERS.has(word) && !prefixArgument) {
+            frame.commandStarted = true
+            if (word === '[[') {
+              frame.conditional = {
+                start: index,
+                arithmetic: false,
+                words: 0,
+                wordOpen: true,
+                unary: false,
+              }
+            }
+          }
+        }
       }
     }
-    // A `${…}` expansion, including one nested in another's value or an associative key. Only an
-    // `arithmetic` frame reads a nested `${b}` as operand text rather than its own expansion, so the
-    // gate excludes it; a `keysubscript` (string key) does take nested expansions.
+    const occurrence = occurrenceByStart.get(index)
+    if (occurrence) {
+      contexts.set(occurrence, { quote: effectiveQuote(frame), arithmetic: arithmeticDepth > 0 })
+      index = occurrence.end
+      continue
+    }
     if (
       character === '$' &&
       code[index + 1] === '{' &&
+      !occurrenceByStart.has(index + 1) &&
       frame.kind !== 'arithmetic' &&
       (frame.quote === 'none' || frame.quote === 'double')
     ) {
-      PARAMETER_NAME.lastIndex = index + 2
-      const name = PARAMETER_NAME.exec(code)
-      if (name) {
-        pushFrame({
-          kind: 'parameter',
-          quote: 'none',
-          inDoubleQuotes: effectiveQuote(frame) === 'double',
-          parenthesisDepth: 0,
-          atOperator: true,
-          parameterName: name[0].replace(/^[!#]/, ''),
-          literalRoot: false,
-        })
-        index += 2 + name[0].length
-        continue
-      }
+      frames.push({
+        kind: 'parameter',
+        quote: 'none',
+        parenthesisDepth: 0,
+        literalRoot: false,
+        inDoubleQuotes: effectiveQuote(frame) === 'double' || frame.literalRoot,
+      })
+      index += 2
+      continue
     }
     if (frame.quote === 'single') {
       if (character === "'") frame.quote = 'none'
@@ -1175,7 +685,7 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
       if (character === '\\') {
         const escaped = occurrenceByStart.get(index + 1)
         if (escaped) {
-          record(escaped, { quote: frame.quote, unsupported: 'escaped sequence' })
+          contexts.set(escaped, { quote: frame.quote, unsupported: 'escaped sequence' })
           index = escaped.end
         } else {
           index += 2
@@ -1190,14 +700,20 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
       character === '$' &&
       ((code[index + 1] === '(' && code[index + 2] === '(') || code[index + 1] === '[')
     const arithmeticCommand =
-      frame.quote === 'none' && !frame.literalRoot && shellArithmeticCommandStarts(code, index)
+      frame.quote === 'none' &&
+      !frame.literalRoot &&
+      frame.kind !== 'parameter' &&
+      shellArithmeticCommandStarts(code, index)
     if (arithmeticExpansion || arithmeticCommand) {
       const brackets = arithmeticExpansion && code[index + 1] === '['
-      pushFrame(
-        brackets
-          ? subscriptFrame('arithmetic')
-          : { kind: 'arithmetic', quote: 'none', parenthesisDepth: 2, literalRoot: false }
-      )
+      frames.push({
+        kind: 'arithmetic',
+        quote: 'none',
+        parenthesisDepth: brackets ? 0 : 2,
+        ...(brackets ? { bracketDepth: 1 } : {}),
+        literalRoot: false,
+      })
+      arithmeticDepth += 1
       index += arithmeticExpansion && !brackets ? 3 : 2
       continue
     }
@@ -1205,7 +721,7 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
       if (character === '\\') {
         const escaped = occurrenceByStart.get(index + 1)
         if (escaped) {
-          record(escaped, { quote: frame.quote, unsupported: 'escaped sequence' })
+          contexts.set(escaped, { quote: frame.quote, unsupported: 'escaped sequence' })
           index = escaped.end
         } else {
           index += 2
@@ -1214,10 +730,20 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
         frame.quote = 'none'
         index += 1
       } else if (character === '$' && code[index + 1] === '(') {
-        pushFrame(parenCommandFrame('command'))
+        frames.push({
+          kind: 'command',
+          quote: 'none',
+          parenthesisDepth: 1,
+          literalRoot: false,
+        })
         index += 2
       } else if (character === '`') {
-        pushFrame({ kind: 'backtick', quote: 'none', parenthesisDepth: 0, literalRoot: false })
+        frames.push({
+          kind: 'backtick',
+          quote: 'none',
+          parenthesisDepth: 0,
+          literalRoot: false,
+        })
         index += 1
       } else {
         index += 1
@@ -1226,13 +752,17 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
     }
 
     if (frame.kind === 'backtick' && character === '`') {
-      popFrame()
+      frames.pop()
       index += 1
       continue
     }
-    // `#` starts a comment only where commands are read; inside a `${…}` or a subscript it is literal.
-    if (readsCommands(frame) && !frame.literalRoot && shellCommentStarts(code, index)) {
-      if (!frame.conditional) endCommand(frame)
+    if (
+      frame.kind !== 'arithmetic' &&
+      frame.kind !== 'parameter' &&
+      !frame.literalRoot &&
+      shellCommentStarts(code, index)
+    ) {
+      if (!frame.conditional) frame.commandStarted = false
       const newline = code.indexOf('\n', index)
       index = newline === -1 || newline >= end ? end : newline + 1
       continue
@@ -1240,15 +770,14 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
     if (character === '\\') {
       const escaped = occurrenceByStart.get(index + 1)
       if (escaped) {
-        record(escaped, { quote: frame.quote, unsupported: 'escaped sequence' })
+        contexts.set(escaped, { quote: frame.quote, unsupported: 'escaped sequence' })
         index = escaped.end
       } else {
         index += 2
       }
       continue
     }
-    // Inside a double-quoted `${…}`, single quotes are literal text, not a quote boundary.
-    const singleQuotesLiteral = frame.kind === 'parameter' && frame.inDoubleQuotes === true
+    const singleQuotesLiteral = frame.kind === 'parameter' && frame.inDoubleQuotes
     if (
       !frame.literalRoot &&
       !singleQuotesLiteral &&
@@ -1270,173 +799,64 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
       continue
     }
     if (character === '$' && code[index + 1] === '(') {
-      pushFrame(parenCommandFrame('command'))
+      frames.push({
+        kind: 'command',
+        quote: 'none',
+        parenthesisDepth: 1,
+        literalRoot: false,
+      })
       index += 2
       continue
     }
     if (character === '`') {
-      pushFrame({ kind: 'backtick', quote: 'none', parenthesisDepth: 0, literalRoot: false })
+      frames.push({
+        kind: 'backtick',
+        quote: 'none',
+        parenthesisDepth: 0,
+        literalRoot: false,
+      })
       index += 1
       continue
     }
-    // A `${…}` expansion's arithmetic operands appear only at the operator right after the name: a
-    // `[` subscript, or a `:` substring offset/length. Any other operator (`:-`, `#`, `/`, …) means
-    // the rest is pattern or default text, where a later `[` or `:` is literal.
-    if (frame.kind === 'parameter') {
-      if (frame.atOperator) {
-        // A subscript: an indexed array's is arithmetic, an associative array's is a string key.
-        // Either way it opens a bracket frame so a `:offset` after the `]` is still seen as a tail.
-        if (character === '[') {
-          pushFrame(subscriptFrameFor(frame.parameterName))
-          index += 1
-          continue
-        }
-        if (character === ':' && !/[-=?+]/.test(code[index + 1] ?? '')) {
-          frame.arithmeticTail = true
-          arithmeticDepth += 1
-          frame.atOperator = false
-          index += 1
-          continue
-        }
-        frame.atOperator = false
-      }
-      // A nested `${…}` opens its own frame above; here a bare `{` is literal text, and the first
-      // unmatched `}` ends the expansion — so only `}` closes it, never a counted `{`.
-      if (character === '}') {
-        popFrame()
-        index += 1
-        continue
-      }
-    }
-    // A compound array assignment `name=( … )`: each element key `[k]=` is a subscript of `name`.
-    if (frame.kind === 'arrayliteral') {
-      if (character === '(') {
-        frame.parenthesisDepth += 1
-        index += 1
-        continue
-      }
-      if (character === ')') {
-        frame.parenthesisDepth -= 1
-        if (frame.parenthesisDepth === 0) popFrame()
-        index += 1
-        continue
-      }
-      // A key assignment `[k]=` / `[k]+=`; a bare `[x]` element (no `=`) is ordinary text.
-      if (
-        character === '[' &&
-        /[\s(]/.test(code[index - 1] ?? ' ') &&
-        opensIndexedAssignment(code, index, end)
-      ) {
-        // The literal belongs to the assignment in the frame below, whose own declaration applies.
-        pushFrame(subscriptFrameFor(frame.arrayName, 2))
-        index += 1
-        continue
-      }
-    }
-    // The `(` opening a compound array assignment (`name=(`, `name+=(`) in command-prefix or
-    // declaration position. Its element keys are then judged against the array's type.
-    if (
-      character === '(' &&
-      code[index - 1] === '=' &&
-      frame.quote === 'none' &&
-      !frame.literalRoot &&
-      readsCommands(frame) &&
-      inAssignmentPosition(commandScanOf(frame))
-    ) {
-      let nameEnd = index - 1
-      if (code[nameEnd - 1] === '+') nameEnd -= 1
-      const named = arrayNameBefore(nameEnd)
-      if (named && shellWordStarts(code, named.start)) {
-        pushFrame({
-          kind: 'arrayliteral',
-          quote: 'none',
-          parenthesisDepth: 1,
-          arrayName: named.name,
-          literalRoot: false,
-        })
-        index += 1
-        continue
-      }
-    }
-    // An indexed-assignment subscript (`a[i]=`, `a[i]+=`) is evaluated as arithmetic — but only in
-    // command-prefix or declaration-argument position; `printf a[i]=1` passes an ordinary string, and
-    // an associative key (`declare -A m; m[k]=`) is text.
-    if (
-      character === '[' &&
-      frame.quote === 'none' &&
-      !frame.literalRoot &&
-      readsCommands(frame) &&
-      inAssignmentPosition(commandScanOf(frame))
-    ) {
-      const named = arrayNameBefore(index)
-      if (
-        named &&
-        shellWordStarts(code, named.start) &&
-        !isAssociativeArray(named.name) &&
-        opensIndexedAssignment(code, index, end)
-      ) {
-        pushFrame(subscriptFrame('arithmetic'))
-        index += 1
-        continue
-      }
-    }
-    if (readsCommands(frame)) {
-      if (!frame.literalRoot) {
-        const groupBrace = (character === '{' || character === '}') && shellWordStarts(code, index)
-        if (shellCommandSeparator(code, index) || groupBrace) {
-          const clauseEnds =
-            !frame.conditional ||
-            ((character === '&' || character === '|') && code[index + 1] === character)
-          if (clauseEnds) endCommand(frame)
-        }
-      }
-    }
-    // A bare subshell `( … )` at a command position: scope its declarations to a frame so a
-    // `(declare -A m)` inside does not leak the array type to the enclosing shell.
-    if (
-      character === '(' &&
-      readsCommands(frame) &&
-      !frame.conditional &&
-      frame.quote === 'none' &&
-      !frame.literalRoot &&
-      shellWordStarts(code, index)
-    ) {
-      pushFrame(parenCommandFrame('subshell'))
+    if (frame.kind === 'parameter' && character === '}') {
+      frames.pop()
       index += 1
       continue
     }
-    if (
-      (frame.kind === 'arithmetic' || frame.kind === 'keysubscript') &&
-      frame.bracketDepth !== undefined
-    ) {
+    if (frame.kind === 'arithmetic' && frame.bracketDepth !== undefined) {
       if (character === '[') frame.bracketDepth += 1
-      else if (character === ']') {
+      if (character === ']') {
         frame.bracketDepth -= 1
-        if (frame.bracketDepth === 0) popFrame()
+        if (frame.bracketDepth === 0) {
+          frames.pop()
+          arithmeticDepth -= 1
+        }
       }
       index += 1
       continue
     }
-    if (
-      (frame.kind === 'command' || frame.kind === 'arithmetic' || frame.kind === 'subshell') &&
-      character === '('
-    ) {
+    if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === '(') {
       frame.parenthesisDepth += 1
       index += 1
       continue
     }
-    if (
-      (frame.kind === 'command' || frame.kind === 'arithmetic' || frame.kind === 'subshell') &&
-      character === ')'
-    ) {
+    if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === ')') {
       frame.parenthesisDepth -= 1
-      if (frame.parenthesisDepth === 0) popFrame()
+      if (frame.parenthesisDepth === 0) {
+        frames.pop()
+        if (frame.kind === 'arithmetic') arithmeticDepth -= 1
+      }
       index += 1
       continue
     }
     index += 1
   }
 
+  for (const frame of frames) endConditionalOperand(frame, end)
+  const inConditionalArithmetic = createOffsetRangeLookup(conditionalArithmeticRanges)
+  for (const [occurrence, context] of contexts) {
+    if (inConditionalArithmetic(occurrence.start)) context.arithmetic = true
+  }
   return contexts
 }
 
@@ -1527,6 +947,11 @@ function recordShellDirectEnvironmentReads(
   }
 }
 
+/**
+ * Binds values without inserting them into shell source, rejecting placeholders in explicit
+ * arithmetic delimiters and arithmetic comparisons. This lexical guard does not follow later
+ * evaluation through variable attributes, indirect command names, or commands such as `eval`.
+ */
 export async function compileShellPlaceholders(
   input: InternalCompileCodePlaceholdersInput
 ): Promise<CompiledCodePlaceholders> {
@@ -1541,14 +966,6 @@ export async function compileShellPlaceholders(
     if (resolved?.value.includes('\0')) {
       throw new CodePlaceholderCompileError(
         `Variable placeholder "${occurrence.name}" cannot contain NUL in shell code`,
-        input.code,
-        occurrence.start
-      )
-    }
-    const unsafeSubscript = resolved && unsafeArithmeticSubscript(resolved.value)
-    if (unsafeSubscript && !input.analysisOnly) {
-      throw new CodePlaceholderCompileError(
-        `Variable placeholder "${occurrence.name}" cannot contain ${unsafeSubscript} in shell code`,
         input.code,
         occurrence.start
       )
@@ -1621,8 +1038,7 @@ export async function compileShellPlaceholders(
     0,
     input.code.length,
     false,
-    heredocBodyRanges(heredocs),
-    new Set(heredocOperators.map((operator) => operator.start))
+    heredocBodyRanges(heredocs)
   )
   const edits: SourceEdit[] = []
 
@@ -1637,9 +1053,6 @@ export async function compileShellPlaceholders(
     }
 
     const bodyOccurrences = occurrencesWithin(shellOccurrences, heredoc.bodyStart, heredoc.bodyEnd)
-    // The operator's context already carries this: `arithmetic` is set only for a heredoc whose
-    // reading substitution is itself an arithmetic operand (see where operator spans are recorded),
-    // so a quoted or unquoted body there is rejected, while plain stdin falls to the body scan.
     if (rootContexts.get(heredocOperators[heredocIndex])?.arithmetic) {
       for (const occurrence of bodyOccurrences) rejectUnsupported(occurrence, 'in shell arithmetic')
       continue
@@ -1691,10 +1104,7 @@ export async function compileShellPlaceholders(
       bodyOccurrences,
       heredoc.bodyStart,
       heredoc.bodyEnd,
-      true,
-      [],
-      undefined,
-      rootContexts.get(heredocOperators[heredocIndex])?.scope
+      true
     )
     for (const occurrence of bodyOccurrences) {
       const edit = resolveInContext(occurrence, bodyContexts.get(occurrence), false)
