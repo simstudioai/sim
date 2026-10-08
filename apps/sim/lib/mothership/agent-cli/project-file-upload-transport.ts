@@ -31,7 +31,11 @@ export function createProjectFileUploadTransport(options: {
   projectId: string
   context: AgentCliExecutionContext
   fallback: typeof fetch
-  uploadProvenance?: () => WorkspaceFileSecretProvenance
+  uploadProvenance?: () => WorkspaceFileSecretProvenance | Promise<WorkspaceFileSecretProvenance>
+  uploadBinding?: {
+    record(uploadId: string): Promise<void>
+    contains(uploadId: string): Promise<boolean>
+  }
 }): typeof fetch {
   const { context, projectId, fallback, uploadProvenance } = options
   const origin = new URL(options.endpoint).origin
@@ -86,6 +90,7 @@ export function createProjectFileUploadTransport(options: {
           { projectId }
         )
         created.add(session.id)
+        await options.uploadBinding?.record(session.id)
         return v2Data(
           {
             session: toV2ProjectFileUpload(session, null),
@@ -102,12 +107,15 @@ export function createProjectFileUploadTransport(options: {
         V2_PARSE_DEFAULTS
       )
       if (!parsed.success) return parsed.response
-      if (!created.has(parsed.data.params.uploadId)) {
+      const bound = options.uploadBinding
+        ? await options.uploadBinding.contains(parsed.data.params.uploadId)
+        : created.has(parsed.data.params.uploadId)
+      if (!bound) {
         return v2Error('FORBIDDEN', 'Upload completion is not bound to this invocation')
       }
       let secretProvenance: WorkspaceFileSecretProvenance | undefined
       try {
-        secretProvenance = uploadProvenance?.()
+        secretProvenance = await uploadProvenance?.()
       } catch {
         context.signal?.throwIfAborted()
         request.signal.throwIfAborted()

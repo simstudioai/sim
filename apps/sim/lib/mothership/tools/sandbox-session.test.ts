@@ -126,7 +126,11 @@ describe('deployment-owned workbench tooling', () => {
   )
 })
 
-vi.mock('@/lib/mothership/tools/sandbox-resources', () => ({ sandboxResourceEndpoint: endpoint }))
+vi.mock('@/lib/mothership/tools/sandbox-resources', () => ({
+  sandboxResourceEndpoint: endpoint,
+  activeSandboxChatOwner: () => undefined,
+  activeSandboxFileOwnerProtocol: () => undefined,
+}))
 
 it('does not inject authentication when no active scoped callback can be established', async () => {
   connection.mockReturnValue({ mode: 'direct' })

@@ -21,6 +21,7 @@ import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/cont
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { v2Data, v2Error } from '@/app/api/v2/lib/response'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('ProjectFileWriteTransport')
 
@@ -30,6 +31,7 @@ export function createProjectFileWriteTransport(options: {
   projectId: string
   context: AgentCliExecutionContext
   fallback: typeof fetch
+  resolveSecretTraceRegistry?: () => Promise<ResolvedSecretTraceRegistry>
 }): typeof fetch {
   const origin = new URL(options.endpoint).origin
   const projectId = options.projectId
@@ -73,7 +75,7 @@ export function createProjectFileWriteTransport(options: {
         )
         if (!parsed.success) return parsed.response
         const { params, body } = parsed.data
-        requireCleanInlineText(body, options.context)
+        await requireCleanInlineText(body, options)
         const result = await executeCopilotProjectFileUseCase(
           options.context,
           createProjectFile,
@@ -102,7 +104,7 @@ export function createProjectFileWriteTransport(options: {
       )
       if (!parsed.success) return parsed.response
       const { params, body } = parsed.data
-      requireCleanInlineText(body, options.context)
+      await requireCleanInlineText(body, options)
       const target = { projectId, fileId: params.fileId }
       const result = await executeCopilotProjectFileUseCase(
         options.context,
@@ -131,20 +133,24 @@ export function createProjectFileWriteTransport(options: {
   }
 }
 
-function requireCleanInlineText(
+async function requireCleanInlineText(
   body: { content: string; encoding: 'utf-8' | 'base64' },
-  context: AgentCliExecutionContext
-): void {
+  options: {
+    context: AgentCliExecutionContext
+    resolveSecretTraceRegistry?: () => Promise<ResolvedSecretTraceRegistry>
+  }
+): Promise<void> {
+  const { context } = options
   context.signal?.throwIfAborted()
   if (body.encoding !== 'utf-8')
     throw new OrchestrationError(
       'forbidden',
       'Project CLI writes currently require UTF-8 text with verified secret provenance'
     )
-  const provenance = context.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(
-    body.content,
-    { anonymous: true }
-  )
+  const registry = options.resolveSecretTraceRegistry
+    ? await options.resolveSecretTraceRegistry()
+    : context.resolvedSecretTraceRegistry
+  const provenance = registry?.exportCommittedProvenanceForValue(body.content, { anonymous: true })
   if (!provenance?.complete || provenance.entries.length !== 0)
     throw new OrchestrationError(
       'forbidden',

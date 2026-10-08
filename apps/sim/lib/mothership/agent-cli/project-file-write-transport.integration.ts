@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto'
 import { mkdtempSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { db } from '@sim/db'
 import {
+  copilotChats,
   folder,
   outboxEvent,
   permissions,
@@ -16,24 +18,54 @@ import {
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import {
+  remoteSandboxProviderMock,
+  remoteSandboxProviderMockFns,
+} from '@sim/testing/mocks/remote-sandbox-provider.mock'
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { redisUrl } = await vi.hoisted(async () => {
+  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+  const redisUrl = readTestRedisUrl()
+  if (redisUrl) process.env.REDIS_URL = redisUrl
+  return { redisUrl }
+})
+vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
+
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
+import {
+  v2CompleteProjectFileUploadContract,
+  v2CreateProjectFileUploadContract,
+} from '@/lib/api/contracts/v2/project-file-uploads'
+import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import {
+  initializeSessionFileProvenance,
+  readSessionSecretProvenance,
+  recordSessionFileInput,
+} from '@/lib/execution/remote-sandbox/session-file-provenance'
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import { createProjectFileWriteTransport } from '@/lib/mothership/agent-cli/project-file-write-transport'
 import { executeProjectFileCliRequest } from '@/lib/mothership/agent-cli/project-files'
 import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
+import { proxySandboxProjectFileRequest } from '@/lib/mothership/tools/sandbox-project-files'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { writeLocalPutObject } from '@/lib/uploads/upload-session/provider'
+import {
+  uploadSessionObjectMetadata,
+  verifyUploadSessionToken,
+} from '@/lib/uploads/upload-session/service'
 import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
+const callbackRedisKeys: string[] = []
 const storageRoot = mkdtempSync(join(tmpdir(), 'sim-project-cli-writes-'))
 setUploadDirServer(storageRoot)
 const fixtures: {
@@ -307,7 +339,144 @@ describe('private native Project writes against PostgreSQL and local storage', (
   })
 })
 
+describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
+  check(
+    'binds upload completion to its callback token across requests and persists machine source history',
+    async () => {
+      const f = await fixture()
+      const chatId = generateId()
+      await db
+        .insert(copilotChats)
+        .values({ id: chatId, userId: f.userId, workspaceId: f.workspaceId, type: 'mothership' })
+      const token = generateId()
+      const sessionKey = chatSandboxSessionKey(chatId)
+      const machine = { providerId: 'e2b' as const, sandboxId: generateId() }
+      remoteSandboxProviderMockFns.mockResolveProvider.mockReturnValue({
+        id: machine.providerId,
+        findSessionSandbox: async () => ({ sandboxId: machine.sandboxId }),
+      })
+      const scope = {
+        toolCallId: generateId(),
+        runId: generateId(),
+        userId: f.userId,
+        ownerToken: generateId(),
+        chatId,
+        workspaceId: f.workspaceId,
+        apiKeyHash: 'test',
+        fileOwnerProtocolVersion: 1 as const,
+      }
+      const historyKey = `mothership:workbench-provenance:v2:${createHash('sha256')
+        .update(JSON.stringify([sessionKey, machine.providerId, machine.sandboxId]))
+        .digest('hex')}`
+      callbackRedisKeys.push(
+        historyKey,
+        `mothership:sandbox-resources:${token}:project-uploads:${f.projectId}`
+      )
+      await initializeSessionFileProvenance(sessionKey, machine)
+      const callback = (suffix: string, init?: RequestInit, callbackToken = token) => {
+        const path = `/api/v2/projects/${f.projectId}/files${suffix}`
+        return proxySandboxProjectFileRequest(
+          new Request(`http://localhost:3000${path}`, init),
+          callbackToken,
+          path,
+          '',
+          scope,
+          f.projectId
+        )
+      }
+      const canary = 'synthetic-workbench-callback-canary'
+      const evidence = {
+        status: 'exact' as const,
+        entries: [
+          {
+            encryptedValue: (await encryptSecret(canary)).encrypted,
+            sourceUserId: f.userId,
+            sourceWorkspaceId: f.workspaceId,
+          },
+        ],
+      }
+      await recordSessionFileInput(sessionKey, machine, evidence)
+      const rejected = await callback('', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'unsafe.txt', content: canary, encoding: 'utf-8' }),
+      })
+      expect(rejected.status).toBe(403)
+      const safe = await callback('', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'safe.txt', content: 'safe text', encoding: 'utf-8' }),
+      })
+      expect(safe.status, await safe.clone().text()).toBe(201)
+      const bytes = Buffer.from('safe upload')
+      const createdResponse = await callback('/uploads', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'upload.txt', contentType: 'text/plain', size: bytes.length }),
+      })
+      expect(createdResponse.status, await createdResponse.clone().text()).toBe(201)
+      const created = v2CreateProjectFileUploadContract.response.schema.parse(
+        await createdResponse.json()
+      ).data
+      const upload = await verifyUploadSessionToken(created.uploadToken)
+      await writeLocalPutObject({
+        uploadId: upload.id,
+        key: upload.finalKey,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(bytes)
+            controller.close()
+          },
+        }),
+        expectedSize: bytes.length,
+        contentType: upload.contentType,
+        metadata: uploadSessionObjectMetadata(upload),
+      })
+      const complete = { method: 'POST', headers: { 'upload-token': created.uploadToken } }
+      expect(
+        (await callback(`/uploads/${upload.id}/complete`, complete, generateId())).status
+      ).toBe(403)
+      const response = await callback(`/uploads/${upload.id}/complete`, complete)
+      expect(response.status, await response.clone().text()).toBe(200)
+      const completed = v2CompleteProjectFileUploadContract.response.schema.parse(
+        await response.json()
+      ).data
+      if (!completed.file) throw new Error('Expected completed upload')
+      const [stored] = await db
+        .select()
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.id, completed.file.id))
+      const [provenance] = await db
+        .select()
+        .from(workspaceFileSecretProvenance)
+        .where(eq(workspaceFileSecretProvenance.fileId, completed.file.id))
+      expect(stored).toMatchObject({ projectId: f.projectId, workspaceId: null, userId: f.userId })
+      expect(provenance).toMatchObject(evidence)
+      const freshMachine = { ...machine, sandboxId: generateId() }
+      remoteSandboxProviderMockFns.mockResolveProvider.mockReturnValue({
+        id: freshMachine.providerId,
+        findSessionSandbox: async () => ({ sandboxId: freshMachine.sandboxId }),
+      })
+      callbackRedisKeys.push(
+        `mothership:workbench-provenance:v2:${createHash('sha256')
+          .update(JSON.stringify([sessionKey, freshMachine.providerId, freshMachine.sandboxId]))
+          .digest('hex')}`
+      )
+      await initializeSessionFileProvenance(sessionKey, freshMachine)
+      expect(await readSessionSecretProvenance(sessionKey, freshMachine)).toEqual({
+        status: 'exact',
+        entries: [],
+      })
+      const read = await callback(`/${completed.file.id}/content`, undefined, generateId())
+      expect(read.status).toBe(200)
+      expect(await read.text()).toBe('safe upload')
+      expect(await readSessionSecretProvenance(sessionKey, freshMachine)).toEqual(evidence)
+    }
+  )
+})
+
 afterAll(async () => {
+  if (callbackRedisKeys.length) await getRedisClient()?.del(...callbackRedisKeys)
   for (const f of fixtures) {
     await db
       .delete(outboxEvent)
@@ -325,5 +494,6 @@ afterAll(async () => {
     'test-results/project-file-write-transport.json'
   await mkdir(dirname(report), { recursive: true })
   await writeFile(report, JSON.stringify({ checks }, null, 2))
+  await closeRedisConnection()
   await db.$client.end()
 })

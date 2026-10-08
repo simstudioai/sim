@@ -151,6 +151,49 @@ async function imageContent() {
   ).toString('base64')
 }
 
+check(
+  'Project grep reaches authorized stored bytes and retains their source classification',
+  async () => {
+    const f = await fixture()
+    const secret = 'synthetic-project-grep-canary'
+    const { encrypted } = await encryptSecret(secret)
+    const { file } = await createProjectFile.execute({
+      principal: f.principal,
+      input: {
+        projectId: f.projectId,
+        name: 'grep-notes.txt',
+        contentType: 'text/plain',
+        content: `before\n${secret}\nafter`,
+        encoding: 'utf-8',
+        secretProvenance: {
+          status: 'exact',
+          entries: [
+            {
+              encryptedValue: encrypted,
+              sourceUserId: f.userId,
+              sourceWorkspaceId: f.workspaceId,
+              name: 'CANARY',
+            },
+          ],
+        },
+      },
+    })
+    const result = await read(
+      f.projectId,
+      f.context,
+      'canary',
+      { scope: 'files', in: `files/${file.id}` },
+      'grep'
+    )
+    expect(result.exitCode, result.stderr).toBe(0)
+    expect(result.stdout).toContain(`files/grep-notes.txt (${file.id}):2:`)
+    expect(
+      f.context.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(result.stdout)
+        .entries.length
+    ).toBeGreaterThan(0)
+  }
+)
+
 describe('Project CLI representations against PostgreSQL and stored bytes', () => {
   check(
     'native workspace content search reaches its collection operation instead of a file named search',

@@ -13,6 +13,7 @@ import {
   markAsyncToolRunning,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
+import { hasCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { withToolServiceMeter } from '@/lib/mothership/billing/service-meter'
 import {
   PERMISSION_WAIT_TIMEOUT_MS,
@@ -362,6 +363,9 @@ async function executeToolWithWatchdog(
             chatId: toolContext.chatId,
             workspaceId: toolContext.workspaceId,
             organizationId: toolContext.organizationId,
+            resourceAdmitted:
+              toolContext.requestMode !== 'assistant' && hasCopilotResourceAdmission(toolContext),
+            mothershipBaseURL: toolContext.mothershipBaseURL,
           },
           signal,
           onEvent,

@@ -33,6 +33,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useProjectFile } from '@/hooks/queries/project-files'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
@@ -120,7 +121,7 @@ export const MothershipView = memo(
       allowBuildControls,
       chatId,
       desktopScopeId,
-      resources,
+      resources: persistedResources,
       onTableViewContextChange,
       activeResourceId,
       activityResourceIds,
@@ -133,6 +134,12 @@ export const MothershipView = memo(
     }: MothershipViewProps,
     ref
   ) {
+    const projectsEnabled = useFeatureFlag('projects')
+    const projectFilesEnabled = useFeatureFlag('project-files')
+    const resources =
+      projectsEnabled && projectFilesEnabled
+        ? persistedResources
+        : persistedResources.filter((resource) => resource.owner?.entityType !== 'project')
     const active = resources.find((r) => getChatResourceSelectionId(r) === activeResourceId) ?? null
     const activeProjectId =
       active?.type === 'file' && active.owner?.entityType === 'project'

@@ -17,7 +17,9 @@ import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable
 import { recordExistingSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
+import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
+import { proxySandboxProjectFileRequest } from '@/lib/mothership/tools/sandbox-project-files'
 import {
   readSandboxResourceScope,
   recordSandboxResourceEffects,
@@ -49,11 +51,34 @@ export async function proxySandboxResourceRequest(
   const scope = await readSandboxResourceScope(token, request.headers.get('x-api-key'))
   if (!scope)
     return Response.json({ error: 'Sandbox tool execution is no longer active' }, { status: 403 })
+  const ownerHeader = request.headers.get('x-mothership-file-owner')
+  let owner: FileOperationOwner | undefined
+  if (ownerHeader !== null) {
+    if (scope.fileOwnerProtocolVersion !== 1 || request.headers.has('x-mothership-workspace-id'))
+      return Response.json(
+        { error: 'File owner routing is unavailable or contradictory' },
+        { status: 403 }
+      )
+    try {
+      owner = FileOperationOwner.parse(JSON.parse(ownerHeader))
+    } catch {
+      return Response.json({ error: 'Invalid file owner' }, { status: 400 })
+    }
+    const ownerPath =
+      owner.entityType === 'project'
+        ? `/api/v2/projects/${encodeURIComponent(owner.entityId)}/files`
+        : '/api/v2/files'
+    if (path !== ownerPath && !path.startsWith(`${ownerPath}/`))
+      return Response.json({ error: 'File owner does not match the API path' }, { status: 400 })
+    if (owner.entityType === 'project') {
+      return proxySandboxProjectFileRequest(request, token, path, url.search, scope, owner.entityId)
+    }
+  }
   let targetWorkspaceId: string
   try {
     const target = await resolveInvocationWorkspace(
       scope,
-      request.headers.get('x-mothership-workspace-id') ?? undefined
+      owner?.entityId ?? request.headers.get('x-mothership-workspace-id') ?? undefined
     )
     targetWorkspaceId = target.workspaceId
   } catch (error) {
@@ -87,6 +112,7 @@ async function proxyAuthorizedSandboxRequest(
     'connection',
     'transfer-encoding',
     'x-mothership-workspace-id',
+    'x-mothership-file-owner',
   ])
     headers.delete(header)
   headers.delete('x-api-key')

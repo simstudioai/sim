@@ -3,6 +3,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import { executePreparedCliRequest } from '@/lib/mothership/agent-cli/execute'
+import { grepProjectFiles } from '@/lib/mothership/agent-cli/project-file-grep'
 import { importProjectFileProvenance } from '@/lib/mothership/agent-cli/project-file-provenance'
 import { readProjectFileForAgent } from '@/lib/mothership/agent-cli/project-file-read'
 import { createProjectFileCliTransport } from '@/lib/mothership/agent-cli/project-file-transport'
@@ -84,6 +85,9 @@ export async function executeProjectFileCliRequest(
     sessionKey,
     files,
     resources,
-    augment: (invocation) => readProjectFileForAgent(invocation, context, projectId),
+    augment: (invocation) =>
+      invocation.name === 'grep'
+        ? grepProjectFiles(invocation, context, projectId)
+        : readProjectFileForAgent(invocation, context, projectId),
   })
 }

@@ -4,9 +4,10 @@ import {
 } from '@sim/testing/mocks/mothership-workspace-target.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
+import { copilotRequestPrincipal, isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { projectFileOperations } from '@/lib/projects/files/application/operations'
 
 const { readScope, recordEffects, fetcher, routeMatcher, recordInput, mint } = vi.hoisted(() => ({
   readScope: vi.fn(),
@@ -17,7 +18,10 @@ const { readScope, recordEffects, fetcher, routeMatcher, recordInput, mint } = v
   mint: vi.fn(),
 }))
 vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
-vi.mock('@/lib/api/server/routes/in-process-transport', () => ({ matchV2Route: routeMatcher }))
+vi.mock('@/lib/api/server/routes/in-process-transport', () => ({
+  matchV2Route: routeMatcher,
+  dispatchInProcessV2Request: (request: Request) => fetcher(request),
+}))
 vi.mock('@/lib/mothership/tools/sandbox-resources', () => ({
   readSandboxResourceScope: readScope,
   recordSandboxResourceEffects: recordEffects,
@@ -289,4 +293,66 @@ it('keeps the server identity out of callback response headers and body', async 
   expect(mint).not.toHaveBeenCalled()
   expect(JSON.stringify([...response.headers])).not.toContain('server-only-identity')
   expect(await response.text()).not.toContain('server-only-identity')
+})
+
+it.each([
+  [
+    'contradictory workspace',
+    '/api/v2/projects/project/files',
+    1,
+    { 'x-mothership-workspace-id': 'workspace' },
+  ],
+  ['another Project path', '/api/v2/projects/other/files', 1, {}],
+  ['non-file path', '/api/v2/tables', 1, {}],
+  ['unnegotiated lease', '/api/v2/projects/project/files', undefined, {}],
+] as const)(
+  'refuses %s before a Project callback can dispatch',
+  async (_name, path, protocol, headers) => {
+    readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: protocol })
+    fetcher.mockResolvedValue(Response.json({ data: [] }))
+    const response = await proxySandboxResourceRequest(
+      request(path, {
+        headers: {
+          ...headers,
+          'x-mothership-file-owner': JSON.stringify({ entityType: 'project', entityId: 'project' }),
+        },
+      }),
+      token
+    )
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    expect(fetcher).not.toHaveBeenCalled()
+  }
+)
+
+it('reconstructs Project authority from the admitted lease without borrowing its workspace', async () => {
+  readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: 1 })
+  routeMatcher.mockReturnValue({
+    pattern: '/api/v2/projects/{projectId}/files',
+    params: { projectId: 'project' },
+    load: async () => ({ GET: fetcher }),
+  })
+  fetcher.mockImplementation(async (request: Request) => {
+    const principal = copilotRequestPrincipal(request, projectFileOperations.list, {
+      operation: projectFileOperations.list,
+      delegationAudience: 'sim:project-files',
+    })
+    expect(principal).toMatchObject({
+      kind: 'resource_delegated',
+      subjectUserId: scope.userId,
+      invocation: { kind: 'chat', chatId: scope.chatId },
+      scope: { kind: 'entity', entityType: 'project', entityId: 'project' },
+    })
+    expect(principal).not.toHaveProperty('workspaceId')
+    return Response.json({ data: [] })
+  })
+  const response = await proxySandboxResourceRequest(
+    request('/api/v2/projects/project/files', {
+      headers: {
+        'x-mothership-file-owner': JSON.stringify({ entityType: 'project', entityId: 'project' }),
+      },
+    }),
+    token
+  )
+  expect(response.status).toBe(200)
+  expect(target).not.toHaveBeenCalled()
 })
