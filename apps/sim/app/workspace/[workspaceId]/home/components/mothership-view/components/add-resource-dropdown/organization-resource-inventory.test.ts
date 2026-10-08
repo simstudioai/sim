@@ -13,10 +13,38 @@ const inventory = {
     { type: 'file' as const, items: [{ id: 'report.csv', name: 'Report' }] },
     { type: 'integration' as const, items: [{ id: 'slack', name: 'Slack' }] },
   ],
-  structureFolders: { table: [], knowledgebase: [] },
+  structureFolders: { table: [], knowledgebase: [], file: [] },
   isHydrating: false,
 }
 describe('organization mention inventory', () => {
+  it('offers a shared Project file once without borrowing either environment as its owner', () => {
+    const projectFile = {
+      id: 'architecture',
+      name: 'Architecture.md',
+      owner: { entityType: 'project', entityId: 'shared-project' } as const,
+      projectName: 'Payments',
+    }
+    const shared = {
+      ...inventory,
+      groups: [{ type: 'file' as const, items: [...inventory.groups[0].items, projectFile] }],
+    }
+    const result = mergeOrganizationResourceInventories(
+      [
+        { id: 'sandbox', name: 'Sandbox' },
+        { id: 'production', name: 'Production' },
+      ],
+      { sandbox: shared, production: shared, unrelated: inventory }
+    )
+    expect(result.groups[0].items.map((item) => resourceFromItem('file', item))).toEqual([
+      { type: 'file', id: 'report.csv', title: 'Report', workspaceId: 'sandbox' },
+      { type: 'file', id: 'architecture', title: 'Architecture.md', owner: projectFile.owner },
+      { type: 'file', id: 'report.csv', title: 'Report', workspaceId: 'production' },
+    ])
+    const selected = result.groups[0].items.find((item) => item.id === 'architecture')
+    expect(selected?.projectName).toBe('Payments')
+    expect(selected?.workspaceName).toBeUndefined()
+  })
+
   it('retains explicit owners for duplicate paths, labels workspaces, and excludes unrelated inventories', () => {
     const result = mergeOrganizationResourceInventories(
       [

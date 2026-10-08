@@ -108,6 +108,10 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
     label: 'File folder',
     renderIcon: ({ className }) => <FolderIcon className={className} />,
   },
+  project: {
+    label: 'Project',
+    renderIcon: ({ className }) => <FolderIcon className={className} />,
+  },
   workspace: {
     label: 'Workspace',
     renderIcon: ({ className }) => <Workspaces className={className} />,

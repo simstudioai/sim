@@ -3,6 +3,7 @@ import {
   queryOptions,
   useInfiniteQuery,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
@@ -30,6 +31,7 @@ import {
   createProjectFileContract,
   getProjectFileContract,
   type ListProjectFilesQuery,
+  type ListProjectFilesResponse,
   listProjectFilesContract,
 } from '@/lib/api/contracts/project-files'
 import { getWorkspaceProjectContract } from '@/lib/api/contracts/projects'
@@ -68,6 +70,48 @@ export function useProjectFiles(
     getNextPageParam: (page) => page.nextCursor,
     enabled: Boolean(projectId) && enabled,
     staleTime: PROJECT_FILE_STALE_TIME,
+  })
+}
+
+/** Loads the complete active hierarchy for resource pickers, including nested files. */
+function getProjectFileInventoryQueryOptions(projectId: string | undefined, enabled = true) {
+  return queryOptions({
+    queryKey: projectFilesKeys.inventory(projectId),
+    queryFn: async ({ signal }) => {
+      if (!projectId) throw new Error('Project is required')
+      const items: ListProjectFilesResponse['items'] = []
+      let cursor: string | undefined
+      do {
+        const page = await requestJson(listProjectFilesContract, {
+          params: { id: projectId },
+          query: {
+            scope: 'active',
+            recursive: true,
+            limit: 100,
+            sortBy: 'name',
+            sortOrder: 'asc',
+            cursor,
+          },
+          signal,
+        })
+        items.push(...page.items)
+        cursor = page.nextCursor ?? undefined
+      } while (cursor)
+      return items
+    },
+    enabled: Boolean(projectId) && enabled,
+    staleTime: PROJECT_FILE_STALE_TIME,
+    retry: false,
+  })
+}
+
+export function useProjectFileInventory(projectId: string | undefined, enabled = true) {
+  return useQuery(getProjectFileInventoryQueryOptions(projectId, enabled))
+}
+
+export function useProjectFileInventories(projectIds: readonly string[], enabled = true) {
+  return useQueries({
+    queries: projectIds.map((projectId) => getProjectFileInventoryQueryOptions(projectId, enabled)),
   })
 }
 

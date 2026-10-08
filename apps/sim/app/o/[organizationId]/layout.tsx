@@ -4,10 +4,12 @@ import { redirect } from 'next/navigation'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
@@ -56,25 +58,36 @@ export default async function OrganizationLayout({
   if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  const [, tableRowTtlEnabled, modelSelectorEnabled, planModeEnabled, dashboardsEnabled] =
-    await Promise.all([
-      prefetchOrganizationSidebar(
-        queryClient,
-        organizationId,
-        { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-        getActiveOrganizationId(session)
-      ),
-      isTableRowTtlEnabled(),
-      isMothershipModelSelectorEnabled(),
-      isPlanModeEnabled(),
-      isDashboardsEnabled(organizationId),
-    ])
+  const [
+    ,
+    tableRowTtlEnabled,
+    modelSelectorEnabled,
+    planModeEnabled,
+    dashboardsEnabled,
+    projectsEnabled,
+    projectFilesEnabled,
+  ] = await Promise.all([
+    prefetchOrganizationSidebar(
+      queryClient,
+      organizationId,
+      { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+      getActiveOrganizationId(session)
+    ),
+    isTableRowTtlEnabled(),
+    isMothershipModelSelectorEnabled(),
+    isPlanModeEnabled(),
+    isDashboardsEnabled(organizationId),
+    isFeatureEnabled('projects'),
+    isProjectFileApiEnabled(),
+  ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <FeatureFlagsProvider
         flags={{
+          projects: projectsEnabled,
+          'project-files': projectFilesEnabled,
           dashboards: dashboardsEnabled,
           'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,

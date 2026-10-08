@@ -562,7 +562,17 @@ export function usePromptEditor({
     [insertMention, organizationId]
   )
 
-  /** Tags a whole workspace in an organization chat: "I'm working in this one". */
+  /** Tags shared Project context without selecting an environment. */
+  const insertProject = useCallback(
+    (project: { id: string; name: string }) => {
+      insertMention(
+        { kind: 'project', projectId: project.id, label: project.name },
+        contextManagementRef.current.selectedContexts
+      )
+    },
+    [insertMention]
+  )
+
   const insertWorkspace = useCallback(
     (workspace: { id: string; name: string }) => {
       insertMention(
@@ -1413,6 +1423,7 @@ export function usePromptEditor({
     insertResource,
     /** @internal */
     insertWorkspace,
+    insertProject,
     /** @internal */
     handleSkillSelect,
     /** @internal */

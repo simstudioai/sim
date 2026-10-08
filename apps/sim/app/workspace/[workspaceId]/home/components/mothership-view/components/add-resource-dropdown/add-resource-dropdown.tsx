@@ -7,18 +7,23 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuItemLabel,
+  DropdownMenuLabel,
   DropdownMenuSearchInput,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
+  OverflowText,
   TabStripAction,
   Tooltip,
 } from '@sim/emcn'
 import { Folder, Plus } from '@sim/emcn/icons'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import type { Project } from '@/lib/api/contracts/projects'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import { getChatResourceKey } from '@/lib/mothership/resources/types'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import {
@@ -34,6 +39,10 @@ import {
   OrganizationResourceInventory,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/organization-resource-inventory'
 import {
+  useAvailableProjectInventories,
+  useAvailableProjectResources,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/project-resources'
+import {
   buildResourceFolderTree,
   type ResourceTreeNode,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
@@ -43,10 +52,13 @@ import {
   getResourceConfig,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { resourceMentionMatches } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
 import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { useProjectInventory } from '@/hooks/queries/projects'
 import { useOrderedWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
 
 export interface AddResourceDropdownProps {
@@ -111,7 +123,7 @@ export function ResourceFolderTreeItems({
               <DropdownMenuItemLabel label={node.name} />
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className={subContentClassName}>
-              {folderType && (
+              {folderType && node.selectable !== false && (
                 <DropdownMenuItem
                   onClick={() => onSelect({ type: folderType, id: node.id, title: node.name })}
                 >
@@ -200,7 +212,7 @@ export function useResourceTreeSections({
       nodes: buildResourceFolderTree(
         itemsOf(spec.type),
         spec.folders.kind === 'group'
-          ? itemsOf(spec.folders.type)
+          ? [...itemsOf(spec.folders.type), ...(spec.type === 'file' ? structureFolders.file : [])]
           : structureFolders[spec.folders.key],
         { orderBySortOrder: spec.orderBySortOrder, pruneEmpty: !selectFolders && !spec.folderType }
       ),
@@ -283,14 +295,15 @@ export function ResourceMenuSections({
               ) : (
                 items.map((item) => (
                   <DropdownMenuItem
-                    key={`${item.workspaceId ?? ''}:${item.id}`}
+                    key={getChatResourceKey(resourceFromItem(type, item))}
                     onClick={() => onSelect(resourceFromItem(type, item))}
                   >
                     {config.renderDropdownItem({ item })}
-                    {typeof item.workspaceName === 'string' && (
-                      <span className='ml-auto text-[var(--text-muted)] text-xs'>
-                        {item.workspaceName}
-                      </span>
+                    {typeof (item.projectName ?? item.workspaceName) === 'string' && (
+                      <OverflowText
+                        label={String(item.projectName ?? item.workspaceName)}
+                        className='ml-auto max-w-[35%] shrink-0 text-[var(--text-muted)] text-xs'
+                      />
                     )}
                   </DropdownMenuItem>
                 ))
@@ -322,13 +335,7 @@ function ResourceMenuSearch({
     const q = search.toLowerCase().trim()
     if (!q) return null
     return available.flatMap(({ type, items }) =>
-      items
-        .filter(
-          (item) =>
-            item.name.toLowerCase().includes(q) ||
-            (typeof item.workspaceName === 'string' && item.workspaceName.toLowerCase().includes(q))
-        )
-        .map((item) => ({ type, item }))
+      items.filter((item) => resourceMentionMatches(item, q)).map((item) => ({ type, item }))
     )
   }, [search, available])
 
@@ -370,16 +377,17 @@ function ResourceMenuSearch({
                    cursor, so it paints the hover surface rather than the selected one. */
               return (
                 <DropdownMenuItem
-                  key={`${type}:${item.workspaceId ?? ''}:${item.id}`}
+                  key={getChatResourceKey(resourceFromItem(type, item))}
                   className={cn(index === activeIndex && 'bg-[var(--surface-hover)]')}
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => select(resourceFromItem(type, item))}
                 >
                   {config.renderDropdownItem({ item })}
-                  {typeof item.workspaceName === 'string' && (
-                    <span className='ml-auto text-[var(--text-muted)] text-xs'>
-                      {item.workspaceName}
-                    </span>
+                  {typeof (item.projectName ?? item.workspaceName) === 'string' && (
+                    <OverflowText
+                      label={String(item.projectName ?? item.workspaceName)}
+                      className='ml-auto max-w-[35%] shrink-0 text-[var(--text-muted)] text-xs'
+                    />
                   )}
                 </DropdownMenuItem>
               )
@@ -402,6 +410,7 @@ interface WorkspaceResourceMenuContentProps {
   enabled: boolean
   excludeTypes?: readonly MothershipResourceType[]
   searchable?: boolean
+  includeProjectFiles?: boolean
   /** Offers every folder as an attachable entry, as chat does. */
   selectFolders?: boolean
   onSelect: (resource: MothershipResource) => void
@@ -413,6 +422,7 @@ function WorkspaceResourceMenuContent({
   enabled,
   excludeTypes,
   searchable = true,
+  includeProjectFiles,
   selectFolders,
   onSelect,
   subContentClassName,
@@ -420,11 +430,14 @@ function WorkspaceResourceMenuContent({
   const { groups, structureFolders, isHydrating } = useAvailableResources(workspaceId, {
     enabled,
     excludeTypes,
+    includeProjectFiles,
   })
   const sections = useResourceTreeSections({ groups, structureFolders, selectFolders })
   const select = (resource: MothershipResource) =>
     onSelect(
-      resource.type === 'browser' || resource.type === 'terminal'
+      resource.type === 'browser' ||
+        resource.type === 'terminal' ||
+        resource.owner?.entityType === 'project'
         ? resource
         : { ...resource, workspaceId }
     )
@@ -455,10 +468,7 @@ interface WorkspaceResourceSubmenuProps {
   excludeTypes?: readonly MothershipResourceType[]
   selectFolders?: boolean
   onSelect: (resource: MothershipResource) => void
-  /**
-   * Offers the workspace itself as the first entry, the way a folder submenu
-   * offers its folder, for pickers that can attach a whole workspace.
-   */
+  /** Selects the workspace directly from its root row when the picker supports it. */
   onSelectWorkspace?: (workspace: Pick<Workspace, 'id' | 'name'>) => void
   subContentClassName?: string
 }
@@ -481,28 +491,131 @@ export function WorkspaceResourceSubmenu({
   )
   return (
     <DropdownMenuSub open={open} onOpenChange={setOpen}>
-      <DropdownMenuSubTrigger>
+      <DropdownMenuSubTrigger
+        onClick={(event) => {
+          if (!onSelectWorkspace) return
+          event.preventDefault()
+          onSelectWorkspace(workspace)
+        }}
+        onKeyDown={(event) => {
+          if (
+            !onSelectWorkspace ||
+            event.target !== event.currentTarget ||
+            (event.key !== 'Enter' && event.key !== ' ')
+          )
+            return
+          event.preventDefault()
+          onSelectWorkspace(workspace)
+        }}
+      >
         {icon}
         <DropdownMenuItemLabel label={workspace.name} />
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent
         className={cn('flex w-[320px] flex-col overflow-hidden', subContentClassName)}
       >
-        {onSelectWorkspace && (
-          <DropdownMenuItem onClick={() => onSelectWorkspace(workspace)}>
-            {icon}
-            <DropdownMenuItemLabel label={workspace.name} />
-          </DropdownMenuItem>
-        )}
         <WorkspaceResourceMenuContent
           workspaceId={workspace.id}
           enabled={open}
           excludeTypes={excludeTypes}
           searchable={false}
+          includeProjectFiles={false}
           selectFolders={selectFolders}
           onSelect={onSelect}
           subContentClassName={subContentClassName}
         />
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  )
+}
+
+interface ProjectResourceSubmenuProps {
+  project: Project
+  workspaces: ReadonlyArray<Pick<Workspace, 'id' | 'name' | 'logoUrl'>>
+  excludeTypes?: readonly MothershipResourceType[]
+  selectFolders?: boolean
+  onSelect: (resource: MothershipResource) => void
+  onSelectProject?: (project: Pick<Project, 'id' | 'name'>) => void
+  onSelectWorkspace?: (workspace: Pick<Workspace, 'id' | 'name'>) => void
+  subContentClassName?: string
+}
+
+/** A Project owns shared files; its environments retain their workspace resources. */
+export function ProjectResourceSubmenu({
+  project,
+  workspaces,
+  excludeTypes,
+  selectFolders,
+  onSelect,
+  onSelectProject,
+  onSelectWorkspace,
+  subContentClassName,
+}: ProjectResourceSubmenuProps) {
+  const [open, setOpen] = useState(false)
+  const projectFilesEnabled = useFeatureFlag('project-files')
+  const showFiles = projectFilesEnabled && !excludeTypes?.includes('file')
+  const inventory = useAvailableProjectResources(project, open && showFiles)
+  const sections = useResourceTreeSections(inventory)
+  const fileNodes = sections.find((section) => section.type === 'file')?.nodes ?? []
+  const workspaceById = new Map(workspaces.map((workspace) => [workspace.id, workspace]))
+  const environments = project.environments.map(
+    (environment) => workspaceById.get(environment.id) ?? environment
+  )
+  return (
+    <DropdownMenuSub open={open} onOpenChange={setOpen}>
+      <DropdownMenuSubTrigger
+        onClick={(event) => {
+          if (!onSelectProject) return
+          event.preventDefault()
+          onSelectProject(project)
+        }}
+        onKeyDown={(event) => {
+          if (
+            !onSelectProject ||
+            event.target !== event.currentTarget ||
+            (event.key !== 'Enter' && event.key !== ' ')
+          )
+            return
+          event.preventDefault()
+          onSelectProject(project)
+        }}
+      >
+        <Folder className='size-[14px]' />
+        <DropdownMenuItemLabel label={project.name} />
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className={cn('w-[320px]', subContentClassName)}>
+        <DropdownMenuLabel>Environments</DropdownMenuLabel>
+        {environments.map((workspace) => (
+          <WorkspaceResourceSubmenu
+            key={workspace.id}
+            workspace={workspace}
+            excludeTypes={excludeTypes}
+            selectFolders={selectFolders}
+            onSelect={onSelect}
+            onSelectWorkspace={onSelectWorkspace}
+            subContentClassName={subContentClassName}
+          />
+        ))}
+        {!environments.length && (
+          <DropdownMenuItem disabled>No accessible environments</DropdownMenuItem>
+        )}
+        {showFiles && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Project files</DropdownMenuLabel>
+            <ResourceFolderTreeItems
+              nodes={fileNodes}
+              type='file'
+              onSelect={onSelect}
+              subContentClassName={subContentClassName}
+            />
+            {!fileNodes.length && (
+              <DropdownMenuItem disabled>
+                {inventory.isHydrating ? 'Loading files' : 'No shared files'}
+              </DropdownMenuItem>
+            )}
+          </>
+        )}
       </DropdownMenuSubContent>
     </DropdownMenuSub>
   )
@@ -519,6 +632,9 @@ export function AddResourceDropdown({
   onClose,
 }: AddResourceDropdownProps) {
   const [open, setOpen] = useState(false)
+  const projectsEnabled = useFeatureFlag('projects')
+  const projectQuery = useProjectInventory(organizationId, open && projectsEnabled)
+  const projects = projectsEnabled && !projectQuery.isError ? (projectQuery.data ?? []) : []
   const { data: allWorkspaces = [] } = useOrderedWorkspacesQuery(open && Boolean(organizationId))
   const workspaces = allWorkspaces.filter(
     (workspace) => workspace.organizationId === organizationId
@@ -533,7 +649,16 @@ export function AddResourceDropdown({
       current[workspaceId] === inventory ? current : { ...current, [workspaceId]: inventory }
     )
   }, [])
-  const organizationInventory = mergeOrganizationResourceInventories(workspaces, inventories)
+  const projectInventories = useAvailableProjectInventories(
+    projects,
+    open && Boolean(organizationId) && !excludeTypes?.includes('file')
+  )
+  const organizationInventory = mergeOrganizationResourceInventories(
+    workspaces,
+    inventories,
+    projects,
+    projectInventories
+  )
   const contentRef = useRef<HTMLDivElement>(null)
   const { groups } = useAvailableResources('', {
     enabled: open && !suppliedWorkspaceId,
@@ -588,6 +713,7 @@ export function AddResourceDropdown({
             onChange={receiveInventory}
           />
         ))}
+
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <DropdownMenuTrigger asChild>
@@ -622,19 +748,37 @@ export function AddResourceDropdown({
               ),
               ...nativeGroups,
             ]}
-            isHydrating={organizationInventory.isHydrating}
+            isHydrating={
+              organizationInventory.isHydrating || (projectsEnabled && projectQuery.isPending)
+            }
             onSelect={select}
           >
-            {workspaces.map((workspace) => (
-              <WorkspaceResourceSubmenu
-                key={workspace.id}
-                workspace={workspace}
+            {projects.map((project) => (
+              <ProjectResourceSubmenu
+                key={project.id}
+                project={project}
+                workspaces={workspaces}
                 excludeTypes={flyoutExcludedTypes}
                 onSelect={select}
               />
             ))}
-            {!workspaces.length && (
-              <DropdownMenuItem disabled>No accessible workspaces</DropdownMenuItem>
+            {!projectsEnabled &&
+              workspaces.map((workspace) => (
+                <WorkspaceResourceSubmenu
+                  key={workspace.id}
+                  workspace={workspace}
+                  excludeTypes={flyoutExcludedTypes}
+                  onSelect={select}
+                />
+              ))}
+            {projectsEnabled && !projects.length && (
+              <DropdownMenuItem disabled>
+                {projectQuery.isPending
+                  ? 'Loading projects'
+                  : projectQuery.isError
+                    ? 'Unable to load projects'
+                    : 'No accessible projects'}
+              </DropdownMenuItem>
             )}
             <ResourceMenuSections sections={[]} groups={nativeGroups} onSelect={select} />
           </ResourceMenuSearch>

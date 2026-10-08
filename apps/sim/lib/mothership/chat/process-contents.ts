@@ -22,10 +22,12 @@ import {
 import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { createCopilotChatKnowledgePrincipal } from '@/lib/mothership/application/execute-knowledge-use-case'
+import { executeCopilotProjectDiscovery } from '@/lib/mothership/application/execute-project-use-case'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   createCopilotChatPrincipal,
+  createCopilotResourceAdmission,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
 import { createCopilotChatTablePrincipal } from '@/lib/mothership/auth/table-delegation'
@@ -60,6 +62,7 @@ import {
   intersectIntegrationAllowlists,
   resolveAccessControlBlockType,
 } from '@/lib/permission-groups/integration-allowlist'
+import { listProjects } from '@/lib/projects/application'
 import { skillDelegationPolicy } from '@/lib/skills/application/authorization'
 import { getSkillUseCase } from '@/lib/skills/application/use-cases'
 import { queryTableRows } from '@/lib/table/application/rows'
@@ -97,6 +100,7 @@ type AgentContextType =
   | 'browser_tab'
   | 'terminal_tab'
   | 'workspace'
+  | 'project'
 
 interface AgentContext {
   type: AgentContextType
@@ -433,6 +437,34 @@ export async function processContextsServer(
         ctx.kind === 'skill' && organizationId ? getBuiltinSkillById(ctx.skillId) : undefined
       if (builtin)
         return { type: 'skill', tag: ctx.label ? `@${ctx.label}` : '@', content: builtin.content }
+      if (ctx.kind === 'project') {
+        if (!organizationId || !chatId || (requestMode !== 'agent' && requestMode !== 'plan'))
+          return null
+        const { projects } = await executeCopilotProjectDiscovery(
+          {
+            userId,
+            chatId,
+            organizationId,
+            requestMode,
+            toolCallId: `context:project:${ctx.projectId}`,
+            copilotToolExecution: true,
+            copilotResourceAdmission: createCopilotResourceAdmission({
+              userId,
+              invocation: { kind: 'chat', chatId },
+            }),
+          },
+          listProjects,
+          { organizationId, projectId: ctx.projectId, limit: 1 }
+        )
+        const [project] = projects
+        return project
+          ? {
+              type: 'project',
+              tag: ctx.label ? `@${ctx.label}` : '@',
+              content: `The user tagged this Project. Shared documentation belongs to this Project. Its environments are workspaces; target the appropriate environment for workflows and execution files. A Project tag does not select an environment.\n${JSON.stringify(project)}`,
+            }
+          : null
+      }
       if (ctx.kind === 'workspace') {
         return organizationId && chatId
           ? await describeWorkspace(ctx.workspaceId, ctx.label, userId, organizationId, chatId)

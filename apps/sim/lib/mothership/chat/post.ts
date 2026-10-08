@@ -229,6 +229,7 @@ const ChatContextSchema = z
       'browser_tab',
       'terminal_tab',
       'workspace',
+      'project',
     ]),
     label: z.string().max(MAX_CHAT_CONTEXT_LABEL_LENGTH),
     chatId: z.string().optional(),
@@ -248,6 +249,7 @@ const ChatContextSchema = z
     fileFolderId: z.string().optional(),
     skillId: z.string().optional(),
     workspaceId: z.string().min(1).max(200).optional(),
+    projectId: z.string().min(1).max(200).optional(),
     serverId: z.string().optional(),
     scheduleId: z.string().optional(),
     tabId: z.string().optional(),
@@ -261,7 +263,17 @@ const ChatContextSchema = z
     columnIds: z.array(z.string()).max(MAX_TABLE_SELECTION_COLUMNS).optional(),
     selection: z.union([BrowserTextSelectionSchema, TerminalTextSelectionSchema]).optional(),
   })
-  .superRefine(({ kind, selection, workspaceId, owner }, refinementContext) => {
+  .superRefine(({ kind, selection, workspaceId, projectId, owner }, refinementContext) => {
+    if (
+      (kind === 'project' && (!projectId || workspaceId !== undefined)) ||
+      (kind !== 'project' && projectId !== undefined)
+    ) {
+      refinementContext.addIssue({
+        code: 'custom',
+        path: ['projectId'],
+        message: 'A Project context requires only a Project target',
+      })
+    }
     if (
       owner &&
       ((kind !== 'file' && kind !== 'file_selection') ||

@@ -12,6 +12,7 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { useProjectFile } from '@/hooks/queries/project-files'
+import { useFileListRoom } from '@/hooks/use-file-list-room'
 
 interface ProjectFileProps {
   projectId: string
@@ -27,6 +28,7 @@ interface ProjectFileProps {
 }
 
 export function EmbeddedProjectFile({ projectId, fileId, ...viewerProps }: ProjectFileProps) {
+  useFileListRoom({ entityType: 'project', entityId: projectId })
   const { data, isPending, error } = useProjectFile(projectId, fileId)
   if (isPending) {
     return (

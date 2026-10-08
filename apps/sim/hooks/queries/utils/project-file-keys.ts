@@ -9,6 +9,8 @@ export const projectFilesKeys = {
   projectLists: (projectId?: string) => [...projectFilesKeys.project(projectId), 'list'] as const,
   list: (projectId: string | undefined, filters: Omit<ListProjectFilesQuery, 'cursor'>) =>
     [...projectFilesKeys.projectLists(projectId), filters] as const,
+  inventory: (projectId?: string) =>
+    [...projectFilesKeys.projectLists(projectId), 'inventory'] as const,
   records: (projectId?: string) => [...projectFilesKeys.project(projectId), 'record'] as const,
   record: (projectId?: string, fileId?: string) =>
     [...projectFilesKeys.records(projectId), fileId ?? ''] as const,

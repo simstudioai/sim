@@ -106,6 +106,7 @@ export type ChatContext =
   | ({ kind: 'filefolder'; fileFolderId: string; label: string } & WorkspaceOwned)
   /** A whole workspace in an organization chat: "I'm working in this one". */
   | { kind: 'workspace'; workspaceId: string; label: string }
+  | { kind: 'project'; projectId: string; label: string }
   | { kind: 'docs'; label: string }
   /**
    * A tab in the desktop browser or terminal panel, dragged into the input to

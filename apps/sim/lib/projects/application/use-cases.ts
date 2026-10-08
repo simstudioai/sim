@@ -79,7 +79,7 @@ export const getProjectIssueAccess: OperationUseCase<
 
 export const listProjects: OperationUseCase<
   typeof projectOperations.list,
-  { organizationId?: string; cursor?: string; limit: number },
+  { organizationId?: string; projectId?: string; cursor?: string; limit: number },
   { projects: ReturnType<typeof presentProject>[]; nextCursor: string | null }
 > = {
   operation: projectOperations.list,
@@ -114,6 +114,7 @@ export const listProjects: OperationUseCase<
           ON ${project.id} = ${projectWorkspace.projectId} AND ${project.archivedAt} IS NULL
         WHERE TRUE
           ${scope.organizationId !== undefined ? sql`AND ${project.organizationId} IS NOT DISTINCT FROM ${scope.organizationId}` : sql``}
+          ${input.projectId !== undefined ? sql`AND ${project.id} = ${input.projectId}` : sql``}
           ${input.cursor ? sql`AND ${projectWorkspace.projectId} > ${input.cursor}` : sql``}
         ORDER BY 1
         LIMIT ${input.limit + 1}
