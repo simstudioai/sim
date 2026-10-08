@@ -36,6 +36,10 @@ export const basetenProviderModelsQuerySchema = z.object({
   workspaceId: z.string().min(1).optional(),
 })
 
+export const atlascloudProviderModelsQuerySchema = z.object({
+  workspaceId: z.string().min(1).optional(),
+})
+
 export const openRouterUpstreamResponseSchema = z.object({
   data: z
     .array(
@@ -115,6 +119,24 @@ const togetherModelObjectSchema = z
 export const togetherUpstreamResponseSchema = z.array(togetherModelObjectSchema)
 
 export const basetenUpstreamResponseSchema = z.object({
+  data: z
+    .array(
+      z
+        .object({
+          id: z.string(),
+          object: z.string().optional(),
+          created: z.number().optional(),
+          owned_by: z.string().optional(),
+        })
+        .passthrough()
+    )
+    .default([]),
+  object: z.string().optional(),
+})
+
+// Atlas Cloud serves an OpenAI-shaped /v1/models with extra fields
+// (context_length, pricing, supported_features) that this route does not need.
+export const atlascloudUpstreamResponseSchema = z.object({
   data: z
     .array(
       z
@@ -248,6 +270,16 @@ export const getBasetenProviderModelsContract = defineRouteContract({
   method: 'GET',
   path: '/api/providers/baseten/models',
   query: basetenProviderModelsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: providerModelsResponseSchema,
+  },
+})
+
+export const getAtlascloudProviderModelsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/providers/atlascloud/models',
+  query: atlascloudProviderModelsQuerySchema,
   response: {
     mode: 'json',
     schema: providerModelsResponseSchema,

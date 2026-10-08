@@ -12,6 +12,7 @@ const PROVIDER_PREFIXES: Record<string, string[]> = {
   fireworks: ['fireworks/'],
   together: ['together/'],
   baseten: ['baseten/'],
+  atlascloud: ['atlascloud/'],
   'ollama-cloud': ['ollama-cloud/'],
   groq: ['groq/'],
   kie: ['kie/'],

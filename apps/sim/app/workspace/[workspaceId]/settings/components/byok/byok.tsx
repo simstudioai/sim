@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import {
   AnthropicIcon,
+  AtlasCloudIcon,
   BasetenIcon,
   BrandfetchIcon,
   CohereIcon,
@@ -167,6 +168,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: NebiusIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Nebius Token Factory API key',
+  },
+  {
+    id: 'atlascloud',
+    name: 'Atlas Cloud',
+    icon: AtlasCloudIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Atlas Cloud API key',
   },
   {
     id: 'ollama-cloud',
@@ -381,6 +389,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'together',
       'baseten',
       'nebius',
+      'atlascloud',
       'ollama-cloud',
       'kie',
       'falai',
