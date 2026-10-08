@@ -1,6 +1,7 @@
-import { dbReplica } from '@sim/db'
 import { auditLog } from '@sim/db/schema'
-import { and, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, inArray } from 'drizzle-orm'
+import { buildOrgScopeCondition } from '@/lib/audit-logs/query'
+import { DATA_DRAIN_LIMITS } from '@/lib/data-drains/limits'
 import {
   decodeTimeCursor,
   encodeTimeCursor,
@@ -8,46 +9,47 @@ import {
   timeCursorPredicate,
   timeCursorStabilityBound,
 } from '@/lib/data-drains/sources/cursor'
-import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
+import { readBoundedSourcePage } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
 
 type AuditLogRow = typeof auditLog.$inferSelect
 
 /**
  * Drains audit events scoped to the organization: rows from any of the org's
- * workspaces, plus org-level rows (`workspace_id IS NULL`) where
- * `metadata->>'organizationId'` matches. Audit-log writers consistently set
- * `metadata.organizationId` for org-scoped actions even though the table has
- * no dedicated FK column.
+ * workspaces, plus organization-level rows using the same tenant predicate as
+ * the audit viewer. Departed actors remain part of the exported security trail.
  */
 async function* pages(input: SourcePageInput): AsyncIterable<AuditLogRow[]> {
-  const workspaceIds = await getOrganizationWorkspaceIds(input.organizationId)
-
-  const orgScopedClause = and(
-    isNull(auditLog.workspaceId),
-    sql`${auditLog.metadata}->>'organizationId' = ${input.organizationId}`
-  )
-  const scopeClause =
-    workspaceIds.length === 0
-      ? orgScopedClause
-      : or(inArray(auditLog.workspaceId, workspaceIds), orgScopedClause)
+  const scopeClause = buildOrgScopeCondition({
+    organizationId: input.organizationId,
+    orgMemberIds: [],
+    includeDeparted: true,
+  })
 
   let cursor = decodeTimeCursor(input.cursor)
   while (!input.signal.aborted) {
     const cursorClause = timeCursorPredicate(auditLog.createdAt, auditLog.id, cursor)
 
-    const rows = await dbReplica
-      .select()
-      .from(auditLog)
-      .where(and(scopeClause, timeCursorStabilityBound(auditLog.createdAt), cursorClause))
-      .orderBy(...timeCursorOrderBy(auditLog.createdAt, auditLog.id))
-      .limit(input.chunkSize)
+    const orderBy = timeCursorOrderBy(auditLog.createdAt, auditLog.id)
+    const rows = await readBoundedSourcePage({
+      table: auditLog,
+      idColumn: auditLog.id,
+      condition: and(scopeClause, timeCursorStabilityBound(auditLog.createdAt), cursorClause),
+      orderBy,
+      chunkSize: input.chunkSize,
+      read: (tx, ids) =>
+        tx
+          .select()
+          .from(auditLog)
+          .where(inArray(auditLog.id, ids))
+          .orderBy(...orderBy),
+    })
 
     if (rows.length === 0) return
     yield rows
     const last = rows[rows.length - 1]
     cursor = { ts: last.createdAt.toISOString(), id: last.id }
-    if (rows.length < input.chunkSize) return
+    if (rows.length < Math.min(input.chunkSize, DATA_DRAIN_LIMITS.pageRows)) return
   }
 }
 
@@ -70,6 +72,7 @@ export const auditLogsSource: DrainSource<AuditLogRow> = {
       metadata: row.metadata,
       ipAddress: row.ipAddress,
       userAgent: row.userAgent,
+      surface: row.surface,
       createdAt: row.createdAt.toISOString(),
     }
   },

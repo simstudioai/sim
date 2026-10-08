@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, ssoProvider } from '@sim/db'
 import { forgetPrimaryProvider } from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
@@ -107,7 +108,20 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
   }
 
   /** The organization may have just lost the provider its sign-in requirement depends on. */
-  if (organizationId) invalidateSsoPolicyCache(organizationId)
+  if (organizationId) {
+    invalidateSsoPolicyCache(organizationId)
+    recordAudit({
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.ORGANIZATION_SSO_PROVIDER_DELETED,
+      resourceType: AuditResourceType.ORGANIZATION,
+      resourceId: organizationId,
+      description: 'Deleted organization SSO provider',
+      metadata: { organizationId, providerId, domain: provider.domain },
+      request,
+    })
+  }
 
   logger.info('Deleted SSO provider', {
     providerId,

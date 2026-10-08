@@ -17,6 +17,7 @@ import { BaseSequencer, type TestSpecification } from 'vitest/node'
  */
 export default defineConfig({
   test: {
+    fsModuleCache: true,
     exclude: [...configDefaults.exclude, '**/dist/**'],
     clearMocks: true,
     restoreMocks: true,
