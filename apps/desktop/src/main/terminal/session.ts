@@ -261,11 +261,11 @@ interface PendingCommand {
   resolve(result: TerminalRunResult): void
 }
 
-/** How long a new shell gets to reach its first prompt, each measured from its spawn. */
+/** How long a new shell gets to reach its first prompt. */
 export interface ShellStartupBounds {
-  /** To begin the startup files we generated; a shell that has not by then never will. */
+  /** From spawn, to begin the startup files we generated; a shell that has not by then never will. */
   unstartedMs: number
-  /** For startup files that did begin to reach a prompt. */
+  /** From the moment they began, for those startup files to reach a prompt. */
   startingMs: number
 }
 
@@ -329,7 +329,8 @@ export class TerminalSession {
   private lines: number
   private shellIntegration = false
   /** The shell has begun the startup files we generated, so its integration is on the way. */
-  private startupBegun = false
+  /** When the shell began the startup files we generated, or null while it has not. */
+  private startupBegunAt: number | null = null
   private readonly spawnedAt = Date.now()
   private altScreen = false
   private foregroundCommand: string | null = null
@@ -516,7 +517,7 @@ export class TerminalSession {
   /**
    * Resolves once the shell reaches its first prompt with integration live, or once it is clear
    * it will not: it never began our startup files within `bounds.unstartedMs` of spawning, it is
-   * still running them `bounds.startingMs` after spawning, it exited, or `signal` stopped the
+   * still running them `bounds.startingMs` after they began, it exited, or `signal` stopped the
    * wait. A shell's startup files take a while, and longer on a busy machine, so a command issued
    * soon after spawn would otherwise be refused when the shell is merely early.
    */
@@ -531,8 +532,11 @@ export class TerminalSession {
         timer = null
         const readiness = signal?.aborted ? 'stopped' : this.readiness(bounds)
         if (readiness === null) {
-          const limit = this.startupBegun ? bounds.startingMs : bounds.unstartedMs
-          timer = setTimeout(check, Math.max(0, this.spawnedAt + limit - Date.now()))
+          const deadline =
+            this.startupBegunAt === null
+              ? this.spawnedAt + bounds.unstartedMs
+              : this.startupBegunAt + bounds.startingMs
+          timer = setTimeout(check, Math.max(0, deadline - Date.now()))
           return
         }
         this.readinessWaiters.delete(check)
@@ -549,11 +553,13 @@ export class TerminalSession {
   private readiness(bounds: ShellStartupBounds): ShellReadiness | null {
     if (this.shellIntegration) return 'ready'
     if (this.disposed) return 'exited'
-    const elapsed = Date.now() - this.spawnedAt
-    if (!this.startupBegun) {
-      return !this.instrumented || elapsed >= bounds.unstartedMs ? 'not-instrumented' : null
+    const now = Date.now()
+    if (this.startupBegunAt === null) {
+      return !this.instrumented || now - this.spawnedAt >= bounds.unstartedMs
+        ? 'not-instrumented'
+        : null
     }
-    return elapsed >= bounds.startingMs ? 'starting' : null
+    return now - this.startupBegunAt >= bounds.startingMs ? 'starting' : null
   }
 
   private notifyReadinessWaiters(): void {
@@ -849,8 +855,8 @@ export class TerminalSession {
   ): void {
     switch (marker.kind) {
       case 'startup':
-        if (!this.startupBegun) {
-          this.startupBegun = true
+        if (this.startupBegunAt === null) {
+          this.startupBegunAt = Date.now()
           this.notifyReadinessWaiters()
         }
         break

@@ -95,6 +95,23 @@ describe('a shell that is still starting', () => {
     terminal.dispose()
   })
 
+  it('gives startup files their full bound from when they began, however late that was', async () => {
+    // A machine so busy our files began 7 s after spawn, and the user's then took 25 s more.
+    const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+    const running = terminal.executeTool('call-late', 'run', { command: 'echo hi' })
+    await vi.advanceTimersByTimeAsync(7_000)
+    shell(STARTUP)
+    await vi.advanceTimersByTimeAsync(25_000)
+    expect(pty.writes).toEqual([])
+
+    shell(PROMPT)
+    await answerCommand('hi')
+    const response = await running
+
+    expect(response).toMatchObject({ ok: true, result: { exitCode: 0 } })
+    terminal.dispose()
+  })
+
   it('refuses with the screen when startup files stall on a question', async () => {
     const terminal = new TerminalService({ loadCwd: () => '/tmp' })
     const running = terminal.executeTool('call-stalled', 'run', { command: 'echo hi' })
