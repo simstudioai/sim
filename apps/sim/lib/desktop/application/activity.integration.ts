@@ -2,6 +2,7 @@
  * Background desktop activity against real PostgreSQL and Redis: which of a user's chats a desktop
  * runs, and whether each is running, waiting on the user's approval, or blocked by an offline desktop.
  */
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl } = await vi.hoisted(async () => {
@@ -42,7 +43,7 @@ describe.runIf(Boolean(redisUrl))('background desktop activity', () => {
   const deviceIds: string[] = []
 
   afterAll(async () => {
-    if (workspaceIds.length) await db.delete(workspace).where(inArray(workspace.id, workspaceIds))
+    if (workspaceIds.length) await deleteWorkspaceFixture(db, inArray(workspace.id, workspaceIds))
     if (deviceIds.length)
       await db.delete(desktopDevices).where(inArray(desktopDevices.id, deviceIds))
     if (userIds.length) await db.delete(user).where(inArray(user.id, userIds))
@@ -65,7 +66,7 @@ describe.runIf(Boolean(redisUrl))('background desktop activity', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Desktop activity fixture',
       ownerId: userId,

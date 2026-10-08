@@ -2580,7 +2580,8 @@ export const workspaceFiles = pgTable(
      * `workspace_file_search_index.source_content_updated_at` came from such a round trip can never be
      * claimed, indexed, or cleaned up. The default truncates, and the
      * `workspace_files_content_version_millisecond` trigger enforces it for the writers a default cannot
-     * reach — explicit `CURRENT_TIMESTAMP` expressions, raw SQL inserts, and any UPDATE.
+     * reach — explicit `CURRENT_TIMESTAMP` expressions, raw SQL inserts, and updates that change row
+     * data. Relationship fences that only advance the row version preserve an existing revision.
      */
     contentUpdatedAt: timestamp('content_updated_at')
       .notNull()
@@ -2597,6 +2598,10 @@ export const workspaceFiles = pgTable(
     ownerCheck: check(
       'workspace_files_owner_check',
       sql`num_nonnulls(${table.workspaceId}, ${table.projectId}, ${table.organizationId}) <= 1`
+    ),
+    workspaceBindingCheck: check(
+      'workspace_files_workspace_binding_check',
+      sql`${table.context} NOT IN ('workspace', 'chat', 'mothership', 'execution', 'workspace-logos') OR ${table.workspaceId} IS NOT NULL`
     ),
     projectBindingCheck: check(
       'workspace_files_project_binding_check',

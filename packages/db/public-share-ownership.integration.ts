@@ -11,6 +11,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const databaseUrl = readTestDatabaseUrl()
 const migrations = [
+  '0358_workspace_file_content_version_precision.sql',
   '0402_file_entity_ownership.sql',
   '0403_file_folder_version_ownership.sql',
   '0404_file_creator_lifetime.sql',
@@ -45,10 +46,10 @@ describe('Public share canonical ownership in PostgreSQL', () => {
       if (statement.trim()) await sql.unsafe(statement)
     }
   }
-  async function waitForDatabaseLock(pid: number) {
+  async function waitForDatabaseLock(pid: number, writerPid: number) {
     for (let attempt = 0; attempt < 100; attempt += 1) {
       const [state] = await sql<{ waiting: boolean }[]>`SELECT EXISTS (
-        SELECT 1 FROM pg_stat_activity WHERE pid = ${pid} AND wait_event_type = 'Lock'
+        SELECT 1 FROM unnest(pg_blocking_pids(${pid})) blocker WHERE blocker = ${writerPid}
       ) AS waiting`
       if (state.waiting) return true
       await sleep(10)
@@ -110,11 +111,24 @@ describe('Public share canonical ownership in PostgreSQL', () => {
       updated_at timestamp NOT NULL DEFAULT '2026-10-03 01:02:03.456',
       UNIQUE(resource_type, resource_id)
     )`
+    const provenanceMigration = readFileSync(
+      new URL('./migrations/0283_military_fabian_cortez.sql', import.meta.url),
+      'utf8'
+    )
+    for (const statement of provenanceMigration.split('--> statement-breakpoint')) {
+      if (
+        statement.includes('CREATE OR REPLACE FUNCTION "demote_secret_provenance_version"') ||
+        statement.includes('CREATE TRIGGER "workspace_files_secret_provenance_demote"')
+      ) {
+        await sql.unsafe(statement)
+      }
+    }
+    await sql`CREATE TABLE workspace_file_secret_provenance (file_id text PRIMARY KEY, content_updated_at timestamp NOT NULL)`
     for (const migration of migrations) await applyMigration(migration)
   })
 
   beforeEach(async () => {
-    await sql`TRUNCATE public_share, workspace_file_version, workspace_files, folder, project, workspace, organization, "user"`
+    await sql`TRUNCATE workspace_file_secret_provenance, public_share, workspace_file_version, workspace_files, folder, project, workspace, organization, "user"`
     await sql`INSERT INTO "user" VALUES ('user-a'), ('user-b')`
     await sql`INSERT INTO workspace VALUES ('workspace-a'), ('workspace-b'), ('same-id')`
     await sql`INSERT INTO organization VALUES ('organization-a')`
@@ -148,6 +162,51 @@ describe('Public share canonical ownership in PostgreSQL', () => {
   ) {
     return executor`INSERT INTO public_share (id, resource_type, resource_id, workspace_id, created_by, token, entity_type, entity_id)
       VALUES (${id}, 'file', ${fileId}, ${kind === 'workspace' ? owner : null}, 'user-a', ${id}, ${kind}, ${owner})`
+  }
+
+  for (const relationship of ['share', 'version'] as const) {
+    check(
+      `${relationship} creation preserves a legacy revision's exact timestamp and tracked provenance`,
+      async () => {
+        await sql`ALTER TABLE workspace_files DISABLE TRIGGER workspace_files_content_version_millisecond`
+        try {
+          await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id, content_updated_at)
+        VALUES ('file', 'workspace', 'user-a', 'workspace-a', '2026-10-03 01:02:03.456789')`
+        } finally {
+          await sql`ALTER TABLE workspace_files ENABLE TRIGGER workspace_files_content_version_millisecond`
+        }
+        await sql`INSERT INTO workspace_file_secret_provenance SELECT id, content_updated_at FROM workspace_files WHERE id = 'file'`
+        const before = await sql`SELECT content_updated_at::text, secret_provenance_version, key
+      FROM workspace_files WHERE id = 'file'`
+        if (relationship === 'share') await share(sql, 'share', 'file', 'workspace-a', 'workspace')
+        else await sql`INSERT INTO workspace_file_version (id, file_id) VALUES ('version', 'file')`
+        expect(
+          await sql`SELECT content_updated_at::text, secret_provenance_version, key
+      FROM workspace_files WHERE id = 'file'`
+        ).toEqual(before)
+        if (relationship === 'share') {
+          expect(await sql`SELECT resource_id, entity_id FROM public_share`).toEqual([
+            { resource_id: 'file', entity_id: 'workspace-a' },
+          ])
+        } else {
+          expect(await sql`SELECT file_id, workspace_id FROM workspace_file_version`).toEqual([
+            { file_id: 'file', workspace_id: 'workspace-a' },
+          ])
+        }
+        expect(
+          await sql`SELECT f.content_updated_at = p.content_updated_at AS matches
+      FROM workspace_files f JOIN workspace_file_secret_provenance p ON p.file_id = f.id`
+        ).toEqual([{ matches: true }])
+        await sql`UPDATE workspace_files SET original_name = 'renamed' WHERE id = 'file'`
+        expect(
+          await sql`SELECT content_updated_at::text, secret_provenance_version FROM workspace_files`
+        ).toEqual([{ content_updated_at: '2026-10-03 01:02:03.456', secret_provenance_version: 1 }])
+        await sql`UPDATE workspace_files SET content_updated_at = content_updated_at + INTERVAL '1 millisecond' WHERE id = 'file'`
+        expect(await sql`SELECT secret_provenance_version FROM workspace_files`).toEqual([
+          { secret_provenance_version: null },
+        ])
+      }
+    )
   }
 
   check(
@@ -291,12 +350,13 @@ describe('Public share canonical ownership in PostgreSQL', () => {
             throw new Error('Deletion ended before acquiring its snapshot')
           }),
         ])
-        const inserted = createDeferred<void>()
+        const inserted = createDeferred<number>()
         const release = createDeferred<void>()
         const inserting = sql.begin(async (tx) => {
           await tx`INSERT INTO public_share (id, resource_type, resource_id, token, entity_type, entity_id)
           VALUES ('share', 'file', 'file', 'share', 'project', 'project-a')`
-          inserted.resolve()
+          const [writer] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+          inserted.resolve(writer.pid)
           await release.promise
         })
         let waited = false
@@ -310,7 +370,7 @@ describe('Public share canonical ownership in PostgreSQL', () => {
               throw new Error('Deletion ended before publishing its connection')
             }),
           ])
-          waited = await waitForDatabaseLock(deletePid)
+          waited = await waitForDatabaseLock(deletePid, await inserted.promise)
         } finally {
           startDelete.resolve()
           release.resolve()
@@ -333,11 +393,12 @@ describe('Public share canonical ownership in PostgreSQL', () => {
 
     check(`${isolation}: a new share cannot commit behind target deletion`, async () => {
       await file()
-      const deleted = createDeferred<void>()
+      const deleted = createDeferred<number>()
       const release = createDeferred<void>()
       const deleting = sql.begin(async (tx) => {
         await tx`DELETE FROM workspace_files WHERE id = 'file'`
-        deleted.resolve()
+        const [writer] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+        deleted.resolve(writer.pid)
         await release.promise
       })
       await Promise.race([deleted.promise, deleting])
@@ -362,7 +423,7 @@ describe('Public share canonical ownership in PostgreSQL', () => {
             throw new Error('Insertion ended before publishing its connection')
           }),
         ])
-        waited = await waitForDatabaseLock(insertPid)
+        waited = await waitForDatabaseLock(insertPid, await deleted.promise)
       } finally {
         release.resolve()
         await deleting

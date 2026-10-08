@@ -43,7 +43,7 @@ function fixture() {
   const pr = {
     state: 'open',
     head: { ref: 'foundation', sha: head, repo: { full_name: 'example/repo' } },
-    base: { sha: base },
+    base: { ref: 'parent', sha: base },
   }
   return { root, repo, base, before, head, pr }
 }
@@ -96,6 +96,17 @@ describe('diff audit base selection', () => {
     expect(git(data.repo, 'diff', '--name-only', data.before, 'HEAD')).toBe('upstream.sql')
   })
 
+  it('pins the current base branch when the PR snapshot still reports an older base SHA', () => {
+    const data = fixture()
+    const cachedBase = git(data.repo, 'rev-parse', `${data.base}^`)
+    const result = resolveBase(data, {
+      PR_RESPONSE: JSON.stringify([[{ ...data.pr, base: { ...data.pr.base, sha: cachedBase } }]]),
+    })
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.output).toBe(`ref=${data.base}`)
+    expect(git(data.repo, 'rev-parse', 'FETCH_HEAD')).toBe(data.base)
+  })
+
   it('fails closed when multiple open PRs across pages claim the dispatched branch', () => {
     const data = fixture()
     const result = resolveBase(data, { PR_RESPONSE: JSON.stringify([[data.pr], [data.pr]]) })
@@ -114,7 +125,9 @@ describe('diff audit base selection', () => {
       if (failure === 'tag') overrides.GITHUB_REF_TYPE = 'tag'
       if (failure === 'api') overrides.API_EXIT = '73'
       if (failure === 'invalid-base')
-        overrides.PR_RESPONSE = JSON.stringify([[{ ...data.pr, base: { sha: 'HEAD~1' } }]])
+        overrides.PR_RESPONSE = JSON.stringify([
+          [{ ...data.pr, base: { ref: 'HEAD~1', sha: 'HEAD~1' } }],
+        ])
       if (failure === 'fetch')
         git(data.repo, 'remote', 'set-url', 'origin', join(data.root, 'missing.git'))
       const result = resolveBase(data, overrides)
