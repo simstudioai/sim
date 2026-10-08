@@ -19,6 +19,7 @@ import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import { type CleanupJobPayload, runCleanupWithLimits } from '@/lib/billing/cleanup-dispatcher'
 import {
   decrementStorageUsageForBillingContextInTx,
+  lockWorkspaceStorageForMutationInTx,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
 import {
@@ -329,6 +330,7 @@ async function deleteExpiredBillableWorkspaceFileRows(
       try {
         const deletedCount = await db.transaction(async (tx) => {
           await lockWorkspaceProject(tx, workspaceId)
+          await lockWorkspaceStorageForMutationInTx(tx, workspaceId)
           const billingContext = await resolveStorageBillingContext(workspaceId, tx)
           await releaseWorkspaceFileVersionsForPurgeInTx(
             tx,

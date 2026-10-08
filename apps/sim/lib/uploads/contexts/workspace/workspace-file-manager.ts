@@ -42,6 +42,7 @@ import {
 import {
   decrementStorageUsageForBillingContextInTx,
   incrementStorageUsageForBillingContextInTx,
+  lockWorkspaceStorageForMutationInTx,
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
@@ -2151,10 +2152,13 @@ interface CommitFileContentOptions {
   secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
 }
 
-/** Commits bytes, history and provenance after the caller has locked its canonical billing payer. */
+/** Commits bytes, history and provenance under canonical scope and storage locks. */
 async function commitFileContentInTx(tx: DbTransaction, options: CommitFileContentOptions) {
   const { owner, fileId, staged } = options
-  if (owner.entityType === 'workspace') await lockWorkspaceProject(tx, owner.entityId)
+  if (owner.entityType === 'workspace') {
+    await lockWorkspaceProject(tx, owner.entityId)
+    await lockWorkspaceStorageForMutationInTx(tx, owner.entityId)
+  }
   if (staged.contentHash === null)
     throw new Error('Content replacement requires staged bytes with a verified content hash')
   assertStagedFileOwner(owner, staged)
@@ -2632,6 +2636,7 @@ export async function purgeCreatedWorkspaceFile(params: {
   )
   const cleanupEventIds = await db.transaction(async (tx) => {
     await lockWorkspaceProject(tx, params.workspaceId)
+    await lockWorkspaceStorageForMutationInTx(tx, params.workspaceId)
     const [lockedFile] = await tx
       .select({
         id: workspaceFiles.id,
