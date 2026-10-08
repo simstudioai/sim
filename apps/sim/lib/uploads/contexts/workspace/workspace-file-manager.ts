@@ -43,7 +43,6 @@ import {
   maybeNotifyStorageLimitForBillingContext,
   prepareFileAccountingInTx,
 } from '@/lib/billing/storage'
-import type { StorageBillingContext } from '@/lib/billing/storage/context'
 import {
   CollabDocStateConflictError,
   type PreparedCollabDocState,
