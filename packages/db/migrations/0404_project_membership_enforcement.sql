@@ -4,88 +4,6 @@ COMMIT;
 --> statement-breakpoint
 SET statement_timeout = '15min';
 --> statement-breakpoint
--- Pre-column writers can leave a stale non-null copy. Connector membership remains authoritative
--- until the acknowledged dual-write release has fully replaced those writers.
-CREATE OR REPLACE PROCEDURE pg_temp.reconcile_workspace_projects() LANGUAGE plpgsql AS $$
-DECLARE
-  previous_id text;
-  batch_ids text[];
-  environment_id text;
-  project_id_to_lock text;
-  attempts integer := 0;
-  copied integer := 0;
-  changed integer;
-  retry boolean;
-BEGIN
-  LOOP
-    SELECT array_agg(id ORDER BY id) INTO batch_ids FROM (
-      SELECT w.id FROM workspace w JOIN project_workspace pw ON pw.workspace_id = w.id
-      WHERE (previous_id IS NULL OR w.id > previous_id)
-        AND w.project_id IS DISTINCT FROM pw.project_id
-      ORDER BY w.id LIMIT 100
-    ) batch;
-    EXIT WHEN batch_ids IS NULL;
-    PERFORM set_config('transaction_timeout', '5s', true);
-    PERFORM set_config('lock_timeout', '1s', true);
-    retry := false;
-    BEGIN
-      FOREACH environment_id IN ARRAY batch_ids LOOP
-        IF NOT pg_try_advisory_xact_lock(hashtextextended('project-backfill:' || environment_id, 0)) THEN
-          RAISE EXCEPTION 'Project column copy environment is busy' USING ERRCODE = '55P03';
-        END IF;
-      END LOOP;
-      PERFORM id FROM workspace WHERE id = ANY(batch_ids) ORDER BY id FOR NO KEY UPDATE NOWAIT;
-      FOR project_id_to_lock IN
-        SELECT id FROM (
-          SELECT project_id AS id FROM workspace WHERE id = ANY(batch_ids)
-          UNION SELECT project_id FROM project_workspace WHERE workspace_id = ANY(batch_ids)
-        ) owners WHERE id IS NOT NULL ORDER BY id
-      LOOP
-        IF NOT pg_try_advisory_xact_lock(hashtextextended('project:' || project_id_to_lock, 0)) THEN
-          RAISE EXCEPTION 'Project column copy Project is busy' USING ERRCODE = '55P03';
-        END IF;
-        PERFORM id FROM project WHERE id = project_id_to_lock FOR UPDATE NOWAIT;
-      END LOOP;
-      UPDATE workspace w SET project_id = pw.project_id FROM project_workspace pw
-        WHERE w.id = ANY(batch_ids) AND pw.workspace_id = w.id
-          AND w.project_id IS DISTINCT FROM pw.project_id;
-      GET DIAGNOSTICS changed = ROW_COUNT;
-      copied := copied + changed;
-    EXCEPTION WHEN lock_not_available OR deadlock_detected OR serialization_failure THEN
-      retry := true;
-    END;
-    COMMIT;
-    IF retry THEN
-      attempts := attempts + 1;
-      IF attempts >= 20 THEN
-        RAISE EXCEPTION 'Project column copy remains busy; safe to retry migration'
-          USING ERRCODE = '55P03', DETAIL = batch_ids[1];
-      END IF;
-      PERFORM pg_sleep(0.05 + random() * 0.15);
-      COMMIT;
-    ELSE
-      attempts := 0;
-      previous_id := batch_ids[cardinality(batch_ids)];
-    END IF;
-  END LOOP;
-  RAISE NOTICE 'Project column reconciliation complete: % environments copied or corrected', copied;
-END;
-$$;
---> statement-breakpoint
-CALL pg_temp.reconcile_workspace_projects();
---> statement-breakpoint
-DROP PROCEDURE pg_temp.reconcile_workspace_projects();
---> statement-breakpoint
-DO $$ BEGIN
-  IF EXISTS (
-    SELECT 1 FROM workspace w LEFT JOIN project_workspace pw ON pw.workspace_id = w.id
-    WHERE w.project_id IS NOT NULL AND pw.workspace_id IS NULL
-  ) THEN
-    RAISE EXCEPTION 'Project column has no authoritative connector assignment; reconcile before retrying'
-      USING ERRCODE = '55000';
-  END IF;
-END $$;
---> statement-breakpoint
 CREATE TEMP TABLE IF NOT EXISTS project_backfill_roots (id text PRIMARY KEY) ON COMMIT PRESERVE ROWS;
 TRUNCATE project_backfill_roots;
 -- Only legacy families need assignment locks; existing complete Projects only need validation.
@@ -178,9 +96,6 @@ BEGIN
         END IF;
         UPDATE workspace SET project_id = target_project WHERE id = ANY(family_ids) AND project_id IS NULL;
         GET DIAGNOSTICS inserted = ROW_COUNT;
-        INSERT INTO project_workspace (project_id, workspace_id)
-          SELECT target_project, id FROM unnest(family_ids) ids(id)
-          WHERE NOT EXISTS (SELECT 1 FROM project_workspace pw WHERE pw.workspace_id = ids.id);
         assigned := assigned + inserted;
       END IF;
     EXCEPTION WHEN lock_not_available OR deadlock_detected OR serialization_failure THEN
@@ -229,13 +144,6 @@ BEGIN
   END IF;
   IF EXISTS (SELECT 1 FROM workspace w WHERE w.project_id IS NULL) THEN
     RAISE EXCEPTION 'Project backfill found newly unassigned or detached environments; retry migration discovery' USING ERRCODE = '55P03';
-  END IF;
-  IF EXISTS (
-    SELECT 1 FROM workspace w LEFT JOIN project_workspace pw ON pw.workspace_id = w.id
-    WHERE pw.project_id IS DISTINCT FROM w.project_id
-  ) THEN
-    RAISE EXCEPTION 'Project column and compatibility membership disagree; reconcile before retrying'
-      USING ERRCODE = '55000';
   END IF;
   IF EXISTS (
     SELECT 1 FROM project p LEFT JOIN workspace w ON w.project_id = p.id
@@ -432,10 +340,16 @@ SET LOCAL lock_timeout = '1s';
 --> statement-breakpoint
 SET LOCAL statement_timeout = '5s';
 --> statement-breakpoint
--- Keep final trigger/NOT NULL installation brief. Data scans run outside this transaction.
+-- Keep enforcement and bridge retirement atomic; data scans run outside this transaction.
 LOCK TABLE workspace, project IN ACCESS EXCLUSIVE MODE NOWAIT;
 --> statement-breakpoint
--- migration-safe: contract of workspace_project_column; rollout preflight requires its dual-writing release and old-writer drainage, and the validated check proves existing rows.
+DO $$ BEGIN
+  IF to_regclass('project_workspace') IS NOT NULL THEN
+    LOCK TABLE project_workspace IN ACCESS EXCLUSIVE MODE NOWAIT;
+  END IF;
+END $$;
+--> statement-breakpoint
+-- migration-safe: contract of #8830, gated on its column-only release being fully deployed and all pre-8830 servers/workers having drained; the validated check proves existing rows.
 ALTER TABLE workspace ALTER COLUMN project_id SET NOT NULL;
 -- migration-safe: the required column now enforces the validated helper check's invariant.
 ALTER TABLE workspace DROP CONSTRAINT IF EXISTS workspace_project_id_present;
@@ -453,6 +367,12 @@ FOR EACH ROW EXECUTE FUNCTION project_contract_before_write();
 DROP TRIGGER IF EXISTS project_contract_check ON workspace;
 CREATE CONSTRAINT TRIGGER project_contract_check AFTER INSERT OR UPDATE OF id, project_id, archived_at, organization_id, forked_from_workspace_id OR DELETE ON workspace
 DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION project_contract_after_write();
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS workspace_sync_project_membership ON workspace;
+-- migration-safe: contract of #8830, gated on its column-only release being fully deployed and all pre-8830 servers/workers having drained; no supported application reader or writer then needs this connector.
+DROP TABLE IF EXISTS project_workspace;
+DROP FUNCTION IF EXISTS workspace_sync_project_membership_fn();
+DROP FUNCTION IF EXISTS project_workspace_sync_column_fn();
 --> statement-breakpoint
 COMMIT;
 --> statement-breakpoint

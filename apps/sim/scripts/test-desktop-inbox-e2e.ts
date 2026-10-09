@@ -156,8 +156,6 @@ async function signIn(existing?: Desktop): Promise<Desktop> {
         values (${workspaceId}, 'E2E fixture project', ${userId})`
       await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id)
         values (${workspaceId}, ${workspaceId}, 'Desktop inbox E2E', ${userId}, ${userId})`
-      await tx`insert into project_workspace (project_id, workspace_id)
-        values (${workspaceId}, ${workspaceId})`
       await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
         values (${generateId()}, ${userId}, 'workspace', ${workspaceId}, 'admin')`
     }

@@ -1,4 +1,4 @@
-import { permissionGroup, project, projectWorkspace, workspace } from '@sim/db/schema'
+import { permissionGroup, project, workspace } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { compareStrings, truncateAtCodePoint } from '@sim/utils/string'
@@ -253,10 +253,6 @@ export async function splitForkProject(tx: DbTransaction, workspaceId: string): 
       .orderBy(asc(workspace.id))
       .for('no key update')
     await tx.update(workspace).set({ projectId: id }).where(inArray(workspace.id, ids))
-    await tx
-      .update(projectWorkspace)
-      .set({ projectId: id })
-      .where(inArray(projectWorkspace.workspaceId, ids))
   })
   if (owner.organizationId) {
     await acquirePermissionGroupOrgLock(tx, owner.organizationId)

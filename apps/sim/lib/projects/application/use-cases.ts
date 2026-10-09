@@ -215,7 +215,7 @@ export const getWorkspaceProject: OperationUseCase<
         .from(workspace)
         .where(eq(workspace.id, input.workspaceId))
         .limit(1)
-      if (!membership) throw new OrchestrationError('not_found', 'Project not found')
+      if (!membership?.projectId) throw new OrchestrationError('not_found', 'Project not found')
       return {
         project: presentProject(
           await authorizeProject(

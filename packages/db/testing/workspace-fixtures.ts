@@ -1,5 +1,5 @@
 import type { db } from '@sim/db'
-import { project, projectWorkspace, workspace } from '@sim/db/schema'
+import { project, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, notExists, type SQL, sql } from 'drizzle-orm'
 import type { PgInsertValue } from 'drizzle-orm/pg-core'
@@ -68,7 +68,6 @@ export async function insertWorkspaceFixture(
         .values({ ...row, projectId })
         .returning()
       inserted.set(created.id, created)
-      await tx.insert(projectWorkspace).values({ projectId, workspaceId: created.id })
     }
     for (const projectId of createdProjectIds) {
       const family = [...inserted.values()].filter((row) => row.projectId === projectId)

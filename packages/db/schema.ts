@@ -2114,25 +2114,6 @@ export const project = pgTable(
   })
 )
 
-/** Compatibility mirror retained until every connector reader and writer has retired. */
-export const projectWorkspace = pgTable(
-  'project_workspace',
-  {
-    // contract-pending(after workspace.projectId readers are fully deployed): retire connector writers, then remove this table in a later deployment once older instances drain.
-    projectId: text('project_id')
-      .notNull()
-      .references(() => project.id, { onDelete: 'restrict' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.projectId, table.workspaceId] }),
-    workspaceUnique: uniqueIndex('project_workspace_workspace_id_unique').on(table.workspaceId),
-  })
-)
-
 export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_type', [
   'workflow',
   'oauth_credential',
