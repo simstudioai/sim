@@ -14,6 +14,7 @@ afterAll(resetUrlsMock)
 
 const resource = 'https://sim.example/api/mcp/search/organizations/org-one'
 const simMcpResource = 'https://sim.example/api/mcp'
+const openAiResource = 'https://sim.example/api/mcp/openai'
 const otherResource = 'https://sim.example/api/mcp/search/organizations/org-two'
 const workflowMcpResource = 'https://sim.example/api/mcp/serve/server-one'
 const scopes = ['search:read', 'offline_access']
@@ -22,6 +23,7 @@ describe('OAuth resource binding', () => {
   it('accepts exact organization Search endpoints, the Sim MCP server, and an absent API audience', () => {
     expect(parseOAuthResource(resource)).toEqual({ kind: 'search', url: resource })
     expect(parseOAuthResource(simMcpResource)).toEqual({ kind: 'api', url: simMcpResource })
+    expect(parseOAuthResource(openAiResource)).toEqual({ kind: 'api', url: openAiResource })
     expect(parseOAuthResource(null)).toBeNull()
   })
 
@@ -46,6 +48,9 @@ describe('OAuth resource binding', () => {
     'https://sim.example:443/api/mcp/search/organizations/org-one',
     'https://sim.example/api/mcp/serve',
     'https://sim.example/api/mcp/serve/server-one/',
+    'https://sim.example/api/mcp/openai/',
+    'https://sim.example/api/mcp/openai?scope=api:write',
+    'https://attacker.example/api/mcp/openai',
   ])('rejects noncanonical or unsupported resources: %s', (value) => {
     expect(() => parseOAuthResource(value)).toThrow(InvalidOAuthResourceError)
   })
@@ -77,6 +82,8 @@ describe('OAuth resource binding', () => {
     [resource, otherResource],
     [resource, undefined],
     [null, resource],
+    [openAiResource, simMcpResource],
+    [simMcpResource, openAiResource],
   ])('refuses code/token resource substitution or omission', async (requested, authorized) => {
     await expect(
       withOAuthResourceIssuance(requested, async () =>

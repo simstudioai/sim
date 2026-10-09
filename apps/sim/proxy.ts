@@ -342,7 +342,7 @@ export function proxy(request: NextRequest) {
   if (mcpPath === 'not_found') return new NextResponse(null, { status: 404 })
   if (mcpPath && mcpPath !== url.pathname) {
     const rewrite = NextResponse.rewrite(new URL(`${mcpPath}${url.search}`, request.url))
-    if (mcpPath !== SIM_MCP_ROUTE_PATH) return rewrite
+    if (mcpPath !== SIM_MCP_ROUTE_PATH && mcpPath !== `${SIM_MCP_ROUTE_PATH}/openai`) return rewrite
     /** The endpoint keeps the `/api` CORS policy it has on the app host; its metadata sets its own. */
     const policy = resolveApiCorsPolicy(request)
     if (request.method === 'OPTIONS') return buildPreflightResponse(policy)

@@ -37,15 +37,25 @@ export function resolveSimMcpHostPath(
   const mcp = new URL(getSimMcpUrl())
   const dedicated = mcp.origin !== new URL(getBaseUrl()).origin
   const internalMetadataPath = `${PROTECTED_RESOURCE_METADATA}${SIM_MCP_ROUTE_PATH}`
+  const openAiPath = `${SIM_MCP_ROUTE_PATH}/openai`
+  const openAiMetadataPath = `${internalMetadataPath}/openai`
   if (!host || authorityOf(host, mcp.protocol) !== mcp.host) {
-    return dedicated && (pathname === SIM_MCP_ROUTE_PATH || pathname === internalMetadataPath)
+    return dedicated &&
+      [SIM_MCP_ROUTE_PATH, internalMetadataPath, openAiPath, openAiMetadataPath].includes(pathname)
       ? 'not_found'
       : null
   }
   if (pathname === mcp.pathname) return SIM_MCP_ROUTE_PATH
   if (pathname === `${PROTECTED_RESOURCE_METADATA}${mcp.pathname}`) return internalMetadataPath
+  if (pathname === `${mcp.pathname}/openai`) return openAiPath
+  if (pathname === `${PROTECTED_RESOURCE_METADATA}${mcp.pathname}/openai`) {
+    return openAiMetadataPath
+  }
   if (!dedicated) return null
-  return pathname === AUTHORIZATION_SERVER_METADATA ? pathname : 'not_found'
+  return pathname === AUTHORIZATION_SERVER_METADATA ||
+    pathname === '/.well-known/openai-apps-challenge'
+    ? pathname
+    : 'not_found'
 }
 
 /**

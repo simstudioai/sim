@@ -30,6 +30,12 @@ describe('Sim MCP host routing', () => {
 
     it.each([
       ['/mcp', '/api/mcp'],
+      ['/mcp/openai', '/api/mcp/openai'],
+      [
+        '/.well-known/oauth-protected-resource/mcp/openai',
+        '/.well-known/oauth-protected-resource/api/mcp/openai',
+      ],
+      ['/.well-known/openai-apps-challenge', '/.well-known/openai-apps-challenge'],
       [
         '/.well-known/oauth-protected-resource/mcp',
         '/.well-known/oauth-protected-resource/api/mcp',
@@ -66,6 +72,10 @@ describe('Sim MCP host routing', () => {
       expect(resolveSimMcpHostPath('sim.ai', '/mcp')).toBeNull()
       expect(resolveSimMcpHostPath('sim.ai', '/workspace')).toBeNull()
       expect(resolveSimMcpHostPath('sim.ai', '/api/mcp')).toBe('not_found')
+      expect(resolveSimMcpHostPath('sim.ai', '/api/mcp/openai')).toBe('not_found')
+      expect(
+        resolveSimMcpHostPath('sim.ai', '/.well-known/oauth-protected-resource/api/mcp/openai')
+      ).toBe('not_found')
       expect(resolveSimMcpHostPath('sim.ai', '/.well-known/oauth-protected-resource/api/mcp')).toBe(
         'not_found'
       )

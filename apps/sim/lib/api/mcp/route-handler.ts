@@ -4,8 +4,9 @@ import { v2McpOperations } from '@/lib/api/application/operations'
 import { simMcpContract } from '@/lib/api/contracts/sim-mcp'
 import { getMcpOperation, resolveOperation, TOOL_NAMES } from '@/lib/api/mcp/catalog'
 import { withSimMcpAuthChallenge } from '@/lib/api/mcp/oauth-metadata'
+import { createSimOpenAiMcpServer, getOpenAiMcpOperation } from '@/lib/api/mcp/openai'
 import { createSimMcpServer } from '@/lib/api/mcp/server'
-import { getSimMcpUrl } from '@/lib/api/mcp/urls'
+import { getSimMcpUrl, type SimMcpProfile } from '@/lib/api/mcp/urls'
 import { parseRequest } from '@/lib/api/server'
 import {
   mcpCredentialAuth,
@@ -28,18 +29,18 @@ import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
 const MAX_MCP_BODY_BYTES = 10 * 1024 * 1024
 
 /**
- * OAuth tokens must be bound to this server, or be an existing unbound Sim API
- * grant such as the CLI's — the same API either way.
+ * Public plugin tokens bind to their own endpoint. The standard server also
+ * accepts existing unbound Sim API grants such as the CLI's.
  */
-function simMcpAudience(): OAuthAccessTokenOptions {
-  return { resource: getSimMcpUrl(), allowUnboundApiTokens: true }
+function simMcpAudience(profile: SimMcpProfile): OAuthAccessTokenOptions {
+  return { resource: getSimMcpUrl(profile), allowUnboundApiTokens: profile === 'standard' }
 }
 
-function admit(request: NextRequest) {
+function admit(request: NextRequest, profile: SimMcpProfile) {
   return admitV2Request(
     request,
     v2McpOperations.connect,
-    mcpCredentialAuth(simMcpAudience()),
+    mcpCredentialAuth(simMcpAudience(profile)),
     v2RateLimits.publicApi
   )
 }
@@ -52,10 +53,17 @@ function admit(request: NextRequest) {
  * change something, so they need `api:write`.
  */
 async function toolCallOperation(
-  message: Record<string, unknown>
+  message: Record<string, unknown>,
+  profile: SimMcpProfile
 ): Promise<ApplicationOperation | null> {
   if (message.method !== 'tools/call' || !isPlainRecord(message.params)) return null
   const { name, arguments: args } = message.params
+  if (profile === 'openai') {
+    const operation = typeof name === 'string' ? getOpenAiMcpOperation(name) : null
+    if (!operation) return null
+    const route = await getMcpOperation(operation).handler()
+    return v2RouteOperation(route) ?? v2McpOperations.rawRoute
+  }
   if (name !== TOOL_NAMES.read && name !== TOOL_NAMES.write) return null
   if (!isPlainRecord(args) || typeof args.operation !== 'string') return null
   const resolved = await resolveOperation(
@@ -72,41 +80,44 @@ function isAllowedOrigin(origin: string | null): boolean {
   return !origin || isSameOrigin(origin) || isSameOrigin(origin, getSimMcpUrl())
 }
 
-export function createSimMcpHandlers() {
+function parseSimMcpEnvelope(request: NextRequest, maxBodyBytes: number) {
+  return parseRequest(simMcpContract, request, {}, { maxBodyBytes })
+}
+
+export function createSimMcpHandlers(
+  profile: SimMcpProfile = 'standard',
+  parseEnvelope: typeof parseSimMcpEnvelope = parseSimMcpEnvelope
+) {
   /** JSON-RPC is a protocol boundary; every tool call is dispatched to its own v2 route. */
   const handler = withRouteHandler(async (request: NextRequest) => {
-    const admission = await admit(request)
-    if (!admission.success) return withSimMcpAuthChallenge(admission.response)
+    const admission = await admit(request, profile)
+    if (!admission.success) return withSimMcpAuthChallenge(admission.response, profile)
     if (!isAllowedOrigin(request.headers.get('origin'))) {
       return v2Error('FORBIDDEN', 'Origin is not allowed')
     }
     try {
-      const parsed = await parseRequest(
-        simMcpContract,
-        request,
-        {},
-        { maxBodyBytes: MAX_MCP_BODY_BYTES }
-      )
+      const parsed = await parseEnvelope(request, MAX_MCP_BODY_BYTES)
       if (!parsed.success) return parsed.response
-      const operation = await toolCallOperation(parsed.data.body)
+      const operation = await toolCallOperation(parsed.data.body, profile)
       if (operation) requireOAuthOperationScope(admission.auth.principal, operation)
-      const server = createSimMcpServer({
+      const createServer = profile === 'openai' ? createSimOpenAiMcpServer : createSimMcpServer
+      const server = createServer({
         inbound: request,
         credential: readMcpCredentialHeaders(request.headers),
-        audience: simMcpAudience(),
+        audience: simMcpAudience(profile),
       })
       return await serveStatelessMcp(server, request, parsed.data.body)
     } catch (error) {
       const response = v2CaughtOrchestrationError(error)
-      if (response) return withSimMcpAuthChallenge(response)
+      if (response) return withSimMcpAuthChallenge(response, profile)
       throw error
     }
   })
 
   /** Stateless clients use POST only; authenticate unsupported methods before returning 405. */
   const unsupportedMethod = withRouteHandler(async (request: NextRequest) => {
-    const admission = await admit(request)
-    if (!admission.success) return withSimMcpAuthChallenge(admission.response)
+    const admission = await admit(request, profile)
+    if (!admission.success) return withSimMcpAuthChallenge(admission.response, profile)
     return mcpMethodNotAllowed()
   })
 
