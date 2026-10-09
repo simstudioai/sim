@@ -197,7 +197,7 @@ export class LocalFilePermissions {
       buttons: [
         'Allow folder',
         "Don't allow",
-        ...(this.enableFullFileAccess ? ['Allow all files…'] : []),
+        ...(this.enableFullFileAccess ? ['Full file access'] : []),
       ],
       defaultId: 1,
       cancelId: 1,
@@ -209,10 +209,10 @@ export class LocalFilePermissions {
       if (result.response === 2 && this.enableFullFileAccess) {
         const confirmation = {
           signal,
-          title: 'Allow full file access?',
+          title: 'Enable full file access?',
           message: `Sim can read and import files from any folder on this computer across chats on ${context.origin}.`,
           detail: 'Turn this off in Settings → Desktop → Full file access.',
-          buttons: ['Allow all files', 'Cancel'],
+          buttons: ['Enable', 'Cancel'],
           defaultId: 1,
           cancelId: 1,
         }
