@@ -1348,8 +1348,11 @@ describe('Project foundation at the database and application boundary', () => {
       })
       const blocker = await held.promise
       const deletion = db.transaction(async (tx) => {
-        await prepareProjectsForAccountDeletion(tx, f.ownerId, [f.ids[1]])
+        const { projectIdsToDelete } = await prepareProjectsForAccountDeletion(tx, f.ownerId, [
+          f.ids[1],
+        ])
         await tx.delete(workspace).where(eq(workspace.id, f.ids[1]))
+        await tx.delete(project).where(inArray(project.id, projectIdsToDelete))
       })
       try {
         await waitUntilBlockedBy(blocker, "lock='project'")
@@ -1416,8 +1419,13 @@ describe('Project foundation at the database and application boundary', () => {
       expect(survivor.ownerId).toBe(f.teammateId)
       const privateProject = await fixture(false, 1)
       await db.transaction(async (tx) => {
-        await prepareProjectsForAccountDeletion(tx, privateProject.ownerId, privateProject.ids)
+        const { projectIdsToDelete } = await prepareProjectsForAccountDeletion(
+          tx,
+          privateProject.ownerId,
+          privateProject.ids
+        )
         await tx.delete(workspace).where(inArray(workspace.id, privateProject.ids))
+        await tx.delete(project).where(inArray(project.id, projectIdsToDelete))
       })
       expect(
         await db.select().from(project).where(eq(project.id, privateProject.projectId))

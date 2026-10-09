@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { project, projectWorkspace, workspace } from '@sim/db/schema'
+import { project, workspace } from '@sim/db/schema'
 import { asc, eq, inArray, or } from 'drizzle-orm'
 import type { ProjectStorageOwnerSnapshot } from '@/lib/billing/storage/context'
 import {
@@ -25,9 +25,9 @@ async function loadRelatedProjects(executor: DbOrTx, userId: string, doomedWorks
   const creatorProjectIds = await listSharedResourceProjectIdsForUser(executor, userId)
   const doomedMemberships = doomedWorkspaceIds.length
     ? await executor
-        .select({ projectId: projectWorkspace.projectId })
-        .from(projectWorkspace)
-        .where(inArray(projectWorkspace.workspaceId, doomedWorkspaceIds))
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(inArray(workspace.id, doomedWorkspaceIds))
     : []
   return executor
     .select()
@@ -62,13 +62,12 @@ async function loadProjectEnvironments(executor: DbOrTx, projectIds: string[]) {
   const rows = projectIds.length
     ? await executor
         .select({
-          projectId: projectWorkspace.projectId,
+          projectId: workspace.projectId,
           id: workspace.id,
           archivedAt: workspace.archivedAt,
         })
-        .from(projectWorkspace)
-        .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
-        .where(inArray(projectWorkspace.projectId, projectIds))
+        .from(workspace)
+        .where(inArray(workspace.projectId, projectIds))
     : []
   const byProject = new Map<string, ProjectEnvironment[]>()
   for (const { projectId, ...environment } of rows) {
@@ -136,12 +135,12 @@ export async function getProjectAccountDeletionBlockers(
   return blockers
 }
 
-/** Account teardown may erase a wholly private Project, but never strand a surviving one. */
+/** Prepares private Project cleanup and returns IDs to delete after their workspaces in this transaction. */
 export async function prepareProjectsForAccountDeletion(
   tx: DbTransaction,
   userId: string,
   doomedWorkspaceIds: string[]
-): Promise<{ storageCleanupEventIds: string[] }> {
+): Promise<{ projectIdsToDelete: string[]; storageCleanupEventIds: string[] }> {
   const ownedEnvironments = await tx
     .select({ id: workspace.id })
     .from(workspace)
@@ -236,8 +235,9 @@ export async function prepareProjectsForAccountDeletion(
   const storageCleanupEventIds: string[] = []
   for (const { projectId: id, billableBytes } of removedProjects) {
     storageCleanupEventIds.push(...(await purgeProjectFilesInTx(tx, id, billableBytes)))
-    await tx.delete(projectWorkspace).where(eq(projectWorkspace.projectId, id))
-    await tx.delete(project).where(eq(project.id, id))
   }
-  return { storageCleanupEventIds }
+  return {
+    projectIdsToDelete: removedProjects.map(({ projectId }) => projectId),
+    storageCleanupEventIds,
+  }
 }
