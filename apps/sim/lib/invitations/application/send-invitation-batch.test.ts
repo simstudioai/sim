@@ -431,12 +431,9 @@ describe('workspace invitation delegation', () => {
     }
   )
 
-  it('invites as the delegating user while they hold current admin authority', async () => {
+  it('admits the delegating user while they hold current admin authority', async () => {
     const result = await sendWorkspaceInvitationBatch.execute({ principal: actor, input })
     expect(result).toMatchObject({ success: true, successful: ['person@example.com'] })
-    expect(mocks.workspaceContext).toHaveBeenCalledWith(
-      expect.objectContaining({ inviterId: 'admin-user', workspaceIds: ['workspace'] })
-    )
   })
 
   it('refuses an admin whose permission group disables invitations', async () => {

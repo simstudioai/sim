@@ -2,6 +2,7 @@
 
 import { db } from '@sim/db'
 import {
+  auditLog,
   invitation,
   invitationWorkspaceGrant,
   member,
@@ -12,7 +13,7 @@ import {
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
 import '@/app/api/v2/workspaces/[workspaceId]/invitations/route'
@@ -129,6 +130,7 @@ describe('chat-delegated workspace invitations', () => {
     await db
       .delete(invitation)
       .where(inArray(invitation.email, [newInvitee, pendingInvitee, writerInvitee]))
+    await db.delete(auditLog).where(eq(auditLog.workspaceId, workspaceId))
     await db.delete(workspace).where(eq(workspace.id, workspaceId))
     await db.delete(organization).where(eq(organization.id, organizationId))
     await db.delete(user).where(inArray(user.id, [adminId, writerId]))
@@ -144,6 +146,19 @@ describe('chat-delegated workspace invitations', () => {
     const [created] = await pendingInvitationsFor(newInvitee)
     expect(created.inviterId).toBe(adminId)
     expect(await grantsOf(created.id)).toEqual([{ workspaceId, permission: 'write' }])
+    await vi.waitFor(async () => {
+      const [audit] = await db
+        .select({ actorId: auditLog.actorId, metadata: auditLog.metadata })
+        .from(auditLog)
+        .where(and(eq(auditLog.workspaceId, workspaceId), eq(auditLog.resourceName, newInvitee)))
+      expect(audit).toMatchObject({
+        actorId: adminId,
+        metadata: {
+          operation: 'workspace_invitations.send_batch',
+          actor: { kind: 'delegated', serviceId: 'copilot' },
+        },
+      })
+    })
   })
 
   it('adds the workspace to a pending organization invitation instead of creating another', async () => {

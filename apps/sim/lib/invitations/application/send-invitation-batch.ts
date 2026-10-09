@@ -10,6 +10,7 @@ import { createLogger } from '@sim/logger'
 import { normalizeEmail } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import {
+  type ApplicationOperation,
   assertOperationPrincipal,
   defineAuthorizedWorkspaceUseCase,
   ForbiddenOperationError,
@@ -78,13 +79,14 @@ export const sendInvitationBatch: OperationUseCase<
   async execute({ principal, input, request }) {
     requireAllowedWorkspacePrincipal(principal, invitationAuthorityOperations.workspace)
     assertOperationPrincipal(principal, invitationOperations.sendBatch)
-    return executeInvitationBatch(principal, input, request)
+    return executeInvitationBatch(principal, input, invitationOperations.sendBatch, request)
   },
 }
 
 async function executeInvitationBatch(
   principal: Principal,
   input: SendInvitationBatchInput,
+  operation: Pick<ApplicationOperation, 'id'>,
   request?: OrchestrationRequestContext
 ): Promise<SendInvitationBatchResult> {
   const actorId = requirePrincipalSubjectUserId(principal)
@@ -151,7 +153,7 @@ async function executeInvitationBatch(
             email: inviter.email,
             metadata: {
               actor: toPrincipalActor(principal),
-              operation: invitationOperations.sendBatch.id,
+              operation: operation.id,
             },
           },
         }
@@ -333,7 +335,8 @@ export const sendWorkspaceInvitationBatch = defineAuthorizedWorkspaceUseCase({
     return resolveActiveWorkspaceApplicationContext(input.workspaceIds[0])
   },
   authorizationOptions: { delegation: { audience: 'sim:settings', isWithinScope: () => true } },
-  execute: ({ principal, input, request }) => executeInvitationBatch(principal, input, request),
+  execute: ({ principal, input, request }) =>
+    executeInvitationBatch(principal, input, workspaceInvitationOperations.sendBatch, request),
 })
 
 const organizationInvitationSendOperation = defineOrganizationOperation({
@@ -361,6 +364,6 @@ export const sendOrganizationInvitationBatch: OperationUseCase<
     await authorizeOrganizationOperation(principal, organizationInvitationSendOperation, {
       organizationId: input.organizationId,
     })
-    return executeInvitationBatch(principal, input, request)
+    return executeInvitationBatch(principal, input, organizationInvitationSendOperation, request)
   },
 }
