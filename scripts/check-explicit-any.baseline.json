@@ -365,8 +365,6 @@
     "apps/sim/tools/ahrefs/site_audit_page_explorer.ts": 1,
     "apps/sim/tools/ahrefs/top_pages.ts": 1,
     "apps/sim/tools/airtable/types.ts": 5,
-    "apps/sim/tools/airweave/search.ts": 2,
-    "apps/sim/tools/airweave/types.ts": 1,
     "apps/sim/tools/ashby/ashby.live.test.ts": 2,
     "apps/sim/tools/calendly/cancel_event.ts": 1,
     "apps/sim/tools/calendly/create_webhook.ts": 1,

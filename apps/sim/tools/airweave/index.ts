@@ -1,1 +1,0 @@
-export { airweaveSearchTool } from './search'
