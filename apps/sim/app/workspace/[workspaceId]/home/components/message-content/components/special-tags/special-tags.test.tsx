@@ -108,6 +108,8 @@ vi.mock('@/lib/browser-agent/transport', () => ({
 import { toast } from '@sim/emcn'
 import type { GenericSecretSource } from '@/lib/api/contracts/organization-secrets'
 import {
+  captureRevealedSimKeys,
+  type RevealedSimKeysByMessage,
   redactSensitiveContent,
   restoreRevealedSimKeysForMessage,
 } from '@/lib/mothership/chat/sim-key-redaction'
@@ -385,22 +387,33 @@ describe('CredentialDisplay link tag', () => {
 
   it('reveals a created key in organization chat after the live fill and after persistence', () => {
     mockParams.mockReturnValue({ organizationId: 'org' } as never)
-    const modelTag = `<credential>${JSON.stringify({ type: 'sim_key', workspaceId: 'ws-1' })}</credential>`
-    const live = restoreRevealedSimKeysForMessage(
-      { id: 'msg-1', role: 'assistant', content: modelTag },
-      new Map([['msg-1', ['sk-sim-live']]])
-    ).content
-    const persisted = redactSensitiveContent(live)
+    const tag = (item: Record<string, string>) => `<credential>${JSON.stringify(item)}</credential>`
     const tagData = (content: string) =>
       JSON.parse(
         content.slice('<credential>'.length, -'</credential>'.length)
       ) as CredentialItemData
+    const cache: RevealedSimKeysByMessage = new Map()
+    captureRevealedSimKeys(cache, ['msg-1'], tag({ type: 'sim_key' }), [
+      {
+        toolCall: {
+          name: 'generate_api_key',
+          result: { success: true, output: { key: 'sk-sim-live', workspaceId: 'ws-1' } },
+        },
+      },
+    ])
+    const live = restoreRevealedSimKeysForMessage(
+      { id: 'msg-1', role: 'assistant', content: tag({ type: 'sim_key' }) },
+      cache
+    ).content
 
     const liveView = renderCredentialLink(tagData(live))
     expect(liveView.container.textContent).not.toContain('explicit workspace target')
     expect(liveView.container.textContent).toContain('sk-sim-live')
     act(() => liveView.root.unmount())
 
+    const persisted = redactSensitiveContent(
+      tag({ type: 'sim_key', workspaceId: 'ws-1', value: 'sk-sim-live' })
+    )
     const persistedView = renderCredentialLink(tagData(persisted))
     expect(persistedView.container.textContent).not.toContain('explicit workspace target')
     expect(persistedView.container.textContent).not.toContain('sk-sim-live')

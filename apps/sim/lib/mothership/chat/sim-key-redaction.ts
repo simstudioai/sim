@@ -32,17 +32,30 @@ interface CredentialTagBody {
   workspaceId?: unknown
 }
 
+/** A key revealed on the live stream, with the workspace it was created in. */
+export interface RevealedSimKey {
+  value: string
+  workspaceId?: string
+}
+
 /**
  * Rebuilds a sim_key row from its known fields. Organization chat requires the
- * row's `workspaceId` to render it, so redaction and the live fill keep it.
- * Without a value the row is the persisted, masked form.
+ * row's `workspaceId` to render it, so redaction keeps it. The live fill takes
+ * the workspace from the key's creation result, which outranks the tag's.
+ * Without a revealed key the row is the persisted, masked form.
  */
-function simKeyItem(item: CredentialTagBody, value?: string): Record<string, string> {
+function simKeyItem(item: CredentialTagBody, revealed?: RevealedSimKey): Record<string, string> {
+  const workspaceId =
+    revealed?.workspaceId ?? (typeof item.workspaceId === 'string' ? item.workspaceId : undefined)
   return {
-    ...(value === undefined ? {} : { value }),
+    ...(revealed ? { value: revealed.value } : {}),
     type: SIM_KEY_TYPE,
-    ...(typeof item.workspaceId === 'string' ? { workspaceId: item.workspaceId } : {}),
+    ...(workspaceId ? { workspaceId } : {}),
   }
+}
+
+function optionalWorkspaceId(value: unknown): { workspaceId?: string } {
+  return typeof value === 'string' && value.length > 0 ? { workspaceId: value } : {}
 }
 
 function parseCredentialBody(body: string): unknown | null {
@@ -223,21 +236,21 @@ export function mergeAndRedactPersistedBlocks(
  * streaming) or the persisted message's `requestId` (used after refetch).
  * Lives in a `useRef`; never persisted; dropped on unload.
  */
-export type RevealedSimKeysByMessage = Map<string, string[]>
+export type RevealedSimKeysByMessage = Map<string, RevealedSimKey[]>
 
 /**
  * Scan an assembled assistant message for `<credential type="sim_key">` tags
  * and return their values in stream order; value-less (masked/placeholder) tags
  * carry no string value and are skipped.
  */
-export function extractRevealedSimKeys(content: string): string[] {
+export function extractRevealedSimKeys(content: string): RevealedSimKey[] {
   if (!content || !content.includes('<credential>')) return []
-  const values: string[] = []
+  const values: RevealedSimKey[] = []
   for (const match of content.matchAll(CREDENTIAL_TAG_PATTERN)) {
     const parsed = parseCredentialBody(match[1])
     for (const item of credentialBodies(parsed)) {
       if (isSimKeyBody(item) && typeof item.value === 'string') {
-        values.push(item.value)
+        values.push({ value: item.value, ...optionalWorkspaceId(item.workspaceId) })
       }
     }
   }
@@ -259,9 +272,9 @@ interface ToolResultBlockLike {
  */
 export function extractRevealedSimKeysFromBlocks(
   blocks: ReadonlyArray<ToolResultBlockLike> | undefined
-): string[] {
+): RevealedSimKey[] {
   if (!blocks?.length) return []
-  const values: string[] = []
+  const values: RevealedSimKey[] = []
   for (const block of blocks) {
     const toolCall = block.toolCall
     if (!toolCall || toolCall.name !== GenerateApiKey.id) continue
@@ -271,7 +284,7 @@ export function extractRevealedSimKeysFromBlocks(
     if (!isRecordLike(output)) continue
     const key = output.key
     if (typeof key === 'string' && key.length > 0 && key !== REDACTED_MARKER) {
-      values.push(key)
+      values.push({ value: key, ...optionalWorkspaceId(output.workspaceId) })
     }
   }
   return values
@@ -309,7 +322,7 @@ export function captureRevealedSimKeys(
 
 function restoreInString(
   content: string,
-  revealedValues: string[],
+  revealedValues: RevealedSimKey[],
   startCursor: number
 ): {
   next: string
@@ -326,12 +339,12 @@ function restoreInString(
     let tagChanged = false
     const restoreItem = (item: unknown): unknown => {
       if (!isSimKeyBody(item) || item.value !== undefined) return item
-      const value = revealedValues[cursor]
+      const revealed = revealedValues[cursor]
       cursor += 1
-      if (typeof value === 'string') {
+      if (revealed) {
         changed = true
         tagChanged = true
-        return simKeyItem(item, value)
+        return simKeyItem(item, revealed)
       }
       return item
     }
