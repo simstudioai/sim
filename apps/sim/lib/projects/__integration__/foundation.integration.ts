@@ -239,14 +239,16 @@ afterAll(async () => {
     process.env.PROJECT_FOUNDATION_REPORT_PATH ?? resolve('test-results/project-foundation.json')
   await mkdir(dirname(reportPath), { recursive: true })
   await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
-  if (users.length)
-    await db
-      .delete(workspace)
-      .where(or(inArray(workspace.ownerId, users), inArray(workspace.billedAccountUserId, users)))
-  if (users.length) await db.delete(project).where(inArray(project.ownerId, users))
-  if (organizations.length)
-    await db.delete(organization).where(inArray(organization.id, organizations))
-  if (users.length) await db.delete(user).where(inArray(user.id, users))
+  await db.transaction(async (tx) => {
+    if (users.length)
+      await tx
+        .delete(workspace)
+        .where(or(inArray(workspace.ownerId, users), inArray(workspace.billedAccountUserId, users)))
+    if (users.length) await tx.delete(project).where(inArray(project.ownerId, users))
+    if (organizations.length)
+      await tx.delete(organization).where(inArray(organization.id, organizations))
+    if (users.length) await tx.delete(user).where(inArray(user.id, users))
+  })
 })
 
 describe('Project foundation at the database and application boundary', () => {
