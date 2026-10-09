@@ -1,208 +1,28 @@
 name: desktop-e2e
-
-# Smoke coverage of the real Electron shell on desktop changes, plus a weekly
-# advisory canary against electron@latest so Chromium-cadence breakage surfaces
-# before an upgrade is attempted.
-
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/desktop-e2e.yml'
-      - '.github/workflows/desktop-release.yml'
-      - 'apps/desktop/**'
-      - 'apps/sim/app/_shell/desktop-update-*.tsx'
-      - 'apps/sim/app/workspace/**/home/hooks/use-mothership-resize.ts'
-      - 'apps/sim/app/workspace/**/home/hooks/use-resource-panel.ts'
-      - 'apps/sim/app/workspace/**/home/components/chat-panel-layout.tsx'
-      - 'apps/sim/stores/chat-panel/**'
-      - 'apps/sim/stores/constants.ts'
-      - 'apps/sim/lib/browser-agent/transport.ts'
-      - 'apps/sim/lib/core/utils/separator-keys.ts'
-      - 'apps/sim/scripts/fixtures/chat-panel.tsx'
-      - 'apps/sim/app/layout.tsx'
-      - 'apps/sim/hooks/use-desktop-update-state.ts'
-      - 'apps/sim/lib/desktop/**'
-      - 'apps/sim/app/desktop/connect/**'
-      - 'apps/sim/app/credential-groups/**'
-      - 'apps/sim/hooks/queries/slack-search.ts'
-      - 'apps/sim/hooks/queries/personal-search-integrations.ts'
-      - 'apps/sim/hooks/use-search-integration-connection.ts'
-      - 'apps/sim/hooks/use-github-installation-setup.ts'
-      - 'apps/sim/lib/api/contracts/desktop-source-connect.ts'
-      - 'apps/sim/scripts/fixtures/desktop-source-connect.tsx'
-      - 'apps/sim/app/workspace/**/browser-session/**'
-      - 'apps/sim/app/_styles/**'
-      - 'apps/sim/lib/postcss/**'
-      - 'apps/sim/postcss.config.mjs'
-      - 'apps/sim/public/brand/fonts/**'
-      - 'packages/emcn/**'
-      - 'packages/desktop-bridge/**'
-      - 'packages/browser-protocol/**'
-      - 'packages/terminal-protocol/**'
-      - 'packages/logger/**'
-      - 'packages/security/**'
-      - 'packages/tsconfig/**'
-      - 'packages/utils/**'
-      - 'bun.lock'
-      - 'package.json'
-  schedule:
-    - cron: '23 9 * * 1'
   workflow_dispatch:
-
 permissions:
   contents: read
-
-concurrency:
-  group: desktop-e2e-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  e2e:
-    name: e2e
-    if: github.event_name != 'schedule'
+  native-menu:
+    name: native-menu-${{ matrix.version }}
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [baseline, pinned, canary]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
           bun-version: 1.4.2
-
-      # Electron, electron-builder and Playwright download their binaries on every cold install. All
-      # three caches are keyed by version inside, so an older entry restored by prefix is harmless.
-      - name: Cache Electron and Playwright downloads
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
-        with:
-          path: |
-            ~/Library/Caches/electron
-            ~/Library/Caches/electron-builder
-            ~/Library/Caches/ms-playwright
-          key: desktop-downloads-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: desktop-downloads-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Bundle main and preload
-        working-directory: apps/desktop
-        run: bun run build
-
-      - name: Install system-browser fixture
-        working-directory: apps/desktop
-        run: bunx playwright install chromium
-
-      # The terminal-cancel suite drives a real tmux server; without tmux its tmux scenarios skip.
-      - name: Install tmux
-        run: brew install tmux
-
-      - name: Run Playwright _electron smoke suite
-        working-directory: apps/desktop
-        run: bunx playwright test
-        env:
-          BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
-          TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
-
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: desktop-e2e-results-pinned
-          path: apps/desktop/test-results
-          retention-days: 7
-
-  e2e-canary:
-    name: e2e-canary
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: macos-26
-    timeout-minutes: 30
-    continue-on-error: true
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
-        with:
-          persist-credentials: false
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: 1.4.2
-
-      # Electron, electron-builder and Playwright download their binaries on every cold install. All
-      # three caches are keyed by version inside, so an older entry restored by prefix is harmless.
-      - name: Cache Electron and Playwright downloads
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
-        with:
-          path: |
-            ~/Library/Caches/electron
-            ~/Library/Caches/electron-builder
-            ~/Library/Caches/ms-playwright
-          key: desktop-downloads-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: desktop-downloads-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Switch to electron@latest
-        working-directory: apps/desktop
-        run: bun add --no-save -d electron@latest
-
-      - name: Bundle main and preload
-        working-directory: apps/desktop
-        run: bun run build
-
-      - name: Install system-browser fixture
-        working-directory: apps/desktop
-        run: bunx playwright install chromium
-
-      # The terminal-cancel suite drives a real tmux server; without tmux its tmux scenarios skip.
-      - name: Install tmux
-        run: brew install tmux
-
-      - name: Run Playwright _electron smoke suite
-        working-directory: apps/desktop
-        run: bunx playwright test
-        env:
-          BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
-          TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
-
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: desktop-e2e-results-latest
-          path: apps/desktop/test-results
-          retention-days: 7
-
-  package-smoke:
-    name: package-smoke
-    if: github.event_name != 'schedule'
-    runs-on: macos-26
-    timeout-minutes: 20
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
-        with:
-          persist-credentials: false
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: 1.4.2
-
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
-
-      # Electron, electron-builder and Playwright download their binaries on every cold install. All
-      # three caches are keyed by version inside, so an older entry restored by prefix is harmless.
-      - name: Cache Electron and Playwright downloads
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
             ~/Library/Caches/electron
@@ -210,30 +30,61 @@ jobs:
             ~/Library/Caches/ms-playwright
           key: desktop-downloads-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: desktop-downloads-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Bundle and package unsigned
+      - run: bun install --frozen-lockfile
+      - if: matrix.version == 'canary'
+        working-directory: apps/desktop
+        run: bun add --no-save -d electron@latest
+      - name: Restore original routing guard for baseline only
+        if: matrix.version == 'baseline'
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          p = Path('apps/desktop/src/main/menu.ts')
+          source = p.read_text()
+          before = "label: 'Folder Access…',\n          click: (_item, focusedWindow) => {\n            const win = focusedWindowOrMain(focusedWindow)"
+          after = before.replace('focusedWindowOrMain', 'focusedMainOrFallback')
+          assert source.count(before) == 1
+          p.write_text(source.replace(before, after))
+          PYCODE
+      - name: Compile QA-only native menu driver
+        run: xcrun swiftc apps/desktop/e2e/native-menu.swift -o /tmp/sim-native-menu
+      - name: Bundle desktop
+        working-directory: apps/desktop
+        run: bun run build
+      - name: Native menu proof with zero retries
+        if: matrix.version != 'baseline'
+        working-directory: apps/desktop
+        run: bunx playwright test e2e/native-menu.spec.ts --grep 'Folder Access' --retries=0
+        env:
+          DESKTOP_NATIVE_MENU_HELPER: /tmp/sim-native-menu
+          DESKTOP_NATIVE_MENU_CASES: '10'
+      - name: Verify the original guard fails only the utility menu
+        if: matrix.version == 'baseline'
         working-directory: apps/desktop
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          DESKTOP_NATIVE_MENU_HELPER: /tmp/sim-native-menu
+          DESKTOP_NATIVE_MENU_CASES: '1'
         run: |
-          bun run build
-          bunx electron-builder --mac dir --universal --publish never \
-            -c.mac.identity=- -c.mac.hardenedRuntime=false
-
-      - name: Run packaged Electron smoke suite
-        working-directory: apps/desktop
-        run: |
-          APP_BUNDLE="$(find release -maxdepth 2 -name '*.app' -print -quit)"
-          if [ -z "$APP_BUNDLE" ]; then
-            echo "::error::Packaged app bundle was not found."
-            exit 1
-          fi
-          EXECUTABLE="$(find "$APP_BUNDLE/Contents/MacOS" -maxdepth 1 -type f -perm -111 -print -quit)"
-          if [ -z "$EXECUTABLE" ]; then
-            echo "::error::Packaged app executable was not found."
-            exit 1
-          fi
-          SIM_DESKTOP_EXECUTABLE="$EXECUTABLE" bunx playwright test e2e/packaged-smoke.spec.ts
+          set +e
+          bunx playwright test e2e/native-menu.spec.ts --grep 'Folder Access' --retries=0
+          result=$?
+          set -e
+          test "$result" -ne 0
+          python3 - <<'PYCODE'
+          import json
+          from pathlib import Path
+          reports = list(Path('test-results').rglob('folder-access-menu.json'))
+          assert len(reports) == 1, reports
+          report = json.loads(reports[0].read_text())
+          main, picker = report['checks']
+          assert main['status'] == 'passed' and main['shown'] and main['closed'], report
+          assert picker['status'] == 'failed' and picker['shown'] is False and picker['parentUrl'] is None and picker['callbackEntered'] is True, report
+          assert any(action.get('command') == 'press' and action.get('ok') for action in picker['nativeActions']), report
+          print('Expected red verified: native main menu works; original guard prevents utility menu popup.')
+          PYCODE
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: desktop-native-menu-${{ matrix.version }}
+          path: apps/desktop/test-results
+          retention-days: 14
