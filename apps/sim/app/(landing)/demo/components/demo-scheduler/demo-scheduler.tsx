@@ -6,6 +6,7 @@ import { useTheme } from 'next-themes'
 import { trackGoogleAdsConversion, trackGoogleEvent } from '@/lib/analytics/google'
 import { X_DEMO_BOOKED_EVENT_ID } from '@/lib/consent/scripts'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
+import { captureClientEvent } from '@/lib/posthog/client'
 import type { DemoLead } from '@/app/(landing)/demo/components/demo-form'
 
 const CAL_NAMESPACE = 'demo'
@@ -100,6 +101,7 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
     const trackDemoBooked = () => {
       if (cancelled) return
       if (measurement) {
+        captureClientEvent('landing_demo_booked', {})
         trackGoogleEvent('get_a_demo', {
           page_path: '/demo',
           form_name: 'sim_demo',

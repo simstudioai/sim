@@ -34,6 +34,7 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
+import { readAttributionProperties } from '@/lib/analytics/attribution'
 import { FREEBUFF_CLICK_ID_COOKIE } from '@/lib/analytics/freebuff'
 import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
@@ -357,10 +358,17 @@ export const auth = betterAuth({
           try {
             const client = getPostHogClient()
             if (client) {
+              // Lazy so the ~90 KB domain list parses only when a sign-up is tracked.
+              const { isFreeEmailDomain } = await import('@/lib/messaging/email/free-email')
               client.identify({
                 distinctId: user.id,
                 properties: {
-                  ...(user.email ? { email: user.email } : {}),
+                  ...(user.email
+                    ? {
+                        email: user.email,
+                        email_type: isFreeEmailDomain(user.email) ? 'personal' : 'work',
+                      }
+                    : {}),
                   ...(user.name ? { name: user.name } : {}),
                 },
               })
@@ -626,14 +634,19 @@ export const auth = betterAuth({
                     ? 'sso'
                     : 'oauth'
 
+              // Consent-gated cookies survive the IdP callback (OAuth GET, SAML cross-site
+              // POST), so this reads the landing touch, not the provider's redirect.
+              const attribution = readAttributionProperties((name) => context?.getCookie(name))
+
               captureServerEvent(
                 account.userId,
                 'user_created',
                 {
                   auth_method: authMethod,
                   ...(providerId !== 'credential' ? { provider: providerId } : {}),
+                  ...attribution,
                 },
-                { setOnce: { signup_at: new Date().toISOString() } }
+                { setOnce: { signup_at: new Date().toISOString(), ...attribution } }
               )
             }
           } catch (error) {

@@ -1,12 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { usePostHog } from 'posthog-js/react'
 import { getSettingsPermissionConfigKey } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { captureEvent } from '@/lib/posthog/client'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
 import { SettingsSectionProvider } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -16,6 +13,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { SECTION_MODULES } from '@/app/workspace/[workspaceId]/settings/section-warmers'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
+import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 
 const Admin = dynamic(() => SECTION_MODULES.admin().then((m) => m.Admin))
 const ApiKeys = dynamic(() => SECTION_MODULES.apikeys().then((m) => m.ApiKeys))
@@ -84,7 +82,6 @@ function SettingsPageContent({ section }: SettingsPageProps) {
   const { data: session, isPending: sessionLoading } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { billingEnabled } = useDeploymentShape()
-  const posthog = usePostHog()
 
   const isAdminRole = session?.user?.role === 'admin'
   const normalizedSection: SettingsSection =
@@ -100,13 +97,11 @@ function SettingsPageContent({ section }: SettingsPageProps) {
   const organizationId = hostContext.hostOrganizationId
   const meta = getSettingsSectionMeta(effectiveSection)
 
-  useEffect(() => {
-    if (sessionLoading) return
-    captureEvent(posthog, 'settings_tab_viewed', {
-      plane: 'workspace',
-      section: effectiveSection,
-    })
-  }, [effectiveSection, sessionLoading, posthog])
+  useCaptureWhenReady(
+    'settings_tab_viewed',
+    sessionLoading ? null : { plane: 'workspace', section: effectiveSection },
+    effectiveSection
+  )
 
   return (
     <SettingsSectionProvider section={effectiveSection} meta={meta ?? undefined}>
