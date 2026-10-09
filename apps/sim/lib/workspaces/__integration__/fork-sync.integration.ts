@@ -10,7 +10,6 @@ import {
   outboxEvent,
   permissions,
   project,
-  projectWorkspace,
   user,
   userTableDefinitions,
   workflow,
@@ -161,7 +160,6 @@ describe('authorized fork and sync against PostgreSQL', () => {
         billedAccountUserId: userId,
         allowPersonalApiKeys: true,
       })
-      await tx.insert(projectWorkspace).values({ projectId, workspaceId: sourceWorkspaceId })
     })
     await db.insert(permissions).values({
       id: generateId(),
@@ -195,21 +193,9 @@ describe('authorized fork and sync against PostgreSQL', () => {
     })
   })
   afterAll(async () => {
-    const owned = await db
-      .select({ id: project.id })
-      .from(project)
-      .where(eq(project.ownerId, userId))
-    if (owned.length) {
-      await db.delete(projectWorkspace).where(
-        inArray(
-          projectWorkspace.projectId,
-          owned.map((row) => row.id)
-        )
-      )
-      await db.delete(project).where(eq(project.ownerId, userId))
-    }
     for (const id of createdWorkspaceIds) await db.delete(workspace).where(eq(workspace.id, id))
     await db.delete(workspace).where(eq(workspace.id, sourceWorkspaceId))
+    await db.delete(project).where(eq(project.ownerId, userId))
     await db.delete(user).where(eq(user.id, userId))
     await db.$client.end()
   })

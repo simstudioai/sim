@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, permissions, project, projectWorkspace, workspace } from '@sim/db/schema'
+import { member, permissions, project, workspace } from '@sim/db/schema'
 import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
@@ -13,22 +13,18 @@ import {
 async function loadRelatedProjects(executor: DbOrTx, userId: string, doomedWorkspaceIds: string[]) {
   const doomedMemberships = doomedWorkspaceIds.length
     ? await executor
-        .select({ projectId: projectWorkspace.projectId })
-        .from(projectWorkspace)
-        .where(inArray(projectWorkspace.workspaceId, doomedWorkspaceIds))
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(inArray(workspace.id, doomedWorkspaceIds))
     : []
+  const projectIds = doomedMemberships.flatMap((row) => (row.projectId ? [row.projectId] : []))
   return executor
     .select()
     .from(project)
     .where(
       or(
         eq(project.ownerId, userId),
-        doomedMemberships.length
-          ? inArray(
-              project.id,
-              doomedMemberships.map((row) => row.projectId)
-            )
-          : undefined
+        projectIds.length ? inArray(project.id, projectIds) : undefined
       )
     )
     .orderBy(asc(project.id))
@@ -108,16 +104,16 @@ async function loadProjectEnvironments(executor: DbOrTx, projectIds: string[]) {
   const rows = projectIds.length
     ? await executor
         .select({
-          projectId: projectWorkspace.projectId,
+          projectId: workspace.projectId,
           id: workspace.id,
           archivedAt: workspace.archivedAt,
         })
-        .from(projectWorkspace)
-        .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
-        .where(inArray(projectWorkspace.projectId, projectIds))
+        .from(workspace)
+        .where(inArray(workspace.projectId, projectIds))
     : []
   const byProject = new Map<string, ProjectEnvironment[]>()
   for (const { projectId, ...environment } of rows) {
+    if (!projectId) continue
     const environments = byProject.get(projectId)
     if (environments) environments.push(environment)
     else byProject.set(projectId, [environment])

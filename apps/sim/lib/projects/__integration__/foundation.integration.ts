@@ -64,8 +64,38 @@ import { POST as importAdminWorkflow } from '@/app/api/v1/admin/workflows/import
 import { createFork } from '@/ee/workspace-forking/lib/create-fork'
 import { unlinkForkEdge } from '@/ee/workspace-forking/lib/lineage/unlink'
 
-vi.hoisted(() => {
+const isolated = await vi.hoisted(async () => {
   process.env.ADMIN_API_KEY = 'project-fixture-admin-key'
+  const { execFileSync } = await import('node:child_process')
+  const { fileURLToPath } = await import('node:url')
+  const { readTestDatabaseUrl } = await import('@sim/db/testing/test-infrastructure')
+  const { generateId } = await import('@sim/utils/id')
+  const { default: postgres } = await import('postgres')
+  const admin = postgres(readTestDatabaseUrl(), { max: 1 })
+  const name = `project_foundation_test_${generateId().replaceAll('-', '')}`
+  const url = new URL(readTestDatabaseUrl())
+  url.pathname = `/${name}`
+  const databaseUrl = url.toString()
+  await admin.unsafe(`CREATE DATABASE "${name}"`)
+  const client = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
+  try {
+    await client.unsafe(
+      'CREATE EXTENSION vector; CREATE EXTENSION btree_gin; CREATE EXTENSION pg_trgm'
+    )
+    execFileSync('bun', ['--no-env-file', 'scripts/migrate.ts'], {
+      cwd: fileURLToPath(new URL('../../../../../packages/db/', import.meta.url)),
+      env: { ...process.env, DATABASE_URL: databaseUrl, MIGRATION_DATABASE_URL: databaseUrl },
+      stdio: 'pipe',
+      timeout: 120_000,
+    })
+    process.env.DATABASE_URL = databaseUrl
+    return { admin, name, databaseUrl, client }
+  } catch (error) {
+    await client.end()
+    await admin.unsafe(`DROP DATABASE "${name}" WITH (FORCE)`)
+    await admin.end()
+    throw error
+  }
 })
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -157,7 +187,6 @@ async function fixture(org = true, count = 2) {
         userId: ownerId,
         permissionType: 'admin',
       })
-      await tx.insert(projectWorkspace).values({ projectId: id, workspaceId })
     }
     return id
   })
@@ -211,7 +240,6 @@ async function addOrganizationProject(organizationId: string, ownerId: string) {
       organizationId,
       workspaceMode: 'organization',
     })
-    await tx.insert(projectWorkspace).values({ projectId: id, workspaceId })
     return id
   })
   return { workspaceId, projectId }
@@ -234,11 +262,7 @@ async function addWorkflow(workspaceId: string, userId: string) {
   return id
 }
 
-afterAll(async () => {
-  const reportPath =
-    process.env.PROJECT_FOUNDATION_REPORT_PATH ?? resolve('test-results/project-foundation.json')
-  await mkdir(dirname(reportPath), { recursive: true })
-  await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
+async function clearFixtures() {
   await db.transaction(async (tx) => {
     if (users.length)
       await tx
@@ -249,6 +273,23 @@ afterAll(async () => {
       await tx.delete(organization).where(inArray(organization.id, organizations))
     if (users.length) await tx.delete(user).where(inArray(user.id, users))
   })
+}
+
+afterAll(async () => {
+  try {
+    const reportPath =
+      process.env.PROJECT_FOUNDATION_REPORT_PATH ?? resolve('test-results/project-foundation.json')
+    await mkdir(dirname(reportPath), { recursive: true })
+    await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
+  } finally {
+    await db.$client.end({ timeout: 2 })
+    await isolated.client.end()
+    try {
+      await isolated.admin.unsafe(`DROP DATABASE "${isolated.name}" WITH (FORCE)`)
+    } finally {
+      await isolated.admin.end()
+    }
+  }
 })
 
 describe('Project foundation at the database and application boundary', () => {
@@ -380,6 +421,34 @@ describe('Project foundation at the database and application boundary', () => {
     expect(detachedProject.archivedAt).not.toBeNull()
   })
 
+  check('legacy unassigned forks and disconnects preserve the unassigned lineage', async () => {
+    const f = await fixture(false, 1)
+    await db.delete(projectWorkspace).where(eq(projectWorkspace.workspaceId, f.ids[0]))
+    await db.delete(project).where(eq(project.id, f.projectId))
+    const parent = await getWorkspaceWithOwner(f.ids[0])
+    if (!parent) throw new Error('Missing legacy source fixture')
+    const fork = await createFork({
+      source: parent,
+      policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
+      userId: f.ownerId,
+      name: 'Legacy unassigned child',
+    })
+    await expect(
+      getWorkspaceProject.execute({
+        principal: f.owner,
+        input: { workspaceId: fork.workspace.id },
+        request,
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    await unlinkForkEdge({ parentWorkspaceId: parent.id, childWorkspaceId: fork.workspace.id })
+    const [child] = await db
+      .select({ projectId: workspace.projectId, parentId: workspace.forkedFromWorkspaceId })
+      .from(workspace)
+      .where(eq(workspace.id, fork.workspace.id))
+    expect(child).toEqual({ projectId: null, parentId: null })
+    expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toEqual([])
+  })
+
   check('fork refuses a partially assigned lineage', async () => {
     const f = await fixture(false, 3)
     await db
@@ -409,7 +478,7 @@ describe('Project foundation at the database and application boundary', () => {
       await db.delete(projectWorkspace).where(eq(projectWorkspace.workspaceId, f.ids[0]))
       await db.delete(project).where(eq(project.id, f.projectId))
       const [legacyWorkspace] = await db.select().from(workspace).where(eq(workspace.id, f.ids[0]))
-      expect(legacyWorkspace.projectId).toBe(f.projectId)
+      expect(legacyWorkspace.projectId).toBeNull()
       const read = createDeferred<void>()
       const release = createDeferred<void>()
       const writer = db.transaction(async (tx) => {
@@ -457,7 +526,7 @@ describe('Project foundation at the database and application boundary', () => {
   )
 
   check(
-    'a fork waiting for an old writer inherits its membership despite a stale column',
+    'a fork waiting for an old connector writer inherits its synchronized membership',
     async () => {
       const f = await fixture(false, 1)
       await db.delete(projectWorkspace).where(eq(projectWorkspace.workspaceId, f.ids[0]))
@@ -509,7 +578,7 @@ describe('Project foundation at the database and application boundary', () => {
         .where(eq(workspace.id, result.workspace.id))
       expect(persistedFork.projectId).toBe(projectId)
       const [legacyParent] = await db.select().from(workspace).where(eq(workspace.id, f.ids[0]))
-      expect(legacyParent.projectId).toBe(f.projectId)
+      expect(legacyParent.projectId).toBe(projectId)
       const resolved = await getWorkspaceProject.execute({
         principal: f.owner,
         input: { workspaceId: f.ids[0] },
@@ -1396,6 +1465,121 @@ describe('Project foundation at the database and application boundary', () => {
           .from(projectWorkspace)
           .where(eq(projectWorkspace.projectId, privateProject.projectId))
       ).toEqual([{ workspaceId: privateProject.ids[0] }])
+      await db.transaction(async (tx) => {
+        const projectIds = await prepareProjectsForAccountDeletion(
+          tx,
+          privateProject.ownerId,
+          privateProject.ids
+        )
+        expect(projectIds).toEqual([privateProject.projectId])
+        await tx.delete(workspace).where(inArray(workspace.id, privateProject.ids))
+        await tx.delete(project).where(inArray(project.id, projectIds))
+      })
+      expect(
+        await db.select().from(project).where(eq(project.id, privateProject.projectId))
+      ).toEqual([])
+    }
+  )
+
+  check(
+    'column-only application operations remain valid after the connector is removed',
+    async () => {
+      await clearFixtures()
+      await isolated.client.unsafe(`
+      DROP TRIGGER workspace_sync_project_membership ON workspace;
+      DROP TRIGGER project_workspace_sync_column ON project_workspace;
+      DROP FUNCTION workspace_sync_project_membership_fn();
+      DROP FUNCTION project_workspace_sync_column_fn();
+      DROP TABLE project_workspace;
+      ALTER TABLE workspace ALTER COLUMN project_id SET NOT NULL;
+      ALTER TABLE workspace ADD CONSTRAINT workspace_project_id_project_id_fk
+        FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE RESTRICT;
+    `)
+      const f = await fixture(true, 1)
+      const organizationId = f.organizationId
+      if (!organizationId) throw new Error('Missing organization fixture')
+      const created = await createProject.execute({
+        principal: f.owner,
+        input: {
+          organizationId,
+          name: 'Column-only Project',
+          initialEnvironment: { name: 'Production' },
+        },
+        request,
+      })
+      const source = await getWorkspaceWithOwner(created.initialEnvironment.id)
+      if (!source) throw new Error('Missing source environment')
+      const resolved = await getWorkspaceProject.execute({
+        principal: f.owner,
+        input: { workspaceId: source.id },
+        request,
+      })
+      expect(resolved.project.id).toBe(created.project.id)
+      await expect(
+        getProject.execute({
+          principal: createSessionPrincipal({ userId: f.outsiderId }),
+          input: { projectId: created.project.id },
+          request,
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+      const listed = await listProjects.execute({
+        principal: f.owner,
+        input: { limit: 10 },
+        request,
+      })
+      expect(listed.projects.map((row) => row.id)).toEqual(
+        expect.arrayContaining([f.projectId, created.project.id])
+      )
+      await renameProject.execute({
+        principal: f.owner,
+        input: { projectId: created.project.id, name: 'Renamed without connector' },
+        request,
+      })
+      const fork = await createFork({
+        source,
+        policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
+        userId: f.ownerId,
+        name: 'Staging',
+      })
+      const [forkEnvironment] = await db
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(eq(workspace.id, fork.workspace.id))
+      expect(forkEnvironment.projectId).toBe(created.project.id)
+      await unlinkForkEdge({ parentWorkspaceId: source.id, childWorkspaceId: fork.workspace.id })
+      const [detached] = await db
+        .select({ projectId: workspace.projectId, parentId: workspace.forkedFromWorkspaceId })
+        .from(workspace)
+        .where(eq(workspace.id, fork.workspace.id))
+      if (!detached.projectId) throw new Error('Disconnected environment has no Project')
+      expect(detached.projectId).not.toBe(created.project.id)
+      expect(detached.parentId).toBeNull()
+      await archiveWorkspace(fork.workspace.id, request)
+      const [detachedProject] = await db
+        .select({ archivedAt: project.archivedAt })
+        .from(project)
+        .where(eq(project.id, detached.projectId))
+      expect(detachedProject.archivedAt).not.toBeNull()
+      await db.transaction(async (tx) => {
+        await detachOrganizationWorkspacesTx(tx, organizationId)
+        await tx.delete(organization).where(eq(organization.id, organizationId))
+      })
+      await archiveProject.execute({
+        principal: f.owner,
+        input: { projectId: created.project.id },
+        request,
+      })
+      const [archived] = await db.select().from(project).where(eq(project.id, created.project.id))
+      expect(archived.name).toBe('Renamed without connector')
+      expect(archived.organizationId).toBeNull()
+      expect(archived.archivedAt).not.toBeNull()
+      expect(
+        await db
+          .select({ id: workflow.id })
+          .from(workflow)
+          .where(and(eq(workflow.workspaceId, source.id), sql`${workflow.archivedAt} IS NULL`))
+      ).toEqual([])
+      const privateProject = await fixture(false, 1)
       await db.transaction(async (tx) => {
         const projectIds = await prepareProjectsForAccountDeletion(
           tx,

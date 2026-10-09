@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, projectWorkspace, workspace } from '@sim/db/schema'
+import { permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -316,11 +316,6 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       createdAt: now,
       updatedAt: now,
     })
-
-    if (parentProject)
-      await tx
-        .insert(projectWorkspace)
-        .values({ projectId: parentProject.id, workspaceId: childWorkspaceId })
 
     const sourcePermissions = await tx
       .select({ userId: permissions.userId, permissionType: permissions.permissionType })

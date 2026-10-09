@@ -2117,13 +2117,16 @@ export const project = pgTable(
 export const projectWorkspace = pgTable(
   'project_workspace',
   {
-    // contract-pending(after workspace.projectId backfill and required-column enforcement): retire connector readers/writers, then remove this table in a later deployment once older instances drain.
+    // contract-pending(after #8830 is fully deployed and pre-8830 servers/workers drain): remove this table and its synchronization triggers in #8590 — application membership reads and writes use workspace.projectId.
+    /** @deprecated Use workspace.projectId; retained for pre-8830 binaries during rollout. */
     projectId: text('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'restrict' }),
+    /** @deprecated Use workspace.id. */
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** @deprecated Membership is stored on workspace. */
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({

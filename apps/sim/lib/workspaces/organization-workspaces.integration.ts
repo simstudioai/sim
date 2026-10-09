@@ -26,15 +26,23 @@ const database = drizzle(connection, { schema })
 beforeAll(async () => {
   await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
   await connection.unsafe(`
-    CREATE TABLE project_workspace (project_id text NOT NULL, workspace_id text UNIQUE NOT NULL);
     CREATE TABLE member (id text PRIMARY KEY, organization_id text, user_id text, role text);
     CREATE TABLE organization (id text PRIMARY KEY, storage_used_bytes bigint NOT NULL);
+    CREATE TABLE project (
+      id text PRIMARY KEY, owner_id text NOT NULL,
+      organization_id text REFERENCES organization(id) ON DELETE RESTRICT,
+      updated_at timestamp
+    );
+    CREATE TABLE permission_group (
+      id text PRIMARY KEY, organization_id text, config jsonb, updated_at timestamp
+    );
     CREATE TABLE invitation (
       id text PRIMARY KEY, organization_id text REFERENCES organization(id) ON DELETE CASCADE
     );
     CREATE TABLE user_stats (user_id text PRIMARY KEY, storage_used_bytes bigint NOT NULL);
     CREATE TABLE workspace (
       id text PRIMARY KEY, name text, owner_id text, organization_id text, workspace_mode text,
+      project_id text NOT NULL REFERENCES project(id) ON DELETE RESTRICT,
       billed_account_user_id text, allow_personal_api_keys boolean DEFAULT true,
       archived_at timestamp, organization_assigned_at timestamp, updated_at timestamp,
       storage_used_bytes bigint NOT NULL
@@ -56,16 +64,17 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await connection.unsafe(`
-    TRUNCATE member, organization, invitation, user_stats, workspace, permissions,
+    TRUNCATE member, organization, project, permission_group, invitation, user_stats, workspace, permissions,
       workspace_files, knowledge_base, document, knowledge_connector;
     INSERT INTO member VALUES ('owner-membership', 'org', 'org-owner', 'owner');
     INSERT INTO organization VALUES ('org', 40);
+    INSERT INTO project (id, owner_id, organization_id) VALUES ('project', 'workspace-owner', 'org');
     INSERT INTO invitation VALUES ('invitation', 'org');
     INSERT INTO user_stats VALUES ('org-owner', 5);
     INSERT INTO workspace (
-      id, name, owner_id, organization_id, workspace_mode, billed_account_user_id,
+      id, project_id, name, owner_id, organization_id, workspace_mode, billed_account_user_id,
       organization_assigned_at, storage_used_bytes
-    ) VALUES ('workspace', 'Workspace', 'workspace-owner', 'org', 'organization', 'org-owner', now(), 40);
+    ) VALUES ('workspace', 'project', 'Workspace', 'workspace-owner', 'org', 'organization', 'org-owner', now(), 40);
     INSERT INTO workspace_files VALUES ('workspace', 'workspace', 40);
   `)
 })
@@ -171,6 +180,9 @@ describe('organization workspace detachment lock order', () => {
         organization_assigned_at: null,
         storage_used_bytes: 40,
       })
+      expect(await connection`SELECT id, owner_id, organization_id FROM project`).toEqual([
+        { id: 'project', owner_id: 'org-owner', organization_id: null },
+      ])
       expect(
         await connection`SELECT storage_used_bytes::int FROM organization WHERE id = 'org'`
       ).toEqual(mode === 'organization-delete' ? [] : [{ storage_used_bytes: 0 }])

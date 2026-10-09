@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, projectWorkspace, type WorkspaceMode, workspace } from '@sim/db/schema'
+import { permissions, type WorkspaceMode, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -141,8 +141,6 @@ export async function createWorkspaceWithProjectInTransaction(
     createdAt: now,
     updatedAt: now,
   })
-
-  await tx.insert(projectWorkspace).values({ projectId, workspaceId })
 
   const permissionRows = [
     {
