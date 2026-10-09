@@ -22,13 +22,17 @@ import type {
   StreamEvent,
   StreamingContext,
 } from '@/lib/mothership/request/types'
+import { findNonTabFileIds } from '@/lib/mothership/resources/file-tabs'
 import { peekFileIntent } from '@/lib/mothership/tools/server/files/file-intent-store'
 import {
   buildFilePreviewText,
   loadWorkspaceFileTextForPreview,
   type WorkspaceFilePreviewBase,
 } from '@/lib/mothership/tools/server/files/file-preview'
-import { findWorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  findWorkspaceFileRecord,
+  resolveWorkspaceFileReference,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 
 const logger = createLogger('CopilotFilePreviewAdapter')
@@ -133,6 +137,23 @@ async function resolvePreviewTarget(args: {
     })
     return args.target
   }
+}
+
+/**
+ * Whether the preview target may open as a file tab. A file another resource owns streams no
+ * preview, since the preview would open it as a file tab.
+ */
+async function isFileTabTarget(
+  workspaceId: string | undefined,
+  target: FileIntent['target']
+): Promise<boolean> {
+  let fileId = target.fileId
+  if (!fileId && target.kind === 'path' && target.path && workspaceId) {
+    fileId = (
+      await resolveWorkspaceFileReference(workspaceId, target.path, { includeTestFiles: true })
+    )?.id
+  }
+  return fileId === undefined || !(await findNonTabFileIds([fileId])).has(fileId)
 }
 
 function parseWorkspaceFileArgs(value: unknown): ParsedWorkspaceFileArgs | undefined {
@@ -446,6 +467,10 @@ export async function processFilePreviewStreamEvent(input: {
       })
       const previewTargetKind = toPreviewTargetKind(target.kind)
       const { fileId, fileName } = target
+      if (!(await isFileTabTarget(execContext.workspaceId, target))) {
+        clearIntent()
+        return
+      }
 
       const isContentOp = isContentOperation(operation)
       // Per-channel: a re-declared prepare_file_edit just overwrites THIS channel's
@@ -526,6 +551,10 @@ export async function processFilePreviewStreamEvent(input: {
     isContentOperation(workspaceResultIntent.operation)
   ) {
     const result = extractWorkspaceFileResult(streamEvent.payload.output)
+    if (result.fileId && (await findNonTabFileIds([result.fileId])).has(result.fileId)) {
+      clearIntent()
+      return
+    }
     if (result.fileId && workspaceResultIntent.target.kind === 'path') {
       const intent: FileIntent = {
         ...workspaceResultIntent,

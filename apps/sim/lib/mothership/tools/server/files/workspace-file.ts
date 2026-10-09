@@ -21,6 +21,7 @@ import {
 } from '@/lib/mothership/tools/server/base-tool'
 import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { parseTestFileReference } from '@/lib/workflow-tests/paths'
 import {
   admitCreateWorkspaceFile,
   createWorkspaceFile,
@@ -350,6 +351,12 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
+          if (parseTestFileReference(target.fileName) !== null) {
+            return {
+              success: false,
+              message: `Create a test with the tests tool (action create), then write its cases into ${target.fileName}`,
+            }
+          }
           const { folderSegments, leafName } = splitWorkspaceFilePath(target.fileName)
           const fileName = leafName
           const content = normalized.content ?? ''

@@ -8,6 +8,7 @@ import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
@@ -55,17 +56,19 @@ export default async function OrganizationLayout({
   if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  const [, modelSelectorEnabled, planModeEnabled, dashboardsEnabled] = await Promise.all([
-    prefetchOrganizationSidebar(
-      queryClient,
-      organizationId,
-      { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-      getActiveOrganizationId(session)
-    ),
-    isMothershipModelSelectorEnabled(),
-    isPlanModeEnabled(),
-    isDashboardsEnabled(organizationId),
-  ])
+  const [, modelSelectorEnabled, planModeEnabled, dashboardsEnabled, workflowTestsEnabled] =
+    await Promise.all([
+      prefetchOrganizationSidebar(
+        queryClient,
+        organizationId,
+        { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+        getActiveOrganizationId(session)
+      ),
+      isMothershipModelSelectorEnabled(),
+      isPlanModeEnabled(),
+      isDashboardsEnabled(organizationId),
+      isWorkflowTestsEnabled(organizationId),
+    ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
@@ -73,6 +76,7 @@ export default async function OrganizationLayout({
       <FeatureFlagsProvider
         flags={{
           dashboards: dashboardsEnabled,
+          'workflow-tests': workflowTestsEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
         }}

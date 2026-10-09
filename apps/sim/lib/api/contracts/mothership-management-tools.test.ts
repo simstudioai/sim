@@ -37,6 +37,15 @@ const examples = {
     { action: 'set', content: 'title: Support\nblocks: []' },
     { action: 'set', content: 'title: Support', expectedRevision: 'r1' },
   ],
+  tests: [
+    { action: 'create', name: 'triage', title: 'Triage posts the firing alarm' },
+    { action: 'update', name: 'triage', description: null },
+    { action: 'list', version: 'draft' },
+    { action: 'get', name: 'triage', version: 'deployed' },
+    { action: 'run', version: 'draft' },
+    { action: 'run', version: 'draft', names: ['triage'], only: ['Triage > posts a summary'] },
+    { action: 'delete', name: 'triage' },
+  ],
 }
 
 describe('management tool provider contract', () => {

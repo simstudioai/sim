@@ -12,6 +12,8 @@
  *     - `pptx-generate`  → `apps/sim/sandbox-tasks/pptx-generate.ts`
  *     - `docx-generate`  → `apps/sim/sandbox-tasks/docx-generate.ts`
  *     - `pdf-generate`   → `apps/sim/sandbox-tasks/pdf-generate.ts`
+ *     - `workflow-test-run`, `workflow-test-collect` → `apps/sim/sandbox-tasks/workflow-test.ts`
+ *       (user code is an ES module importing only `vitest` and `sim:test`)
  *
  * Tier 2 — Raw isolated-vm consumers.
  *   Value-producing executions where the user supplies arbitrary JS and the

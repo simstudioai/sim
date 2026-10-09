@@ -10,6 +10,7 @@ export const INTERNAL_USAGE_LOG_SOURCES = [
   'enrichment',
   'voice-output',
   'api-tool',
+  'workflow-test',
 ] as const
 
 export type InternalUsageLogSource = (typeof INTERNAL_USAGE_LOG_SOURCES)[number]
@@ -41,12 +42,13 @@ const INTERNAL_TO_BILLING_SOURCE = {
   enrichment: 'enrichment',
   'voice-output': 'voice-output',
   'api-tool': 'api-tool',
+  'workflow-test': 'workflow',
 } as const satisfies Record<InternalUsageLogSource, BillingUsageLogSource>
 
 const INTERNAL_USAGE_LOG_SOURCE_SET = new Set<string>(INTERNAL_USAGE_LOG_SOURCES)
 
 const BILLING_TO_INTERNAL_SOURCES = {
-  workflow: ['workflow'],
+  workflow: ['workflow', 'workflow-test'],
   wand: ['wand'],
   'sim-chat': ['copilot', 'workspace-chat'],
   mcp_copilot: ['mcp_copilot'],

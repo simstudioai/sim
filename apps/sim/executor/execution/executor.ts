@@ -87,6 +87,16 @@ export class DAGExecutor {
   }
 
   async execute(workflowId: string, triggerBlockId?: string): Promise<ExecutionResult> {
+    await this.contextExtensions.testHooks?.enterWorkflow({
+      workflowId,
+      blocks: this.workflow.blocks.map((block) => ({
+        id: block.id,
+        name: block.metadata?.name ?? block.id,
+        type: block.metadata?.id ?? '',
+        params: block.config.params ?? {},
+      })),
+      resolvedSecretTraceRegistry: this.contextExtensions.resolvedSecretTraceRegistry,
+    })
     const savedIncomingEdges = this.contextExtensions.dagIncomingEdges
     const dag = this.dagBuilder.build(this.workflow, {
       triggerBlockId,
@@ -444,6 +454,7 @@ export class DAGExecutor {
       isDeployedContext: this.contextExtensions.isDeployedContext,
       enforceCredentialAccess: this.contextExtensions.enforceCredentialAccess,
       piiBlockOutputRedaction: this.contextExtensions.piiBlockOutputRedaction,
+      testHooks: this.contextExtensions.testHooks,
       blockStates: state.getBlockStates(),
       blockLogs: restoredBlockLogs,
       /*
