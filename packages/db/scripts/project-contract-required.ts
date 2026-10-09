@@ -1,16 +1,13 @@
-import { verifyProjectBackfill } from '@sim/db/maintenance/project-backfill'
 import journal from '@sim/db/migrations/meta/_journal.json'
+import { projectMembershipMigration } from '@sim/db/script-migrations/0031_project_membership'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import postgres from 'postgres'
 
 const logger = createLogger('ProjectContractPreflight')
 const expansion = journal.entries.find((entry) => entry.tag === '0404_workspace_project_column')
-const migration = journal.entries.find(
-  (entry) => entry.tag === '0405_project_membership_enforcement'
-)
 const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
-if (!expansion || !migration || !url)
+if (!expansion || !url)
   throw new Error(
     'Project column contract preflight requires migration metadata and a database URL'
   )
@@ -30,9 +27,8 @@ try {
     if (!tables.journal) {
       throw new Error('Deploy the workspace Project column expansion before enforcing membership')
     }
-    const [applied] = await sql<{ expanded: boolean; complete: boolean; columnExists: boolean }[]>`
+    const [applied] = await sql<{ expanded: boolean; columnExists: boolean }[]>`
       SELECT EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations WHERE created_at = ${expansion.when}) AS expanded,
-        EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations WHERE created_at >= ${migration.when}) AS complete,
         EXISTS (
           SELECT 1 FROM information_schema.columns
           WHERE table_schema = 'public' AND table_name = 'workspace' AND column_name = 'project_id'
@@ -41,14 +37,20 @@ try {
     if (!applied?.expanded || !applied.columnExists) {
       throw new Error('Deploy the workspace Project column expansion before enforcing membership')
     }
-    required = !applied.complete
-    if (required) {
-      const counts = await verifyProjectBackfill(sql)
-      if (Object.values(counts).some((count) => count !== 0)) {
-        throw new Error(
-          `Project preparation is incomplete (${JSON.stringify(counts)}); run the reviewed backfill tool before deployment`
-        )
-      }
+    const [scripts] =
+      await sql`SELECT to_regclass('public.script_migrations') IS NOT NULL AS present`
+    if (scripts.present) {
+      const [completed] = await sql`SELECT EXISTS (
+        SELECT 1 FROM script_migrations WHERE name = ${projectMembershipMigration.name}) AS applied`
+      required = !completed.applied
+    }
+    if (!required) {
+      const [state] = await sql`SELECT
+        to_regclass('public.project_workspace') IS NULL AS retired,
+        EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'workspace'::regclass
+          AND attname = 'project_id' AND attnotnull AND NOT attisdropped) AS enforced`
+      if (!state.retired || !state.enforced)
+        throw new Error('Project migration receipt disagrees with the physical schema')
     }
   }
   process.stdout.write(`required=${required}\n`)

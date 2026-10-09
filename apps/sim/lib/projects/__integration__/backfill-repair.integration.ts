@@ -92,9 +92,9 @@ beforeAll(async () => {
     import postgres from 'postgres';
     import { drizzle } from 'drizzle-orm/postgres-js';
     import { migrate } from 'drizzle-orm/postgres-js/migrator';
-    import { runScriptMigrations } from '@sim/db/script-migrations/index';
+    import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations/index';
     const sql = postgres(process.env.MIGRATION_DATABASE_URL,{max:1,onnotice:()=>{}});
-    try { await migrate(drizzle(sql),{migrationsFolder:process.env.FIXTURE_MIGRATIONS}); await runScriptMigrations(sql); }
+    try { await migrate(drizzle(sql),{migrationsFolder:process.env.FIXTURE_MIGRATIONS}); await runScriptMigrations(sql, scriptMigrations.filter((item) => item.name !== '0031_project_membership')); }
     finally { await sql.end(); }
   `,
     ],
@@ -152,6 +152,9 @@ describe('Operator archive repair against the full compatible schema', () => {
             await tx`SELECT pg_advisory_xact_lock(hashtextextended(${key},0))`
           }
           await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
+          expect(
+            await client`SELECT workspace_id FROM project_backfill_archive_repairs WHERE workspace_id = ${busyId}`
+          ).toHaveLength(0)
           expect(JSON.parse(await readFile(artifacts.report, 'utf8'))).toMatchObject({
             status: 'incomplete',
             repairsCompleted: [freeId],
@@ -231,10 +234,40 @@ describe('Operator archive repair against the full compatible schema', () => {
     ).toHaveLength(0)
     expect(await client`SELECT id FROM workspace WHERE project_id IS NULL`).toHaveLength(1)
     await expect(run('verify')).rejects.toMatchObject({ code: 2 })
+    expect(
+      await client`SELECT workspace_id FROM project_backfill_archive_repairs WHERE completed_at IS NULL`
+    ).toEqual([{ workspace_id: 'env' }])
+    await expect(
+      execute(
+        'bun',
+        [
+          '--no-env-file',
+          '-e',
+          `
+      import postgres from 'postgres';
+      import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations/index';
+      const sql = postgres(process.env.MIGRATION_DATABASE_URL, {max:1});
+      try { await runScriptMigrations(sql, scriptMigrations.filter((item) => item.name === '0031_project_membership')); }
+      finally { await sql.end(); }
+    `,
+        ],
+        {
+          cwd: new URL('../../../../../packages/db/', import.meta.url),
+          env: environment,
+          timeout: 15000,
+        }
+      )
+    ).rejects.toMatchObject({ code: 1 })
+    expect(await client`SELECT to_regclass('project_workspace')::text AS connector`).toEqual([
+      { connector: 'project_workspace' },
+    ])
     /** The fixture's missing provider credentials are remediated without making an external request. */
     await client`UPDATE webhook SET provider = 'generic'`
     await expect(run('repair')).rejects.toMatchObject({ code: 2 })
     expect(JSON.parse(await readFile(report, 'utf8'))).toMatchObject({ repairsCompleted: ['env'] })
+    expect(
+      await client`SELECT workspace_id FROM project_backfill_archive_repairs WHERE completed_at IS NULL`
+    ).toHaveLength(0)
     await run('apply')
     await run('verify')
     expect(await client`SELECT archived_at::text FROM project`).toEqual([

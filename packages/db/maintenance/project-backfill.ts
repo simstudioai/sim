@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { countPendingProjectArchiveRepairs } from '@sim/db/maintenance/project-repairs'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { compareStrings, truncateAtCodePoint } from '@sim/utils/string'
@@ -15,6 +16,7 @@ interface ProjectBackfillWorkspace {
   organizationId: string | null
   archivedAt: string | null
   projectId: string | null
+  legacyProjectId: string | null
 }
 
 interface ProjectBackfillFamily {
@@ -67,6 +69,34 @@ export async function assertProjectBackfillDatabase(sql: Sql, write: boolean): P
     throw new Error('Project writes require the primary database')
 }
 
+/** The contract locks workspace before retiring the connector; this read lock spans each query batch. */
+async function hasLegacyMemberships(tx: TransactionSql): Promise<boolean> {
+  await tx`LOCK TABLE workspace IN ACCESS SHARE MODE`
+  const [state] = await tx`SELECT to_regclass('public.project_workspace') IS NOT NULL AS present`
+  return state.present
+}
+
+function legacyAssignment(tx: TransactionSql, legacy: boolean) {
+  return legacy
+    ? tx`CASE WHEN w.project_id IS NULL THEN
+        (SELECT pw.project_id FROM project_workspace pw WHERE pw.workspace_id = w.id) END`
+    : tx`NULL::text`
+}
+
+function effectiveProjectId(row: ProjectBackfillWorkspace): string | null {
+  return row.projectId ?? row.legacyProjectId
+}
+
+function projectEnvironments(tx: TransactionSql, legacy: boolean, projectId: string) {
+  const columns = tx`SELECT id, archived_at FROM workspace WHERE project_id = ${projectId}`
+  return legacy
+    ? tx`${columns} UNION ALL
+        SELECT w.id, w.archived_at FROM project_workspace pw
+        JOIN workspace w ON w.id = pw.workspace_id
+        WHERE pw.project_id = ${projectId} AND w.project_id IS NULL`
+    : columns
+}
+
 /** Bounded discovery materializes only identity/scope metadata, never workflow content. */
 export async function discoverProjectBackfill(
   sql: Sql,
@@ -75,11 +105,16 @@ export async function discoverProjectBackfill(
   const rows: ProjectBackfillWorkspace[] = []
   let after = ''
   for (;;) {
-    const page = await sql<ProjectBackfillWorkspace[]>`
-      SELECT id, forked_from_workspace_id AS "parentId", owner_id AS "ownerId",
-        organization_id AS "organizationId", archived_at::text AS "archivedAt", project_id AS "projectId"
-      FROM workspace WHERE id COLLATE "C" > ${after} COLLATE "C" ORDER BY id COLLATE "C" LIMIT 1000
-    `
+    const page = await sql.begin(async (tx) => {
+      const legacy = await hasLegacyMemberships(tx)
+      return tx<ProjectBackfillWorkspace[]>`
+        SELECT w.id, w.forked_from_workspace_id AS "parentId", w.owner_id AS "ownerId",
+          w.organization_id AS "organizationId", w.archived_at::text AS "archivedAt",
+          w.project_id AS "projectId", ${legacyAssignment(tx, legacy)} AS "legacyProjectId"
+        FROM workspace w WHERE w.id COLLATE "C" > ${after} COLLATE "C"
+        ORDER BY w.id COLLATE "C" LIMIT 1000
+      `
+    })
     if (!page.length) break
     rows.push(...page)
     if (rows.length > MAX_WORKSPACES)
@@ -200,7 +235,7 @@ function validateFamily(family: ProjectBackfillFamily): void {
     throw new ProjectBackfillConflict(
       'Personal family has multiple lifecycle owners; select an owner before rediscovery'
     )
-  if (new Set(family.members.map((row) => row.projectId).filter(Boolean)).size > 1)
+  if (new Set(family.members.map(effectiveProjectId).filter(Boolean)).size > 1)
     throw new ProjectBackfillConflict('Fork family spans Projects')
 }
 
@@ -227,6 +262,7 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
       THEN 'idle_in_transaction_session_timeout' ELSE 'transaction_timeout' END, '5s', true)`
     await tx`SET LOCAL statement_timeout = '3s'`
     await tx`SET LOCAL lock_timeout = '250ms'`
+    const legacy = await hasLegacyMemberships(tx)
     const roots = families.map((f) => f.rootId).sort(compareStrings)
     const expected = families.flatMap((f) => f.members).sort((a, b) => compareStrings(a.id, b.id))
     const ids = expected.map((row) => row.id)
@@ -240,18 +276,38 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
       tx,
       ids.map((id) => `project-backfill:${id}`)
     )
-    const before = await tx<{ projectId: string }[]>`SELECT project_id AS "projectId" FROM workspace
-      WHERE id = ANY(${ids}) AND project_id IS NOT NULL GROUP BY project_id ORDER BY project_id COLLATE "C"`
+    const before = await tx<{ projectId: string }[]>`
+      SELECT DISTINCT coalesce(w.project_id, ${legacyAssignment(tx, legacy)}) COLLATE "C" AS "projectId"
+      FROM workspace w WHERE w.id = ANY(${ids})
+        AND coalesce(w.project_id, ${legacyAssignment(tx, legacy)}) IS NOT NULL
+      ORDER BY "projectId"
+    `
     if (before.length)
       await tryProjectBackfillLocks(
         tx,
         before.map((row) => `project:${row.projectId}`)
       )
+    await tx`SELECT id FROM workspace WHERE id = ANY(${ids}) ORDER BY id COLLATE "C" FOR NO KEY UPDATE NOWAIT`
+    if (legacy) {
+      await tx`SELECT pw.workspace_id FROM project_workspace pw JOIN workspace w ON w.id = pw.workspace_id
+        WHERE w.id = ANY(${ids}) AND w.project_id IS NULL
+        ORDER BY pw.workspace_id COLLATE "C" FOR SHARE OF pw NOWAIT`
+    }
     const current = await tx<(ProjectBackfillWorkspace & { name: string })[]>`
-      SELECT id, name, forked_from_workspace_id AS "parentId", owner_id AS "ownerId",
-        organization_id AS "organizationId", archived_at::text AS "archivedAt", project_id AS "projectId"
-      FROM workspace WHERE id = ANY(${ids}) ORDER BY id COLLATE "C" FOR NO KEY UPDATE NOWAIT
+      SELECT w.id, w.name, w.forked_from_workspace_id AS "parentId", w.owner_id AS "ownerId",
+        w.organization_id AS "organizationId", w.archived_at::text AS "archivedAt",
+        w.project_id AS "projectId", ${legacyAssignment(tx, legacy)} AS "legacyProjectId"
+      FROM workspace w WHERE w.id = ANY(${ids}) ORDER BY w.id COLLATE "C"
     `
+    const lockedProjects = new Set(before.map((row) => row.projectId))
+    const newProjects = [...new Set(current.map(effectiveProjectId))]
+      .filter((id): id is string => id !== null && !lockedProjects.has(id))
+      .sort(compareStrings)
+    if (newProjects.length)
+      await tryProjectBackfillLocks(
+        tx,
+        newProjects.map((id) => `project:${id}`)
+      )
     if (current.length !== expected.length)
       throw new ProjectBackfillConflict('A reviewed workspace disappeared; rediscover')
     const byId = new Map(current.map((row) => [row.id, row]))
@@ -263,7 +319,10 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
         actual.ownerId !== row.ownerId ||
         actual.organizationId !== row.organizationId ||
         actual.archivedAt !== row.archivedAt ||
-        (row.projectId !== null && actual.projectId !== row.projectId)
+        (row.projectId !== null && actual.projectId !== row.projectId) ||
+        (effectiveProjectId(row) !== null &&
+          effectiveProjectId(actual) !== effectiveProjectId(row)) ||
+        (actual.projectId === null && actual.legacyProjectId !== row.legacyProjectId)
       )
         throw new ProjectBackfillConflict(
           'Reviewed workspace scope, owner, archive state or assignment changed; rediscover'
@@ -294,7 +353,7 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
         .map((row) => byId.get(row.id))
         .filter((row) => row !== undefined)
       const projectIds = [
-        ...new Set(members.map((row) => row.projectId).filter((id): id is string => id !== null)),
+        ...new Set(members.map(effectiveProjectId).filter((id): id is string => id !== null)),
       ]
       if (projectIds.length > 1) throw new ProjectBackfillConflict('Family now spans Projects')
       const archiveAt = members.every((row) => row.archivedAt !== null)
@@ -307,21 +366,24 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
       if (projectId) {
         const [existing] =
           await tx`SELECT owner_id, organization_id, archived_at::text FROM project WHERE id = ${projectId} FOR NO KEY UPDATE NOWAIT`
+        const familyIds = members.map((row) => row.id)
+        const [membership] = await tx`
+          SELECT EXISTS (SELECT 1 FROM (${projectEnvironments(tx, legacy, projectId)}) environments
+            WHERE archived_at IS NULL) AS active,
+            EXISTS (SELECT 1 FROM (${projectEnvironments(tx, legacy, projectId)}) environments
+            WHERE NOT id = ANY(${familyIds})) AS outside
+        `
+        const hasActiveEnvironment = archiveAt === null || membership.active
         if (
           !existing ||
           existing.organization_id !== root.organizationId ||
-          (existing.archived_at === null) !== (archiveAt === null) ||
+          (existing.archived_at === null) !== hasActiveEnvironment ||
           (!root.organizationId && existing.owner_id !== root.ownerId)
         )
           throw new ProjectBackfillConflict(
             'Existing Project has incompatible ownership, scope or archive state'
           )
-        if (
-          members.some((row) => row.projectId === null) &&
-          (
-            await tx`SELECT id FROM workspace WHERE project_id = ${projectId} AND NOT id = ANY(${ids}) LIMIT 1`
-          ).length
-        )
+        if (members.some((row) => effectiveProjectId(row) === null) && membership.outside)
           throw new ProjectBackfillConflict(
             'Partial assignment references a Project outside the reviewed family'
           )
@@ -342,12 +404,12 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
     }
     if (inserts.length)
       await tx`INSERT INTO project (id,name,owner_id,organization_id,archived_at)
-      SELECT id,name,owner_id,organization_id,archived_at::timestamp FROM jsonb_to_recordset(${tx.json(inserts)}::jsonb)
+      SELECT id,name,owner_id,organization_id,archived_at::timestamp FROM jsonb_to_recordset(${JSON.stringify(inserts)}::text::jsonb)
       AS p(id text,name text,owner_id text,organization_id text,archived_at text)`
     let assigned = 0
     if (assignments.length) {
       const result = await tx`UPDATE workspace w SET project_id = p.project_id
-        FROM jsonb_to_recordset(${tx.json(assignments)}::jsonb) AS p(id text, project_id text)
+        FROM jsonb_to_recordset(${JSON.stringify(assignments)}::text::jsonb) AS p(id text, project_id text)
         WHERE w.id = p.id AND w.project_id IS NULL RETURNING w.id`
       assigned = result.length
       if (assigned !== assignments.length)
@@ -377,12 +439,6 @@ export async function verifyProjectBackfill(sql: Sql): Promise<Record<string, nu
         UNION SELECT w.id FROM workspace w JOIN reachable r ON w.forked_from_workspace_id = r.id)
         SELECT count(*)::int FROM workspace w LEFT JOIN reachable r ON r.id = w.id WHERE r.id IS NULL) AS unreachable
   `
-  const [bridge] = await sql`SELECT to_regclass('public.project_workspace') IS NOT NULL AS present`
-  if (bridge.present) {
-    const [mismatch] =
-      await sql`SELECT count(*)::int AS count FROM workspace w FULL JOIN project_workspace pw ON pw.workspace_id = w.id
-      WHERE w.id IS NULL OR w.project_id IS DISTINCT FROM pw.project_id`
-    counts.bridge = mismatch.count
-  }
+  counts.pendingCleanup = await countPendingProjectArchiveRepairs(sql)
   return counts
 }

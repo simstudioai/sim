@@ -3,6 +3,8 @@ import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import drizzleConfig from '@sim/db/drizzle.config'
+import { ensureProjectArchiveRepairJournal } from '@sim/db/maintenance/project-repairs'
 import { prepareForcedPush } from '@sim/db/scripts/prepare-push'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
@@ -33,7 +35,7 @@ describe('patched Drizzle push against PostgreSQL', () => {
   dialect: 'postgresql',
   schema: ${JSON.stringify(join(directory, 'schema.ts'))},
   schemaFilter: ['public', 'old_scope', 'new_scope'],
-  tablesFilter: ['!script_migrations'],
+  tablesFilter: ${JSON.stringify(drizzleConfig.tablesFilter)},
   dbCredentials: { url: process.env.DATABASE_URL },
 }`
     )
@@ -330,12 +332,15 @@ export const workflows = pgTable('workflow', {
     expect(repeated.stdout).toContain('No changes detected')
   }, 60_000)
 
-  it('creates independent tables and enums while preserving the excluded script ledger', async () => {
+  it('creates independent tables and enums while preserving runner journals', async () => {
     await sql`CREATE TYPE old_status AS ENUM ('active')`
     await sql`CREATE TABLE old_records (id text PRIMARY KEY, status old_status)`
     await sql`INSERT INTO old_records VALUES ('old-row', 'active')`
     await sql`CREATE TABLE script_migrations (name text PRIMARY KEY)`
     await sql`INSERT INTO script_migrations VALUES ('completed-fixture-migration')`
+    await ensureProjectArchiveRepairJournal(sql)
+    await sql`INSERT INTO project_backfill_archive_repairs (workspace_id, repair)
+      VALUES ('pending-workspace', '{"workspaceId":"pending-workspace"}'::jsonb)`
     await schema(`export const status = pgEnum('new_status', ['active'])
 export const records = pgTable('new_records', { id: text('id').primaryKey(), status: status('status') })`)
     const result = push()
@@ -347,6 +352,13 @@ export const records = pgTable('new_records', { id: text('id').primaryKey(), sta
     ).toEqual([{ old_table: null, old_type: null }])
     expect(await sql`SELECT * FROM script_migrations`).toEqual([
       { name: 'completed-fixture-migration' },
+    ])
+    expect(await sql`SELECT * FROM project_backfill_archive_repairs`).toEqual([
+      {
+        workspace_id: 'pending-workspace',
+        repair: { workspaceId: 'pending-workspace' },
+        completed_at: null,
+      },
     ])
   }, 30_000)
 

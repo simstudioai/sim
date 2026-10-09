@@ -3,6 +3,10 @@ import {
   ProjectBackfillBusy,
   ProjectBackfillConflict,
 } from '@sim/db/maintenance/project-backfill'
+import {
+  completeProjectArchiveRepair,
+  ensureProjectArchiveRepairJournal,
+} from '@sim/db/maintenance/project-repairs'
 import * as schema from '@sim/db/schema'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -23,6 +27,7 @@ export async function repairArchivedProjectEnvironment(
   repair: ProjectArchiveRepair,
   requestId: string
 ): Promise<void> {
+  await ensureProjectArchiveRepairJournal(client)
   const connection = drizzle({ client, schema })
   const effects = await connection.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config(CASE WHEN current_setting('transaction_timeout', true) IS NULL
@@ -70,6 +75,17 @@ export async function repairArchivedProjectEnvironment(
       )
       .limit(1)
     if (moved.length) throw new ProjectBackfillConflict('Reviewed workflow moved; rediscover')
+    const recorded =
+      await tx.execute(sql`INSERT INTO project_backfill_archive_repairs (workspace_id, repair)
+      VALUES (${repair.workspaceId}, ${JSON.stringify(repair)}::text::jsonb)
+      ON CONFLICT (workspace_id) DO UPDATE SET repair = EXCLUDED.repair, completed_at = NULL
+      WHERE project_backfill_archive_repairs.repair = EXCLUDED.repair
+        OR project_backfill_archive_repairs.completed_at IS NOT NULL
+      RETURNING workspace_id`)
+    if (!recorded.length)
+      throw new ProjectBackfillConflict(
+        'Finish the pending repair with its original manifest before replacing it'
+      )
     await archiveEnvironmentInTransaction(
       tx,
       repair.workspaceId,
@@ -97,4 +113,5 @@ export async function repairArchivedProjectEnvironment(
     return result
   })
   await finishEnvironmentArchive(effects, requestId, { strictExternalCleanup: true })
+  await completeProjectArchiveRepair(client, repair)
 }

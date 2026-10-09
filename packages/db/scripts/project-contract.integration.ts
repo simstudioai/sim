@@ -11,6 +11,7 @@ import {
   verifyProjectBackfill,
 } from '@sim/db/maintenance/project-backfill'
 import journal from '@sim/db/migrations/meta/_journal.json'
+import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getPostgresErrorCode } from '@sim/utils/errors'
@@ -22,7 +23,7 @@ import postgres, { type Sql } from 'postgres'
 import { describe, expect, it } from 'vitest'
 
 const migration = await readFile(
-  new URL('../migrations/0405_project_membership_enforcement.sql', import.meta.url),
+  new URL('../maintenance/project-membership.sql', import.meta.url),
   'utf8'
 )
 
@@ -93,6 +94,18 @@ async function prepareAndEnforce(sql: Sql) {
   await applyMigration(sql, migration)
 }
 
+async function runRegisteredProjectMigration(url: string) {
+  const runner = postgres(url, { max: 1, onnotice: () => undefined, max_lifetime: null })
+  try {
+    await runScriptMigrations(
+      runner,
+      scriptMigrations.filter((item) => item.name === '0031_project_membership')
+    )
+  } finally {
+    await runner.end({ timeout: 2 })
+  }
+}
+
 async function seed(sql: Sql) {
   await sql`INSERT INTO workspace (id, name, owner_id) VALUES ('root', 'Production', 'owner')`
   await sql`INSERT INTO workspace (id, name, owner_id, forked_from_workspace_id) VALUES ('child', 'Staging', 'owner', 'root')`
@@ -103,7 +116,243 @@ async function seed(sql: Sql) {
 const constraintFailure = (error: unknown) => getPostgresErrorCode(error) === '23514'
 
 describe('Project expand/backfill/contract against PostgreSQL', () => {
-  it('requires operator preparation before SQL enforcement and leaves missing assignments untouched', async () => {
+  it('runs registered assignment before enforcement for forks, singletons and archived families', async () => {
+    await database(async (sql, url) => {
+      await sql`INSERT INTO workspace (id,name,owner_id,archived_at) VALUES
+        ('root','Root','owner',NULL), ('single','Single','owner',NULL),
+        ('archived','Archived','owner','2026-01-01')`
+      await sql`INSERT INTO workspace (id,name,owner_id,forked_from_workspace_id)
+        VALUES ('child','Child','owner','root')`
+      await runRegisteredProjectMigration(url)
+      expect(await sql`SELECT id FROM workspace WHERE project_id IS NULL`).toHaveLength(0)
+      expect(await sql`SELECT id FROM project`).toHaveLength(3)
+      expect(
+        await sql`SELECT DISTINCT project_id FROM workspace WHERE id IN ('root','child')`
+      ).toHaveLength(1)
+      expect(await sql`SELECT id FROM project WHERE archived_at IS NOT NULL`).toHaveLength(1)
+      expect(await sql`SELECT to_regclass('project_workspace')::text AS connector`).toEqual([
+        { connector: null },
+      ])
+      const assignments = await sql`SELECT id,project_id FROM workspace ORDER BY id`
+      await runRegisteredProjectMigration(url)
+      expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual(assignments)
+      await expect(
+        sql`INSERT INTO workspace (id,name,owner_id) VALUES ('bad','Bad','owner')`
+      ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '23502')
+    })
+  })
+
+  it('preserves legacy Project identity through a mixed fork family and a detached column assignment', async () => {
+    await database(async (sql, url) => {
+      await sql`INSERT INTO project (id,name,owner_id) VALUES
+        ('original','Keep original context','owner'), ('detached','Keep detached context','owner')`
+      await sql`INSERT INTO workspace (id,name,owner_id,project_id,forked_from_workspace_id) VALUES
+        ('root','Root','owner',NULL,NULL), ('child','Child','owner','original','root'),
+        ('unassigned','Unassigned','owner',NULL,'child'),
+        ('detached','Detached','owner','detached',NULL)`
+      await sql`INSERT INTO project_workspace (project_id,workspace_id) VALUES
+        ('original','root'), ('original','detached')`
+      await sql`INSERT INTO workflow VALUES ('flow','root',NULL)`
+      await runRegisteredProjectMigration(url)
+      expect(await sql`SELECT id,name FROM project ORDER BY id`).toEqual([
+        { id: 'detached', name: 'Keep detached context' },
+        { id: 'original', name: 'Keep original context' },
+      ])
+      expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual([
+        { id: 'child', project_id: 'original' },
+        { id: 'detached', project_id: 'detached' },
+        { id: 'root', project_id: 'original' },
+        { id: 'unassigned', project_id: 'original' },
+      ])
+      expect(await sql`SELECT id,workspace_id FROM workflow`).toEqual([
+        { id: 'flow', workspace_id: 'root' },
+      ])
+      expect(await sql`SELECT to_regclass('project_workspace')::text AS connector`).toEqual([
+        { connector: null },
+      ])
+      expect(await sql`SELECT name FROM script_migrations`).toEqual([
+        { name: '0031_project_membership' },
+      ])
+    })
+  })
+
+  it('copies exact legacy memberships across independent roots without changing Project lifecycle or the connector', async () => {
+    await database(async (sql) => {
+      await sql`INSERT INTO project (id,name,owner_id) VALUES ('existing','Existing','owner')`
+      await sql`INSERT INTO workspace (id,name,owner_id,archived_at) VALUES
+        ('a-archived','Archived','owner','2026-01-01'), ('b-active','Active','owner',NULL)`
+      await sql`INSERT INTO project_workspace (project_id,workspace_id) VALUES
+        ('existing','a-archived'), ('existing','b-active')`
+      const before =
+        await sql`SELECT project_id,workspace_id FROM project_workspace ORDER BY workspace_id`
+      const manifest = await discoverProjectBackfill(sql, 'fixture')
+      for (const family of manifest.families) {
+        expect(await assignProjectBackfillBatch(sql, [family])).toMatchObject({
+          assigned: 1,
+          projectsCreated: 0,
+        })
+      }
+      expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual([
+        { id: 'a-archived', project_id: 'existing' },
+        { id: 'b-active', project_id: 'existing' },
+      ])
+      expect(await sql`SELECT id,archived_at FROM project`).toEqual([
+        { id: 'existing', archived_at: null },
+      ])
+      expect(
+        await sql`SELECT project_id,workspace_id FROM project_workspace ORDER BY workspace_id`
+      ).toEqual(before)
+      await prepareAndEnforce(sql)
+    })
+  })
+
+  it('rejects changed legacy assignment evidence before writing and accepts a fresh review', async () => {
+    await database(async (sql) => {
+      await sql`INSERT INTO project (id,name,owner_id) VALUES ('first','First','owner'),('second','Second','owner')`
+      await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('root','Root','owner')`
+      await sql`INSERT INTO project_workspace (project_id,workspace_id) VALUES ('first','root')`
+      const manifest = await discoverProjectBackfill(sql, 'fixture')
+      await sql`UPDATE project_workspace SET project_id = 'second' WHERE workspace_id = 'root'`
+      await expect(assignProjectBackfillBatch(sql, manifest.families)).rejects.toThrow('changed')
+      expect(await sql`SELECT project_id FROM workspace`).toEqual([{ project_id: null }])
+      expect(await sql`SELECT id FROM project ORDER BY id`).toEqual([
+        { id: 'first' },
+        { id: 'second' },
+      ])
+      const reviewed = await discoverProjectBackfill(sql, 'fixture')
+      expect(await assignProjectBackfillBatch(sql, reviewed.families)).toMatchObject({
+        assigned: 1,
+        projectsCreated: 0,
+      })
+      expect(await sql`SELECT project_id FROM workspace`).toEqual([{ project_id: 'second' }])
+    })
+  })
+
+  it('releases a batch promptly when its legacy assignment row is being changed', async () => {
+    await database(async (sql) => {
+      await sql`INSERT INTO project (id,name,owner_id) VALUES ('first','First','owner'),('second','Second','owner')`
+      await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('root','Root','owner')`
+      await sql`INSERT INTO project_workspace (project_id,workspace_id) VALUES ('first','root')`
+      const manifest = await discoverProjectBackfill(sql, 'fixture')
+      await sql.begin(async (tx) => {
+        await tx`UPDATE project_workspace SET project_id = 'second' WHERE workspace_id = 'root'`
+        await expect(assignProjectBackfillBatch(sql, manifest.families)).rejects.toSatisfy(
+          (error: unknown) => getPostgresErrorCode(error) === '55P03'
+        )
+        await tx`SET LOCAL lock_timeout = '100ms'`
+        await tx`UPDATE workspace SET name = 'Still editable' WHERE id = 'root'`
+        expect(await tx`SELECT project_id FROM workspace`).toEqual([{ project_id: null }])
+      })
+      await expect(assignProjectBackfillBatch(sql, manifest.families)).rejects.toThrow('changed')
+      const reviewed = await discoverProjectBackfill(sql, 'fixture')
+      expect(await assignProjectBackfillBatch(sql, reviewed.families)).toMatchObject({
+        assigned: 1,
+        projectsCreated: 0,
+      })
+      expect(await sql`SELECT project_id FROM workspace`).toEqual([{ project_id: 'second' }])
+    })
+  })
+
+  it('defers a legacy Project mutation without blocking unrelated assignment', async () => {
+    await database(async (sql) => {
+      await sql`INSERT INTO project (id,name,owner_id) VALUES ('legacy','Legacy','owner')`
+      await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('a-legacy','Legacy','owner'),('b-free','Free','owner')`
+      await sql`INSERT INTO project_workspace (project_id,workspace_id) VALUES ('legacy','a-legacy')`
+      const manifest = await discoverProjectBackfill(sql, 'fixture')
+      await sql.begin(async (tx) => {
+        await tx`SELECT pg_advisory_xact_lock(hashtextextended('project:legacy',0))`
+        await expect(assignProjectBackfillBatch(sql, [manifest.families[0]])).rejects.toThrow(
+          'busy'
+        )
+        expect(await assignProjectBackfillBatch(sql, [manifest.families[1]])).toMatchObject({
+          assigned: 1,
+        })
+        expect(await sql`SELECT project_id FROM workspace WHERE id = 'a-legacy'`).toEqual([
+          { project_id: null },
+        ])
+      })
+      expect(await assignProjectBackfillBatch(sql, [manifest.families[0]])).toMatchObject({
+        assigned: 1,
+        projectsCreated: 0,
+      })
+    })
+  })
+
+  it('retries the registered backfill after a failed batch without repeating committed assignments', async () => {
+    await database(async (sql, url) => {
+      await sql`INSERT INTO workspace (id,name,owner_id) SELECT lpad(n::text,3,'0'), 'Env ' || n,'owner' FROM generate_series(1,101) n`
+      await sql.unsafe(`CREATE FUNCTION reject_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        IF NEW.name = 'Env 75 - Project' THEN RAISE EXCEPTION 'fixture failure'; END IF; RETURN NEW; END $$;
+        CREATE TRIGGER reject_fixture BEFORE INSERT ON project FOR EACH ROW EXECUTE FUNCTION reject_fixture();`)
+      await expect(runRegisteredProjectMigration(url)).rejects.toThrow('fixture failure')
+      const assignments =
+        await sql`SELECT id,project_id FROM workspace WHERE project_id IS NOT NULL ORDER BY id`
+      expect(assignments).toHaveLength(50)
+      expect(await sql`SELECT name FROM script_migrations`).toHaveLength(0)
+      expect(await sql`SELECT to_regclass('project_workspace')::text AS connector`).toEqual([
+        { connector: 'project_workspace' },
+      ])
+      await sql`DROP TRIGGER reject_fixture ON project`
+      await runRegisteredProjectMigration(url)
+      expect(
+        await sql`SELECT id,project_id FROM workspace WHERE id = ANY(${assignments.map((row) => row.id)}) ORDER BY id`
+      ).toEqual(assignments)
+      expect(await sql`SELECT id FROM project`).toHaveLength(101)
+      expect(await sql`SELECT name FROM script_migrations`).toEqual([
+        { name: '0031_project_membership' },
+      ])
+    })
+  })
+
+  it('commits unrelated assignments while a family stays busy and resumes before enforcement', async () => {
+    await database(async (sql, url) => {
+      await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('a-busy','Busy','owner'),('b-free','Free','owner')`
+      await sql.begin(async (tx) => {
+        await tx`SELECT pg_advisory_xact_lock_shared(hashtextextended('project-backfill:a-busy',0))`
+        await expect(runRegisteredProjectMigration(url)).rejects.toThrow('backfill incomplete')
+        expect(await sql`SELECT id FROM workspace WHERE project_id IS NOT NULL`).toEqual([
+          { id: 'b-free' },
+        ])
+        expect(await sql`SELECT name FROM script_migrations`).toHaveLength(0)
+        expect(await sql`SELECT to_regclass('project_workspace')::text AS connector`).toEqual([
+          { connector: 'project_workspace' },
+        ])
+      })
+      await runRegisteredProjectMigration(url)
+      expect(await sql`SELECT id FROM project`).toHaveLength(2)
+      expect(await sql`SELECT id FROM workspace WHERE project_id IS NULL`).toHaveLength(0)
+    })
+  })
+
+  it.each(['archive', 'ownership'] as const)(
+    'stops the registered migration for unresolved %s before installing enforcement',
+    async (scenario) => {
+      await database(async (sql, url) => {
+        await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('root','Root','owner')`
+        if (scenario === 'archive') {
+          await sql`UPDATE workspace SET archived_at = now()`
+          await sql`INSERT INTO workflow VALUES ('flow','root',NULL)`
+        } else {
+          await sql`INSERT INTO "user" VALUES ('other')`
+          await sql`INSERT INTO workspace (id,name,owner_id,forked_from_workspace_id) VALUES ('child','Child','other','root')`
+        }
+        await expect(runRegisteredProjectMigration(url)).rejects.toThrow(
+          'Resolve Project conflicts'
+        )
+        expect(await sql`SELECT id FROM project`).toHaveLength(0)
+        expect(await sql`SELECT name FROM script_migrations`).toHaveLength(0)
+        expect(await sql`SELECT to_regclass('project_workspace')::text AS connector`).toEqual([
+          { connector: 'project_workspace' },
+        ])
+        if (scenario === 'archive') await sql`UPDATE workflow SET archived_at = now()`
+        else await sql`UPDATE workspace SET owner_id = 'owner' WHERE id = 'child'`
+        await runRegisteredProjectMigration(url)
+        expect(await sql`SELECT id FROM project`).toHaveLength(1)
+      })
+    }
+  )
+
+  it('requires completed assignments before final enforcement and leaves missing assignments untouched', async () => {
     await database(async (sql) => {
       await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('legacy','Legacy','owner')`
       await expect(applyMigration(sql, migration)).rejects.toThrow('preparation is incomplete')
@@ -623,12 +872,15 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       await sql`INSERT INTO drizzle.__drizzle_migrations VALUES (${expanded.when - 1})`
       await expect(run()).rejects.toMatchObject({ code: 1 })
       await sql`INSERT INTO drizzle.__drizzle_migrations VALUES (${expanded.when})`
+      await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('legacy','Legacy','owner')`
       expect((await run()).stdout.trim()).toBe('required=true')
       await sql`ALTER TABLE workspace DROP COLUMN project_id CASCADE`
       await expect(run()).rejects.toMatchObject({ code: 1 })
       await applyMigration(sql, expansion)
       expect((await run()).stdout.trim()).toBe('required=true')
       await sql`INSERT INTO drizzle.__drizzle_migrations VALUES (${entry.when})`
+      expect((await run()).stdout.trim()).toBe('required=true')
+      await runRegisteredProjectMigration(url)
       expect((await run()).stdout.trim()).toBe('required=false')
       await sql`DELETE FROM drizzle.__drizzle_migrations WHERE created_at = ${expanded.when}`
       await expect(run()).rejects.toMatchObject({ code: 1 })
@@ -638,12 +890,18 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   })
 
-  it('replays committed contraction without a journal receipt after recovering a failed precheck', async () => {
+  it('replays committed contraction when recording its script receipt fails', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'project-contract-runner-'))
     try {
       await mkdir(join(directory, 'meta'))
       await writeFile(join(directory, '0404_workspace_project_column.sql'), expansion)
-      await writeFile(join(directory, '0405_project_membership_enforcement.sql'), migration)
+      await writeFile(
+        join(directory, '0405_project_membership_enforcement.sql'),
+        await readFile(
+          new URL('../migrations/0405_project_membership_enforcement.sql', import.meta.url),
+          'utf8'
+        )
+      )
       await writeFile(
         join(directory, 'meta/_journal.json'),
         JSON.stringify({
@@ -656,64 +914,44 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         })
       )
       await database(async (sql, url) => {
-        const runner = postgres(url, { max: 1, onnotice: () => undefined })
-        const run = () => migrate(drizzle(runner), { migrationsFolder: directory })
+        const runner = postgres(url, { max: 1, onnotice: () => undefined, max_lifetime: null })
+        const run = async () => {
+          await migrate(drizzle(runner), { migrationsFolder: directory })
+          await runScriptMigrations(
+            runner,
+            scriptMigrations.filter((item) => item.name === '0031_project_membership')
+          )
+        }
         try {
-          await sql`INSERT INTO project (id, name, owner_id) VALUES ('empty', 'Empty', 'owner')`
-          await expect(run()).rejects.toSatisfy(
-            (error: unknown) => getPostgresErrorCode(error) === '55000'
-          )
-          const expanded = journal.entries.find(
-            (entry) => entry.tag === '0404_workspace_project_column'
-          )
-          const contracted = journal.entries.find(
-            (entry) => entry.tag === '0405_project_membership_enforcement'
-          )
-          if (!expanded || !contracted) throw new Error('Missing Project migration metadata')
-          expect(await sql`SELECT created_at::text FROM drizzle.__drizzle_migrations`).toEqual([
-            { created_at: String(expanded.when) },
-          ])
+          await sql`INSERT INTO project (id,name,owner_id) VALUES ('empty','Empty','owner')`
+          await expect(run()).rejects.toThrow('validation failed')
+          expect(await sql`SELECT * FROM drizzle.__drizzle_migrations`).toHaveLength(2)
+          expect(await sql`SELECT * FROM script_migrations`).toHaveLength(0)
           await sql`DELETE FROM project WHERE id = 'empty'`
-          await sql`INSERT INTO workspace (id, name, owner_id) VALUES ('legacy', 'Legacy', 'owner')`
-          await prepare(sql)
-          await writeFile(
-            join(directory, '0405_project_membership_enforcement.sql'),
-            `${migration}\n--> statement-breakpoint\nSELECT 1 / 0;\n`
-          )
-          await expect(run()).rejects.toSatisfy(
-            (error: unknown) => getPostgresErrorCode(error) === '22012'
-          )
+          await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('legacy','Legacy','owner')`
+          await sql.unsafe(`CREATE FUNCTION reject_receipt() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+            RAISE EXCEPTION 'receipt failure'; END $$;
+            CREATE TRIGGER reject_receipt BEFORE INSERT ON script_migrations FOR EACH ROW EXECUTE FUNCTION reject_receipt();`)
+          await expect(run()).rejects.toThrow('receipt failure')
           expect(await sql`SELECT to_regclass('project_workspace')::text AS connector`).toEqual([
             { connector: null },
           ])
-          expect(await sql`SELECT created_at::text FROM drizzle.__drizzle_migrations`).toEqual([
-            { created_at: String(expanded.when) },
-          ])
+          expect(await sql`SELECT * FROM script_migrations`).toHaveLength(0)
           await expect(
-            sql`INSERT INTO workspace (id, name, owner_id) VALUES ('unassigned', 'Invalid', 'owner')`
+            sql`INSERT INTO workspace (id,name,owner_id) VALUES ('bad','Bad','owner')`
           ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '23502')
           await expect(
-            sql`INSERT INTO workspace (id, project_id, name, owner_id)
-              VALUES ('missing-project', 'missing', 'Invalid', 'owner')`
+            sql`INSERT INTO workspace (id,project_id,name,owner_id) VALUES ('missing','missing','Missing','owner')`
           ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '23503')
-          await sql.begin(async (tx) => {
-            await tx`INSERT INTO project (id, name, owner_id) VALUES ('after-gap', 'After gap', 'owner')`
-            await tx`INSERT INTO workspace (id, project_id, name, owner_id)
-              VALUES ('after-gap', 'after-gap', 'After gap', 'owner')`
-          })
-          const assignments = await sql`SELECT id, project_id FROM workspace ORDER BY id`
-          const projects = await sql`SELECT id, name FROM project ORDER BY id`
-
-          await writeFile(join(directory, '0405_project_membership_enforcement.sql'), migration)
+          const assignments = await sql`SELECT id,project_id FROM workspace ORDER BY id`
+          await sql`DROP TRIGGER reject_receipt ON script_migrations`
           await run()
           await run()
           expect(await sql`SELECT * FROM drizzle.__drizzle_migrations`).toHaveLength(2)
-          expect(
-            await sql`SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations
-              WHERE created_at = ${contracted.when}`
-          ).toEqual([{ count: 1 }])
-          expect(await sql`SELECT id, project_id FROM workspace ORDER BY id`).toEqual(assignments)
-          expect(await sql`SELECT id, name FROM project ORDER BY id`).toEqual(projects)
+          expect(await sql`SELECT name FROM script_migrations`).toEqual([
+            { name: '0031_project_membership' },
+          ])
+          expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual(assignments)
           await expect(sql`DELETE FROM workspace`).rejects.toSatisfy(constraintFailure)
         } finally {
           await runner.end()
@@ -724,7 +962,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     }
   })
 
-  it.each(['workspace', 'project_workspace'] as const)(
+  it.each(['workspace', 'project', 'project_workspace'] as const)(
     'fails contract DDL promptly on busy %s and releases partially acquired locks',
     async (table) => {
       await database(async (sql) => {
@@ -748,9 +986,12 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
             await tx`INSERT INTO workspace (id, project_id, name, owner_id) VALUES ('live', 'live-project', 'Live', 'owner')`
             await tx`SELECT * FROM project`
           })
+          expect(await sql`SELECT project_id FROM workspace WHERE id = 'live'`).toEqual([
+            { project_id: 'live-project' },
+          ])
           expect(
             await sql`SELECT project_id FROM project_workspace WHERE workspace_id = 'live'`
-          ).toEqual([{ project_id: 'live-project' }])
+          ).toHaveLength(0)
         } finally {
           release.resolve()
           await reader
@@ -781,7 +1022,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           "SELECT count(*)::int AS count FROM pg_locks WHERE pid = $1 AND mode = 'AccessExclusiveLock' AND granted",
           [pid]
         ))[0].count;
-        const migration = await readFile('migrations/0405_project_membership_enforcement.sql', 'utf8');
+        const migration = await readFile('maintenance/project-membership.sql', 'utf8');
         for (const statement of migration.split('--> statement-breakpoint')) {
           await sql.unsafe(statement);
           if (statement.includes('LOCK TABLE workspace,')) {
@@ -1168,7 +1409,8 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
             await sql`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('existing', 'outside')`
           }
         }
-        const before = await sql`SELECT id, project_id FROM workspace ORDER BY id`
+        const before = await sql`SELECT w.id, coalesce(w.project_id, pw.project_id) AS project_id
+          FROM workspace w LEFT JOIN project_workspace pw ON pw.workspace_id = w.id ORDER BY w.id`
         if (scenario === 'split') {
           expect(await discoverProjectBackfill(sql, 'fixture')).toMatchObject({
             conflicts: [{ id: 'root', reason: 'Fork family spans Projects' }],
@@ -1178,7 +1420,15 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           (error: unknown) =>
             getPostgresErrorCode(error) === (scenario === 'oversized' ? '54000' : '55000')
         )
-        expect(await sql`SELECT id, project_id FROM workspace ORDER BY id`).toEqual(before)
+        expect(
+          await sql`SELECT w.id, coalesce(w.project_id, pw.project_id) AS project_id
+          FROM workspace w LEFT JOIN project_workspace pw ON pw.workspace_id = w.id ORDER BY w.id`
+        ).toEqual(before)
+        if (scenario === 'outside-family') {
+          expect(
+            await sql`SELECT id FROM workspace WHERE id IN ('root','child') AND project_id IS NOT NULL`
+          ).toHaveLength(0)
+        }
       })
     }
   )

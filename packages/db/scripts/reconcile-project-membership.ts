@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { enforceProjectMembership } from '@sim/db/maintenance/project-enforcement'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import postgres from 'postgres'
@@ -19,23 +19,12 @@ try {
   `
   if (state.workspace && (state.connector || !state.required || !state.project)) {
     throw new Error(
-      'Existing Project databases must complete the reviewed preparation and contract migration 0405 before schema push. Use the phased migration path for retained data; schema push cannot bypass the writer-drain requirement'
+      'Existing Project databases must complete the Project script migration 0031 before schema push. Use the phased migration path for retained data; schema push cannot bypass the writer-drain requirement'
     )
   }
   if (!process.argv.includes('--prepare') && state.workspace && state.project) {
     // Drizzle cannot express lifecycle triggers; fresh push uses the same enforcement as migrations.
-    const source = await readFile(
-      new URL('../migrations/0405_project_membership_enforcement.sql', import.meta.url),
-      'utf8'
-    )
-    const connection = await sql.reserve()
-    try {
-      for (const statement of source.split('--> statement-breakpoint')) {
-        if (statement.trim()) await connection.unsafe(statement)
-      }
-    } finally {
-      connection.release()
-    }
+    await enforceProjectMembership(sql)
     logger.info('Project membership validation and lifecycle enforcement completed')
   }
 } catch (error) {
