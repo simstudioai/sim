@@ -55,6 +55,7 @@ import { getCustomBlockUsageCounts } from '@/lib/workflows/custom-blocks/operati
  */
 const ENTERPRISE_GATED_SECTION_LABELS: Record<OrganizationSettingsSection, string | null> = {
   'recently-deleted': null,
+  'knowledge-graphs': null,
   integrations: 'Sim Search source setup',
   'search-mcp': null,
   'search-slack': 'Sim Search in Slack',

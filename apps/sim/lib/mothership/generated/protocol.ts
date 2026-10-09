@@ -103,6 +103,7 @@ export type ModelSelection = z.infer<typeof ModelSelectionSchema>;
 /** Desktop capabilities and bounded session hints, supplied by Sim for this turn. */
 export const DesktopContextSchema = z.object({
   localFiles: z.boolean().optional(),
+  computerUse: z.boolean().default(false),
   browser: z.boolean().default(false),
   terminal: z.boolean().default(false),
   terminals: z
@@ -156,6 +157,7 @@ export const ChatPayloadSchema = z
     workspaceId: z.uuid().optional(),
     organizationId: z.string().min(1).max(200).optional(),
     mode: z.enum(["agent", "assistant", "plan"]).optional(),
+    benchmark: z.literal(true).optional(),
     assistantSearch: AssistantSearch.optional(),
     assistantFast: z.boolean().optional(),
     assistantSearchLevel: AssistantSearchLevel.optional(),
@@ -195,6 +197,28 @@ export const ChatPayloadSchema = z
     inventory: WorkspaceInventorySchema.optional(),
   })
   .superRefine((value, ctx) => {
+    if (
+      value.benchmark &&
+      (value.mode !== "plan" ||
+        !value.organizationId ||
+        !value.chatId ||
+        !value.messageId ||
+        value.context.length > 0 ||
+        value.inventory ||
+        value.desktop ||
+        value.integrationCatalog ||
+        value.assistantSearch ||
+        value.assistantSearchLevel ||
+        value.assistantFast !== undefined ||
+        value.assistantImages ||
+        value.workflowId ||
+        value.origin ||
+        value.message.length > 20_000)
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Benchmark requires a fresh organization Plan request with only a bounded task brief",
+      });
     if (value.effort === "none" && value.modelSelection?.model !== "gpt-6-sol")
       ctx.addIssue({
         code: "custom",
@@ -266,6 +290,8 @@ export interface ChatRequest extends StreamResponseReceipt {
   workspaceId?: string | undefined;
   organizationId?: string | undefined;
   mode?: "agent" | "assistant" | "plan" | undefined;
+  /** Restricted discovery run with isolated memory; only the benchmark runner sets this. */
+  benchmark?: true | undefined;
   assistantSearch?: AssistantSearch | undefined;
   assistantFast?: boolean | undefined;
   assistantSearchLevel?: AssistantSearchLevel | undefined;
@@ -455,10 +481,24 @@ export interface ProtocolMismatch {
 /**
  * POST /api/mothership/execute — headless execution, with optional conversation replay.
  * The caller supplies the conversation and authorized catalog selectors. The worker
- * runs one bounded loop and streams mothership-stream-v1 frames. No skills or CLI;
- * discovery and execution resolve selected operations through Sim.
+ * runs one loop and streams mothership-stream-v1 frames. Ordinary executions resolve
+ * selected integrations through Sim; benchmark profiles expose only their stage's reads.
  */
+/** Restricted, fresh-conversation benchmark stages; the supplied spec never enters the prompt wholesale. */
+export const BenchmarkExecution = z.discriminatedUnion("stage", [
+  z.strictObject({ stage: z.literal("distill") }),
+  z.strictObject({ stage: z.literal("reconstruct"), spec: z.string().min(1) }),
+  z.strictObject({ stage: z.literal("resolve"), spec: z.string().min(1) }),
+]);
+export type BenchmarkExecution = z.infer<typeof BenchmarkExecution>;
+
 export interface ExecuteRequest extends StreamResponseReceipt {
+  /** Organization Plan scope is reserved for reference-resolving benchmark executions. */
+  organizationId?: string | undefined;
+  mode?: "plan" | undefined;
+  benchmark?: BenchmarkExecution | undefined;
+  /** Optional per-call output bound for stateless structured stages (1–32768 tokens). */
+  maxOutputTokens?: number | undefined;
   simConnection?: SimConnection | undefined;
   effort?: ChatRequest["effort"];
   modelSelection?: ModelSelection | undefined;

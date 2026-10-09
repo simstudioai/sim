@@ -20,7 +20,7 @@ import {
 import {
   chatViewDesktopLeaseOwnerToken,
   getDesktopToolClaimOwner,
-  isDesktopToolCall,
+  isBackgroundDesktopToolCall,
   isLocalReadToolCall,
 } from '@/lib/mothership/tools/desktop-tools'
 
@@ -83,7 +83,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
 
   const args = isRecordLike(toolCall.args) ? (toolCall.args as Record<string, unknown>) : {}
-  if (!isDesktopToolCall(toolCall.toolName, args)) {
+  if (!isBackgroundDesktopToolCall(toolCall.toolName, args)) {
     return NextResponse.json(
       { error: 'Tool call is not authorized for desktop execution' },
       { status: 403 }

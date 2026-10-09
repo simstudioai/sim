@@ -21,6 +21,8 @@ import {
   type PersistedMessage,
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
+import { isPlanModeEnabled } from '@/lib/mothership/feature-flags'
+import { selectedMemorySpaceForNewChat } from '@/lib/mothership/memory/spaces'
 import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   assertActiveWorkspaceAccess,
@@ -203,7 +205,7 @@ async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
     try {
       await organizationAuthorization.execute({
         principal,
-        input: { organizationId: chat.organizationId },
+        input: { organizationId: chat.organizationId, mode: chat.mode },
       })
     } catch (error) {
       const code = asOrchestrationError(error)?.code
@@ -235,6 +237,14 @@ async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
       return null
     }
   }
+
+  if (
+    !chat.organizationId &&
+    chat.mode === 'plan' &&
+    organizationAuthorization !== authorizeOrganizationChatCancellation &&
+    !(await isPlanModeEnabled(userId))
+  )
+    return null
 
   return chat
 }
@@ -454,20 +464,23 @@ export async function resolveOrCreateChat(params: {
   }
 
   const now = new Date()
-  const [newChat] = await db
-    .insert(copilotChats)
-    .values({
-      userId,
-      ...(workflowId ? { workflowId } : {}),
-      ...(workspaceId ? { workspaceId } : {}),
-      ...(organizationId ? { organizationId } : {}),
-      config: { conversationMode: mode ?? (organizationId ? 'assistant' : 'agent') },
-      type: type ?? (organizationId ? 'mothership' : 'copilot'),
-      title: title ?? null,
-      model,
-      lastSeenAt: now,
-    })
-    .returning(copilotChatDetailColumns)
+  const [newChat] = await db.transaction(async (tx) =>
+    tx
+      .insert(copilotChats)
+      .values({
+        memorySpaceId: await selectedMemorySpaceForNewChat(userId, organizationId, workspaceId, tx),
+        userId,
+        ...(workflowId ? { workflowId } : {}),
+        ...(workspaceId ? { workspaceId } : {}),
+        ...(organizationId ? { organizationId } : {}),
+        config: { conversationMode: mode ?? (organizationId ? 'assistant' : 'agent') },
+        type: type ?? (organizationId ? 'mothership' : 'copilot'),
+        title: title ?? null,
+        model,
+        lastSeenAt: now,
+      })
+      .returning(copilotChatDetailColumns)
+  )
 
   if (!newChat) {
     logger.warn('Failed to create new copilot chat row', { userId, workflowId, workspaceId })

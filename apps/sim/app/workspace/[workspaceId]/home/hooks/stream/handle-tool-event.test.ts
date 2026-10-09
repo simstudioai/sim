@@ -12,6 +12,8 @@ vi.mock(
 )
 
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
+import { getReplayCompletedWorkflowToolCallIds } from '@/app/workspace/[workspaceId]/home/hooks/message-reconcile'
 import { dispatchStreamEvent } from './dispatch-stream-event'
 import { createStreamLoopContext, type StreamLoopContext } from './stream-context'
 import { makeStreamLoopDeps, ref } from './stream-test-helpers'
@@ -52,6 +54,105 @@ function toolNode(ctx: StreamLoopContext, id: string): ToolNode {
 describe('tool events (dispatch → model + side effects)', () => {
   beforeEach(() => {
     libDesktopMockFns.mockGetDesktopBridge.mockReturnValue({})
+  })
+
+  it.each([false, true])(
+    'routes computer calls through the native view with background execution %s',
+    (desktopToolsOnDevice) => {
+      const deps = makeStreamLoopDeps({ options: { desktopToolsOnDevice } })
+      const ctx = createStreamLoopContext(deps)
+      const args = { action: 'list_apps' }
+      dispatchStreamEvent(
+        ctx,
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId: 'computer',
+          toolName: 'computer',
+          arguments: args,
+          partial: true,
+        })
+      )
+      expect(deps.startClientComputerTool).not.toHaveBeenCalled()
+      dispatchStreamEvent(
+        ctx,
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId: 'computer',
+          toolName: 'computer',
+          arguments: args,
+        })
+      )
+      expect(deps.startClientComputerTool).toHaveBeenCalledWith('computer', args, '')
+      dispatchStreamEvent(ctx, toolResult('computer', true, 'computer'))
+      vi.mocked(deps.startClientComputerTool).mockClear()
+      dispatchStreamEvent(
+        ctx,
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId: 'computer',
+          toolName: 'computer',
+          arguments: args,
+        })
+      )
+      expect(deps.startClientComputerTool).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([true, false])(
+    'does not redispatch a completed computer call from a fresh replay batch (success=%s)',
+    (success) => {
+      const call = (id: string) =>
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId: id,
+          toolName: 'computer',
+          arguments: { action: 'list_apps' },
+        })
+      const events = [
+        call('computer-complete'),
+        toolResult('computer-complete', success, 'computer'),
+        call('computer-unfinished'),
+      ].map(toStreamBatchEvent)
+      const deps = makeStreamLoopDeps()
+      deps.options.suppressedWorkflowToolStartIds = getReplayCompletedWorkflowToolCallIds(events)
+      const ctx = createStreamLoopContext(deps)
+
+      for (const entry of events) dispatchStreamEvent(ctx, entry.event)
+
+      expect(deps.startClientComputerTool).toHaveBeenCalledExactlyOnceWith(
+        'computer-unfinished',
+        { action: 'list_apps' },
+        ''
+      )
+      expect(toolNode(ctx, 'computer-complete').result).toBeDefined()
+    }
+  )
+
+  it('redelivers an unsettled computer call through the replay-safe native executor after reconnect', () => {
+    const deps = makeStreamLoopDeps()
+    const ctx = createStreamLoopContext(deps)
+    dispatchStreamEvent(
+      ctx,
+      toStreamBatchEvent(
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId: 'computer-recovery',
+          toolName: 'computer',
+          arguments: { action: 'list_apps' },
+        })
+      ).event
+    )
+    expect(deps.startClientComputerTool).toHaveBeenCalledOnce()
   })
 
   it('buffers a result that arrives before its call, then applies it', () => {

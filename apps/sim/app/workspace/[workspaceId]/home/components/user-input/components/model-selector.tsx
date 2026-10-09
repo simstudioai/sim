@@ -23,14 +23,18 @@ import {
   useMothershipChatHistory,
   useSetMothershipChatEffort,
 } from '@/hooks/queries/mothership-chats'
-import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
+import {
+  useMothershipEffortStore,
+  useMothershipPlanEffortStore,
+} from '@/stores/mothership-effort/store'
 
 /** Model, reasoning effort, and Fast mode for Build chat composers. */
-export function ModelSelector() {
+export function ModelSelector({ plan = false }: { plan?: boolean }) {
+  const usePreferenceStore = plan ? useMothershipPlanEffortStore : useMothershipEffortStore
   const advanced = useFeatureFlag('mothership-model-selector')
-  const selection = useMothershipEffortStore((state) => state.modelSelection)
-  const setModel = useMothershipEffortStore((state) => state.setModel)
-  const setFastMode = useMothershipEffortStore((state) => state.setFastMode)
+  const selection = usePreferenceStore((state) => state.modelSelection)
+  const setModel = usePreferenceStore((state) => state.setModel)
+  const setFastMode = usePreferenceStore((state) => state.setFastMode)
   const { chatId } = useChatSurface()
   const { data: chatHistory } = useMothershipChatHistory(chatId)
   const chatPick = useMothershipEffortStore((state) =>
@@ -42,7 +46,8 @@ export function ModelSelector() {
   const effortChoice = chatId ? (chatPick ?? chatHistory?.effort) : newChatEffort
   const { effort, modelSelection } = resolveMothershipModelSettings(
     { effort: effortChoice ?? undefined, modelSelection: selection },
-    advanced
+    advanced,
+    plan
   )
   const options = modelSelection ? MOTHERSHIP_EFFORT_OPTIONS : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
   const setEffort = (choice: MothershipEffort) => {

@@ -1,11 +1,11 @@
 import { RevenueCatIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildRevenueCatExtraFields,
   buildRevenueCatOutputs,
   revenueCatSetupInstructions,
   revenueCatTriggerOptions,
 } from '@/triggers/revenuecat/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

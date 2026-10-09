@@ -4,6 +4,7 @@ import {
   SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH,
   SLACK_MANAGED_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
+import { SLACK_AGENT_SCOPES } from '@/triggers/slack/shared'
 
 /**
  * Slack app capabilities that can be toggled on in the manifest generator.
@@ -300,14 +301,6 @@ export function getSlackManagedUserAuthorizationManifestConfig(
 }
 
 const WEBHOOK_URL_PLACEHOLDER = '<deploy workflow to generate webhook URL>'
-
-export const SLACK_AGENT_SCOPES = [
-  'assistant:write',
-  'chat:write',
-  'chat:write.customize',
-  'im:history',
-  'im:write',
-] as const
 
 export const SLACK_AGENT_EVENTS = [
   'agent_session_stopped',

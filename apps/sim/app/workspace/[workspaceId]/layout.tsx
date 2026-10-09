@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import {
   hasDesktopBackgroundExecutor,
@@ -72,6 +73,7 @@ export default async function WorkspaceLayout({
     dashboardsEnabled,
     workflowTestsEnabled,
     desktopExecutorRegistered,
+    computerUseEnabled,
   ] = await Promise.all([
     cookies(),
     hostContext.hostOrganizationId
@@ -85,11 +87,12 @@ export default async function WorkspaceLayout({
       activeOrganizationId
     ),
     isMothershipModelSelectorEnabled(),
-    isPlanModeEnabled(),
+    isPlanModeEnabled(session.user.id).catch(() => false),
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
     isWorkflowTestsEnabled(hostContext.hostOrganizationId),
     hasDesktopBackgroundExecutor(session.user.id),
+    isComputerUseAvailable(),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
@@ -102,6 +105,7 @@ export default async function WorkspaceLayout({
           dashboards: dashboardsEnabled,
           'workflow-tests': workflowTestsEnabled,
           'mothership-model-selector': modelSelectorEnabled,
+          'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': planModeEnabled,
         }}
       >

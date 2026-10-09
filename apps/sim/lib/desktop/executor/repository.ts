@@ -34,7 +34,7 @@ import {
   isTerminalAsyncStatus,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { DESKTOP_TOOL_PICKUP_GRACE_MS } from '@/lib/mothership/constants'
-import { NAMED_DESKTOP_TOOL_NAMES } from '@/lib/mothership/tools/desktop-tools'
+import { NAMED_BACKGROUND_DESKTOP_TOOL_NAMES } from '@/lib/mothership/tools/desktop-tools'
 import { USER_LOCAL_VFS_ROOT } from '@/lib/mothership/tools/local-filesystem'
 
 const LIVE_RUN_STATUSES: CopilotRunStatus[] = ['active', 'paused_waiting_for_tool', 'resuming']
@@ -71,11 +71,11 @@ function isUserLocalVfsPath(path: SQL) {
 }
 
 /**
- * The SQL form of `isDesktopToolCall`, so a query limits only over calls the desktop runs: a
+ * The SQL form of `isBackgroundDesktopToolCall`, so a query limits only over calls the desktop runs: a
  * desktop tool by name, or a VFS read of a granted local folder (not a read of Sim's own files).
  */
-const isDesktopToolCallRow = or(
-  inArray(copilotAsyncToolCalls.toolName, [...NAMED_DESKTOP_TOOL_NAMES]),
+const isBackgroundDesktopToolCallRow = or(
+  inArray(copilotAsyncToolCalls.toolName, [...NAMED_BACKGROUND_DESKTOP_TOOL_NAMES]),
   and(
     inArray(copilotAsyncToolCalls.toolName, ['read', 'grep']),
     isUserLocalVfsPath(sql`${copilotAsyncToolCalls.args}->>'path'`)
@@ -245,7 +245,7 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
           eq(copilotRuns.desktopDeviceId, identity.deviceId),
           eq(copilotRuns.userId, identity.userId),
           sql`${copilotRuns.startedAt} > now() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`,
-          isDesktopToolCallRow,
+          isBackgroundDesktopToolCallRow,
           state
         )
       )
@@ -425,7 +425,7 @@ export async function getDesktopToolCallDeadlines(toolCallId: string) {
       and(
         eq(copilotAsyncToolCalls.toolCallId, toolCallId),
         isNotNull(copilotRuns.desktopDeviceId),
-        isDesktopToolCallRow
+        isBackgroundDesktopToolCallRow
       )
     )
     .limit(1)
@@ -452,7 +452,7 @@ export async function listOverdueDesktopToolCalls(input: { slackMs: number; limi
     .where(
       and(
         isNotNull(copilotRuns.desktopDeviceId),
-        isDesktopToolCallRow,
+        isBackgroundDesktopToolCallRow,
         or(
           pickupOverdueAt(overdue),
           and(

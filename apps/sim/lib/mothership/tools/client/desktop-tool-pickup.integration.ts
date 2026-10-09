@@ -33,6 +33,7 @@ import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { StreamEvent, StreamingContext } from '@/lib/mothership/request/types'
 import { POST as confirmPOST } from '@/app/api/copilot/confirm/route'
 import { POST as authorizePOST } from '@/app/api/desktop/tool/authorize/route'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const APP_ORIGIN = 'http://localhost:3000'
 /** Longer than the pickup grace, far shorter than the budget the call used to wait out. */
@@ -119,13 +120,15 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
       },
     }
     const options = { timeout: TURN_WAIT_MS, desktopClaimsLocalReads }
-    await prePersistClientExecutableToolCall(event, context, options)
-    await sseHandlers.tool(
-      event,
-      context,
-      { userId, chatId, workspaceId, workflowId: generateId() },
-      options
-    )
+    const executionContext = {
+      userId,
+      chatId,
+      workspaceId,
+      workflowId: generateId(),
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
+    }
+    await prePersistClientExecutableToolCall(event, context, options, executionContext)
+    await sseHandlers.tool(event, context, executionContext, options)
     const answer = context.pendingToolPromises.get(toolCallId)
     if (!answer) throw new Error('The desktop call was not dispatched to a client waiter')
     return { toolCallId, answer }

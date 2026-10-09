@@ -107,6 +107,9 @@ export interface DesktopSettings {
   fullFileAccess?: boolean
   /** Keep the machine awake while a chat is running desktop work in the background. */
   preventSleepWhileRunning?: boolean
+  /** Native app access is opt-in and cleared when the signed-in account changes. */
+  computerUseEnabled?: boolean
+  computerUseAllowedApps?: Array<{ bundleId: string; displayName: string }>
   /** Device-wide browser page appearance; `app` follows Sim. */
   browserTheme?: 'app' | 'light' | 'dark'
   /** Device-wide default zoom for built-in browser pages. */

@@ -456,6 +456,7 @@ describe('ledger aggregates', () => {
 
   beforeEach(() => {
     installSharedDbMocks()
+    vi.spyOn(Date, 'now').mockReturnValue(billingPeriod.start.getTime())
   })
 
   for (const aggregate of aggregates) {

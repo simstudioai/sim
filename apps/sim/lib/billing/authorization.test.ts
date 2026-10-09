@@ -15,12 +15,10 @@ import {
 import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockHasPaidSubscription, mockAssertNoUnresolved } = vi.hoisted(() => ({
-  mockHasPaidSubscription: vi.fn(),
+const { mockAssertNoUnresolved } = vi.hoisted(() => ({
   mockAssertNoUnresolved: vi.fn(),
 }))
 
-vi.mock('@/lib/billing', () => ({ hasPaidSubscription: mockHasPaidSubscription }))
 vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
@@ -39,6 +37,7 @@ import {
 } from '@/lib/billing/authorization'
 import { EnterpriseIssuanceInProgressError } from '@/lib/billing/enterprise-outbox'
 
+const mockHasPaidSubscription = billingSubscriptionMockFns.mockHasPaidSubscription
 const mockIsOwnerOrAdmin = billingOrganizationMockFns.mockIsOrganizationOwnerOrAdmin
 const mockGetOrganizationCoverageForMember =
   billingSubscriptionMockFns.mockGetOrganizationCoverageForMember

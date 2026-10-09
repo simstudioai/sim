@@ -10,6 +10,8 @@ import {
 import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { getToolMetadata } from '@/tools/metadata'
+import { slackGetUserTool } from '@/tools/slack/get_user'
 
 const { getToolEntry, isKnownTool, isSimExecuted, isClientExecuted } = vi.hoisted(() => ({
   getToolEntry: vi.fn(),
@@ -18,7 +20,8 @@ const { getToolEntry, isKnownTool, isSimExecuted, isClientExecuted } = vi.hoiste
   isClientExecuted: vi.fn(),
 }))
 
-const { recordSecretUsage } = vi.hoisted(() => ({
+const { recordSecretUsage, searchIntegrationToolsEnabled } = vi.hoisted(() => ({
+  searchIntegrationToolsEnabled: vi.fn(async () => true),
   recordSecretUsage: vi.fn(),
 }))
 
@@ -32,6 +35,13 @@ vi.mock('./router', () => ({
 }))
 
 vi.mock('@/tools', () => toolsMock)
+vi.mock('@/lib/mothership/feature-flags', () => ({
+  isSearchIntegrationToolsEnabled: searchIntegrationToolsEnabled,
+}))
+beforeEach(() => searchIntegrationToolsEnabled.mockResolvedValue(true))
+vi.mocked(getToolMetadata).mockImplementation((id) =>
+  id === slackGetUserTool.id ? slackGetUserTool : undefined
+)
 
 vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage }))
 
@@ -45,6 +55,44 @@ const targets = {
 targets.environment.mockResolvedValue(undefined)
 
 const toolExecutorLogger = getMockLogger('ToolExecutor')
+
+describe('benchmark tool isolation', () => {
+  it.each([
+    ['plan', 'sim_cli'],
+    ['plan', 'list_workspaces'],
+    ['tool-free', 'search_workspace'],
+    ['tool-free', 'read_document'],
+  ] as const)('refuses %s access to %s before dispatch', async (benchmark, toolId) => {
+    clearHandlers()
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    getToolEntry.mockReturnValue({ requiredPermission: 'read' })
+    let dispatched = false
+    registerHandler(toolId, async () => {
+      dispatched = true
+      return { success: true, output: 'private workspace content' }
+    })
+    const result = await executeTool(
+      toolId,
+      {},
+      {
+        userId: 'person',
+        organizationId: 'org',
+        chatId: 'chat',
+        workflowId: '',
+        requestMode: 'plan',
+        userPermission: 'admin',
+        benchmark,
+      }
+    )
+    expect(result).toEqual({
+      success: false,
+      error: 'This tool is unavailable in this benchmark stage.',
+    })
+    expect(dispatched).toBe(false)
+  })
+})
 
 describe('copilot tool executor fallback', () => {
   beforeEach(() => {
@@ -117,7 +165,7 @@ describe('copilot tool executor fallback', () => {
     )
     expect(result).toEqual({
       success: false,
-      error: 'Search Assistant uses scoped search and document reads for connected sources.',
+      error: 'This operation is not available in Search Assistant.',
     })
     expect(handler).not.toHaveBeenCalled()
     expect(executeAppTool).not.toHaveBeenCalled()
@@ -713,3 +761,29 @@ describe('organization direct tool targets', () => {
     expect(targets.environment).not.toHaveBeenCalled()
   })
 })
+
+it.each([{ organizationId: 'org-1' }, { workspaceId: 'ws-1' }])(
+  'stops a previously admitted Search integration call after flag revocation for %j',
+  async (scope) => {
+    isKnownTool.mockReturnValue(false)
+    isClientExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true, output: { user: { id: 'U123' } } })
+    for (const enabled of [true, false, true]) {
+      searchIntegrationToolsEnabled.mockResolvedValue(enabled)
+      const result = await executeTool(
+        'slack_get_user',
+        { credentialId: 'own', userId: 'U123' },
+        {
+          userId: 'person',
+          requestMode: 'assistant',
+          ...scope,
+        }
+      )
+      expect(result).toEqual(
+        enabled
+          ? { success: true, output: { user: { id: 'U123' } } }
+          : { success: false, error: 'This operation is not available in Search Assistant.' }
+      )
+    }
+  }
+)

@@ -15586,6 +15586,26 @@
             "description": "Whether the field is hidden in the editor.",
             "type": "boolean"
           },
+          "reactiveCondition": {
+            "description": "Credential-kind requirement for this field or option; inspect the selected credential before using it.",
+            "type": "object",
+            "properties": {
+              "watchFields": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Credential selector fields; the first populated value identifies the credential."
+              },
+              "requiredType": {
+                "type": "string",
+                "enum": ["oauth", "service_account"],
+                "description": "Credential kind required for this field or option to apply."
+              }
+            },
+            "required": ["watchFields", "requiredType"],
+            "additionalProperties": false
+          },
           "condition": {
             "description": "Condition under which the field applies at all.",
             "$ref": "#/components/schemas/V2CatalogCondition"
@@ -15603,6 +15623,26 @@
                 "label": {
                   "description": "Human-readable option label.",
                   "type": "string"
+                },
+                "reactiveCondition": {
+                  "description": "Credential-kind requirement for this field or option; inspect the selected credential before using it.",
+                  "type": "object",
+                  "properties": {
+                    "watchFields": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Credential selector fields; the first populated value identifies the credential."
+                    },
+                    "requiredType": {
+                      "type": "string",
+                      "enum": ["oauth", "service_account"],
+                      "description": "Credential kind required for this field or option to apply."
+                    }
+                  },
+                  "required": ["watchFields", "requiredType"],
+                  "additionalProperties": false
                 },
                 "hasIcon": {
                   "description": "Whether the option renders with an icon. The icon itself is not published.",
@@ -16353,11 +16393,51 @@
                             "label": {
                               "type": "string",
                               "description": "Human-readable option label."
+                            },
+                            "reactiveCondition": {
+                              "description": "Credential-kind requirement for this field or option; inspect the selected credential before using it.",
+                              "type": "object",
+                              "properties": {
+                                "watchFields": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "description": "Credential selector fields; the first populated value identifies the credential."
+                                },
+                                "requiredType": {
+                                  "type": "string",
+                                  "enum": ["oauth", "service_account"],
+                                  "description": "Credential kind required for this field or option to apply."
+                                }
+                              },
+                              "required": ["watchFields", "requiredType"],
+                              "additionalProperties": false
                             }
                           },
                           "required": ["id", "label"],
                           "additionalProperties": false
                         }
+                      },
+                      "reactiveCondition": {
+                        "description": "Credential-kind requirement for this field or option; inspect the selected credential before using it.",
+                        "type": "object",
+                        "properties": {
+                          "watchFields": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Credential selector fields; the first populated value identifies the credential."
+                          },
+                          "requiredType": {
+                            "type": "string",
+                            "enum": ["oauth", "service_account"],
+                            "description": "Credential kind required for this field or option to apply."
+                          }
+                        },
+                        "required": ["watchFields", "requiredType"],
+                        "additionalProperties": false
                       },
                       "condition": {
                         "description": "Condition under which the field applies.",

@@ -1,11 +1,11 @@
 import { ResendIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildEmailDeliveredOutputs,
   buildResendExtraFields,
   resendSetupInstructions,
   resendTriggerOptions,
 } from '@/triggers/resend/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

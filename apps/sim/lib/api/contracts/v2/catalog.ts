@@ -102,6 +102,15 @@ const catalogDependsOnSchema = z.union([
   }),
 ])
 
+const catalogCredentialConditionSchema = z.object({
+  watchFields: z
+    .array(z.string())
+    .describe('Credential selector fields; the first populated value identifies the credential.'),
+  requiredType: z
+    .enum(['oauth', 'service_account'])
+    .describe('Credential kind required for this field or option to apply.'),
+})
+
 /** One configuration field on a block. */
 export const v2BlockFieldSchema = z
   .object({
@@ -126,6 +135,11 @@ export const v2BlockFieldSchema = z
         'Where the field renders: `basic`, `advanced`, `both`, `trigger`, or `trigger-advanced`.'
       ),
     hidden: z.boolean().optional().describe('Whether the field is hidden in the editor.'),
+    reactiveCondition: catalogCredentialConditionSchema
+      .optional()
+      .describe(
+        'Credential-kind requirement for this field or option; inspect the selected credential before using it.'
+      ),
     condition: v2CatalogConditionSchema
       .optional()
       .describe('Condition under which the field applies at all.'),
@@ -134,6 +148,11 @@ export const v2BlockFieldSchema = z
         z.object({
           id: z.string().describe('Value stored when this option is selected.'),
           label: z.string().optional().describe('Human-readable option label.'),
+          reactiveCondition: catalogCredentialConditionSchema
+            .optional()
+            .describe(
+              'Credential-kind requirement for this field or option; inspect the selected credential before using it.'
+            ),
           hasIcon: z
             .boolean()
             .optional()
@@ -557,10 +576,20 @@ const v2BlockTriggerSchema = z.object({
             z.object({
               id: z.string().describe('Value stored when this option is selected.'),
               label: z.string().describe('Human-readable option label.'),
+              reactiveCondition: catalogCredentialConditionSchema
+                .optional()
+                .describe(
+                  'Credential-kind requirement for this field or option; inspect the selected credential before using it.'
+                ),
             })
           )
           .optional()
           .describe('Selectable options.'),
+        reactiveCondition: catalogCredentialConditionSchema
+          .optional()
+          .describe(
+            'Credential-kind requirement for this field or option; inspect the selected credential before using it.'
+          ),
         condition: v2CatalogConditionSchema
           .optional()
           .describe('Condition under which the field applies.'),

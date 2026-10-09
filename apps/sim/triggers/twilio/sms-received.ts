@@ -1,5 +1,5 @@
 import { TwilioIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import {
   buildTwilioSmsAuthFields,
   buildTwilioSmsOutputs,

@@ -14,6 +14,8 @@ export async function requestExplicitStreamAbort(params: {
   streamId: string
   userId: string
   chatId?: string
+  /** The server-selected endpoint that admitted the run. */
+  mothershipBaseURL?: string
   timeoutMs?: number
   otelContext?: Context
 }): Promise<Pick<AbortResponse, 'settled'>> {
@@ -35,7 +37,7 @@ export async function requestExplicitStreamAbort(params: {
 
   let awaitingSettlement = false
   try {
-    const mothershipBaseURL = await getMothershipBaseURL({ userId })
+    const mothershipBaseURL = params.mothershipBaseURL ?? (await getMothershipBaseURL({ userId }))
     while (!controller.signal.aborted) {
       const response = await fetchGo(`${mothershipBaseURL}/api/streams/explicit-abort`, {
         method: 'POST',

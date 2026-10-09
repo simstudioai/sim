@@ -25,6 +25,10 @@
     "./tool-results": {
       "types": "./src/tool-results.ts",
       "default": "./src/tool-results.ts"
+    },
+    "./computer-use": {
+      "types": "./src/computer-use.generated.ts",
+      "default": "./src/computer-use.generated.ts"
     }
   },
   "scripts": {
@@ -39,7 +43,8 @@
     "@sim/browser-protocol": "workspace:*",
     "@sim/terminal-protocol": "workspace:*",
     "@sim/utils": "workspace:*",
-    "micromatch": "4.0.8"
+    "micromatch": "4.0.8",
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",

@@ -526,6 +526,7 @@
         "@sim/terminal-protocol": "workspace:*",
         "@sim/utils": "workspace:*",
         "micromatch": "4.0.8",
+        "zod": "4.3.6",
       },
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",

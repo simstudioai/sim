@@ -652,13 +652,13 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
   })
 
   it('rejects an entry whose declared size exceeds the per-entry cap', async () => {
-    const zip = new JSZip()
-    // Highly compressible zeros keep the archive tiny on disk while the declared
-    // uncompressed size blows past the per-entry cap.
-    zip.file('big.bin', Buffer.alloc(MAX_ARCHIVE_ENTRY_BYTES + 1024))
-    const buffer = Buffer.from(
-      await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
-    )
+    const buffer = await buildZip({ 'big.bin': 'x' })
+    // Only the declared-size fast reject is under test; both headers claim an
+    // oversized entry without compressing a large payload during suite startup.
+    const centralDirectory = buffer.readUInt32LE(buffer.length - EOCD_SIZE + 16)
+    const localHeader = buffer.readUInt32LE(centralDirectory + 42)
+    buffer.writeUInt32LE(MAX_ARCHIVE_ENTRY_BYTES + 1024, centralDirectory + 24)
+    buffer.writeUInt32LE(MAX_ARCHIVE_ENTRY_BYTES + 1024, localHeader + 22)
 
     await expect(
       decompressArchiveBufferToWorkspaceFiles(buffer, {

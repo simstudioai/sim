@@ -37,65 +37,74 @@ interface MothershipEffortState {
   reset: () => void
 }
 
-const initialState: Pick<
-  MothershipEffortState,
-  'modelSelection' | 'newChatEffort' | 'chatEfforts'
-> = {
-  modelSelection: { model: 'gpt-6-astra', fastMode: false },
-  newChatEffort: null,
-  chatEfforts: {},
-}
+function createMothershipEffortStore(plan: boolean) {
+  const initialState: Pick<
+    MothershipEffortState,
+    'modelSelection' | 'newChatEffort' | 'chatEfforts'
+  > = {
+    modelSelection: { model: plan ? 'claude-opus-5-5' : 'gpt-6-astra', fastMode: false },
+    newChatEffort: null,
+    chatEfforts: {},
+  }
 
-/** Counts picks across chats so a token never repeats within a session. */
-let lastChatEffortPick = 0
+  /** Counts picks across chats so a token never repeats within a session. */
+  let lastChatEffortPick = 0
 
-function withModelSelection(
-  modelSelection: ModelSelection
-): Pick<MothershipEffortState, 'modelSelection'> {
-  return { modelSelection: normalizeModelSelection(modelSelection) }
-}
+  function withModelSelection(
+    modelSelection: ModelSelection
+  ): Pick<MothershipEffortState, 'modelSelection'> {
+    return { modelSelection: normalizeModelSelection(modelSelection) }
+  }
 
-export const useMothershipEffortStore = create<MothershipEffortState>()(
-  devtools(
-    persist(
-      (set, get) => ({
-        ...initialState,
-        setFastMode: (fastMode) =>
-          set((state) => withModelSelection({ ...state.modelSelection, fastMode })),
-        setModel: (model) =>
-          set((state) => withModelSelection({ model, fastMode: state.modelSelection.fastMode })),
-        setNewChatEffort: (newChatEffort) => set({ newChatEffort }),
-        setChatEffort: (chatId, effort) => {
-          const pick = ++lastChatEffortPick
-          set((state) => ({ chatEfforts: { ...state.chatEfforts, [chatId]: { effort, pick } } }))
-          return pick
-        },
-        dropChatEffort: (chatId, pick) => {
-          if (get().chatEfforts[chatId]?.pick !== pick) return false
-          set((state) => ({ chatEfforts: omit(state.chatEfforts, [chatId]) }))
-          return true
-        },
-        adoptNewChatEffort: (chatId, effort) => {
-          const pick = ++lastChatEffortPick
-          set((state) => ({
-            newChatEffort: null,
-            chatEfforts: { ...state.chatEfforts, [chatId]: { effort, pick } },
-          }))
-        },
-        reset: () => set(initialState),
-      }),
-      {
-        name: 'mothership-effort',
-        partialize: ({ modelSelection }) => ({ modelSelection }),
-        merge: (persistedState, currentState) => {
-          const selection = ModelSelectionSchema.safeParse(toRecord(persistedState).modelSelection)
-          return {
-            ...currentState,
-            ...withModelSelection(selection.success ? selection.data : currentState.modelSelection),
-          }
-        },
-      }
-    ),
-    { name: 'mothership-effort-store' }
+  return create<MothershipEffortState>()(
+    devtools(
+      persist(
+        (set, get) => ({
+          ...initialState,
+          setFastMode: (fastMode) =>
+            set((state) => withModelSelection({ ...state.modelSelection, fastMode })),
+          setModel: (model) =>
+            set((state) => withModelSelection({ model, fastMode: state.modelSelection.fastMode })),
+          setNewChatEffort: (newChatEffort) => set({ newChatEffort }),
+          setChatEffort: (chatId, effort) => {
+            const pick = ++lastChatEffortPick
+            set((state) => ({ chatEfforts: { ...state.chatEfforts, [chatId]: { effort, pick } } }))
+            return pick
+          },
+          dropChatEffort: (chatId, pick) => {
+            if (get().chatEfforts[chatId]?.pick !== pick) return false
+            set((state) => ({ chatEfforts: omit(state.chatEfforts, [chatId]) }))
+            return true
+          },
+          adoptNewChatEffort: (chatId, effort) => {
+            const pick = ++lastChatEffortPick
+            set((state) => ({
+              newChatEffort: null,
+              chatEfforts: { ...state.chatEfforts, [chatId]: { effort, pick } },
+            }))
+          },
+          reset: () => set(initialState),
+        }),
+        {
+          name: plan ? 'mothership-plan-effort' : 'mothership-effort',
+          partialize: ({ modelSelection }) => ({ modelSelection }),
+          merge: (persistedState, currentState) => {
+            const selection = ModelSelectionSchema.safeParse(
+              toRecord(persistedState).modelSelection
+            )
+            return {
+              ...currentState,
+              ...withModelSelection(
+                selection.success ? selection.data : currentState.modelSelection
+              ),
+            }
+          },
+        }
+      ),
+      { name: plan ? 'mothership-plan-effort-store' : 'mothership-effort-store' }
+    )
   )
-)
+}
+
+export const useMothershipEffortStore = createMothershipEffortStore(false)
+export const useMothershipPlanEffortStore = createMothershipEffortStore(true)

@@ -49,6 +49,7 @@ export async function executeSimCli(
       parentToolCallId: context.parentToolCallId,
       userPermission: context.userPermission,
       resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
+      readOnly: context.benchmark === 'distill',
     })
     logger.info('CLI invocation finished', {
       exitCode: result.exitCode,

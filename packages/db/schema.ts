@@ -4152,6 +4152,124 @@ export const docsEmbeddings = pgTable(
 
 export const chatTypeEnum = pgEnum('chat_type', ['mothership', 'copilot'])
 
+/** Private benchmark artifacts retain their source scope and fence each asynchronous attempt. */
+export const mothershipBenchmarks = pgTable(
+  'mothership_benchmarks',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Null preserves the original owner's execution identity for existing cases. */
+    runAsUserId: text('run_as_user_id').references(() => user.id, { onDelete: 'cascade' }),
+    sourceWorkspaceId: text('source_workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    artifacts: jsonb('artifacts').notNull(),
+    version: integer('version').notNull().default(1),
+    runningStage: text('running_stage'),
+    attemptId: text('attempt_id'),
+    leaseExpiresAt: timestamp('lease_expires_at'),
+    plannerChatId: text('planner_chat_id'),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerCreatedIdx: index('mothership_benchmarks_owner_created_idx').on(
+      table.organizationId,
+      table.userId,
+      table.createdAt,
+      table.id
+    ),
+    workspaceIdx: index('mothership_benchmarks_workspace_idx').on(table.sourceWorkspaceId),
+    versionCheck: check('mothership_benchmarks_version_check', sql`${table.version} > 0`),
+    attemptCheck: check(
+      'mothership_benchmarks_attempt_check',
+      sql`(${table.runningStage} IS NULL AND ${table.attemptId} IS NULL AND ${table.leaseExpiresAt} IS NULL) OR (${table.runningStage} IS NOT NULL AND ${table.runningStage} IN ('distill', 'redact', 'plan', 'reconstruct', 'grade') AND ${table.attemptId} IS NOT NULL AND ${table.leaseExpiresAt} IS NOT NULL)`
+    ),
+  })
+)
+
+/** Immutable artifacts with separate human reviews; the parent owns access and deletion. */
+export const mothershipBenchmarkRuns = pgTable(
+  'mothership_benchmark_runs',
+  {
+    id: text('id').primaryKey(),
+    benchmarkId: text('benchmark_id')
+      .notNull()
+      .references(() => mothershipBenchmarks.id, { onDelete: 'cascade' }),
+    label: text('label').notNull().default(''),
+    evaluationKey: text('evaluation_key').notNull(),
+    reviews: jsonb('reviews').notNull().default([]),
+    version: integer('version').notNull().default(1),
+    reviewedAt: timestamp('reviewed_at'),
+    correct: integer('correct').notNull(),
+    automaticCorrect: integer('automatic_correct').notNull(),
+    total: integer('total').notNull(),
+    artifacts: jsonb('artifacts').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    benchmarkCreatedIdx: index('mothership_benchmark_runs_benchmark_created_idx').on(
+      table.benchmarkId,
+      table.createdAt,
+      table.id
+    ),
+    scoreCheck: check(
+      'mothership_benchmark_runs_score_check',
+      sql`${table.total} > 0 AND ${table.correct} >= 0 AND ${table.correct} <= ${table.total}`
+    ),
+    versionCheck: check('mothership_benchmark_runs_version_check', sql`${table.version} > 0`),
+    automaticScoreCheck: check(
+      'mothership_benchmark_runs_automatic_score_check',
+      sql`${table.automaticCorrect} >= 0 AND ${table.automaticCorrect} <= ${table.total}`
+    ),
+  })
+)
+
+/** Private graph names; memory content stays in the memory service. */
+export const mothershipMemorySpaces = pgTable(
+  'mothership_memory_spaces',
+  {
+    id: uuid('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerIdx: index('mothership_memory_spaces_owner_idx').on(table.userId, table.organizationId),
+  })
+)
+
+/** Null selects the implicit Default, whose original namespace never changes. */
+export const mothershipMemorySelections = pgTable(
+  'mothership_memory_selections',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    spaceId: uuid('space_id').references(() => mothershipMemorySpaces.id, {
+      onDelete: 'no action',
+    }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.userId, table.organizationId] }),
+  })
+)
+
 export const copilotChats = pgTable(
   'copilot_chats',
   {
@@ -4164,6 +4282,8 @@ export const copilotChats = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'cascade',
     }),
+    /** Bound once, without an FK: workspace chats can outlive their organization; missing graph ownership fails closed. */
+    memorySpaceId: uuid('memory_space_id'),
     type: chatTypeEnum('type').notNull().default('copilot'),
     title: text('title'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),

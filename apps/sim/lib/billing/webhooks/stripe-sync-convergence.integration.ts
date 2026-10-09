@@ -402,7 +402,7 @@ function startParkedTransaction(
     }
     throw new Error('No transaction ever waited on the parked one')
   }
-  return { done, release, untilBlocking }
+  return { ready: holderPid, done, release, untilBlocking }
 }
 
 describe('cancel_at_period_end sync', () => {
@@ -1031,6 +1031,7 @@ describe('Team activation', () => {
         reason: 'admin-cancel-at-period-end',
       })
     })
+    await cancelling.ready
     const activating = testDatabase.transaction((tx) =>
       ensureTeamOrganizationForAcceptance({
         billingOwnerUserId: owner.id,
@@ -1039,8 +1040,11 @@ describe('Team activation', () => {
         workspaceIdsToAttach: [],
       })
     )
-    await cancelling.untilBlocking()
-    cancelling.release()
+    try {
+      await cancelling.untilBlocking()
+    } finally {
+      cancelling.release()
+    }
     await cancelling.done
     await expect(activating).resolves.toMatchObject({ success: true })
     expect((await storedSubscription(subscriptionId)).cancelAtPeriodEnd).toBe(false)
@@ -1082,9 +1086,13 @@ describe('operator retry', () => {
         })
       }
     )
+    await writing.ready
     const requeuing = requeueFromAdminApi(pauseSync)
-    await writing.untilBlocking()
-    writing.release()
+    try {
+      await writing.untilBlocking()
+    } finally {
+      writing.release()
+    }
 
     await expect(Promise.all([writing.done, requeuing])).resolves.toBeDefined()
     await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
@@ -1123,14 +1131,18 @@ describe('operator retry', () => {
         })
       }
     )
+    await writing.ready
     const retrying = requestDashboardSubscriptionCancellation({
       organizationId: org.organizationId,
       operationId,
       timing: 'period_end',
       actor,
     })
-    await writing.untilBlocking()
-    writing.release()
+    try {
+      await writing.untilBlocking()
+    } finally {
+      writing.release()
+    }
 
     await expect(Promise.all([writing.done, retrying])).resolves.toBeDefined()
     expect((await storedSubscription(org.subscriptionId)).cancelAtPeriodEnd).toBe(true)

@@ -29,6 +29,7 @@ vi.mock(
   })
 )
 
+import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { Desktop } from '@/app/workspace/[workspaceId]/settings/components/desktop/desktop'
 
 const PREFERENCES = {
@@ -56,7 +57,22 @@ async function render(device: { deviceId: string } | null) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  await act(async () => root?.render(<Desktop />))
+  await act(async () =>
+    root?.render(
+      <FeatureFlagsProvider
+        flags={{
+          dashboards: false,
+          'table-row-ttl': false,
+          'mothership-model-selector': false,
+          'mothership-plan-mode': false,
+          'mothership-desktop-background-executor': false,
+          'mothership-computer-use': false,
+        }}
+      >
+        <Desktop />
+      </FeatureFlagsProvider>
+    )
+  )
   return container
 }
 

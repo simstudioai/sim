@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'" />
+    <title>Mothership Composer Fixture — local only</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #f8f8fa; color: #202126; font: 15px system-ui, sans-serif; }
+      header { padding: 20px 26px; background: #351738; color: white; }
+      h1 { margin: 0 0 6px; font-size: 23px; }
+      p { margin: 5px 0; }
+      main { display: grid; grid-template-columns: 235px 1fr; height: 620px; }
+      aside { overflow: auto; padding: 12px; background: #eeeaf0; }
+      aside button { width: 100%; border: 0; text-align: left; padding: 7px; background: transparent; }
+      section { padding: 24px; min-width: 0; }
+      #messages { min-height: 100px; max-height: 220px; overflow: auto; padding: 16px; background: white; border: 1px solid #ddd; border-radius: 8px; }
+      #composer { min-height: 82px; padding: 12px; border: 2px solid #8b5a95; background: white; border-radius: 8px; outline-offset: 3px; }
+      #composer:empty::before { content: 'Message the local fixture'; color: #8a858d; pointer-events: none; }
+      label { display: block; margin: 18px 0 8px; font-weight: 600; }
+      #sink { width: 100%; padding: 10px; border: 1px solid #a8a4ac; border-radius: 6px; }
+      .metadata { margin-top: 20px; font: 13px ui-monospace, monospace; color: #615768; }
+      #marker { width: 90px; height: 24px; background: #00b8a9; border: 3px solid #102c2a; margin-top: 16px; }
+    </style>
+  </head>
+  <body>
+    <header><h1>Composer acceptance fixture</h1><p>Offline synthetic data. Enter records a local submission; nothing is sent.</p></header>
+    <main>
+      <aside aria-label="Large fixture sibling tree" id="siblings"></aside>
+      <section aria-label="Fixture conversation">
+        <h2>Local conversation</h2>
+        <div id="messages" role="log" aria-label="Fixture submission history">No submissions</div>
+        <div id="deep-root"></div>
+        <label for="sink">Focus change destination</label>
+        <input id="sink" aria-label="Fixture focus change destination" autocomplete="off" />
+        <label><input type="checkbox" id="move-focus" /> Move focus after submit</label>
+        <p class="metadata" id="counter" aria-live="polite">Submissions: 0</p>
+        <div id="marker" role="img" aria-label="Fixture geometry marker"></div>
+      </section>
+    </main>
+    <script>
+      const siblings = document.getElementById('siblings')
+      for (let index = 0; index < 320; index++) {
+        const group = document.createElement('div')
+        group.role = 'group'
+        group.setAttribute('aria-label', `Fixture sibling group ${index}`)
+        const button = document.createElement('button')
+        button.textContent = `Local item ${index}`
+        group.append(button)
+        siblings.append(group)
+      }
+      let parent = document.getElementById('deep-root')
+      for (let index = 0; index < 35; index++) {
+        const group = document.createElement('div')
+        group.role = 'group'
+        group.setAttribute('aria-label', `Composer ancestor ${index}`)
+        parent.append(group)
+        parent = group
+      }
+      const composer = document.createElement('div')
+      composer.id = 'composer'
+      composer.contentEditable = 'true'
+      composer.role = 'textbox'
+      composer.setAttribute('aria-multiline', 'true')
+      composer.setAttribute('aria-label', 'Fixture message composer')
+      composer.setAttribute('spellcheck', 'false')
+      parent.append(composer)
+      const sink = document.getElementById('sink')
+      const history = []
+      function publish() {
+        window.fixture.publish({
+          ready: true,
+          depth: 35,
+          siblingCount: 320,
+          markerBounds: document.getElementById('marker').getBoundingClientRect().toJSON(),
+          viewport: { width: innerWidth, height: innerHeight, devicePixelRatio },
+          composer: composer.innerText,
+          sink: sink.value,
+          focused: document.activeElement?.id,
+          submissions: history.length,
+          moveFocusAfterSubmit: document.getElementById('move-focus').checked,
+          history: [...history],
+        })
+      }
+      composer.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' || event.shiftKey) return
+        event.preventDefault()
+        const text = composer.innerText
+        if (text.length) history.push(text)
+        composer.textContent = ''
+        document.getElementById('messages').textContent = history.join('\n') || 'No submissions'
+        document.getElementById('counter').textContent = `Submissions: ${history.length}`
+        if (document.getElementById('move-focus').checked) sink.focus()
+        publish()
+      })
+      document.addEventListener('input', publish)
+      document.addEventListener('change', publish)
+      document.addEventListener('focusin', publish)
+      window.addEventListener('resize', publish)
+      composer.focus()
+      publish()
+    </script>
+  </body>
+</html>

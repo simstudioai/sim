@@ -6,7 +6,7 @@ import {
 import type { ToolMetadata } from '@/tools/metadata'
 
 const tool: ToolMetadata = {
-  id: 'service_write',
+  id: 'google_drive_get_file',
   oauth: { required: true, provider: 'google-drive', authoritativeParams: ['instanceUrl'] },
   params: {
     credential: { type: 'string', visibility: 'user-only' },
@@ -19,7 +19,7 @@ const tool: ToolMetadata = {
 
 describe('Assistant integration policy', () => {
   const tokenTool: ToolMetadata = {
-    id: 'gitlab_get_project',
+    id: 'gitlab_list_projects',
     personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
     params: {
       accessToken: { type: 'string', required: true, visibility: 'user-only' },
@@ -41,11 +41,21 @@ describe('Assistant integration policy', () => {
     expect(isAssistantIntegrationTool({ ...tokenTool, params: {} })).toBe(false)
   })
 
-  it('allows writes with one explicit connected account', () => {
+  it('allows selected reads with one explicit connected account', () => {
     expect(() =>
       assertAssistantIntegrationCall(tool, { credential: 'mine', body: 'updated content' })
     ).not.toThrow()
   })
+
+  it.each(['gmail_send', 'google_drive_create_file', 'new_provider_operation'])(
+    'rejects unapproved operation %s even with a personal account',
+    (id) => {
+      expect(isAssistantIntegrationTool({ ...tool, id })).toBe(false)
+      expect(() =>
+        assertAssistantIntegrationCall({ ...tool, id }, { credential: 'mine' })
+      ).toThrow()
+    }
+  )
 
   it.each(['accessToken', 'apiKey', 'headers', '_context', 'impersonateUserEmail', 'instanceUrl'])(
     'rejects model-supplied %s before execution',

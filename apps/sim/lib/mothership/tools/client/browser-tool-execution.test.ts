@@ -1062,38 +1062,47 @@ describe('executeBrowserToolOnClient', () => {
     await flush()
   })
 
-  it('compacts a large known result before unload-safe delivery', async () => {
-    mockExecuteBrowserTool.mockResolvedValue({
-      dataUrl: `data:image/jpeg;base64,${'A'.repeat(64 * 1024)}`,
-      url: 'https://example.com',
-    })
-    let finishReport: () => void = () => {}
-    mockReportCompletion.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          finishReport = resolve
-        })
-    )
-    const sendBeacon = vi.mocked(navigator.sendBeacon)
-    const toolCallId = nextToolCallId()
+  it.each([false, true])(
+    'compacts a large result without overstating outcome certainty (unknown=%s)',
+    async (outcomeUnknown) => {
+      mockExecuteBrowserTool.mockResolvedValue({
+        dataUrl: `data:image/jpeg;base64,${'A'.repeat(64 * 1024)}`,
+        url: 'https://example.com',
+        outcomeUnknown,
+        doNotRetry: outcomeUnknown,
+      })
+      let finishReport: () => void = () => {}
+      mockReportCompletion.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            finishReport = resolve
+          })
+      )
+      const sendBeacon = vi.mocked(navigator.sendBeacon)
+      const toolCallId = nextToolCallId()
 
-    executeBrowserToolOnClient(toolCallId, 'browser_screenshot', {})
-    await flush()
-    window.dispatchEvent(new Event('pagehide'))
-    await flush()
+      executeBrowserToolOnClient(toolCallId, 'browser_screenshot', {})
+      await flush()
+      window.dispatchEvent(new Event('pagehide'))
+      await flush()
 
-    const beaconPayload = sendBeacon.mock.calls[0]?.[1] as NodeBlob
-    const payload = JSON.parse(await beaconPayload.text())
-    expect(beaconPayload.size).toBeLessThanOrEqual(48 * 1024)
-    expect(payload).toMatchObject({
-      toolCallId,
-      status: 'success',
-      data: { resultOmittedDuringPageExit: true },
-    })
-    expect(payload.data.attachment).toBeUndefined()
-    finishReport()
-    await flush()
-  })
+      const beaconPayload = sendBeacon.mock.calls[0]?.[1] as NodeBlob
+      const payload = JSON.parse(await beaconPayload.text())
+      expect(beaconPayload.size).toBeLessThanOrEqual(48 * 1024)
+      expect(payload).toMatchObject({
+        toolCallId,
+        status: outcomeUnknown ? 'error' : 'success',
+        data: {
+          resultOmittedDuringPageExit: true,
+          ...(outcomeUnknown ? { outcomeUnknown: true, doNotRetry: true } : {}),
+        },
+      })
+      expect(payload.data.attachment).toBeUndefined()
+      if (outcomeUnknown) expect(payload.data.note).not.toContain('known terminal state')
+      finishReport()
+      await flush()
+    }
+  )
 
   it.each([['not accepted', () => false]])(
     'uses keepalive fallback for known success when the page-exit beacon %s',

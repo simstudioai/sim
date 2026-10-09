@@ -1,11 +1,11 @@
 import { LinqIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildLinqExtraFields,
   buildLinqOutputs,
   linqSetupInstructions,
   linqTriggerOptions,
 } from '@/triggers/linq/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

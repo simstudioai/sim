@@ -31,7 +31,8 @@ vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-import { GET } from '@/app/api/mothership/chats/route'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { GET, POST } from '@/app/api/mothership/chats/route'
 
 function createRequest(workspaceId: string) {
   return createMockRequest({
@@ -39,7 +40,7 @@ function createRequest(workspaceId: string) {
   })
 }
 
-describe('GET /api/mothership/chats', () => {
+describe('/api/mothership/chats', () => {
   beforeEach(() => {
     resetDbChainMock()
     workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext.mockImplementation(
@@ -120,6 +121,18 @@ describe('GET /api/mothership/chats', () => {
       expect.objectContaining({ id: 'chat-idle', activeStreamId: null }),
     ])
   })
+
+  it.each(['forbidden', 'not_found'] as const)(
+    'identifies the workspace in a POST %s refusal',
+    async (code) => {
+      workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext.mockRejectedValueOnce(
+        new OrchestrationError(code, 'Workspace unavailable')
+      )
+      const response = await POST(createMockRequest('POST', { workspaceId: 'ws-denied' }))
+      expect(response.status).toBe(403)
+      expect(await response.json()).toEqual({ error: 'Workspace access denied' })
+    }
+  )
 
   afterAll(() => {
     resetDbChainMock()

@@ -63,6 +63,7 @@ import { ToastProvider } from '@sim/emcn';
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { PathParamsContext } from 'next/dist/shared/lib/hooks-client-context.shared-runtime';
 import { Desktop } from '@/app/workspace/[workspaceId]/settings/components/desktop/desktop';
+import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider';
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header';
 import { SettingsSectionProvider } from '@/components/settings/settings-panel';
 const router = { bfcacheId: 'fixture', back: () => history.back(), forward: () => history.forward(), refresh: () => location.reload(), push: url => location.assign(url), replace: url => location.replace(url), prefetch: () => {} };
@@ -70,7 +71,9 @@ createRoot(document.getElementById('settings')).render(
   <AppRouterContext.Provider value={router}>
     <PathParamsContext.Provider value={{ workspaceId: 'fixture' }}>
       <ToastProvider><SettingsHeaderProvider><SettingsHeaderShell>
-        <SettingsSectionProvider plane='workspace' section='desktop'><Desktop /></SettingsSectionProvider>
+        <FeatureFlagsProvider flags={{ dashboards: false, 'workflow-tests': false, 'mothership-model-selector': false, 'mothership-plan-mode': false }}>
+          <SettingsSectionProvider plane='workspace' section='desktop'><Desktop /></SettingsSectionProvider>
+        </FeatureFlagsProvider>
       </SettingsHeaderShell></SettingsHeaderProvider></ToastProvider>
     </PathParamsContext.Provider>
   </AppRouterContext.Provider>
