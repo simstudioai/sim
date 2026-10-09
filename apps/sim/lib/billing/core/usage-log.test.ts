@@ -5,7 +5,7 @@ import {
   billingSubscriptionUtilsMock,
   billingSubscriptionUtilsMockFns,
 } from '@sim/testing/mocks/billing-subscription-utils.mock'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockInsert,
@@ -455,7 +455,12 @@ describe('ledger aggregates', () => {
   ]
 
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
     installSharedDbMocks()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   for (const aggregate of aggregates) {
