@@ -155,6 +155,11 @@ function LineText({ line, segments, prose }: LineTextProps) {
   return (
     <p className={cn(prefix && 'font-medium text-[var(--text-primary)]')}>
       <span className='sr-only'>{changeLabel}</span>
+      {prefix && (
+        <span className='font-mono text-[var(--text-muted)] text-caption'>
+          <HighlightedText text={prefix} offset={0} segments={segments} type={line.type} />
+        </span>
+      )}
       {text.split(INLINE_MARKDOWN).map((part, index) => {
         const bold = part.startsWith('**') && part.endsWith('**') && part.length > 4
         const code = part.startsWith('`') && part.endsWith('`') && part.length > 2
