@@ -18,7 +18,7 @@ CREATE TABLE "changelog_release" (
 	"bump_reason" text NOT NULL,
 	"body_file_id" text NOT NULL,
 	"revision" integer DEFAULT 1 NOT NULL,
-	"published_at" timestamp DEFAULT now() NOT NULL,
+	"published_at" timestamp (3) DEFAULT now() NOT NULL,
 	"created_by" text,
 	"updated_by" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,

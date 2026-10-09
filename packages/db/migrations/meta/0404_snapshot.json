@@ -1,5 +1,5 @@
 {
-  "id": "fcb8bd21-b9e1-4f31-879b-16a061292e81",
+  "id": "9340200a-3359-4467-9bff-74f740d10120",
   "prevId": "44e8985f-7e13-4c8f-84d7-be85dc491ba6",
   "version": "7",
   "dialect": "postgresql",
@@ -1447,7 +1447,7 @@
         },
         "published_at": {
           "name": "published_at",
-          "type": "timestamp",
+          "type": "timestamp (3)",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"

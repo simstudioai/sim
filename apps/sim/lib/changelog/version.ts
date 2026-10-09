@@ -40,7 +40,17 @@ export function bumpReleaseVersion(
   bump: VersionBump
 ): ReleaseVersion {
   if (!highest) return FIRST_VERSION
-  if (bump === 'major') return { major: highest.major + 1, minor: 0, patch: 0 }
-  if (bump === 'minor') return { major: highest.major, minor: highest.minor + 1, patch: 0 }
-  return { ...highest, patch: highest.patch + 1 }
+  const next =
+    bump === 'major'
+      ? { major: highest.major + 1, minor: 0, patch: 0 }
+      : bump === 'minor'
+        ? { major: highest.major, minor: highest.minor + 1, patch: 0 }
+        : { ...highest, patch: highest.patch + 1 }
+  if (Object.values(next).some((component) => component > MAX_COMPONENT)) {
+    throw new OrchestrationError(
+      'validation',
+      `A ${bump} bump from ${formatReleaseVersion(highest)} is out of range`
+    )
+  }
+  return next
 }

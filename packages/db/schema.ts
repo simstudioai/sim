@@ -2607,7 +2607,7 @@ export const changelogRelease = pgTable(
       .notNull()
       .references(() => workspaceFiles.id),
     revision: integer('revision').notNull().default(1),
-    publishedAt: timestamp('published_at').notNull().defaultNow(),
+    publishedAt: timestamp('published_at', { precision: 3 }).notNull().defaultNow(),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),

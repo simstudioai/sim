@@ -3,7 +3,7 @@ import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { changelogOperations } from '@/lib/changelog/application/operations'
-import { assertChangelogBody, MAX_CHANGELOG_BODY_BYTES } from '@/lib/changelog/body'
+import { assertChangelogBody } from '@/lib/changelog/body'
 import { requireChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { changelogFilePath } from '@/lib/changelog/paths'
 import {
@@ -27,11 +27,7 @@ import {
 } from '@/lib/changelog/version'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  createOwnedWorkspaceFile,
-  fetchWorkspaceFileBuffer,
-  getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { createOwnedWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const authorizationOptions = {
@@ -140,13 +136,6 @@ async function assertChangesInWorkspace(
     )
 }
 
-async function readReleaseBody(row: ChangelogReleaseRow): Promise<string> {
-  const file = await getWorkspaceFile(row.workspaceId, row.bodyFileId, { includeOwnedFiles: true })
-  if (!file) throw new Error(`Release ${row.id} has no body file ${row.bodyFileId}`)
-  const buffer = await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_CHANGELOG_BODY_BYTES })
-  return buffer.toString('utf-8')
-}
-
 const resolveWorkspace = ({ input }: { input: { workspaceId: string } }) =>
   resolveActiveWorkspaceApplicationContext(input.workspaceId)
 
@@ -168,7 +157,7 @@ export const listChangelogReleases = defineAuthorizedWorkspaceUseCase({
   },
 })
 
-/** One release with its markdown body, for Sim to read before it edits. */
+/** One release; Sim reads and edits its body at `release.path` with the file tools. */
 export const getChangelogRelease = defineAuthorizedWorkspaceUseCase({
   operation: changelogOperations.read,
   resolveContext: ({ input }: { input: { workspaceId: string; releaseId: string } }) =>
@@ -179,7 +168,7 @@ export const getChangelogRelease = defineAuthorizedWorkspaceUseCase({
     const row = await getRelease(context.workspaceId, input.releaseId)
     if (!row) throw new OrchestrationError('not_found', 'Release not found')
     const [release] = await presentReleases([row])
-    return { release, body: await readReleaseBody(row) }
+    return { release }
   },
 })
 
@@ -276,6 +265,16 @@ export const updateChangelogRelease = defineAuthorizedWorkspaceUseCase({
   authorizeResource: ({ context }) => requireChangelogEnabled(context.workspaceOrganizationId),
   async execute({ input, context, principal }) {
     const revision = parseRevision(input.expectedRevision)
+    if (
+      input.title === undefined &&
+      input.bumpReason === undefined &&
+      input.version === undefined &&
+      input.changes === undefined
+    )
+      throw new OrchestrationError(
+        'validation',
+        'Pass at least one of title, bumpReason, version, or changes'
+      )
     const version = input.version === undefined ? undefined : parseReleaseVersion(input.version)
     const existing = await getRelease(context.workspaceId, input.releaseId)
     if (!existing) throw new OrchestrationError('not_found', 'Release not found')
@@ -294,8 +293,7 @@ export const updateChangelogRelease = defineAuthorizedWorkspaceUseCase({
           'conflict',
           'The release changed after it was read; read it again and reapply your edit'
         )
-      const [release] = await presentReleases([updated])
-      return { release }
+      return { release: presentRelease(updated.row, updated.changes) }
     } catch (error) {
       if (getPostgresErrorCode(error) === '23505' && version)
         throw new OrchestrationError(

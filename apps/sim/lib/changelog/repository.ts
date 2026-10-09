@@ -139,11 +139,12 @@ export async function listReleases(
 }
 
 export async function listChangesByRelease(
-  releaseIds: string[]
+  releaseIds: string[],
+  executor: DbOrTx = db
 ): Promise<Map<string, ChangelogChangeView[]>> {
   const byRelease = new Map<string, ChangelogChangeView[]>()
   if (releaseIds.length === 0) return byRelease
-  const rows = await db
+  const rows = await executor
     .select({
       releaseId: changelogChange.releaseId,
       id: changelogChange.id,
@@ -178,7 +179,7 @@ export interface ReleaseFieldsUpdate {
 
 /**
  * Applies a field update, and replaces the changes when given, only while the revision still
- * matches; null when it does not.
+ * matches; null when it does not. Returns the row with the changes of that same revision.
  */
 export async function updateRelease(
   releaseId: string,
@@ -186,7 +187,7 @@ export async function updateRelease(
   userId: string,
   fields: ReleaseFieldsUpdate,
   changes: ChangelogChangeInput[] | undefined
-): Promise<ChangelogReleaseRow | null> {
+): Promise<{ row: ChangelogReleaseRow; changes: ChangelogChangeView[] } | null> {
   return db.transaction(async (tx) => {
     const [row] = await tx
       .update(changelogRelease)
@@ -213,7 +214,8 @@ export async function updateRelease(
       await tx.delete(changelogChange).where(eq(changelogChange.releaseId, releaseId))
       await insertChanges(tx, releaseId, changes)
     }
-    return row
+    const changesByRelease = await listChangesByRelease([releaseId], tx)
+    return { row, changes: changesByRelease.get(releaseId) ?? [] }
   })
 }
 

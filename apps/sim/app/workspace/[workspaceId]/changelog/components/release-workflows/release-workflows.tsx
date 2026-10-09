@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipModal, ChipModalBody, ChipModalHeader } from '@sim/emcn'
+import { ChipModal, ChipModalBody, ChipModalHeader, OverflowText } from '@sim/emcn'
 import Link from 'next/link'
 import type { ChangelogReleaseWorkflow } from '@/lib/api/contracts/changelog'
 
@@ -10,11 +10,12 @@ interface ReleaseWorkflowsProps {
   workflows: ChangelogReleaseWorkflow[]
 }
 
-/** "N workflows deployed", opening the list of each workflow and the deployment it shipped in. */
+/** "N workflows deployed" (or "changed" when some shipped no deployment), opening each workflow's version. */
 export function ReleaseWorkflows({ workspaceId, workflows }: ReleaseWorkflowsProps) {
   const [open, setOpen] = useState(false)
   if (workflows.length === 0) return null
-  const label = `${workflows.length} ${workflows.length === 1 ? 'workflow' : 'workflows'} deployed`
+  const allDeployed = workflows.every((workflow) => workflow.deploymentVersion !== null)
+  const label = `${workflows.length} ${workflows.length === 1 ? 'workflow' : 'workflows'} ${allDeployed ? 'deployed' : 'changed'}`
 
   return (
     <>
@@ -36,9 +37,9 @@ export function ReleaseWorkflows({ workspaceId, workflows }: ReleaseWorkflowsPro
               >
                 <Link
                   href={`/workspace/${workspaceId}/w/${workflow.id}`}
-                  className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm underline-offset-4 hover:underline'
+                  className='flex min-w-0 flex-1 underline-offset-4 hover:underline'
                 >
-                  {workflow.name}
+                  <OverflowText label={workflow.name} className='text-[var(--text-body)] text-sm' />
                 </Link>
                 <span className='shrink-0 text-[var(--text-muted)] text-small'>
                   {workflow.deploymentVersion === null

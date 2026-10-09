@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
 import { Rss } from '@sim/emcn/icons'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
@@ -12,6 +12,7 @@ import {
 import ChangelogLoading from '@/app/workspace/[workspaceId]/changelog/loading'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useChangelogReleases } from '@/hooks/queries/changelog'
 
 interface ChangelogProps {
@@ -20,9 +21,19 @@ interface ChangelogProps {
 
 /** Every release Sim published in this workspace, newest first. */
 export function Changelog({ workspaceId }: ChangelogProps) {
+  return (
+    <PermissionAccessBoundary configKey='hideFilesTab'>
+      <ChangelogContent workspaceId={workspaceId} />
+    </PermissionAccessBoundary>
+  )
+}
+
+function ChangelogContent({ workspaceId }: ChangelogProps) {
   const canEdit = useUserPermissionsContext().canEdit === true
   const query = useChangelogReleases(workspaceId)
   const [editing, setEditing] = useState<ChangelogRelease | null>(null)
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
+  const edges = useScrollEdges(scrollElement)
 
   if (query.isPending) return <ChangelogLoading />
   const releases = query.data?.pages.flatMap((page) => page.releases) ?? []
@@ -41,7 +52,11 @@ export function Changelog({ workspaceId }: ChangelogProps) {
           description='Sim publishes a release here when it ships changes to this workspace.'
         />
       ) : (
-        <div className='@container/changelog min-h-0 flex-1 overflow-y-auto'>
+        <div
+          ref={setScrollElement}
+          className={cn('@container/changelog min-h-0 flex-1 overflow-y-auto', scrollFadeClass)}
+          {...scrollFadeAttributes(edges)}
+        >
           <div className='mx-auto flex max-w-[960px] flex-col gap-12 px-8 py-10'>
             {releases.map((release) => (
               <ReleaseEntry
