@@ -25,7 +25,11 @@ export const readWorkspaceFileArtifact = defineAuthorizedWorkspaceFileUseCase({
   }: {
     principal: Principal
     input: ReadWorkspaceFileArtifactInput
-  }) => resolveReferencedWorkspaceFileContext(principal, input, { includeChatUploads: true }),
+  }) =>
+    resolveReferencedWorkspaceFileContext(principal, input, {
+      includeChatUploads: true,
+      includeTestFiles: true,
+    }),
   async execute({ input, context, principal }) {
     const file = context.file
     const safe = await isOpaqueWorkspaceFileEgressSafe(context.workspaceId, {

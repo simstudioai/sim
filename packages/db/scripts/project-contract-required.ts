@@ -4,9 +4,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import postgres from 'postgres'
 
 const logger = createLogger('ProjectContractPreflight')
-const expansion = journal.entries.find((entry) => entry.tag === '0403_workspace_project_column')
+const expansion = journal.entries.find((entry) => entry.tag === '0404_workspace_project_column')
 const migration = journal.entries.find(
-  (entry) => entry.tag === '0404_project_membership_enforcement'
+  (entry) => entry.tag === '0405_project_membership_enforcement'
 )
 const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
 if (!expansion || !migration || !url)

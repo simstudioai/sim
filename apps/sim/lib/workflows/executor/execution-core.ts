@@ -55,6 +55,7 @@ import type {
   ChildWorkflowContext,
   ContextExtensions,
   ExecutionCallbacks,
+  ExecutionTestHooks,
   IterationContext,
   SerializableExecutionState,
 } from '@/executor/execution/types'
@@ -140,6 +141,7 @@ export interface ExecuteWorkflowCoreOptions {
   includeFileBase64?: boolean
   base64MaxBytes?: number
   stopAfterBlockId?: string
+  testHooks?: ExecutionTestHooks
   /** Trusted encrypted provenance captured by a server-only pre-execution boundary. */
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   /** Immutable deployment admitted by the durable parent log for a resumed execution. */
@@ -631,6 +633,7 @@ async function executeWorkflowCoreImpl(
     abortSignal,
     includeFileBase64,
     base64MaxBytes,
+    testHooks,
     runFromBlock,
     resumeDeploymentVersionId,
     draftState,
@@ -1250,6 +1253,7 @@ async function executeWorkflowCoreImpl(
       includeFileBase64,
       base64MaxBytes,
       stopAfterBlockId: resolvedStopAfterBlockId,
+      ...(testHooks ? { testHooks } : {}),
       onChildWorkflowInstanceReady,
       callChain: metadata.callChain,
       // The live block stream has a single known, authenticated Sim viewer only on

@@ -15,6 +15,7 @@ import {
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import {
+  COMPOSER_EXCLUDED_TYPES,
   ResourceMenuSections,
   resourceFromItem,
   useAvailableResources,
@@ -154,6 +155,7 @@ export const PlusMenuDropdown = React.memo(
     const workspaceInventory = useAvailableResources(organizationId ? '' : workspaceId, {
       enabled: inventoryEnabled,
       includeFolderMentions: true,
+      excludeTypes: COMPOSER_EXCLUDED_TYPES,
     })
     const { data: allWorkspaces, isPending: workspacesPending } = useOrderedWorkspacesQuery(
       Boolean(organizationId) && inventoryEnabled
@@ -411,6 +413,7 @@ export const PlusMenuDropdown = React.memo(
             <OrganizationResourceInventory
               key={workspace.id}
               workspaceId={workspace.id}
+              excludeTypes={COMPOSER_EXCLUDED_TYPES}
               onChange={receiveInventory}
             />
           ))}

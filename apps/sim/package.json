@@ -296,6 +296,8 @@
     "@types/ssh2": "^1.15.5",
     "@vitejs/plugin-react": "^6.0.5",
     "@vitest/coverage-v8": "^5.0.1",
+    "@vitest/expect": "5.0.1",
+    "@vitest/spy": "5.0.1",
     "artillery": "2.0.34",
     "node-gyp": "12.4.0",
     "postcss": "^8",

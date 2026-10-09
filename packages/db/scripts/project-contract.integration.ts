@@ -15,12 +15,12 @@ import postgres, { type Sql } from 'postgres'
 import { describe, expect, it } from 'vitest'
 
 const migration = await readFile(
-  new URL('../migrations/0404_project_membership_enforcement.sql', import.meta.url),
+  new URL('../migrations/0405_project_membership_enforcement.sql', import.meta.url),
   'utf8'
 )
 
 const expansion = await readFile(
-  new URL('../migrations/0403_workspace_project_column.sql', import.meta.url),
+  new URL('../migrations/0404_workspace_project_column.sql', import.meta.url),
   'utf8'
 )
 
@@ -137,9 +137,9 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       await expect(run()).rejects.toMatchObject({ code: 1 })
       await sql`CREATE SCHEMA drizzle`
       await sql`CREATE TABLE drizzle.__drizzle_migrations (created_at bigint)`
-      const expanded = journal.entries.find((item) => item.tag === '0403_workspace_project_column')
+      const expanded = journal.entries.find((item) => item.tag === '0404_workspace_project_column')
       const entry = journal.entries.find(
-        (item) => item.tag === '0404_project_membership_enforcement'
+        (item) => item.tag === '0405_project_membership_enforcement'
       )
       if (!expanded || !entry) throw new Error('Missing Project migration metadata')
       await sql`INSERT INTO drizzle.__drizzle_migrations VALUES (${expanded.when - 1})`
@@ -164,16 +164,16 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     const directory = await mkdtemp(join(tmpdir(), 'project-contract-runner-'))
     try {
       await mkdir(join(directory, 'meta'))
-      await writeFile(join(directory, '0403_workspace_project_column.sql'), expansion)
-      await writeFile(join(directory, '0404_project_membership_enforcement.sql'), migration)
+      await writeFile(join(directory, '0404_workspace_project_column.sql'), expansion)
+      await writeFile(join(directory, '0405_project_membership_enforcement.sql'), migration)
       await writeFile(
         join(directory, 'meta/_journal.json'),
         JSON.stringify({
           ...journal,
           entries: journal.entries.filter(
             (entry) =>
-              entry.tag === '0403_workspace_project_column' ||
-              entry.tag === '0404_project_membership_enforcement'
+              entry.tag === '0404_workspace_project_column' ||
+              entry.tag === '0405_project_membership_enforcement'
           ),
         })
       )
@@ -186,10 +186,10 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
             (error: unknown) => getPostgresErrorCode(error) === '55000'
           )
           const expanded = journal.entries.find(
-            (entry) => entry.tag === '0403_workspace_project_column'
+            (entry) => entry.tag === '0404_workspace_project_column'
           )
           const contracted = journal.entries.find(
-            (entry) => entry.tag === '0404_project_membership_enforcement'
+            (entry) => entry.tag === '0405_project_membership_enforcement'
           )
           if (!expanded || !contracted) throw new Error('Missing Project migration metadata')
           expect(await sql`SELECT created_at::text FROM drizzle.__drizzle_migrations`).toEqual([
@@ -198,7 +198,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           await sql`DELETE FROM project WHERE id = 'empty'`
           await sql`INSERT INTO workspace (id, name, owner_id) VALUES ('legacy', 'Legacy', 'owner')`
           await writeFile(
-            join(directory, '0404_project_membership_enforcement.sql'),
+            join(directory, '0405_project_membership_enforcement.sql'),
             `${migration}\n--> statement-breakpoint\nSELECT 1 / 0;\n`
           )
           await expect(run()).rejects.toSatisfy(
@@ -225,7 +225,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           const assignments = await sql`SELECT id, project_id FROM workspace ORDER BY id`
           const projects = await sql`SELECT id, name FROM project ORDER BY id`
 
-          await writeFile(join(directory, '0404_project_membership_enforcement.sql'), migration)
+          await writeFile(join(directory, '0405_project_membership_enforcement.sql'), migration)
           await run()
           await run()
           expect(await sql`SELECT * FROM drizzle.__drizzle_migrations`).toHaveLength(2)
@@ -302,7 +302,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           "SELECT count(*)::int AS count FROM pg_locks WHERE pid = $1 AND mode = 'AccessExclusiveLock' AND granted",
           [pid]
         ))[0].count;
-        const migration = await readFile('migrations/0404_project_membership_enforcement.sql', 'utf8');
+        const migration = await readFile('migrations/0405_project_membership_enforcement.sql', 'utf8');
         for (const statement of migration.split('--> statement-breakpoint')) {
           await sql.unsafe(statement);
           if (statement.includes('LOCK TABLE workspace,')) {
@@ -794,7 +794,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         import postgres from 'postgres';
         const sql = postgres(process.env.TEST_DATABASE_URL, { max: 1, onnotice: () => undefined });
         try {
-          const migration = await readFile('migrations/0404_project_membership_enforcement.sql', 'utf8');
+          const migration = await readFile('migrations/0405_project_membership_enforcement.sql', 'utf8');
           for (const statement of migration.split('--> statement-breakpoint')) await sql.unsafe(statement);
           await sql.end();
         } catch (error) {

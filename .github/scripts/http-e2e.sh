@@ -111,7 +111,11 @@ case "$group" in
     done
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export INTERNAL_API_SECRET=cli-http-ci-local-secret-at-least-32-characters
+    export SIM_MCP_URL=http://mcp.sim.test/mcp
     start_app cli 3018 CLI
+    MCP_HOST_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+    MCP_HOST_E2E_REPORT_PATH="$report_dir/mcp-host-e2e-report.json" \
+      bun --no-env-file scripts/test-mcp-host-e2e.ts
     CLI_LATENCY_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     CLI_LATENCY_E2E_DATABASE_URL="$DATABASE_URL" \
     CLI_LATENCY_E2E_RUNS=3 \

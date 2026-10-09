@@ -69,17 +69,17 @@ jobs:
           MIGRATION_DATABASE_URL: ${{ inputs.environment == 'production' && secrets.MIGRATION_DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_MIGRATION_DATABASE_URL || '' }}
         run: bun --no-env-file scripts/project-contract-required.ts >> "$GITHUB_OUTPUT"
 
-      - name: Configure AWS for Project column writer retirement verification
+      - name: Configure AWS for Project connector retirement verification
         if: steps.project-contract.outputs.required == 'true'
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b
         with:
           role-to-assume: ${{ inputs.environment == 'production' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ inputs.environment == 'production' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
 
-      # Set this column-release acknowledgment only after workspace.project_id writers are deployed
-      # everywhere and relevant old Trigger.dev runs are drained. SQL performs the backfill.
+      # Acknowledge #8830 only after column-only readers/writers are fully deployed and
+      # pre-8830 servers and relevant old Trigger.dev runs have drained. SQL removes the connector.
       # The preflight independently checks ECS retirement; it does not inspect worker runs.
-      - name: Require completed column-compatible rollout before Project enforcement
+      - name: Require completed column-only rollout before Project enforcement
         if: steps.project-contract.outputs.required == 'true'
         env:
           ENVIRONMENT: ${{ inputs.environment }}
