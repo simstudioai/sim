@@ -1,7 +1,15 @@
 'use client'
 
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, Input, toast } from '@sim/emcn'
+import {
+  Button,
+  cn,
+  Input,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  toast,
+  useScrollEdges,
+} from '@sim/emcn'
 import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
@@ -163,6 +171,8 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
   } = useCollaborativeWorkflow()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const controlsRef = useRef<HTMLDivElement>(null)
+  const controlsEdges = useScrollEdges(controlsRef)
   const [isApplying, setIsApplying] = useState(false)
   const [isReplaceExpanded, setIsReplaceExpanded] = useState(false)
   const [resourceReplacementByContext, setResourceReplacementByContext] = useState<
@@ -566,7 +576,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
       role='dialog'
       aria-label='Search and replace'
       ref={panelRef}
-      className='fixed @max-[960px]/workflow:relative @max-[960px]/workflow:top-auto! @max-[960px]/workflow:left-auto! z-[var(--z-dropdown)] flex @max-[960px]/workflow:max-h-[50%] @max-[960px]/workflow:min-h-0! @max-[960px]/workflow:w-full! @max-[960px]/workflow:shrink-0 flex-col overflow-hidden @max-[960px]/workflow:overflow-y-auto @max-[960px]/workflow:rounded-none rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
+      className='fixed @max-[960px]/workflow:relative @max-[960px]/workflow:top-auto! @max-[960px]/workflow:left-auto! z-[var(--z-dropdown)] flex @max-[960px]/workflow:max-h-[50%] @max-[960px]/workflow:min-h-0! @max-[960px]/workflow:w-full! @max-[960px]/workflow:shrink-0 flex-col overflow-hidden @max-[960px]/workflow:rounded-none rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -601,71 +611,80 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
         </div>
       </div>
 
-      <div className='grid @max-[960px]/workflow:pointer-coarse:grid-cols-[2.75rem_minmax(0,1fr)_2.75rem_2.75rem] grid-cols-[2rem_minmax(0,1fr)_2rem_2rem] items-start gap-1.5'>
-        <Button
-          variant='ghost'
-          className='@max-[960px]/workflow:pointer-coarse:size-11 size-8 p-0'
-          aria-label={isReplaceExpanded ? 'Hide replace controls' : 'Show replace controls'}
-          onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
-        >
-          <ChevronRight
-            className={cn(
-              'size-[14px] text-[var(--text-icon)] transition-transform',
-              isReplaceExpanded && 'rotate-90'
-            )}
-          />
-        </Button>
-        <Input
-          ref={searchInputRef}
-          value={query}
-          placeholder='Search'
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter') return
-            event.preventDefault()
-            handleMoveActiveMatch(event.shiftKey ? -1 : 1)
-          }}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <Button
-          aria-label='Previous match'
-          variant='ghost'
-          className='@max-[960px]/workflow:pointer-coarse:size-11 size-8 p-0'
-          disabled={hydratedMatches.length === 0}
-          onClick={() => handleMoveActiveMatch(-1)}
-        >
-          <ChevronUp className='size-[14px] text-[var(--text-icon)]' />
-        </Button>
-        <Button
-          aria-label='Next match'
-          variant='ghost'
-          className='@max-[960px]/workflow:pointer-coarse:size-11 size-8 p-0'
-          disabled={hydratedMatches.length === 0}
-          onClick={() => handleMoveActiveMatch(1)}
-        >
-          <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
-        </Button>
-
-        {isReplaceExpanded && (
-          <div className='col-start-2 col-end-5'>
-            <ReplacementControls
-              replacement={replacement}
-              compatibleResourceOptions={compatibleResourceOptions}
-              usesResourceReplacement={usesResourceReplacement}
-              eligibleCount={eligibleMatchIds.length}
-              disabled={!userPermissions.canEdit || searchReadOnly}
-              isApplying={isApplying}
-              canReplaceActive={Boolean(
-                activeMatch?.editable && hasReplacement && !activeReplacementIssue
-              )}
-              canReplaceAll={Boolean(
-                eligibleMatchIds.length > 0 && hasReplacement && !allReplacementIssue
-              )}
-              onReplacementChange={handleReplacementChange}
-              onReplaceActive={handleReplaceActive}
-              onReplaceAll={handleReplaceAll}
-            />
-          </div>
+      <div
+        ref={controlsRef}
+        className={cn(
+          'min-h-0 @max-[960px]/workflow:overflow-y-auto @max-[960px]/workflow:overscroll-contain',
+          scrollFadeClass
         )}
+        {...scrollFadeAttributes(controlsEdges)}
+      >
+        <div className='grid @max-[960px]/workflow:pointer-coarse:grid-cols-[2.75rem_minmax(0,1fr)_2.75rem_2.75rem] grid-cols-[2rem_minmax(0,1fr)_2rem_2rem] items-start gap-1.5'>
+          <Button
+            variant='ghost'
+            className='@max-[960px]/workflow:pointer-coarse:size-11 size-8 p-0'
+            aria-label={isReplaceExpanded ? 'Hide replace controls' : 'Show replace controls'}
+            onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
+          >
+            <ChevronRight
+              className={cn(
+                'size-[14px] text-[var(--text-icon)] transition-transform',
+                isReplaceExpanded && 'rotate-90'
+              )}
+            />
+          </Button>
+          <Input
+            ref={searchInputRef}
+            value={query}
+            placeholder='Search'
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return
+              event.preventDefault()
+              handleMoveActiveMatch(event.shiftKey ? -1 : 1)
+            }}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <Button
+            aria-label='Previous match'
+            variant='ghost'
+            className='@max-[960px]/workflow:pointer-coarse:size-11 size-8 p-0'
+            disabled={hydratedMatches.length === 0}
+            onClick={() => handleMoveActiveMatch(-1)}
+          >
+            <ChevronUp className='size-[14px] text-[var(--text-icon)]' />
+          </Button>
+          <Button
+            aria-label='Next match'
+            variant='ghost'
+            className='@max-[960px]/workflow:pointer-coarse:size-11 size-8 p-0'
+            disabled={hydratedMatches.length === 0}
+            onClick={() => handleMoveActiveMatch(1)}
+          >
+            <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
+          </Button>
+
+          {isReplaceExpanded && (
+            <div className='col-start-2 col-end-5'>
+              <ReplacementControls
+                replacement={replacement}
+                compatibleResourceOptions={compatibleResourceOptions}
+                usesResourceReplacement={usesResourceReplacement}
+                eligibleCount={eligibleMatchIds.length}
+                disabled={!userPermissions.canEdit || searchReadOnly}
+                isApplying={isApplying}
+                canReplaceActive={Boolean(
+                  activeMatch?.editable && hasReplacement && !activeReplacementIssue
+                )}
+                canReplaceAll={Boolean(
+                  eligibleMatchIds.length > 0 && hasReplacement && !allReplacementIssue
+                )}
+                onReplacementChange={handleReplacementChange}
+                onReplaceActive={handleReplaceActive}
+                onReplaceAll={handleReplaceAll}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

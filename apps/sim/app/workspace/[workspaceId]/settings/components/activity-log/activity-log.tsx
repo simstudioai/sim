@@ -1,7 +1,7 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { type ReactNode, useRef, useState } from 'react'
+import { cn, scrollFadeAttributes, scrollFadeXClass, useScrollEdges } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
@@ -165,11 +165,17 @@ export function ActivityLog({
   emptyState,
   footer,
 }: ActivityLogProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const edges = useScrollEdges(scrollRef, { axis: 'x' })
   const hasTrailingColumn = entries.some((entry) => entry.trailing != null)
 
   return (
     <div className='min-w-0'>
-      <div className='overflow-x-auto'>
+      <div
+        ref={scrollRef}
+        className={cn('overflow-x-auto', scrollFadeXClass)}
+        {...scrollFadeAttributes(edges)}
+      >
         <div
           className={cn(
             'flex flex-col md:min-w-0',
