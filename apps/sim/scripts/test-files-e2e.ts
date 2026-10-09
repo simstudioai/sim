@@ -534,6 +534,7 @@ async function runNavigationChecks(page: Page) {
   await check('breadcrumb hover leaves other header actions visually unchanged', async () => {
     await page.evaluate(() => document.fonts.ready.then(() => undefined))
     const upload = uploadMenuTrigger(page)
+    await upload.and(page.locator(':enabled')).waitFor()
     await page.mouse.move(900, 400)
     const before = await upload.screenshot({ animations: 'disabled' })
     await page.getByRole('button', { name: 'Files', exact: true }).first().hover()
