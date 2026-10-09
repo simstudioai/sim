@@ -234,7 +234,7 @@ export async function runSharingChecks({
     })
 
     await check(
-      'folder sharing tools reject oversized email restrictions without mutating policy',
+      'folder sharing tools reject invalid policies without mutating existing shares',
       async () => {
         const headers = { 'x-api-key': personalKey }
         await json(`/api/v2/files?workspaceId=${fixture.workspaceId}&limit=1`, {
@@ -242,26 +242,30 @@ export async function runSharingChecks({
           headers,
         })
         const before = await sql`select * from public_share where id = ${shareId}`
-        const result = await json('/api/v2/tools/file_manage_folder_sharing/execute', {
-          method: 'POST',
-          authenticated: false,
-          headers,
-          body: {
-            workspaceId: fixture.workspaceId,
-            input: {
-              path: '/Sharing%20fixture',
-              isActive: true,
-              authType: 'email',
-              allowedEmails: [`${'a'.repeat(308)}@fixture.test`],
+        for (const policy of [
+          { authType: 'email', allowedEmails: [`${'a'.repeat(308)}@fixture.test`] },
+          { authType: 'password', password: 'short-password' },
+        ]) {
+          const result = await json('/api/v2/tools/file_manage_folder_sharing/execute', {
+            method: 'POST',
+            authenticated: false,
+            headers,
+            body: {
+              workspaceId: fixture.workspaceId,
+              input: {
+                path: '/Sharing%20fixture',
+                isActive: true,
+                ...policy,
+              },
             },
-          },
-        })
-        assert(isRecordLike(result.data))
-        assert.equal(result.data.status, 'failed')
-        assert(isRecordLike(result.data.output))
-        assert.equal(result.data.output.status, 400)
-        const after = await sql`select * from public_share where id = ${shareId}`
-        assert.deepEqual(after, before, 'Rejected input changed the stored sharing policy')
+          })
+          assert(isRecordLike(result.data))
+          assert.equal(result.data.status, 'failed', `${policy.authType} policy was accepted`)
+          assert(isRecordLike(result.data.output))
+          assert.equal(result.data.output.status, 400)
+          const after = await sql`select * from public_share where id = ${shareId}`
+          assert.deepEqual(after, before, 'Rejected input changed the stored sharing policy')
+        }
       }
     )
 

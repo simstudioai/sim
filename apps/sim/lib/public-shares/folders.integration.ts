@@ -228,4 +228,53 @@ describe('public folder capabilities in PostgreSQL', () => {
         .where(eq(publicShare.id, directShareId))
     }
   })
+
+  it.each([
+    { name: 'deleted', update: { deletedAt: new Date() } },
+    { name: 'moved out of workspace storage', update: { context: 'chat' } },
+    {
+      name: 'moved to another workspace',
+      update: { workspaceId: otherWorkspaceId, folderId: null },
+    },
+  ])('denies a direct file that is $name during authorization', async ({ update }) => {
+    try {
+      await expect(
+        readPublicSharedFile({
+          token: directToken,
+          authorize: async () => {
+            await db.update(workspaceFiles).set(update).where(eq(workspaceFiles.id, fileId))
+            return { authorized: true }
+          },
+        })
+      ).rejects.toMatchObject({ status: 404 })
+    } finally {
+      await db
+        .update(workspaceFiles)
+        .set({ deletedAt: null, context: 'workspace', workspaceId, folderId: childId })
+        .where(eq(workspaceFiles.id, fileId))
+    }
+  })
+
+  it('reads the current direct file metadata and storage key after authorization', async () => {
+    const updatedKey = `workspace/${workspaceId}/${generateId()}`
+    try {
+      const result = await readPublicSharedFile({
+        token: directToken,
+        authorize: async () => {
+          await db
+            .update(workspaceFiles)
+            .set({ originalName: 'updated.txt', key: updatedKey })
+            .where(eq(workspaceFiles.id, fileId))
+          return { authorized: true }
+        },
+      })
+      expect(result.file.originalName).toBe('updated.txt')
+      expect(result.file.key).toBe(updatedKey)
+    } finally {
+      await db
+        .update(workspaceFiles)
+        .set({ originalName: 'nested.txt', key: `workspace/${workspaceId}/${fileId}` })
+        .where(eq(workspaceFiles.id, fileId))
+    }
+  })
 })

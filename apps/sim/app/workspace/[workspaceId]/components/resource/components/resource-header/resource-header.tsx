@@ -264,7 +264,7 @@ export const ResourceHeader = memo(function ResourceHeader({
                         drag={crumbDrag}
                       />
                     )}
-                    {crumb.navigationItems !== undefined && (
+                    {crumb.navigationItems !== undefined && !crumb.editing?.isEditing && (
                       <BreadcrumbNavigation
                         label={crumb.label}
                         items={crumb.navigationItems}

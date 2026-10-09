@@ -21,6 +21,7 @@ import {
   runSearchWorkflowChecks,
   runSharingChecks,
   runUploadLifecycleChecks,
+  uploadMenuTrigger,
 } from '@/scripts/files-e2e'
 
 const logger = createLogger('FilesE2E')
@@ -205,7 +206,7 @@ async function uploadDirectory(
   await page.waitForFunction(
     () => !document.querySelector<HTMLInputElement>('input[webkitdirectory]')?.disabled
   )
-  await page.getByRole('button', { name: 'Upload', exact: true }).click()
+  await uploadMenuTrigger(page).click()
   const [chooser] = await Promise.all([
     page.waitForEvent('filechooser'),
     page.getByRole('menuitem', { name: 'Upload folder', exact: true }).click(),
@@ -427,7 +428,7 @@ async function runDropChecks(page: Page, sourceDirectory: string) {
         await dropPaths(page, [paths[2]])
         await dropPaths(page, [paths[3]])
         await page.getByText('The upload queue is full', { exact: true }).waitFor()
-        await page.getByRole('button', { name: /^\d+\/\d+/ }).click()
+        await uploadMenuTrigger(page, /^\d+\/\d+/).click()
         await page.getByRole('menuitem', { name: 'Cancel upload', exact: true }).click()
         release()
         await page.waitForFunction(
@@ -532,7 +533,7 @@ async function runNavigationChecks(page: Page) {
 
   await check('breadcrumb hover leaves other header actions visually unchanged', async () => {
     await page.evaluate(() => document.fonts.ready.then(() => undefined))
-    const upload = page.getByRole('button', { name: 'Upload', exact: true })
+    const upload = uploadMenuTrigger(page)
     await page.mouse.move(900, 400)
     const before = await upload.screenshot({ animations: 'disabled' })
     await page.getByRole('button', { name: 'Files', exact: true }).first().hover()
@@ -558,7 +559,10 @@ async function runNavigationChecks(page: Page) {
         Awaited<ReturnType<ReturnType<Page['getByRole']>['boundingBox']>>
       >()
       for (const name of names) {
-        const action = page.getByRole('button', { name, exact: true })
+        const action =
+          name === 'Upload'
+            ? uploadMenuTrigger(page)
+            : page.getByRole('button', { name, exact: true })
         await action.evaluate(
           (element, marker) => element.setAttribute('data-files-e2e-identity', marker),
           name
@@ -568,7 +572,10 @@ async function runNavigationChecks(page: Page) {
       await page.getByRole('button', { name: 'Navigation A', exact: true }).click()
       await page.waitForURL(url(a))
       for (const name of names) {
-        const action = page.getByRole('button', { name, exact: true })
+        const action =
+          name === 'Upload'
+            ? uploadMenuTrigger(page)
+            : page.getByRole('button', { name, exact: true })
         assert.equal(
           await action.getAttribute('data-files-e2e-identity'),
           name,

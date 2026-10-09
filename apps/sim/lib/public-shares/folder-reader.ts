@@ -76,23 +76,27 @@ export async function resolveSharedFile(
   fileId?: string
 ): Promise<WorkspaceFileRow | null> {
   if (!(await shareIsCurrent(resolved))) return null
-  if (resolved.kind === 'file') {
-    return fileId === undefined || fileId === resolved.file.id ? resolved.file : null
-  }
-  if (!fileId) return null
+  const targetId = resolved.kind === 'file' ? resolved.share.resourceId : fileId
+  if (!targetId || (resolved.kind === 'file' && fileId !== undefined && fileId !== targetId))
+    return null
   const [file] = await db
     .select()
     .from(workspaceFiles)
     .where(
       and(
-        eq(workspaceFiles.id, fileId),
+        eq(workspaceFiles.id, targetId),
         eq(workspaceFiles.workspaceId, resolved.share.workspaceId),
         eq(workspaceFiles.context, 'workspace'),
         isNull(workspaceFiles.deletedAt)
       )
     )
     .limit(1)
-  if (!file?.folderId || !(await folderBreadcrumbs(resolved, file.folderId))) return null
+  if (!file) return null
+  if (
+    resolved.kind === 'folder' &&
+    (!file.folderId || !(await folderBreadcrumbs(resolved, file.folderId)))
+  )
+    return null
   return file
 }
 

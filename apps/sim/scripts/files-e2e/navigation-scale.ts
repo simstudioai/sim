@@ -60,6 +60,11 @@ export async function runNavigationScaleChecks(context: FilesE2EContext) {
         assert(rename, 'The current folder must expose its inline rename input')
         const renamed = `${name} renamed`
         await rename.fill(renamed)
+        assert.equal(
+          await picker(name).count(),
+          0,
+          'Folder actions must remain unavailable while a rename draft is being edited'
+        )
         await rename.press('Enter')
         const deadline = Date.now() + 60_000
         while (true) {

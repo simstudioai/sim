@@ -1,4 +1,4 @@
-export { dropPaths } from './browser'
+export { dropPaths, uploadMenuTrigger } from './browser'
 export { runNavigationScaleChecks } from './navigation-scale'
 export { runSearchWorkflowChecks } from './search-workflows'
 export { runSharingChecks } from './sharing'

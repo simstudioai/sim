@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { dropPaths } from '@/scripts/files-e2e/browser'
+import { dropPaths, uploadMenuTrigger } from '@/scripts/files-e2e/browser'
 import type { FilesE2EContext } from '@/scripts/files-e2e/types'
 
 /** Exercises cancellation while native readers and real upload requests are in flight. */
@@ -13,7 +13,7 @@ export async function runUploadLifecycleChecks(context: FilesE2EContext, directo
     waitUntil: 'domcontentloaded',
   })
   await page.locator('input[webkitdirectory]').waitFor({ state: 'attached' })
-  await page.getByRole('button', { name: 'Upload', exact: true }).waitFor()
+  await uploadMenuTrigger(page).waitFor()
 
   await check(
     'cancel releases a delayed native directory read and permits a new upload',
@@ -62,9 +62,9 @@ export async function runUploadLifecycleChecks(context: FilesE2EContext, directo
           assert(Date.now() < deadline, 'The native directory read never reached the held callback')
           await sleep(50)
         }
-        await page.getByRole('button', { name: 'Preparing…', exact: true }).click()
+        await uploadMenuTrigger(page, 'Preparing…').click()
         await page.getByRole('menuitem', { name: 'Cancel upload', exact: true }).click()
-        await page.getByRole('button', { name: 'Upload', exact: true }).waitFor({ timeout: 3000 })
+        await uploadMenuTrigger(page).waitFor({ timeout: 3000 })
         await dropPaths(page, [recovery])
         const uploaded = Date.now() + 120_000
         while (true) {
@@ -119,7 +119,7 @@ export async function runUploadLifecycleChecks(context: FilesE2EContext, directo
         await route.continue().catch(() => {})
       })
       try {
-        await page.getByRole('button', { name: 'Upload', exact: true }).waitFor()
+        await uploadMenuTrigger(page).waitFor()
         await dropPaths(page, paths.slice(0, 2))
         const deadline = Date.now() + 30_000
         while (requests === 0) {
@@ -144,7 +144,7 @@ export async function runUploadLifecycleChecks(context: FilesE2EContext, directo
           )
         )
         release()
-        await page.getByRole('button', { name: 'Upload', exact: true }).waitFor({ timeout: 5000 })
+        await uploadMenuTrigger(page).waitFor({ timeout: 5000 })
         assert.equal(requests, 1, 'The batch issued more uploads after edit access was revoked')
         const rows =
           await sql`select id from workspace_files where workspace_id = ${fixture.workspaceId}

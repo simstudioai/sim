@@ -12,3 +12,8 @@ export async function dropPaths(page: Page, paths: string[]) {
     await session.detach()
   }
 }
+
+/** Locates the upload menu by its accessible state without matching the empty-state upload action. */
+export function uploadMenuTrigger(page: Page, name: string | RegExp = 'Upload') {
+  return page.getByRole('button', { name, exact: true }).and(page.locator('[aria-haspopup="menu"]'))
+}

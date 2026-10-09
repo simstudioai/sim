@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { folder } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { prepareUploadFolders } from '@/lib/workspace-files/upload-folders'
 
 const connection = vi.hoisted(() => ({ close: async () => {} }))
@@ -125,7 +126,7 @@ describe('folder upload preparation in Postgres', () => {
     await db.execute(sql`
       INSERT INTO folder (id, workspace_id, user_id, resource_type, name)
       SELECT 'existing-' || position, 'workspace', 'user', 'file', 'Existing ' || position
-      FROM generate_series(1, 9999) AS series(position)
+      FROM generate_series(1, ${MAX_FOLDERS_PER_WORKSPACE - 1}) AS series(position)
     `)
     await expect(prepare([['Incoming'], ['Incoming', 'Child']])).rejects.toMatchObject({
       code: 'conflict',

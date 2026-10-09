@@ -1,6 +1,13 @@
 import { z } from 'zod'
-import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
-import { shareAuthTypeSchema, upsertFileShareBodySchema } from '@/lib/api/contracts/public-shares'
+import {
+  orExactEnvironmentReference,
+  privateSecretProvenanceBundleSchema,
+} from '@/lib/api/contracts/primitives'
+import {
+  shareAuthTypeSchema,
+  sharePasswordSchema,
+  upsertFileShareBodySchema,
+} from '@/lib/api/contracts/public-shares'
 import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
@@ -169,7 +176,7 @@ const fileManageFolderSharingBodySchema = z.object({
   path: v2NonRootFolderPathInputSchema,
   isActive: z.boolean({ error: 'isActive is required for manage_folder_sharing operation' }),
   authType: shareAuthTypeSchema.optional(),
-  password: z.string().min(1).max(1024).optional(),
+  password: orExactEnvironmentReference(sharePasswordSchema).optional(),
   allowedEmails: upsertFileShareBodySchema.shape.allowedEmails,
 })
 

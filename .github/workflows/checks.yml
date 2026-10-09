@@ -203,11 +203,11 @@ jobs:
 
       - name: Cache Files browser download
         if: matrix.group == 'files'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        uses: ./.github/actions/cache
         with:
+          provider: ${{ vars.CI_PROVIDER }}
           path: ~/.cache/ms-playwright
-          key: files-browser-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
-          restore-keys: files-browser-${{ runner.os }}-${{ runner.arch }}-
+          key: ${{ github.repository }}-files-browser-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
 
       - name: Install Files browser from the pinned Playwright dependency
         if: matrix.group == 'files'

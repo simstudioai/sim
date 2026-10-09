@@ -1,4 +1,4 @@
-import { publicShare as publicShareTable } from '@sim/db/schema'
+import { publicShare as publicShareTable, workspaceFiles } from '@sim/db/schema'
 import { queueTableRows } from '@sim/testing/mocks/database.mock'
 import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
 import { NextRequest } from 'next/server'
@@ -40,7 +40,17 @@ const postRequest = (password: string, token = 'tok_1') =>
   })
 
 const publicShare = {
-  share: { id: 'sh_1', token: 'tok_1', authType: 'public', password: null },
+  share: {
+    id: 'sh_1',
+    token: 'tok_1',
+    resourceId: 'wf_1',
+    workspaceId: 'ws-secret',
+    resourceType: 'file',
+    isActive: true,
+    authType: 'public',
+    password: null,
+    allowedEmails: [],
+  },
   file: {
     id: 'wf_1',
     key: 'workspace/ws/secret-key.pdf',
@@ -55,7 +65,7 @@ const publicShare = {
 
 const passwordShare = {
   ...publicShare,
-  share: { id: 'sh_1', token: 'tok_1', authType: 'password', password: 'enc:secret' },
+  share: { ...publicShare.share, authType: 'password', password: 'enc:secret' },
 }
 
 describe('GET /api/files/public/[token]', () => {
@@ -63,6 +73,7 @@ describe('GET /api/files/public/[token]', () => {
     mockEnforceRateLimit.mockResolvedValue(null) // allow by default
     mockValidateDeploymentAuth.mockResolvedValue({ authorized: true }) // public by default
     queueTableRows(publicShareTable, [{ id: 'sh_1' }])
+    queueTableRows(workspaceFiles, [publicShare.file])
   })
 
   it('returns 429 when the per-IP rate limit is exceeded', async () => {
