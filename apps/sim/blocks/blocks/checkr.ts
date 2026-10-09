@@ -73,7 +73,7 @@ const DATE_WAND = {
 const WORK_LOCATIONS_WAND = {
   enabled: true,
   prompt:
-    'Generate a JSON array of Checkr work locations from the user description. Each item is an object with "state" (two-letter code, required), and optional "country" (ISO 3166-1 alpha-2, defaults to US) and "city". Return ONLY the JSON array.',
+    'Generate a JSON array of Checkr work locations from the user description. Each item is an object with "country" (ISO 3166-1 alpha-2, defaults to US, required outside the US), "state" (two-letter code, required in the US), and optional "city". Return ONLY the JSON array.',
   generationType: 'json-array',
 } as const
 

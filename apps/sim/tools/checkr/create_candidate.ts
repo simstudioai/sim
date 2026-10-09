@@ -40,11 +40,13 @@ export const checkrCreateCandidateTool: ToolConfig<
       items: {
         type: 'object',
         properties: {
-          country: { type: 'string', description: 'Country (ISO 3166-1 alpha-2), defaults to US' },
-          state: { type: 'string', description: 'Two-letter state code' },
+          country: {
+            type: 'string',
+            description: 'Country (ISO 3166-1 alpha-2), defaults to US; required outside the US',
+          },
+          state: { type: 'string', description: 'Two-letter state code; required in the US' },
           city: { type: 'string', description: 'City name' },
         },
-        required: ['state'],
       },
       required: false,
       visibility: 'user-or-llm',
