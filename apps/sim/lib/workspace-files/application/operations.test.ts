@@ -27,30 +27,33 @@ describe('file operation registry', () => {
     }
   })
 
+  /** The independent allowlist rejects newly added or accidentally widened executor authority. */
   it('allows executor delegation only for operations used by the internal file tool', () => {
     const executorOperationIds = Object.values(fileOperations)
       .filter((operation) => operation.delegatedServices?.includes('executor'))
       .map((operation) => operation.id)
 
-    expect(executorOperationIds).toEqual([
-      'files.list',
-      'files.read_metadata',
-      'files.read_content',
-      'files.search_content',
-      'files.download',
-      'files.create',
-      'files.update_content',
-      'files.move',
-      'files.share.read',
-      'files.share.update',
-      'files.folders.share.read',
-      'files.folders.share.update',
-      'files.folders.list',
-      'files.folders.create',
-      'files.folders.update',
-      'files.folders.delete',
-      'files.folders.restore',
-    ])
+    expect(new Set(executorOperationIds)).toEqual(
+      new Set([
+        'files.list',
+        'files.read_metadata',
+        'files.read_content',
+        'files.search_content',
+        'files.download',
+        'files.create',
+        'files.update_content',
+        'files.move',
+        'files.share.read',
+        'files.share.update',
+        'files.folders.share.read',
+        'files.folders.share.update',
+        'files.folders.list',
+        'files.folders.create',
+        'files.folders.update',
+        'files.folders.delete',
+        'files.folders.restore',
+      ])
+    )
   })
 
   it('keeps external sharing policy changes human-delegated', () => {

@@ -27,9 +27,8 @@ interface UseFileUploadsOptions {
 /** Serializes captured upload batches and reconciles the browser once each batch settles. */
 export function useFileUploads({ workspaceId, canEdit, onStart }: UseFileUploadsOptions) {
   const queue = useRef(Promise.resolve())
-  const controller = useRef<AbortController | null>(null)
-  const pendingBatches = useRef(0)
-  const generation = useRef(0)
+  const batchesRef = useRef<Set<AbortController> | null>(null)
+  const batches = (batchesRef.current ??= new Set<AbortController>())
   const mounted = useRef(true)
   const [progress, setProgress] = useState(IDLE_PROGRESS)
   const queryClient = useQueryClient()
@@ -41,35 +40,40 @@ export function useFileUploads({ workspaceId, canEdit, onStart }: UseFileUploads
     mounted.current = true
     return () => {
       mounted.current = false
-      generation.current += 1
-      controller.current?.abort()
+      for (const batch of batches) batch.abort()
     }
-  }, [])
+  }, [workspaceId, canEdit, batches])
 
   const upload = useCallback(
-    (selection: UploadSelection | Promise<UploadSelection>, targetFolderId: string | null) => {
-      const selected = Promise.resolve(selection)
-      // Attach rejection handling immediately while a preceding batch is still uploading.
-      const captured = selected.then(
-        (value) => ({ success: true as const, value }),
-        (error: unknown) => ({ success: false as const, error })
-      )
+    (
+      captureSelection: (signal: AbortSignal) => UploadSelection | Promise<UploadSelection>,
+      targetFolderId: string | null
+    ) => {
       if (!workspaceId || !canEdit || !mounted.current) return Promise.resolve()
-      if (pendingBatches.current >= MAX_PENDING_UPLOAD_BATCHES) {
+      if (batches.size >= MAX_PENDING_UPLOAD_BATCHES) {
         toast.error('The upload queue is full', {
           description: 'Wait for an upload to finish before adding more files or folders.',
         })
         return Promise.resolve()
       }
-      pendingBatches.current += 1
-      const batchGeneration = generation.current
+      const abort = new AbortController()
+      batches.add(abort)
+      let selected: Promise<UploadSelection>
+      try {
+        selected = Promise.resolve(captureSelection(abort.signal))
+      } catch (error) {
+        selected = Promise.reject(error)
+      }
+      // Native drag entries must be captured before the drop event releases its data store.
+      const captured = selected.then(
+        (value) => ({ success: true as const, value }),
+        (error: unknown) => ({ success: false as const, error })
+      )
       const run = async () => {
-        if (!mounted.current || batchGeneration !== generation.current) {
-          pendingBatches.current -= 1
+        if (!mounted.current || abort.signal.aborted) {
+          batches.delete(abort)
           return
         }
-        const abort = new AbortController()
-        controller.current = abort
         let attempted = false
         try {
           onStart()
@@ -95,6 +99,7 @@ export function useFileUploads({ workspaceId, canEdit, onStart }: UseFileUploads
                 paths: directories,
                 signal: abort.signal,
               })
+              abort.signal.throwIfAborted()
               for (const folder of prepared.folders)
                 folderIds.set(JSON.stringify(folder.path), folder.id)
             } catch (error) {
@@ -125,7 +130,7 @@ export function useFileUploads({ workspaceId, canEdit, onStart }: UseFileUploads
                 skipToast: true,
                 skipInvalidation: true,
                 onProgress: ({ percent }) => {
-                  if (mounted.current)
+                  if (mounted.current && !abort.signal.aborted)
                     setProgress({
                       completed: index,
                       total: allowed.length,
@@ -147,7 +152,7 @@ export function useFileUploads({ workspaceId, canEdit, onStart }: UseFileUploads
                   })
               }
             }
-            if (mounted.current)
+            if (mounted.current && !abort.signal.aborted)
               setProgress({
                 completed: index + 1,
                 total: allowed.length,
@@ -172,22 +177,20 @@ export function useFileUploads({ workspaceId, canEdit, onStart }: UseFileUploads
             toast.error(getErrorMessage(error, 'Could not upload the selection'))
           }
         } finally {
-          pendingBatches.current -= 1
+          batches.delete(abort)
           if (attempted) invalidateWorkspaceFileBrowsers(queryClient, workspaceId)
-          controller.current = null
           if (mounted.current) setProgress(IDLE_PROGRESS)
         }
       }
       queue.current = queue.current.then(run, run)
       return queue.current
     },
-    [workspaceId, canEdit, onStart, prepareFolders, uploadFile, notifyLimit, queryClient]
+    [workspaceId, canEdit, onStart, prepareFolders, uploadFile, notifyLimit, queryClient, batches]
   )
 
   const cancel = useCallback(() => {
-    generation.current += 1
-    controller.current?.abort()
-  }, [])
+    for (const batch of batches) batch.abort()
+  }, [batches])
 
   return { upload, cancel, progress, uploading: progress.preparing || progress.total > 0 }
 }

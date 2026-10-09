@@ -1004,7 +1004,7 @@ function FilesContent() {
       matches: hasExternalFiles,
       onDropIntoFolder: (dataTransfer, targetFolderId) => {
         dismissUploadOverlay()
-        void upload(selectionFromDrop(dataTransfer), targetFolderId)
+        void upload((signal) => selectionFromDrop(dataTransfer, signal), targetFolderId)
       },
     },
   })
@@ -1014,10 +1014,7 @@ function FilesContent() {
     if (!list || list.length === 0) return
     const selected = Array.from(list)
     e.currentTarget.value = ''
-    await upload(
-      Promise.resolve().then(() => selectionFromFiles(selected)),
-      currentFolderId
-    )
+    await upload(() => selectionFromFiles(selected), currentFolderId)
   }
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -1049,7 +1046,7 @@ function FilesContent() {
      */
     rowDragDropConfig.externalDropHandled()
     dismissUploadOverlay()
-    await upload(selectionFromDrop(e.dataTransfer), currentFolderId)
+    await upload((signal) => selectionFromDrop(e.dataTransfer, signal), currentFolderId)
   }
 
   const handleDownload = useCallback(

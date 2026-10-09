@@ -1,5 +1,9 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { buildFolderPath, MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
+import {
+  buildFolderPath,
+  MAX_FOLDER_NAME_LENGTH,
+  MAX_FOLDER_PATH_SEGMENTS,
+} from '@/lib/folders/paths'
 
 export const MAX_UPLOAD_DIRECTORIES = 1_000
 const MAX_UPLOAD_ROOT_DIRECTORIES = 100
@@ -11,6 +15,12 @@ export function validateUploadPath(path: readonly string[]): void {
     throw new OrchestrationError('validation', 'The selected path is too deep')
   }
   for (const name of path) {
+    if (name.length > MAX_FOLDER_NAME_LENGTH) {
+      throw new OrchestrationError(
+        'validation',
+        `Folder names cannot exceed ${MAX_FOLDER_NAME_LENGTH} characters`
+      )
+    }
     if (!name || name !== name.trim() || name === '.' || name === '..' || /[/\\]/.test(name)) {
       throw new OrchestrationError(
         'validation',

@@ -55,7 +55,7 @@ async function shareIsCurrent(resolved: ResolvedResourceShare): Promise<boolean>
         share.password === null
           ? isNull(publicShare.password)
           : eq(publicShare.password, share.password),
-        sql`${publicShare.allowedEmails}::jsonb IS NOT DISTINCT FROM ${JSON.stringify(share.allowedEmails)}::jsonb`
+        sql`coalesce(nullif(${publicShare.allowedEmails}::jsonb, 'null'::jsonb), '[]'::jsonb) = ${JSON.stringify(share.allowedEmails ?? [])}::jsonb`
       )
     )
     .limit(1)

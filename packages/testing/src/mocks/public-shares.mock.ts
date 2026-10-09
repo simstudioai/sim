@@ -21,6 +21,8 @@ export class MockShareValidationError extends Error {
  * - `mockGetShareForResource` resolves `null` (no share).
  * - `mockGetSharesForResources` / `mockGetWorkspaceSharesForResources` /
  *   `mockGetWorkspaceShares` resolve an empty `Map`.
+ * - `mockResolveActiveResourceShareByToken` adapts the legacy file resolver by default;
+ *   override it directly for folder shares.
  *
  * @example
  * ```ts
@@ -44,6 +46,10 @@ export const publicSharesMockFns = {
   mockUpsertFileShare: vi.fn(),
   mockUpsertResourceShare: vi.fn(),
   mockResolveActiveShareByToken: vi.fn(),
+  mockResolveActiveResourceShareByToken: vi.fn(async (token: string): Promise<unknown> => {
+    const resolved = await publicSharesMockFns.mockResolveActiveShareByToken(token)
+    return resolved ? { ...resolved, kind: 'file' as const } : null
+  }),
 }
 
 /**
@@ -65,8 +71,5 @@ export const publicSharesMock = {
   upsertFileShare: publicSharesMockFns.mockUpsertFileShare,
   resolveActiveShareByToken: publicSharesMockFns.mockResolveActiveShareByToken,
   upsertResourceShare: publicSharesMockFns.mockUpsertResourceShare,
-  resolveActiveResourceShareByToken: async (token: string) => {
-    const resolved = await publicSharesMockFns.mockResolveActiveShareByToken(token)
-    return resolved ? { ...resolved, kind: 'file' as const } : null
-  },
+  resolveActiveResourceShareByToken: publicSharesMockFns.mockResolveActiveResourceShareByToken,
 }

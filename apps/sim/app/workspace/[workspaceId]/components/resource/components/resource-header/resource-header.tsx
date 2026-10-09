@@ -117,6 +117,8 @@ export interface ResourceAction {
  * on one files the drag there — the counterpart to spring-loading, which only ever goes deeper.
  */
 export interface BreadcrumbDropConfig {
+  /** Expands collapsed ancestors while rows are being moved. */
+  isDragging?: boolean
   /** Index of the crumb currently under the drag, or `null`. Indexed because `null` is a folder. */
   activeIndex: number | null
   onDragOver: (e: DragEvent<HTMLElement>, folderId: string | null, index: number) => void
@@ -149,12 +151,7 @@ export const ResourceHeader = memo(function ResourceHeader({
   aside,
   breadcrumbDrop,
 }: ResourceHeaderProps) {
-  /**
-   * Breadcrumb mode is reserved for nested pages (length > 1). A single-crumb
-   * "breadcrumb" is just the current page, so it falls through to the static
-   * title below — keeping the top-left non-interactive and hover-free,
-   * identical to a title-only page (e.g. the Files root matches the Tables root).
-   */
+  /** Single-crumb roots retain their static title and may offer child-folder navigation. */
   const hasBreadcrumbs = breadcrumbs != null && breadcrumbs.length > 1
   const rootCrumb = breadcrumbs?.length === 1 ? breadcrumbs[0] : undefined
   const TitleIcon = Icon ?? rootCrumb?.icon
@@ -162,6 +159,7 @@ export const ResourceHeader = memo(function ResourceHeader({
   const collapsePath =
     breadcrumbs != null &&
     breadcrumbs.length > 4 &&
+    !breadcrumbDrop?.isDragging &&
     breadcrumbs.some((item) => item.navigationItems !== undefined)
   const terminalBreadcrumbIndex =
     hasBreadcrumbs && breadcrumbs[breadcrumbs.length - 1].terminal ? breadcrumbs.length - 1 : -1
@@ -287,14 +285,23 @@ export const ResourceHeader = memo(function ResourceHeader({
              * layout (the JS-driven `--sidebar-width` settling) and the title
              * CSS-truncates to "T…" while the `shrink-0` actions hold width.
              */
-            <span className={cn(chipGeometryClass, 'inline-flex shrink-0 cursor-default')}>
-              {TitleIcon && <TitleIcon className={chipContentIconClass} />}
-              {titleLabel && (
-                <span className='block whitespace-nowrap text-[var(--text-body)] text-sm'>
-                  {titleLabel}
-                </span>
+            <>
+              <span className={cn(chipGeometryClass, 'inline-flex shrink-0 cursor-default')}>
+                {TitleIcon && <TitleIcon className={chipContentIconClass} />}
+                {titleLabel && (
+                  <span className='block whitespace-nowrap text-[var(--text-body)] text-sm'>
+                    {titleLabel}
+                  </span>
+                )}
+              </span>
+              {rootCrumb?.navigationItems !== undefined && (
+                <BreadcrumbNavigation
+                  label={rootCrumb.label}
+                  items={rootCrumb.navigationItems}
+                  actions={rootCrumb.dropdownItems}
+                />
               )}
-            </span>
+            </>
           )}
         </div>
         {(aside || (actions && actions.length > 0)) && (

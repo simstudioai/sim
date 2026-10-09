@@ -608,7 +608,8 @@ describe('chunked workspace file search on PostgreSQL', () => {
   })
   it('projects metadata only for returned matches inside the current folder scope', async () => {
     await index('needle')
-    await index('needle\nneedle', await addFile('file-2', 'workspace-1', 'Report.md', 'folder-1'))
+    await index('needle', await addFile('file-2', 'workspace-1', 'Report.md', 'folder-1'))
+    await index('needle', await addFile('file-4', 'workspace-1', 'Z-Other.md', 'folder-1'))
     await index('needle', await addFile('file-3', 'workspace-2', 'Private.md', 'folder-1'))
     const result = await searchWorkspaceFileIndex({
       workspaceId: 'workspace-1',

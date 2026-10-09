@@ -13,12 +13,14 @@ import { isRecordLike } from '@sim/utils/object'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
 import {
+  dropPaths,
   type FilesE2EContext,
   type FilesE2EFixture,
   type FilesE2ERequestOptions,
   runNavigationScaleChecks,
   runSearchWorkflowChecks,
   runSharingChecks,
+  runUploadLifecycleChecks,
 } from '@/scripts/files-e2e'
 
 const logger = createLogger('FilesE2E')
@@ -34,7 +36,14 @@ const databaseUrl = new URL(requiredEnvironment('FILES_E2E_DATABASE_URL'))
 const authSecret = requiredEnvironment('FILES_E2E_AUTH_SECRET')
 const reportPath = resolve(requiredEnvironment('FILES_E2E_REPORT_PATH'))
 const reportDirectory = dirname(reportPath)
-const supportedSuites = ['upload', 'navigation', 'navigation-scale', 'search', 'sharing']
+const supportedSuites = [
+  'upload',
+  'upload-lifecycle',
+  'navigation',
+  'navigation-scale',
+  'search',
+  'sharing',
+]
 const selectedSuites =
   process.env.FILES_E2E_SUITES?.split(',').map((name) => name.trim()) ?? supportedSuites
 assert(
@@ -196,7 +205,7 @@ async function uploadDirectory(
   await page.waitForFunction(
     () => !document.querySelector<HTMLInputElement>('input[webkitdirectory]')?.disabled
   )
-  await page.locator('button[aria-label="Upload"]').click()
+  await page.getByRole('button', { name: 'Upload', exact: true }).click()
   const [chooser] = await Promise.all([
     page.waitForEvent('filechooser'),
     page.getByRole('menuitem', { name: 'Upload folder', exact: true }).click(),
@@ -294,8 +303,26 @@ async function runUploadChecks(page: Page, sourceDirectory: string) {
     }
   })
 
+  await check('directory uploads accept a destination with a 128-character legacy ID', async () => {
+    const destinationId = `${fixture.workspaceId}-`.padEnd(128, 'x')
+    await sql`insert into folder (id, workspace_id, user_id, resource_type, name)
+      values (${destinationId}, ${fixture.workspaceId}, ${fixture.ownerId}, 'file', 'Legacy destination')`
+    const prepared = await json(
+      `/api/workspaces/${fixture.workspaceId}/files/folders/prepare-upload`,
+      {
+        method: 'POST',
+        body: { targetFolderId: destinationId, paths: [['Legacy upload']] },
+      }
+    )
+    assert(Array.isArray(prepared.folders) && prepared.folders.length === 1)
+    const uploadedId = string(record(prepared.folders[0]).id)
+    const [stored] = await sql`select parent_id from folder where id = ${uploadedId}
+      and workspace_id = ${fixture.workspaceId}`
+    assert.equal(stored?.parent_id, destinationId)
+  })
+
   await check(
-    'folder preparation refuses unauthenticated, missing, and unsafe destinations',
+    'folder preparation refuses unauthenticated, missing, unsafe, and oversized destinations',
     async () => {
       const path = `/api/workspaces/${fixture.workspaceId}/files/folders/prepare-upload`
       await json(path, {
@@ -314,6 +341,11 @@ async function runUploadChecks(page: Page, sourceDirectory: string) {
         body: { targetFolderId: null, paths: [['Denied'], ['Denied', '..']] },
         expected: 400,
       })
+      await json(path, {
+        method: 'POST',
+        body: { targetFolderId: null, paths: [['Denied'], ['Denied', 'x'.repeat(256)]] },
+        expected: 400,
+      })
       assert.equal(
         (
           await sql`select id from folder where workspace_id = ${fixture.workspaceId} and name = 'Denied'`
@@ -322,18 +354,6 @@ async function runUploadChecks(page: Page, sourceDirectory: string) {
       )
     }
   )
-}
-
-async function dropPaths(page: Page, paths: string[]) {
-  const session = await page.context().newCDPSession(page)
-  try {
-    const data = { items: [], files: paths, dragOperationsMask: 1 }
-    await session.send('Input.dispatchDragEvent', { type: 'dragEnter', x: 800, y: 700, data })
-    await session.send('Input.dispatchDragEvent', { type: 'dragOver', x: 800, y: 700, data })
-    await session.send('Input.dispatchDragEvent', { type: 'drop', x: 800, y: 700, data })
-  } finally {
-    await session.detach()
-  }
 }
 
 async function runDropChecks(page: Page, sourceDirectory: string) {
@@ -407,7 +427,7 @@ async function runDropChecks(page: Page, sourceDirectory: string) {
         await dropPaths(page, [paths[2]])
         await dropPaths(page, [paths[3]])
         await page.getByText('The upload queue is full', { exact: true }).waitFor()
-        await page.locator('button[aria-label="Upload"]').click()
+        await page.getByRole('button', { name: /^\d+\/\d+/ }).click()
         await page.getByRole('menuitem', { name: 'Cancel upload', exact: true }).click()
         release()
         await page.waitForFunction(
@@ -452,6 +472,18 @@ async function runNavigationChecks(page: Page) {
     new URL(`/workspace/${fixture.workspaceId}/files?folderId=${folderId}`, baseUrl).href
   await page.goto(url(b), { waitUntil: 'domcontentloaded', timeout: 180_000 })
   await page.getByRole('combobox', { name: 'Navigate within Navigation A', exact: true }).waitFor()
+
+  await check('the Files root picker searches and opens top-level folders', async () => {
+    await page.goto(new URL(`/workspace/${fixture.workspaceId}/files`, baseUrl).href, {
+      waitUntil: 'domcontentloaded',
+    })
+    await page.getByRole('combobox', { name: 'Navigate within Files', exact: true }).click()
+    await page.getByPlaceholder('Find folder...').fill('Navigation A')
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('Enter')
+    await page.waitForURL(url(a))
+    await page.goto(url(b), { waitUntil: 'domcontentloaded' })
+  })
 
   await check('short breadcrumb labels remain fully visible at desktop width', async () => {
     await page.evaluate(() => document.fonts.ready.then(() => undefined))
@@ -500,7 +532,7 @@ async function runNavigationChecks(page: Page) {
 
   await check('breadcrumb hover leaves other header actions visually unchanged', async () => {
     await page.evaluate(() => document.fonts.ready.then(() => undefined))
-    const upload = page.locator('button[aria-label="Upload"]')
+    const upload = page.getByRole('button', { name: 'Upload', exact: true })
     await page.mouse.move(900, 400)
     const before = await upload.screenshot({ animations: 'disabled' })
     await page.getByRole('button', { name: 'Files', exact: true }).first().hover()
@@ -568,6 +600,53 @@ async function runNavigationChecks(page: Page) {
     }
   )
 
+  await check('dragging from a deep folder exposes hidden ancestor drop targets', async () => {
+    const movedFolder = await createFolder('Move to ancestor', d)
+    await page.setViewportSize({ width: 900, height: 800 })
+    await page.goto(url(d), { waitUntil: 'domcontentloaded' })
+    const source = page.locator(`[data-row-id="folder:${movedFolder}"]`)
+    await source.waitFor()
+    const drag = await page.evaluateHandle(() => new DataTransfer())
+    try {
+      await source.dispatchEvent('dragstart', { dataTransfer: drag })
+      const target = page.getByRole('button', { name: 'Navigation B', exact: true })
+      await target.waitFor({ state: 'visible', timeout: 5000 })
+      const geometry = await target.evaluate((element) => {
+        const bounds = element.getBoundingClientRect()
+        const hit = document.elementFromPoint(
+          bounds.x + bounds.width / 2,
+          bounds.y + bounds.height / 2
+        )
+        return {
+          x: bounds.x,
+          y: bounds.y,
+          width: bounds.width,
+          height: bounds.height,
+          reachable: hit === element || (hit !== null && element.contains(hit)),
+        }
+      })
+      await writeFile(
+        join(reportDirectory, 'ancestor-drop-geometry.json'),
+        `${JSON.stringify(geometry, null, 2)}\n`
+      )
+      assert(
+        geometry.width > 0 && geometry.height > 0 && geometry.reachable,
+        'The expanded ancestor must remain a reachable drop target at a constrained viewport'
+      )
+      await target.dispatchEvent('dragover', { dataTransfer: drag })
+      await target.dispatchEvent('drop', { dataTransfer: drag })
+      await eventually(
+        () => sql`select parent_id from folder where id = ${movedFolder}`,
+        (rows) => rows[0]?.parent_id === b,
+        'A drop onto a collapsed ancestor did not persist the move'
+      )
+    } finally {
+      await page.evaluate(() => window.dispatchEvent(new DragEvent('dragend')))
+      await drag.dispose()
+      await page.setViewportSize({ width: 1440, height: 1000 })
+    }
+  })
+
   await check('deep folder trails collapse ancestors into a navigable overflow menu', async () => {
     await page.goto(url(d), { waitUntil: 'domcontentloaded' })
     await page.getByRole('button', { name: '…', exact: true }).click()
@@ -610,6 +689,7 @@ async function run() {
     json,
     cronSecret: process.env.FILES_E2E_CRON_SECRET,
   }
+  if (selectedSuites.includes('upload-lifecycle')) await runUploadLifecycleChecks(suite, scratch)
   if (selectedSuites.includes('navigation-scale')) await runNavigationScaleChecks(suite)
   if (selectedSuites.includes('search')) await runSearchWorkflowChecks(suite)
   if (selectedSuites.includes('sharing')) await runSharingChecks(suite)

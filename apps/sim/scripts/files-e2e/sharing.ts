@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { sha256Hex } from '@sim/security/hash'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { makeSignature } from 'better-auth/crypto'
@@ -76,6 +77,8 @@ export async function runSharingChecks({
   const readerSessionToken = generateShortId()
   const workspaceKeyId = generateId()
   const workspaceKey = `sk-sim-folder-sharing-fixture-${generateId()}`
+  const personalKeyId = generateId()
+  const personalKey = `sk-sim-folder-policy-fixture-${generateId()}`
   const foreignWorkspaceId = generateId()
   const foreignFolderId = generateId()
   const foreignShareId = generateId()
@@ -122,7 +125,9 @@ export async function runSharingChecks({
       await tx`insert into session (id, token, user_id, active_organization_id, expires_at, created_at, updated_at)
         values (${generateId()}, ${readerSessionToken}, ${readerId}, ${fixture.orgId}, now() + interval '1 hour', now(), now())`
       await tx`insert into api_key (id, user_id, workspace_id, name, key, key_hash, type)
-        values (${workspaceKeyId}, ${fixture.ownerId}, ${fixture.workspaceId}, 'Files folder sharing fixture', ${workspaceKey}, ${sha256Hex(workspaceKey)}, 'workspace')`
+        values
+          (${workspaceKeyId}, ${fixture.ownerId}, ${fixture.workspaceId}, 'Files folder sharing fixture', ${workspaceKey}, ${sha256Hex(workspaceKey)}, 'workspace'),
+          (${personalKeyId}, ${fixture.ownerId}, null, 'Files folder policy fixture', ${personalKey}, ${sha256Hex(personalKey)}, 'personal')`
       await tx`insert into workspace (id, name, owner_id, billed_account_user_id)
         values (${foreignWorkspaceId}, 'Foreign sharing fixture', ${readerId}, ${readerId})`
       await tx`insert into folder (id, workspace_id, user_id, resource_type, name)
@@ -227,6 +232,38 @@ export async function runSharingChecks({
       shareId = result.share.id as string
       await page.keyboard.press('Escape')
     })
+
+    await check(
+      'folder sharing tools reject oversized email restrictions without mutating policy',
+      async () => {
+        const headers = { 'x-api-key': personalKey }
+        await json(`/api/v2/files?workspaceId=${fixture.workspaceId}&limit=1`, {
+          authenticated: false,
+          headers,
+        })
+        const before = await sql`select * from public_share where id = ${shareId}`
+        const result = await json('/api/v2/tools/file_manage_folder_sharing/execute', {
+          method: 'POST',
+          authenticated: false,
+          headers,
+          body: {
+            workspaceId: fixture.workspaceId,
+            input: {
+              path: '/Sharing%20fixture',
+              isActive: true,
+              authType: 'email',
+              allowedEmails: [`${'a'.repeat(308)}@fixture.test`],
+            },
+          },
+        })
+        assert(isRecordLike(result.data))
+        assert.equal(result.data.status, 'failed')
+        assert(isRecordLike(result.data.output))
+        assert.equal(result.data.output.status, 400)
+        const after = await sql`select * from public_share where id = ${shareId}`
+        assert.deepEqual(after, before, 'Rejected input changed the stored sharing policy')
+      }
+    )
 
     await check(
       'anonymous folder reads are bounded, private, and contained to the live subtree',
@@ -469,6 +506,87 @@ export async function runSharingChecks({
       }
     )
 
+    for (const view of ['folder', 'file'] as const) {
+      await check(`cached ${view} data stays hidden while authorization is rechecked`, async () => {
+        const location = new URL(`/f/${token}`, baseUrl)
+        location.searchParams.set('folder-id', childId)
+        if (view === 'file') location.searchParams.set('file-id', firstId)
+        await visitor.goto(location.href, { waitUntil: 'domcontentloaded' })
+        if (view === 'file') {
+          await visitor.getByText('FOLDER_FIRST_PREVIEW=one', { exact: false }).waitFor()
+        } else {
+          await visitor.getByRole('button', { name: 'env.template', exact: true }).waitFor()
+        }
+        const release = createDeferred<void>()
+        const authorizationRequest = (url: URL) =>
+          url.pathname === (view === 'folder' ? folderPath() : publicPath())
+        await visitor.route(authorizationRequest, async (route) => {
+          await release.promise
+          await route.continue()
+        })
+        try {
+          if (view === 'folder') {
+            await updateShare({ isActive: false })
+          } else {
+            await sql`update workspace_files set folder_id = ${privateId} where id = ${firstId}`
+          }
+          const pending = visitor.waitForRequest((request) =>
+            authorizationRequest(new URL(request.url()))
+          )
+          const folderRechecked =
+            view === 'file'
+              ? visitor.waitForResponse(
+                  (response) =>
+                    new URL(response.url()).pathname === folderPath() && response.status() === 200
+                )
+              : Promise.resolve()
+          await visitor.evaluate(() => {
+            window.dispatchEvent(new Event('offline'))
+            window.dispatchEvent(new Event('online'))
+          })
+          await pending
+          const checkedListing = await folderRechecked
+          if (checkedListing) {
+            await checkedListing.finished()
+            await visitor.evaluate(
+              () =>
+                new Promise<void>((resolve) =>
+                  requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+                )
+            )
+          }
+          await visitor.getByRole('status').filter({ hasText: 'Loading…' }).waitFor()
+          assert.equal(await visitor.locator('tbody tr').count(), 0)
+          assert.equal(
+            await visitor.getByText('FOLDER_FIRST_PREVIEW=one', { exact: false }).count(),
+            0
+          )
+          assert.equal(
+            await visitor.getByRole('button', { name: 'Download', exact: true }).count(),
+            0
+          )
+          assert.equal(await visitor.getByText('env.template', { exact: true }).count(), 0)
+          await visitor.screenshot({
+            path: join(reportDirectory, `public-${view}-revalidation.png`),
+          })
+          const denied = visitor.waitForResponse(
+            (response) => authorizationRequest(new URL(response.url())) && response.status() === 404
+          )
+          release.resolve()
+          await denied
+          await visitor.getByText('This shared content is unavailable.', { exact: true }).waitFor()
+        } finally {
+          release.resolve()
+          await visitor.unroute(authorizationRequest)
+          if (view === 'folder') {
+            await updateShare({ isActive: true })
+          } else {
+            await sql`update workspace_files set folder_id = ${childId} where id = ${firstId}`
+          }
+        }
+      })
+    }
+
     await check(
       'disabled folder sharing revokes listing, metadata, bytes, and cached browser navigation',
       async () => {
@@ -499,10 +617,13 @@ export async function runSharingChecks({
         await anonymous.close()
       } finally {
         await sql.begin(async (tx) => {
-          await tx`delete from api_key where id = ${workspaceKeyId}`
+          await tx`delete from api_key where id in (${workspaceKeyId}, ${personalKeyId})`
           await tx`delete from workspace where id = ${foreignWorkspaceId}`
           await tx`delete from "user" where id = ${readerId}`
-          await tx`delete from rate_limit_bucket where key = ${`route:workspace-folder-sharing:${readerId}`}`
+          await tx`delete from rate_limit_bucket where key in (
+            ${`route:workspace-folder-sharing:${readerId}`},
+            ${`route:workspace-folder-sharing:${fixture.ownerId}`}
+          )`
         })
       }
     }

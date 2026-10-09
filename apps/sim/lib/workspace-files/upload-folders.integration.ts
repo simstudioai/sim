@@ -54,6 +54,28 @@ describe('folder upload preparation in Postgres', () => {
     expect(stored.find((entry) => entry.name === 'Empty')?.parentId).toBe(firstRoot?.id)
   })
 
+  it.each(['A'.repeat(255), `${'A'.repeat(250)}😀XYZ`])(
+    'keeps repeated maximum-length roots addressable without splitting Unicode: %s',
+    async (name) => {
+      const imports: Awaited<ReturnType<typeof prepare>>[] = []
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        imports.push(await prepare([[name], [name, 'Child']]))
+      }
+      const stored = await db.select().from(folder)
+      const roots = stored.filter((row) => row.parentId === null)
+      expect(roots).toHaveLength(3)
+      expect(new Set(roots.map((row) => row.name)).size).toBe(3)
+      expect(roots.some((row) => row.name === name)).toBe(true)
+      for (const row of roots) {
+        expect(row.name.length).toBeLessThanOrEqual(255)
+        expect(() => encodeURIComponent(row.name)).not.toThrow()
+        expect(stored.filter((child) => child.parentId === row.id)).toHaveLength(1)
+      }
+      expect(imports[1][0].name.endsWith(' (1)')).toBe(true)
+      expect(imports[2][0].name.endsWith(' (2)')).toBe(true)
+    }
+  )
+
   it.each(['elsewhere', 'archived', 'workflow'])(
     'refuses the %s destination without creating anything',
     async (kind) => {
@@ -70,10 +92,15 @@ describe('folder upload preparation in Postgres', () => {
     }
   )
 
-  it('rejects an invalid descendant before any folder can commit', async () => {
-    await expect(prepare([['Safe'], ['Safe', '..']])).rejects.toMatchObject({ code: 'validation' })
-    expect(await db.select().from(folder)).toHaveLength(0)
-  })
+  it.each(['..', 'A'.repeat(256)])(
+    'rejects an invalid descendant before any folder can commit: %s',
+    async (name) => {
+      await expect(prepare([['Safe'], ['Safe', name]])).rejects.toMatchObject({
+        code: 'validation',
+      })
+      expect(await db.select().from(folder)).toHaveLength(0)
+    }
+  )
 
   it('requires declared ancestors instead of silently flattening files', async () => {
     await expect(prepare([['Missing', 'Child']])).rejects.toMatchObject({ code: 'validation' })

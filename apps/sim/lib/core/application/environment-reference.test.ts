@@ -34,23 +34,21 @@ function environment(variables: Record<string, string>) {
 describe('resolveCopilotSecretReference', () => {
   afterEach(resetEnvironmentUtilsMock)
 
-  it("resolves an agent's whole-value reference from the subject user's environment", async () => {
-    environment({ CHAT_PASSWORD: 'newly-created-password' })
+  it.each(['CHAT_PASSWORD', '1PASSWORD', '9'])(
+    "resolves an agent's whole-value reference %s from the subject user's environment",
+    async (name) => {
+      environment({ [name]: 'newly-created-password' })
 
-    await expect(
-      resolveCopilotSecretReference(
-        copilotPrincipal(),
+      await expect(
+        resolveCopilotSecretReference(copilotPrincipal(), WORKSPACE_ID, `{{ ${name} }}`, 'password')
+      ).resolves.toBe('newly-created-password')
+      expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).toHaveBeenCalledWith(
+        'user-1',
         WORKSPACE_ID,
-        '{{ CHAT_PASSWORD }}',
-        'password'
+        [name]
       )
-    ).resolves.toBe('newly-created-password')
-    expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).toHaveBeenCalledWith(
-      'user-1',
-      WORKSPACE_ID,
-      ['CHAT_PASSWORD']
-    )
-  })
+    }
+  )
 
   it('refuses an unset variable by name instead of storing the placeholder', async () => {
     await expect(
@@ -71,7 +69,7 @@ describe('resolveCopilotSecretReference', () => {
   })
 
   it('leaves literal and embedded-reference passwords alone without loading the environment', async () => {
-    for (const value of ['$literal_password', 'prefix-{{CHAT_PW}}', undefined]) {
+    for (const value of ['$literal_password', 'prefix-{{CHAT_PW}}', '{{NOT-A-NAME}}', undefined]) {
       await expect(
         resolveCopilotSecretReference(copilotPrincipal(), WORKSPACE_ID, value, 'password')
       ).resolves.toBe(value)
@@ -81,9 +79,11 @@ describe('resolveCopilotSecretReference', () => {
 
   it('keeps literal semantics for every caller that is not an admitted agent invocation', async () => {
     for (const principal of [sessionPrincipal, copilotPrincipal({ admitted: false })]) {
-      await expect(
-        resolveCopilotSecretReference(principal, WORKSPACE_ID, '{{CHAT_PW}}', 'password')
-      ).resolves.toBe('{{CHAT_PW}}')
+      for (const value of ['{{CHAT_PW}}', '{{1PASSWORD}}']) {
+        await expect(
+          resolveCopilotSecretReference(principal, WORKSPACE_ID, value, 'password')
+        ).resolves.toBe(value)
+      }
     }
     expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).not.toHaveBeenCalled()
   })

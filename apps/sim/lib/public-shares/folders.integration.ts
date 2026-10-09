@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
 import { folder, publicShare, user, workspace, workspaceFiles } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { readPublicSharedFile } from '@/lib/public-shares/access'
 import { readSharedFolderPage, resolveSharedFile } from '@/lib/public-shares/folder-reader'
 import { resolveActiveResourceShareByToken } from '@/lib/public-shares/share-manager'
 
@@ -17,6 +18,8 @@ describe('public folder capabilities in PostgreSQL', () => {
   const fileId = generateId()
   const token = generateId()
   const shareId = generateId()
+  const directShareId = generateId()
+  const directToken = generateId()
 
   beforeAll(async () => {
     await db.insert(user).values({
@@ -72,6 +75,14 @@ describe('public folder capabilities in PostgreSQL', () => {
       workspaceId,
       createdBy: userId,
       token,
+    })
+    await db.insert(publicShare).values({
+      id: directShareId,
+      resourceType: 'file',
+      resourceId: fileId,
+      workspaceId,
+      createdBy: userId,
+      token: directToken,
     })
   })
 
@@ -161,6 +172,60 @@ describe('public folder capabilities in PostgreSQL', () => {
       expect(await resolveSharedFile(resolved, fileId)).toBeNull()
     } finally {
       await db.update(publicShare).set({ isActive: true }).where(eq(publicShare.id, shareId))
+    }
+  })
+
+  it.each(['SQL NULL', 'JSON null'] as const)(
+    'accepts a %s allow-list as empty while still rejecting a changed policy',
+    async (storage) => {
+      await db
+        .update(publicShare)
+        .set({ allowedEmails: storage === 'SQL NULL' ? null : sql`'null'::jsonb` })
+        .where(eq(publicShare.id, shareId))
+      try {
+        const resolved = await share()
+        expect((await readSharedFolderPage(resolved, {}))?.folder.id).toBe(rootId)
+        expect((await resolveSharedFile(resolved, fileId))?.id).toBe(fileId)
+        await db
+          .update(publicShare)
+          .set({ allowedEmails: ['restricted@fixture.test'] })
+          .where(eq(publicShare.id, shareId))
+        expect(await readSharedFolderPage(resolved, {})).toBeNull()
+        expect(await resolveSharedFile(resolved, fileId)).toBeNull()
+      } finally {
+        await db.update(publicShare).set({ allowedEmails: [] }).where(eq(publicShare.id, shareId))
+      }
+    }
+  )
+
+  it.each([
+    { name: 'revocation', update: { isActive: false } },
+    { name: 'password protection', update: { authType: 'password', password: 'changed-policy' } },
+    { name: 'email restrictions', update: { allowedEmails: ['restricted@fixture.test'] } },
+  ])('denies direct file reads when $name occurs during authorization', async ({ update }) => {
+    expect(
+      (
+        await readPublicSharedFile({
+          token: directToken,
+          authorize: async () => ({ authorized: true }),
+        })
+      ).file.id
+    ).toBe(fileId)
+    try {
+      await expect(
+        readPublicSharedFile({
+          token: directToken,
+          authorize: async () => {
+            await db.update(publicShare).set(update).where(eq(publicShare.id, directShareId))
+            return { authorized: true }
+          },
+        })
+      ).rejects.toMatchObject({ status: 404 })
+    } finally {
+      await db
+        .update(publicShare)
+        .set({ isActive: true, authType: 'public', password: null, allowedEmails: [] })
+        .where(eq(publicShare.id, directShareId))
     }
   })
 })

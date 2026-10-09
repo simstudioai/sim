@@ -1,3 +1,5 @@
+import { publicShare as publicShareTable } from '@sim/db/schema'
+import { queueTableRows } from '@sim/testing/mocks/database.mock'
 import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -60,6 +62,7 @@ describe('GET /api/files/public/[token]', () => {
   beforeEach(() => {
     mockEnforceRateLimit.mockResolvedValue(null) // allow by default
     mockValidateDeploymentAuth.mockResolvedValue({ authorized: true }) // public by default
+    queueTableRows(publicShareTable, [{ id: 'sh_1' }])
   })
 
   it('returns 429 when the per-IP rate limit is exceeded', async () => {

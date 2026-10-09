@@ -31,7 +31,6 @@ async function authorizeShare(input: PublicShareReadInput) {
 /** Reads metadata for one file after token authentication and live folder containment. */
 export async function readPublicSharedFile(input: PublicShareReadInput & { fileId?: string }) {
   const resolved = await authorizeShare(input)
-  if (resolved.kind === 'file' && input.fileId === undefined) return resolved
   const file = await resolveSharedFile(resolved, input.fileId)
   if (!file) throw new PublicShareAccessError(404, 'Not found')
   return { ...resolved, file }

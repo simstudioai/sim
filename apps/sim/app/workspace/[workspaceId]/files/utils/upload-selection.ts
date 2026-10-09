@@ -65,8 +65,35 @@ export function selectionFromFiles(files: readonly File[]): UploadSelection {
   return builder.finish()
 }
 
-/** Snapshots native drag entries before yielding, then drains every directory reader. */
-export async function selectionFromDrop(dataTransfer: DataTransfer): Promise<UploadSelection> {
+function readEntry<T>(
+  signal: AbortSignal,
+  read: (resolve: (value: T) => void, reject: (error: DOMException) => void) => void
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    signal.throwIfAborted()
+    const onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+    const settle = (callback: () => void) => {
+      signal.removeEventListener('abort', onAbort)
+      callback()
+    }
+    try {
+      read(
+        (value) => settle(() => resolve(value)),
+        (error) => settle(() => reject(error))
+      )
+    } catch (error) {
+      settle(() => reject(error))
+    }
+  })
+}
+
+/** Captures native drag entries synchronously and drains directory readers until canceled. */
+export async function selectionFromDrop(
+  dataTransfer: DataTransfer,
+  signal: AbortSignal
+): Promise<UploadSelection> {
+  signal.throwIfAborted()
   if (dataTransfer.items.length === 0) return selectionFromFiles(Array.from(dataTransfer.files))
   const roots = Array.from(dataTransfer.items)
     .filter((item) => item.kind === 'file')
@@ -84,21 +111,24 @@ export async function selectionFromDrop(dataTransfer: DataTransfer): Promise<Upl
   }
 
   const visit = async (entry: FileSystemEntry, parent: string[]): Promise<void> => {
+    signal.throwIfAborted()
     const path = [...parent, entry.name]
     if (entry.isDirectory) {
       builder.addDirectory(path)
       const reader = (entry as FileSystemDirectoryEntry).createReader()
       while (true) {
-        const children = await new Promise<FileSystemEntry[]>((resolve, reject) =>
+        const children = await readEntry<FileSystemEntry[]>(signal, (resolve, reject) =>
           reader.readEntries(resolve, reject)
         )
+        signal.throwIfAborted()
         if (children.length === 0) break
         for (const child of children) await visit(child, path)
       }
     } else if (entry.isFile) {
-      const file = await new Promise<File>((resolve, reject) =>
+      const file = await readEntry<File>(signal, (resolve, reject) =>
         (entry as FileSystemFileEntry).file(resolve, reject)
       )
+      signal.throwIfAborted()
       builder.addFile(file, path)
     } else {
       throw new Error(
@@ -108,6 +138,7 @@ export async function selectionFromDrop(dataTransfer: DataTransfer): Promise<Upl
   }
 
   for (const root of roots) {
+    signal.throwIfAborted()
     if (root.entry) await visit(root.entry, [])
     else if (root.file)
       builder.addFile(

@@ -201,6 +201,14 @@ jobs:
         working-directory: packages/db
         run: bun run db:migrate
 
+      - name: Cache Files browser download
+        if: matrix.group == 'files'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: files-browser-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: files-browser-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Install Files browser from the pinned Playwright dependency
         if: matrix.group == 'files'
         run: node node_modules/@playwright/test/cli.js install --with-deps chromium

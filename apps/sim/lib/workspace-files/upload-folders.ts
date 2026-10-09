@@ -6,7 +6,11 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { deduplicateFolderName } from '@/lib/folders/naming'
-import { buildFolderPath, MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
+import {
+  buildFolderPath,
+  MAX_FOLDER_NAME_LENGTH,
+  MAX_FOLDER_PATH_SEGMENTS,
+} from '@/lib/folders/paths'
 import { assertFolderCollectionHasRoom } from '@/lib/folders/queries'
 import { validateUploadDirectories } from '@/lib/workspace-files/upload-directory-plan'
 
@@ -91,7 +95,8 @@ export async function prepareUploadFolders(
             params.workspaceId,
             params.targetFolderId,
             requestedName,
-            'file'
+            'file',
+            MAX_FOLDER_NAME_LENGTH
           )
       const resolvedPath = [...(parent?.resolvedPath ?? destination), name]
       buildFolderPath(resolvedPath)

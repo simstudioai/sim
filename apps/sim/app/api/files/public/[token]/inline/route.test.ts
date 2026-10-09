@@ -1,4 +1,6 @@
+import { publicShare } from '@sim/db/schema'
 import { createRouteContext } from '@sim/testing/helpers/http'
+import { queueTableRows } from '@sim/testing/mocks/database.mock'
 import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
@@ -61,6 +63,7 @@ describe('GET /api/files/public/[token]/inline', () => {
       filename: 'photo.png',
     })
     mockDownloadFile.mockImplementation(downloadByKey())
+    queueTableRows(publicShare, [{ id: 'sh_1' }])
   })
 
   it('rejects exhausted image budgets before share lookup, authentication, or storage reads', async () => {

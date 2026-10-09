@@ -3,6 +3,7 @@ import { containsNulCharacter } from '@sim/utils/string'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export const ROOT_FOLDER_PATH = '/'
+export const MAX_FOLDER_NAME_LENGTH = 255
 export const MAX_FOLDER_PATH_SEGMENTS = 64
 export const MAX_FOLDER_PATH_BYTES = 4096
 

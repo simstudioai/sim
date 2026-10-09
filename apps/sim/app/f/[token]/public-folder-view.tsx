@@ -43,15 +43,19 @@ export function PublicFolderView({ token, name, workspaceName, ownerName }: Publ
     fileId ? null : cursor,
     !fileId || file.isSuccess
   )
-  const page = listing.data
   const brand = useBrandConfig()
   const provenance = buildProvenance(workspaceName, ownerName)
   const error = fileId ? (file.error ?? listing.error) : listing.error
-  const loading = fileId ? file.isPending || listing.isPending : listing.isPending
+  const loading =
+    listing.isPending ||
+    listing.isFetching ||
+    Boolean(fileId && (file.isPending || file.isFetching))
+  const page = !loading && !error ? listing.data : undefined
+  const currentFile = !loading && !error ? file.data : undefined
   const entries = page?.entries ?? []
   const breadcrumbs = page?.breadcrumbs ?? []
   const scrollRef = useRef<HTMLDivElement>(null)
-  const edges = useScrollEdges(scrollRef, { enabled: !fileId && listing.isSuccess })
+  const edges = useScrollEdges(scrollRef, { enabled: !fileId && Boolean(page) })
 
   return (
     <div className='light desktop-title-bar-page flex h-screen flex-col overflow-hidden bg-[var(--bg)]'>
@@ -98,10 +102,10 @@ export function PublicFolderView({ token, name, workspaceName, ownerName }: Publ
               ) : (
                 <OverflowText label={name} />
               )}
-              {file.data && (
+              {currentFile && (
                 <>
                   <ChevronRight className='size-[14px] shrink-0 text-[var(--text-muted)]' />
-                  <OverflowText label={file.data.name} className='text-[var(--text-body)]' />
+                  <OverflowText label={currentFile.name} className='text-[var(--text-body)]' />
                 </>
               )}
             </nav>
@@ -110,14 +114,14 @@ export function PublicFolderView({ token, name, workspaceName, ownerName }: Publ
             )}
           </div>
         </div>
-        {fileId && file.data && !error && (
+        {fileId && currentFile && (
           <Chip
             variant='primary'
             leftIcon={Download}
             onClick={() => {
               const anchor = document.createElement('a')
               anchor.href = `/api/files/public/${token}/content?fileId=${encodeURIComponent(fileId)}`
-              anchor.download = file.data.name
+              anchor.download = currentFile.name
               anchor.click()
             }}
           >
@@ -145,14 +149,14 @@ export function PublicFolderView({ token, name, workspaceName, ownerName }: Publ
           >
             Loading…
           </div>
-        ) : fileId && file.data ? (
+        ) : fileId && currentFile ? (
           <PublicFilePreview
             token={token}
             fileId={fileId}
-            name={file.data.name}
-            type={file.data.type}
-            size={file.data.size}
-            version={file.data.version ?? 0}
+            name={currentFile.name}
+            type={currentFile.type}
+            size={currentFile.size}
+            version={currentFile.version ?? 0}
           />
         ) : (
           <div

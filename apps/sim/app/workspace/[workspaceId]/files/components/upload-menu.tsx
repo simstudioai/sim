@@ -19,6 +19,7 @@ interface UploadMenuProps {
   onCancel: () => void
 }
 
+/** Offers file and folder uploads, or cancellation while an upload is running. */
 export function UploadMenu({
   label,
   disabled,
@@ -30,12 +31,7 @@ export function UploadMenu({
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Chip
-          leftIcon={Upload}
-          rightAdornment={<ChipChevronDown />}
-          disabled={disabled}
-          aria-label='Upload'
-        >
+        <Chip leftIcon={Upload} rightAdornment={<ChipChevronDown />} disabled={disabled}>
           {label}
         </Chip>
       </DropdownMenuTrigger>

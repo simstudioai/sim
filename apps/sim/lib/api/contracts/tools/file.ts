@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
-import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
+import { shareAuthTypeSchema, upsertFileShareBodySchema } from '@/lib/api/contracts/public-shares'
 import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
@@ -170,7 +170,7 @@ const fileManageFolderSharingBodySchema = z.object({
   isActive: z.boolean({ error: 'isActive is required for manage_folder_sharing operation' }),
   authType: shareAuthTypeSchema.optional(),
   password: z.string().min(1).max(1024).optional(),
-  allowedEmails: z.array(z.string().min(1)).max(200).optional(),
+  allowedEmails: upsertFileShareBodySchema.shape.allowedEmails,
 })
 
 export const fileManageReadBodySchema = z

@@ -1,16 +1,17 @@
 import { z } from 'zod'
+import { folderIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspaceFileFoldersParamsSchema } from '@/lib/api/contracts/workspace-file-folders'
-import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
+import { MAX_FOLDER_NAME_LENGTH, MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 import { MAX_UPLOAD_DIRECTORIES } from '@/lib/workspace-files/upload-directory-plan'
 
 const uploadDirectoryPathSchema = z
-  .array(z.string().min(1).max(4096))
+  .array(z.string().min(1).max(MAX_FOLDER_NAME_LENGTH))
   .min(1)
   .max(MAX_FOLDER_PATH_SEGMENTS)
 
 const prepareUploadFoldersBodySchema = z.object({
-  targetFolderId: z.string().min(1).max(100).nullable(),
+  targetFolderId: folderIdSchema.nullable(),
   paths: z.array(uploadDirectoryPathSchema).min(1).max(MAX_UPLOAD_DIRECTORIES),
 })
 
