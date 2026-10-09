@@ -1,15 +1,12 @@
+import { CHANGELOG_SECTION } from '@/lib/changelog'
 import { buildLandingMetadata } from '@/lib/landing/seo'
 import Changelog from '@/app/(landing)/changelog/changelog'
 
 export const revalidate = 3600
 
-const TITLE = 'Changelog | Sim, the AI Workspace'
-const DESCRIPTION =
-  'Every new feature, improvement, and fix in Sim, the open-source AI workspace, with release notes straight from GitHub.'
-
 export const metadata = buildLandingMetadata({
-  title: TITLE,
-  description: DESCRIPTION,
+  title: 'Changelog | Sim, the AI Workspace',
+  description: CHANGELOG_SECTION.description,
   path: '/changelog',
 })
 
