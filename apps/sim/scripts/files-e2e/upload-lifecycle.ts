@@ -13,7 +13,7 @@ export async function runUploadLifecycleChecks(context: FilesE2EContext, directo
     waitUntil: 'domcontentloaded',
   })
   await page.locator('input[webkitdirectory]').waitFor({ state: 'attached' })
-  await uploadMenuTrigger(page).waitFor()
+  await uploadMenuTrigger(page).and(page.locator(':enabled')).waitFor()
 
   await check(
     'cancel releases a delayed native directory read and permits a new upload',

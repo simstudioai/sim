@@ -96,24 +96,26 @@ export async function runSharingChecks({
   const browser = page.context().browser()
   assert(browser)
   const anonymous = await browser.newContext({ viewport: { width: 1200, height: 900 } })
-  await anonymous.tracing.start({ screenshots: true, snapshots: true, sources: false })
-  const publicGet = (path: string) =>
-    anonymous.request.get(new URL(path, baseUrl).href, { timeout: 180_000 })
-  const visitor = await anonymous.newPage()
-  visitor.setDefaultTimeout(60_000)
-  visitor.setDefaultNavigationTimeout(180_000)
-  const browserErrors: string[] = []
-  visitor.on('pageerror', (error) => browserErrors.push(error.message))
-  let token = ''
-  let shareId = ''
-  const publicPath = () => `/api/files/public/${token}`
-  const folderPath = () => `${publicPath()}/folder`
-  const contentPath = (fileId: string) => `${publicPath()}/content?fileId=${fileId}`
-  const anonymousJson = (path: string, expected = 200) =>
-    json(path, { authenticated: false, expected })
-  const updateShare = (body: Record<string, unknown>) => json(sharePath, { method: 'PUT', body })
-
+  let tracingStarted = false
   try {
+    await anonymous.tracing.start({ screenshots: true, snapshots: true, sources: false })
+    tracingStarted = true
+    const publicGet = (path: string) =>
+      anonymous.request.get(new URL(path, baseUrl).href, { timeout: 180_000 })
+    const visitor = await anonymous.newPage()
+    visitor.setDefaultTimeout(60_000)
+    visitor.setDefaultNavigationTimeout(180_000)
+    const browserErrors: string[] = []
+    visitor.on('pageerror', (error) => browserErrors.push(error.message))
+    let token = ''
+    let shareId = ''
+    const publicPath = () => `/api/files/public/${token}`
+    const folderPath = () => `${publicPath()}/folder`
+    const contentPath = (fileId: string) => `${publicPath()}/content?fileId=${fileId}`
+    const anonymousJson = (path: string, expected = 200) =>
+      json(path, { authenticated: false, expected })
+    const updateShare = (body: Record<string, unknown>) => json(sharePath, { method: 'PUT', body })
+
     await sql.begin(async (tx) => {
       const readerEmail = `files-reader-${readerId}@files-e2e.test`
       await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
@@ -613,9 +615,11 @@ export async function runSharingChecks({
     )
   } finally {
     try {
-      await anonymous.tracing.stop({
-        path: join(reportDirectory, 'public-folder-browser-trace.zip'),
-      })
+      if (tracingStarted) {
+        await anonymous.tracing.stop({
+          path: join(reportDirectory, 'public-folder-browser-trace.zip'),
+        })
+      }
     } finally {
       try {
         await anonymous.close()

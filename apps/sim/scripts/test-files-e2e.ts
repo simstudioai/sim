@@ -611,7 +611,7 @@ async function runNavigationChecks(page: Page) {
     const movedFolder = await createFolder('Move to ancestor', d)
     await page.setViewportSize({ width: 900, height: 800 })
     await page.goto(url(d), { waitUntil: 'domcontentloaded' })
-    const source = page.locator(`[data-row-id="folder:${movedFolder}"]`)
+    const source = page.locator(`[data-row-id="folder:${movedFolder}"][draggable="true"]`)
     await source.waitFor()
     const drag = await page.evaluateHandle(() => new DataTransfer())
     try {
