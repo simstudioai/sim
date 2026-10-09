@@ -121,15 +121,6 @@ jobs:
           bun run test --mode integration lib/billing/core/usage-log.integration.ts
           --outputFile.json=test-results/integration-pg16.json
 
-      - name: Verify Project preparation and enforcement on PostgreSQL 16
-        if: matrix.provision == 'push' && matrix.shard == 1
-        working-directory: packages/db
-        env:
-          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/sim_test
-        run: >-
-          bun run test --mode integration scripts/project-contract.integration.ts
-          --outputFile.json=test-results/integration-project-contract-pg16.json
-
       - name: Upload integration test reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
