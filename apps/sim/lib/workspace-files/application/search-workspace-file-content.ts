@@ -20,6 +20,8 @@ export interface SearchWorkspaceFileContentInput {
   folderPaths?: readonly string[]
   /** Whether the scope descends into nested folders. Absent means yes. */
   includeSubfolders?: boolean
+  /** Bounded presentation metadata for matched files, read in the same revision snapshot. */
+  includeFileMetadata?: boolean
   signal?: AbortSignal
 }
 
@@ -66,6 +68,7 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         pattern: compileFileSearchPattern(input.query, input.mode),
         maxResults: input.maxResults,
         folderScope,
+        includeFileMetadata: input.includeFileMetadata,
         signal,
       })
     } catch (error) {

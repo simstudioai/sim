@@ -1,5 +1,5 @@
 import { COVER_OG_SIZE, createCoverOgImage } from '@/lib/og/cover-image'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
+import { resolveActiveResourceShareByToken } from '@/lib/public-shares/share-manager'
 import { buildProvenance } from '@/app/f/[token]/utils'
 
 export const dynamic = 'force-dynamic'
@@ -14,19 +14,19 @@ export const size = COVER_OG_SIZE
  */
 export default async function Image({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const resolved = await resolveActiveShareByToken(token)
+  const resolved = await resolveActiveResourceShareByToken(token)
 
   if (!resolved || resolved.share.authType !== 'public') {
     return createCoverOgImage({
-      title: 'Protected file',
-      subtitle: 'Authentication is required to view this file',
+      title: resolved?.kind === 'folder' ? 'Protected folder' : 'Protected file',
+      subtitle: `Authentication is required to view this ${resolved?.kind ?? 'file'}`,
     })
   }
 
-  const { file, workspaceName, ownerName } = resolved
+  const { workspaceName, ownerName } = resolved
 
   return createCoverOgImage({
-    title: file.originalName,
+    title: resolved.kind === 'folder' ? resolved.folder.name : resolved.file.originalName,
     subtitle: buildProvenance(workspaceName, ownerName) || 'Shared via Sim',
   })
 }

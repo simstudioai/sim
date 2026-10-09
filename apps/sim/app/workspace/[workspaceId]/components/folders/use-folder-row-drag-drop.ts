@@ -451,6 +451,7 @@ export function useFolderRowDragDrop({
        * one files the drag there directly.
        */
       breadcrumb: {
+        isDragging: draggedRowIds.size > 0,
         activeIndex: activeDropTarget?.kind === 'crumb' ? activeDropTarget.index : null,
         onDragOver: (e: DragEvent<HTMLElement>, folderId: string | null, index: number) => {
           if (optionsRef.current.externalDrop?.matches(e.dataTransfer)) return

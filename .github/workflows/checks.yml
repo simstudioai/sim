@@ -138,8 +138,8 @@ jobs:
   # The suites exercise HTTP behavior rather than a provisioning path, so they run once, against
   # the production (migrate) path. Each group's app environment lives in http-e2e.sh.
   #
-  # SCIM runs two suites against a hosted app and is the longest group, so it keeps the 8 vCPU
-  # runner; the others boot a smaller self-hosted app and fit on 4.
+  # SCIM's hosted app and the Files browser suite use 8 vCPU runners; the smaller self-hosted
+  # suites fit on 4.
   e2e:
     name: e2e (${{ matrix.group }})
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.runner || 'ubuntu-latest' }}
@@ -156,6 +156,8 @@ jobs:
             runner: blacksmith-4vcpu-ubuntu-2404
           - group: desktop-inbox
             runner: blacksmith-4vcpu-ubuntu-2404
+          - group: files
+            runner: blacksmith-8vcpu-ubuntu-2404
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -198,6 +200,18 @@ jobs:
       - name: Provision the database through migrations
         working-directory: packages/db
         run: bun run db:migrate
+
+      - name: Cache Files browser download
+        if: matrix.group == 'files'
+        uses: ./.github/actions/cache
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          path: ~/.cache/ms-playwright
+          key: ${{ github.repository }}-files-browser-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+
+      - name: Install Files browser from the pinned Playwright dependency
+        if: matrix.group == 'files'
+        run: node node_modules/@playwright/test/cli.js install --with-deps chromium
 
       # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
       # short of writing its report.

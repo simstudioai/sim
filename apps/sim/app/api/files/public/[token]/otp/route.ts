@@ -26,7 +26,7 @@ import { afterResponse } from '@/lib/core/utils/after-response'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
+import { resolveActiveResourceShareByToken } from '@/lib/public-shares/share-manager'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,7 +116,7 @@ export const POST = withRouteHandler(
       // all key off the same value (allow-list entries are stored lowercase).
       const email = normalizeEmail(parsed.data.body.email)
 
-      const resolved = await resolveActiveShareByToken(token)
+      const resolved = await resolveActiveResourceShareByToken(token)
       if (!resolved) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 })
       }
@@ -155,7 +155,7 @@ export const PUT = withRouteHandler(
       const { otp } = parsed.data.body
       const email = normalizeEmail(parsed.data.body.email)
 
-      const resolved = await resolveActiveShareByToken(token)
+      const resolved = await resolveActiveResourceShareByToken(token)
       if (!resolved) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 })
       }

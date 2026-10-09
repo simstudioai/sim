@@ -1,4 +1,6 @@
+import { publicShare, workspaceFiles } from '@sim/db/schema'
 import { createRouteContext } from '@sim/testing/helpers/http'
+import { queueTableRows } from '@sim/testing/mocks/database.mock'
 import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
@@ -38,7 +40,17 @@ const req = (q: string) =>
   createMockRequest({ url: `http://localhost/api/files/public/${TOKEN}/inline?${q}` })
 
 const share = {
-  share: { id: 'sh_1', token: TOKEN, authType: 'public' },
+  share: {
+    id: 'sh_1',
+    token: TOKEN,
+    resourceId: 'wf_doc',
+    workspaceId: 'ws-1',
+    resourceType: 'file',
+    isActive: true,
+    authType: 'public',
+    password: null,
+    allowedEmails: [],
+  },
   file: { id: 'wf_doc', key: DOC_KEY, workspaceId: 'ws-1', originalName: 'doc.md' },
   workspaceName: 'Acme',
   ownerName: 'Jane',
@@ -61,6 +73,8 @@ describe('GET /api/files/public/[token]/inline', () => {
       filename: 'photo.png',
     })
     mockDownloadFile.mockImplementation(downloadByKey())
+    queueTableRows(publicShare, [{ id: 'sh_1' }])
+    queueTableRows(workspaceFiles, [share.file])
   })
 
   it('rejects exhausted image budgets before share lookup, authentication, or storage reads', async () => {

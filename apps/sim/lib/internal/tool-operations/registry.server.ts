@@ -955,6 +955,7 @@ const FILE_TOOL_IDS = [
   'file_compress',
   'file_decompress',
   'file_manage_sharing',
+  'file_manage_folder_sharing',
   'file_edit',
   'file_fetch',
   'file_parser',

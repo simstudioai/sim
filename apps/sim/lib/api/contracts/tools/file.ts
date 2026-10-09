@@ -1,6 +1,13 @@
 import { z } from 'zod'
-import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
-import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
+import {
+  orExactEnvironmentReference,
+  privateSecretProvenanceBundleSchema,
+} from '@/lib/api/contracts/primitives'
+import {
+  shareAuthTypeSchema,
+  sharePasswordSchema,
+  upsertFileShareBodySchema,
+} from '@/lib/api/contracts/public-shares'
 import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
@@ -162,6 +169,16 @@ export const fileManageSharingBodySchema = z
   })
 
 export type FileManageSharingBody = z.input<typeof fileManageSharingBodySchema>
+
+const fileManageFolderSharingBodySchema = z.object({
+  operation: z.literal('manage_folder_sharing'),
+  workspaceId: z.string().min(1).optional(),
+  path: v2NonRootFolderPathInputSchema,
+  isActive: z.boolean({ error: 'isActive is required for manage_folder_sharing operation' }),
+  authType: shareAuthTypeSchema.optional(),
+  password: orExactEnvironmentReference(sharePasswordSchema).optional(),
+  allowedEmails: upsertFileShareBodySchema.shape.allowedEmails,
+})
 
 export const fileManageReadBodySchema = z
   .object({
@@ -410,6 +427,7 @@ export const fileManageBodySchema = z.union([
   fileManageGetBodySchema,
   fileManageMoveBodySchema,
   fileManageSharingBodySchema,
+  fileManageFolderSharingBodySchema,
   fileManageReadBodySchema,
   fileManageContentBodySchema,
   fileManageCompressBodySchema,

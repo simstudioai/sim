@@ -20,15 +20,14 @@ import { GeneratedPasswordInput } from '@/components/ui'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
-import { useFileShare, useUpsertFileShare } from '@/hooks/queries/public-shares'
+import { useResourceShare, useUpsertResourceShare } from '@/hooks/queries/public-shares'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 interface ShareModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workspaceId: string
-  fileId: string
-  fileName: string
+  resource: { type: 'file' | 'folder'; id: string; name: string }
   /** Share state already known from the file row, used as the initial value to avoid flicker. */
   initialShare?: ShareRecord | null
 }
@@ -46,12 +45,6 @@ const PRIMARY_ACTION_LABELS = {
   unshare: { idle: 'Unshare', pending: 'Unsharing...' },
 } as const
 
-const PRIMARY_ACTION_SUCCESS_MESSAGES = {
-  share: 'File shared',
-  update: 'Sharing updated',
-  unshare: 'File unshared',
-} as const
-
 /** Stable identity so the emails field's reconcile effect no-ops while unset. */
 const EMPTY_EMAILS: string[] = []
 
@@ -63,17 +56,16 @@ export function ShareModal({
   open,
   onOpenChange,
   workspaceId,
-  fileId,
-  fileName,
+  resource,
   initialShare,
 }: ShareModalProps) {
   const {
     data: share,
     isError: isShareError,
     isFetchedAfterMount,
-  } = useFileShare(workspaceId, fileId, { enabled: open })
+  } = useResourceShare(workspaceId, resource, { enabled: open })
   const { config: permissionConfig } = usePermissionConfig()
-  const upsertShare = useUpsertFileShare()
+  const upsertShare = useUpsertResourceShare()
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   const { features } = useDeploymentShape()
 
@@ -140,7 +132,7 @@ export function ShareModal({
   const submitPrimaryAction = () => {
     if (!shareReadReady || upsertShare.isPending) return
 
-    const base = { workspaceId, fileId, token: saved ? undefined : generateShortId() }
+    const base = { workspaceId, resource, token: saved ? undefined : generateShortId() }
     const vars = isUnshareAction
       ? { ...base, isActive: false as const }
       : effectiveMode === 'password'
@@ -161,7 +153,11 @@ export function ShareModal({
 
     upsertShare.mutate(vars, {
       onSuccess: () => {
-        toast.success(PRIMARY_ACTION_SUCCESS_MESSAGES[primaryAction])
+        toast.success(
+          primaryAction === 'update'
+            ? 'Sharing updated'
+            : `${resource.type === 'file' ? 'File' : 'Folder'} ${primaryAction === 'share' ? 'shared' : 'unshared'}`
+        )
         setUnshareConfirmOpen(false)
         resetDraft()
       },
@@ -176,20 +172,22 @@ export function ShareModal({
     submitPrimaryAction()
   }
 
+  const sharedContent =
+    resource.type === 'folder' ? 'this folder and everything inside it' : 'this file'
   const accessHint = (() => {
     if (isShareError) return 'Unable to load the current sharing settings. Close and try again.'
     if (modeDisallowed) return 'This sharing method is disabled by an administrator.'
     if (enableBlockedByPolicy)
       return 'Public sharing is disabled for this workspace by an administrator.'
     if (effectiveMode === 'password')
-      return 'Anyone with the link and the password can view and download this file.'
+      return `Anyone with the link and the password can view and download ${sharedContent}.`
     if (effectiveMode === 'email')
-      return 'Only allowed emails can access this file after a one-time code.'
+      return `Only allowed emails can access ${sharedContent} after a one-time code.`
     if (effectiveMode === 'sso')
-      return 'Only allowed emails signed in via SSO can access this file.'
+      return `Only allowed emails signed in via SSO can access ${sharedContent}.`
     return saved?.isActive && !isDirty
-      ? 'Anyone with the link can view and download this file.'
-      : `${saved?.isActive ? 'Update' : 'Share'} to make this file accessible to anyone with the link.`
+      ? `Anyone with the link can view and download ${sharedContent}.`
+      : `${saved?.isActive ? 'Update' : 'Share'} to make ${sharedContent} accessible to anyone with the link.`
   })()
 
   return (
@@ -198,18 +196,18 @@ export function ShareModal({
         open={open}
         onOpenChange={handleClose}
         size='sm'
-        srTitle={`Share ${fileName}`}
+        srTitle={`Share ${resource.name}`}
         dismissDisabled={upsertShare.isPending}
       >
         <ChipModalHeader icon={Send} onClose={handleClose}>
-          Share file
+          Share {resource.type}
         </ChipModalHeader>
         <ChipModalBody>
           <ChipModalField type='custom' title='Access' hint={accessHint}>
             <ChipButtonGroup
               value={effectiveMode}
               onValueChange={(value) => setDraftMode(value as ShareAuthType)}
-              aria-label='File access'
+              aria-label='Sharing access'
               disabled={upsertShare.isPending}
             >
               {accessModes.map((mode) => (
@@ -281,8 +279,8 @@ export function ShareModal({
       <ChipConfirmModal
         open={open && unshareConfirmOpen}
         onOpenChange={setUnshareConfirmOpen}
-        title='Unshare file?'
-        text='Are you sure you want to unshare this file? Anyone with the link will lose access.'
+        title={`Unshare ${resource.type}?`}
+        text={`Anyone with this link will lose access to ${sharedContent}.`}
         confirm={{
           label: 'Unshare',
           onClick: submitPrimaryAction,

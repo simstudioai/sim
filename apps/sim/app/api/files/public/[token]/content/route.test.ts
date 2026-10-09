@@ -1,4 +1,6 @@
+import { publicShare, workspaceFiles } from '@sim/db/schema'
 import { createRouteContext } from '@sim/testing/helpers/http'
+import { queueTableRows } from '@sim/testing/mocks/database.mock'
 import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
@@ -41,7 +43,17 @@ const request = (token = 'tok_1') =>
   createMockRequest({ url: `http://localhost/api/files/public/${token}/content` })
 
 const passwordShare = {
-  share: { id: 'sh_1', token: 'tok_1', authType: 'password', password: 'enc:secret' },
+  share: {
+    id: 'sh_1',
+    token: 'tok_1',
+    resourceId: 'wf_1',
+    workspaceId: 'ws-1',
+    resourceType: 'file',
+    isActive: true,
+    authType: 'password',
+    password: 'enc:secret',
+    allowedEmails: [],
+  },
   file: {
     id: 'wf_1',
     key: 'workspace/ws/secret-key.pdf',
@@ -60,6 +72,8 @@ describe('GET /api/files/public/[token]/content', () => {
     mockResolveActiveShareByToken.mockResolvedValue(passwordShare)
     mockDownloadFile.mockResolvedValue(Buffer.from('data'))
     mockResolveServableDoc.mockResolvedValue({ kind: 'passthrough' })
+    queueTableRows(publicShare, [{ id: 'sh_1' }])
+    queueTableRows(workspaceFiles, [passwordShare.file])
   })
 
   it('returns 401 and never reads storage when a password share is unauthorized', async () => {

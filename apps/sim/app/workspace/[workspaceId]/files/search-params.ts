@@ -1,4 +1,4 @@
-import { createParser, parseAsArrayOf, parseAsString } from 'nuqs/server'
+import { createParser, parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 import { createSortParams } from '@/lib/url-state'
 import type { ResourceListPreferenceConfig } from '@/stores/resource-list-preferences'
 
@@ -39,6 +39,7 @@ export const filesParsers = {
   folderId: parseAsString,
   new: parseAsNewFlag.withDefault(false),
   shareFileId: parseAsString,
+  shareFolderId: parseAsString,
 } as const
 
 /**
@@ -51,6 +52,7 @@ export const filesParsers = {
 export const filesUrlKeys = {
   history: 'push',
   clearOnDefault: true,
+  urlKeys: { shareFolderId: 'share-folder-id' },
 } as const
 
 /**
@@ -67,6 +69,7 @@ export const filesUrlKeys = {
  */
 export const filesFilterParsers = {
   search: parseAsString.withDefault(''),
+  searchMode: parseAsStringLiteral(['names', 'contents']).withDefault('names'),
   type: parseAsArrayOf(parseAsString).withDefault([]),
   size: parseAsArrayOf(parseAsString).withDefault([]),
   uploadedBy: parseAsArrayOf(parseAsString).withDefault([]),
@@ -101,5 +104,5 @@ export const filesFilterUrlKeys = {
   history: 'replace',
   shallow: true,
   clearOnDefault: true,
-  urlKeys: filesFilterUrlKeyMap,
+  urlKeys: { ...filesFilterUrlKeyMap, searchMode: 'search-mode' },
 } as const

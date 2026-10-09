@@ -1,5 +1,6 @@
 import type { db } from '@sim/db'
 import { folder as folderTable } from '@sim/db/schema'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 
@@ -18,13 +19,16 @@ type DbOrTx = Pick<typeof db, 'select'>
  * The `" (N)"` shape deliberately matches both the client-side dedup in
  * `nextUntitledFolderName` and the backfill in migration 0272, so a deduped name reads the
  * same however it was produced.
+ * An optional length cap reserves room for the suffix without splitting Unicode pairs;
+ * callers still validate the requested name before attempting a mutation.
  */
 export async function deduplicateFolderName(
   tx: DbOrTx,
   workspaceId: string,
   parentId: string | null,
   requestedName: string,
-  resourceType: FolderResourceType
+  resourceType: FolderResourceType,
+  maxLength?: number
 ): Promise<string> {
   const siblingRows = await tx
     .select({ name: folderTable.name })
@@ -42,6 +46,17 @@ export async function deduplicateFolderName(
   if (!siblingNames.has(requestedName)) return requestedName
 
   let suffix = 1
-  while (siblingNames.has(`${requestedName} (${suffix})`)) suffix += 1
-  return `${requestedName} (${suffix})`
+  while (true) {
+    const ending = ` (${suffix})`
+    if (maxLength !== undefined && ending.length >= maxLength) {
+      throw new Error('Folder name limit cannot accommodate a unique suffix')
+    }
+    const stem =
+      maxLength === undefined
+        ? requestedName
+        : truncateAtCodePoint(requestedName, maxLength - ending.length, '')
+    const candidate = `${stem}${ending}`
+    if (!siblingNames.has(candidate)) return candidate
+    suffix += 1
+  }
 }

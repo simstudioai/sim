@@ -9,7 +9,7 @@ import { RateLimiter } from '@/lib/core/rate-limiter'
 import { isEmailAllowed } from '@/lib/core/security/deployment'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
+import { resolveActiveResourceShareByToken } from '@/lib/public-shares/share-manager'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -66,7 +66,7 @@ export const POST = withRouteHandler(
     const { token } = parsed.data.params
     const email = normalizeEmail(parsed.data.body.email)
 
-    const resolved = await resolveActiveShareByToken(token)
+    const resolved = await resolveActiveResourceShareByToken(token)
     if (!resolved) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }

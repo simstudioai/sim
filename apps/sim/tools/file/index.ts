@@ -17,6 +17,7 @@ export {
   fileUpdateFolderTool,
 } from '@/tools/file/folders'
 export { fileGetContentTool, fileGetTool, fileReadTool } from '@/tools/file/get'
+export { fileManageFolderSharingTool } from '@/tools/file/manage-folder-sharing'
 export { fileManageSharingTool } from '@/tools/file/manage-sharing'
 export { fileSearchTool } from '@/tools/file/search'
 export { fileWriteTool } from '@/tools/file/write'

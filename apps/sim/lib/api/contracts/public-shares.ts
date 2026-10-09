@@ -105,6 +105,8 @@ const publicFileMetadataSchema = z.object({
   size: z.number(),
   workspaceName: z.string().nullable(),
   ownerName: z.string().nullable(),
+  version: z.number().optional(),
+  folderId: z.string().nullable().optional(),
 })
 
 export type PublicFileMetadata = z.output<typeof publicFileMetadataSchema>
@@ -113,6 +115,7 @@ export const getPublicFileContract = defineRouteContract({
   method: 'GET',
   path: '/api/files/public/[token]',
   params: publicFileTokenParamsSchema,
+  query: z.object({ fileId: z.string().min(1).max(128).optional() }),
   response: {
     mode: 'json',
     schema: publicFileMetadataSchema,
@@ -120,6 +123,7 @@ export const getPublicFileContract = defineRouteContract({
 })
 
 const publicFileContentQuerySchema = z.object({
+  fileId: z.string().min(1).max(128).optional(),
   /** `1` => rendering, not downloading — a HEIC may be substituted with a JPEG derivative. */
   preview: z.string().nullish(),
 })
@@ -145,7 +149,7 @@ export const getPublicInlineFileContract = defineRouteContract({
   method: 'GET',
   path: '/api/files/public/[token]/inline',
   params: publicFileTokenParamsSchema,
-  query: inlineFileRefQuerySchema,
+  query: inlineFileRefQuerySchema.safeExtend({ documentId: z.string().min(1).max(128).optional() }),
   response: {
     mode: 'binary',
   },
@@ -247,4 +251,53 @@ export const publicFileSSOContract = defineRouteContract({
     mode: 'json',
     schema: publicFileSSOResponseSchema,
   },
+})
+
+const folderShareParamsSchema = z.object({
+  id: workspaceIdSchema,
+  folderId: z.string().min(1).max(128),
+})
+
+export const getFolderShareContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/folders/[folderId]/share',
+  params: folderShareParamsSchema,
+  response: { mode: 'json', schema: getFileShareResponseSchema },
+})
+
+export const upsertFolderShareContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/workspaces/[id]/files/folders/[folderId]/share',
+  params: folderShareParamsSchema,
+  body: upsertFileShareBodySchema,
+  response: { mode: 'json', schema: upsertFileShareResponseSchema },
+})
+
+const publicFolderIdentitySchema = z.object({ id: z.string(), name: z.string() })
+const publicFolderPageSchema = z.object({
+  folder: publicFolderIdentitySchema,
+  breadcrumbs: z.array(publicFolderIdentitySchema),
+  entries: z.array(
+    z.object({
+      id: z.string(),
+      kind: z.enum(['file', 'folder']),
+      name: z.string(),
+      type: z.string(),
+      size: z.number(),
+      version: z.number(),
+    })
+  ),
+  nextCursor: z.string().nullable(),
+  previousCursor: z.string().nullable(),
+})
+
+export const getPublicFolderContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/files/public/[token]/folder',
+  params: publicFileTokenParamsSchema,
+  query: z.object({
+    folderId: z.string().min(1).max(128).optional(),
+    cursor: z.string().min(1).max(4096).optional(),
+  }),
+  response: { mode: 'json', schema: publicFolderPageSchema },
 })

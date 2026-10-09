@@ -109,6 +109,8 @@ export const AuditAction = {
   FOLDER_MOVED: 'folder.moved',
   FOLDER_DUPLICATED: 'folder.duplicated',
   FOLDER_RESTORED: 'folder.restored',
+  FOLDER_SHARED: 'folder.shared',
+  FOLDER_SHARE_DISABLED: 'folder.share_disabled',
 
   INVITATION_ACCEPTED: 'invitation.accepted',
   INVITATION_REJECTED: 'invitation.rejected',

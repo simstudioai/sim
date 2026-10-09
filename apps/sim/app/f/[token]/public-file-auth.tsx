@@ -11,13 +11,14 @@ import { usePublicFileAuth } from '@/hooks/queries/public-shares'
 
 interface PublicFileAuthProps {
   token: string
+  resourceType?: 'file' | 'folder'
 }
 
 /**
  * Password gate for a protected public file share. On success the
  * `file_auth_{shareId}` cookie is set and the page re-renders the viewer.
  */
-export function PublicFileAuth({ token }: PublicFileAuthProps) {
+export function PublicFileAuth({ token, resourceType = 'file' }: PublicFileAuthProps) {
   const router = useRouter()
   const authenticate = usePublicFileAuth(token)
   const [password, setPassword] = useState('')
@@ -39,7 +40,10 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
   }
 
   return (
-    <PublicFileAuthShell title='Password Required' subtitle='This file is password-protected'>
+    <PublicFileAuthShell
+      title='Password Required'
+      subtitle={`This ${resourceType} is password-protected`}
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault()

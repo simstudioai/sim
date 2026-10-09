@@ -28,7 +28,7 @@ In Sim, the File block allows your agents to search, read, and extract text from
 
 ## Usage Instructions
 
-Read workspace file objects, search indexed text across the workspace or selected folder scopes, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
+Read workspace file objects, search indexed text across the workspace or selected folder scopes, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file or folder.
 
 
 
@@ -276,6 +276,30 @@ Enable or disable the public share link for a workspace file, and set its access
 | `isActive` | boolean | Whether the public link is enabled |
 | `authType` | string | Access mode: public, password, email, or sso |
 | `hasPassword` | boolean | Whether the share is password-protected |
+| `allowedEmails` | array | Allowed emails/domains for email or SSO access |
+
+### Manage Folder Sharing
+
+Enable or disable the public share link for a workspace file folder and its current descendants. Set public, password, email, or SSO access. The link stays stable across changes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | Canonical percent-encoded folder path, e.g. "/Reports/Q3%20Results". The workspace root cannot be shared. |
+| `isActive` | boolean | Yes | Whether the public folder link is enabled. Set false to disable access. |
+| `authType` | string | No | Access mode: "public", "password", "email", or "sso". Defaults to "public". |
+| `password` | string | No | Password to protect the link. Required when authType is "password". |
+| `allowedEmails` | array | No | Allowed emails or "@domain" patterns for email or SSO access. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | Public folder URL; empty when the link is disabled |
+| `isActive` | boolean | Whether the public folder link is enabled |
+| `authType` | string | Access mode: public, password, email, or sso |
+| `hasPassword` | boolean | Whether the link is password-protected |
 | `allowedEmails` | array | Allowed emails/domains for email or SSO access |
 
 ### List Files and Folders

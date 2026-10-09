@@ -5,16 +5,21 @@ import {
   type AuthenticatePublicFileResponse,
   authenticatePublicFileContract,
   getFileShareContract,
+  getFolderShareContract,
+  getPublicFileContract,
+  getPublicFolderContract,
   requestPublicFileOtpContract,
-  type ShareRecord,
   type UpsertFileShareBody,
   upsertFileShareContract,
+  upsertFolderShareContract,
   type VerifyPublicFileOtpResponse,
   verifyPublicFileOtpContract,
 } from '@/lib/api/contracts/public-shares'
+import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 export const FILE_SHARE_STALE_TIME = 30 * 1000
+const PUBLIC_SHARE_STALE_TIME = 0
 
 /**
  * Query key factories for public shares
@@ -22,54 +27,113 @@ export const FILE_SHARE_STALE_TIME = 30 * 1000
 export const shareKeys = {
   all: ['publicShares'] as const,
   details: () => [...shareKeys.all, 'detail'] as const,
-  detail: (workspaceId: string, fileId: string) =>
-    [...shareKeys.details(), workspaceId, fileId] as const,
+  detail: (workspaceId: string, resourceType: 'file' | 'folder', resourceId: string) =>
+    [...shareKeys.details(), workspaceId, resourceType, resourceId] as const,
+  publicFolder: (token: string, folderId: string | null, cursor: string | null) =>
+    [...shareKeys.all, 'folder', token, folderId, cursor] as const,
+  publicFile: (token: string, fileId: string | null) =>
+    [...shareKeys.all, 'file', token, fileId] as const,
 }
 
-async function fetchFileShare(
+interface SharedResource {
+  type: 'file' | 'folder'
+  id: string
+}
+
+export function useResourceShare(
   workspaceId: string,
-  fileId: string,
-  signal?: AbortSignal
-): Promise<ShareRecord | null> {
-  const data = await requestJson(getFileShareContract, {
-    params: { id: workspaceId, fileId },
-    signal,
-  })
-  return data.share
-}
-
-export function useFileShare(workspaceId: string, fileId: string, options?: { enabled?: boolean }) {
+  resource: SharedResource,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
-    queryKey: shareKeys.detail(workspaceId, fileId),
-    queryFn: ({ signal }) => fetchFileShare(workspaceId, fileId, signal),
-    enabled: Boolean(workspaceId) && Boolean(fileId) && (options?.enabled ?? true),
+    queryKey: shareKeys.detail(workspaceId, resource.type, resource.id),
+    queryFn: async ({ signal }) => {
+      const data =
+        resource.type === 'file'
+          ? await requestJson(getFileShareContract, {
+              params: { id: workspaceId, fileId: resource.id },
+              signal,
+            })
+          : await requestJson(getFolderShareContract, {
+              params: { id: workspaceId, folderId: resource.id },
+              signal,
+            })
+      return data.share
+    },
+    enabled: Boolean(workspaceId) && Boolean(resource.id) && (options?.enabled ?? true),
     staleTime: FILE_SHARE_STALE_TIME,
     refetchOnMount: 'always',
   })
 }
 
-interface UpsertFileShareVariables extends UpsertFileShareBody {
+interface UpsertResourceShareVariables extends UpsertFileShareBody {
   workspaceId: string
-  fileId: string
+  resource: SharedResource
 }
 
-export function useUpsertFileShare() {
+export function useUpsertResourceShare() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ workspaceId, fileId, ...body }: UpsertFileShareVariables) =>
-      requestJson(upsertFileShareContract, {
-        params: { id: workspaceId, fileId },
-        body,
+    mutationFn: ({ workspaceId, resource, ...body }: UpsertResourceShareVariables) =>
+      resource.type === 'file'
+        ? requestJson(upsertFileShareContract, {
+            params: { id: workspaceId, fileId: resource.id },
+            body,
+          })
+        : requestJson(upsertFolderShareContract, {
+            params: { id: workspaceId, folderId: resource.id },
+            body,
+          }),
+    onSuccess: (data, { workspaceId, resource }) => {
+      queryClient.setQueryData(
+        shareKeys.detail(workspaceId, resource.type, resource.id),
+        data.share
+      )
+      if (resource.type === 'file') {
+        queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
+      } else {
+        queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId, 'active', 'file') })
+      }
+    },
+    onError: (error) => toast.error(error.message),
+  })
+}
+
+/** Public listings revalidate on navigation; a revoked capability must never show cached children. */
+export function usePublicFolder(
+  token: string,
+  folderId: string | null,
+  cursor: string | null,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: shareKeys.publicFolder(token, folderId, cursor),
+    queryFn: ({ signal }) =>
+      requestJson(getPublicFolderContract, {
+        params: { token },
+        query: { folderId: folderId ?? undefined, cursor: cursor ?? undefined },
+        signal,
       }),
-    onSuccess: (data, { workspaceId, fileId }) => {
-      queryClient.setQueryData(shareKeys.detail(workspaceId, fileId), data.share)
-    },
-    onError: (error) => {
-      toast.error(error.message)
-    },
-    onSettled: (_data, _error, { workspaceId }) => {
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
-    },
+    staleTime: PUBLIC_SHARE_STALE_TIME,
+    gcTime: 0,
+    retry: false,
+    enabled,
+  })
+}
+
+export function usePublicSharedFile(token: string, fileId: string | null) {
+  return useQuery({
+    queryKey: shareKeys.publicFile(token, fileId),
+    queryFn: ({ signal }) =>
+      requestJson(getPublicFileContract, {
+        params: { token },
+        query: { fileId: fileId ?? undefined },
+        signal,
+      }),
+    enabled: fileId !== null,
+    staleTime: PUBLIC_SHARE_STALE_TIME,
+    gcTime: 0,
+    retry: false,
   })
 }
 

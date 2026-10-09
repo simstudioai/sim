@@ -40,14 +40,14 @@ describe('public file share password contracts', () => {
   it('admits a short whole-value reference on v2 only', () => {
     const body = { workspaceId: 'workspace-1', isActive: true, authType: 'password' }
 
-    expect(v2UpsertFileShareBodySchema.safeParse({ ...body, password: '{{PW}}' }).success).toBe(
-      true
-    )
+    for (const password of ['{{PW}}', '{{1PASSWORD}}', '{{9}}']) {
+      expect(v2UpsertFileShareBodySchema.safeParse({ ...body, password }).success).toBe(true)
+      expect(sharePasswordSchema.safeParse(password).success).toBe(false)
+    }
     expect(
       v2UpsertFileShareBodySchema.safeParse({ ...body, password: 'x-{{PW}}' }).error?.issues[0]
         .message
     ).toBe('Password must be at least 15 characters')
-    expect(sharePasswordSchema.safeParse('{{PW}}').success).toBe(false)
   })
 
   it('caps a reference at the password length limit with one issue', () => {

@@ -11,8 +11,9 @@ import { setDeploymentAuthCookie } from '@/lib/core/security/deployment'
 import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { PublicShareAccessError, readPublicSharedFile } from '@/lib/public-shares/access'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
+import { resolveActiveResourceShareByToken } from '@/lib/public-shares/share-manager'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 
 export const dynamic = 'force-dynamic'
@@ -38,32 +39,33 @@ export const GET = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { token } = parsed.data.params
 
-      const resolved = await resolveActiveShareByToken(token)
-      if (!resolved) {
-        return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      }
-
-      const auth = await validateDeploymentAuth(
-        requestId,
-        resolved.share,
-        request,
-        undefined,
-        'file'
-      )
-      if (!auth.authorized) {
-        return NextResponse.json({ error: auth.error ?? 'auth_required_password' }, { status: 401 })
-      }
+      const resolved = await readPublicSharedFile({
+        token,
+        fileId: parsed.data.query.fileId,
+        authorize: (share) => validateDeploymentAuth(requestId, share, request, undefined, 'file'),
+      })
 
       const { file, workspaceName, ownerName } = resolved
-      return NextResponse.json({
-        token,
-        name: file.originalName,
-        type: file.contentType,
-        size: getWorkspaceFileSize(file),
-        workspaceName,
-        ownerName,
-      })
+      return NextResponse.json(
+        {
+          token,
+          name: file.originalName,
+          type: file.contentType,
+          size: getWorkspaceFileSize(file),
+          workspaceName,
+          ownerName,
+          ...(parsed.data.query.fileId
+            ? { version: file.updatedAt.getTime(), folderId: file.folderId }
+            : {}),
+        },
+        { headers: { 'Cache-Control': 'private, no-store' } }
+      )
     } catch (error) {
+      if (error instanceof PublicShareAccessError)
+        return NextResponse.json(
+          { error: error.message },
+          { status: error.status, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       logger.error('Error fetching public file metadata:', error)
       return NextResponse.json(
         { error: getErrorMessage(error, 'Failed to fetch file') },
@@ -89,7 +91,7 @@ export const POST = withRouteHandler(
       const { token } = parsed.data.params
       const { password } = parsed.data.body
 
-      const resolved = await resolveActiveShareByToken(token)
+      const resolved = await resolveActiveResourceShareByToken(token)
       if (!resolved) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 })
       }

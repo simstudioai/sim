@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Avatar,
   Button,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipCombobox,
   ChipConfirmModal,
   Columns2,
@@ -26,7 +28,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { useLimitUpgradeToast } from '@/lib/billing/client'
+import { buildFolderPath } from '@/lib/folders/paths'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   type FileDownloadSource,
@@ -34,7 +36,6 @@ import {
   triggerFileDownload,
 } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
   formatFileSize,
   getFileExtension,
@@ -104,6 +105,7 @@ import {
 import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
+import { FileContentSearch } from '@/app/workspace/[workspaceId]/files/components/file-content-search/file-content-search'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
@@ -117,6 +119,8 @@ import { FileDocAvatars } from '@/app/workspace/[workspaceId]/files/components/f
 import { FileDocRoomProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import { UploadMenu } from '@/app/workspace/[workspaceId]/files/components/upload-menu'
+import { useFileUploads } from '@/app/workspace/[workspaceId]/files/hooks/use-file-uploads'
 import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
 import FilesLoading from '@/app/workspace/[workspaceId]/files/loading'
 import {
@@ -133,6 +137,10 @@ import {
   isUntitledName,
   uniqueMarkdownName,
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
+import {
+  selectionFromDrop,
+  selectionFromFiles,
+} from '@/app/workspace/[workspaceId]/files/utils/upload-selection'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
@@ -151,7 +159,6 @@ import {
   useCreateWorkspaceFile,
   useDeleteWorkspaceFile,
   useRenameWorkspaceFile,
-  useUploadWorkspaceFile,
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
 import { useContextMenu } from '@/hooks/use-context-menu'
@@ -252,24 +259,6 @@ function formatFileType(storedType: string | null, filename: string): string {
   return storedType ?? 'File'
 }
 
-function getDroppedFiles(dataTransfer: DataTransfer): File[] {
-  if (dataTransfer.items.length === 0) return Array.from(dataTransfer.files)
-  const files: File[] = []
-  for (const item of Array.from(dataTransfer.items)) {
-    if (item.kind !== 'file') continue
-    const entry = item.webkitGetAsEntry?.()
-    if (entry?.isDirectory) {
-      toast.error(`Cannot upload the folder "${entry.name}"`, {
-        description: 'Create a folder in Files, then upload the files inside it.',
-      })
-      continue
-    }
-    const file = item.getAsFile()
-    if (file) files.push(file)
-  }
-  return files
-}
-
 export function Files() {
   return (
     <PermissionAccessBoundary configKey='hideFilesTab'>
@@ -280,15 +269,17 @@ export function Files() {
 
 function FilesContent() {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const uploadQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const folderInputRef = useRef<HTMLInputElement>(null)
   const saveRef = useRef<(() => Promise<void>) | null>(null)
   const downloadSourceRef = useRef<FileDownloadSource | null>(null)
   const discardRef = useRef<(() => void) | null>(null)
 
   const params = useParams()
   const router = useRouter()
-  const [{ folderId: currentFolderId, new: isNewFile, shareFileId }, setFilesParams] =
-    useQueryStates(filesParsers, filesUrlKeys)
+  const [
+    { folderId: currentFolderId, new: isNewFile, shareFileId, shareFolderId },
+    setFilesParams,
+  ] = useQueryStates(filesParsers, filesUrlKeys)
   const workspaceId = params?.workspaceId as string
 
   const posthog = usePostHog()
@@ -313,12 +304,25 @@ function FilesContent() {
     }
   }, [permissionConfig.hideFilesTab, router, workspaceId])
 
+  const [
+    {
+      search: urlSearchTerm,
+      searchMode,
+      type: typeFilter,
+      size: sizeFilter,
+      uploadedBy: uploadedByFilter,
+    },
+    setFileFilters,
+  ] = useQueryStates(filesFilterParsers, filesFilterUrlKeys)
+
   const {
     data: files = EMPTY_WORKSPACE_FILES,
     isLoading,
     isPlaceholderData,
     error,
-  } = useWorkspaceFiles(workspaceId)
+  } = useWorkspaceFiles(workspaceId, 'active', {
+    enabled: searchMode === 'names' || Boolean(fileIdFromRoute || shareFileId),
+  })
   const {
     data: folders = EMPTY_WORKSPACE_FILE_FOLDERS,
     isSuccess: foldersLoaded,
@@ -337,9 +341,7 @@ function FilesContent() {
     for (const member of members ?? []) map.set(member.userId, member)
     return map
   }, [members])
-  const { mutateAsync: uploadFile } = useUploadWorkspaceFile()
   const createWorkspaceFile = useCreateWorkspaceFile()
-  const notifyLimit = useLimitUpgradeToast()
   const deleteFile = useDeleteWorkspaceFile()
   const renameFile = useRenameWorkspaceFile()
   const createFolder = useCreateWorkspaceFileFolder()
@@ -381,13 +383,6 @@ function FilesContent() {
   const fileByIdRef = useRef(fileById)
   fileByIdRef.current = fileById
 
-  const [uploadProgress, setUploadProgress] = useState({
-    completed: 0,
-    total: 0,
-    currentPercent: 0,
-  })
-  /** An upload batch is in flight exactly while a total is set — matches the Tables page. */
-  const uploading = uploadProgress.total > 0
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const dragCounterRef = useRef(0)
   /**
@@ -402,10 +397,6 @@ function FilesContent() {
     dragCounterRef.current = 0
     setIsDraggingOver(false)
   }, [])
-  const [
-    { search: urlSearchTerm, type: typeFilter, size: sizeFilter, uploadedBy: uploadedByFilter },
-    setFileFilters,
-  ] = useQueryStates(filesFilterParsers, filesFilterUrlKeys)
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
@@ -417,6 +408,12 @@ function FilesContent() {
     { debounceMs: FILES_SEARCH_DEBOUNCE_MS }
   )
   const debouncedSearchTerm = useSearchFilterValue(urlSearchTerm, FILES_SEARCH_DEBOUNCE_MS)
+  const {
+    upload,
+    cancel: cancelUpload,
+    progress: uploadProgress,
+    uploading,
+  } = useFileUploads({ workspaceId, canEdit, onStart: () => setSearchTerm('') })
 
   /**
    * Files' equivalent of `useFolderNavigation`'s `openFolder`, which Tables and Knowledge
@@ -577,20 +574,39 @@ function FilesContent() {
   )
 
   const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
-  const shareModal = shareFile ? (
+  const shareFolder = shareFolderId
+    ? folders.find((folder) => folder.id === shareFolderId)
+    : undefined
+  const sharedResource = shareFile
+    ? { type: 'file' as const, id: shareFile.id, name: shareFile.name }
+    : shareFolder
+      ? { type: 'folder' as const, id: shareFolder.id, name: shareFolder.name }
+      : null
+  const shareModal = sharedResource ? (
     <ShareModal
+      key={`${sharedResource.type}:${sharedResource.id}`}
       open
       onOpenChange={(open) =>
-        !open && setFilesParams({ shareFileId: null }, { history: 'replace' })
+        !open && setFilesParams({ shareFileId: null, shareFolderId: null }, { history: 'replace' })
       }
       workspaceId={workspaceId}
-      fileId={shareFile.id}
-      fileName={shareFile.name}
-      initialShare={shareFile.share ?? null}
+      resource={sharedResource}
+      initialShare={shareFile?.share ?? null}
     />
   ) : null
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
+  const childFolders = useMemo(() => {
+    const children = new Map<string | null, WorkspaceFileFolderApi[]>()
+    for (const folder of folders) {
+      const parentId = folder.parentId ?? null
+      const siblings = children.get(parentId)
+      if (siblings) siblings.push(folder)
+      else children.set(parentId, [folder])
+    }
+    for (const siblings of children.values()) siblings.sort((a, b) => a.name.localeCompare(b.name))
+    return children
+  }, [folders])
   const folderByIdRef = useRef(folderById)
   folderByIdRef.current = folderById
 
@@ -932,7 +948,8 @@ function FilesContent() {
     clearSelection,
   } = useResourceRowSelection({
     visibleRowIds,
-    isKeyboardBlocked: () => Boolean(fileIdFromRoute) || listRename.editingId !== null,
+    isKeyboardBlocked: () =>
+      Boolean(fileIdFromRoute) || searchMode !== 'names' || listRename.editingId !== null,
     onDeleteSelected: () => handleBulkDelete(),
   })
 
@@ -942,76 +959,6 @@ function FilesContent() {
   )
 
   const descendantFolderIdsByFolderId = useMemo(() => buildDescendantIndex(folders), [folders])
-
-  const uploadFiles = (filesToUpload: File[], targetFolderId = currentFolderId) => {
-    const uploadBatch = async () => {
-      if (!workspaceId || filesToUpload.length === 0 || !canEdit) return
-
-      /**
-       * Uploads land in a folder, but a live query is showing results from across the
-       * workspace and an uploaded name rarely matches it — the new rows would not render and
-       * the upload would read as having failed. Cleared up front so the list is already
-       * showing the destination as the progress counter runs.
-       */
-      setSearchTerm('')
-
-      const oversized: string[] = []
-      const allowedFiles = filesToUpload.filter((f) => {
-        if (f.size > MAX_WORKSPACE_FILE_SIZE) {
-          oversized.push(f.name)
-          return false
-        }
-        return true
-      })
-      if (oversized.length > 0) {
-        toast.error(
-          oversized.length === 1
-            ? `${oversized[0]} exceeds the 5 GiB upload limit`
-            : `${oversized.length} files exceed the 5 GiB upload limit`
-        )
-      }
-
-      if (allowedFiles.length === 0) return
-
-      try {
-        setUploadProgress({ completed: 0, total: allowedFiles.length, currentPercent: 0 })
-
-        for (let i = 0; i < allowedFiles.length; i++) {
-          try {
-            await uploadFile({
-              workspaceId,
-              file: allowedFiles[i],
-              folderId: targetFolderId,
-              onProgress: ({ percent }) => {
-                setUploadProgress((prev) => ({ ...prev, currentPercent: percent }))
-              },
-            })
-          } catch (err) {
-            logger.error('Error uploading file:', err)
-            const message = getErrorMessage(err)
-            if (/storage limit/i.test(message)) {
-              notifyLimit('storage', message)
-            } else {
-              toast.error(`Failed to upload "${allowedFiles[i].name}"`, { description: message })
-            }
-          } finally {
-            setUploadProgress({
-              completed: i + 1,
-              total: allowedFiles.length,
-              currentPercent: 0,
-            })
-          }
-        }
-      } finally {
-        setUploadProgress({ completed: 0, total: 0, currentPercent: 0 })
-      }
-    }
-    uploadQueueRef.current = uploadQueueRef.current.then(uploadBatch).catch((error) => {
-      logger.error('Error uploading files:', error)
-      toast.error(getErrorMessage(error, 'Failed to upload files'))
-    })
-    return uploadQueueRef.current
-  }
 
   const rowDragDropConfig = useFolderRowDragDrop({
     dragMime: FILE_ROW_DRAG_MIME,
@@ -1057,8 +1004,7 @@ function FilesContent() {
       matches: hasExternalFiles,
       onDropIntoFolder: (dataTransfer, targetFolderId) => {
         dismissUploadOverlay()
-        const dropped = getDroppedFiles(dataTransfer)
-        if (dropped.length > 0) void uploadFiles(dropped, targetFolderId)
+        void upload((signal) => selectionFromDrop(dataTransfer, signal), targetFolderId)
       },
     },
   })
@@ -1066,8 +1012,9 @@ function FilesContent() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files
     if (!list || list.length === 0) return
-    await uploadFiles(Array.from(list))
-    if (fileInputRef.current) fileInputRef.current.value = ''
+    const selected = Array.from(list)
+    e.currentTarget.value = ''
+    await upload(() => selectionFromFiles(selected), currentFolderId)
   }
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -1099,8 +1046,7 @@ function FilesContent() {
      */
     rowDragDropConfig.externalDropHandled()
     dismissUploadOverlay()
-    const dropped = getDroppedFiles(e.dataTransfer)
-    if (dropped.length > 0) await uploadFiles(dropped)
+    await upload((signal) => selectionFromDrop(e.dataTransfer, signal), currentFolderId)
   }
 
   const handleDownload = useCallback(
@@ -1213,7 +1159,7 @@ function FilesContent() {
 
   const handleShareSelected = useCallback(() => {
     const file = selectedFileRef.current
-    if (file) setFilesParams({ shareFileId: file.id }, { history: 'replace' })
+    if (file) setFilesParams({ shareFileId: file.id, shareFolderId: null }, { history: 'replace' })
   }, [setFilesParams])
 
   const handleBulkDelete = useCallback(() => {
@@ -1276,10 +1222,12 @@ function FilesContent() {
       rootLabel: FILES_HEADER.rootLabel,
       rootIcon: FILES_HEADER.rootIcon,
       breadcrumbs: breadcrumbFolderChain(selectedFile.folderId, folderById),
+      childFolders,
       onNavigate: (folderId) =>
         handleNavigateFromFileDetail(folderedResourceListHref('file', workspaceId, folderId)),
       trailing: [
         {
+          id: selectedFile.id,
           label: selectedFile.name,
           editing: headerRename.editingId
             ? {
@@ -1306,6 +1254,7 @@ function FilesContent() {
   }, [
     selectedFile,
     folderById,
+    childFolders,
     handleNavigateFromFileDetail,
     workspaceId,
     canEdit,
@@ -1476,7 +1425,13 @@ function FilesContent() {
 
   const handleContextMenuShare = useCallback(() => {
     const item = contextMenuItemRef.current
-    if (item?.kind === 'file') setFilesParams({ shareFileId: item.file.id }, { history: 'replace' })
+    if (item)
+      setFilesParams(
+        item.kind === 'file'
+          ? { shareFileId: item.file.id, shareFolderId: null }
+          : { shareFileId: null, shareFolderId: item.folder.id },
+        { history: 'replace' }
+      )
     closeContextMenu()
   }, [closeContextMenu, setFilesParams])
 
@@ -1603,7 +1558,7 @@ function FilesContent() {
 
   useEffect(() => {
     const handleListKeyDown = (e: KeyboardEvent) => {
-      if (fileIdFromRouteRef.current) return
+      if (fileIdFromRouteRef.current || searchMode !== 'names') return
       const active = document.activeElement
       if (
         active &&
@@ -1633,7 +1588,7 @@ function FilesContent() {
     }
     window.addEventListener('keydown', handleListKeyDown)
     return () => window.removeEventListener('keydown', handleListKeyDown)
-  }, [])
+  }, [searchMode])
 
   /**
    * Overrides the browser's Cmd/Ctrl+F with the in-list find while the list is
@@ -1641,7 +1596,7 @@ function FilesContent() {
    */
   const handleFindOpen = useCallback(() => setFindOpen(true), [])
   useFindShortcut({
-    enabled: !fileIdFromRoute,
+    enabled: !fileIdFromRoute && searchMode === 'names',
     inputRef: findInputRef,
     onOpen: handleFindOpen,
   })
@@ -1812,27 +1767,25 @@ function FilesContent() {
     [urlSearchTerm, setSearchTerm]
   )
 
-  const uploadButtonLabel = uploading
-    ? uploadProgress.currentPercent > 0 && uploadProgress.currentPercent < 100
-      ? `${uploadProgress.completed}/${uploadProgress.total} · ${uploadProgress.currentPercent}%`
-      : `${uploadProgress.completed}/${uploadProgress.total}`
-    : 'Upload'
+  const uploadButtonLabel = uploadProgress.preparing
+    ? 'Preparing…'
+    : uploading
+      ? uploadProgress.currentPercent > 0 && uploadProgress.currentPercent < 100
+        ? `${uploadProgress.completed}/${uploadProgress.total} · ${uploadProgress.currentPercent}%`
+        : `${uploadProgress.completed}/${uploadProgress.total}`
+      : 'Upload'
 
   const headerActionsConfig = useMemo<ResourceAction[]>(
     () => [
       {
-        text: uploadButtonLabel,
-        icon: Upload,
-        onSelect: handleUploadClick,
-        disabled: uploading || !canEdit,
-      },
-      {
+        id: 'new-folder',
         text: 'New folder',
         icon: FolderPlus,
         onSelect: handleCreateFolder,
         disabled: createFolder.isPending || !canEdit,
       },
       {
+        id: 'new-file',
         text: 'New file',
         icon: Plus,
         onSelect: handleCreateFile,
@@ -1840,16 +1793,7 @@ function FilesContent() {
         variant: 'primary',
       },
     ],
-    [
-      uploadButtonLabel,
-      handleUploadClick,
-      handleCreateFolder,
-      handleCreateFile,
-      createFolder.isPending,
-      canEdit,
-      uploading,
-      creatingFile,
-    ]
+    [handleCreateFolder, handleCreateFile, createFolder.isPending, canEdit, uploading, creatingFile]
   )
 
   const listFolderChain = useMemo(
@@ -1871,11 +1815,12 @@ function FilesContent() {
         rootLabel: FILES_HEADER.rootLabel,
         rootIcon: FILES_HEADER.rootIcon,
         breadcrumbs: listFolderChain,
+        childFolders,
         onNavigate: (folderId) =>
           handleNavigateFromFileDetail(folderedResourceListHref('file', workspaceId, folderId)),
         trailing: [{ label: '…', terminal: true }],
       }),
-    [listFolderChain, handleNavigateFromFileDetail, workspaceId]
+    [listFolderChain, childFolders, handleNavigateFromFileDetail, workspaceId]
   )
 
   const openListFolder = currentFolderId ? folderById.get(currentFolderId) : undefined
@@ -1886,6 +1831,7 @@ function FilesContent() {
         rootLabel: FILES_HEADER.rootLabel,
         rootIcon: FILES_HEADER.rootIcon,
         breadcrumbs: listFolderChain,
+        childFolders,
         onNavigate: navigateToFolder,
         currentFolderEditing:
           openListFolder && breadcrumbRename.editingId === openListFolder.id
@@ -1901,21 +1847,33 @@ function FilesContent() {
           openListFolder && (canEdit || userPermissions.isLoading)
             ? [
                 {
-                  label: 'Rename',
+                  label: 'Rename folder',
                   icon: Pencil,
                   disabled: !canEdit,
                   onClick: () =>
                     breadcrumbRename.startRename(openListFolder.id, openListFolder.name),
+                },
+                {
+                  label: 'Share folder',
+                  icon: Send,
+                  disabled: !canEdit,
+                  onClick: () =>
+                    setFilesParams(
+                      { shareFileId: null, shareFolderId: openListFolder.id },
+                      { history: 'replace' }
+                    ),
                 },
               ]
             : undefined,
       }),
     [
       listFolderChain,
+      childFolders,
       openListFolder,
       navigateToFolder,
       canEdit,
       userPermissions.isLoading,
+      setFilesParams,
       breadcrumbRename.editingId,
       breadcrumbRename.editValue,
       breadcrumbRename.setEditValue,
@@ -2235,77 +2193,124 @@ function FilesContent() {
           breadcrumbs={listBreadcrumbs}
           breadcrumbDrop={rowDragDropConfig.breadcrumb}
           actions={headerActionsConfig}
+          aside={
+            <UploadMenu
+              label={uploadButtonLabel}
+              disabled={!canEdit}
+              uploading={uploading}
+              onFiles={handleUploadClick}
+              onFolder={() => folderInputRef.current?.click()}
+              onCancel={cancelUpload}
+            />
+          }
         />
         <Resource.Options
           search={searchConfig}
-          sort={sortConfig}
-          filterTags={filterTags}
-          filter={filterConfig}
-        />
-        <Resource.Table
-          columns={isSearching ? SEARCH_COLUMNS : COLUMNS}
-          rows={displayRows}
-          apiRef={tableApiRef}
-          emptyState={
-            listState === 'empty' ? (
-              <FilesEmptyState
-                onUpload={handleUploadClick}
-                uploadDisabled={uploading || !canEdit}
-              />
-            ) : listState === 'no-results' ? (
-              <ResourceNoResults
-                search={debouncedSearchTerm}
-                filterCount={filterTags.length}
-                onClear={clearSearchAndFilters}
-              />
-            ) : undefined
-          }
-          selectable={selectableConfig}
-          rowDragDrop={rowDragDropConfig}
-          onRowClick={handleRowClick}
-          onRowContextMenu={handleRowContextMenu}
-          overlay={
-            <>
-              {findOpen && (
-                <FindBar
-                  ariaLabel='Find in files'
-                  query={findQuery}
-                  onQueryChange={setFindQuery}
-                  onNext={handleFindNext}
-                  onPrev={handleFindPrev}
-                  onClose={handleFindClose}
-                  count={findMatchIds.length}
-                  currentIndex={Math.min(findIndex, Math.max(0, findMatchIds.length - 1))}
-                  truncated={false}
-                  isLoading={false}
-                  inputRef={findInputRef}
-                />
-              )}
-              <ResourceActionBar
-                selectedCount={selectedRowIds.size}
-                onDownload={handleBulkDownload}
-                onMove={canEdit ? handleContextMenuMove : undefined}
-                moveOptions={canEdit ? contextMenuMoveOptions : undefined}
-                onDelete={canEdit ? handleBulkDelete : undefined}
-                isLoading={
-                  bulkArchiveItems.isPending || moveItems.isPending || isDownloadingArchive
+          sort={searchMode === 'names' ? sortConfig : undefined}
+          filterTags={searchMode === 'names' ? filterTags : undefined}
+          filter={searchMode === 'names' ? filterConfig : undefined}
+          aside={
+            <ChipButtonGroup
+              value={searchMode}
+              onValueChange={(value) => {
+                if (value === 'names' || value === 'contents') {
+                  clearSelection()
+                  handleFindClose()
+                  void setFileFilters({ searchMode: value })
                 }
-              />
-              {isDraggingOver ? (
-                <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--white)] transition-colors dark:bg-[var(--surface-4)]'>
-                  <Upload className='size-5 text-[var(--brand-secondary)]' />
-                  <div className='flex flex-col gap-0.5 text-center'>
-                    <p className='text-[var(--brand-secondary)] text-sm'>Drop to upload</p>
-                    <p className='text-[var(--text-tertiary)] text-xs'>
-                      Release files here to add them to this workspace
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-            </>
+              }}
+              aria-label='Search mode'
+            >
+              <ChipButtonGroupItem value='names'>Names</ChipButtonGroupItem>
+              <ChipButtonGroupItem value='contents'>Contents</ChipButtonGroupItem>
+            </ChipButtonGroup>
           }
         />
+        {searchMode === 'contents' ? (
+          currentFolderId && (!openListFolder || listFolderChain.length === 0) ? (
+            <div
+              role='status'
+              className='flex flex-1 items-center justify-center p-6 text-[var(--text-secondary)] text-small'
+            >
+              {foldersResolved ? 'Folder not found' : 'Loading folder…'}
+            </div>
+          ) : (
+            <FileContentSearch
+              workspaceId={workspaceId}
+              query={debouncedSearchTerm}
+              folderPath={
+                currentFolderId
+                  ? buildFolderPath(listFolderChain.map((folder) => folder.name))
+                  : undefined
+              }
+            />
+          )
+        ) : (
+          <Resource.Table
+            columns={isSearching ? SEARCH_COLUMNS : COLUMNS}
+            rows={displayRows}
+            apiRef={tableApiRef}
+            emptyState={
+              listState === 'empty' ? (
+                <FilesEmptyState
+                  onUpload={handleUploadClick}
+                  uploadDisabled={uploading || !canEdit}
+                />
+              ) : listState === 'no-results' ? (
+                <ResourceNoResults
+                  search={debouncedSearchTerm}
+                  filterCount={filterTags.length}
+                  onClear={clearSearchAndFilters}
+                />
+              ) : undefined
+            }
+            selectable={selectableConfig}
+            rowDragDrop={rowDragDropConfig}
+            onRowClick={handleRowClick}
+            onRowContextMenu={handleRowContextMenu}
+            overlay={
+              <>
+                {findOpen && (
+                  <FindBar
+                    ariaLabel='Find in files'
+                    query={findQuery}
+                    onQueryChange={setFindQuery}
+                    onNext={handleFindNext}
+                    onPrev={handleFindPrev}
+                    onClose={handleFindClose}
+                    count={findMatchIds.length}
+                    currentIndex={Math.min(findIndex, Math.max(0, findMatchIds.length - 1))}
+                    truncated={false}
+                    isLoading={false}
+                    inputRef={findInputRef}
+                  />
+                )}
+                <ResourceActionBar
+                  selectedCount={selectedRowIds.size}
+                  onDownload={handleBulkDownload}
+                  onMove={canEdit ? handleContextMenuMove : undefined}
+                  moveOptions={canEdit ? contextMenuMoveOptions : undefined}
+                  onDelete={canEdit ? handleBulkDelete : undefined}
+                  isLoading={
+                    bulkArchiveItems.isPending || moveItems.isPending || isDownloadingArchive
+                  }
+                />
+              </>
+            }
+          />
+        )}
       </Resource>
+      {isDraggingOver ? (
+        <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--white)] transition-colors dark:bg-[var(--surface-4)]'>
+          <Upload className='size-5 text-[var(--brand-secondary)]' />
+          <div className='flex flex-col gap-0.5 text-center'>
+            <p className='text-[var(--brand-secondary)] text-sm'>Drop to upload</p>
+            <p className='text-[var(--text-tertiary)] text-xs'>
+              Release files or folders here to upload
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <FilesListContextMenu
         isOpen={isListContextMenuOpen}
@@ -2314,6 +2319,10 @@ function FilesContent() {
         onCreateFile={handleCreateFile}
         onCreateFolder={handleCreateFolder}
         onUploadFile={handleListUploadFile}
+        onUploadFolder={() => {
+          closeListContextMenu()
+          folderInputRef.current?.click()
+        }}
         disableCreate={uploading || creatingFile || !canEdit}
         disableCreateFolder={createFolder.isPending || !canEdit}
         disableUpload={uploading || !canEdit}
@@ -2329,7 +2338,7 @@ function FilesContent() {
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         onMove={handleContextMenuMove}
-        onShare={canEdit && contextMenuItem?.kind === 'file' ? handleContextMenuShare : undefined}
+        onShare={canEdit ? handleContextMenuShare : undefined}
         onTogglePin={handleContextMenuTogglePin}
         pinned={isContextMenuItemPinned}
         moveOptions={contextMenuMoveOptions}
@@ -2369,6 +2378,16 @@ function FilesContent() {
 
       {shareModal}
 
+      <input
+        ref={folderInputRef}
+        type='file'
+        className='hidden'
+        aria-label='Upload folder'
+        {...{ webkitdirectory: '' }}
+        onChange={handleFileChange}
+        disabled={uploading || !canEdit}
+        multiple
+      />
       <input
         ref={fileInputRef}
         type='file'

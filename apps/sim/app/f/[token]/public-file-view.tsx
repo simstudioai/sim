@@ -36,35 +36,6 @@ export function PublicFileView({
   const brand = useBrandConfig()
   const provenance = buildProvenance(workspaceName, ownerName)
 
-  // The public viewer reuses the in-app FileViewer; the content source seam swaps
-  // the auth-gated workspace serve URL for the token-scoped public endpoint, and a
-  // synthetic record carries the metadata the renderers/query keys need. `key` and
-  // `updatedAt` fold in the content version so the React Query caches (keyed on the
-  // storage key + `updatedAt`) refetch when the shared file changes — even when its
-  // size is unchanged.
-  // Embedded images route through the token-scoped cascade endpoint, which serves them only when the
-  // shared document actually references them and they live in its workspace.
-  const source = useMemo(
-    () => createPublicFileContentSource(token, contentUrl),
-    [token, contentUrl]
-  )
-  const file = useMemo<WorkspaceFileRecord>(
-    () => ({
-      id: token,
-      workspaceId: token,
-      name,
-      key: `${token}@${version}`,
-      path: contentUrl,
-      size,
-      type,
-      uploadedBy: '',
-      folderId: null,
-      uploadedAt: new Date(version),
-      updatedAt: new Date(version),
-    }),
-    [token, name, type, size, version, contentUrl]
-  )
-
   return (
     <div className='light desktop-title-bar-page flex h-screen flex-col overflow-hidden bg-[var(--bg)]'>
       <DesktopTitleBarLane />
@@ -108,15 +79,59 @@ export function PublicFileView({
       </header>
 
       <main className='flex min-h-0 flex-1 flex-col'>
-        <FileViewer
-          file={file}
-          workspaceId={token}
-          contentSource={source}
-          canEdit={false}
-          readOnly
-          enableFind
-        />
+        <PublicFilePreview token={token} name={name} type={type} size={size} version={version} />
       </main>
     </div>
+  )
+}
+
+interface PublicFilePreviewProps {
+  token: string
+  fileId?: string
+  name: string
+  type: string
+  size: number
+  version: number
+}
+
+/** The same read-only renderer serves direct file shares and children of a folder capability. */
+export function PublicFilePreview({
+  token,
+  fileId,
+  name,
+  type,
+  size,
+  version,
+}: PublicFilePreviewProps) {
+  const contentUrl = `/api/files/public/${token}/content${fileId ? `?fileId=${encodeURIComponent(fileId)}` : ''}`
+  const source = useMemo(
+    () => createPublicFileContentSource(token, contentUrl, fileId),
+    [token, contentUrl, fileId]
+  )
+  const file = useMemo<WorkspaceFileRecord>(
+    () => ({
+      id: fileId ?? token,
+      workspaceId: token,
+      name,
+      key: `${token}:${fileId ?? ''}@${version}`,
+      path: contentUrl,
+      size,
+      type,
+      uploadedBy: '',
+      folderId: null,
+      uploadedAt: new Date(version),
+      updatedAt: new Date(version),
+    }),
+    [fileId, token, name, type, size, version, contentUrl]
+  )
+  return (
+    <FileViewer
+      file={file}
+      workspaceId={token}
+      contentSource={source}
+      canEdit={false}
+      readOnly
+      enableFind
+    />
   )
 }
