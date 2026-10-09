@@ -131,7 +131,7 @@ async function main() {
 From apps/sim: bun --no-env-file scripts/backfill-projects.ts <command> [options]\n
 plan    Read-only discovery; atomically writes a new --manifest PATH (never overwrites).\nrepair  Repair only archived environments listed in --manifest; requires --report PATH.\napply   Assign reviewed families from --manifest; requires --report PATH.\nverify  Validate the database and repair completion; requires --manifest and --report.\nstatus  Read --report; does not connect or resume.\n
 Writes require MIGRATION_DATABASE_URL pointing directly to the primary and --ack-release-drained.\nDeploy #8830 and verify old servers/workers drained first. Keep the reviewed manifest and report\nin durable private job storage. Review conflicts and repairs before repair/apply. Repair requires\nthe app runtime environment (DATABASE_URL must target the same database) for provider cleanup.\n
-Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 (1–3600), --pause-ms 100 (1–60000).\nA budget limits scheduling. Transactions use 3s statement limits and a 5s total limit on PG17+,\notherwise a 5s idle-transaction limit on PG16. Reuse the same report\nto resume; lost reports can be recreated safely from the same manifest. Changed families need a\nnew plan/report. Complete verify plus deployment evidence is required before #8590 enforcement.\nExit: 0 complete, 2 paused/incomplete, 1 failure. Never run db:migrate to launch this tool.\n`)
+Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 (1–3600), --pause-ms 100 (1–60000).\nA budget limits scheduling. Transactions use 3s statement limits and a 5s total limit on PG17+,\notherwise a 5s idle-transaction limit on PG16. Reuse the same report\nto resume; lost reports can be recreated safely from the same manifest. Changed families need a\nnew plan/report. Complete verify plus deployment evidence is required before #8590 enforcement.\nExit: 0 complete, 2 running/paused/incomplete, 1 failure. Never run db:migrate to launch this tool.\n`)
     return
   }
   const [command] = positionals
@@ -146,7 +146,9 @@ Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 
     throw new Error('Manifest and report must be different files')
   if (command === 'status') {
     if (!reportPath) throw new Error('status requires --report')
-    logger.info('Project backfill status', progressSchema.parse(await readJson(reportPath)))
+    const progress = progressSchema.parse(await readJson(reportPath))
+    logger.info('Project backfill status', progress)
+    process.exitCode = progress.status === 'complete' ? 0 : progress.status === 'failed' ? 1 : 2
     return
   }
   const rawUrl = process.env.MIGRATION_DATABASE_URL
@@ -181,8 +183,10 @@ Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 
   const requestStop = () => {
     stop = true
   }
-  process.on('SIGINT', requestStop)
-  process.on('SIGTERM', requestStop)
+  if (live) {
+    process.on('SIGINT', requestStop)
+    process.on('SIGTERM', requestStop)
+  }
   let lockPid: number | undefined
   let repairRuntimeLoaded = false
   async function assertLock() {

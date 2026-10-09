@@ -204,6 +204,20 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           projectsCreated: 50,
           status: 'paused',
         })
+        for (const [status, exitCode] of [
+          ['running', 2],
+          ['paused', 2],
+          ['incomplete', 2],
+          ['failed', 1],
+          ['complete', 0],
+        ] as const) {
+          const checkpoint = JSON.stringify({ ...report, status })
+          await writeFile(reportPath, checkpoint)
+          const statusRun = run('status')
+          if (exitCode === 0) await statusRun
+          else await expect(statusRun).rejects.toMatchObject({ code: exitCode })
+          expect(await readFile(reportPath, 'utf8')).toBe(checkpoint)
+        }
         const first =
           await sql`SELECT id,project_id FROM workspace WHERE project_id IS NOT NULL ORDER BY id`
         await rm(reportPath)
@@ -283,6 +297,84 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       }
     })
   }, 60000)
+
+  it.each([
+    ['plan', 'SIGINT'],
+    ['verify', 'SIGTERM'],
+  ] as const)(
+    'terminates a stalled %s scan on %s',
+    async (command, signal) => {
+      await database(async (sql, url) => {
+        const directory = await mkdtemp(join(tmpdir(), 'project-read-cancel-test-'))
+        const artifacts = [
+          '--manifest',
+          join(directory, 'manifest.json'),
+          '--report',
+          join(directory, 'report.json'),
+        ]
+        const options = {
+          cwd: new URL('../../../apps/sim/', import.meta.url),
+          env: { ...process.env, MIGRATION_DATABASE_URL: url },
+          timeout: 15000,
+        }
+        await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('root','Root','owner')`
+        if (command === 'verify') {
+          for (const step of ['plan', 'apply'])
+            await promisify(execFile)(
+              'bun',
+              [
+                '--no-env-file',
+                'scripts/backfill-projects.ts',
+                step,
+                ...artifacts,
+                '--ack-release-drained',
+              ],
+              options
+            )
+        }
+        const files = await readdir(directory)
+        const contents = await Promise.all(
+          files.map((file) => readFile(join(directory, file), 'utf8'))
+        )
+        await sql.unsafe(`
+        ALTER TABLE workspace RENAME TO workspace_fixture_source;
+        CREATE FUNCTION pause_fixture_scan() RETURNS boolean LANGUAGE plpgsql AS $$
+          BEGIN PERFORM pg_sleep(5); RETURN true; END $$;
+        CREATE VIEW workspace AS SELECT * FROM workspace_fixture_source WHERE pause_fixture_scan();
+      `)
+        const child = execFile(
+          'bun',
+          ['--no-env-file', 'scripts/backfill-projects.ts', command, ...artifacts],
+          options
+        )
+        const exited = once(child, 'close')
+        try {
+          await expect
+            .poll(
+              async () => {
+                const [state] = await sql`SELECT count(*)::int AS waiting FROM pg_stat_activity
+                WHERE datname = current_database() AND application_name = 'sim-project-backfill'
+                  AND wait_event = 'PgSleep'`
+                return state.waiting
+              },
+              { timeout: 5000, interval: 20 }
+            )
+            .toBe(1)
+          child.kill(signal)
+          expect((await exited)[1]).toBe(signal)
+          expect(await readdir(directory)).toEqual(files)
+          expect(
+            await Promise.all(files.map((file) => readFile(join(directory, file), 'utf8')))
+          ).toEqual(contents)
+        } finally {
+          if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+          await exited
+          await rm(directory, { recursive: true, force: true })
+        }
+      })
+    },
+    20000
+  )
 
   it('refuses a generated plan exceeding the artifact size limit before publishing it', async () => {
     await database(async (sql, url) => {
