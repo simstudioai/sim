@@ -74,6 +74,8 @@ describe('CLI reference producer', () => {
     expect(flag('meta status')).toBe(true)
     expect(flag('whoami')).toBe(true)
     expect(flag('files versions download')).toBe(true)
+    expect(flag('chat')).toBe(true)
+    expect(flag('workflows run')).toBeUndefined()
     expect(flag('workspaces get')).toBeUndefined()
     expect(flag('workspaces invitations create')).toBeUndefined()
     expect(flag('files get')).toBeUndefined()

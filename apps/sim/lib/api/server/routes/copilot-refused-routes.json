@@ -1,5 +1,10 @@
 [
   {
+    "method": "POST",
+    "path": "/api/v2/chat",
+    "operation": "chat.send"
+  },
+  {
     "method": "GET",
     "path": "/api/v2/credentials/[credentialId]/members",
     "operation": "credentials.members.list"
