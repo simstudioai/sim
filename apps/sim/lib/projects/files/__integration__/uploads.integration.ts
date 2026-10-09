@@ -11,7 +11,6 @@ import {
   organization,
   outboxEvent,
   permissions,
-  projectWorkspace,
   uploadSession,
   user,
   workspace,
@@ -127,10 +126,7 @@ async function fixture() {
     workspaceMode: 'organization',
     name: 'Upload environment',
   })
-  const [binding] = await db
-    .select()
-    .from(projectWorkspace)
-    .where(eq(projectWorkspace.workspaceId, workspaceId))
+  const [binding] = await db.select().from(workspace).where(eq(workspace.id, workspaceId))
   if (!binding) throw new Error('Project fixture missing')
   await db.insert(permissions).values({
     id: generateId(),

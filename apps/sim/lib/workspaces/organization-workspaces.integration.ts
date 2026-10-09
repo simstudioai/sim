@@ -44,7 +44,7 @@ beforeAll(async () => {
       id text PRIMARY KEY, user_id text, entity_type text, entity_id text, permission_type text,
       created_at timestamp, updated_at timestamp, UNIQUE(user_id, entity_type, entity_id)
     );
-    CREATE TABLE workspace_files (workspace_id text, context text, size_bytes bigint);
+    CREATE TABLE workspace_files (workspace_id text, project_id text, context text, size_bytes bigint);
     CREATE TABLE knowledge_base (id text PRIMARY KEY, workspace_id text);
     CREATE TABLE document (
       knowledge_base_id text, file_size bigint, connector_id text, deleted_at timestamp
@@ -67,7 +67,7 @@ beforeEach(async () => {
       id, name, owner_id, organization_id, workspace_mode, billed_account_user_id,
       organization_assigned_at, storage_used_bytes
     ) VALUES ('workspace', 'Workspace', 'workspace-owner', 'org', 'organization', 'org-owner', now(), 40);
-    INSERT INTO workspace_files VALUES ('workspace', 'workspace', 40);
+    INSERT INTO workspace_files (workspace_id, context, size_bytes) VALUES ('workspace', 'workspace', 40);
   `)
 })
 

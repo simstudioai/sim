@@ -316,19 +316,19 @@ export async function transferWorkspaceProjects(
   if (!workspaceIds.length) return
   await lockProjectBackfillWrites(tx, workspaceIds)
   const owners = await tx
-    .selectDistinct({ id: projectWorkspace.projectId })
-    .from(projectWorkspace)
-    .where(inArray(projectWorkspace.workspaceId, workspaceIds))
-    .orderBy(asc(projectWorkspace.projectId))
+    .selectDistinct({ id: workspace.projectId })
+    .from(workspace)
+    .where(inArray(workspace.id, workspaceIds))
+    .orderBy(asc(workspace.projectId))
   const projectIds = owners.map((row) => row.id)
   await tryLockProjects(tx, projectIds)
   const selected = new Set(workspaceIds)
   if (workspacePayerChanges.some((change) => !selected.has(change.workspaceId)))
     throw new Error('Workspace payer changes must belong to the selected Project environments')
   const members = await tx
-    .select({ id: projectWorkspace.workspaceId })
-    .from(projectWorkspace)
-    .where(inArray(projectWorkspace.projectId, projectIds))
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(inArray(workspace.projectId, projectIds))
   if (members.some((row) => !selected.has(row.id))) {
     throw new ProjectConflictError(
       'Move all environments in the Project together, or disconnect the fork first'

@@ -9,9 +9,9 @@ import {
   permissionGroupWorkspace,
   permissions,
   project,
-  projectWorkspace,
   subscription,
   user,
+  workspace,
 } from '@sim/db/schema'
 import { insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -109,10 +109,7 @@ await insertWorkspaceFixture(db, {
   workspaceMode: 'organization',
   forkedFromWorkspaceId: workspaceId,
 })
-const [binding] = await db
-  .select()
-  .from(projectWorkspace)
-  .where(eq(projectWorkspace.workspaceId, workspaceId))
+const [binding] = await db.select().from(workspace).where(eq(workspace.id, workspaceId))
 assert.ok(binding)
 const projectId = binding.projectId
 await db.insert(permissions).values(

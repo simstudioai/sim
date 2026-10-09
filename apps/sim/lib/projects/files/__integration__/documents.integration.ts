@@ -9,7 +9,6 @@ import {
   organization,
   outboxEvent,
   permissions,
-  projectWorkspace,
   user,
   workspace,
   workspaceFiles,
@@ -115,10 +114,7 @@ async function fixture(permissionType: 'read' | 'write' = 'write') {
     workspaceMode: 'organization',
     name: 'Document environment',
   })
-  const [binding] = await db
-    .select()
-    .from(projectWorkspace)
-    .where(eq(projectWorkspace.workspaceId, workspaceId))
+  const [binding] = await db.select().from(workspace).where(eq(workspace.id, workspaceId))
   if (!binding) throw new Error('Project binding is missing')
   await db.insert(permissions).values({
     id: generateId(),

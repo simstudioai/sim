@@ -12,7 +12,6 @@ import {
   organization,
   permissionGroup,
   permissions,
-  projectWorkspace,
   ssoProvider,
   user,
   userTableDefinitions,
@@ -917,10 +916,7 @@ describe('shared resource retention across workspace departure and account erasu
         organizationId,
         workspaceMode: 'organization',
       })
-      const [binding] = await db
-        .select()
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, environmentId))
+      const [binding] = await db.select().from(workspace).where(eq(workspace.id, environmentId))
       const projectFileId = generateId()
       projectFileIds.push(projectFileId)
       await db.insert(workspaceFiles).values({

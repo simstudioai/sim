@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { member, permissions, project, projectWorkspace, workspace } from '@sim/db/schema'
+import { member, permissions, project, workspace } from '@sim/db/schema'
 import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
@@ -105,17 +105,16 @@ export const listProjects: OperationUseCase<
           JOIN ${workspace} ON ${workspace.organizationId} = ${member.organizationId}
           WHERE ${member.userId} = ${userId} AND ${inArray(member.role, ORG_ADMIN_ROLES)}
         )
-        SELECT DISTINCT ${projectWorkspace.projectId} AS id
+        SELECT DISTINCT ${workspace.projectId} AS id
         FROM accessible
-        JOIN ${projectWorkspace} ON ${projectWorkspace.workspaceId} = accessible.workspace_id
         JOIN ${workspace}
           ON ${workspace.id} = accessible.workspace_id AND ${workspace.archivedAt} IS NULL
         JOIN ${project}
-          ON ${project.id} = ${projectWorkspace.projectId} AND ${project.archivedAt} IS NULL
+          ON ${project.id} = ${workspace.projectId} AND ${project.archivedAt} IS NULL
         WHERE TRUE
           ${scope.organizationId !== undefined ? sql`AND ${project.organizationId} IS NOT DISTINCT FROM ${scope.organizationId}` : sql``}
           ${input.projectId !== undefined ? sql`AND ${project.id} = ${input.projectId}` : sql``}
-          ${input.cursor ? sql`AND ${projectWorkspace.projectId} > ${input.cursor}` : sql``}
+          ${input.cursor ? sql`AND ${workspace.projectId} > ${input.cursor}` : sql``}
         ORDER BY 1
         LIMIT ${input.limit + 1}
       `)
@@ -222,9 +221,9 @@ export const getWorkspaceProject: OperationUseCase<
     await requireProjectApiEnabled()
     return db.transaction(async (tx) => {
       const [membership] = await tx
-        .select({ projectId: projectWorkspace.projectId })
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, input.workspaceId))
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(eq(workspace.id, input.workspaceId))
         .limit(1)
       if (!membership) throw new OrchestrationError('not_found', 'Project not found')
       return {
