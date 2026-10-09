@@ -11,7 +11,6 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   agiloft: 'Agiloft',
   ahrefs: 'Ahrefs',
   airtable: 'Airtable',
-  airweave: 'Airweave',
   algolia: 'Algolia',
   amplitude: 'Amplitude',
   api: 'API',

@@ -6,7 +6,6 @@ import { AgentPhoneBlock, AgentPhoneBlockMeta } from '@/blocks/blocks/agentphone
 import { AgiloftBlock, AgiloftBlockMeta } from '@/blocks/blocks/agiloft'
 import { AhrefsBlock, AhrefsBlockMeta } from '@/blocks/blocks/ahrefs'
 import { AirtableBlock, AirtableBlockMeta } from '@/blocks/blocks/airtable'
-import { AirweaveBlock, AirweaveBlockMeta } from '@/blocks/blocks/airweave'
 import { AlgoliaBlock, AlgoliaBlockMeta } from '@/blocks/blocks/algolia'
 import { AmplitudeBlock, AmplitudeBlockMeta } from '@/blocks/blocks/amplitude'
 import { ApiBlock } from '@/blocks/blocks/api'
@@ -399,7 +398,6 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   agiloft: AgiloftBlock,
   ahrefs: AhrefsBlock,
   airtable: AirtableBlock,
-  airweave: AirweaveBlock,
   algolia: AlgoliaBlock,
   amplitude: AmplitudeBlock,
   api: ApiBlock,
@@ -778,7 +776,6 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   agiloft: AgiloftBlockMeta,
   ahrefs: AhrefsBlockMeta,
   airtable: AirtableBlockMeta,
-  airweave: AirweaveBlockMeta,
   algolia: AlgoliaBlockMeta,
   amplitude: AmplitudeBlockMeta,
   apify: ApifyBlockMeta,

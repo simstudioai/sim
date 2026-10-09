@@ -292,6 +292,14 @@ export interface BrowserPanelAction {
     /** Compatibility response for installed shells with the retired navigation gate. */
     | 'respond-site-permission'
     | 'takeover-done'
+    /**
+     * Declares that this renderer shows page dialogs. Until it arrives, the
+     * shell keeps answering them itself, so an older renderer never leaves a
+     * page blocked on a dialog nobody can see.
+     */
+    | 'enable-page-dialogs'
+    /** Answers {@link BrowserPageState.dialog}; `allowed` is Leave. */
+    | 'respond-dialog'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
   /** Stable tab id for `switch-tab` and `close-tab`. */
@@ -304,10 +312,16 @@ export interface BrowserPanelAction {
   claim?: boolean
   /** Optional free-text instruction submitted with `takeover-done`. */
   takeoverResponse?: string
-  /** Exact pending permission request being answered. */
+  /** Exact pending permission request or dialog being answered. */
   requestId?: string
-  /** User decision for a permission response. */
+  /** User decision for a permission or dialog response. */
   allowed?: boolean
+}
+
+/** A leave-site decision awaiting the user's answer in browser chrome. */
+export interface BrowserPageDialog {
+  requestId: string
+  kind: 'beforeunload'
 }
 
 export type BrowserMediaDevice = 'microphone' | 'camera'
@@ -344,6 +358,8 @@ export interface BrowserPageState {
   mediaPermissionRequest?: BrowserMediaPermissionRequest
   /** Legacy request from installed shells that still require a site-origin prompt. */
   sitePermissionRequest?: BrowserSitePermissionRequest
+  /** Page dialog awaiting the user's answer. Optional for older shells. */
+  dialog?: BrowserPageDialog
 }
 
 /** A recoverable top-level page problem rendered by Sim instead of a blank native view. */
