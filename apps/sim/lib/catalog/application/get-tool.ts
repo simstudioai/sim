@@ -37,7 +37,7 @@ export const getCatalogTool = defineAuthorizedWorkspaceUseCase({
     loadCatalogWorkspaceContext(input.workspaceId),
   authorizationOptions: { delegation: catalogDelegationPolicy },
   execute: async ({ principal, input, context }): Promise<GetCatalogToolResult> => {
-    const gate = await resolveCatalogGate(principal, context)
+    const gate = await resolveCatalogGate(principal, context, { customBlockInputs: false })
     const visibleToolIds = await resolveVisibleToolIds(gate)
     const resolvedToolId = resolveVisibleToolId(input.toolId, visibleToolIds)
     if (!visibleToolIds.has(resolvedToolId)) {

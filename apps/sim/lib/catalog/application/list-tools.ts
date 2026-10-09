@@ -53,7 +53,7 @@ export const listCatalogTools = defineAuthorizedWorkspaceUseCase({
   execute: async ({ principal, input, context }): Promise<ListCatalogToolsResult> => {
     const search = normalizeCatalogSearch(input.search)
     const oauthProvider = input.oauthProvider?.trim().toLowerCase()
-    const gate = await resolveCatalogGate(principal, context)
+    const gate = await resolveCatalogGate(principal, context, { customBlockInputs: false })
     const visibleToolIds = await resolveVisibleToolIds(gate)
 
     const summaries: CatalogToolSummary[] = []
