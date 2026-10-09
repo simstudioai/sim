@@ -13,6 +13,7 @@ import {
   Popover,
   PopoverAnchor,
   PopoverContent,
+  PopoverDivider,
   PopoverItem,
   PopoverSection,
   Tooltip,
@@ -135,17 +136,12 @@ export const ViewsMenu = memo(function ViewsMenu({
         maxWidth={320}
         maxHeight={420}
         border
-        className={cn(
-          POPOVER_ANIMATION_CLASSES,
-          'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-xs'
-        )}
+        className={POPOVER_ANIMATION_CLASSES}
         onMouseEnter={openPopover}
         onMouseLeave={scheduleClose}
         onFocusCapture={cancelScheduledClose}
       >
-        <PopoverSection className='px-1.5 py-0.5 text-[var(--text-muted)] text-xs'>
-          Views
-        </PopoverSection>
+        <PopoverSection>Views</PopoverSection>
         <div className='flex flex-col gap-0.5'>
           {!hasDefaultView && (
             <ViewRow
@@ -194,13 +190,10 @@ export const ViewsMenu = memo(function ViewsMenu({
         </div>
         {canEdit && (
           <>
-            <div className='my-1 h-px bg-[var(--border)]' />
-            <PopoverItem
-              onClick={() => runAndClose(onNewView)}
-              className='h-7 items-center gap-1.5 px-1.5 py-0 text-xs'
-            >
+            <PopoverDivider />
+            <PopoverItem onClick={() => runAndClose(onNewView)}>
               <span className='flex size-[14px] shrink-0 items-center justify-center'>
-                <Plus className='size-3 text-[var(--text-icon)]' />
+                <Plus className='size-[14px] text-[var(--text-icon)]' />
               </span>
               <OverflowText label='New view' className='flex-1 text-left' />
             </PopoverItem>
@@ -265,13 +258,9 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
 
   return (
     <div className='group/view relative flex items-center'>
-      <PopoverItem
-        active={isActive}
-        onClick={onSelect}
-        className='h-7 min-w-0 flex-1 items-center gap-1.5 px-1.5 py-0 text-xs'
-      >
+      <PopoverItem active={isActive} onClick={onSelect} className='flex-1'>
         <span className='flex size-[14px] shrink-0 items-center justify-center'>
-          {isActive && <Check className='size-3 text-[var(--text-icon)]' />}
+          {isActive && <Check className='size-[14px] text-[var(--text-icon)]' />}
         </span>
         <OverflowText label={label} className='flex-1 text-left' />
         {actionCount > 0 && (

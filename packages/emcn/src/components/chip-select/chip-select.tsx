@@ -1,7 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronDown } from '../../icons'
+import { Check, ChevronDown } from '@sim/emcn/icons'
+import { MENU_STYLES } from '#menu-styles'
 import { cn } from '../../lib/cn'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
 import { chipIconSlotClass } from '../chip/chip-chrome'
@@ -232,7 +233,7 @@ export function ChipSelect({
             toggleValue(opt.value)
           }}
         >
-          {Icon ? <Icon className='mr-2 size-[14px] text-[var(--text-icon)]' /> : null}
+          {Icon ? <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' /> : null}
           {opt.label}
         </DropdownMenuCheckboxItem>
       )
@@ -245,6 +246,7 @@ export function ChipSelect({
       >
         {Icon ? <Icon /> : null}
         <DropdownMenuItemLabel label={opt.label} />
+        {value === opt.value ? <Check aria-hidden className={MENU_STYLES.selectionIcon} /> : null}
       </DropdownMenuItem>
     )
   }
