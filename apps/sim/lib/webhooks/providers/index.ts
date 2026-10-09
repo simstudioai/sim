@@ -18,6 +18,14 @@ export function extractProviderIdentifierFromBody(provider: string, body: unknow
 }
 
 /**
+ * Whether a provider can name a delivery from its body. One that cannot (e.g. a generic
+ * webhook without a configured idempotency field) dedupes only on a delivery header.
+ */
+export function providerExtractsIdempotencyId(provider: string): boolean {
+  return typeof getProviderHandler(provider).extractIdempotencyId === 'function'
+}
+
+/**
  * Whether a provider accepts deliveries through the generic per-webhook path route.
  *
  * False for triggers Sim fires itself - internal (table row, workspace events) and polling
