@@ -9,8 +9,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  toast,
 } from '@sim/emcn'
 import { MoreHorizontal } from '@sim/emcn/icons'
+import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
 import { ReleaseWorkflows } from '@/app/workspace/[workspaceId]/changelog/components/release-workflows/release-workflows'
@@ -30,10 +32,11 @@ const DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'num
 export function ReleaseEntry({ workspaceId, release, canEdit, onEditDetails }: ReleaseEntryProps) {
   const saveRef = useRef<(() => Promise<void>) | null>(null)
   const [editingBody, setEditingBody] = useState(false)
+  const [savingBody, setSavingBody] = useState(false)
   const file = useAddressedWorkspaceFileRecord(workspaceId, release.fileId)
 
   return (
-    <article className='grid @min-[760px]/changelog:grid-cols-[132px_minmax(0,1fr)] grid-cols-1 gap-x-10 gap-y-3 border-[var(--border)] border-t pt-12'>
+    <article className='grid @min-[760px]/changelog:grid-cols-[132px_minmax(0,1fr)] grid-cols-1 gap-x-10 gap-y-3 border-[var(--border)] border-t pt-12 first:border-t-0 first:pt-0'>
       <aside className='@min-[760px]/changelog:sticky top-8 flex h-fit flex-col gap-2'>
         <span className='text-[var(--text-primary)] text-md'>
           {DATE_FORMAT.format(new Date(release.publishedAt))}
@@ -47,21 +50,27 @@ export function ReleaseEntry({ workspaceId, release, canEdit, onEditDetails }: R
       <div className='flex min-w-0 flex-col gap-6'>
         <div className='flex items-start gap-3'>
           <div className='flex min-w-0 flex-1 flex-col gap-1.5'>
-            <h2 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.02em]'>
-              {release.title}
-            </h2>
+            <h2 className='text-[var(--text-primary)] text-lg leading-tight'>{release.title}</h2>
             <p className='text-[var(--text-muted)] text-small'>{release.bumpReason}</p>
           </div>
           {canEdit &&
             (editingBody ? (
               <Chip
                 variant='primary'
+                disabled={savingBody}
                 onClick={async () => {
-                  await saveRef.current?.()
-                  setEditingBody(false)
+                  setSavingBody(true)
+                  try {
+                    await saveRef.current?.()
+                    setEditingBody(false)
+                  } catch (error) {
+                    toast.error(getErrorMessage(error, 'Failed to save notes'))
+                  } finally {
+                    setSavingBody(false)
+                  }
                 }}
               >
-                Done
+                {savingBody ? 'Saving...' : 'Done'}
               </Chip>
             ) : (
               <DropdownMenu>

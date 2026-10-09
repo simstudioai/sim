@@ -34,7 +34,7 @@ export function parseReleaseVersion(value: string): ReleaseVersion {
   return { major, minor, patch }
 }
 
-/** The version after the workspace's highest one; the first release is 1.0.0. */
+/** The version after the workspace's highest one. */
 export function bumpReleaseVersion(
   highest: ReleaseVersion | null,
   bump: VersionBump

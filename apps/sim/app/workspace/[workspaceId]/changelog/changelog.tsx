@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Chip } from '@sim/emcn'
+import { Rss } from '@sim/emcn/icons'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
 import {
@@ -28,9 +29,11 @@ export function Changelog({ workspaceId }: ChangelogProps) {
 
   return (
     <Resource>
-      {query.error ? (
-        <div className='p-6 text-[var(--text-error)]' role='alert'>
-          {query.error.message}
+      <Resource.Header icon={Rss} title='Changelog' />
+      {query.error && !query.data ? (
+        <div role='alert' className='flex flex-col items-center gap-3 p-6'>
+          <p className='text-[var(--text-error)] text-small'>{query.error.message}</p>
+          <Chip onClick={() => query.refetch()}>Retry</Chip>
         </div>
       ) : releases.length === 0 ? (
         <EmptyState
@@ -40,9 +43,6 @@ export function Changelog({ workspaceId }: ChangelogProps) {
       ) : (
         <div className='@container/changelog min-h-0 flex-1 overflow-y-auto'>
           <div className='mx-auto flex max-w-[960px] flex-col gap-12 px-8 py-10'>
-            <h1 className='text-2xl text-[var(--text-primary)] leading-tight tracking-[-0.02em]'>
-              Changelog
-            </h1>
             {releases.map((release) => (
               <ReleaseEntry
                 key={release.id}
@@ -53,10 +53,15 @@ export function Changelog({ workspaceId }: ChangelogProps) {
               />
             ))}
             {query.hasNextPage && (
-              <div>
+              <div className='flex flex-col gap-2'>
                 <Chip onClick={() => query.fetchNextPage()} disabled={query.isFetchingNextPage}>
                   {query.isFetchingNextPage ? 'Loading...' : 'Show older releases'}
                 </Chip>
+                {query.isFetchNextPageError && (
+                  <p role='alert' className='text-[var(--text-error)] text-small'>
+                    {query.error?.message}
+                  </p>
+                )}
               </div>
             )}
           </div>

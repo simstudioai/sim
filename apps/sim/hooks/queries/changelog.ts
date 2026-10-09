@@ -14,7 +14,6 @@ const changelogKeys = {
   list: (workspaceId: string) => [...changelogKeys.lists(), workspaceId] as const,
 }
 
-/** Releases newest first, a page at a time. */
 export function useChangelogReleases(workspaceId: string) {
   return useInfiniteQuery({
     queryKey: changelogKeys.list(workspaceId),
