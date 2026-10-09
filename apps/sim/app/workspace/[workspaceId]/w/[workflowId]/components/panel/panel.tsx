@@ -307,8 +307,9 @@ export const Panel = memo(function Panel() {
     }))
   )
 
+  const hasCanvasOverlay = isChatOpen || isVariablesOpen
   const isSearchOpen = useWorkflowSearchReplaceStore((state) => state.isOpen)
-  const hasCanvasOverlay = isChatOpen || isVariablesOpen || isSearchOpen
+  const isSearchingEditor = isSearchOpen && activeTab === 'editor'
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
   const workflowLocked = isWorkflowEffectivelyLocked(currentWorkflow, folders)
@@ -769,8 +770,18 @@ export const Panel = memo(function Panel() {
         )}
         aria-label='Workflow panel'
       >
-        <div className='flex h-full flex-col border-[var(--border)] border-l pt-3.5'>
-          <div className='flex @min-[960px]/workflow:hidden shrink-0 items-center justify-between px-3 pb-2'>
+        <div
+          className={cn(
+            'flex h-full flex-col border-[var(--border)] border-l pt-3.5',
+            isSearchingEditor && '@max-[960px]/workflow:pt-0'
+          )}
+        >
+          <div
+            className={cn(
+              'flex @min-[960px]/workflow:hidden shrink-0 items-center justify-between px-3 pb-2',
+              isSearchingEditor && '@max-[960px]/workflow:hidden'
+            )}
+          >
             <span className='text-[var(--text-body)] text-sm'>Workflow</span>
             <Button
               variant='ghost'
@@ -783,7 +794,12 @@ export const Panel = memo(function Panel() {
             </Button>
           </div>
           {/* Header */}
-          <div className='flex shrink-0 items-center justify-between px-2'>
+          <div
+            className={cn(
+              'flex shrink-0 items-center justify-between px-2',
+              isSearchingEditor && '@max-[960px]/workflow:hidden'
+            )}
+          >
             {/* More and Chat */}
             <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
@@ -908,7 +924,12 @@ export const Panel = memo(function Panel() {
           </div>
 
           {/* Tabs */}
-          <div className='flex shrink-0 items-center justify-between px-2 pt-3.5'>
+          <div
+            className={cn(
+              'flex shrink-0 items-center justify-between px-2 pt-3.5',
+              isSearchingEditor && '@max-[960px]/workflow:hidden'
+            )}
+          >
             <div className='flex gap-1'>
               {isCopilotTabAvailable && (
                 <Button
@@ -952,7 +973,12 @@ export const Panel = memo(function Panel() {
           </div>
 
           {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
-          <div className='flex-1 overflow-hidden pt-3'>
+          <div
+            className={cn(
+              'flex-1 overflow-hidden pt-3',
+              isSearchingEditor && '@max-[960px]/workflow:pt-0'
+            )}
+          >
             {isCopilotTabAvailable && (
               <div
                 className={

@@ -45,8 +45,10 @@ import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { usePanelEditorSearchStore, usePanelEditorStore } from '@/stores/panel'
+import { useChatStore } from '@/stores/chat/store'
+import { usePanelEditorSearchStore, usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useWorkflowSearchReplaceStore } from '@/stores/workflow-search-replace/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -318,12 +320,17 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
       setActiveMatchId(matchId)
       const match = hydratedMatches.find((candidate) => candidate.id === matchId)
       if (!match) return
+      if (!isFloatingLayout()) {
+        useChatStore.getState().setIsChatOpen(false)
+        useVariablesModalStore.getState().setIsOpen(false)
+      }
       usePanelEditorStore.getState().setCurrentBlockId(match.blockId)
+      usePanelStore.getState().setIsMobilePanelOpen(true)
       usePanelEditorSearchStore.getState().setActiveSearchTarget({
         ...createActiveSearchTarget(match, query),
       })
     },
-    [hydratedMatches, query, setActiveMatchId]
+    [hydratedMatches, isFloatingLayout, query, setActiveMatchId]
   )
 
   const activeMatchIndex = hydratedMatches.findIndex((match) => match.id === activeMatchId)
@@ -559,7 +566,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
       role='dialog'
       aria-label='Search and replace'
       ref={panelRef}
-      className='fixed @max-[960px]/workflow:absolute @max-[960px]/workflow:inset-x-0! @max-[960px]/workflow:top-0! z-[var(--z-dropdown)] flex @max-[960px]/workflow:max-h-full @max-[960px]/workflow:min-h-0! @max-[960px]/workflow:w-auto! flex-col overflow-hidden @max-[960px]/workflow:overflow-y-auto @max-[960px]/workflow:rounded-none rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
+      className='fixed @max-[960px]/workflow:relative @max-[960px]/workflow:top-auto! @max-[960px]/workflow:left-auto! z-[var(--z-dropdown)] flex @max-[960px]/workflow:max-h-[50%] @max-[960px]/workflow:min-h-0! @max-[960px]/workflow:w-full! @max-[960px]/workflow:shrink-0 flex-col overflow-hidden @max-[960px]/workflow:overflow-y-auto @max-[960px]/workflow:rounded-none rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
