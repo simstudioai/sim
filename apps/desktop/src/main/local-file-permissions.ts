@@ -54,7 +54,8 @@ export class LocalFilePermissions {
 
   constructor(
     private readonly filesystem: LocalFilesystemService,
-    private readonly fullFileAccess: () => boolean = () => false
+    private readonly fullFileAccess: () => boolean = () => false,
+    private readonly enableFullFileAccess?: () => void
   ) {}
 
   async authorize(
@@ -71,18 +72,7 @@ export class LocalFilePermissions {
       throw new Error('A valid destination workspace and folder are required for imports.')
     const path = await realpath(nativePath(authorization.args.path))
     if (this.fullFileAccess()) {
-      const info = await stat(path)
-      const folder = info.isDirectory() ? path : dirname(path)
-      const identity = await stat(folder, { bigint: true })
-      return this.authorizedAccess(
-        {
-          path,
-          resolve: realpath,
-          open: (requested, directory = false) =>
-            openNativeFile(folder, relative(folder, requested), identity, directory),
-        },
-        { ...context, isCurrent: () => context.isCurrent() && this.fullFileAccess() }
-      )
+      return this.unrestrictedAccess(path, context)
     }
     const existing = await this.filesystem.nativeAccess(path)
     if (existing) return this.authorizedAccess(existing, context)
@@ -114,9 +104,28 @@ export class LocalFilePermissions {
     }
     pending.contexts.add(context)
     await this.waitForDecision(pending, context)
+    if (this.fullFileAccess()) return this.unrestrictedAccess(path, context)
     const access = await this.filesystem.nativeAccess(path)
     if (!access) throw new Error('The approved folder is no longer available.')
     return this.authorizedAccess(access, context)
+  }
+
+  private async unrestrictedAccess(
+    path: string,
+    context: LocalFilePermissionContext
+  ): Promise<LocalFileAccess> {
+    const info = await stat(path)
+    const folder = info.isDirectory() ? path : dirname(path)
+    const identity = await stat(folder, { bigint: true })
+    return this.authorizedAccess(
+      {
+        path,
+        resolve: realpath,
+        open: (requested, directory = false) =>
+          openNativeFile(folder, relative(folder, requested), identity, directory),
+      },
+      { ...context, isCurrent: () => context.isCurrent() && this.fullFileAccess() }
+    )
   }
 
   private waitForDecision(
@@ -170,7 +179,7 @@ export class LocalFilePermissions {
     signal: AbortSignal
   ): Promise<void> {
     const context = await this.currentContext(contexts, signal)
-    if (await this.filesystem.nativeAccess(folder)) return
+    if (this.fullFileAccess() || (await this.filesystem.nativeAccess(folder))) return
     const root = await lstat(folder, { bigint: true })
     if (!root.isDirectory()) throw new Error('The folder is no longer available.')
     const displayedPath = JSON.stringify(folder).replace(
@@ -184,16 +193,42 @@ export class LocalFilePermissions {
       signal,
       title: 'Allow access to this folder?',
       message: displayedPath,
-      detail: `Sim can read files in this folder and its subfolders, use them across chats, and import them into your workspaces on ${context.origin}.\n\nManage or remove access in File → Folder Access.`,
-      buttons: ['Allow folder', "Don't allow"],
+      detail: `Sim can read and import files from this folder and its subfolders across chats on ${context.origin}.\n\nManage access in File → Folder Access.`,
+      buttons: [
+        'Allow folder',
+        "Don't allow",
+        ...(this.enableFullFileAccess ? ['Allow all files…'] : []),
+      ],
       defaultId: 1,
       cancelId: 1,
     }
-    const result = await (parent ? showShellDialog(parent, options) : showShellDialog(options))
-    signal.throwIfAborted()
-    if (result.response !== 0) throw new Error('The user did not allow this local file access.')
-    const current = await this.currentContext(contexts, signal)
-    await this.filesystem.grantDirectory({ path: folder }, current.generation, root)
+    while (true) {
+      await this.currentContext(contexts, signal)
+      const result = await (parent ? showShellDialog(parent, options) : showShellDialog(options))
+      signal.throwIfAborted()
+      if (result.response === 2 && this.enableFullFileAccess) {
+        const confirmation = {
+          signal,
+          title: 'Allow full file access?',
+          message: `Sim can read and import files from any folder on this computer across chats on ${context.origin}.`,
+          detail: 'Turn this off in Settings → Desktop → Full file access.',
+          buttons: ['Allow all files', 'Cancel'],
+          defaultId: 1,
+          cancelId: 1,
+        }
+        const answer = await (parent
+          ? showShellDialog(parent, confirmation)
+          : showShellDialog(confirmation))
+        await this.currentContext(contexts, signal)
+        if (answer.response !== 0) continue
+        this.enableFullFileAccess()
+        return
+      }
+      if (result.response !== 0) throw new Error('The user did not allow this local file access.')
+      const current = await this.currentContext(contexts, signal)
+      await this.filesystem.grantDirectory({ path: folder }, current.generation, root)
+      return
+    }
   }
 
   private async authorizedAccess(
