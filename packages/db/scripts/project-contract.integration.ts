@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -283,6 +283,39 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       }
     })
   }, 60000)
+
+  it('refuses a generated plan exceeding the artifact size limit before publishing it', async () => {
+    await database(async (sql, url) => {
+      const directory = await mkdtemp(join(tmpdir(), 'project-plan-size-test-'))
+      try {
+        await sql`INSERT INTO "user" VALUES (repeat('o',1024))`
+        await sql`INSERT INTO workspace (id,name,owner_id)
+          SELECT rpad('w-' || lpad(n::text,5,'0'),1024,'x'),'Large identifier fixture',repeat('o',1024)
+          FROM generate_series(1,45000) n`
+        await expect(
+          promisify(execFile)(
+            'bun',
+            [
+              '--no-env-file',
+              'scripts/backfill-projects.ts',
+              'plan',
+              '--manifest',
+              join(directory, 'manifest.json'),
+            ],
+            {
+              cwd: new URL('../../../apps/sim/', import.meta.url),
+              env: { ...process.env, MIGRATION_DATABASE_URL: url },
+              timeout: 60000,
+            }
+          )
+        ).rejects.toMatchObject({ code: 1 })
+        expect(await readdir(directory)).toEqual([])
+        expect(await sql`SELECT id FROM project`).toHaveLength(0)
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+  }, 90000)
 
   it('gives workflow creation share locks precedence and bounds a stalled batch without retaining locks', async () => {
     await database(async (sql) => {

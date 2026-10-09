@@ -29,7 +29,7 @@ const logger = createLogger('WorkspaceLifecycle')
 
 /** Bounds each batched workflow archive statement's parameter list. */
 const WORKFLOW_ARCHIVE_BATCH_SIZE = 1_000
-/** Bounds concurrent post-commit notifications; each is best-effort and catches its own errors. */
+/** Bounds concurrent post-commit notifications and provider cleanup. */
 const ARCHIVE_NOTIFICATION_CONCURRENCY = 8
 
 /** What an environment archive must announce once its transaction commits. */
@@ -145,18 +145,22 @@ export async function finishEnvironmentArchive(
 ): Promise<void> {
   const { workspaceId } = effects
   try {
+    const cleanupErrors: unknown[] = []
     await mapWithConcurrency(effects.workflows, ARCHIVE_NOTIFICATION_CONCURRENCY, (row) =>
       finishWorkflowArchive(row.id, workspaceId, row.serverIds, {
         requestId,
         strictExternalCleanup: options.strictExternalCleanup,
-      }).catch((error) =>
-        options.strictExternalCleanup
-          ? Promise.reject(error)
-          : logger.warn(`[${requestId}] Post-archive notification failed for workflow ${row.id}`, {
-              error,
-            })
-      )
+      }).catch((error: unknown) => {
+        if (options.strictExternalCleanup) {
+          cleanupErrors.push(error)
+          return
+        }
+        logger.warn(`[${requestId}] Post-archive notification failed for workflow ${row.id}`, {
+          error,
+        })
+      })
     )
+    if (cleanupErrors.length > 0) throw cleanupErrors[0]
   } finally {
     await mcpService.clearCache(workspaceId).catch(() => undefined)
     if (mcpPubSub) {

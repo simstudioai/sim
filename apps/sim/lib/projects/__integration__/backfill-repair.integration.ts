@@ -1,10 +1,12 @@
 import { execFile } from 'node:child_process'
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import journal from '@sim/db/migrations/meta/_journal.json'
 import { readTestDatabaseUrl, readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import Redis from 'ioredis'
 import postgres from 'postgres'
@@ -26,11 +28,22 @@ const mcpServerId = generateId()
 const cacheKey = `mcp:tools:workspace:env:server:${mcpServerId}`
 const published: unknown[] = []
 subscriber.on('message', (_channel, message) => published.push(JSON.parse(message)))
+const releaseNotifications = createDeferred<void>()
+let tailNotified = false
+const realtime = createServer(async (request, response) => {
+  const chunks: Buffer[] = []
+  for await (const chunk of request) chunks.push(Buffer.from(chunk))
+  const { workflowId } = JSON.parse(Buffer.concat(chunks).toString()) as { workflowId: string }
+  if (workflowId === 'tail') tailNotified = true
+  if (workflowId.startsWith('slow-')) await releaseNotifications.promise
+  response.writeHead(200, { 'content-type': 'application/json' }).end('{}')
+})
 const environment = {
   ...process.env,
   DATABASE_URL: url.toString(),
   MIGRATION_DATABASE_URL: url.toString(),
   REDIS_URL: redisUrl,
+  SOCKET_SERVER_URL: process.env.SOCKET_SERVER_URL,
 }
 const execute = promisify(execFile)
 const run = (command: string) =>
@@ -52,6 +65,10 @@ const run = (command: string) =>
   )
 
 beforeAll(async () => {
+  await new Promise<void>((resolve) => realtime.listen(0, '127.0.0.1', resolve))
+  const address = realtime.address()
+  if (!address || typeof address === 'string') throw new Error('Realtime fixture failed to bind')
+  environment.SOCKET_SERVER_URL = `http://127.0.0.1:${address.port}`
   await subscriber.subscribe('mcp:workflow_tools_changed')
   await admin.unsafe(`CREATE DATABASE "${name}"`)
   await client.unsafe(
@@ -90,6 +107,11 @@ beforeAll(async () => {
 }, 120000)
 
 afterAll(async () => {
+  releaseNotifications.resolve()
+  await new Promise<void>((resolve, reject) => {
+    realtime.close((error) => (error ? reject(error) : resolve()))
+    realtime.closeAllConnections()
+  })
   await cache.del(cacheKey)
   await Promise.all([cache.quit(), subscriber.quit()])
   await client.end({ timeout: 2 })
@@ -104,6 +126,9 @@ describe('Operator archive repair against the full compatible schema', () => {
     await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,archived_at) VALUES ('env','Archived','owner','owner','2026-05-01')`
     await client`INSERT INTO workflow (id,name,user_id,workspace_id,last_synced,created_at,updated_at,is_deployed,is_public_api)
       VALUES ('flow','Flow','owner','env',now(),now(),now(),true,true)`
+    await client`INSERT INTO workflow (id,name,user_id,workspace_id,last_synced,created_at,updated_at)
+      SELECT 'slow-' || n,'Slow notification ' || n,'owner','env',now(),now(),now() FROM generate_series(1,7) n
+      UNION ALL SELECT 'tail','Last notification','owner','env',now(),now(),now()`
     await client`INSERT INTO workflow_schedule (id,workflow_id,trigger_type,status,next_run_at,last_queued_at) VALUES ('schedule','flow','schedule','active',now(),now())`
     await client`INSERT INTO webhook (id,workflow_id,provider,path,provider_config) VALUES ('hook','flow','gitlab','fixture-hook','{}')`
     await client`INSERT INTO chat (id,workflow_id,user_id,identifier,title) VALUES ('chat','flow','owner','repair-chat','Chat')`
@@ -113,7 +138,18 @@ describe('Operator archive repair against the full compatible schema', () => {
     await client`INSERT INTO mcp_servers (id,workspace_id,created_by,name,transport) VALUES (${mcpServerId},'env','owner','Cached server','streamable-http')`
     await cache.set(cacheKey, JSON.stringify({ tools: [], expiry: Date.now() + 60000 }), 'EX', 60)
     await run('plan')
-    await expect(run('repair')).rejects.toMatchObject({ code: 1 })
+    const repair = run('repair').then(
+      () => null,
+      (error: unknown) => error
+    )
+    try {
+      await expect.poll(() => tailNotified, { timeout: 10000 }).toBe(true)
+      expect(JSON.parse(await readFile(report, 'utf8')).status).toBe('running')
+    } finally {
+      releaseNotifications.resolve()
+      await repair
+    }
+    expect(await repair).toMatchObject({ code: 1 })
     expect(await cache.get(cacheKey)).toBeNull()
     await expect
       .poll(() => published, { timeout: 2000 })
@@ -122,9 +158,10 @@ describe('Operator archive repair against the full compatible schema', () => {
       status: 'failed',
       repairsCompleted: [],
     })
-    expect(await client`SELECT archived_at::text,is_deployed,is_public_api FROM workflow`).toEqual([
-      { archived_at: '2026-05-01 00:00:00', is_deployed: false, is_public_api: false },
-    ])
+    expect(await client`SELECT id FROM workflow`).toHaveLength(9)
+    expect(
+      await client`SELECT id FROM workflow WHERE archived_at IS DISTINCT FROM '2026-05-01'::timestamp OR is_deployed OR is_public_api`
+    ).toHaveLength(0)
     expect(await client`SELECT status,next_run_at,last_queued_at FROM workflow_schedule`).toEqual([
       { status: 'disabled', next_run_at: null, last_queued_at: null },
     ])

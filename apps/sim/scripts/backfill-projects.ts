@@ -22,6 +22,7 @@ import postgres from 'postgres'
 import { z } from 'zod'
 
 const logger = createLogger('ProjectBackfillOperator', { enabled: true, logLevel: 'INFO' })
+const MAX_ARTIFACT_BYTES = 128 * 1024 * 1024
 const text = z.string().min(1).max(1024)
 const member = z
   .object({
@@ -76,16 +77,19 @@ const progressSchema = z
   .strict()
 
 async function readJson(path: string): Promise<unknown> {
-  if ((await stat(path)).size > 128 * 1024 * 1024)
+  if ((await stat(path)).size > MAX_ARTIFACT_BYTES)
     throw new Error('Backfill artifact exceeds 128 MiB')
   return JSON.parse(await readFile(path, 'utf8'))
 }
 
 async function writeJson(path: string, value: unknown, replace = true): Promise<void> {
+  const serialized = `${JSON.stringify(value)}\n`
+  if (Buffer.byteLength(serialized, 'utf8') > MAX_ARTIFACT_BYTES)
+    throw new Error('Backfill artifact exceeds 128 MiB')
   const temporary = `${path}.${generateId()}.partial`
   const file = await open(temporary, 'wx', 0o600)
   try {
-    await file.writeFile(`${JSON.stringify(value)}\n`)
+    await file.writeFile(serialized)
     await file.sync()
   } finally {
     await file.close()
