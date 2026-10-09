@@ -326,40 +326,46 @@ function ProseColumn({ items, side, wrapLines }: ProseColumnProps) {
   const scrollEdges = useScrollEdges(scrollElement, { axis: 'x' })
   return (
     <div
-      ref={setScrollElement}
-      role='region'
-      aria-label={side === 'old' ? 'Before document' : 'After document'}
-      tabIndex={wrapLines ? undefined : 0}
       className={cn(
-        scrollFadeXClass,
-        'row-span-full grid min-w-0 grid-rows-subgrid overflow-x-auto',
+        'row-span-full grid min-w-0 grid-rows-subgrid',
         side === 'old' ? 'col-start-1' : 'col-start-2 border-[var(--border)] border-l'
       )}
-      {...scrollFadeAttributes(scrollEdges)}
     >
       <div
+        ref={setScrollElement}
+        role='region'
+        aria-label={side === 'old' ? 'Before document' : 'After document'}
+        tabIndex={wrapLines ? undefined : 0}
         className={cn(
-          'row-span-full grid grid-rows-subgrid',
-          wrapLines ? 'w-full min-w-0' : 'w-max min-w-full'
+          scrollFadeXClass,
+          'row-span-full grid min-w-0 grid-rows-subgrid overflow-x-auto'
         )}
+        {...scrollFadeAttributes(scrollEdges)}
       >
-        {items.map((entry) => {
-          const line = entry.kind === 'row' ? entry.item[side] : undefined
-          return line && entry.kind === 'row' ? (
-            <DiffCell
-              key={entry.key}
-              line={line}
-              segments={entry.segments.get(line)}
-              wrapLines={wrapLines}
-            />
-          ) : (
-            <div
-              key={entry.key}
-              aria-hidden
-              className={cn(entry.kind === 'row' && 'bg-[var(--surface-3)]')}
-            />
-          )
-        })}
+        <div
+          className={cn(
+            'row-span-full grid grid-rows-subgrid',
+            wrapLines ? 'w-full min-w-0' : 'w-max min-w-full'
+          )}
+        >
+          {items.map((entry) => {
+            const line = entry.kind === 'row' ? entry.item[side] : undefined
+            return line && entry.kind === 'row' ? (
+              <DiffCell
+                key={entry.key}
+                line={line}
+                segments={entry.segments.get(line)}
+                wrapLines={wrapLines}
+              />
+            ) : (
+              <div
+                key={entry.key}
+                aria-hidden
+                className={cn(entry.kind === 'row' && 'bg-[var(--surface-3)]')}
+              />
+            )
+          })}
+        </div>
       </div>
     </div>
   )
