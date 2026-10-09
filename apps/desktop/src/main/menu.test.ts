@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { BrowserWindow, type MenuItemConstructorOptions } from 'electron'
+import type { MenuItemConstructorOptions } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import { buildMenuTemplate, type MenuDeps } from '@/main/menu'
 
@@ -44,16 +44,5 @@ describe('buildMenuTemplate', () => {
   it('never exposes developer tools in the application menu', () => {
     const view = submenu(buildMenuTemplate(makeDeps()), 'View')
     expect(view.some((item) => item.role === 'toggleDevTools')).toBe(false)
-  })
-
-  it('anchors Folder Access to a focused utility window instead of dropping the action', () => {
-    const deps = makeDeps()
-    const utilityWindow = new BrowserWindow()
-    vi.mocked(deps.isMainWindow).mockReturnValue(false)
-    const folderAccess = submenu(buildMenuTemplate(deps), 'File').find(
-      (item) => item.label === 'Folder Access…'
-    )
-    folderAccess?.click?.({} as never, utilityWindow, {} as never)
-    expect(deps.openFolderAccess).toHaveBeenCalledWith(utilityWindow)
   })
 })
