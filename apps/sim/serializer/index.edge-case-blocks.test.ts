@@ -340,6 +340,28 @@ describe('Serializer Extended Tests', () => {
 
       expect(webhookBlock?.config.params.triggerMode).toBe(true)
     })
+
+    it('does not pick a tool for a trigger-mode tool block whose operation is not serialized', () => {
+      const serializer = new Serializer()
+      const block: BlockState = {
+        id: 'slack-trigger',
+        type: 'slack',
+        name: 'Slack',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          text: { id: 'text', type: 'long-input', value: 'hello' },
+        },
+        outputs: {},
+        enabled: true,
+        triggerMode: true,
+      }
+
+      const serialized = serializer.serializeWorkflow({ 'slack-trigger': block }, [], {})
+      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-trigger')
+
+      expect(slackBlock?.config.params.triggerMode).toBe(true)
+      expect(slackBlock?.config.tool).toBe('')
+    })
   })
 
   describe('migrateAgentParamsToMessages', () => {

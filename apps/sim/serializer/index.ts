@@ -285,8 +285,10 @@ export class Serializer {
         // Default to the first tool if we can't process tools
         toolId = blockConfig.tools.access[0]
       }
-    } else {
-      // For non-agent blocks, get tool ID from block config as usual
+    } else if (params.triggerMode !== true) {
+      // A trigger-mode block runs through TriggerBlockHandler, which never reads a tool id,
+      // and its tool-mode sub-blocks (e.g. `operation`) are not serialized, so selecting
+      // one would throw and fall back to an arbitrary tool.
       toolId = selectToolId(blockConfig, params)
     }
 
