@@ -24,6 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   FloatingTooltip,
+  MENU_STYLES,
   OverflowText,
   overflowTextClipClass,
   overflowTextFadeClass,
@@ -552,14 +553,11 @@ function BreadcrumbLocationPopover({
           maxWidth={300}
           maxHeight={420}
           border
-          className={cn(
-            POPOVER_ANIMATION_CLASSES,
-            'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-xs'
-          )}
+          className={POPOVER_ANIMATION_CLASSES}
           onMouseEnter={openPopover}
           onMouseLeave={scheduleClose}
         >
-          <PopoverSection className='px-1.5 py-0.5 text-[var(--text-muted)] text-xs'>
+          <PopoverSection>
             <span className='inline-flex items-center gap-1'>
               <span>Path</span>
               <span className='opacity-70'>/</span>
@@ -656,7 +654,7 @@ function BreadcrumbLocationItem({
     <>
       <span className='flex size-[18px] shrink-0 items-center justify-center'>
         {Icon ? (
-          <Icon className='size-3 text-[var(--text-icon)]' />
+          <Icon className='size-[14px] text-[var(--text-icon)]' />
         ) : (
           <span className='size-1.5 rounded-full bg-[var(--text-muted)]' />
         )}
@@ -667,11 +665,7 @@ function BreadcrumbLocationItem({
 
   if (onClick) {
     return (
-      <PopoverItem
-        active={active}
-        onClick={onClick}
-        className='h-7 items-center gap-1.5 px-1.5 py-0 text-xs'
-      >
+      <PopoverItem active={active} onClick={onClick}>
         {labelContent}
       </PopoverItem>
     )
@@ -680,7 +674,9 @@ function BreadcrumbLocationItem({
   return (
     <div
       className={cn(
-        'flex h-7 min-w-0 items-center gap-1.5 rounded-lg px-1.5 text-[var(--text-body)] text-xs',
+        MENU_STYLES.rowLayout,
+        MENU_STYLES.sizes.md.className,
+        'text-[var(--text-body)]',
         active && 'bg-[var(--surface-active)]'
       )}
     >

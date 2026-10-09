@@ -694,7 +694,7 @@ export function MCP() {
         }
       >
         {listError ? (
-          <SettingsEmptyState tone='error'>
+          <SettingsEmptyState>
             {getErrorMessage(listError, 'Failed to load MCP servers')}
           </SettingsEmptyState>
         ) : serversLoading ? (

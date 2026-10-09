@@ -1,8 +1,8 @@
 import { db, dbReplica } from '@sim/db'
 import { organization, subscription as subscriptionTable } from '@sim/db/schema'
 import { desc, eq } from 'drizzle-orm'
-import { defineAuthorizedOrganizationBillingSummaryUseCase } from '@/lib/billing/application/organization-billing-summary/authorized-organization-billing-summary-use-case'
-import { organizationBillingSummaryOperations } from '@/lib/billing/application/organization-billing-summary/operations'
+import { defineAuthorizedOrganizationBillingUseCase } from '@/lib/billing/application/organization-billing/authorized-organization-billing-use-case'
+import { organizationBillingOperations } from '@/lib/billing/application/organization-billing/operations'
 import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
 import {
   getOrganizationBillingBlockState,
@@ -50,8 +50,8 @@ function roundCurrency(value: number): number {
  * Member pages, invitation counts, member ledgers, and limit aggregates remain on
  * their dedicated surfaces instead of delaying this navigation-critical response.
  */
-export const getOrganizationBillingSummary = defineAuthorizedOrganizationBillingSummaryUseCase({
-  operation: organizationBillingSummaryOperations.read,
+export const getOrganizationBillingSummary = defineAuthorizedOrganizationBillingUseCase({
+  operation: organizationBillingOperations.read,
   organizationId: (input: OrganizationBillingSummaryInput) => input.organizationId,
   async execute({ context }): Promise<OrganizationBillingSummaryResult> {
     const { organizationId, actorUserId, userRole } = context

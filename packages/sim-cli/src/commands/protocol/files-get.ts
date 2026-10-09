@@ -10,6 +10,7 @@ import { clientFrom } from '../../context'
 import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { isRequestTimeout, RAISE_TIMEOUT_HINT, resolvePath, SimApiError } from '../../http/client'
+import { callsOperations } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 
 function writeFailure(path: WriteStream['path'], error: unknown): SimApiError {
@@ -349,7 +350,7 @@ export function attachFileGet(files: Command): void {
 }
 
 export function attachFileVersionDownload(versions: Command): void {
-  versions
+  const download = versions
     .command('download')
     .argument('<fileId>', 'File identifier.')
     .argument('<version>', 'Version number.')
@@ -360,4 +361,5 @@ export function attachFileVersionDownload(versions: Command): void {
     .action((fileId: string, version: string, options: DownloadOutputOptions, command: Command) =>
       downloadToOutput(command, V2_OPERATIONS.downloadFileVersion, { fileId, version }, options)
     )
+  callsOperations(download, ['downloadFileVersion'])
 }

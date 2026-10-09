@@ -17,8 +17,8 @@ export function BrowserPageDialogModal({ dialog, open, onAnswer }: BrowserPageDi
     <ChipConfirmModal
       open={open}
       onOpenChange={(nextOpen) => !nextOpen && answer(false)}
-      title='Leave site?'
-      text='Changes you made may not be saved.'
+      title='Leave page?'
+      text='Changes on this page may not be saved.'
       defaultAction='dismiss'
       dismissLabel='Stay'
       confirm={{ label: 'Leave', onClick: () => answer(true) }}

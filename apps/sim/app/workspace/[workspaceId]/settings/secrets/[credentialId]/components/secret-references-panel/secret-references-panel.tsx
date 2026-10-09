@@ -102,11 +102,7 @@ export function SecretReferencesPanel({
   }
 
   if (isError) {
-    return (
-      <SettingsEmptyState variant='inline' tone='error'>
-        Could not load references.
-      </SettingsEmptyState>
-    )
+    return <SettingsEmptyState variant='inline'>Could not load references.</SettingsEmptyState>
   }
 
   if (isPending) {

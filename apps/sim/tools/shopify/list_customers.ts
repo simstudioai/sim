@@ -1,6 +1,9 @@
-import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import type { ShopifyCustomersResponse, ShopifyListCustomersParams } from '@/tools/shopify/types'
-import { CUSTOMER_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
+import {
+  CUSTOMER_SUMMARY_OUTPUT_PROPERTIES,
+  PAGE_INFO_OUTPUT_PROPERTIES,
+} from '@/tools/shopify/types'
+import { getShopifyHeaders, getShopifyPageSize, getShopifyUrl } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const shopifyListCustomersTool: ToolConfig<
@@ -15,14 +18,41 @@ export const shopifyListCustomersTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'shopify',
+    authoritativeParams: ['domain', 'idToken'],
   },
 
   params: {
-    shopDomain: {
+    reverse: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Reverse the result sort order (default false)',
+    },
+    sortKey: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Sort results by CREATED_AT, ID, LOCATION, NAME, RELEVANCE, UPDATED_AT (default Shopify ordering)',
+    },
+
+    accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
+      description: 'Shopify Admin API token supplied by the connected credential',
+    },
+    shopDomain: {
+      type: 'string',
+      required: false,
       visibility: 'user-only',
       description: 'Your Shopify store domain (e.g., mystore.myshopify.com)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor from pageInfo.endCursor to retrieve the next page',
     },
     first: {
       type: 'number',
@@ -40,25 +70,22 @@ export const shopifyListCustomersTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+    url: getShopifyUrl,
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for Shopify API request')
-      }
-      return {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': params.accessToken,
-      }
-    },
+    headers: getShopifyHeaders,
     body: (params) => {
-      const first = Math.min(params.first || 50, 250)
+      const first = getShopifyPageSize(params.first, 250)
 
       return {
         query: `
-          query listCustomers($first: Int!, $query: String) {
-            customers(first: $first, query: $query) {
+          query listCustomers($first: Int!, $after: String, $query: String, $reverse: Boolean, $sortKey: CustomerSortKeys) {
+            customers(
+              first: $first
+              after: $after
+              query: $query
+              reverse: $reverse
+              sortKey: $sortKey
+            ) {
               edges {
                 node {
                   id
@@ -70,28 +97,54 @@ export const shopifyListCustomersTool: ToolConfig<
                   updatedAt
                   note
                   tags
+                  numberOfOrders
+                  locale
+                  taxExempt
+                  emailMarketingConsent {
+                    marketingState
+                    marketingOptInLevel
+                    consentUpdatedAt
+                  }
+                  smsMarketingConsent {
+                    marketingState
+                    marketingOptInLevel
+                    consentUpdatedAt
+                  }
                   amountSpent {
                     amount
                     currencyCode
                   }
                   defaultAddress {
+                    firstName
+                    lastName
                     address1
+                    address2
                     city
                     province
+                    provinceCode
                     country
+                    countryCode
                     zip
+                    phone
                   }
                 }
               }
               pageInfo {
                 hasNextPage
                 hasPreviousPage
+                startCursor
+                endCursor
               }
             }
           }
+
         `,
         variables: {
+          reverse: params.reverse ?? false,
+          sortKey: params.sortKey || undefined,
+
           first,
+          after: params.after?.trim() || null,
           query: params.query || null,
         },
       }
@@ -101,10 +154,10 @@ export const shopifyListCustomersTool: ToolConfig<
   transformResponse: async (response) => {
     const data = await response.json()
 
-    if (data.errors) {
+    if (!response.ok || data.errors?.length) {
       return {
         success: false,
-        error: data.errors[0]?.message || 'Failed to list customers',
+        error: data.errors?.[0]?.message || 'Failed to list customers',
         output: {},
       }
     }
@@ -135,7 +188,7 @@ export const shopifyListCustomersTool: ToolConfig<
       description: 'List of customers',
       items: {
         type: 'object',
-        properties: CUSTOMER_OUTPUT_PROPERTIES,
+        properties: CUSTOMER_SUMMARY_OUTPUT_PROPERTIES,
       },
     },
     pageInfo: {

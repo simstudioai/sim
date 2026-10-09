@@ -4,7 +4,6 @@
   "global-remock\tapps/sim/app/api/schedules/execute/route.test.ts\t@sim/db",
   "global-remock\tapps/sim/app/api/schedules/execute/route.test.ts\tdrizzle-orm",
   "global-remock\tapps/sim/blocks/blocks/outlook.test.ts\t@/tools/registry",
-  "global-remock\tapps/sim/lib/billing/application/organization-billing-summary/get-organization-billing-summary.test.ts\t@sim/db",
   "global-remock\tapps/sim/lib/billing/storage/payer-transfer.test.ts\t@sim/db/schema",
   "global-remock\tapps/sim/lib/billing/storage/payer-transfer.test.ts\tdrizzle-orm",
   "global-remock\tapps/sim/lib/credentials/deletion.test.ts\t@sim/db",

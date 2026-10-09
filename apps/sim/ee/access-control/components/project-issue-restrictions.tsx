@@ -48,7 +48,7 @@ export function ProjectIssueRestrictions({
       }
     >
       {projects.error && (
-        <p className='pl-2 text-[var(--text-error)] text-caption'>{projects.error.message}</p>
+        <p className='pl-2 text-[var(--text-muted)] text-caption'>{projects.error.message}</p>
       )}
       <div className='flex flex-col gap-0.5'>
         {choices.map((project) => (
