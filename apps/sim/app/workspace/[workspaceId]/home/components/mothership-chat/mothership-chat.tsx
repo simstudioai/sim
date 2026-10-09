@@ -935,10 +935,7 @@ export function MothershipChat({
         </div>
 
         <div
-          className={cn(
-            styles.footer,
-            animateInput && 'animate-slide-in-bottom motion-reduce:animate-none'
-          )}
+          className={cn(styles.footer, animateInput && 'animate-slide-in-bottom')}
           onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
         >
           <div className={styles.footerInner}>

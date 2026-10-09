@@ -119,14 +119,18 @@ function ChatFilePreview({ file, onRemove }: ChatFilePreviewProps) {
   return (
     <div
       className={cn(
-        'group relative shrink-0 overflow-hidden rounded-md bg-[var(--surface-2)]',
+        'group relative pointer-coarse:flex shrink-0 pointer-coarse:items-center overflow-hidden rounded-md bg-[var(--surface-2)]',
         previewUrl
-          ? '@max-[960px]/workflow:pointer-coarse:size-12 size-[40px]'
-          : 'flex @max-[960px]/workflow:pointer-coarse:min-h-12 min-w-[80px] max-w-[120px] items-center justify-center px-2 py-0.5 @max-[960px]/workflow:pointer-coarse:pr-12'
+          ? 'size-[40px] pointer-coarse:h-12 pointer-coarse:w-auto'
+          : 'flex pointer-coarse:min-h-12 min-w-[80px] max-w-[120px] items-center justify-center px-2 py-0.5'
       )}
     >
       {previewUrl ? (
-        <img src={previewUrl} alt={file.name} className='size-full object-cover' />
+        <img
+          src={previewUrl}
+          alt={file.name}
+          className='pointer-coarse:size-12 size-full pointer-coarse:shrink-0 object-cover'
+        />
       ) : (
         <div className='min-w-0 flex-1'>
           <div className='truncate font-medium text-[var(--text-body)] text-micro'>{file.name}</div>
@@ -142,7 +146,7 @@ function ChatFilePreview({ file, onRemove }: ChatFilePreviewProps) {
           event.stopPropagation()
           onRemove(file.id)
         }}
-        className='absolute top-0.5 right-0.5 @max-[960px]/workflow:pointer-coarse:size-11 @min-[960px]/workflow:opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100'
+        className='pointer-coarse:static absolute top-0.5 right-0.5 pointer-coarse:size-11 pointer-coarse:shrink-0 @min-[960px]/workflow:pointer-fine:opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100'
       >
         <span
           className={cn(
