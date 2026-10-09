@@ -6,6 +6,7 @@ import type { BlockOutput } from '@/blocks/types'
 import type {
   ChildWorkflowContext,
   ExecutionCallbacks,
+  ExecutionTestHooks,
   IterationContext,
   ParentIteration,
   PiiBlockOutputRedaction,
@@ -420,6 +421,8 @@ export interface ExecutorDelegationOrigin {
 
 export interface ExecutionContext {
   workflowId: string
+  /** Set during a workflow test run; Agent tool calls consult it before calling the tool. */
+  testHooks?: ExecutionTestHooks
   workspaceId?: string
   executionId?: string
   largeValueExecutionIds?: string[]

@@ -6,7 +6,7 @@ import postgres from 'postgres'
 import { describe, expect, it } from 'vitest'
 
 const migration = readFileSync(
-  new URL('../migrations/0403_workspace_project_column.sql', import.meta.url),
+  new URL('../migrations/0404_workspace_project_column.sql', import.meta.url),
   'utf8'
 )
 

@@ -84,7 +84,7 @@ vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock
 vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 
 vi.mock('@/lib/mothership/entitlements', () => ({
-  computeWorkspaceEntitlements: vi.fn().mockResolvedValue([]),
+  computeEntitlements: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
@@ -417,8 +417,9 @@ describe('POST /api/v2/chat', () => {
       workspaceId: 'workspace-1',
       chatId: SERVER_ISSUED_CHAT_ID,
       integrationCatalog: { mcpServerIds: [] },
+      mode: 'agent',
     })
-    for (const legacy of ['messages', 'mode', 'isHosted', 'workspaceContext', 'userPermission']) {
+    for (const legacy of ['messages', 'isHosted', 'workspaceContext', 'userPermission']) {
       expect(payload).not.toHaveProperty(legacy)
     }
     expect(options).toMatchObject({

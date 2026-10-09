@@ -2501,6 +2501,97 @@ export const dashboard = pgTable(
   })
 )
 
+/**
+ * A workflow test file: one concern, read as `tests/<name>.test.js`. `tests create` sets the
+ * name, title, and description; the source is a workspace file with `context = 'test'`, so it
+ * keeps versions and Sim's file edits, and `cases` is what its last accepted write declared.
+ */
+export const workflowTest = pgTable(
+  'workflow_test',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    bodyFileId: text('body_file_id')
+      .notNull()
+      .references(() => workspaceFiles.id),
+    /** Every `describe > it` path in the file with its mode (`run`, `only`, `skip`). */
+    cases: jsonb('cases').notNull().default('[]'),
+    /** sha256 of the source `cases` was read from; a run reporting another hash is stale. */
+    sourceHash: text('source_hash').notNull(),
+    createdByUserId: text('created_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    deletedAt: timestamp('deleted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceNameUnique: uniqueIndex('workflow_test_workspace_name_unique')
+      .on(table.workspaceId, table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
+    bodyFileUnique: uniqueIndex('workflow_test_body_file_unique').on(table.bodyFileId),
+  })
+)
+
+/** One run of a test file against the draft or deployed workflows. */
+export const workflowTestRun = pgTable(
+  'workflow_test_run',
+  {
+    id: text('id').primaryKey(),
+    testId: text('test_id')
+      .notNull()
+      .references(() => workflowTest.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    version: text('version').notNull(),
+    status: text('status').notNull().default('running'),
+    passed: integer('passed').notNull().default(0),
+    failed: integer('failed').notNull().default(0),
+    skipped: integer('skipped').notNull().default(0),
+    /** The sandbox report: every case's checks, judge reasons, logs, and executions. */
+    report: jsonb('report'),
+    /** Why the file produced no report: it did not load, or the run itself failed. */
+    error: text('error'),
+    /** sha256 of the source this run executed; null when it failed before reading the file. */
+    sourceHash: text('source_hash'),
+    /** `{ workflowId, deploymentVersionId }` for each workflow the run executed; null draft ids. */
+    ranAgainst: jsonb('ran_against'),
+    /** Each case's status (`running`, `pass`, `fail`, `skip`) by `describe > it` path, as it runs. */
+    progress: jsonb('progress'),
+    triggeredByActor: jsonb('triggered_by_actor').notNull(),
+    triggeredByUserId: text('triggered_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (table) => ({
+    testVersionStartedIdx: index('workflow_test_run_test_version_started_idx').on(
+      table.testId,
+      table.version,
+      table.startedAt
+    ),
+    versionCheck: check(
+      'workflow_test_run_version_check',
+      sql`${table.version} IN ('draft', 'deployed')`
+    ),
+    statusCheck: check(
+      'workflow_test_run_status_check',
+      sql`${table.status} IN ('running', 'passed', 'failed', 'error')`
+    ),
+    completedCheck: check(
+      'workflow_test_run_completed_check',
+      sql`(${table.status} = 'running') = (${table.completedAt} IS NULL)`
+    ),
+  })
+)
+
 export const workspaceFiles = pgTable(
   'workspace_files',
   {
@@ -5347,6 +5438,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'enrichment',
   'voice-output',
   'api-tool',
+  'workflow-test',
 ])
 
 /** Content-free organization Search activity, independent of billable model usage. */

@@ -23,6 +23,7 @@ const SANDBOX_BUNDLE_FILES = {
   pptxgenjs: 'pptxgenjs.cjs',
   docx: 'docx.cjs',
   'pdf-lib': 'pdf-lib.cjs',
+  'vitest-expect': 'vitest-expect.cjs',
 }
 const bundleSourceCache = new Map()
 const activeIsolates = new Map()
@@ -600,6 +601,34 @@ async function executeCode(request, executionId) {
  * executes user code, then runs `finalize` (must return a Uint8Array). The
  * resulting bytes are returned as base64 in `bytesBase64`.
  */
+/**
+ * Evaluates task user code as an ES module that may import only the task's own modules
+ * (`userModule.modules`: specifier -> source). Failures throw, so `executeTask`'s catch
+ * classifies them exactly as it does a script's (user error, timeout, cancellation, OOM).
+ */
+async function evaluateUserModule(isolate, context, code, userModule, timeoutMs, releaseables) {
+  const provided = new Map()
+  for (const [specifier, source] of Object.entries(userModule.modules)) {
+    const providedModule = await isolate.compileModule(source, {
+      filename: `sandbox/modules/${specifier}.js`,
+    })
+    releaseables.push(providedModule)
+    await providedModule.instantiate(context, (dependency) => {
+      throw new Error(`Sandbox module "${specifier}" cannot import "${dependency}"`)
+    })
+    provided.set(specifier, providedModule)
+  }
+  const importable = [...provided.keys()].map((specifier) => `"${specifier}"`).join(' and ')
+  const entry = await isolate.compileModule(code, { filename: userModule.filename })
+  releaseables.push(entry)
+  await entry.instantiate(context, (specifier) => {
+    const match = provided.get(specifier)
+    if (!match) throw new Error(`Cannot import "${specifier}": only ${importable} can be imported`)
+    return match
+  })
+  await entry.evaluate({ timeout: timeoutMs, promise: true })
+}
+
 async function executeTask(request, executionId) {
   const { code, timeoutMs, task } = request
   const stdoutChunks = []
@@ -981,7 +1010,12 @@ async function executeTask(request, executionId) {
     timings.harden = Date.now() - tPhase
     tPhase = Date.now()
 
-    const wrappedUserCode = `
+    let userResult
+    if (task.userModule) {
+      await evaluateUserModule(isolate, context, code, task.userModule, timeoutMs, releaseables)
+      userResult = { success: true }
+    } else {
+      const wrappedUserCode = `
       (async () => {
         try {
           await (async () => {
@@ -1000,20 +1034,22 @@ async function executeTask(request, executionId) {
         }
       })()
     `
-    const userScript = await isolate.compileScript(wrappedUserCode, {
-      filename: 'user-function.js',
-    })
-    releaseables.push(userScript)
-    const userResultJson = await userScript.run(context, { timeout: timeoutMs, promise: true })
+      const userScript = await isolate.compileScript(wrappedUserCode, {
+        filename: 'user-function.js',
+      })
+      releaseables.push(userScript)
+      const userResultJson = await userScript.run(context, { timeout: timeoutMs, promise: true })
+      try {
+        userResult = JSON.parse(userResultJson)
+      } catch {
+        userResult = {
+          success: false,
+          errorInfo: { message: 'Invalid user result', name: 'Error' },
+        }
+      }
+    }
     timings.userCode = Date.now() - tPhase
     tPhase = Date.now()
-
-    let userResult
-    try {
-      userResult = JSON.parse(userResultJson)
-    } catch {
-      userResult = { success: false, errorInfo: { message: 'Invalid user result', name: 'Error' } }
-    }
 
     if (!userResult.success) {
       timings.total = Date.now() - tStart

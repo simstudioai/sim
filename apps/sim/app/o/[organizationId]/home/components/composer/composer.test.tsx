@@ -232,6 +232,7 @@ async function render(
         <FeatureFlagsProvider
           flags={{
             dashboards: false,
+            'workflow-tests': false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
           }}
@@ -309,6 +310,7 @@ it.each([
           <FeatureFlagsProvider
             flags={{
               dashboards: false,
+              'workflow-tests': false,
               'mothership-model-selector': false,
               'mothership-plan-mode': planEnabled,
             }}
@@ -403,6 +405,7 @@ it('keeps restored queued skills scoped when replacing a draft', async () => {
         <FeatureFlagsProvider
           flags={{
             dashboards: false,
+            'workflow-tests': false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
           }}

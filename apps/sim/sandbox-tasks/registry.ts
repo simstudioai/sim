@@ -2,6 +2,7 @@ import type { SandboxTask } from '@/lib/execution/sandbox/types'
 import { docxGenerateTask } from '@/sandbox-tasks/docx-generate'
 import { pdfGenerateTask } from '@/sandbox-tasks/pdf-generate'
 import { pptxGenerateTask } from '@/sandbox-tasks/pptx-generate'
+import { workflowTestCollectTask, workflowTestRunTask } from '@/sandbox-tasks/workflow-test'
 
 /**
  * Every piece of user code that runs inside the isolated-vm sandbox is defined
@@ -12,6 +13,8 @@ export const SANDBOX_TASKS = {
   'pptx-generate': pptxGenerateTask,
   'docx-generate': docxGenerateTask,
   'pdf-generate': pdfGenerateTask,
+  'workflow-test-run': workflowTestRunTask,
+  'workflow-test-collect': workflowTestCollectTask,
 } as const satisfies Record<string, SandboxTask>
 
 export type SandboxTaskId = keyof typeof SANDBOX_TASKS

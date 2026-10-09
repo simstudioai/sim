@@ -133,6 +133,8 @@ const RESOURCE_TO_CONTEXT: Record<
     ...(r.viewId ? { viewId: r.viewId } : {}),
   }),
   dashboard: (r) => ({ kind: 'dashboard', dashboardId: r.id, label: r.title }),
+  /** Sim reads a test through its file, `tests/<name>.test.js`, not a chat context. */
+  test: () => null,
   file: (r) => ({ kind: 'file', fileId: r.id, label: r.title }),
   folder: (r) => ({ kind: 'folder', folderId: r.id, label: r.title }),
   filefolder: (r) => ({ kind: 'filefolder', fileFolderId: r.id, label: r.title }),

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { mothershipDashboardsInputSchema } from '@/lib/api/contracts/mothership-dashboards'
+import { mothershipTestsInputSchema } from '@/lib/api/contracts/mothership-tests'
 import { createWorkspaceInputSchema } from '@/lib/workspaces/create-input'
 import { organizationSearchSourcesInputSchema } from './mothership-search-sources'
 import { mothershipSettingsInputSchema } from './mothership-settings'
@@ -17,6 +18,14 @@ export const managementToolContracts = [
     description:
       'Read and save the selected workspace’s single dashboard, validated YAML over live tables. Load the create-dashboard skill for the schema. get returns content and revision, or nulls when the workspace has no dashboard yet; set with no revision creates it. Replacing an existing dashboard requires expectedRevision from get, so a concurrent edit is never overwritten. Use open_resource with type dashboard to show the result.',
     inputSchema: mothershipDashboardsInputSchema,
+  },
+  {
+    id: 'tests',
+    route: 'sim',
+    scope: 'all',
+    description:
+      'Create and run the selected workspace\u2019s workflow tests. create takes a name, a one-line title for the concern, and an optional description, and returns tests/<name>.test.js; write the cases into that file with the file tools. A test file is plain vitest: import { describe, it, expect, vi } from "vitest" and { runWorkflow, mockBlock, mockTool, spyOnBlock } from "sim:test", one top-level describe, an it per case. runWorkflow(name, input) runs a workflow and returns { output } (pass { trigger: \"Trigger block name\" } as a third argument when it has several triggers); mockBlock(blockName) returns a vi.fn whose value replaces that block\u2019s output and records its inputs; mockTool(toolId) or mockTool(agentBlockName, toolId) answers an Agent\u2019s calls to that tool the same way while the model still runs, naming built-in tools by id (slack_message), MCP tools by server as mockTool({ mcp: "Server name", tool: "tool_name" }), and custom tools by title as mockTool({ customTool: "Title" }); .mockSampleOutput({ ...overrides }) on either mock returns a placeholder output shaped like the real one, with your fields merged in; await expect(value).toMatchRubric(rubric) asks a model judge for pass or fail. Every write is checked and refused if the file does not load. run takes a version (draft while editing, deployed before shipping), waits, and returns each file\u2019s failures with line numbers and messages. list and get report status; update changes title or description.',
+    inputSchema: mothershipTestsInputSchema,
   },
   {
     id: 'workspaces',

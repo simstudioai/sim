@@ -4522,7 +4522,6 @@
   "apps/sim/lib/execution/remote-sandbox/workspace-sandboxes.ts#isSandboxNameTaken",
   "apps/sim/lib/execution/remote-sandbox/workspace-sandboxes.ts#isWorkspaceSandboxNameConflictError",
   "apps/sim/lib/execution/remote-sandbox/workspace-sandboxes.ts#scheduleSandboxBuild",
-  "apps/sim/lib/execution/sandbox/run-task.ts#SandboxUserCodeError",
   "apps/sim/lib/file-parsers/errors.ts#FILE_PARSER_ERROR_CODES",
   "apps/sim/lib/file-parsers/index.ts#parseFile",
   "apps/sim/lib/file-parsers/json-parser.ts#stripJsonComments",
