@@ -102,7 +102,6 @@ case "$group" in
   # because they finish in seconds. Self-hosted without billing: hosted billing admits runs through
   # Redis, which the CLI app is not given.
   cli)
-    GOOGLE_ADS_REPORT_PATH="$report_dir/google-ads.json" bun scripts/test-google-ads-e2e.ts
     for search in google-content lucid zoom google-meet; do
       report_var="SEARCH_$(echo "$search" | tr 'a-z-' 'A-Z_')_REPORT_PATH"
       env NEXT_PUBLIC_APP_URL=http://127.0.0.1:3040 NEXT_PUBLIC_FORCE_HOSTED=false \
