@@ -1,6 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { LRUCache } from 'lru-cache'
 import { NextRequest } from 'next/server'
+import {
+  v2GetBlockContract,
+  v2GetToolContract,
+  v2ListBlocksContract,
+  v2ListConnectorTypesContract,
+  v2ListToolsContract,
+} from '@/lib/api/contracts/v2/catalog'
 import { v2DownloadFileContract, v2ReadFileTextContract } from '@/lib/api/contracts/v2/files'
 import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
@@ -27,6 +35,30 @@ import { observeTableRowDelivery } from '@/lib/table/application/row-delivery-ob
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
 const logger = createLogger('MothershipSandboxResourceTransport')
+
+/**
+ * GET routes whose responses are the producer-owned catalog (blocks, tools, connector types):
+ * no execution output, file content, or row values, so no producer records provenance for
+ * them and none is expected. Only the missing-provenance log consults this.
+ */
+const CATALOG_ROUTE_PATTERNS: ReadonlySet<string> = new Set(
+  [
+    v2ListBlocksContract,
+    v2GetBlockContract,
+    v2ListToolsContract,
+    v2GetToolContract,
+    v2ListConnectorTypesContract,
+  ].map((contract) => contract.path.replace(/\[([^\]]+)\]/g, '{$1}'))
+)
+
+/**
+ * Data-bearing routes already reported as lacking a provenance producer. The gap is a
+ * property of the route, not the request, so it is reported once per route per window.
+ */
+const unrecordedProvenanceRoutesLogged = new LRUCache<string, true>({
+  max: 1_000,
+  ttl: 60 * 60 * 1000,
+})
 
 /** Private callback observes the real authenticated v2 request without changing its body or API contract. */
 export async function proxySandboxResourceRequest(
@@ -160,13 +192,21 @@ async function proxyAuthorizedSandboxRequest(
     )
     try {
       if (fileRead && !fileObserved && result.ok && result.body) await recordInput(false)
-      else if (!fileObserved && !rowProvenance) {
+      else if (
+        !fileObserved &&
+        !rowProvenance &&
+        !(method === 'GET' && CATALOG_ROUTE_PATTERNS.has(matched.pattern))
+      ) {
         /** Missing producer evidence is unrecorded, not proof that the machine received a secret. */
-        logger.warn('Sandbox API response has no recorded secret provenance', {
-          method,
-          route: matched.pattern,
-          toolCallId: scope.toolCallId,
-        })
+        const routeKey = `${method} ${matched.pattern}`
+        if (!unrecordedProvenanceRoutesLogged.has(routeKey)) {
+          unrecordedProvenanceRoutesLogged.set(routeKey, true)
+          logger.warn('Sandbox API response has no recorded secret provenance', {
+            method,
+            route: matched.pattern,
+            toolCallId: scope.toolCallId,
+          })
+        }
       }
     } catch (error) {
       await result.body?.cancel().catch(() => {})
