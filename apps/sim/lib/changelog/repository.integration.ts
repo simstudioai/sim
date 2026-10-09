@@ -120,9 +120,8 @@ describe('A deployment ships in one release', () => {
     await Promise.race([second.catch(() => {}), lockWaiterAppears()])
     commit.resolve()
 
-    const results = await Promise.allSettled([first, second])
-
-    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+    await expect(first).resolves.toMatchObject({ workspaceId })
+    await expect(second).rejects.toThrow(/Already released/)
     const claims =
       await control`SELECT 1 FROM changelog_change WHERE deployment_version_id = ${deployment}`
     expect(claims).toHaveLength(1)
