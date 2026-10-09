@@ -36,6 +36,8 @@ test('native file tools remember folder consent across chats and restarts until 
   const claimed = new Set<string>()
   const expireAfterAuthorization = new Set<string>()
   let signedIn = true
+  const appOutput: string[] = []
+  const signOutRequests: number[] = []
   const calls: Record<
     string,
     { toolName: string; args: Record<string, unknown>; chatId?: string } | undefined
@@ -119,6 +121,7 @@ createRoot(document.getElementById('settings')).render(
         return
       }
       if (path === '/api/auth/sign-out') {
+        signOutRequests.push(Date.now())
         signedIn = false
         response
           .writeHead(200, {
@@ -164,8 +167,8 @@ createRoot(document.getElementById('settings')).render(
     await new Promise<void>((resolve) => server?.listen(0, '127.0.0.1', resolve))
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Missing fixture address')
-    const launch = () =>
-      electron.launch({
+    const launch = async () => {
+      const launched = await electron.launch({
         args: ['.', '--use-mock-keychain'],
         cwd: DESKTOP_DIR,
         env: {
@@ -174,6 +177,10 @@ createRoot(document.getElementById('settings')).render(
           SIM_DESKTOP_USER_DATA: join(root, 'profile'),
         },
       })
+      launched.process().stdout?.on('data', (chunk: Buffer) => appOutput.push(chunk.toString()))
+      launched.process().stderr?.on('data', (chunk: Buffer) => appOutput.push(chunk.toString()))
+      return launched
+    }
     app = await launch()
     let window = await app.firstWindow()
     await app.evaluate(({ app, BrowserWindow }) => {
@@ -870,6 +877,7 @@ createRoot(document.getElementById('settings')).render(
       }
     })
   } finally {
+    writeFileSync(test.info().outputPath('local-files-diagnostics.json'), JSON.stringify({ signedIn, signOutRequests, appOutput }, null, 2))
     await app?.close()
     server?.close()
     rmSync(root, { recursive: true, force: true })
