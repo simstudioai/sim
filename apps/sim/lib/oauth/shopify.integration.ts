@@ -7,6 +7,8 @@ import {
   account,
   credential,
   credentialMember,
+  knowledgeBase,
+  knowledgeConnector,
   member,
   organization,
   pendingCredentialDraft,
@@ -29,6 +31,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { env } from '@/lib/core/config/env'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import { CREDENTIAL_REVOKED_SYNC_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { refreshTokenIfNeeded } from '@/lib/oauth/credential-service'
 import * as refreshCoordination from '@/lib/oauth/refresh-coordination'
 import { completeShopifyOAuthConnection } from '@/lib/oauth/shopify'
@@ -38,6 +41,7 @@ import {
   getRecentTerminalError,
   markCredentialDead,
 } from '@/lib/oauth/terminal-errors'
+import { rememberShopifyAccountScopes } from '@/lib/shopify/privacy/installation-scopes'
 import { GET as shopifyCallback } from '@/app/api/auth/oauth2/callback/shopify/route'
 
 vi.mock('@/lib/auth', () => authMock)
@@ -523,6 +527,64 @@ describe('Shopify offline installation tokens against PostgreSQL and HTTP', () =
     })
   })
 
+  it('recovers revoked connector schedules when a claim creates a credential for an existing account in another workspace', async () => {
+    const { completeShopifyInstall } = await import(
+      '@/lib/credentials/application/complete-shopify-install'
+    )
+    const destinationId = generateId()
+    const knowledgeBaseId = generateId()
+    const connectorId = generateId()
+    await db.insert(workspace).values({
+      id: destinationId,
+      name: 'Recovery fixture',
+      ownerId: userIds[0],
+      billedAccountUserId: userIds[0],
+    })
+    await db.insert(permissions).values({
+      id: generateId(),
+      userId: userIds[0],
+      entityType: 'workspace',
+      entityId: destinationId,
+      permissionType: 'admin',
+    })
+    await db
+      .insert(knowledgeBase)
+      .values({ id: knowledgeBaseId, name: 'Recovery fixture', userId: userIds[0], workspaceId })
+    await db.insert(knowledgeConnector).values({
+      id: connectorId,
+      knowledgeBaseId,
+      connectorType: 'shopify',
+      credentialId,
+      sourceConfig: {},
+      status: 'error',
+      lastSyncError: CREDENTIAL_REVOKED_SYNC_ERROR,
+      consecutiveFailures: 3,
+      nextSyncAt: null,
+    })
+    try {
+      const { attemptId, browserProof } = await installationCallback()
+      const result = await completeShopifyInstall.execute({
+        principal: createSessionPrincipal({ userId: userIds[0] }),
+        input: { attemptId, browserProof, workspaceId: destinationId },
+      })
+      expect(result).toMatchObject({ created: true, accountId: rowIds[0] })
+      const [recovered] = await db
+        .select()
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, connectorId))
+      expect(recovered).toMatchObject({
+        status: 'active',
+        lastSyncError: null,
+        consecutiveFailures: 0,
+      })
+      expect(recovered.nextSyncAt?.getTime()).toBeGreaterThanOrEqual(testStartedAt)
+    } finally {
+      await db.delete(knowledgeBase).where(eq(knowledgeBase.id, knowledgeBaseId))
+      await db.delete(permissions).where(eq(permissions.entityId, destinationId))
+      await db.delete(workspace).where(eq(workspace.id, destinationId))
+    }
+  })
+
   it.each(['valid', 'hmac', 'duplicate', 'expiry', 'domain'] as const)(
     'handles a %s Shopify-originated launch before Sim login',
     async (condition) => {
@@ -531,6 +593,7 @@ describe('Shopify offline installation tokens against PostgreSQL and HTTP', () =
         shop: condition === 'domain' ? 'attacker.example' : shopDomain,
         timestamp: String(Math.floor(Date.now() / 1000) - (condition === 'expiry' ? 3600 : 0)),
       })
+      if (condition === 'duplicate') query.append('shop', 'attacker.myshopify.com')
       const message = [...query.entries()]
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([key, value]) => `${key}=${value}`)
@@ -539,7 +602,6 @@ describe('Shopify offline installation tokens against PostgreSQL and HTTP', () =
         'hmac',
         condition === 'hmac' ? '0'.repeat(64) : hmacSha256Hex(message, 'shopify-integration-secret')
       )
-      if (condition === 'duplicate') query.append('shop', 'attacker.myshopify.com')
       const response = await launch(
         new NextRequest(`http://localhost:3000/api/auth/shopify/install?${query}`),
         undefined
@@ -758,6 +820,69 @@ describe('Shopify offline installation tokens against PostgreSQL and HTTP', () =
         .filter((row) => row.accountId === shopId)
         .every((row) => row.refreshToken === currentRefresh)
     ).toBe(true)
+  })
+
+  it('rolls back every ownership-history page when a later association fails and retries the complete capture', async () => {
+    const owners = Array.from({ length: 101 }, () => ({
+      workspaceId: generateId(),
+      credentialId: generateId(),
+    }))
+    const lastCredentialId = [...owners.map((owner) => owner.credentialId), credentialId]
+      .sort()
+      .at(-1)
+    await db.insert(workspace).values(
+      owners.map((owner) => ({
+        id: owner.workspaceId,
+        name: 'History page fixture',
+        ownerId: userIds[0],
+        billedAccountUserId: userIds[0],
+      }))
+    )
+    await db.insert(credential).values(
+      owners.map((owner) => ({
+        id: owner.credentialId,
+        workspaceId: owner.workspaceId,
+        type: 'oauth' as const,
+        providerId: 'shopify',
+        accountId: rowIds[0],
+        displayName: 'History page fixture',
+        createdBy: userIds[0],
+      }))
+    )
+    await db.execute(sql`CREATE FUNCTION shopify_fixture_reject_last_scope() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.credential_id = TG_ARGV[0] THEN RAISE EXCEPTION 'fixture later page unavailable'; END IF; RETURN NEW; END $$`)
+    await db.execute(sql`CREATE TRIGGER shopify_fixture_reject_last_scope BEFORE INSERT ON shopify_installation_scope
+      FOR EACH ROW EXECUTE FUNCTION shopify_fixture_reject_last_scope(${sql.raw(`'${lastCredentialId}'`)})`)
+    try {
+      try {
+        await expect(rememberShopifyAccountScopes(rowIds[0])).rejects.toThrow()
+        expect(
+          await db
+            .select()
+            .from(shopifyInstallationScope)
+            .where(eq(shopifyInstallationScope.shopDomain, shopDomain))
+        ).toHaveLength(0)
+      } finally {
+        await db.execute(
+          sql`DROP TRIGGER shopify_fixture_reject_last_scope ON shopify_installation_scope`
+        )
+        await db.execute(sql`DROP FUNCTION shopify_fixture_reject_last_scope()`)
+      }
+      await rememberShopifyAccountScopes(rowIds[0])
+      expect(
+        await db
+          .select()
+          .from(shopifyInstallationScope)
+          .where(eq(shopifyInstallationScope.shopDomain, shopDomain))
+      ).toHaveLength(102)
+    } finally {
+      await db.delete(workspace).where(
+        inArray(
+          workspace.id,
+          owners.map((owner) => owner.workspaceId)
+        )
+      )
+    }
   })
 
   it.each(['new', 'existing', 'reconnect', 'organization-new', 'organization-reconnect'] as const)(

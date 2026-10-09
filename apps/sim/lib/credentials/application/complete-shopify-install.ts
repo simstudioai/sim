@@ -50,8 +50,7 @@ export const completeShopifyInstall = defineAuthorizedWorkspaceUseCase({
     if (!result.changed) return
     try {
       await clearOAuthRefreshDeadFlag(getShopifyRefreshScope(result.shopDomain))
-      if (!result.created)
-        await resumeConnectorsAfterCredentialReconnect(result.accountId, new Date())
+      await resumeConnectorsAfterCredentialReconnect(result.accountId, new Date())
     } catch {
       logger.warn('Shopify credential saved; connection recovery notification unavailable')
     }

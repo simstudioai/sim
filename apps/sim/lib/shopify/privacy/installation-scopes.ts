@@ -94,46 +94,51 @@ export async function rememberShopifyCredentialScope(
   )
 }
 
-/** Captures existing OAuth associations before completing a legacy credential draft. */
+/** Atomically captures existing OAuth associations in bounded pages before completing a legacy draft. */
 export async function rememberShopifyAccountScopes(accountId: string): Promise<void> {
-  const [installation] = await db
-    .select({
-      shopId: account.accountId,
-      shopDomain: account.idToken,
-    })
-    .from(account)
-    .where(and(eq(account.id, accountId), eq(account.providerId, 'shopify')))
-    .limit(1)
-  if (!installation?.shopDomain) return
-  const { values } = requireConfiguredOAuthClient('shopify')
-  let cursor: string | undefined
-  while (true) {
-    const associations = await db
+  await db.transaction(async (tx) => {
+    const [installation] = await tx
       .select({
-        credentialId: credential.id,
-        workspaceId: credential.workspaceId,
-        organizationId: credential.organizationId,
+        shopId: account.accountId,
+        shopDomain: account.idToken,
       })
-      .from(credential)
-      .where(
-        and(
-          eq(credential.accountId, accountId),
-          eq(credential.type, 'oauth'),
-          cursor ? gt(credential.id, cursor) : undefined
+      .from(account)
+      .where(and(eq(account.id, accountId), eq(account.providerId, 'shopify')))
+      .limit(1)
+    if (!installation?.shopDomain) return
+    const { values } = requireConfiguredOAuthClient('shopify')
+    let cursor: string | undefined
+    while (true) {
+      const associations = await tx
+        .select({
+          credentialId: credential.id,
+          workspaceId: credential.workspaceId,
+          organizationId: credential.organizationId,
+        })
+        .from(credential)
+        .where(
+          and(
+            eq(credential.accountId, accountId),
+            eq(credential.type, 'oauth'),
+            cursor ? gt(credential.id, cursor) : undefined
+          )
         )
-      )
-      .orderBy(asc(credential.id))
-      .limit(100)
-    for (const association of associations) {
-      await rememberShopifyInstallationScope({
-        ...association,
-        appClientId: values.SHOPIFY_CLIENT_ID,
-        shopId: installation.shopId,
-        shopDomain: installation.shopDomain.toLowerCase(),
-        accountId,
-      })
+        .orderBy(asc(credential.id))
+        .limit(100)
+      for (const association of associations) {
+        await rememberShopifyInstallationScope(
+          {
+            ...association,
+            appClientId: values.SHOPIFY_CLIENT_ID,
+            shopId: installation.shopId,
+            shopDomain: installation.shopDomain.toLowerCase(),
+            accountId,
+          },
+          tx
+        )
+      }
+      if (associations.length < 100) return
+      cursor = associations[associations.length - 1].credentialId
     }
-    if (associations.length < 100) return
-    cursor = associations[associations.length - 1].credentialId
-  }
+  })
 }
