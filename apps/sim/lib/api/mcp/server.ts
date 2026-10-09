@@ -109,7 +109,12 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
       description:
         'Find Sim API operations by keyword or domain. Returns each operation’s name, HTTP method, path, summary, and the tool that runs it. Call without a query to list a domain.',
       inputSchema: searchInput,
-      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (input) => jsonToolResult(await searchOperations(input))
   )
@@ -121,7 +126,12 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
       description:
         'Get the JSON Schema of an operation’s path parameters, query, body, and headers. Read it before calling an operation for the first time.',
       inputSchema: describeInput,
-      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ operation }) => {
       const resolved = await resolveOperation(operation, 'any')
@@ -138,7 +148,12 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
       description:
         'Run a Sim API operation that only reads, such as listWorkspaces, listTables, queryRows, or getWorkflowRun. search_operations says which tool runs each operation.',
       inputSchema: callInput,
-      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (input, extra) => call('read', input, extra.signal)
   )
