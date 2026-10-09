@@ -128,7 +128,7 @@ interface DocumentNavigation {
 
 const documentNavigations = new WeakMap<Page, DocumentNavigation>()
 
-/** Marks the outgoing document before Playwright starts navigation and releases it on completion. */
+/** Tracks teardown until run resolves at document commit, then waits for the new page to load. */
 async function withDocumentNavigation<T>(
   page: Page,
   destination: string,
@@ -136,14 +136,20 @@ async function withDocumentNavigation<T>(
 ): Promise<T> {
   const navigation = { from: page.url(), to: new URL(destination, baseUrl).href }
   documentNavigations.set(page, navigation)
+  let result: T
   try {
-    return await run()
+    result = await run()
   } finally {
     if (documentNavigations.get(page) === navigation) documentNavigations.delete(page)
   }
+  await page.waitForLoadState('load', { timeout: 360_000 })
+  return result
 }
 
-/** WebKit reports handled same-origin fetch failures during document teardown as page errors. */
+/**
+ * WebKit reports handled same-origin requests during teardown as page errors.
+ * Playwright splits stackless EventSource diagnostics at the URL colon and drops its first slash.
+ */
 function getNavigationCancellationPath(
   error: Error,
   browserName: string,
@@ -159,8 +165,13 @@ function getNavigationCancellationPath(
   const match = error.stack?.match(
     /^Fetch API cannot load (https?:\/\/\S+) due to access control checks\./
   )
-  if (!match) return
-  const url = new URL(match[1])
+  const eventSourceMatch =
+    !error.stack && error.name === 'EventSource cannot load http'
+      ? error.message.match(/^\/([^/\s]\S*) due to access control checks\.$/)
+      : null
+  const target = match?.[1] ?? (eventSourceMatch ? `http://${eventSourceMatch[1]}` : undefined)
+  if (!target) return
+  const url = new URL(target)
   return url.origin === baseUrl.origin ? url.pathname : undefined
 }
 
@@ -251,7 +262,7 @@ async function visit(page: Page, route: string) {
       { timeout: 360_000 }
     ),
     withDocumentNavigation(page, path, () =>
-      page.goto(path, { waitUntil: 'load', timeout: 360_000 })
+      page.goto(path, { waitUntil: 'commit', timeout: 360_000 })
     ),
   ])
   assert(response.status() < 400, `Could not load ${route}: ${response.status()}`)
@@ -478,9 +489,6 @@ async function exerciseViewport(
   await context.tracing.start({ screenshots: true, snapshots: true })
   const page = await context.newPage()
   const pageErrors: string[] = []
-  page.on('framenavigated', (frame) => {
-    if (frame === page.mainFrame()) documentNavigations.delete(page)
-  })
   page.on('pageerror', (error) => {
     const pendingNavigation = documentNavigations.get(page) ?? null
     const path = getNavigationCancellationPath(error, browserName, pendingNavigation)
@@ -756,7 +764,7 @@ async function exerciseViewport(
         async () => {
           const chatPath = `/chat/${publicChatIdentifier}`
           const response = await withDocumentNavigation(page, chatPath, () =>
-            page.goto(chatPath, { waitUntil: 'load', timeout: 360_000 })
+            page.goto(chatPath, { waitUntil: 'commit', timeout: 360_000 })
           )
           assert(response && response.status() < 400)
           await expect(page.getByText('Public mobile welcome', { exact: true })).toBeVisible({
@@ -855,7 +863,7 @@ async function exerciseViewport(
             })
             .toBe(value)
           await withDocumentNavigation(page, page.url(), () =>
-            page.reload({ waitUntil: 'load', timeout: 360_000 })
+            page.reload({ waitUntil: 'commit', timeout: 360_000 })
           )
           await expect(cell).toHaveText(value)
           await page.getByRole('button', { name: 'Column options', exact: true }).first().tap()
@@ -907,7 +915,7 @@ async function exerciseViewport(
 
       await check(`${prefix}/standalone settings sections remain accessible`, page, async () => {
         const response = await withDocumentNavigation(page, '/selfhost/settings/general', () =>
-          page.goto('/selfhost/settings/general', { waitUntil: 'load', timeout: 360_000 })
+          page.goto('/selfhost/settings/general', { waitUntil: 'commit', timeout: 360_000 })
         )
         assert(response && response.status() < 400)
         await expect(page.getByRole('button', { name: 'Theme', exact: true })).toBeVisible({
@@ -978,7 +986,7 @@ async function exerciseViewport(
         if (viewport.name === 'phone') {
           await sql`update workflow set locked = true where id = ${workflowId}`
           await withDocumentNavigation(page, page.url(), () =>
-            page.reload({ waitUntil: 'load', timeout: 360_000 })
+            page.reload({ waitUntil: 'commit', timeout: 360_000 })
           )
           const notifications = page.getByLabel('Notifications', { exact: true })
           await expect(notifications).toContainText('This workflow is locked', {
