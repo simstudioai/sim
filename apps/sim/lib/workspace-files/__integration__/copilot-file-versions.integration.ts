@@ -15,7 +15,7 @@ import {
   workspace,
   workspaceFileVersion,
 } from '@sim/db/schema'
-import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray } from 'drizzle-orm'
@@ -68,7 +68,7 @@ describe('chat-delegated file version history', () => {
 
   afterAll(async () => {
     if (extraWorkspaceIds.length > 0)
-      await db.delete(workspace).where(inArray(workspace.id, extraWorkspaceIds))
+      await deleteWorkspaceFixture(db, inArray(workspace.id, extraWorkspaceIds))
     for (const ids of fixtures) {
       await db.delete(auditLog).where(eq(auditLog.workspaceId, ids.workspaceId))
       await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
@@ -294,7 +294,7 @@ describe('chat-delegated file version history', () => {
     const fixture = await seedVersionedFile()
     const otherWorkspaceId = generateId()
     extraWorkspaceIds.push(otherWorkspaceId)
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: otherWorkspaceId,
       organizationId: fixture.organizationId,
       name: 'Second workspace',
