@@ -252,6 +252,100 @@ describe('POST /api/v2/credentials', () => {
     expect(body).not.toContain('exact passphrase')
   })
 
+  it.each(['multiline wallet', 'maximum-size JSON with escaped whitespace'])(
+    'accepts an Oracle connection with %s through the serialized credential envelope',
+    async (variant) => {
+      const connection = JSON.stringify({
+        host: 'database.example.com',
+        protocol: 'tcps',
+        serviceName: 'database',
+        username: 'sim',
+        password: 'write-only-password',
+        walletContent: `-----BEGIN CERTIFICATE-----\n${`${'A'.repeat(64)}\n`.repeat(4096)}-----END CERTIFICATE-----`,
+      })
+      const serviceAccountJson =
+        variant === 'multiline wallet' ? connection : connection.padEnd(2 * 1024 * 1024, '\n')
+      const response = await POST(
+        new NextRequest('http://localhost:3000/api/v2/credentials', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            workspaceId: WORKSPACE_ID,
+            type: 'service_account',
+            providerId: 'oracledb-service-account',
+            credentials: JSON.stringify({ serviceAccountJson }),
+          }),
+        })
+      )
+
+      expect(response.status).toBe(201)
+      expect(mocks.create).toHaveBeenCalledWith(
+        expect.objectContaining({ input: expect.objectContaining({ serviceAccountJson }) })
+      )
+      const body = await response.text()
+      expect(body).not.toContain('write-only-password')
+      expect(body).not.toContain('BEGIN CERTIFICATE')
+    }
+  )
+
+  it('rejects an oversized Oracle connection at the nested field limit', async () => {
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/v2/credentials', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'oracledb-service-account',
+          credentials: JSON.stringify({
+            serviceAccountJson: '{}'.padEnd(2 * 1024 * 1024 + 1, ' '),
+          }),
+        }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        details: expect.arrayContaining([
+          expect.objectContaining({
+            path: ['credentials', 'serviceAccountJson'],
+            message: expect.stringContaining('2097152'),
+          }),
+        ]),
+      },
+    })
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects excessive serialized envelope padding before credential verification', async () => {
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/v2/credentials', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'oracledb-service-account',
+          credentials: JSON.stringify({ serviceAccountJson: '{}' }).padEnd(
+            4 * 1024 * 1024 + 128 * 1024 + 1,
+            ' '
+          ),
+        }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        details: expect.arrayContaining([expect.objectContaining({ path: ['credentials'] })]),
+      },
+    })
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
   /**
    * `credentials create slack-custom-bot` used to fail twice over: discovery
    * demanded a client-generated id, and a caller who then supplied a slug was
