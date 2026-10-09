@@ -102,7 +102,7 @@ jobs:
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
-        run: bunx playwright test
+        run: bunx playwright test e2e/local-files.spec.ts --repeat-each=10 --retries=0 --trace=retain-on-failure
         env:
           BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
           TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
@@ -165,7 +165,7 @@ jobs:
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
-        run: bunx playwright test
+        run: bunx playwright test e2e/local-files.spec.ts --repeat-each=10 --retries=0 --trace=retain-on-failure
         env:
           BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
           TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
