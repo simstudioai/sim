@@ -697,16 +697,16 @@ export interface CheckrGetScreeningResponse extends ToolResponse {
 }
 
 export const LIST_META_OUTPUTS = {
-  count: { type: 'number', description: 'Total number of matching records', optional: true },
+  count: { type: 'number', description: 'Total number of matching records', nullable: true },
   nextHref: {
     type: 'string',
     description: 'URL of the next page of results, if any',
-    optional: true,
+    nullable: true,
   },
   previousHref: {
     type: 'string',
     description: 'URL of the previous page of results, if any',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -1251,5 +1251,5 @@ export const DOCUMENT_PROPERTIES = {
 
 export const TAGS_OUTPUTS = {
   tags: { type: 'array', description: 'Tag names on the report', items: { type: 'string' } },
-  count: { type: 'number', description: 'Number of tags on the report', optional: true },
+  count: { type: 'number', description: 'Number of tags on the report', nullable: true },
 } as const satisfies Record<string, OutputProperty>

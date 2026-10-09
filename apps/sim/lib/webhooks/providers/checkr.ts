@@ -1,8 +1,10 @@
+import { db, webhook, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike, toRecord } from '@sim/utils/object'
+import { isRecordLike, toArray, toRecord } from '@sim/utils/object'
+import { and, eq, isNull, ne } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
@@ -65,6 +67,60 @@ function isValidCheckrSignature(apiKey: string, signature: string, rawBody: stri
   } catch {
     return false
   }
+}
+
+/**
+ * Returns the ID of an existing Checkr webhook that already delivers full objects to this
+ * callback URL. A redeploy prepares its replacement on the same callback path while the live
+ * registration still exists, and Checkr caps an account at two webhooks, so the replacement
+ * adopts the live registration instead of creating another.
+ */
+async function findCheckrWebhookForUrl(apiKey: string, url: string): Promise<string | null> {
+  const response = await fetch(CHECKR_WEBHOOKS_URL, { headers: checkrAuthHeaders(apiKey) })
+  if (!response.ok) return null
+  const body = await readCheckrResponse(response, 'Checkr webhook list response')
+  const match = toArray(body.data)
+    .map((entry) => toRecord(entry))
+    .find(
+      (entry) => entry.webhook_url === url && entry.include_object === true && !entry.deleted_at
+    )
+  return typeof match?.id === 'string' && match.id ? match.id : null
+}
+
+/**
+ * Whether another webhook row on an active deployment of this workflow uses the same Checkr
+ * webhook, which happens after a redeploy adopts the live registration.
+ */
+async function activeDeploymentUsesCheckrWebhook(
+  webhookRecord: Record<string, unknown>,
+  externalId: string
+): Promise<boolean> {
+  const workflowId = webhookRecord.workflowId
+  const webhookId = webhookRecord.id
+  if (typeof workflowId !== 'string' || typeof webhookId !== 'string') return false
+
+  const activeWebhooks = await db
+    .select({ providerConfig: webhook.providerConfig })
+    .from(webhook)
+    .innerJoin(
+      workflowDeploymentVersion,
+      eq(webhook.deploymentVersionId, workflowDeploymentVersion.id)
+    )
+    .where(
+      and(
+        eq(webhook.workflowId, workflowId),
+        ne(webhook.id, webhookId),
+        eq(webhook.provider, 'checkr'),
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.isActive, true),
+        isNull(webhook.archivedAt)
+      )
+    )
+
+  return activeWebhooks.some(
+    (activeWebhook) =>
+      getProviderConfig({ providerConfig: activeWebhook.providerConfig }).externalId === externalId
+  )
 }
 
 export const checkrHandler: WebhookProviderHandler = {
@@ -145,6 +201,13 @@ export const checkrHandler: WebhookProviderHandler = {
       throw new Error('Checkr API key is required to register the webhook.')
     }
 
+    const notificationUrl = getNotificationUrl(ctx.webhook)
+    const existingId = await findCheckrWebhookForUrl(apiKey, notificationUrl)
+    if (existingId) {
+      logger.info(`[${ctx.requestId}] Reusing Checkr webhook ${existingId} for this callback URL`)
+      return { providerConfigUpdates: { externalId: existingId } }
+    }
+
     logger.info(`[${ctx.requestId}] Creating Checkr webhook`, {
       webhookId: ctx.webhook.id,
       triggerId: providerConfig.triggerId,
@@ -154,7 +217,7 @@ export const checkrHandler: WebhookProviderHandler = {
       method: 'POST',
       headers: checkrAuthHeaders(apiKey),
       body: JSON.stringify({
-        webhook_url: getNotificationUrl(ctx.webhook),
+        webhook_url: notificationUrl,
         include_object: true,
         live: true,
       }),
@@ -198,6 +261,13 @@ export const checkrHandler: WebhookProviderHandler = {
           `[${ctx.requestId}] Missing ${apiKey ? 'externalId' : 'apiKey'} for Checkr webhook deletion ${ctx.webhook.id}, skipping cleanup`
         )
         if (ctx.strict) throw new Error('Missing Checkr API key or webhook ID for deletion')
+        return
+      }
+
+      if (await activeDeploymentUsesCheckrWebhook(ctx.webhook, externalId)) {
+        logger.info(
+          `[${ctx.requestId}] Keeping Checkr webhook ${externalId} because an active deployment still uses it`
+        )
         return
       }
 

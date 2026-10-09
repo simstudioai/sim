@@ -83,6 +83,31 @@ function toOptionalBoolean(value: unknown): boolean | undefined {
   return undefined
 }
 
+/** Turns a comma-separated or JSON-array text input into a string list; empty input stays unset. */
+function toStringList(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean)
+  if (typeof value !== 'string' || !value.trim()) return undefined
+  const text = value.trim()
+  if (text.startsWith('[')) return toJsonArray(text, 'list')?.map((item) => String(item).trim())
+  return text
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function toJsonArray(value: unknown, label: string): unknown[] | undefined {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string' || !value.trim()) return undefined
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    throw new Error(`Invalid ${label}: expected a JSON array.`)
+  }
+  if (!Array.isArray(parsed)) throw new Error(`Invalid ${label}: expected a JSON array.`)
+  return parsed
+}
+
 function toOptionalNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined
   return Number(value)
@@ -1266,7 +1291,9 @@ export const CheckrBlock: BlockConfig = {
         const result: Record<string, unknown> = { ...rest }
 
         if (params.operation === 'create_invitation' || params.operation === 'create_report') {
-          result.tags = reportTags || undefined
+          result.tags = toStringList(reportTags)
+        } else {
+          result.tags = toStringList(rest.tags)
         }
         if (params.operation === 'list_candidates') {
           result.geoId = filterGeoId || undefined
@@ -1274,8 +1301,14 @@ export const CheckrBlock: BlockConfig = {
         }
         if (params.operation === 'update_continuous_check') {
           result.node = continuousCheckNode || undefined
-          result.workLocations = continuousCheckWorkLocations || undefined
+          result.workLocations = toJsonArray(continuousCheckWorkLocations, 'work locations')
+        } else {
+          result.workLocations = toJsonArray(rest.workLocations, 'work locations')
         }
+        result.geoIds = toStringList(rest.geoIds)
+        result.adverseItemIds = toStringList(rest.adverseItemIds)
+        result.documentTypes = toStringList(rest.documentTypes)
+        result.selfDisclosures = toJsonArray(rest.selfDisclosures, 'self disclosures')
 
         const adjudication =
           params.operation === 'update_report' ? reportAdjudication : candidateAdjudication

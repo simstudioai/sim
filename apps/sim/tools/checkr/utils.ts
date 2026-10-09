@@ -202,11 +202,20 @@ export const CHECKR_HIERARCHY_PARAMS = {
       'custom_id of the account hierarchy node (required for hierarchy-enabled accounts)',
   },
   workLocations: {
-    type: 'json',
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        country: { type: 'string', description: 'Country (ISO 3166-1 alpha-2), defaults to US' },
+        state: { type: 'string', description: 'Two-letter state code' },
+        city: { type: 'string', description: 'City name' },
+      },
+      required: ['state'],
+    },
     required: false,
     visibility: 'user-or-llm' as ParameterVisibility,
     description:
-      'Work locations as a JSON array of { country, state, city } objects, e.g. [{"country":"US","state":"CA","city":"San Francisco"}]. state is required; country defaults to US',
+      'Work locations (required for hierarchy-enabled accounts), e.g. [{"country":"US","state":"CA","city":"San Francisco"}]',
   },
 }
 
@@ -665,10 +674,11 @@ export const CANDIDATE_FIELD_PARAMS = {
     description: 'Your own unique ID for the candidate, such as an HRIS ID',
   },
   geoIds: {
-    type: 'json',
+    type: 'array',
+    items: { type: 'string' },
     required: false,
     visibility: 'user-or-llm' as ParameterVisibility,
-    description: 'Geo IDs to assign, as an array or comma-separated list (replaces existing geos)',
+    description: 'Geo IDs to assign (replaces existing geos)',
   },
   metadata: {
     type: 'json',

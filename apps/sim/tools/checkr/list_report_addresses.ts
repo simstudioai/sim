@@ -81,6 +81,6 @@ export const checkrListReportAddressesTool: ToolConfig<
         },
       },
     },
-    count: { type: 'number', description: 'Number of addresses', optional: true },
+    count: { type: 'number', description: 'Number of addresses', nullable: true },
   },
 }

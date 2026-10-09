@@ -87,12 +87,12 @@ export const checkrGetReportProgressiveStatusTool: ToolConfig<
     progressiveContinuationStatus: {
       type: 'string',
       description: 'Whether the report can still be advanced (eligible, ineligible, expired)',
-      optional: true,
+      nullable: true,
     },
     expiresAt: {
       type: 'string',
       description: 'Deadline for applying a review action to run the remaining screenings',
-      optional: true,
+      nullable: true,
     },
     checkpoints: {
       type: 'array',

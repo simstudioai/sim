@@ -33,11 +33,11 @@ export const checkrSetReportTagsTool: ToolConfig<
       description: 'ID of the report',
     },
     tags: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Complete list of tags, as an array or comma-separated list; [] removes every tag',
+      description: 'Complete list of tags; an empty list removes every tag',
     },
   },
 
@@ -45,7 +45,15 @@ export const checkrSetReportTagsTool: ToolConfig<
     url: (params) => checkrUrl(`/reports/${checkrId(params.reportId, 'reportId')}/tags`),
     method: 'PUT',
     headers: (params) => checkrHeaders(params.apiKey),
-    body: (params) => ({ tags: parseCheckrStringList(params.tags) ?? [] }),
+    body: (params) => {
+      const tags = parseCheckrStringList(params.tags)
+      if (!tags) {
+        throw new Error(
+          'Provide tags as a list of strings. Pass an empty list to remove every tag.'
+        )
+      }
+      return { tags }
+    },
   },
 
   transformResponse: async (response: Response) => {

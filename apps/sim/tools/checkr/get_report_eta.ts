@@ -47,12 +47,12 @@ export const checkrGetReportEtaTool: ToolConfig<CheckrReportIdParams, CheckrGetR
       estimateGeneratedAt: {
         type: 'string',
         description: 'Time the estimate was generated',
-        optional: true,
+        nullable: true,
       },
       estimatedCompletionTime: {
         type: 'string',
         description: 'Predicted completion date (only the date is meaningful)',
-        optional: true,
+        nullable: true,
       },
     },
   }

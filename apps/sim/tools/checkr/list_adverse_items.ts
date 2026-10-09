@@ -53,6 +53,6 @@ export const checkrListAdverseItemsTool: ToolConfig<
 
   outputs: {
     adverseItems: ADVERSE_ITEMS_OUTPUT,
-    count: { type: 'number', description: 'Number of adverse items', optional: true },
+    count: { type: 'number', description: 'Number of adverse items', nullable: true },
   },
 }

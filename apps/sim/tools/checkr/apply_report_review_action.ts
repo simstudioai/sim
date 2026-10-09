@@ -60,6 +60,6 @@ export const checkrApplyReportReviewActionTool: ToolConfig<
   },
 
   outputs: {
-    message: { type: 'string', description: 'Confirmation message from Checkr', optional: true },
+    message: { type: 'string', description: 'Confirmation message from Checkr', nullable: true },
   },
 }

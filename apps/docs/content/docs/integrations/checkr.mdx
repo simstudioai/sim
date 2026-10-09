@@ -287,7 +287,7 @@ Start the adverse action process on a report by sending the pre-adverse action n
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report the adverse action is based on |
-| `adverseItemIds` | json | Yes | IDs of the adverse items to cite, as an array or comma-separated list \(from List Adverse Items\) |
+| `adverseItemIds` | array | Yes | IDs of the adverse items to cite, from List Adverse Items |
 | `postNoticeScheduledAt` | string | No | ISO 8601 time to send the post-adverse action notice; defaults to 7 days after creation |
 | `context` | string | No | Optional scoping identifier for the adverse action |
 | `medium` | json | No | Delivery channels as a JSON object, e.g. \{"email":\{"priority":1,"required":true\},"postal":\{"priority":0,"required":false\}\} |
@@ -347,10 +347,10 @@ Create a candidate to screen. Only email is required when the candidate will be 
 | `previousDriverLicenseState` | string | No | Previous driver license issuing state as a two-letter code |
 | `copyRequested` | boolean | No | Whether the candidate wants a copy of their report |
 | `customId` | string | No | Your own unique ID for the candidate, such as an HRIS ID |
-| `geoIds` | json | No | Geo IDs to assign, as an array or comma-separated list \(replaces existing geos\) |
+| `geoIds` | array | No | Geo IDs to assign \(replaces existing geos\) |
 | `metadata` | json | No | Up to 50 custom key-value pairs as a JSON object |
 | `postalAddress` | json | No | Postal address as a JSON object with name, street, street2, city, state, and zipcode |
-| `workLocations` | json | No | Work locations as a JSON array of \{ country, state, city \} objects \(required for candidates outside the US\) |
+| `workLocations` | array | No | Work locations \(required for candidates outside the US\), e.g. \[\{"country":"GB","state":"LND","city":"London"\}\] |
 
 #### Output
 
@@ -395,7 +395,7 @@ Enroll a candidate in continuous criminal or motor vehicle monitoring so new rec
 | `continuousCheckType` | string | Yes | Type of monitoring: criminal or mvr |
 | `mvrEnrollmentType` | string | No | For mvr checks, the enrollment type: commercial for commercial drivers or standard |
 | `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
-| `workLocations` | json | No | Work locations as a JSON array of \{ country, state, city \} objects, e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\]. state is required; country defaults to US |
+| `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
 
 #### Output
 
@@ -450,8 +450,8 @@ Invite a candidate to complete a background check through the Checkr-hosted appl
 | `candidateId` | string | Yes | ID of the candidate to invite |
 | `package` | string | Yes | Slug of the package to run, e.g. driver_pro |
 | `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
-| `workLocations` | json | No | Work locations as a JSON array of \{ country, state, city \} objects, e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\]. state is required; country defaults to US |
-| `tags` | json | No | Tags for the resulting report, as an array or comma-separated list |
+| `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
+| `tags` | array | No | Tags for the resulting report |
 
 #### Output
 
@@ -484,9 +484,9 @@ Order a background check report for a candidate using a package. Use only when y
 | `candidateId` | string | Yes | ID of the candidate to screen |
 | `package` | string | Yes | Slug of the package to run, e.g. driver_pro |
 | `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
-| `workLocations` | json | No | Work locations as a JSON array of \{ country, state, city \} objects, e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\]. state is required; country defaults to US |
-| `tags` | json | No | Tags for the report, as an array or comma-separated list |
-| `selfDisclosures` | json | No | Candidate self-disclosed criminal history as a JSON array of \{ description, date, location: \{ county, state, country \}, offense_level, offense_category, sentence, time_served \} objects. Cannot be changed after the report is created |
+| `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
+| `tags` | array | No | Tags for the report |
+| `selfDisclosures` | array | No | Candidate self-disclosed criminal history. Cannot be changed after the report is created |
 
 #### Output
 
@@ -564,7 +564,7 @@ Schedule a recurring background check for a candidate, running a package every i
 | `intervalCount` | number | No | Number of interval units between checks, e.g. 1 |
 | `intervalUnit` | string | No | Interval unit: day, week, month, or year |
 | `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
-| `workLocations` | json | No | Work locations as a JSON array of \{ country, state, city \} objects, e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\]. state is required; country defaults to US |
+| `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
 
 #### Output
 
@@ -1276,7 +1276,7 @@ List documents a candidate provided, such as driver licenses and consent forms. 
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Checkr production secret API key |
 | `candidateId` | string | Yes | ID of the candidate |
-| `documentTypes` | json | No | Only return these document types, as an array or comma-separated list, e.g. driver_license, consent |
+| `documentTypes` | array | No | Only return these document types, e.g. driver_license, consent |
 
 #### Output
 
@@ -1701,7 +1701,7 @@ Replace all tags on a report with the given list. Pass [] to remove every tag.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report |
-| `tags` | json | Yes | Complete list of tags, as an array or comma-separated list; \[\] removes every tag |
+| `tags` | array | Yes | Complete list of tags; an empty list removes every tag |
 
 #### Output
 
@@ -1736,7 +1736,7 @@ Update a candidate. Once a report is ordered only empty fields can change, excep
 | `previousDriverLicenseState` | string | No | Previous driver license issuing state as a two-letter code |
 | `copyRequested` | boolean | No | Whether the candidate wants a copy of their report |
 | `customId` | string | No | Your own unique ID for the candidate, such as an HRIS ID |
-| `geoIds` | json | No | Geo IDs to assign, as an array or comma-separated list \(replaces existing geos\) |
+| `geoIds` | array | No | Geo IDs to assign \(replaces existing geos\) |
 | `metadata` | json | No | Up to 50 custom key-value pairs as a JSON object |
 | `postalAddress` | json | No | Postal address as a JSON object with name, street, street2, city, state, and zipcode |
 
@@ -1781,7 +1781,7 @@ Change the node or work locations of a continuous check.
 | `apiKey` | string | Yes | Checkr production secret API key |
 | `continuousCheckId` | string | Yes | ID of the continuous check to update |
 | `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
-| `workLocations` | json | No | Work locations as a JSON array of \{ country, state, city \} objects, e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\]. state is required; country defaults to US |
+| `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
 
 #### Output
 
@@ -1912,7 +1912,7 @@ Change the package, schedule, node, or work locations of a subscription.
 | `intervalCount` | number | No | Number of interval units between checks |
 | `intervalUnit` | string | No | Interval unit: day, week, month, or year |
 | `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
-| `workLocations` | json | No | Work locations as a JSON array of \{ country, state, city \} objects, e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\]. state is required; country defaults to US |
+| `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
 
 #### Output
 

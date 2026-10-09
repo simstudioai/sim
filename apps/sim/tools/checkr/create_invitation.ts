@@ -43,10 +43,11 @@ export const checkrCreateInvitationTool: ToolConfig<
     },
     ...CHECKR_HIERARCHY_PARAMS,
     tags: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
       required: false,
       visibility: 'user-or-llm',
-      description: 'Tags for the resulting report, as an array or comma-separated list',
+      description: 'Tags for the resulting report',
     },
   },
 

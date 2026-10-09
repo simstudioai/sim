@@ -57,6 +57,6 @@ export const checkrListVerificationsTool: ToolConfig<
       description: 'Verifications on the report',
       items: { type: 'object', properties: VERIFICATION_PROPERTIES },
     },
-    count: { type: 'number', description: 'Number of verifications', optional: true },
+    count: { type: 'number', description: 'Number of verifications', nullable: true },
   },
 }

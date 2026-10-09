@@ -36,11 +36,11 @@ export const checkrCreateAdverseActionTool: ToolConfig<
       description: 'ID of the report the adverse action is based on',
     },
     adverseItemIds: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'IDs of the adverse items to cite, as an array or comma-separated list (from List Adverse Items)',
+      description: 'IDs of the adverse items to cite, from List Adverse Items',
     },
     postNoticeScheduledAt: {
       type: 'string',

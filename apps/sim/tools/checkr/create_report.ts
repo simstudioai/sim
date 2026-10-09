@@ -41,17 +41,39 @@ export const checkrCreateReportTool: ToolConfig<CheckrCreateReportParams, Checkr
     },
     ...CHECKR_HIERARCHY_PARAMS,
     tags: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
       required: false,
       visibility: 'user-or-llm',
-      description: 'Tags for the report, as an array or comma-separated list',
+      description: 'Tags for the report',
     },
     selfDisclosures: {
-      type: 'json',
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          description: { type: 'string', description: 'Candidate statement about the record' },
+          date: { type: 'string', description: 'Conviction date (YYYY-MM-DD)' },
+          location: {
+            type: 'object',
+            properties: {
+              county: { type: 'string', description: 'County name from List Counties' },
+              state: { type: 'string', description: 'Two-letter state code' },
+              country: { type: 'string', description: 'Country, defaults to US' },
+            },
+            required: ['county', 'state'],
+          },
+          offense_level: { type: 'string', description: 'Offense level, e.g. Misdemeanor' },
+          offense_category: { type: 'string', description: 'Criminal charge' },
+          sentence: { type: 'string', description: 'Sentence imposed' },
+          time_served: { type: 'string', description: 'Time served' },
+        },
+        required: ['description', 'date', 'location'],
+      },
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Candidate self-disclosed criminal history as a JSON array of { description, date, location: { county, state, country }, offense_level, offense_category, sentence, time_served } objects. Cannot be changed after the report is created',
+        'Candidate self-disclosed criminal history. Cannot be changed after the report is created',
     },
   },
 

@@ -57,6 +57,6 @@ export const checkrListContinuousChecksTool: ToolConfig<
       description: 'Continuous checks for the candidate',
       items: { type: 'object', properties: CONTINUOUS_CHECK_PROPERTIES },
     },
-    count: { type: 'number', description: 'Number of continuous checks', optional: true },
+    count: { type: 'number', description: 'Number of continuous checks', nullable: true },
   },
 }

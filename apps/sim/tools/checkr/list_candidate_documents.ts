@@ -34,11 +34,11 @@ export const checkrListCandidateDocumentsTool: ToolConfig<
       description: 'ID of the candidate',
     },
     documentTypes: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Only return these document types, as an array or comma-separated list, e.g. driver_license, consent',
+      description: 'Only return these document types, e.g. driver_license, consent',
     },
   },
 
@@ -73,6 +73,6 @@ export const checkrListCandidateDocumentsTool: ToolConfig<
       description: 'Candidate documents',
       items: { type: 'object', properties: DOCUMENT_PROPERTIES },
     },
-    count: { type: 'number', description: 'Number of documents', optional: true },
+    count: { type: 'number', description: 'Number of documents', nullable: true },
   },
 }

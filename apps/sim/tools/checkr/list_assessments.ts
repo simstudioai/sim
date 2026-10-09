@@ -85,6 +85,6 @@ export const checkrListAssessmentsTool: ToolConfig<
         },
       },
     },
-    count: { type: 'number', description: 'Number of assessments', optional: true },
+    count: { type: 'number', description: 'Number of assessments', nullable: true },
   },
 }

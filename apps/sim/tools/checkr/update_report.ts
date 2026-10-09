@@ -53,6 +53,9 @@ export const checkrUpdateReportTool: ToolConfig<CheckrUpdateReportParams, Checkr
       const pkg = trimmed(params.package)
       const adjudication = trimmed(params.adjudication)
       if (pkg) body.package = pkg
+      if (adjudication && adjudication !== 'engaged') {
+        throw new Error('Invalid adjudication: Checkr only accepts "engaged".')
+      }
       if (adjudication) body.adjudication = adjudication
       if (!pkg && !adjudication) {
         throw new Error('Provide a package or an adjudication to update the report.')

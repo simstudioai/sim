@@ -36,11 +36,20 @@ export const checkrCreateCandidateTool: ToolConfig<
     },
     ...CANDIDATE_FIELD_PARAMS,
     workLocations: {
-      type: 'json',
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          country: { type: 'string', description: 'Country (ISO 3166-1 alpha-2), defaults to US' },
+          state: { type: 'string', description: 'Two-letter state code' },
+          city: { type: 'string', description: 'City name' },
+        },
+        required: ['state'],
+      },
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Work locations as a JSON array of { country, state, city } objects (required for candidates outside the US)',
+        'Work locations (required for candidates outside the US), e.g. [{"country":"GB","state":"LND","city":"London"}]',
     },
   },
 

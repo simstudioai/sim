@@ -1,7 +1,10 @@
 import crypto from 'crypto'
+import { webhook } from '@sim/db/schema'
 import { jsonResponse } from '@sim/testing/helpers/http'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getNotificationUrl } from '@/lib/webhooks/provider-subscription-utils'
 import { checkrHandler } from '@/lib/webhooks/providers/checkr'
 import type {
   AuthContext,
@@ -135,6 +138,31 @@ describe('checkrHandler.createSubscription', () => {
     await expect(checkrHandler.createSubscription?.(ctx)).rejects.toThrow(/at most two webhooks/)
   })
 
+  it('reuses the live webhook for the same callback URL instead of creating a third', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          data: [
+            {
+              id: 'live-hook',
+              webhook_url: getNotificationUrl({ path: 'abc' }),
+              include_object: true,
+              deleted_at: null,
+            },
+          ],
+        },
+        200
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await checkrHandler.createSubscription?.(ctx)
+    const createCalls = fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')
+
+    expect(result).toEqual({ providerConfigUpdates: { externalId: 'live-hook' } })
+    expect(createCalls).toHaveLength(0)
+  })
+
   it('fails the deploy when Checkr returns no webhook ID to delete later', async () => {
     respondWith({ object: 'webhook' }, 201)
     await expect(checkrHandler.createSubscription?.(ctx)).rejects.toThrow(/did not return its ID/)
@@ -142,6 +170,10 @@ describe('checkrHandler.createSubscription', () => {
 })
 
 describe('checkrHandler.deleteSubscription', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
   const strictDelete = () =>
     checkrHandler.deleteSubscription?.({
       requestId: 'req-1',
@@ -153,6 +185,25 @@ describe('checkrHandler.deleteSubscription', () => {
   it('treats an already-deleted webhook as cleaned up in strict mode', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })))
     await expect(strictDelete()).resolves.toBeUndefined()
+  })
+
+  it('keeps a webhook that an active redeploy adopted', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    queueTableRows(webhook, [{ providerConfig: { externalId: 'ext-1' } }])
+
+    await checkrHandler.deleteSubscription?.({
+      requestId: 'req-1',
+      strict: true,
+      webhook: {
+        id: 'retired-row',
+        workflowId: 'wf-1',
+        providerConfig: { apiKey: API_KEY, externalId: 'ext-1' },
+      },
+      workflow: {},
+    })
+
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('surfaces a failed deletion in strict mode so the webhook is not orphaned', async () => {
