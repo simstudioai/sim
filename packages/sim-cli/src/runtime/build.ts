@@ -118,9 +118,8 @@ function addParseErrorGuidance(command: Command): Command {
 
       const token = UNKNOWN_OPTION_TOKEN.exec(message)?.[1]
       if (!token) return
-      if (looksLikeAnId(token)) {
-        if (command.registeredArguments.length > 0)
-          write(`Example: ${commandPath(command)} -- ${token}\n`)
+      if (looksLikeAnId(token) && command.registeredArguments.length > 0) {
+        write(`Example: ${commandPath(command)} -- ${token}\n`)
         return
       }
       const flags = command.options.filter((option) => !option.hidden).map((option) => option.flags)

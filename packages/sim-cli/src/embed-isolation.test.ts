@@ -88,16 +88,17 @@ describe('embedded CLI output ownership', () => {
     expect(invalid.stderr).toContain('missing required argument')
   })
 
-  it('answers a guessed flag with the command flags and an id that opens with a dash with the escape', async () => {
+  it('answers a guessed flag with the command flags, and an id that opens with a dash with the escape', async () => {
     const transport = async () => {
       throw new Error('a parse error must not reach the API')
     }
-    const [guessed, dashedId] = await Promise.all([
+    const [guessed, dashedId, noArguments] = await Promise.all([
       runEmbeddedCli(['tables', 'rows', 'batch-delete', 'tbl_1', '--row-ids', 'row_1', '--yes'], {
         ...identity,
         transport,
       }),
       runEmbeddedCli(['audit-logs', 'get', '-X9abc'], { ...identity, transport }),
+      runEmbeddedCli(['logs', 'list', '-X9abc'], { ...identity, transport }),
     ])
     expect(guessed.exitCode).toBe(1)
     expect(guessed.stderr).toContain("unknown option '--row-ids'")
@@ -106,5 +107,9 @@ describe('embedded CLI output ownership', () => {
     expect(dashedId.exitCode).toBe(1)
     expect(dashedId.stderr).toContain('Example: sim audit-logs get -- -X9abc')
     expect(dashedId.stderr).not.toContain('Options for')
+    // With no positional to escape into, an id-shaped token is just an unknown option.
+    expect(noArguments.exitCode).toBe(1)
+    expect(noArguments.stderr).toContain('Options for sim logs list:')
+    expect(noArguments.stderr).not.toContain('Example:')
   })
 })
