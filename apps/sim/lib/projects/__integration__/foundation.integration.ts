@@ -1185,6 +1185,53 @@ describe('Project foundation at the database and application boundary', () => {
   )
 
   check(
+    'column reassignment waits for a legacy membership writer before locking workspace rows',
+    async () => {
+      const f = await fixture(false)
+      const held = createDeferred<number>()
+      const release = createDeferred<void>()
+      let replacementId = ''
+      const legacy = db.transaction(async (tx) => {
+        await lockProject(tx, f.projectId)
+        replacementId = await createProjectRecord(tx, {
+          name: 'Legacy disconnect',
+          ownerId: f.ownerId,
+          organizationId: null,
+        })
+        await tx.execute(
+          sql`SELECT workspace_id FROM project_workspace WHERE workspace_id = ${f.ids[1]} FOR UPDATE`
+        )
+        const [backend] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        held.resolve(backend.pid)
+        await release.promise
+        await tx.execute(
+          sql`UPDATE project_workspace SET project_id = ${replacementId} WHERE workspace_id = ${f.ids[1]}`
+        )
+      })
+      const blocker = await held.promise
+      const detach = db
+        .transaction((tx) => splitForkProject(tx, f.ids[1]))
+        .then(
+          () => null,
+          (error: unknown) => error
+        )
+      try {
+        await waitUntilBlockedBy(blocker, "lock='project'")
+      } finally {
+        release.resolve()
+        await legacy
+      }
+      expect(await detach).toMatchObject({
+        message: 'Project membership changed; retry the operation',
+      })
+      expect(
+        await db.execute(sql`SELECT w.project_id, pw.project_id AS connector_id
+      FROM workspace w JOIN project_workspace pw ON pw.workspace_id = w.id WHERE w.id = ${f.ids[1]}`)
+      ).toEqual([{ project_id: replacementId, connector_id: replacementId }])
+    }
+  )
+
+  check(
     'account teardown re-reads Projects created by an unlink while waiting for the old Project',
     async () => {
       const f = await fixture(false)
