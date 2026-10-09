@@ -20,16 +20,6 @@
     "operation": "credentials.members.remove"
   },
   {
-    "method": "GET",
-    "path": "/api/v2/files/[fileId]/versions",
-    "operation": "files.versions.list"
-  },
-  {
-    "method": "GET",
-    "path": "/api/v2/files/[fileId]/versions/[version]",
-    "operation": "files.versions.read"
-  },
-  {
     "method": "DELETE",
     "path": "/api/v2/files/[fileId]/versions/[version]",
     "operation": "files.versions.delete"
@@ -38,16 +28,6 @@
     "method": "GET",
     "path": "/api/v2/files/[fileId]/versions/[version]/content",
     "operation": "files.versions.download"
-  },
-  {
-    "method": "POST",
-    "path": "/api/v2/files/[fileId]/versions/[version]/revert",
-    "operation": "files.versions.revert"
-  },
-  {
-    "method": "GET",
-    "path": "/api/v2/files/[fileId]/versions/[version]/text",
-    "operation": "files.versions.read_content"
   },
   {
     "method": "GET",
@@ -288,10 +268,5 @@
     "method": "GET",
     "path": "/api/v2/workspaces/[workspaceId]/access-requests/discovery",
     "operation": "access_requests.discover"
-  },
-  {
-    "method": "GET",
-    "path": "/api/v2/workspaces/[workspaceId]/permission-config",
-    "operation": "permission_groups.read_user_config"
   }
 ]
