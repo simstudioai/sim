@@ -2018,8 +2018,8 @@ export const workspace = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'set null',
     }),
-    /** Nullable and unconstrained until older connector-only writers retire. */
-    projectId: text('project_id'),
+    /** Legacy memberships remain nullable until the registered Project backfill completes. */
+    projectId: text('project_id').references(() => project.id, { onDelete: 'restrict' }),
     workspaceMode: workspaceModeEnum('workspace_mode').notNull().default('grandfathered_shared'),
     billedAccountUserId: text('billed_account_user_id')
       .notNull()
@@ -2117,7 +2117,7 @@ export const project = pgTable(
 export const projectWorkspace = pgTable(
   'project_workspace',
   {
-    // contract-pending(after #8830 is fully deployed and pre-8830 servers/workers drain): remove this table and its synchronization triggers in #8590 — application membership reads and writes use workspace.projectId.
+    // contract-pending(after #8830 is fully deployed and pre-8830 servers/workers drain): retire this table in #8590 — new writes use workspace.projectId and compatibility readers tolerate its absence.
     /** @deprecated Use workspace.projectId; retained for pre-8830 binaries during rollout. */
     projectId: text('project_id')
       .notNull()

@@ -185,7 +185,7 @@ export const knowledgeBases = pgTable('knowledge_base', {
     30_000
   )
 
-  it('preserves legacy Project assignments and synchronizes both writers through schema push and replay', async () => {
+  it('preserves legacy assignments without copying or synchronizing through schema push and replay', async () => {
     await sql`CREATE TABLE project (id text PRIMARY KEY)`
     await sql`CREATE TABLE workspace (id text PRIMARY KEY, forked_from_workspace_id text)`
     await sql`CREATE TABLE project_workspace (project_id text NOT NULL, workspace_id text NOT NULL CONSTRAINT project_workspace_workspace_id_unique UNIQUE)`
@@ -206,9 +206,9 @@ export const memberships = pgTable('project_workspace', {
       await sql`SELECT id, project_id FROM workspace ORDER BY id`,
       first.stdout + first.stderr
     ).toEqual([
-      { id: 'fork', project_id: 'family' },
-      { id: 'root', project_id: 'family' },
-      { id: 'standalone', project_id: 'singleton' },
+      { id: 'fork', project_id: null },
+      { id: 'root', project_id: null },
+      { id: 'standalone', project_id: null },
     ])
     await sql`UPDATE project_workspace SET project_id = 'singleton' WHERE workspace_id = 'fork'`
     await sql`UPDATE workspace SET project_id = 'family' WHERE id = 'standalone'`
@@ -218,9 +218,9 @@ export const memberships = pgTable('project_workspace', {
       await sql`SELECT w.id, w.project_id, pw.project_id AS legacy FROM workspace w
       JOIN project_workspace pw ON pw.workspace_id = w.id ORDER BY w.id`
     ).toEqual([
-      { id: 'fork', project_id: 'singleton', legacy: 'singleton' },
-      { id: 'root', project_id: 'family', legacy: 'family' },
-      { id: 'standalone', project_id: 'family', legacy: 'family' },
+      { id: 'fork', project_id: null, legacy: 'singleton' },
+      { id: 'root', project_id: null, legacy: 'family' },
+      { id: 'standalone', project_id: 'family', legacy: 'singleton' },
     ])
   }, 60_000)
 

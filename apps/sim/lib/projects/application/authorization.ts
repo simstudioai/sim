@@ -1,5 +1,5 @@
 import type { Principal, SessionPrincipal } from '@sim/auth/principal'
-import { member, permissionGroup, permissions, project, workspace } from '@sim/db/schema'
+import { member, permissionGroup, permissions, project } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
@@ -11,6 +11,7 @@ import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capa
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import { resolveVerifiedUserAccessControlContext } from '@/lib/permission-groups/resolve.server'
 import { type ProjectOperation, projectOperations } from '@/lib/projects/application/operations'
+import { getProjectEnvironmentSource } from '@/lib/projects/environment-source'
 import { lockProject } from '@/lib/projects/membership'
 
 const logger = createLogger('ProjectAuthorization')
@@ -67,23 +68,24 @@ async function loadProjectAccess(
   const [membership] = records.some((record) => record.organizationId)
     ? await (lock ? memberQuery.for('share') : memberQuery)
     : []
+  const source = await getProjectEnvironmentSource(tx)
   const environments = await tx
     .select({
-      projectId: workspace.projectId,
-      id: workspace.id,
-      name: workspace.name,
-      organizationId: workspace.organizationId,
-      archivedAt: workspace.archivedAt,
-      parentId: workspace.forkedFromWorkspaceId,
+      projectId: source.projectId,
+      id: source.id,
+      name: source.name,
+      organizationId: source.organizationId,
+      archivedAt: source.archivedAt,
+      parentId: source.parentId,
     })
-    .from(workspace)
+    .from(source)
     .where(
       inArray(
-        workspace.projectId,
+        source.projectId,
         records.map((record) => record.id)
       )
     )
-    .orderBy(asc(workspace.id))
+    .orderBy(asc(source.id))
   const grantQuery = tx
     .select({ id: permissions.entityId, permission: permissions.permissionType })
     .from(permissions)

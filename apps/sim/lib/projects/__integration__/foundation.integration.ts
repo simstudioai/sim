@@ -33,7 +33,10 @@ import {
   removeUserFromOrganization,
   transferOrganizationOwnership,
 } from '@/lib/billing/organizations/membership'
-import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
+import {
+  getProjectAccountDeletionBlockers,
+  prepareProjectsForAccountDeletion,
+} from '@/lib/projects/account-deletion'
 import {
   archiveProject,
   createProject,
@@ -245,6 +248,13 @@ async function addOrganizationProject(organizationId: string, ownerId: string) {
   return { workspaceId, projectId }
 }
 
+async function useLegacyMemberships(ids: string[], projectId: string) {
+  await db.transaction(async (tx) => {
+    await tx.update(workspace).set({ projectId: null }).where(inArray(workspace.id, ids))
+    await tx.insert(projectWorkspace).values(ids.map((workspaceId) => ({ projectId, workspaceId })))
+  })
+}
+
 async function addWorkflow(workspaceId: string, userId: string) {
   const id = generateId()
   const now = new Date()
@@ -294,7 +304,7 @@ afterAll(async () => {
 
 describe('Project foundation at the database and application boundary', () => {
   check(
-    'workspace creation and fork/disconnect assign both memberships while APIs remain disabled',
+    'workspace creation and fork/disconnect write only the column while APIs remain disabled',
     async () => {
       setProjectsEnabled(false)
       const f = await fixture(false, 1)
@@ -311,9 +321,9 @@ describe('Project foundation at the database and application boundary', () => {
         })
       )
       const [sourceMembership] = await db
-        .select({ projectId: projectWorkspace.projectId })
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, source.id))
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(eq(workspace.id, source.id))
       const [persistedSource] = await db.select().from(workspace).where(eq(workspace.id, source.id))
       expect(persistedSource.projectId).toBe(sourceMembership.projectId)
       const parent = await getWorkspaceWithOwner(source.id)
@@ -325,9 +335,9 @@ describe('Project foundation at the database and application boundary', () => {
         name: 'Legacy child',
       })
       const [forkMembership] = await db
-        .select({ projectId: projectWorkspace.projectId })
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(eq(workspace.id, fork.workspace.id))
       expect(forkMembership.projectId).toBe(sourceMembership.projectId)
       const [persistedFork] = await db
         .select()
@@ -337,12 +347,18 @@ describe('Project foundation at the database and application boundary', () => {
       await unlinkForkEdge({ parentWorkspaceId: source.id, childWorkspaceId: fork.workspace.id })
       const [child] = await db.select().from(workspace).where(eq(workspace.id, fork.workspace.id))
       const [detachedMembership] = await db
-        .select({ projectId: projectWorkspace.projectId })
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, child.id))
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(eq(workspace.id, child.id))
       expect(child.forkedFromWorkspaceId).toBeNull()
       expect(child.projectId).toBe(detachedMembership.projectId)
       expect(child.projectId).not.toBe(sourceMembership.projectId)
+      expect(
+        await db
+          .select({ id: projectWorkspace.workspaceId })
+          .from(projectWorkspace)
+          .where(inArray(projectWorkspace.workspaceId, [source.id, child.id]))
+      ).toEqual([])
       expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toHaveLength(3)
     }
   )
@@ -401,16 +417,17 @@ describe('Project foundation at the database and application boundary', () => {
       name: 'Assigned child',
     })
     const [membership] = await db
-      .select({ projectId: projectWorkspace.projectId, workspaceId: projectWorkspace.workspaceId })
-      .from(projectWorkspace)
-      .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
+      .select({ projectId: workspace.projectId, workspaceId: workspace.id })
+      .from(workspace)
+      .where(eq(workspace.id, fork.workspace.id))
     expect(membership.projectId).toBe(f.projectId)
     await unlinkForkEdge({ parentWorkspaceId: f.ids[0], childWorkspaceId: fork.workspace.id })
     const [detached] = await db
-      .select({ projectId: projectWorkspace.projectId, workspaceId: projectWorkspace.workspaceId })
-      .from(projectWorkspace)
-      .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
+      .select({ projectId: workspace.projectId, workspaceId: workspace.id })
+      .from(workspace)
+      .where(eq(workspace.id, fork.workspace.id))
     expect(detached.projectId).not.toBe(f.projectId)
+    if (!detached.projectId) throw new Error('Missing detached Project assignment')
     await expect(
       archiveWorkspace(fork.workspace.id, { requestId: 'detached-fork-archive' })
     ).resolves.toMatchObject({ archived: true })
@@ -423,7 +440,7 @@ describe('Project foundation at the database and application boundary', () => {
 
   check('legacy unassigned forks and disconnects preserve the unassigned lineage', async () => {
     const f = await fixture(false, 1)
-    await db.delete(projectWorkspace).where(eq(projectWorkspace.workspaceId, f.ids[0]))
+    await db.update(workspace).set({ projectId: null }).where(eq(workspace.id, f.ids[0]))
     await db.delete(project).where(eq(project.id, f.projectId))
     const parent = await getWorkspaceWithOwner(f.ids[0])
     if (!parent) throw new Error('Missing legacy source fixture')
@@ -452,8 +469,9 @@ describe('Project foundation at the database and application boundary', () => {
   check('fork refuses a partially assigned lineage', async () => {
     const f = await fixture(false, 3)
     await db
-      .delete(projectWorkspace)
-      .where(inArray(projectWorkspace.workspaceId, f.ids.slice(0, 2)))
+      .update(workspace)
+      .set({ projectId: null })
+      .where(inArray(workspace.id, f.ids.slice(0, 2)))
     const parent = await getWorkspaceWithOwner(f.ids[1])
     if (!parent) throw new Error('Missing source fixture')
     await expect(
@@ -475,7 +493,7 @@ describe('Project foundation at the database and application boundary', () => {
     'legacy membership decisions exclude backfill until the writing transaction commits',
     async () => {
       const f = await fixture(false, 1)
-      await db.delete(projectWorkspace).where(eq(projectWorkspace.workspaceId, f.ids[0]))
+      await db.update(workspace).set({ projectId: null }).where(eq(workspace.id, f.ids[0]))
       await db.delete(project).where(eq(project.id, f.projectId))
       const [legacyWorkspace] = await db.select().from(workspace).where(eq(workspace.id, f.ids[0]))
       expect(legacyWorkspace.projectId).toBeNull()
@@ -511,25 +529,25 @@ describe('Project foundation at the database and application boundary', () => {
           organizationId: null,
           ownerId: f.ownerId,
         })
-        await tx.insert(projectWorkspace).values({ projectId, workspaceId: f.ids[0] })
+        await tx.update(workspace).set({ projectId }).where(eq(workspace.id, f.ids[0]))
       })
       expect(
         await db
           .select({
-            projectId: projectWorkspace.projectId,
-            workspaceId: projectWorkspace.workspaceId,
+            projectId: workspace.projectId,
+            workspaceId: workspace.id,
           })
-          .from(projectWorkspace)
-          .where(eq(projectWorkspace.workspaceId, f.ids[0]))
+          .from(workspace)
+          .where(eq(workspace.id, f.ids[0]))
       ).toHaveLength(1)
     }
   )
 
   check(
-    'a fork waiting for an old connector writer inherits its synchronized membership',
+    'a fork waiting for a legacy assignment inherits it without copying the parent column',
     async () => {
       const f = await fixture(false, 1)
-      await db.delete(projectWorkspace).where(eq(projectWorkspace.workspaceId, f.ids[0]))
+      await db.update(workspace).set({ projectId: null }).where(eq(workspace.id, f.ids[0]))
       await db.delete(project).where(eq(project.id, f.projectId))
       const parent = await getWorkspaceWithOwner(f.ids[0])
       if (!parent) throw new Error('Missing source fixture')
@@ -566,11 +584,11 @@ describe('Project foundation at the database and application boundary', () => {
       const [projectId, result] = await Promise.all([backfill, fork])
       const [membership] = await db
         .select({
-          projectId: projectWorkspace.projectId,
-          workspaceId: projectWorkspace.workspaceId,
+          projectId: workspace.projectId,
+          workspaceId: workspace.id,
         })
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, result.workspace.id))
+        .from(workspace)
+        .where(eq(workspace.id, result.workspace.id))
       expect(membership.projectId).toBe(projectId)
       const [persistedFork] = await db
         .select()
@@ -578,7 +596,7 @@ describe('Project foundation at the database and application boundary', () => {
         .where(eq(workspace.id, result.workspace.id))
       expect(persistedFork.projectId).toBe(projectId)
       const [legacyParent] = await db.select().from(workspace).where(eq(workspace.id, f.ids[0]))
-      expect(legacyParent.projectId).toBe(projectId)
+      expect(legacyParent.projectId).toBeNull()
       const resolved = await getWorkspaceProject.execute({
         principal: f.owner,
         input: { workspaceId: f.ids[0] },
@@ -631,11 +649,11 @@ describe('Project foundation at the database and application boundary', () => {
         expect(
           await db
             .select({
-              projectId: projectWorkspace.projectId,
-              workspaceId: projectWorkspace.workspaceId,
+              projectId: workspace.projectId,
+              workspaceId: workspace.id,
             })
-            .from(projectWorkspace)
-            .where(eq(projectWorkspace.projectId, created.id))
+            .from(workspace)
+            .where(eq(workspace.projectId, created.id))
         ).toEqual([{ projectId: created.id, workspaceId: env.id }])
         const grants = await db.select().from(permissions).where(eq(permissions.entityId, env.id))
         expect(
@@ -747,9 +765,9 @@ describe('Project foundation at the database and application boundary', () => {
         ).toHaveLength(1)
         expect(
           await db
-            .select({ workspaceId: projectWorkspace.workspaceId })
-            .from(projectWorkspace)
-            .innerJoin(project, eq(project.id, projectWorkspace.projectId))
+            .select({ workspaceId: workspace.id })
+            .from(workspace)
+            .innerJoin(project, eq(project.id, workspace.projectId))
             .where(eq(project.ownerId, f.ownerId))
         ).toEqual([{ workspaceId: f.ids[0] }])
         expect(
@@ -1053,11 +1071,11 @@ describe('Project foundation at the database and application boundary', () => {
       expect(
         await db
           .select({
-            projectId: projectWorkspace.projectId,
-            workspaceId: projectWorkspace.workspaceId,
+            projectId: workspace.projectId,
+            workspaceId: workspace.id,
           })
-          .from(projectWorkspace)
-          .where(eq(projectWorkspace.projectId, f.projectId))
+          .from(workspace)
+          .where(eq(workspace.projectId, f.projectId))
       ).toHaveLength(2)
       await expect(getProjectIssueAccess.execute(args)).rejects.toMatchObject({ code: 'conflict' })
     }
@@ -1126,9 +1144,9 @@ describe('Project foundation at the database and application boundary', () => {
       ).toEqual(f.ids.map(() => ({ projectId: f.projectId })))
       expect(
         await db
-          .select({ projectId: projectWorkspace.projectId })
-          .from(projectWorkspace)
-          .where(inArray(projectWorkspace.workspaceId, f.ids))
+          .select({ projectId: workspace.projectId })
+          .from(workspace)
+          .where(inArray(workspace.id, f.ids))
       ).toEqual(f.ids.map(() => ({ projectId: f.projectId })))
       expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toHaveLength(1)
       expect(await unlinkForkEdge(edge)).toEqual({ unlinked: true })
@@ -1146,11 +1164,11 @@ describe('Project foundation at the database and application boundary', () => {
       }
       const first = await db
         .select({
-          projectId: projectWorkspace.projectId,
-          workspaceId: projectWorkspace.workspaceId,
+          projectId: workspace.projectId,
+          workspaceId: workspace.id,
         })
-        .from(projectWorkspace)
-        .where(inArray(projectWorkspace.workspaceId, f.ids))
+        .from(workspace)
+        .where(inArray(workspace.id, f.ids))
       const root = first.find((row) => row.workspaceId === f.ids[0])
       const child = first.find((row) => row.workspaceId === f.ids[1])
       const grandchild = first.find((row) => row.workspaceId === f.ids[2])
@@ -1176,11 +1194,11 @@ describe('Project foundation at the database and application boundary', () => {
       })
       const second = await db
         .select({
-          projectId: projectWorkspace.projectId,
-          workspaceId: projectWorkspace.workspaceId,
+          projectId: workspace.projectId,
+          workspaceId: workspace.id,
         })
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, f.ids[1]))
+        .from(workspace)
+        .where(eq(workspace.id, f.ids[1]))
       expect(second[0].projectId).toBe(child.projectId)
     }
   )
@@ -1189,17 +1207,17 @@ describe('Project foundation at the database and application boundary', () => {
     'disconnect refuses a partially assigned subtree without moving any environments',
     async () => {
       const f = await fixture(true, 3)
-      await db.delete(projectWorkspace).where(eq(projectWorkspace.workspaceId, f.ids[2]))
+      await db.update(workspace).set({ projectId: null }).where(eq(workspace.id, f.ids[2]))
       await expect(
         unlinkForkEdge({ parentWorkspaceId: f.ids[0], childWorkspaceId: f.ids[1] })
       ).rejects.toMatchObject({ code: 'conflict' })
       const [child] = await db
         .select({
-          projectId: projectWorkspace.projectId,
-          workspaceId: projectWorkspace.workspaceId,
+          projectId: workspace.projectId,
+          workspaceId: workspace.id,
         })
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, f.ids[1]))
+        .from(workspace)
+        .where(eq(workspace.id, f.ids[1]))
       expect(child.projectId).toBe(f.projectId)
       const [edge] = await db.select().from(workspace).where(eq(workspace.id, f.ids[1]))
       expect(edge.forkedFromWorkspaceId).toBe(f.ids[0])
@@ -1354,6 +1372,7 @@ describe('Project foundation at the database and application boundary', () => {
     'column reassignment waits for a legacy membership writer before locking workspace rows',
     async () => {
       const f = await fixture(false)
+      await useLegacyMemberships(f.ids, f.projectId)
       const held = createDeferred<number>()
       const release = createDeferred<void>()
       let replacementId = ''
@@ -1393,7 +1412,7 @@ describe('Project foundation at the database and application boundary', () => {
       expect(
         await db.execute(sql`SELECT w.project_id, pw.project_id AS connector_id
       FROM workspace w JOIN project_workspace pw ON pw.workspace_id = w.id WHERE w.id = ${f.ids[1]}`)
-      ).toEqual([{ project_id: replacementId, connector_id: replacementId }])
+      ).toEqual([{ project_id: null, connector_id: replacementId }])
     }
   )
 
@@ -1508,9 +1527,9 @@ describe('Project foundation at the database and application boundary', () => {
       ).toEqual([{ projectId: privateProject.projectId }])
       expect(
         await db
-          .select({ workspaceId: projectWorkspace.workspaceId })
-          .from(projectWorkspace)
-          .where(eq(projectWorkspace.projectId, privateProject.projectId))
+          .select({ workspaceId: workspace.id })
+          .from(workspace)
+          .where(eq(workspace.projectId, privateProject.projectId))
       ).toEqual([{ workspaceId: privateProject.ids[0] }])
       await db.transaction(async (tx) => {
         const projectIds = await prepareProjectsForAccountDeletion(
@@ -1528,21 +1547,215 @@ describe('Project foundation at the database and application boundary', () => {
     }
   )
 
+  check('legacy Project account preview and teardown preserve surviving environments', async () => {
+    const f = await fixture()
+    await useLegacyMemberships(f.ids, f.projectId)
+    if (!f.organizationId) throw new Error('Missing organization fixture')
+    await db.insert(member).values({
+      id: generateId(),
+      organizationId: f.organizationId,
+      userId: f.teammateId,
+      role: 'admin',
+      createdAt: new Date(),
+    })
+    expect(await getProjectAccountDeletionBlockers(f.ownerId, [])).toEqual([])
+    await db.transaction(async (tx) => {
+      expect(await prepareProjectsForAccountDeletion(tx, f.ownerId, [])).toEqual([])
+    })
+    const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
+    expect(record.ownerId).toBe(f.teammateId)
+    expect(
+      await db.select({ id: workspace.id }).from(workspace).where(inArray(workspace.id, f.ids))
+    ).toHaveLength(2)
+  })
+
+  check(
+    'legacy detach assigns the whole subtree and stale connector rows cannot restore membership',
+    async () => {
+      const f = await fixture(false, 3)
+      await useLegacyMemberships(f.ids, f.projectId)
+      await unlinkForkEdge({ parentWorkspaceId: f.ids[0], childWorkspaceId: f.ids[1] })
+      const rows = await db.select().from(workspace).where(inArray(workspace.id, f.ids))
+      const child = rows.find((row) => row.id === f.ids[1])
+      const grandchild = rows.find((row) => row.id === f.ids[2])
+      expect(child?.projectId).toEqual(expect.any(String))
+      expect(child?.projectId).not.toBe(f.projectId)
+      expect(grandchild?.projectId).toBe(child?.projectId)
+      expect(
+        await db
+          .select({ projectId: projectWorkspace.projectId })
+          .from(projectWorkspace)
+          .where(inArray(projectWorkspace.workspaceId, f.ids))
+      ).toEqual(f.ids.map(() => ({ projectId: f.projectId })))
+      const current = await getWorkspaceProject.execute({
+        principal: f.owner,
+        input: { workspaceId: f.ids[1] },
+        request,
+      })
+      expect(current.project.id).toBe(child?.projectId)
+      await archiveWorkspace(f.ids[0], request)
+      const [original] = await db.select().from(project).where(eq(project.id, f.projectId))
+      expect(original.archivedAt).not.toBeNull()
+      const detached = await getWorkspaceProject.execute({
+        principal: f.owner,
+        input: { workspaceId: f.ids[2] },
+        request,
+      })
+      expect(detached.project.archivedAt).toBeNull()
+    }
+  )
+
+  check(
+    'legacy organization deletion transfers Projects without filling their columns',
+    async () => {
+      const f = await fixture()
+      await useLegacyMemberships(f.ids, f.projectId)
+      const organizationId = f.organizationId
+      if (!organizationId) throw new Error('Missing organization fixture')
+      await db.transaction(async (tx) => {
+        await detachOrganizationWorkspacesTx(tx, organizationId)
+        await tx.delete(organization).where(eq(organization.id, organizationId))
+      })
+      const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
+      expect(record).toMatchObject({ organizationId: null, ownerId: f.ownerId })
+      expect(
+        await db
+          .select({ projectId: workspace.projectId })
+          .from(workspace)
+          .where(inArray(workspace.id, f.ids))
+      ).toEqual(f.ids.map(() => ({ projectId: null })))
+    }
+  )
+
+  check(
+    'Project administration includes legacy environments during partial column assignment',
+    async () => {
+      const f = await fixture(false)
+      await useLegacyMemberships([f.ids[1]], f.projectId)
+      await expect(
+        renameProject.execute({
+          principal: f.teammate,
+          input: { projectId: f.projectId, name: 'Forbidden rename' },
+          request,
+        })
+      ).rejects.toMatchObject({ code: 'forbidden' })
+      const visible = await getProject.execute({
+        principal: f.owner,
+        input: { projectId: f.projectId },
+        request,
+      })
+      expect(visible.project.environments).toHaveLength(2)
+    }
+  )
+
+  check(
+    'connector retirement refuses busy workspace or Project readers without retaining locks',
+    async () => {
+      const f = await fixture(false)
+      await useLegacyMemberships(f.ids, f.projectId)
+      for (const held of ['workspace', 'project']) {
+        await db.transaction(async (tx) => {
+          if (held === 'workspace')
+            expect((await lockWorkspaceProject(tx, f.ids[0]))?.id).toBe(f.projectId)
+          else await tx.select().from(project).where(eq(project.id, f.projectId))
+          await expect(
+            isolated.client.begin(async (ddl) => {
+              await ddl`LOCK TABLE workspace, project, project_workspace IN ACCESS EXCLUSIVE MODE NOWAIT`
+              await ddl`DROP TABLE project_workspace`
+            })
+          ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '55P03')
+          await isolated.client.begin(async (writer) => {
+            await writer`SET LOCAL lock_timeout = '100ms'`
+            await writer`UPDATE workspace SET name = 'Still writable' WHERE id = ${f.ids[0]}`
+          })
+        })
+      }
+    }
+  )
+
+  check(
+    'account teardown after a legacy detach removes only obsolete connector references',
+    async () => {
+      const f = await fixture(false)
+      await useLegacyMemberships(f.ids, f.projectId)
+      await db
+        .delete(permissions)
+        .where(and(eq(permissions.entityId, f.ids[0]), eq(permissions.userId, f.teammateId)))
+      await db.insert(permissions).values({
+        id: generateId(),
+        userId: f.teammateId,
+        entityId: f.ids[1],
+        entityType: 'workspace',
+        permissionType: 'admin',
+      })
+      await unlinkForkEdge({ parentWorkspaceId: f.ids[0], childWorkspaceId: f.ids[1] })
+      const [detached] = await db.select().from(workspace).where(eq(workspace.id, f.ids[1]))
+      if (!detached.projectId) throw new Error('Missing detached Project')
+      await db.update(workspace).set({ projectId: f.projectId }).where(eq(workspace.id, f.ids[0]))
+      await expect(
+        db.transaction(async (tx) => {
+          await prepareProjectsForAccountDeletion(tx, f.ownerId, [f.ids[0]])
+          throw new Error('Cancel account deletion')
+        })
+      ).rejects.toThrow('Cancel account deletion')
+      expect(
+        await db
+          .select({ workspaceId: projectWorkspace.workspaceId })
+          .from(projectWorkspace)
+          .where(eq(projectWorkspace.projectId, f.projectId))
+      ).toHaveLength(2)
+      await db.transaction(async (tx) => {
+        const ids = await prepareProjectsForAccountDeletion(tx, f.ownerId, [f.ids[0]])
+        expect(ids).toEqual([f.projectId])
+        expect(
+          await tx
+            .select({ workspaceId: projectWorkspace.workspaceId })
+            .from(projectWorkspace)
+            .where(eq(projectWorkspace.projectId, f.projectId))
+        ).toEqual([{ workspaceId: f.ids[0] }])
+        await tx.delete(workspace).where(eq(workspace.id, f.ids[0]))
+        await tx.delete(project).where(inArray(project.id, ids))
+      })
+      expect(
+        await db.select({ id: project.id }).from(project).where(eq(project.id, f.projectId))
+      ).toEqual([])
+      const [surviving] = await db.select().from(project).where(eq(project.id, detached.projectId))
+      expect(surviving.ownerId).toBe(f.teammateId)
+      expect(
+        await db.select({ id: workspace.id }).from(workspace).where(eq(workspace.id, f.ids[1]))
+      ).toEqual([{ id: f.ids[1] }])
+    }
+  )
+
   check(
     'column-only application operations remain valid after the connector is removed',
     async () => {
       await clearFixtures()
-      await isolated.client.unsafe(`
-      DROP TRIGGER workspace_sync_project_membership ON workspace;
-      DROP TRIGGER project_workspace_sync_column ON project_workspace;
-      DROP FUNCTION workspace_sync_project_membership_fn();
-      DROP FUNCTION project_workspace_sync_column_fn();
-      DROP TABLE project_workspace;
-      ALTER TABLE workspace ALTER COLUMN project_id SET NOT NULL;
-      ALTER TABLE workspace ADD CONSTRAINT workspace_project_id_project_id_fk
-        FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE RESTRICT;
-    `)
       const f = await fixture(true, 1)
+      const locked = createDeferred<number>()
+      const release = createDeferred<void>()
+      const retirement = isolated.client.begin(async (tx) => {
+        await tx`LOCK TABLE workspace, project, project_workspace IN ACCESS EXCLUSIVE MODE NOWAIT`
+        const [connection] = await tx`SELECT pg_backend_pid() AS pid`
+        locked.resolve(connection.pid)
+        await release.promise
+        await tx`DROP TABLE project_workspace`
+        await tx`ALTER TABLE workspace ALTER COLUMN project_id SET NOT NULL`
+        await tx`ALTER TABLE workspace VALIDATE CONSTRAINT workspace_project_id_project_id_fk`
+      })
+      await Promise.race([locked.promise, retirement])
+      const overlappingRead = getWorkspaceProject.execute({
+        principal: f.owner,
+        input: { workspaceId: f.ids[0] },
+        request,
+      })
+      try {
+        await waitUntilBlockedBy(await locked.promise, 'workspace')
+      } finally {
+        release.resolve()
+      }
+      const [, overlappingResult] = await Promise.all([retirement, overlappingRead])
+      expect(overlappingResult.project.environments.map((row) => row.id)).toEqual(f.ids)
       const organizationId = f.organizationId
       if (!organizationId) throw new Error('Missing organization fixture')
       const created = await createProject.execute({

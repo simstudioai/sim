@@ -218,6 +218,9 @@ describe('workspace payer-change transaction lock ordering', () => {
         orderBy() {
           return chain
         },
+        as() {
+          return table
+        },
         for() {
           ops.push({ op: 'lock', table })
           return chain

@@ -27171,6 +27171,15 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
+        "workspace_project_id_project_id_fk": {
+          "name": "workspace_project_id_project_id_fk",
+          "tableFrom": "workspace",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
         "workspace_billed_account_user_id_user_id_fk": {
           "name": "workspace_billed_account_user_id_user_id_fk",
           "tableFrom": "workspace",

@@ -23,7 +23,7 @@ try {
     )
   }
   if (!process.argv.includes('--prepare') && state.workspace && state.project && state.connector) {
-    // Reuse the migration's bounded copy and bridge so push cannot drift from deployed upgrades.
+    // Reuse additive DDL so schema push preserves the same legacy membership state as upgrades.
     const source = await readFile(
       new URL('../migrations/0404_workspace_project_column.sql', import.meta.url),
       'utf8'
@@ -36,7 +36,7 @@ try {
     } finally {
       connection.release()
     }
-    logger.info('Project membership copy and synchronization completed')
+    logger.info('Nullable Project membership column prepared')
   }
 } catch (error) {
   logger.error('Project schema push stopped; resolve the error and retry', {

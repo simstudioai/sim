@@ -140,6 +140,7 @@ function forkParams(selection?: {
 describe('createFork storage headroom gate', () => {
   beforeEach(() => {
     resetDbChainMock()
+    dbChainMockFns.as.mockReturnValue(workspace)
     queueTableRows(workspace, [{ projectId: 'project-source' }])
     queueTableRows(workspace, [
       { project: { id: 'project-source', organizationId: null, archivedAt: null } },
@@ -215,6 +216,7 @@ describe('createFork storage headroom gate', () => {
 
   it('refuses when the parent changed organizations after the policy was captured', async () => {
     resetDbChainMock()
+    dbChainMockFns.as.mockReturnValue(workspace)
     queueTableRows(workspace, [{ projectId: 'project-source' }])
     queueTableRows(workspace, [
       { project: { id: 'project-source', organizationId: null, archivedAt: null } },
@@ -243,6 +245,7 @@ describe('createFork storage headroom gate', () => {
    */
   it('gives the child the source workspace personal API-key and fork-sync policies', async () => {
     resetDbChainMock()
+    dbChainMockFns.as.mockReturnValue(workspace)
     queueTableRows(workspace, [{ projectId: 'project-source' }])
     queueTableRows(workspace, [
       { project: { id: 'project-source', organizationId: null, archivedAt: null } },
