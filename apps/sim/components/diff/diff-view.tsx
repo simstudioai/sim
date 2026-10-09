@@ -29,6 +29,10 @@ interface Segment {
 type VisibleItem = { line: DiffLine; key: number } | { collapsed: number; key: number }
 type PairedRow = { old?: DiffLine; new?: DiffLine; key: number }
 type PairedItem = PairedRow | { collapsed: number; key: number }
+type ProseItem =
+  | { kind: 'heading'; hunk: DiffHunk; key: string }
+  | { kind: 'collapsed'; count: number; key: string }
+  | { kind: 'row'; item: PairedRow; segments: Map<DiffLine, Segment[]>; key: string }
 
 interface DiffViewProps {
   hunks: DiffHunk[]
@@ -52,27 +56,34 @@ interface HighlightedTextProps {
 interface CollapsedRunProps {
   count: number
   onExpand: () => void
+  row?: number
 }
 
 interface DiffCellProps extends Omit<LineTextProps, 'prose'> {
-  side: 'old' | 'new'
   wrapLines: boolean
 }
 interface UnifiedRowProps extends Omit<LineTextProps, 'prose'> {
   numbered: boolean
   wrapLines: boolean
 }
-interface ProseRowProps {
-  item: PairedRow
-  segments: Map<DiffLine, Segment[]>
+interface ProseColumnProps {
+  items: ProseItem[]
+  side: 'old' | 'new'
   wrapLines: boolean
+}
+interface ProseRowsProps {
+  hunks: DiffHunk[]
+  wrapLines: boolean
+}
+interface HunkHeadingProps {
+  hunk: DiffHunk
+  row?: number
 }
 interface HunkRowsProps {
   hunk: DiffHunk
   index: number
   numbered: boolean
   wrapLines: boolean
-  prose: boolean
 }
 
 /** Pairs adjacent removed and added runs for bounded word-level highlighting. */
@@ -174,9 +185,12 @@ function LineText({ line, segments, prose }: LineTextProps) {
   )
 }
 
-function CollapsedRun({ count, onExpand }: CollapsedRunProps) {
+function CollapsedRun({ count, onExpand, row }: CollapsedRunProps) {
   return (
-    <div className='sticky left-0 col-span-full border-[var(--border)] border-y bg-[var(--surface-3)] px-3 py-1'>
+    <div
+      className='sticky left-0 col-span-full border-[var(--border)] border-y bg-[var(--surface-3)] px-3 py-1'
+      style={row ? { gridRow: row } : undefined}
+    >
       <Chip onClick={onExpand} leftIcon={ChevronsUpDown}>
         Show {count} unchanged {count === 1 ? 'line' : 'lines'}
       </Chip>
@@ -261,15 +275,9 @@ function marker(line: DiffLine | undefined) {
   return line?.type === 'add' ? '+' : line?.type === 'del' ? '−' : ' '
 }
 
-function DiffCell({ line, segments, side, wrapLines }: DiffCellProps) {
+function DiffCell({ line, segments, wrapLines }: DiffCellProps) {
   return (
-    <div
-      className={cn(
-        'grid min-w-0 grid-cols-[24px_minmax(0,1fr)] px-3 py-2',
-        side === 'new' && 'border-[var(--border)] border-l',
-        rowClass(line)
-      )}
-    >
+    <div className={cn('grid min-w-0 grid-cols-[24px_minmax(0,1fr)] px-3 py-2', rowClass(line))}>
       <span className={cn(MARKER, markerClass(line))} aria-hidden>
         {marker(line)}
       </span>
@@ -313,47 +321,109 @@ function UnifiedRow({ line, segments, numbered, wrapLines }: UnifiedRowProps) {
   )
 }
 
-function ProseRow({ item, segments, wrapLines }: ProseRowProps) {
+function ProseColumn({ items, side, wrapLines }: ProseColumnProps) {
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
+  const scrollEdges = useScrollEdges(scrollElement, { axis: 'x' })
   return (
-    <div className='col-span-full grid grid-cols-subgrid'>
-      {(['old', 'new'] as const).map((side) => {
-        const line = item[side]
-        return line ? (
-          <DiffCell
-            key={side}
-            line={line}
-            segments={segments.get(line)}
-            side={side}
-            wrapLines={wrapLines}
-          />
-        ) : (
-          <div
-            key={side}
-            aria-hidden
-            className={cn(
-              'bg-[var(--surface-3)]',
-              side === 'new' && 'border-[var(--border)] border-l'
-            )}
-          />
-        )
-      })}
+    <div
+      ref={setScrollElement}
+      role='region'
+      aria-label={side === 'old' ? 'Before document' : 'After document'}
+      tabIndex={wrapLines ? undefined : 0}
+      className={cn(
+        scrollFadeXClass,
+        'row-span-full grid min-w-0 grid-rows-subgrid overflow-x-auto',
+        side === 'old' ? 'col-start-1' : 'col-start-2 border-[var(--border)] border-l'
+      )}
+      {...scrollFadeAttributes(scrollEdges)}
+    >
+      <div
+        className={cn(
+          'row-span-full grid grid-rows-subgrid',
+          wrapLines ? 'w-full min-w-0' : 'w-max min-w-full'
+        )}
+      >
+        {items.map((entry) => {
+          const line = entry.kind === 'row' ? entry.item[side] : undefined
+          return line && entry.kind === 'row' ? (
+            <DiffCell
+              key={entry.key}
+              line={line}
+              segments={entry.segments.get(line)}
+              wrapLines={wrapLines}
+            />
+          ) : (
+            <div
+              key={entry.key}
+              aria-hidden
+              className={cn(entry.kind === 'row' && 'bg-[var(--surface-3)]')}
+            />
+          )
+        })}
+      </div>
     </div>
   )
 }
 
-function HunkRows({ hunk, index, numbered, wrapLines, prose }: HunkRowsProps) {
+function HunkHeading({ hunk, row }: HunkHeadingProps) {
+  return (
+    <div
+      className='sticky left-0 col-span-full border-[var(--border)] border-y bg-[var(--surface-3)] px-4 py-2 font-season text-[var(--text-muted)] text-caption'
+      style={row ? { gridRow: row } : undefined}
+    >
+      {hunk.file && <span className='text-[var(--text-body)]'>{hunk.file} </span>}
+      {hunk.heading || (hunk.file ? '' : '⋯')}
+    </div>
+  )
+}
+
+function ProseRows({ hunks, wrapLines }: ProseRowsProps) {
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
+  const items: ProseItem[] = []
+  for (const [index, hunk] of hunks.entries()) {
+    if (hunk.file || hunk.heading || index > 0)
+      items.push({ kind: 'heading', hunk, key: `${index}:heading` })
+    const segments = wordSegments(hunk.lines)
+    const visible = visibleItems(hunk.lines, (start) => expanded.has(`${index}:c${start}`))
+    for (const item of pairedItems(visible)) {
+      items.push(
+        'collapsed' in item
+          ? { kind: 'collapsed', count: item.collapsed, key: `${index}:c${item.key}` }
+          : { kind: 'row', item, segments, key: `${index}:${item.key}` }
+      )
+    }
+  }
+  if (items.length === 0) return null
+  return (
+    <div
+      className='grid w-full grid-cols-2 py-1 font-season text-[var(--text-body)] text-small leading-relaxed'
+      style={{ gridTemplateRows: `repeat(${items.length}, auto)` }}
+    >
+      <ProseColumn items={items} side='old' wrapLines={wrapLines} />
+      <ProseColumn items={items} side='new' wrapLines={wrapLines} />
+      {items.map((entry, index) =>
+        entry.kind === 'heading' ? (
+          <HunkHeading key={entry.key} hunk={entry.hunk} row={index + 1} />
+        ) : entry.kind === 'collapsed' ? (
+          <CollapsedRun
+            key={entry.key}
+            count={entry.count}
+            row={index + 1}
+            onExpand={() => setExpanded((current) => new Set(current).add(entry.key))}
+          />
+        ) : null
+      )}
+    </div>
+  )
+}
+
+function HunkRows({ hunk, index, numbered, wrapLines }: HunkRowsProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set())
   const segments = wordSegments(hunk.lines)
-  const visible = visibleItems(hunk.lines, (start) => expanded.has(start))
-  const items = prose ? pairedItems(visible) : visible
+  const items = visibleItems(hunk.lines, (start) => expanded.has(start))
   return (
     <>
-      {(hunk.file || hunk.heading || index > 0) && (
-        <div className='sticky left-0 col-span-full border-[var(--border)] border-y bg-[var(--surface-3)] px-4 py-2 font-season text-[var(--text-muted)] text-caption'>
-          {hunk.file && <span className='text-[var(--text-body)]'>{hunk.file} </span>}
-          {hunk.heading || (hunk.file ? '' : '⋯')}
-        </div>
-      )}
+      {(hunk.file || hunk.heading || index > 0) && <HunkHeading hunk={hunk} />}
       {items.map((item) =>
         'collapsed' in item ? (
           <CollapsedRun
@@ -361,7 +431,7 @@ function HunkRows({ hunk, index, numbered, wrapLines, prose }: HunkRowsProps) {
             count={item.collapsed}
             onExpand={() => setExpanded((current) => new Set(current).add(item.key))}
           />
-        ) : 'line' in item ? (
+        ) : (
           <UnifiedRow
             key={item.key}
             line={item.line}
@@ -369,8 +439,6 @@ function HunkRows({ hunk, index, numbered, wrapLines, prose }: HunkRowsProps) {
             numbered={numbered}
             wrapLines={wrapLines}
           />
-        ) : (
-          <ProseRow key={item.key} item={item} segments={segments} wrapLines={wrapLines} />
         )
       )}
     </>
@@ -381,16 +449,13 @@ function HunkRows({ hunk, index, numbered, wrapLines, prose }: HunkRowsProps) {
 export function DiffView({ hunks, wrapLines = true, prose = false }: DiffViewProps) {
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const scrollEdges = useScrollEdges(scrollElement, { axis: 'x' })
-  const numbered =
-    !prose &&
-    hunks.some((hunk) =>
-      hunk.lines.some((line) => line.oldLine !== undefined || line.newLine !== undefined)
-    )
-  const columns = prose
-    ? 'grid-cols-2'
-    : numbered
-      ? 'grid-cols-[minmax(3.5ch,auto)_minmax(3.5ch,auto)_24px_minmax(0,1fr)]'
-      : 'grid-cols-[24px_minmax(0,1fr)]'
+  if (prose) return <ProseRows hunks={hunks} wrapLines={wrapLines} />
+  const numbered = hunks.some((hunk) =>
+    hunk.lines.some((line) => line.oldLine !== undefined || line.newLine !== undefined)
+  )
+  const columns = numbered
+    ? 'grid-cols-[minmax(3.5ch,auto)_minmax(3.5ch,auto)_24px_minmax(0,1fr)]'
+    : 'grid-cols-[24px_minmax(0,1fr)]'
   return (
     <div
       ref={setScrollElement}
@@ -401,8 +466,7 @@ export function DiffView({ hunks, wrapLines = true, prose = false }: DiffViewPro
         className={cn(
           'grid py-1 font-mono text-[var(--text-body)] text-small leading-[22px]',
           columns,
-          wrapLines ? 'w-full' : 'w-max min-w-full',
-          prose && 'font-season leading-relaxed'
+          wrapLines ? 'w-full' : 'w-max min-w-full'
         )}
       >
         {hunks.map((hunk, index) => (
@@ -412,7 +476,6 @@ export function DiffView({ hunks, wrapLines = true, prose = false }: DiffViewPro
             index={index}
             numbered={numbered}
             wrapLines={wrapLines}
-            prose={prose}
           />
         ))}
       </div>
