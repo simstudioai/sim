@@ -1,7 +1,14 @@
 'use client'
 
-import React, { useState } from 'react'
-import { cn, Lightbox, Loader } from '@sim/emcn'
+import React, { useRef, useState } from 'react'
+import {
+  cn,
+  Lightbox,
+  Loader,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -49,7 +56,9 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
       className={cn(
         CHIP_SURFACE,
         'size-full',
-        isMedia ? 'overflow-hidden' : 'flex items-center gap-2 py-[7px] pr-5 pl-2'
+        isMedia
+          ? 'block overflow-hidden max-md:pointer-coarse:size-12 max-md:pointer-coarse:shrink-0'
+          : 'flex items-center gap-2 py-[7px] pr-5 pl-2 max-md:pointer-coarse:min-w-0 max-md:pointer-coarse:flex-1 max-md:pointer-coarse:pr-2'
       )}
       onClick={lightboxSrc ? undefined : () => onFileClick(file)}
       aria-label={lightboxSrc ? `Preview ${file.name}` : `Open ${file.name}`}
@@ -110,8 +119,10 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
     /* Owns the width cap: it anchors the remove badge, which a max-content button would strand. */
     <div
       className={cn(
-        'group relative',
-        isMedia ? 'size-[48px] shrink-0' : 'h-[48px] min-w-0 max-w-[min(220px,100%)]'
+        'group relative max-md:pointer-coarse:flex max-md:pointer-coarse:items-center',
+        isMedia
+          ? 'size-[48px] shrink-0 max-md:pointer-coarse:w-auto'
+          : 'h-[48px] min-w-0 max-w-[min(220px,100%)]'
       )}
     >
       {lightboxSrc ? (
@@ -121,22 +132,23 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
       ) : (
         preview
       )}
-      {!file.uploading && (
-        <button
-          type='button'
-          onClick={(e) => {
-            e.stopPropagation()
-            onRemoveFile(file.id)
-          }}
-          aria-label={`Remove ${file.name}`}
-          /* Always visible: reveal-on-hover would hide it from touch and from keyboard
-             focus, and `hover-hover` cannot express "while the chip is hovered" from
-             here anyway — it carries its own `&:hover`, so it binds to this element. */
-          className='absolute top-[2px] right-[2px] flex size-[16px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-body)]'
-        >
+      <button
+        type='button'
+        disabled={file.uploading}
+        onClick={(e) => {
+          e.stopPropagation()
+          onRemoveFile(file.id)
+        }}
+        aria-label={`Remove ${file.name}`}
+        className={cn(
+          'absolute top-[2px] right-[2px] flex size-[16px] items-center justify-center max-md:pointer-coarse:static max-md:pointer-coarse:size-11 max-md:pointer-coarse:shrink-0',
+          file.uploading && 'invisible'
+        )}
+      >
+        <span className='flex size-[16px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-body)]'>
           <X className='size-[10px]' />
-        </button>
-      )}
+        </span>
+      </button>
     </div>
   )
 })
@@ -146,18 +158,29 @@ export const AttachedFilesList = React.memo(function AttachedFilesList({
   onFileClick,
   onRemoveFile,
 }: AttachedFilesListProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const edges = useScrollEdges(scrollRef, { enabled: attachedFiles.length > 0 })
   if (attachedFiles.length === 0) return null
 
   return (
-    <div className='mb-1.5 flex flex-wrap items-center gap-1.5'>
-      {attachedFiles.map((file) => (
-        <AttachedFileChip
-          key={file.id}
-          file={file}
-          onFileClick={onFileClick}
-          onRemoveFile={onRemoveFile}
-        />
-      ))}
+    <div
+      ref={scrollRef}
+      className={cn(
+        'mb-1.5 max-md:max-h-[102px] max-md:overflow-y-auto max-md:overscroll-contain',
+        scrollFadeClass
+      )}
+      {...scrollFadeAttributes(edges)}
+    >
+      <div className='flex flex-wrap items-center gap-1.5'>
+        {attachedFiles.map((file) => (
+          <AttachedFileChip
+            key={file.id}
+            file={file}
+            onFileClick={onFileClick}
+            onRemoveFile={onRemoveFile}
+          />
+        ))}
+      </div>
     </div>
   )
 })

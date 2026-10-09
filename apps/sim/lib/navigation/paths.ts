@@ -12,6 +12,9 @@
  */
 export const APP_ENTRY_PATH = '/home'
 
+/** Keeps the landing page visible even when the viewer is signed in. */
+export const LANDING_HREF = '/?home'
+
 /**
  * The workspace picker: resolves to the viewer's most recent workspace. Use it only
  * where the viewer explicitly asked for workspaces; the default landing is

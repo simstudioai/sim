@@ -44,6 +44,7 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
+import { isMobileViewport } from '@/hooks/use-is-mobile'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
@@ -202,7 +203,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     if (caretText !== null) {
       const textarea = textareaRef.current
       if (textarea) {
-        textarea.focus()
+        if (!isMobileViewport()) textarea.focus()
         textarea.setSelectionRange(caretText.length, caretText.length)
       }
     }
@@ -591,10 +592,14 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
       <PromptEditor
         editor={editor}
+        aria-label='Message'
         placeholder='Ask Sim to '
         onSubmit={handleEnterSubmit}
         onArrowUpOnEmpty={handleArrowUpOnEmpty}
-        className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
+        className={cn(
+          'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
+          isInitialView && 'min-h-[56px] max-md:min-h-0'
+        )}
       />
 
       <InputToolbar

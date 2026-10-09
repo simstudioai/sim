@@ -35,7 +35,7 @@ export function CredentialDetailLayout({
         {back}
         {actions ? <div className={HEADER_ACTION_CLUSTER}>{actions}</div> : null}
       </div>
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-4 pb-[env(safe-area-inset-bottom)] md:px-6 md:[scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex w-full max-w-[48rem] flex-col gap-7 pb-6'>
           {/* Same element, class and column position the settings shell gives its page title. */}
           {title ? <h1 className='text-[var(--text-body)] text-lg'>{title}</h1> : null}

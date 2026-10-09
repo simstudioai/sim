@@ -167,6 +167,7 @@ interface SettingsActionChipProps {
   onSelect?: () => void
   /** Overrides `action.onPrefetch`, same reason. */
   onPrefetch?: () => void
+  mobileIconOnly?: boolean
 }
 
 /**
@@ -179,12 +180,14 @@ export function SettingsActionChip({
   action,
   onSelect = action.onSelect,
   onPrefetch = action.onPrefetch,
+  mobileIconOnly,
 }: SettingsActionChipProps) {
   const chip = (
     <Chip
       variant={action.variant}
       active={action.active}
       leftIcon={action.icon}
+      mobileIconOnly={mobileIconOnly}
       onClick={onSelect}
       onMouseEnter={onPrefetch}
       onFocus={onPrefetch}
@@ -324,7 +327,7 @@ export function SettingsHeaderShell({ meta, children }: SettingsHeaderShellProps
       </div>
       <div
         ref={scrollContainerRef}
-        className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'
+        className='min-h-0 flex-1 overflow-y-auto px-4 pb-[env(safe-area-inset-bottom)] md:px-6 md:[scrollbar-gutter:stable_both-edges]'
       >
         <div className='mx-auto flex w-full max-w-[48rem] flex-col gap-7 pb-6'>
           {(title || description) && (

@@ -45,6 +45,41 @@ import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
 import { focusFirstTextInput, focusFirstTextInputIn } from './auto-focus'
 
+/** Portal geometry follows the visible mobile viewport while the keyboard is open. */
+function attachModalViewport(element: HTMLDivElement | null) {
+  const viewport = window.visualViewport
+  if (!element || !viewport) return
+  const mobile = window.matchMedia('(max-width: 767px)')
+  let frame = 0
+  const clear = () => {
+    element.style.removeProperty('--modal-viewport-height')
+    element.style.removeProperty('--modal-viewport-top')
+  }
+  const update = () => {
+    cancelAnimationFrame(frame)
+    frame = requestAnimationFrame(() => {
+      if (!mobile.matches) {
+        clear()
+        return
+      }
+      if (viewport.scale !== 1) return
+      element.style.setProperty('--modal-viewport-height', `${viewport.height}px`)
+      element.style.setProperty('--modal-viewport-top', `${viewport.offsetTop}px`)
+    })
+  }
+  update()
+  viewport.addEventListener('resize', update)
+  viewport.addEventListener('scroll', update)
+  mobile.addEventListener('change', update)
+  return () => {
+    cancelAnimationFrame(frame)
+    viewport.removeEventListener('resize', update)
+    viewport.removeEventListener('scroll', update)
+    mobile.removeEventListener('change', update)
+    clear()
+  }
+}
+
 /**
  * Shared animation classes for modal transitions.
  * Mirrors the legacy `Modal` component to ensure consistent behavior.
@@ -570,8 +605,9 @@ const ModalContent = React.forwardRef<
           onNativeSurfaceReadyChange={handleNativeSurfaceReadyChange}
         />
         <div
+          ref={attachModalViewport}
           className={cn(
-            'fixed inset-0 z-[var(--z-modal)] flex items-center justify-center',
+            'fixed inset-0 z-[var(--z-modal)] flex items-center justify-center max-md:top-[var(--modal-viewport-top,0px)] max-md:bottom-auto max-md:h-[var(--modal-viewport-height,100dvh)] max-md:pl-0!',
             nativeSurfaceReady ? 'pointer-events-none' : 'pointer-events-auto'
           )}
           data-native-surface-modal-content-layer=''
@@ -588,7 +624,7 @@ const ModalContent = React.forwardRef<
           <DialogPrimitive.Content
             ref={setContentRef}
             className={cn(
-              'pointer-events-auto flex max-h-[84vh] flex-col text-small',
+              'pointer-events-auto flex max-h-[84vh] flex-col text-small max-md:max-h-[calc(var(--modal-viewport-height,100dvh)_-_2rem)]',
               !bare &&
                 'overflow-hidden rounded-xl bg-[var(--bg)] ring-[length:var(--border-width)] ring-foreground/10',
               ANIMATION_CLASSES,

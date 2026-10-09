@@ -18,13 +18,14 @@ export const ToggleButton = memo(function ToggleButton({ isExpanded, onClick }: 
     <Button
       variant='ghost'
       iconPadding='md'
-      className='-m-1.5'
+      className='-m-1.5 max-md:size-11'
       onClick={onClick}
       aria-label='Toggle terminal'
+      aria-expanded={isExpanded}
     >
       <ChevronDown
         className={cn(
-          'size-[14px] shrink-0 transition-transform duration-100',
+          'size-[14px] shrink-0 transition-transform duration-100 motion-reduce:transition-none',
           !isExpanded && 'rotate-180'
         )}
       />

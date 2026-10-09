@@ -36,6 +36,7 @@ import type {
   WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { getContextMenuPosition } from '@/lib/core/utils/context-menu'
 import { formatDateShort } from '@/lib/core/utils/date-display'
 import {
   getEndDateFromTimeRange,
@@ -537,7 +538,7 @@ export default function Logs() {
     (e: React.MouseEvent, rowId: string) => {
       e.preventDefault()
       const log = logs.find((l) => l.id === rowId) ?? null
-      setContextMenuPosition({ x: e.clientX, y: e.clientY })
+      setContextMenuPosition(getContextMenuPosition(e))
       setContextMenuLog(log)
       setContextMenuOpen(true)
     },

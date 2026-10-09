@@ -582,7 +582,7 @@ interface EmbeddedTestActionsProps {
 
 /** Runs the test the tab shows, and opens its page. */
 function EmbeddedTestActions({ workspaceId, name }: EmbeddedTestActionsProps) {
-  const router = useRouter()
+  const openInternalLink = useOpenInternalLink()
   const testsEnabled = useFeatureFlag('workflow-tests')
   const detail = useWorkflowTest(workspaceId, name)
   const run = useTestRunAction({
@@ -612,7 +612,7 @@ function EmbeddedTestActions({ workspaceId, name }: EmbeddedTestActionsProps) {
         <Tooltip.Trigger asChild>
           <TabStripAction
             variant='subtle'
-            onClick={() => router.push(`/workspace/${workspaceId}/tests/${name}`)}
+            onClick={() => openInternalLink(`/workspace/${workspaceId}/tests/${name}`)}
             aria-label='Open test'
           >
             <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />

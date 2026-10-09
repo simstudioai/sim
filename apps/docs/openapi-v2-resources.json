@@ -13842,7 +13842,7 @@
           "credentials": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 131072,
+            "maxLength": 4325376,
             "description": "Write-only JSON object string containing the fields declared by credential-provider discovery.",
             "writeOnly": true
           }

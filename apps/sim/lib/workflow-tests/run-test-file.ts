@@ -6,6 +6,7 @@ import {
   type TestReport,
   testReportSchema,
 } from '@/lib/workflow-tests/protocol'
+import type { EnteredWorkflow } from '@/lib/workflow-tests/repository'
 import { WorkflowTestSession } from '@/lib/workflow-tests/session'
 import {
   closeWorkflowTestSession,
@@ -32,7 +33,7 @@ export interface RunWorkflowTestFileInput {
  */
 export async function runWorkflowTestFile(
   input: RunWorkflowTestFileInput
-): Promise<{ report: TestReport; enteredWorkflowIds: string[] }> {
+): Promise<{ report: TestReport; entered: EnteredWorkflow[] }> {
   const requestId = generateShortId(12)
   const session = new WorkflowTestSession({
     workspaceId: input.workspaceId,
@@ -50,7 +51,7 @@ export async function runWorkflowTestFile(
     )
     return {
       report: testReportSchema.parse(JSON.parse(Buffer.from(bytes).toString('utf-8'))),
-      enteredWorkflowIds: [...session.enteredWorkflowIds],
+      entered: session.enteredWorkflows(),
     }
   } finally {
     closeWorkflowTestSession(requestId)

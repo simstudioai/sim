@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
 import type { Node, ReactFlowInstance } from '@xyflow/react'
+import { getTerminalHeight } from '@/lib/workflows/layout'
 
 interface VisibleBounds {
   width: number
@@ -16,12 +17,14 @@ export interface CanvasViewportOptions {
 
 /**
  * Gets the visible canvas bounds accounting for sidebar, terminal, and panel overlays.
- * When embedded, uses the container rect directly since CSS variable offsets don't apply.
+ * Embedded canvases and layouts with an overlaid panel use the rendered container bounds.
  */
 function getVisibleCanvasBounds(options?: CanvasViewportOptions): VisibleBounds {
   const flowContainer = document.querySelector('.react-flow')
+  const panel = document.querySelector('.panel-container')
+  const hasOverlayPanel = panel && getComputedStyle(panel).position === 'absolute'
 
-  if (options?.embedded && flowContainer) {
+  if ((options?.embedded || hasOverlayPanel) && flowContainer) {
     const rect = flowContainer.getBoundingClientRect()
     return {
       width: rect.width,
@@ -35,7 +38,7 @@ function getVisibleCanvasBounds(options?: CanvasViewportOptions): VisibleBounds 
   const style = getComputedStyle(document.documentElement)
 
   const sidebarWidth = Number.parseInt(style.getPropertyValue('--sidebar-width') || '0', 10)
-  const terminalHeight = Number.parseInt(style.getPropertyValue('--terminal-height') || '0', 10)
+  const terminalHeight = getTerminalHeight()
   const panelWidth = Number.parseInt(style.getPropertyValue('--panel-width') || '0', 10)
 
   if (!flowContainer) {

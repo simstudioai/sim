@@ -56,14 +56,14 @@ export interface PlusMenuHandle {
 }
 
 /** Shared draft typography for Build and Search composers. */
-export const PROMPT_TEXT_CLASSES = 'font-body text-[14px] leading-[24px] tracking-[-0.015em]'
+export const PROMPT_TEXT_CLASSES =
+  'font-body text-md leading-[24px] tracking-[-0.015em] md:pointer-fine:text-sm'
 
 /**
  * Box and typography shared by the textarea and its mirror overlay — both must
  * produce identical line wrapping so the overlay text sits exactly over the
- * (transparent) textarea text. The scale is the chat input's native prompt
- * scale (`text-[14px]`, `-0.015em` tracking); the task modal's body inherits it
- * so the editor reads the same whether it's the chat input or inside the modal.
+ * (transparent) textarea text. The task modal inherits the same responsive
+ * prompt scale so its editor and the chat input wrap identically.
  */
 export const PROMPT_FIELD_CLASSES = cn(
   'm-0 box-border min-h-[24px] w-full [overflow-wrap:anywhere] border-0 bg-transparent',
