@@ -168,11 +168,8 @@ export function TeamManagement({
   const pendingSeats = Math.max(0, reservedSeats - usedSeats)
 
   /**
-   * The org's active subscription, derived from DB-backed organization billing
-   * (`getOrganizationBillingData` only returns data when an entitled org
-   * subscription exists). We intentionally do not read this from better-auth's
-   * `client.subscription.list`, which does not reliably surface org-scoped
-   * subscriptions.
+   * Organization plan metadata comes from the primary database; Better Auth's
+   * `client.subscription.list` does not reliably surface org-scoped subscriptions.
    */
   const orgBilling = billingEnabled ? (organizationBillingData?.data ?? null) : null
   const orgSubscription = orgBilling?.subscriptionPlan

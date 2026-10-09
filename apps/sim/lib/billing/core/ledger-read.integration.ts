@@ -11,8 +11,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
 
-vi.mock('@/lib/billing/constants', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/billing/constants')>()),
+vi.mock('@/lib/billing/constants', () => ({
   USAGE_LEDGER_STATEMENT_TIMEOUT_MS: 1000,
 }))
 
