@@ -135,19 +135,25 @@ export async function archiveEnvironmentInTransaction(
 }
 
 /**
- * Announces a committed environment archive. Every step is best-effort and isolated, so
- * one failed notification never skips the rest.
+ * Announces a committed environment archive. Cleanup is best-effort by default; maintenance
+ * callers can require provider cleanup to succeed before recording completion.
  */
 export async function finishEnvironmentArchive(
   effects: EnvironmentArchiveEffects,
-  requestId: string
+  requestId: string,
+  options: { strictExternalCleanup?: boolean } = {}
 ): Promise<void> {
   const { workspaceId } = effects
   await mapWithConcurrency(effects.workflows, ARCHIVE_NOTIFICATION_CONCURRENCY, (row) =>
-    finishWorkflowArchive(row.id, workspaceId, row.serverIds, { requestId }).catch((error) =>
-      logger.warn(`[${requestId}] Post-archive notification failed for workflow ${row.id}`, {
-        error,
-      })
+    finishWorkflowArchive(row.id, workspaceId, row.serverIds, {
+      requestId,
+      strictExternalCleanup: options.strictExternalCleanup,
+    }).catch((error) =>
+      options.strictExternalCleanup
+        ? Promise.reject(error)
+        : logger.warn(`[${requestId}] Post-archive notification failed for workflow ${row.id}`, {
+            error,
+          })
     )
   )
   await mcpService.clearCache(workspaceId).catch(() => undefined)

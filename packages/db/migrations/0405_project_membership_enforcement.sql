@@ -1,135 +1,13 @@
--- Each family commits separately; never retain locks across the full backfill.
--- The migration runner serializes runners with its session advisory lock.
+-- Preparation and assignments are operator-controlled; this migration only validates and enforces.
 COMMIT;
 --> statement-breakpoint
-SET statement_timeout = '15min';
---> statement-breakpoint
-CREATE TEMP TABLE IF NOT EXISTS project_backfill_roots (id text PRIMARY KEY) ON COMMIT PRESERVE ROWS;
-TRUNCATE project_backfill_roots;
--- Only legacy families need assignment locks; existing complete Projects only need validation.
-WITH RECURSIVE ancestors(id, parent_id) AS (
-  SELECT w.id, w.forked_from_workspace_id FROM workspace w
-    WHERE w.project_id IS NULL
-  UNION
-  SELECT w.id, w.forked_from_workspace_id FROM workspace w JOIN ancestors a ON a.parent_id = w.id
-)
-INSERT INTO project_backfill_roots SELECT id FROM ancestors WHERE parent_id IS NULL;
---> statement-breakpoint
-CREATE OR REPLACE PROCEDURE pg_temp.backfill_project_families() LANGUAGE plpgsql AS $$
-DECLARE
-  root_id text;
-  previous_root text;
-  environment_id text;
-  family_ids text[];
-  current_ids text[];
-  project_ids text[];
-  target_project text;
-  root workspace%ROWTYPE;
-  existing project%ROWTYPE;
-  archive_time timestamp;
-  attempts integer := 0;
-  completed integer := 0;
-  assigned integer := 0;
-  inserted integer;
-  retry boolean;
-BEGIN
-  LOOP
-    SELECT id INTO root_id FROM project_backfill_roots
-      WHERE previous_root IS NULL OR id > previous_root ORDER BY id LIMIT 1;
-    EXIT WHEN root_id IS NULL;
-    -- A pathological family cannot hold environment locks indefinitely (PostgreSQL 17+).
-    PERFORM set_config('transaction_timeout', '5s', true);
-    PERFORM set_config('lock_timeout', '1s', true);
-    retry := false;
-    BEGIN
-      WITH RECURSIVE family(id) AS (
-        SELECT id FROM workspace WHERE id = root_id AND forked_from_workspace_id IS NULL
-        UNION
-        SELECT w.id FROM workspace w JOIN family f ON w.forked_from_workspace_id = f.id
-      ) SELECT array_agg(id ORDER BY id) INTO family_ids FROM (SELECT id FROM family LIMIT 1001) bounded;
-      IF cardinality(family_ids) > 1000 THEN
-        RAISE EXCEPTION 'Project backfill family exceeds 1000 environments' USING ERRCODE = '54000', DETAIL = root_id;
-      END IF;
-      IF family_ids IS NOT NULL THEN
-        -- Application writers take the shared form before reading membership, including absence.
-        FOREACH environment_id IN ARRAY family_ids LOOP
-          IF NOT pg_try_advisory_xact_lock(hashtextextended('project-backfill:' || environment_id, 0)) THEN
-            RAISE EXCEPTION 'Project backfill environment is busy' USING ERRCODE = '55P03';
-          END IF;
-        END LOOP;
-        -- Do not wait while holding a partial lock set; unrelated environments remain writable.
-        PERFORM id FROM workspace WHERE id = ANY(family_ids) ORDER BY id FOR NO KEY UPDATE NOWAIT;
-        WITH RECURSIVE family(id) AS (
-          SELECT id FROM workspace WHERE id = root_id AND forked_from_workspace_id IS NULL
-          UNION
-          SELECT w.id FROM workspace w JOIN family f ON w.forked_from_workspace_id = f.id
-        ) SELECT array_agg(id ORDER BY id) INTO current_ids FROM (SELECT id FROM family LIMIT 1001) bounded;
-        IF family_ids IS DISTINCT FROM current_ids THEN
-          RAISE EXCEPTION 'Project backfill lineage changed during discovery' USING ERRCODE = '55P03';
-        END IF;
-        SELECT * INTO STRICT root FROM workspace WHERE id = root_id;
-        IF EXISTS (SELECT 1 FROM workspace WHERE id = ANY(family_ids) AND organization_id IS DISTINCT FROM root.organization_id) THEN
-          RAISE EXCEPTION 'Project backfill family spans organizations; reconcile before retrying' USING ERRCODE = '55000', DETAIL = root_id;
-        END IF;
-        SELECT array_agg(DISTINCT project_id ORDER BY project_id) INTO project_ids
-          FROM workspace WHERE id = ANY(family_ids) AND project_id IS NOT NULL;
-        IF cardinality(project_ids) > 1 THEN
-          RAISE EXCEPTION 'Project backfill family spans Projects; reconcile before retrying' USING ERRCODE = '55000', DETAIL = root_id;
-        END IF;
-        SELECT CASE WHEN count(*) = count(archived_at) THEN max(archived_at) END INTO archive_time
-          FROM workspace WHERE id = ANY(family_ids);
-        target_project := project_ids[1];
-        IF target_project IS NOT NULL THEN
-          IF NOT pg_try_advisory_xact_lock(hashtextextended('project:' || target_project, 0)) THEN
-            RAISE EXCEPTION 'Project backfill Project is busy' USING ERRCODE = '55P03';
-          END IF;
-          SELECT * INTO STRICT existing FROM project WHERE id = target_project FOR UPDATE NOWAIT;
-          IF existing.organization_id IS DISTINCT FROM root.organization_id
-            OR (existing.archived_at IS NULL) <> (archive_time IS NULL)
-            OR EXISTS (SELECT 1 FROM workspace WHERE project_id = target_project AND NOT id = ANY(family_ids)) THEN
-            RAISE EXCEPTION 'Project backfill existing assignment has incompatible scope, archive state, or lineage' USING ERRCODE = '55000', DETAIL = root_id;
-          END IF;
-        ELSE
-          target_project := gen_random_uuid()::text;
-          INSERT INTO project (id, name, owner_id, organization_id, archived_at)
-            VALUES (target_project, left(coalesce(nullif(btrim(root.name), ''), 'Untitled'), 90) || ' - Project', root.owner_id, root.organization_id, archive_time);
-        END IF;
-        UPDATE workspace SET project_id = target_project WHERE id = ANY(family_ids) AND project_id IS NULL;
-        GET DIAGNOSTICS inserted = ROW_COUNT;
-        assigned := assigned + inserted;
-      END IF;
-    EXCEPTION WHEN lock_not_available OR deadlock_detected OR serialization_failure THEN
-      retry := true;
-    END;
-    -- Commit outside the exception subtransaction, releasing every row/advisory lock before retry.
-    COMMIT;
-    IF retry THEN
-      attempts := attempts + 1;
-      IF attempts >= 20 THEN
-        RAISE EXCEPTION 'Project backfill family remains busy; safe to retry migration' USING ERRCODE = '55P03', DETAIL = root_id;
-      END IF;
-      PERFORM pg_sleep(0.05 + random() * 0.15);
-      COMMIT;
-    ELSE
-      attempts := 0;
-      completed := completed + 1;
-      previous_root := root_id;
-      IF completed % 100 = 0 THEN
-        RAISE NOTICE 'Project backfill: % families processed, % memberships assigned', completed, assigned;
-      END IF;
-    END IF;
-  END LOOP;
-  RAISE NOTICE 'Project backfill complete: % families processed, % memberships assigned', completed, assigned;
-END;
-$$;
---> statement-breakpoint
-CALL pg_temp.backfill_project_families();
---> statement-breakpoint
-DROP PROCEDURE pg_temp.backfill_project_families();
--- migration-safe: session-local scratch table created above; no application readers or persistent data.
-DROP TABLE pg_temp.project_backfill_roots;
---> statement-breakpoint
 SET statement_timeout = '60s';
+--> statement-breakpoint
+DO $$ BEGIN
+  IF NOT pg_try_advisory_lock(hashtextextended('sim:project-backfill-operator', 0)) THEN
+    RAISE EXCEPTION 'Project preparation is still running; finish it before enforcement' USING ERRCODE = '55000';
+  END IF;
+END $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION pg_temp.validate_project_membership() RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
@@ -143,7 +21,7 @@ BEGIN
     RAISE EXCEPTION 'Project backfill found a fork cycle or missing parent; reconcile before retrying' USING ERRCODE = '55000';
   END IF;
   IF EXISTS (SELECT 1 FROM workspace w WHERE w.project_id IS NULL) THEN
-    RAISE EXCEPTION 'Project backfill found newly unassigned or detached environments; retry migration discovery' USING ERRCODE = '55P03';
+    RAISE EXCEPTION 'Project preparation is incomplete; run backfill-projects.ts plan/repair/apply/verify before enforcement' USING ERRCODE = '55000';
   END IF;
   IF EXISTS (
     SELECT 1 FROM project p LEFT JOIN workspace w ON w.project_id = p.id
@@ -165,7 +43,7 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM project p JOIN workspace w ON w.project_id = p.id
     JOIN workflow f ON f.workspace_id = w.id
-    WHERE p.archived_at IS NOT NULL AND f.archived_at IS NULL
+    WHERE (p.archived_at IS NOT NULL OR w.archived_at IS NOT NULL) AND f.archived_at IS NULL
   ) THEN
     RAISE EXCEPTION 'Project enforcement requires archived Projects to have no active workflows' USING ERRCODE = '55000';
   END IF;
@@ -384,3 +262,6 @@ DROP FUNCTION pg_temp.validate_project_membership();
 SET statement_timeout = 0;
 --> statement-breakpoint
 SET lock_timeout = '5s';
+
+--> statement-breakpoint
+SELECT pg_advisory_unlock(hashtextextended('sim:project-backfill-operator', 0));

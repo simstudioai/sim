@@ -1,3 +1,4 @@
+import { verifyProjectBackfill } from '@sim/db/maintenance/project-backfill'
 import journal from '@sim/db/migrations/meta/_journal.json'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -41,6 +42,14 @@ try {
       throw new Error('Deploy the workspace Project column expansion before enforcing membership')
     }
     required = !applied.complete
+    if (required) {
+      const counts = await verifyProjectBackfill(sql)
+      if (Object.values(counts).some((count) => count !== 0)) {
+        throw new Error(
+          `Project preparation is incomplete (${JSON.stringify(counts)}); run the reviewed backfill tool before deployment`
+        )
+      }
+    }
   }
   process.stdout.write(`required=${required}\n`)
 } catch (error) {
