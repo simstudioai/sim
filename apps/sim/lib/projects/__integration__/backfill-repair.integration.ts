@@ -274,7 +274,8 @@ describe('Operator archive repair against the full compatible schema', () => {
       { archived_at: '2026-05-01 00:00:00' },
     ])
     expect(await client`SELECT project_id FROM workspace`).toEqual(
-      await client`SELECT project_id FROM project_workspace`
+      await client`SELECT id AS project_id FROM project`
     )
+    expect(await client`SELECT project_id FROM project_workspace`).toHaveLength(0)
   }, 120000)
 })
