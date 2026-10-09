@@ -61,11 +61,16 @@ async function publish(
   })
 }
 
-/** Resolves once some session is blocked on an advisory lock. */
+/** Resolves once a session is blocked on this workspace's changelog lock. */
 async function lockWaiterAppears(): Promise<void> {
+  const key = `changelog_release:${workspaceId}`
   for (;;) {
-    const waiting =
-      await control`SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`
+    const waiting = await control`
+      WITH k AS (SELECT hashtextextended(${key}, 0) AS h)
+      SELECT 1 FROM pg_locks, k
+      WHERE locktype = 'advisory' AND NOT granted AND objsubid = 1
+        AND classid::bigint = ((k.h >> 32) & 4294967295)
+        AND objid::bigint = (k.h & 4294967295)`
     if (waiting.length > 0) return
     await sleep(10)
   }
