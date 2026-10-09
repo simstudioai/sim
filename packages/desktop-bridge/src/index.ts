@@ -988,6 +988,8 @@ interface SimDesktopSettingsApi {
   setPreventSleepWhileRunning?(enabled: boolean): Promise<DesktopPreferences>
   /** Optional for installed shells that predate the explicit full-file-access setting. */
   setFullFileAccess?(enabled: boolean): Promise<DesktopPreferences>
+  /** Keeps settings in sync when folder consent changes access in the native shell. */
+  onFullFileAccessChanged?(callback: (preferences: DesktopPreferences) => void): () => void
   notify(payload: DesktopNotificationPayload): Promise<boolean>
   /** Overrides the appearance requested by browser pages. */
   setBrowserTheme(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>

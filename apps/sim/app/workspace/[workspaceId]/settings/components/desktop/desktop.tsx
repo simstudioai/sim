@@ -52,6 +52,7 @@ export function Desktop() {
       ?.getDevice()
       .then((device) => setRunsInBackground(device !== null))
       .catch(() => setRunsInBackground(false))
+    return bridge.settings.onFullFileAccessChanged?.(setPreferences)
   }, [router, workspaceId])
 
   const updatePreference = async (key: DesktopPreferenceKey, value: boolean) => {
@@ -76,7 +77,7 @@ export function Desktop() {
   const { pending: fullFileAccessPending, mutate: setFullFileAccess } =
     useDesktopPreferenceMutation(
       async (bridge, enabled: boolean) => bridge.settings.setFullFileAccess?.(enabled),
-      'Could not update file access',
+      'Could not save file access settings. Your previous setting may return after restarting Sim.',
       setPreferences
     )
 

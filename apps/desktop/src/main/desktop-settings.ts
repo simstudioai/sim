@@ -53,6 +53,7 @@ export interface DesktopSettingsService {
 
 interface DesktopSettingsServiceDeps {
   config: ConfigStore
+  onFullFileAccessChanged?: (preferences: DesktopPreferences) => void
   getMainWindow: () => BrowserWindow | null
   openMainWindowAt: (route?: string) => void
   setAutoDownloadUpdates: (enabled: boolean) => void
@@ -185,9 +186,14 @@ export function createDesktopSettingsService(
       deps.config.set('fullFileAccess', enabled)
       if (!deps.config.flush()) {
         deps.config.set('fullFileAccess', false)
-        throw new Error('Could not save file access settings')
+        deps.onFullFileAccessChanged?.(read())
+        throw new Error(
+          'Could not save file access settings. Your previous setting may return after restarting Sim.'
+        )
       }
-      return read()
+      const preferences = read()
+      deps.onFullFileAccessChanged?.(preferences)
+      return preferences
     },
     setPreventSleepWhileRunning(enabled) {
       deps.config.set('preventSleepWhileRunning', enabled)
