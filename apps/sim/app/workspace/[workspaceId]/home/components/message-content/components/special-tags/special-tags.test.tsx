@@ -385,7 +385,7 @@ describe('CredentialDisplay link tag', () => {
     act(() => root.unmount())
   })
 
-  it('reveals a created key in organization chat after the live fill and after persistence', () => {
+  it('reveals a created key in organization chat after the live fill and after persistence', async () => {
     mockParams.mockReturnValue({ organizationId: 'org' } as never)
     const tag = (item: Record<string, string>) => `<credential>${JSON.stringify(item)}</credential>`
     const tagData = (content: string) =>
@@ -406,16 +406,24 @@ describe('CredentialDisplay link tag', () => {
       cache
     ).content
 
+    const writeText = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const copyButton = (container: HTMLElement) =>
+      Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Copy to clipboard'
+      )
+
     const liveView = renderCredentialLink(tagData(live))
-    expect(liveView.container.textContent).not.toContain('explicit workspace target')
-    expect(liveView.container.textContent).toContain('sk-sim-live')
+    await act(async () => copyButton(liveView.container)?.click())
+    expect(writeText).toHaveBeenCalledWith('sk-sim-live')
     act(() => liveView.root.unmount())
 
     const persisted = redactSensitiveContent(
       tag({ type: 'sim_key', workspaceId: 'ws-1', value: 'sk-sim-live' })
     )
     const persistedView = renderCredentialLink(tagData(persisted))
-    expect(persistedView.container.textContent).not.toContain('explicit workspace target')
+    expect(persistedView.container.querySelector('code')).not.toBeNull()
+    expect(copyButton(persistedView.container)).toBeUndefined()
     expect(persistedView.container.textContent).not.toContain('sk-sim-live')
     act(() => persistedView.root.unmount())
   })
