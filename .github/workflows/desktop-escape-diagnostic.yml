@@ -1,0 +1,30 @@
+name: desktop-escape-diagnostic
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  escape:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun run --cwd apps/desktop build
+      - name: Verify rendered modal Escape handling across twenty isolated launches
+        working-directory: apps/desktop
+        run: |
+          bunx playwright test e2e/browser-page-dialogs.spec.ts --repeat-each=20 --workers=1 --retries=0 --trace=on --reporter=json > escape-acceptance-report.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: desktop-escape-diagnostic
+          path: |
+            apps/desktop/test-results
+            apps/desktop/escape-acceptance-report.json
+          retention-days: 7
