@@ -142,7 +142,7 @@ export interface RanAgainstEntry {
   deploymentVersionId: string | null
   /** A `runWorkflow()` execution of it, whose snapshot is the workflow as it ran; null for a child. */
   executionId: string | null
-  /** For a draft, the workflow's `updatedAt` when the run loaded it; a later edit makes the run stale. */
+  /** For a draft, the workflow's `updatedAt` before the run loaded it; a later edit makes the run stale. */
   draftUpdatedAt: string | null
 }
 
@@ -151,15 +151,13 @@ export type EnteredWorkflow = Omit<RanAgainstEntry, 'executionId'>
 
 type ExecutedWorkflow = Omit<RanAgainstEntry, 'draftUpdatedAt'>
 
-/** When a draft last changed; a test run reads it as it loads the draft. */
-export async function readDraftUpdatedAt(workflowId: string): Promise<string> {
-  const [row] = await db
-    .select({ updatedAt: workflow.updatedAt })
+/** When each of the workspace's drafts last changed; a test run reads them before it loads any. */
+export async function readDraftTimestamps(workspaceId: string): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ id: workflow.id, updatedAt: workflow.updatedAt })
     .from(workflow)
-    .where(eq(workflow.id, workflowId))
-    .limit(1)
-  if (!row) throw new Error(`Workflow ${workflowId} not found`)
-  return row.updatedAt.toISOString()
+    .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
+  return new Map(rows.map((row) => [row.id, row.updatedAt.toISOString()]))
 }
 
 const enteredKey = (entry: { workflowId: string; deploymentVersionId: string | null }) =>

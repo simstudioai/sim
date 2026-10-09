@@ -51,7 +51,7 @@ export async function runWorkflowTestFile(
     )
     return {
       report: testReportSchema.parse(JSON.parse(Buffer.from(bytes).toString('utf-8'))),
-      entered: await session.enteredWorkflows(),
+      entered: session.enteredWorkflows(),
     }
   } finally {
     closeWorkflowTestSession(requestId)
