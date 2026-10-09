@@ -17,15 +17,15 @@ try {
       EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('public.workspace')
         AND attname = 'project_id' AND NOT attisdropped AND attnotnull) AS required
   `
-  if (state.workspace && state.required && !state.connector) {
+  if (state.workspace && (state.connector || !state.required || !state.project)) {
     throw new Error(
-      'Project membership is already contracted; schema push from the compatibility release is unsupported. Use the current release for schema changes'
+      'Existing Project databases must complete the reviewed preparation and contract migration 0405 before schema push. Use the phased migration path for retained data; schema push cannot bypass the writer-drain requirement'
     )
   }
-  if (!process.argv.includes('--prepare') && state.workspace && state.project && state.connector) {
-    // Reuse the migration's bounded copy and bridge so push cannot drift from deployed upgrades.
+  if (!process.argv.includes('--prepare') && state.workspace && state.project) {
+    // Drizzle cannot express lifecycle triggers; fresh push uses the same enforcement as migrations.
     const source = await readFile(
-      new URL('../migrations/0404_workspace_project_column.sql', import.meta.url),
+      new URL('../migrations/0405_project_membership_enforcement.sql', import.meta.url),
       'utf8'
     )
     const connection = await sql.reserve()
@@ -36,7 +36,7 @@ try {
     } finally {
       connection.release()
     }
-    logger.info('Project membership copy and synchronization completed')
+    logger.info('Project membership validation and lifecycle enforcement completed')
   }
 } catch (error) {
   logger.error('Project schema push stopped; resolve the error and retry', {

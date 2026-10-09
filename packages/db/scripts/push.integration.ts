@@ -58,7 +58,7 @@ describe('patched Drizzle push against PostgreSQL', () => {
   async function schema(source: string) {
     await writeFile(
       join(directory, 'schema.ts'),
-      `import { pgTable, pgSchema, pgEnum, text, integer, bigint, boolean, check } from ${JSON.stringify(import.meta.resolve('drizzle-orm/pg-core'))}
+      `import { pgTable, pgSchema, pgEnum, text, integer, bigint, boolean, check, timestamp } from ${JSON.stringify(import.meta.resolve('drizzle-orm/pg-core'))}
 import { sql } from ${JSON.stringify(import.meta.resolve('drizzle-orm'))}
 ${source}`
     )
@@ -157,65 +157,71 @@ export const knowledgeBases = pgTable('knowledge_base', {
     ])
   }, 30_000)
 
-  it('preserves legacy Project assignments and synchronizes both writers through schema push and replay', async () => {
-    await sql`CREATE TABLE project (id text PRIMARY KEY)`
-    await sql`CREATE TABLE workspace (id text PRIMARY KEY, forked_from_workspace_id text)`
-    await sql`CREATE TABLE project_workspace (project_id text NOT NULL, workspace_id text NOT NULL CONSTRAINT project_workspace_workspace_id_unique UNIQUE)`
-    await sql`INSERT INTO project VALUES ('family'), ('singleton')`
-    await sql`INSERT INTO workspace VALUES ('root', NULL), ('fork', 'root'), ('standalone', NULL)`
-    await sql`INSERT INTO project_workspace VALUES ('family', 'root'), ('family', 'fork'), ('singleton', 'standalone')`
-    await schema(`export const projects = pgTable('project', { id: text('id').primaryKey() })
-export const workspaces = pgTable('workspace', {
-  id: text('id').primaryKey(), forkedFromWorkspaceId: text('forked_from_workspace_id'), projectId: text('project_id'),
+  it.each([false, true])(
+    'refuses Project contract through push and preserves legacy assignments (copied=%s)',
+    async (copied) => {
+      await sql`CREATE TABLE project (id text PRIMARY KEY)`
+      await sql`CREATE TABLE workspace (id text PRIMARY KEY)`
+      await sql`CREATE TABLE project_workspace (project_id text NOT NULL, workspace_id text NOT NULL UNIQUE)`
+      await sql`INSERT INTO project VALUES ('retained')`
+      await sql`INSERT INTO workspace VALUES ('environment')`
+      await sql`INSERT INTO project_workspace VALUES ('retained', 'environment')`
+      if (copied) {
+        await sql`ALTER TABLE workspace ADD COLUMN project_id text`
+        await sql`UPDATE workspace SET project_id = 'retained'`
+      }
+      await schema(`export const projects = pgTable('project', { id: text('id').primaryKey() })
+export const workspaces = pgTable('workspace', { id: text('id').primaryKey(), projectId: text('project_id').notNull() })`)
+      const result = runPush(['--force'])
+      expect(result.error).toBeUndefined()
+      expect(result.status, result.stdout + result.stderr).toBe(1)
+      expect(await sql`SELECT * FROM project_workspace`).toEqual([
+        { project_id: 'retained', workspace_id: 'environment' },
+      ])
+      expect(await sql`SELECT id FROM workspace`).toEqual([{ id: 'environment' }])
+      expect(
+        await sql`SELECT attnotnull FROM pg_attribute WHERE attrelid = 'workspace'::regclass AND attname = 'project_id' AND NOT attisdropped`
+      ).toEqual(copied ? [{ attnotnull: false }] : [])
+    },
+    30_000
+  )
+
+  it('installs Project lifecycle enforcement for fresh schema push and preserves it on replay', async () => {
+    await schema(`export const projects = pgTable('project', {
+  id: text('id').primaryKey(), name: text('name').notNull(), ownerId: text('owner_id').notNull(),
+  organizationId: text('organization_id'), archivedAt: timestamp('archived_at'), updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
-export const memberships = pgTable('project_workspace', {
-  projectId: text('project_id').notNull(), workspaceId: text('workspace_id').notNull().unique(),
+export const workspaces = pgTable('workspace', {
+  id: text('id').primaryKey(), name: text('name').notNull(), ownerId: text('owner_id').notNull(),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'restrict' }),
+  organizationId: text('organization_id'), archivedAt: timestamp('archived_at'), forkedFromWorkspaceId: text('forked_from_workspace_id'),
+})
+export const workflows = pgTable('workflow', {
+  id: text('id').primaryKey(), workspaceId: text('workspace_id'), archivedAt: timestamp('archived_at'),
 })`)
     const first = runPush(['--force'])
     expect(first.error, first.stderr).toBeUndefined()
-    // Other reconcilers require their own tables; their failure must not undo Project preparation.
-    expect(
-      await sql`SELECT id, project_id FROM workspace ORDER BY id`,
-      first.stdout + first.stderr
-    ).toEqual([
-      { id: 'fork', project_id: 'family' },
-      { id: 'root', project_id: 'family' },
-      { id: 'standalone', project_id: 'singleton' },
-    ])
-    await sql`UPDATE project_workspace SET project_id = 'singleton' WHERE workspace_id = 'fork'`
-    await sql`UPDATE workspace SET project_id = 'family' WHERE id = 'standalone'`
+    await expect(
+      sql`INSERT INTO project (id,name,owner_id) VALUES ('empty','Empty','owner')`
+    ).rejects.toMatchObject({ code: '23514' })
+    await sql.begin(async (tx) => {
+      await tx`INSERT INTO project (id,name,owner_id) VALUES ('family','Family','owner')`
+      await tx`INSERT INTO workspace (id,name,owner_id,project_id,forked_from_workspace_id) VALUES ('root','Root','owner','family',NULL), ('fork','Fork','owner','family','root')`
+    })
     const repeated = runPush(['--force'])
     expect(repeated.error, repeated.stderr).toBeUndefined()
-    expect(
-      await sql`SELECT w.id, w.project_id, pw.project_id AS legacy FROM workspace w
-      JOIN project_workspace pw ON pw.workspace_id = w.id ORDER BY w.id`
-    ).toEqual([
-      { id: 'fork', project_id: 'singleton', legacy: 'singleton' },
-      { id: 'root', project_id: 'family', legacy: 'family' },
-      { id: 'standalone', project_id: 'family', legacy: 'family' },
+    expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual([
+      { id: 'fork', project_id: 'family' },
+      { id: 'root', project_id: 'family' },
     ])
-  }, 60_000)
-
-  it('refuses a schema downgrade before recreating the retired Project connector', async () => {
-    await sql`CREATE TABLE project (id text PRIMARY KEY)`
-    await sql`CREATE TABLE workspace (id text PRIMARY KEY, project_id text NOT NULL)`
-    await sql`INSERT INTO project VALUES ('retained')`
-    await sql`INSERT INTO workspace VALUES ('environment', 'retained')`
-    await schema(`export const projects = pgTable('project', { id: text('id').primaryKey() })
-export const workspaces = pgTable('workspace', { id: text('id').primaryKey(), projectId: text('project_id') })
-export const memberships = pgTable('project_workspace', {
-  projectId: text('project_id').notNull(), workspaceId: text('workspace_id').notNull().unique(),
-})`)
-    const result = runPush(['--force'])
-    expect(result.status, result.stdout + result.stderr).toBe(1)
+    await expect(sql`DELETE FROM workspace`).rejects.toMatchObject({ code: '23514' })
+    await expect(
+      sql`UPDATE workspace SET organization_id = 'other' WHERE id = 'fork'`
+    ).rejects.toMatchObject({ code: '23514' })
     expect(await sql`SELECT to_regclass('public.project_workspace') AS legacy`).toEqual([
       { legacy: null },
     ])
-    expect(
-      await sql`SELECT attnotnull FROM pg_attribute WHERE attrelid = 'workspace'::regclass AND attname = 'project_id'`
-    ).toEqual([{ attnotnull: true }])
-    expect(await sql`SELECT project_id FROM workspace`).toEqual([{ project_id: 'retained' }])
-  }, 30_000)
+  }, 60_000)
 
   it('retires the legacy size bridge without losing bigint or unbackfilled values', async () => {
     await sql`CREATE TABLE workspace_files (id text PRIMARY KEY, size integer NOT NULL, size_bytes bigint)`
