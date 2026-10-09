@@ -74,7 +74,6 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/ahrefs.mdx',
   'integrations/airtable-service-account.mdx',
   'integrations/airtable.mdx',
-  'integrations/airweave.mdx',
   'integrations/algolia.mdx',
   'integrations/amplitude.mdx',
   'integrations/apify.mdx',

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-08",
+  "updatedAt": "2026-10-09",
   "integrations": [
     {
       "type": "onepassword",
@@ -836,29 +836,6 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["spreadsheet", "automation"]
-    },
-    {
-      "type": "airweave",
-      "slug": "airweave",
-      "name": "Airweave",
-      "description": "Search your synced data collections",
-      "longDescription": "Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.",
-      "bgColor": "#6366F1",
-      "iconName": "AirweaveIcon",
-      "docsUrl": "https://docs.sim.ai/integrations/airweave",
-      "operations": [
-        {
-          "name": "Airweave Search",
-          "description": "Search your synced data collections using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results."
-        }
-      ],
-      "operationCount": 1,
-      "triggers": [],
-      "triggerCount": 0,
-      "authType": "api-key",
-      "category": "tools",
-      "integrationType": "search",
-      "tags": ["vector-search", "knowledge-base"]
     },
     {
       "type": "algolia",
@@ -15708,7 +15685,7 @@
       "name": "Microsoft Intune",
       "description": "Manage devices, application inventory, and compliance with Microsoft Intune",
       "longDescription": "Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account and an active Intune tenant license. Remote actions depend on device platform and the connected administrator’s Intune permissions.",
-      "bgColor": "#0078D4",
+      "bgColor": "#FFFFFF",
       "iconName": "IntuneIcon",
       "docsUrl": "https://docs.sim.ai/integrations/intune",
       "operations": [
