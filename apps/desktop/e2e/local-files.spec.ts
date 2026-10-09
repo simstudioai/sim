@@ -267,6 +267,55 @@ createRoot(document.getElementById('settings')).render(
       await expect(prompt.getByRole('button', { name: "Don't allow", exact: true })).toBeVisible()
       return { prompt, result }
     }
+    await test.step('File → Folder Access opens over a focused utility window', async () => {
+      if (!app) throw new Error('Desktop app is not running')
+      const serverShown = app.waitForEvent('window', { timeout: 10_000 })
+      await app.evaluate(({ Menu }) => {
+        const item = Menu.getApplicationMenu()
+          ?.items.flatMap((entry) => entry.submenu?.items ?? [])
+          .find((entry) => entry.label === 'Server…')
+        if (!item) throw new Error('Server menu item missing')
+        item.click()
+      })
+      await expect(await serverShown).toHaveTitle('Sim - Server')
+      await expect
+        .poll(() =>
+          app?.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows().some(
+              (win) => win.webContents.getURL().endsWith('server.html') && win.isVisible()
+            )
+          )
+        )
+        .toBe(true)
+      const accessMenu = await app.evaluate(({ BrowserWindow, Menu }) => {
+        const utility = BrowserWindow.getAllWindows().find((win) =>
+          win.webContents.getURL().endsWith('server.html')
+        )
+        if (!utility) throw new Error('Server window missing')
+        const item = Menu.getApplicationMenu()
+          ?.items.flatMap((entry) => entry.submenu?.items ?? [])
+          .find((entry) => entry.label === 'Folder Access…')
+        if (!item) throw new Error('Folder Access menu item missing')
+        const popup = Menu.prototype.popup
+        let shown: { anchoredToUtility: boolean; items: string[] } | undefined
+        Menu.prototype.popup = function (this: Electron.Menu, options) {
+          shown = {
+            anchoredToUtility: options?.window === utility,
+            items: this.items.map((entry) => entry.label),
+          }
+        }
+        try {
+          item.click(undefined, utility)
+        } finally {
+          Menu.prototype.popup = popup
+        }
+        utility.close()
+        return shown
+      })
+      expect(accessMenu?.anchoredToUtility).toBe(true)
+      expect(accessMenu?.items).toContain('Add Folder…')
+    })
+
     await test.step('Stop cancels only its own request while chats share a folder prompt', async () => {
       const sharedFolder = join(root, 'Shared')
       mkdirSync(sharedFolder)
