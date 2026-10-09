@@ -52,6 +52,7 @@ export function Desktop() {
       ?.getDevice()
       .then((device) => setRunsInBackground(device !== null))
       .catch(() => setRunsInBackground(false))
+    return bridge.settings.onFullFileAccessChanged?.(setPreferences)
   }, [router, workspaceId])
 
   const updatePreference = async (key: DesktopPreferenceKey, value: boolean) => {

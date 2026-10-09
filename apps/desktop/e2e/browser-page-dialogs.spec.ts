@@ -365,7 +365,11 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
     await expect.poll(() => pageTitle()).toBe('form')
 
     await check('clean reloads and navigation never ask to discard changes', async () => {
+      await inPage("document.documentElement.dataset.reloadProbe = 'before'")
       await panelAction({ action: 'reload' })
+      await expect
+        .poll(() => inPage<string | undefined>('document.documentElement.dataset.reloadProbe'))
+        .toBeUndefined()
       await expect.poll(() => pageTitle()).toBe('form')
       expect(await pageDialog()).toBeNull()
       await panelAction({ action: 'navigate', url: `${site}/next` })
@@ -395,7 +399,11 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
       await panelAction({ action: 'back' })
       await expect.poll(pageUrl).toBe(`${site}/form`)
       expect(await pageDialog()).toBeNull()
-      await inPage("document.getElementById('draft').value = ''")
+      await inPage(`setTimeout(() => { location.href = ${JSON.stringify(`${site}/next`)} })`)
+      await expect.poll(pageUrl).toBe(`${site}/next`)
+      expect(await pageDialog()).toBeNull()
+      await panelAction({ action: 'navigate', url: `${site}/form` })
+      await expect.poll(pageUrl).toBe(`${site}/form`)
     })
 
     await check('leaving a draft from the URL bar asks, and Stay keeps it', async () => {

@@ -304,7 +304,36 @@ createRoot(document.getElementById('settings')).render(
         .click({ noWaitAfter: true })
       expect(await survivor).toMatchObject({ ok: true, data: { text: 'shared contents' } })
     })
+    await test.step('expired requests cannot enable Full file access from a confirmation', async () => {
+      if (!app) throw new Error('Desktop app is not running')
+      calls.expiringFullAccess = {
+        toolName: 'read_local_file',
+        args: { path: join(outside, 'private.txt') },
+      }
+      const permission = await requestPermission({
+        operation: 'read',
+        toolCallId: 'expiringFullAccess',
+      })
+      const shown = app.waitForEvent('window')
+      await permission.prompt
+        .getByRole('button', { name: 'Allow all files…', exact: true })
+        .click({ noWaitAfter: true })
+      const confirmation = await shown
+      calls.expiringFullAccess = undefined
+      await confirmation
+        .getByRole('button', { name: 'Allow all files', exact: true })
+        .click({ noWaitAfter: true })
+      expect(await permission.result).toMatchObject({ ok: false })
+      expect(
+        await window.evaluate(async () =>
+          (
+            globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
+          ).simDesktop.settings.getPreferences()
+        )
+      ).toMatchObject({ fullFileAccess: false })
+    })
     await test.step('Full file access is opt-in, survives restart, and stops granting access when disabled', async () => {
+      if (!app) throw new Error('Desktop app is not running')
       const fullFolder = join(root, 'Full access')
       mkdirSync(fullFolder)
       writeFileSync(join(fullFolder, 'file.txt'), 'full access contents')
@@ -912,6 +941,7 @@ createRoot(document.getElementById('settings')).render(
           await expect(
             window.getByText('Could not update file access', { exact: true })
           ).toBeVisible()
+          await expect(toggle).not.toBeChecked()
           expect(
             await window.evaluate(async () =>
               (
