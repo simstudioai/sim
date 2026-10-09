@@ -67,7 +67,7 @@ async function applyMigration(sql: Sql, source: string) {
       await reserved.unsafe(statement)
     }
   } catch (error) {
-    if (!['25P04', 'CONNECTION_CLOSED'].includes(getPostgresErrorCode(error) ?? '')) {
+    if (!['25P03', '25P04', 'CONNECTION_CLOSED'].includes(getPostgresErrorCode(error) ?? '')) {
       await reserved.unsafe('ROLLBACK')
     }
     throw error

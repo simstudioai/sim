@@ -62,7 +62,7 @@ export async function assertProjectBackfillDatabase(sql: Sql, write: boolean): P
         AND table_name = 'workspace' AND column_name = 'project_id') AS expanded
   `
   if (!state?.expanded) throw new Error('Deploy #8830 before Project preparation')
-  if (state.version < 170000) throw new Error('Project preparation requires PostgreSQL 17+')
+  if (state.version < 160000) throw new Error('Project preparation requires PostgreSQL 16+')
   if (write && (state.replica || state.readonly === 'on'))
     throw new Error('Project writes require the primary database')
 }
@@ -219,7 +219,8 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
     throw new Error('Expected 1–50 singletons or one complete fork family')
   for (const family of families) validateFamily(family)
   return sql.begin(async (tx) => {
-    await tx`SET LOCAL transaction_timeout = '5s'`
+    await tx`SELECT set_config(CASE WHEN current_setting('transaction_timeout', true) IS NULL
+      THEN 'idle_in_transaction_session_timeout' ELSE 'transaction_timeout' END, '5s', true)`
     await tx`SET LOCAL statement_timeout = '3s'`
     await tx`SET LOCAL lock_timeout = '250ms'`
     const roots = families.map((f) => f.rootId).sort(compareStrings)

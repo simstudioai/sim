@@ -25,7 +25,8 @@ export async function repairArchivedProjectEnvironment(
 ): Promise<void> {
   const connection = drizzle({ client, schema })
   const effects = await connection.transaction(async (tx) => {
-    await tx.execute(sql`SET LOCAL transaction_timeout = '5s'`)
+    await tx.execute(sql`SELECT set_config(CASE WHEN current_setting('transaction_timeout', true) IS NULL
+      THEN 'idle_in_transaction_session_timeout' ELSE 'transaction_timeout' END, '5s', true)`)
     await tx.execute(sql`SET LOCAL statement_timeout = '3s'`)
     await tx.execute(sql`SET LOCAL lock_timeout = '250ms'`)
     if (

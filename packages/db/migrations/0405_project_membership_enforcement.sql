@@ -211,8 +211,9 @@ $$;
 --> statement-breakpoint
 BEGIN;
 --> statement-breakpoint
--- Bound the whole table-lock window, including time between client statements.
-SET LOCAL transaction_timeout = '5s';
+-- PG17 caps the transaction; PG16 caps idle time, with each statement bounded below.
+SELECT set_config(CASE WHEN current_setting('transaction_timeout', true) IS NULL
+  THEN 'idle_in_transaction_session_timeout' ELSE 'transaction_timeout' END, '5s', true);
 --> statement-breakpoint
 SET LOCAL lock_timeout = '1s';
 --> statement-breakpoint

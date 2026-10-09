@@ -11,6 +11,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
@@ -73,7 +74,8 @@ describe('chat-delegated permission configuration', () => {
         createdAt: now,
       }))
     )
-    await db.insert(workspace).values(
+    await insertWorkspaceFixture(
+      db,
       [workspaceId, otherWorkspaceId].map((id) => ({
         id,
         name: 'Permission config fixture',
@@ -131,7 +133,7 @@ describe('chat-delegated permission configuration', () => {
   })
 
   afterAll(async () => {
-    await db.delete(workspace).where(inArray(workspace.id, [workspaceId, otherWorkspaceId]))
+    await deleteWorkspaceFixture(db, inArray(workspace.id, [workspaceId, otherWorkspaceId]))
     await db.delete(organization).where(eq(organization.id, organizationId))
     await db.delete(user).where(inArray(user.id, [restrictedId, defaultMemberId, outsiderId]))
   })
