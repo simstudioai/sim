@@ -25,14 +25,43 @@ import type { ChatMessage, ContentBlock } from '@/app/workspace/[workspaceId]/ho
 
 const CREDENTIAL_TAG_PATTERN = /<credential>([\s\S]*?)<\/credential>/g
 const SIM_KEY_TYPE = 'sim_key'
-// The persisted / secret-stripped form of a sim_key tag: value-less, which is
-// exactly how the UI renders the masked state. No `redacted` flag needed — a
-// sim_key chip is masked iff it has no value.
-const VALUELESS_SIM_KEY_TAG = `<credential>${JSON.stringify({ type: SIM_KEY_TYPE })}</credential>`
 
 interface CredentialTagBody {
   type?: unknown
   value?: unknown
+  workspaceId?: unknown
+}
+
+/** A key revealed on the live stream, with the workspace it was created in. */
+export interface RevealedSimKey {
+  value: string
+  workspaceId?: string
+}
+
+/**
+ * Rebuilds a sim_key row from its known fields. Organization chat requires the
+ * row's `workspaceId` to render it, so redaction keeps it. The live fill takes
+ * the workspace from the key's creation result, which outranks the tag's.
+ * Without a revealed key the row is the persisted, masked form.
+ */
+function simKeyItem(item: CredentialTagBody, revealed?: RevealedSimKey): Record<string, string> {
+  const workspaceId =
+    revealed?.workspaceId ?? (isWorkspaceTarget(item.workspaceId) ? item.workspaceId : undefined)
+  return {
+    ...(revealed ? { value: revealed.value } : {}),
+    type: SIM_KEY_TYPE,
+    ...(workspaceId ? { workspaceId } : {}),
+  }
+}
+
+function isWorkspaceTarget(value: unknown): value is string {
+  return (
+    typeof value === 'string' && value.length > 0 && value.length <= 256 && value === value.trim()
+  )
+}
+
+function optionalWorkspaceId(value: unknown): { workspaceId?: string } {
+  return isWorkspaceTarget(value) ? { workspaceId: value } : {}
 }
 
 function parseCredentialBody(body: string): unknown | null {
@@ -80,14 +109,15 @@ export function redactSensitiveContent<T extends string | undefined>(content: T)
   if (typeof content !== 'string' || !content.includes('<credential>')) return content
   return content.replace(CREDENTIAL_TAG_PATTERN, (match, body: string) => {
     const parsed = parseCredentialBody(body)
-    if (isSimKeyBody(parsed)) return VALUELESS_SIM_KEY_TAG
+    if (isSimKeyBody(parsed))
+      return `<credential>${JSON.stringify(simKeyItem(parsed))}</credential>`
     if (!Array.isArray(parsed)) return match
 
     let changed = false
     const next = parsed.map((item) => {
       if (!isSimKeyBody(item)) return item
       changed = true
-      return { type: SIM_KEY_TYPE }
+      return simKeyItem(item)
     })
     return changed ? `<credential>${JSON.stringify(next)}</credential>` : match
   }) as T
@@ -212,21 +242,21 @@ export function mergeAndRedactPersistedBlocks(
  * streaming) or the persisted message's `requestId` (used after refetch).
  * Lives in a `useRef`; never persisted; dropped on unload.
  */
-export type RevealedSimKeysByMessage = Map<string, string[]>
+export type RevealedSimKeysByMessage = Map<string, RevealedSimKey[]>
 
 /**
  * Scan an assembled assistant message for `<credential type="sim_key">` tags
  * and return their values in stream order; value-less (masked/placeholder) tags
  * carry no string value and are skipped.
  */
-export function extractRevealedSimKeys(content: string): string[] {
+export function extractRevealedSimKeys(content: string): RevealedSimKey[] {
   if (!content || !content.includes('<credential>')) return []
-  const values: string[] = []
+  const values: RevealedSimKey[] = []
   for (const match of content.matchAll(CREDENTIAL_TAG_PATTERN)) {
     const parsed = parseCredentialBody(match[1])
     for (const item of credentialBodies(parsed)) {
       if (isSimKeyBody(item) && typeof item.value === 'string') {
-        values.push(item.value)
+        values.push({ value: item.value, ...optionalWorkspaceId(item.workspaceId) })
       }
     }
   }
@@ -248,9 +278,9 @@ interface ToolResultBlockLike {
  */
 export function extractRevealedSimKeysFromBlocks(
   blocks: ReadonlyArray<ToolResultBlockLike> | undefined
-): string[] {
+): RevealedSimKey[] {
   if (!blocks?.length) return []
-  const values: string[] = []
+  const values: RevealedSimKey[] = []
   for (const block of blocks) {
     const toolCall = block.toolCall
     if (!toolCall || toolCall.name !== GenerateApiKey.id) continue
@@ -260,7 +290,7 @@ export function extractRevealedSimKeysFromBlocks(
     if (!isRecordLike(output)) continue
     const key = output.key
     if (typeof key === 'string' && key.length > 0 && key !== REDACTED_MARKER) {
-      values.push(key)
+      values.push({ value: key, ...optionalWorkspaceId(output.workspaceId) })
     }
   }
   return values
@@ -298,7 +328,7 @@ export function captureRevealedSimKeys(
 
 function restoreInString(
   content: string,
-  revealedValues: string[],
+  revealedValues: RevealedSimKey[],
   startCursor: number
 ): {
   next: string
@@ -315,12 +345,12 @@ function restoreInString(
     let tagChanged = false
     const restoreItem = (item: unknown): unknown => {
       if (!isSimKeyBody(item) || item.value !== undefined) return item
-      const value = revealedValues[cursor]
+      const revealed = revealedValues[cursor]
       cursor += 1
-      if (typeof value === 'string') {
+      if (revealed) {
         changed = true
         tagChanged = true
-        return { value, type: SIM_KEY_TYPE }
+        return simKeyItem(item, revealed)
       }
       return item
     }

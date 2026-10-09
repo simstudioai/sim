@@ -4,6 +4,8 @@ import {
   captureRevealedSimKeys,
   extractRevealedSimKeys,
   extractRevealedSimKeysFromBlocks,
+  type RevealedSimKey,
+  type RevealedSimKeysByMessage,
   redactSensitiveContent,
   restoreRevealedSimKeysForMessage,
   toolResultForModel,
@@ -16,6 +18,8 @@ const redacted = `<credential>${JSON.stringify({ type: 'sim_key', redacted: true
 const placeholder = `<credential>${JSON.stringify({ type: 'sim_key' })}</credential>`
 const credentialBatch = (items: unknown[]) => `<credential>${JSON.stringify(items)}</credential>`
 
+const keys = (...values: string[]): RevealedSimKey[] => values.map((value) => ({ value }))
+
 const apiKeyBlock = (key: string) => ({
   type: 'tool_call' as const,
   toolCall: { name: 'generate_api_key', result: { success: true, output: { id: 'k1', key } } },
@@ -25,13 +29,13 @@ describe('sim-key-redaction', () => {
   describe('extractRevealedSimKeys', () => {
     it('returns sim_key values in document order', () => {
       const text = `first ${credential('sk-sim-A')} mid ${credential('sk-sim-B')}`
-      expect(extractRevealedSimKeys(text)).toEqual(['sk-sim-A', 'sk-sim-B'])
+      expect(extractRevealedSimKeys(text)).toEqual(keys('sk-sim-A', 'sk-sim-B'))
     })
 
     it('skips redacted entries and non-sim_key tags', () => {
       const link = `<credential>${JSON.stringify({ value: 'https://x', type: 'link', provider: 'slack' })}</credential>`
       const text = `${link} ${credential('sk-sim-A')} ${redacted}`
-      expect(extractRevealedSimKeys(text)).toEqual(['sk-sim-A'])
+      expect(extractRevealedSimKeys(text)).toEqual(keys('sk-sim-A'))
     })
 
     it('returns sim_key values from a mixed credential-card array', () => {
@@ -40,7 +44,7 @@ describe('sim-key-redaction', () => {
         { type: 'sim_key', value: 'sk-sim-A' },
         { type: 'sim_key', value: 'sk-sim-B' },
       ])
-      expect(extractRevealedSimKeys(batch)).toEqual(['sk-sim-A', 'sk-sim-B'])
+      expect(extractRevealedSimKeys(batch)).toEqual(keys('sk-sim-A', 'sk-sim-B'))
     })
   })
 
@@ -50,6 +54,27 @@ describe('sim-key-redaction', () => {
       const batch = credentialBatch([link, { type: 'sim_key', value: 'sk-sim-secret' }])
       expect(redactSensitiveContent(batch)).toBe(credentialBatch([link, { type: 'sim_key' }]))
     })
+
+    it('keeps the workspace target an organization chat needs and strips only the value', () => {
+      const single = `<credential>${JSON.stringify({ type: 'sim_key', workspaceId: 'ws-1', value: 'sk-sim-secret' })}</credential>`
+      expect(redactSensitiveContent(single)).toBe(
+        `<credential>${JSON.stringify({ type: 'sim_key', workspaceId: 'ws-1' })}</credential>`
+      )
+      const batch = credentialBatch([
+        { type: 'sim_key', workspaceId: 'ws-1', value: 'sk-sim-secret', extra: 'dropped' },
+      ])
+      expect(redactSensitiveContent(batch)).toBe(
+        credentialBatch([{ type: 'sim_key', workspaceId: 'ws-1' }])
+      )
+    })
+
+    it.each([' ws-1', 'w'.repeat(257)])(
+      'saves no workspace target the renderer would reject: %j',
+      (workspaceId) => {
+        const tag = `<credential>${JSON.stringify({ type: 'sim_key', workspaceId, value: 'sk-sim-secret' })}</credential>`
+        expect(redactSensitiveContent(tag)).toBe(placeholder)
+      }
+    )
   })
 
   describe('toolResultForModel', () => {
@@ -80,7 +105,7 @@ describe('sim-key-redaction', () => {
     it('pulls generate_api_key output keys in block order', () => {
       expect(
         extractRevealedSimKeysFromBlocks([apiKeyBlock('sk-sim-A'), apiKeyBlock('sk-sim-B')])
-      ).toEqual(['sk-sim-A', 'sk-sim-B'])
+      ).toEqual(keys('sk-sim-A', 'sk-sim-B'))
     })
 
     it('skips redacted markers and unrelated tools', () => {
@@ -92,7 +117,7 @@ describe('sim-key-redaction', () => {
         },
         apiKeyBlock('sk-sim-A'),
       ]
-      expect(extractRevealedSimKeysFromBlocks(blocks)).toEqual(['sk-sim-A'])
+      expect(extractRevealedSimKeysFromBlocks(blocks)).toEqual(keys('sk-sim-A'))
     })
 
     it('returns nothing for empty/undefined block lists', () => {
@@ -103,55 +128,55 @@ describe('sim-key-redaction', () => {
 
   describe('captureRevealedSimKeys', () => {
     it('records new keys under each provided key', () => {
-      const cache = new Map<string, string[]>()
+      const cache = new Map<string, RevealedSimKey[]>()
       captureRevealedSimKeys(cache, ['msg-1', 'req-1'], credential('sk-sim-A'))
-      expect(cache.get('msg-1')).toEqual(['sk-sim-A'])
-      expect(cache.get('req-1')).toEqual(['sk-sim-A'])
+      expect(cache.get('msg-1')).toEqual(keys('sk-sim-A'))
+      expect(cache.get('req-1')).toEqual(keys('sk-sim-A'))
     })
 
     it('extends but never shrinks the captured list across calls', () => {
-      const cache = new Map<string, string[]>()
+      const cache = new Map<string, RevealedSimKey[]>()
       captureRevealedSimKeys(
         cache,
         ['msg-1'],
         `${credential('sk-sim-A')} ${credential('sk-sim-B')}`
       )
       captureRevealedSimKeys(cache, ['msg-1'], credential('sk-sim-A'))
-      expect(cache.get('msg-1')).toEqual(['sk-sim-A', 'sk-sim-B'])
+      expect(cache.get('msg-1')).toEqual(keys('sk-sim-A', 'sk-sim-B'))
     })
 
     it('skips undefined keys without throwing', () => {
-      const cache = new Map<string, string[]>()
+      const cache = new Map<string, RevealedSimKey[]>()
       captureRevealedSimKeys(cache, ['msg-1', undefined], credential('sk-sim-A'))
-      expect(cache.get('msg-1')).toEqual(['sk-sim-A'])
+      expect(cache.get('msg-1')).toEqual(keys('sk-sim-A'))
       expect(cache.size).toBe(1)
     })
 
     it('ignores content with no credential tag', () => {
-      const cache = new Map<string, string[]>()
+      const cache = new Map<string, RevealedSimKey[]>()
       captureRevealedSimKeys(cache, ['msg-1'], 'plain assistant text')
       expect(cache.has('msg-1')).toBe(false)
     })
 
     it('sources the key from the generate_api_key tool result (model text is a redacted placeholder)', () => {
-      const cache = new Map<string, string[]>()
+      const cache = new Map<string, RevealedSimKey[]>()
       captureRevealedSimKeys(cache, ['msg-1', 'req-1'], `Here is your key: ${redacted}`, [
         apiKeyBlock('sk-sim-fromtool'),
       ])
-      expect(cache.get('msg-1')).toEqual(['sk-sim-fromtool'])
-      expect(cache.get('req-1')).toEqual(['sk-sim-fromtool'])
+      expect(cache.get('msg-1')).toEqual(keys('sk-sim-fromtool'))
+      expect(cache.get('req-1')).toEqual(keys('sk-sim-fromtool'))
     })
 
     it('prefers tool-result keys over any inline content values', () => {
-      const cache = new Map<string, string[]>()
+      const cache = new Map<string, RevealedSimKey[]>()
       captureRevealedSimKeys(cache, ['msg-1'], credential('sk-content'), [apiKeyBlock('sk-tool')])
-      expect(cache.get('msg-1')).toEqual(['sk-tool'])
+      expect(cache.get('msg-1')).toEqual(keys('sk-tool'))
     })
   })
 
   describe('restoreRevealedSimKeysForMessage', () => {
     it('substitutes the live key back into a redacted message', () => {
-      const cache = new Map<string, string[]>([['msg-1', ['sk-sim-A']]])
+      const cache = new Map<string, RevealedSimKey[]>([['msg-1', keys('sk-sim-A')]])
       const msg: ChatMessage = {
         id: 'msg-1',
         role: 'assistant',
@@ -165,7 +190,7 @@ describe('sim-key-redaction', () => {
     })
 
     it('fills a value-less {"type":"sim_key"} placeholder (no redacted flag needed)', () => {
-      const cache = new Map<string, string[]>([['msg-1', ['sk-sim-A']]])
+      const cache = new Map<string, RevealedSimKey[]>([['msg-1', keys('sk-sim-A')]])
       const msg: ChatMessage = {
         id: 'msg-1',
         role: 'assistant',
@@ -178,7 +203,7 @@ describe('sim-key-redaction', () => {
     })
 
     it('fills value-less and redacted placeholders positionally in one message', () => {
-      const cache = new Map<string, string[]>([['msg-1', ['sk-sim-A', 'sk-sim-B']]])
+      const cache = new Map<string, RevealedSimKey[]>([['msg-1', keys('sk-sim-A', 'sk-sim-B')]])
       const msg: ChatMessage = {
         id: 'msg-1',
         role: 'assistant',
@@ -193,7 +218,7 @@ describe('sim-key-redaction', () => {
     it('fills sim_key rows positionally inside a mixed credential-card array', () => {
       const link = { type: 'link', value: 'https://x', provider: 'slack' }
       const batch = credentialBatch([link, { type: 'sim_key' }, { type: 'sim_key' }])
-      const cache = new Map<string, string[]>([['msg-1', ['sk-sim-A', 'sk-sim-B']]])
+      const cache = new Map<string, RevealedSimKey[]>([['msg-1', keys('sk-sim-A', 'sk-sim-B')]])
       const msg: ChatMessage = { id: 'msg-1', role: 'assistant', content: batch }
 
       expect(restoreRevealedSimKeysForMessage(msg, cache).content).toBe(
@@ -205,8 +230,37 @@ describe('sim-key-redaction', () => {
       )
     })
 
+    it('binds the filled key to the workspace it was created in, not the tag target', () => {
+      const cache: RevealedSimKeysByMessage = new Map()
+      const tag = `<credential>${JSON.stringify({ type: 'sim_key', workspaceId: 'ws-other' })}</credential>`
+      captureRevealedSimKeys(cache, ['msg-1'], tag, [
+        {
+          toolCall: {
+            name: 'generate_api_key',
+            result: { success: true, output: { key: 'sk-sim-A', workspaceId: 'ws-1' } },
+          },
+        },
+      ])
+      const msg: ChatMessage = { id: 'msg-1', role: 'assistant', content: tag }
+
+      expect(restoreRevealedSimKeysForMessage(msg, cache).content).toBe(
+        `<credential>${JSON.stringify({ value: 'sk-sim-A', type: 'sim_key', workspaceId: 'ws-1' })}</credential>`
+      )
+    })
+
+    it('keeps the tag workspace when the creation result carries none', () => {
+      const cache: RevealedSimKeysByMessage = new Map()
+      const tag = `<credential>${JSON.stringify({ type: 'sim_key', workspaceId: 'ws-tag' })}</credential>`
+      captureRevealedSimKeys(cache, ['msg-1'], tag, [apiKeyBlock('sk-sim-A')])
+      const msg: ChatMessage = { id: 'msg-1', role: 'assistant', content: tag }
+
+      expect(restoreRevealedSimKeysForMessage(msg, cache).content).toBe(
+        `<credential>${JSON.stringify({ value: 'sk-sim-A', type: 'sim_key', workspaceId: 'ws-tag' })}</credential>`
+      )
+    })
+
     it('substitutes multiple keys in stream order', () => {
-      const cache = new Map<string, string[]>([['msg-1', ['sk-sim-A', 'sk-sim-B']]])
+      const cache = new Map<string, RevealedSimKey[]>([['msg-1', keys('sk-sim-A', 'sk-sim-B')]])
       const msg: ChatMessage = {
         id: 'msg-1',
         role: 'assistant',
@@ -219,7 +273,7 @@ describe('sim-key-redaction', () => {
     })
 
     it('leaves a redacted tag in place if no live value is captured for that slot', () => {
-      const cache = new Map<string, string[]>([['msg-1', ['sk-sim-A']]])
+      const cache = new Map<string, RevealedSimKey[]>([['msg-1', keys('sk-sim-A')]])
       const msg: ChatMessage = {
         id: 'msg-1',
         role: 'assistant',
@@ -230,7 +284,7 @@ describe('sim-key-redaction', () => {
     })
 
     it('returns the same message reference when nothing to restore', () => {
-      const cache = new Map<string, string[]>()
+      const cache = new Map<string, RevealedSimKey[]>()
       const msg: ChatMessage = {
         id: 'msg-1',
         role: 'assistant',
@@ -240,7 +294,7 @@ describe('sim-key-redaction', () => {
     })
 
     it('does nothing for user messages', () => {
-      const cache = new Map<string, string[]>([['msg-1', ['sk-sim-A']]])
+      const cache = new Map<string, RevealedSimKey[]>([['msg-1', keys('sk-sim-A')]])
       const msg: ChatMessage = {
         id: 'msg-1',
         role: 'user',
@@ -250,7 +304,7 @@ describe('sim-key-redaction', () => {
     })
 
     it('threads the cursor across separate content blocks so each block gets its matching key', () => {
-      const cache = new Map<string, string[]>([['msg-1', ['sk-sim-A', 'sk-sim-B']]])
+      const cache = new Map<string, RevealedSimKey[]>([['msg-1', keys('sk-sim-A', 'sk-sim-B')]])
       const msg: ChatMessage = {
         id: 'msg-1',
         role: 'assistant',
@@ -269,9 +323,9 @@ describe('sim-key-redaction', () => {
     })
 
     it('isolates revealed values by message id (multiple keys across messages)', () => {
-      const cache = new Map<string, string[]>([
-        ['msg-1', ['sk-sim-A']],
-        ['msg-2', ['sk-sim-B']],
+      const cache = new Map<string, RevealedSimKey[]>([
+        ['msg-1', keys('sk-sim-A')],
+        ['msg-2', keys('sk-sim-B')],
       ])
       const msg1: ChatMessage = { id: 'msg-1', role: 'assistant', content: redacted }
       const msg2: ChatMessage = { id: 'msg-2', role: 'assistant', content: redacted }
