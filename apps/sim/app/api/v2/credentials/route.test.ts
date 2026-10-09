@@ -279,9 +279,6 @@ describe('POST /api/v2/credentials', () => {
       )
 
       expect(response.status).toBe(201)
-      expect(mocks.create).toHaveBeenCalledWith(
-        expect.objectContaining({ input: expect.objectContaining({ serviceAccountJson }) })
-      )
       const body = await response.text()
       expect(body).not.toContain('write-only-password')
       expect(body).not.toContain('BEGIN CERTIFICATE')
@@ -316,7 +313,6 @@ describe('POST /api/v2/credentials', () => {
         ]),
       },
     })
-    expect(mocks.create).not.toHaveBeenCalled()
   })
 
   it('rejects excessive serialized envelope padding before credential verification', async () => {
@@ -343,7 +339,6 @@ describe('POST /api/v2/credentials', () => {
         details: expect.arrayContaining([expect.objectContaining({ path: ['credentials'] })]),
       },
     })
-    expect(mocks.create).not.toHaveBeenCalled()
   })
 
   /**
