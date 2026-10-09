@@ -1,6 +1,6 @@
 {
-  "id": "1d401009-bd79-4a59-b6d3-723bc22a254c",
-  "prevId": "ebc04483-d023-4055-a111-518efb74435f",
+  "id": "99c41ee6-ac0d-4995-8326-17af4dcc84cc",
+  "prevId": "1d401009-bd79-4a59-b6d3-723bc22a254c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -26607,7 +26607,7 @@
           "name": "project_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "workspace_mode": {
           "name": "workspace_mode",
@@ -26826,6 +26826,15 @@
           "columnsFrom": ["organization_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "workspace_project_id_project_id_fk": {
+          "name": "workspace_project_id_project_id_fk",
+          "tableFrom": "workspace",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
           "onUpdate": "no action"
         },
         "workspace_billed_account_user_id_user_id_fk": {

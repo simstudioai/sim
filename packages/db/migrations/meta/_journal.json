@@ -2819,8 +2819,15 @@
     {
       "idx": 403,
       "version": "7",
-      "when": 1791496539438,
-      "tag": "0403_project_membership_enforcement",
+      "when": 1791506453532,
+      "tag": "0403_workspace_project_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 404,
+      "version": "7",
+      "when": 1791507197028,
+      "tag": "0404_project_membership_enforcement",
       "breakpoints": true
     }
   ]

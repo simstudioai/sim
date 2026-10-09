@@ -60,7 +60,7 @@ jobs:
           provider: ${{ vars.CI_PROVIDER }}
           node-version: ''
 
-      - name: Check whether Project enforcement needs rollout evidence
+      - name: Check Project column expansion and whether enforcement needs rollout evidence
         id: project-contract
         if: inputs.environment != 'dev'
         working-directory: ./packages/db
@@ -69,21 +69,21 @@ jobs:
           MIGRATION_DATABASE_URL: ${{ inputs.environment == 'production' && secrets.MIGRATION_DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_MIGRATION_DATABASE_URL || '' }}
         run: bun --no-env-file scripts/project-contract-required.ts >> "$GITHUB_OUTPUT"
 
-      - name: Configure AWS for Project retirement verification
+      - name: Configure AWS for Project column writer retirement verification
         if: steps.project-contract.outputs.required == 'true'
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b
         with:
           role-to-assume: ${{ inputs.environment == 'production' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ inputs.environment == 'production' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
 
-      # Set this release-scoped acknowledgment only after compatible writers are deployed
+      # Set this column-release acknowledgment only after workspace.project_id writers are deployed
       # everywhere and relevant old Trigger.dev runs are drained. SQL performs the backfill.
       # The preflight independently checks ECS retirement; it does not inspect worker runs.
-      - name: Require completed compatible rollout before Project enforcement
+      - name: Require completed column-compatible rollout before Project enforcement
         if: steps.project-contract.outputs.required == 'true'
         env:
           ENVIRONMENT: ${{ inputs.environment }}
-          EXPECTED_IMAGE_DIGEST: ${{ inputs.environment == 'production' && vars.PROJECT_ENFORCEMENT_READY_IMAGE_DIGEST_PRODUCTION || inputs.environment == 'staging' && vars.PROJECT_ENFORCEMENT_READY_IMAGE_DIGEST_STAGING || '' }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.environment == 'production' && vars.PROJECT_COLUMN_ENFORCEMENT_READY_IMAGE_DIGEST_PRODUCTION || inputs.environment == 'staging' && vars.PROJECT_COLUMN_ENFORCEMENT_READY_IMAGE_DIGEST_STAGING || '' }}
         run: python3 .github/scripts/check-project-rollout.py --environment "$ENVIRONMENT" --region "$AWS_REGION" --expected-image-digest "$EXPECTED_IMAGE_DIGEST"
 
       # The expression maps the explicit environment input to exactly one repo

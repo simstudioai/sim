@@ -1,12 +1,5 @@
 import type { Principal, SessionPrincipal } from '@sim/auth/principal'
-import {
-  member,
-  permissionGroup,
-  permissions,
-  project,
-  projectWorkspace,
-  workspace,
-} from '@sim/db/schema'
+import { member, permissionGroup, permissions, project, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
@@ -76,18 +69,17 @@ async function loadProjectAccess(
     : []
   const environments = await tx
     .select({
-      projectId: projectWorkspace.projectId,
+      projectId: workspace.projectId,
       id: workspace.id,
       name: workspace.name,
       organizationId: workspace.organizationId,
       archivedAt: workspace.archivedAt,
       parentId: workspace.forkedFromWorkspaceId,
     })
-    .from(projectWorkspace)
-    .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
+    .from(workspace)
     .where(
       inArray(
-        projectWorkspace.projectId,
+        workspace.projectId,
         records.map((record) => record.id)
       )
     )

@@ -41,6 +41,7 @@ describe('required KB ownership migration in PostgreSQL', () => {
       connection: { search_path: schema },
       onnotice: () => undefined,
     })
+    await sql`ALTER TABLE workspace ALTER COLUMN project_id DROP NOT NULL`
     migrationSql = await readFile(
       new URL('../migrations/0331_knowledge_base_required_owner.sql', import.meta.url),
       'utf8'

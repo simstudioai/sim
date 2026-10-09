@@ -15,7 +15,12 @@ import postgres, { type Sql } from 'postgres'
 import { describe, expect, it } from 'vitest'
 
 const migration = await readFile(
-  new URL('../migrations/0403_project_membership_enforcement.sql', import.meta.url),
+  new URL('../migrations/0404_project_membership_enforcement.sql', import.meta.url),
+  'utf8'
+)
+
+const expansion = await readFile(
+  new URL('../migrations/0403_workspace_project_column.sql', import.meta.url),
   'utf8'
 )
 
@@ -39,6 +44,7 @@ async function database(run: (sql: Sql, url: string) => Promise<void>) {
     await sql.unsafe(
       await readFile(new URL('../migrations/0394_project_foundation.sql', import.meta.url), 'utf8')
     )
+    await applyMigration(sql, expansion)
     await run(sql, url.toString())
   } finally {
     await sql.end({ timeout: 2 })
@@ -47,10 +53,10 @@ async function database(run: (sql: Sql, url: string) => Promise<void>) {
   }
 }
 
-async function enforce(sql: Sql) {
+async function applyMigration(sql: Sql, source: string) {
   const reserved = await sql.reserve()
   try {
-    for (const statement of migration.split('--> statement-breakpoint')) {
+    for (const statement of source.split('--> statement-breakpoint')) {
       await reserved.unsafe(statement)
     }
   } catch (error) {
@@ -61,6 +67,10 @@ async function enforce(sql: Sql) {
   } finally {
     reserved.release()
   }
+}
+
+async function enforce(sql: Sql) {
+  await applyMigration(sql, migration)
 }
 
 async function seed(sql: Sql) {
@@ -117,24 +127,33 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   })
 
-  it('requires rollout evidence only for an existing database with enforcement pending', async () => {
+  it('requires the exact expansion journal and physical column before rollout evidence can pass', async () => {
     await database(async (sql, url) => {
       const run = () =>
         promisify(execFile)('bun', ['--no-env-file', 'scripts/project-contract-required.ts'], {
           cwd: new URL('..', import.meta.url),
           env: { ...process.env, DATABASE_URL: url, MIGRATION_DATABASE_URL: url },
         })
-      expect((await run()).stdout.trim()).toBe('required=true')
+      await expect(run()).rejects.toMatchObject({ code: 1 })
       await sql`CREATE SCHEMA drizzle`
       await sql`CREATE TABLE drizzle.__drizzle_migrations (created_at bigint)`
+      const expanded = journal.entries.find((item) => item.tag === '0403_workspace_project_column')
       const entry = journal.entries.find(
-        (item) => item.tag === '0403_project_membership_enforcement'
+        (item) => item.tag === '0404_project_membership_enforcement'
       )
-      if (!entry) throw new Error('Missing contract migration')
-      await sql`INSERT INTO drizzle.__drizzle_migrations VALUES (${entry.when - 1})`
+      if (!expanded || !entry) throw new Error('Missing Project migration metadata')
+      await sql`INSERT INTO drizzle.__drizzle_migrations VALUES (${expanded.when - 1})`
+      await expect(run()).rejects.toMatchObject({ code: 1 })
+      await sql`INSERT INTO drizzle.__drizzle_migrations VALUES (${expanded.when})`
+      expect((await run()).stdout.trim()).toBe('required=true')
+      await sql`ALTER TABLE workspace DROP COLUMN project_id`
+      await expect(run()).rejects.toMatchObject({ code: 1 })
+      await applyMigration(sql, expansion)
       expect((await run()).stdout.trim()).toBe('required=true')
       await sql`INSERT INTO drizzle.__drizzle_migrations VALUES (${entry.when})`
       expect((await run()).stdout.trim()).toBe('required=false')
+      await sql`DELETE FROM drizzle.__drizzle_migrations WHERE created_at = ${expanded.when}`
+      await expect(run()).rejects.toMatchObject({ code: 1 })
       await sql`DROP TABLE workspace CASCADE`
       await sql`DROP SCHEMA drizzle CASCADE`
       expect((await run()).stdout.trim()).toBe('required=false')
@@ -145,13 +164,16 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     const directory = await mkdtemp(join(tmpdir(), 'project-contract-runner-'))
     try {
       await mkdir(join(directory, 'meta'))
-      await writeFile(join(directory, '0403_project_membership_enforcement.sql'), migration)
+      await writeFile(join(directory, '0403_workspace_project_column.sql'), expansion)
+      await writeFile(join(directory, '0404_project_membership_enforcement.sql'), migration)
       await writeFile(
         join(directory, 'meta/_journal.json'),
         JSON.stringify({
           ...journal,
           entries: journal.entries.filter(
-            (entry) => entry.tag === '0403_project_membership_enforcement'
+            (entry) =>
+              entry.tag === '0403_workspace_project_column' ||
+              entry.tag === '0404_project_membership_enforcement'
           ),
         })
       )
@@ -163,13 +185,20 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           await expect(run()).rejects.toSatisfy(
             (error: unknown) => getPostgresErrorCode(error) === '55000'
           )
-          expect(await sql`SELECT * FROM drizzle.__drizzle_migrations`).toHaveLength(0)
+          const expanded = journal.entries.find(
+            (entry) => entry.tag === '0403_workspace_project_column'
+          )
+          if (!expanded) throw new Error('Missing expansion migration')
+          expect(await sql`SELECT created_at::text FROM drizzle.__drizzle_migrations`).toEqual([
+            { created_at: String(expanded.when) },
+          ])
           await sql`DELETE FROM project WHERE id = 'empty'`
           await sql`INSERT INTO workspace (id, name, owner_id) VALUES ('legacy', 'Legacy', 'owner')`
           await run()
           await run()
-          expect(await sql`SELECT * FROM drizzle.__drizzle_migrations`).toHaveLength(1)
-          await expect(sql`DELETE FROM project_workspace`).rejects.toSatisfy(constraintFailure)
+          expect(await sql`SELECT * FROM drizzle.__drizzle_migrations`).toHaveLength(2)
+          await sql`DELETE FROM project_workspace`
+          await expect(sql`DELETE FROM workspace`).rejects.toSatisfy(constraintFailure)
         } finally {
           await runner.end()
         }
@@ -179,12 +208,12 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     }
   })
 
-  it('fails trigger installation promptly on a busy table and releases partially acquired locks', async () => {
+  it('fails contract DDL promptly on a busy table and releases partially acquired locks', async () => {
     await database(async (sql) => {
       const held = createDeferred<void>()
       const release = createDeferred<void>()
       const reader = sql.begin(async (tx) => {
-        await tx`SELECT * FROM project_workspace`
+        await tx`SELECT * FROM workspace`
         held.resolve()
         await release.promise
       })
@@ -197,7 +226,9 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         expect(performance.now() - started).toBeLessThan(2000)
         await sql.begin(async (tx) => {
           await tx`SET LOCAL statement_timeout = '500ms'`
-          await tx`INSERT INTO workspace (id, name, owner_id) VALUES ('live', 'Live', 'owner')`
+          await tx`INSERT INTO project (id, name, owner_id) VALUES ('live-project', 'Live project', 'owner')`
+          await tx`INSERT INTO workspace (id, project_id, name, owner_id) VALUES ('live', 'live-project', 'Live', 'owner')`
+          await tx`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('live-project', 'live')`
           await tx`SELECT * FROM project`
         })
       } finally {
@@ -227,7 +258,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           "SELECT count(*)::int AS count FROM pg_locks WHERE pid = $1 AND mode = 'AccessExclusiveLock' AND granted",
           [pid]
         ))[0].count;
-        const migration = await readFile('migrations/0403_project_membership_enforcement.sql', 'utf8');
+        const migration = await readFile('migrations/0404_project_membership_enforcement.sql', 'utf8');
         for (const statement of migration.split('--> statement-breakpoint')) {
           await sql.unsafe(statement);
           if (statement.includes('LOCK TABLE workspace,')) {
@@ -246,10 +277,12 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           timeout: 12000,
         }
       )
-      expect(JSON.parse(result.stdout)).toEqual({ before: 3, after: 0 })
+      expect(JSON.parse(result.stdout)).toEqual({ before: 2, after: 0 })
       await sql.begin(async (tx) => {
         await tx`SET LOCAL statement_timeout = '500ms'`
-        await tx`INSERT INTO workspace (id, name, owner_id) VALUES ('live', 'Live', 'owner')`
+        await tx`INSERT INTO project (id, name, owner_id) VALUES ('live-project', 'Live project', 'owner')`
+        await tx`INSERT INTO workspace (id, project_id, name, owner_id) VALUES ('live', 'live-project', 'Live', 'owner')`
+        await tx`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('live-project', 'live')`
         await tx`SELECT * FROM project`
       })
       await enforce(sql)
@@ -266,7 +299,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       )
       await expect(
         sql`INSERT INTO workspace (id, name, owner_id) VALUES ('unassigned', 'Invalid', 'owner')`
-      ).rejects.toSatisfy(constraintFailure)
+      ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '23502')
       expect(await sql`SELECT 1 FROM workspace WHERE id = 'unassigned'`).toHaveLength(0)
     })
   })
@@ -277,7 +310,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       await enforce(sql)
       await sql.begin(async (tx) => {
         await tx`INSERT INTO project (id, name, owner_id) VALUES ('new', 'New', 'owner')`
-        await tx`INSERT INTO workspace (id, name, owner_id) VALUES ('first', 'First', 'owner')`
+        await tx`INSERT INTO workspace (id, project_id, name, owner_id) VALUES ('first', 'new', 'First', 'owner')`
         await tx`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('new', 'first')`
         await tx`INSERT INTO workflow VALUES ('flow', 'first', NULL)`
       })
@@ -297,20 +330,24 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         sql`UPDATE workspace SET organization_id = 'org' WHERE id = 'child'`
       ).rejects.toSatisfy(constraintFailure)
       await expect(
-        sql`DELETE FROM project_workspace WHERE workspace_id = 'child'`
-      ).rejects.toSatisfy(constraintFailure)
+        sql`UPDATE workspace SET project_id = NULL WHERE id = 'child'`
+      ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '23502')
       await expect(
         sql.begin(async (tx) => {
           await tx`INSERT INTO project (id, name, owner_id) VALUES ('detached', 'Detached', 'owner')`
-          await tx`UPDATE project_workspace SET project_id = 'detached' WHERE workspace_id = 'child'`
+          await tx`UPDATE workspace SET project_id = 'detached' WHERE id = 'child'`
         })
       ).rejects.toSatisfy(constraintFailure)
       await sql.begin(async (tx) => {
         await tx`INSERT INTO project (id, name, owner_id) VALUES ('detached', 'Detached', 'owner')`
-        await tx`UPDATE project_workspace SET project_id = 'detached' WHERE workspace_id = 'child'`
+        await tx`UPDATE workspace SET project_id = 'detached' WHERE id = 'child'`
         await tx`UPDATE workspace SET forked_from_workspace_id = NULL WHERE id = 'child'`
       })
-      expect(await sql`SELECT DISTINCT project_id FROM project_workspace`).toHaveLength(2)
+      expect(await sql`SELECT DISTINCT project_id FROM workspace`).toHaveLength(2)
+      await sql`DELETE FROM project_workspace WHERE workspace_id = 'child'`
+      await expect(sql`DELETE FROM project WHERE id = 'detached'`).rejects.toSatisfy(
+        (error: unknown) => getPostgresErrorCode(error) === '23503'
+      )
     })
   })
 
@@ -443,14 +480,11 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         ('g-archived', 'Archive child', 'owner', NULL, 'f-archived', '2025-02-01')`
       await sql`INSERT INTO project (id, name, owner_id, organization_id) VALUES ('existing', 'Keep name', 'owner', 'org')`
       await sql`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('existing', 'a-root')`
+      await sql`UPDATE workspace SET project_id = 'removed-by-old-writer' WHERE id = 'a-root'`
       await enforce(sql)
-      expect(
-        await sql`SELECT workspace_id FROM project_workspace WHERE project_id = 'existing' ORDER BY workspace_id`
-      ).toEqual([
-        { workspace_id: 'a-root' },
-        { workspace_id: 'b-child' },
-        { workspace_id: 'c-grandchild' },
-      ])
+      expect(await sql`SELECT id FROM workspace WHERE project_id = 'existing' ORDER BY id`).toEqual(
+        [{ id: 'a-root' }, { id: 'b-child' }, { id: 'c-grandchild' }]
+      )
       const projects =
         await sql`SELECT id, name, owner_id, archived_at::text FROM project ORDER BY name`
       expect(
@@ -594,6 +628,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     'scope',
     'archive',
     'outside-family',
+    'column-without-membership',
     'oversized',
   ] as const)(
     'refuses %s legacy data without silently changing existing assignments',
@@ -618,6 +653,8 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
             await sql`UPDATE project SET organization_id = 'org'`
           } else if (scenario === 'archive') {
             await sql`UPDATE project SET archived_at = now()`
+          } else if (scenario === 'column-without-membership') {
+            await sql`UPDATE workspace SET project_id = 'existing' WHERE id = 'child'`
           } else {
             await sql`INSERT INTO workspace (id, name, owner_id) VALUES ('outside', 'Outside', 'owner')`
             await sql`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('existing', 'outside')`
@@ -685,7 +722,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       expect((await sql`SELECT count(*)::int AS count FROM project`)[0].count).toBe(100)
       expect((await sql`SELECT count(*)::int AS count FROM project_workspace`)[0].count).toBe(2100)
       expect(
-        await sql`SELECT project_id FROM project_workspace GROUP BY project_id HAVING count(*) <> 21`
+        await sql`SELECT project_id FROM workspace GROUP BY project_id HAVING count(*) <> 21`
       ).toHaveLength(0)
     })
   })
@@ -711,7 +748,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         import postgres from 'postgres';
         const sql = postgres(process.env.TEST_DATABASE_URL, { max: 1, onnotice: () => undefined });
         try {
-          const migration = await readFile('migrations/0403_project_membership_enforcement.sql', 'utf8');
+          const migration = await readFile('migrations/0404_project_membership_enforcement.sql', 'utf8');
           for (const statement of migration.split('--> statement-breakpoint')) await sql.unsafe(statement);
           await sql.end();
         } catch (error) {
@@ -744,16 +781,114 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       expect(await sql`SELECT 1 FROM project_workspace`).toHaveLength(2)
     })
   }, 15000)
+  it.each(['release', 'cancel-and-replay'] as const)(
+    'preserves committed copy batches through %s while a later batch is busy',
+    async (resumption) => {
+      await database(async (sql, url) => {
+        await sql`INSERT INTO project (id, name, owner_id) VALUES ('existing', 'Keep existing', 'owner')`
+        await sql`INSERT INTO workspace (id, name, owner_id)
+        SELECT 'environment-' || lpad(n::text, 3, '0'), 'Environment', 'owner'
+        FROM generate_series(1, 201) n`
+        await sql`INSERT INTO project_workspace (project_id, workspace_id) SELECT 'existing', id FROM workspace`
+        const locked = createDeferred<void>()
+        const release = createDeferred<void>()
+        const writer = sql.begin(async (tx) => {
+          await tx`SELECT pg_advisory_xact_lock_shared(hashtextextended('project-backfill:environment-200', 0))`
+          locked.resolve()
+          await release.promise
+        })
+        await locked.promise
+        const result = enforce(sql).then(
+          () => null,
+          (error: unknown) => error
+        )
+        let copyPid: number | undefined
+        try {
+          await expect
+            .poll(
+              async () => {
+                const rows = await sql`SELECT pid FROM pg_stat_activity
+                WHERE datname = current_database()
+                  AND query LIKE '%CALL pg_temp.reconcile_workspace_projects%'
+                  AND wait_event = 'PgSleep'`
+                copyPid = rows[0]?.pid
+                return rows.length
+              },
+              { timeout: 2000, interval: 10 }
+            )
+            .toBeGreaterThan(0)
+          await expect
+            .poll(
+              async () =>
+                (
+                  await sql`SELECT count(*)::int AS count FROM workspace WHERE project_id = 'existing'`
+                )[0].count,
+              { timeout: 2000, interval: 10 }
+            )
+            .toBe(100)
+          await sql.begin(async (tx) => {
+            await tx`SET LOCAL statement_timeout = '500ms'`
+            const [lock] =
+              await tx`SELECT pg_try_advisory_xact_lock(hashtextextended('project:existing', 0)) AS acquired`
+            expect(lock.acquired).toBe(true)
+            await tx`UPDATE workspace SET name = 'Live edit after copy' WHERE id = 'environment-001'`
+            await tx`INSERT INTO workflow VALUES ('live-during-copy', 'environment-001', NULL)`
+          })
+          expect(
+            await sql`SELECT id FROM workspace WHERE id = 'environment-200' AND project_id IS NULL`
+          ).toHaveLength(1)
+          if (resumption === 'cancel-and-replay') {
+            if (!copyPid) throw new Error('Copy retry did not expose a backend')
+            expect(
+              await sql`SELECT pg_cancel_backend(pid) AS cancelled FROM pg_stat_activity
+              WHERE datname = current_database() AND pid = ${copyPid}
+                AND pid <> pg_backend_pid() AND state = 'active'
+                AND query LIKE '%CALL pg_temp.reconcile_workspace_projects%'`
+            ).toEqual([{ cancelled: true }])
+            expect(getPostgresErrorCode(await result)).toBe('57014')
+            expect(
+              (
+                await sql`SELECT count(*)::int AS count FROM workspace WHERE project_id = 'existing'`
+              )[0].count
+            ).toBe(100)
+          }
+        } finally {
+          release.resolve()
+          await writer
+          await result
+        }
+        if (resumption === 'cancel-and-replay') {
+          const resumed = postgres(url, { max: 1, onnotice: () => undefined })
+          try {
+            await enforce(resumed)
+          } finally {
+            await resumed.end()
+          }
+        } else {
+          expect(await result).toBeNull()
+        }
+        expect(
+          (await sql`SELECT count(*)::int AS count FROM workspace WHERE project_id = 'existing'`)[0]
+            .count
+        ).toBe(201)
+        expect(await sql`SELECT id, name FROM project`).toEqual([
+          { id: 'existing', name: 'Keep existing' },
+        ])
+      })
+    }
+  )
+
   it.each(['separate-roots', 'large-family'] as const)(
     'preserves a complete existing Project with %s without putting it through legacy assignment',
     async (shape) => {
       await database(async (sql) => {
         await sql`INSERT INTO project (id, name, owner_id) VALUES ('existing', 'Keep this Project', 'owner')`
         await sql`INSERT INTO workspace (id, name, owner_id) VALUES ('root', 'Root', 'owner')`
-        const count = shape === 'large-family' ? 1001 : 1
+        const count = shape === 'large-family' ? 1001 : 150
         await sql`INSERT INTO workspace (id, name, owner_id, forked_from_workspace_id)
           SELECT 'other-' || n, 'Other', 'owner', ${shape === 'large-family' ? 'root' : null} FROM generate_series(1, ${count}) n`
         await sql`INSERT INTO project_workspace (project_id, workspace_id) SELECT 'existing', id FROM workspace`
+        await sql`UPDATE workspace SET project_id = 'stale-copy' WHERE id = 'root'`
         await enforce(sql)
         expect(await sql`SELECT id, name FROM project`).toEqual([
           { id: 'existing', name: 'Keep this Project' },
@@ -761,6 +896,14 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         expect((await sql`SELECT count(*)::int AS count FROM project_workspace`)[0].count).toBe(
           count + 1
         )
+        expect(
+          (await sql`SELECT count(*)::int AS count FROM workspace WHERE project_id = 'existing'`)[0]
+            .count
+        ).toBe(count + 1)
+        await enforce(sql)
+        expect(await sql`SELECT id, name FROM project`).toEqual([
+          { id: 'existing', name: 'Keep this Project' },
+        ])
       })
     }
   )

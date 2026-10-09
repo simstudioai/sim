@@ -170,10 +170,10 @@ async function seedFixture(): Promise<Fixture> {
       values (${fixture.orgId}, 'SCIM E2E', ${`scim-e2e-${suffix}`}, now())`
     await tx`insert into member (id, user_id, organization_id, role)
       values (${generateId()}, ${fixture.ownerId}, ${fixture.orgId}, 'owner')`
-    await tx`insert into workspace (id, name, owner_id, billed_account_user_id, organization_id)
-      values (${fixture.workspaceId}, 'SCIM E2E Workspace', ${fixture.ownerId}, ${fixture.ownerId}, ${fixture.orgId})`
     await tx`insert into project (id, name, owner_id, organization_id)
       values (${fixture.workspaceId}, 'SCIM E2E Project', ${fixture.ownerId}, ${fixture.orgId})`
+    await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id, organization_id)
+      values (${fixture.workspaceId}, ${fixture.workspaceId}, 'SCIM E2E Workspace', ${fixture.ownerId}, ${fixture.ownerId}, ${fixture.orgId})`
     await tx`insert into project_workspace (project_id, workspace_id)
       values (${fixture.workspaceId}, ${fixture.workspaceId})`
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)

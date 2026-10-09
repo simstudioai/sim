@@ -2018,6 +2018,9 @@ export const workspace = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'set null',
     }),
+    projectId: text('project_id')
+      .notNull()
+      .references((): AnyPgColumn => project.id, { onDelete: 'restrict' }),
     workspaceMode: workspaceModeEnum('workspace_mode').notNull().default('grandfathered_shared'),
     billedAccountUserId: text('billed_account_user_id')
       .notNull()
@@ -2059,6 +2062,7 @@ export const workspace = pgTable(
   (table) => ({
     ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
     organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
+    projectIdIdx: index('workspace_project_id_id_idx').on(table.projectId, table.id),
     nonNegativeStorage: check(
       'workspace_storage_used_bytes_non_negative',
       sql`${table.storageUsedBytes} >= 0`
@@ -2110,10 +2114,11 @@ export const project = pgTable(
   })
 )
 
-/** Deferred membership and lifecycle triggers are installed by 0403 after the Project backfill. */
+/** Compatibility mirror retained until every connector reader and writer has retired. */
 export const projectWorkspace = pgTable(
   'project_workspace',
   {
+    // contract-pending(after workspace.projectId readers are fully deployed): retire connector writers, then remove this table in a later deployment once older instances drain.
     projectId: text('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'restrict' }),

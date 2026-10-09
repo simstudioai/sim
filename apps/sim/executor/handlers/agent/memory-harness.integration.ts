@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as schema from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
+import { insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { sql } from 'drizzle-orm'
@@ -64,6 +65,8 @@ vi.mock('@/lib/api-key/byok', () => ({
 import {
   memory,
   memorySecretProvenance,
+  project,
+  projectWorkspace,
   resumeQueue,
   workflow,
   workflowExecutionLogs,
@@ -326,18 +329,22 @@ describe('Agent memory through PostgreSQL, storage, and provider transports', ()
       memorySecretProvenance,
       workspaceFiles,
       workspaceFileSecretProvenance,
+      project,
+      projectWorkspace,
       workspace,
       workflow,
       workflowExecutionLogs,
       resumeQueue,
     ])
       await createTable(table)
-    await fixture.database.insert(workspace).values({
-      id: scope.workspaceId,
-      name: 'Attachment harness',
-      ownerId: scope.userId,
-      billedAccountUserId: scope.userId,
-    })
+    await fixture.database.transaction((tx) =>
+      insertWorkspaceFixture(tx, {
+        id: scope.workspaceId,
+        name: 'Attachment harness',
+        ownerId: scope.userId,
+        billedAccountUserId: scope.userId,
+      })
+    )
     await fixture.database.insert(workflow).values({
       id: scope.workflowId,
       workspaceId: scope.workspaceId,

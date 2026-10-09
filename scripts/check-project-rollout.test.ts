@@ -43,7 +43,7 @@ const cases = [
 ] as const
 
 /** Exercises the preflight CLI against deployment histories without contacting an AWS account. */
-describe('Project rollout release acknowledgement', () => {
+describe('Project column rollout release acknowledgement', () => {
   it.each(cases)('$name', async ({ histories, allowed }) => {
     const directory = await mkdtemp(join(tmpdir(), 'project-rollout-'))
     try {
@@ -101,10 +101,11 @@ print(json.dumps(result))
         expect(JSON.parse(result.stdout)).toMatchObject({
           ecsRetired: true,
           pipelineExecutionId: 'current',
+          operatorAcknowledgedColumnWritersAndWorkers: true,
         })
       } else {
         expect(result.status, result.stdout).toBe(1)
-        expect(result.stderr).toContain('Project rollout preflight refused:')
+        expect(result.stderr).toContain('Project column rollout preflight refused:')
       }
     } finally {
       await rm(directory, { recursive: true, force: true })

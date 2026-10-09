@@ -486,6 +486,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'logoUrl',
     'ownerId',
     'organizationId',
+    'projectId',
     'workspaceMode',
     'billedAccountUserId',
     'storageUsedBytes',
