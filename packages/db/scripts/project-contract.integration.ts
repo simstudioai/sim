@@ -298,6 +298,49 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   }, 60000)
 
+  it('refuses a conflicted manifest even after its database invariants have been repaired', async () => {
+    await database(async (sql, url) => {
+      const directory = await mkdtemp(join(tmpdir(), 'project-conflict-verify-test-'))
+      const run = (command: string, plan: string) =>
+        promisify(execFile)(
+          'bun',
+          [
+            '--no-env-file',
+            'scripts/backfill-projects.ts',
+            command,
+            '--manifest',
+            join(directory, `${plan}-manifest.json`),
+            '--report',
+            join(directory, `${plan}-report.json`),
+            '--ack-release-drained',
+          ],
+          {
+            cwd: new URL('../../../apps/sim/', import.meta.url),
+            env: { ...process.env, MIGRATION_DATABASE_URL: url },
+            timeout: 15000,
+          }
+        )
+      try {
+        await sql`INSERT INTO "user" VALUES ('other-owner')`
+        await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('root','Root','owner')`
+        await sql`INSERT INTO workspace (id,name,owner_id,forked_from_workspace_id)
+          VALUES ('child','Child','other-owner','root')`
+        await expect(run('plan', 'conflicted')).rejects.toMatchObject({ code: 2 })
+        await expect(run('apply', 'conflicted')).rejects.toMatchObject({ code: 2 })
+        await sql`UPDATE workspace SET owner_id = 'owner' WHERE id = 'child'`
+        await run('plan', 'repaired')
+        await run('apply', 'repaired')
+        expect(Object.values(await verifyProjectBackfill(sql)).every((count) => count === 0)).toBe(
+          true
+        )
+        await run('verify', 'repaired')
+        await expect(run('verify', 'conflicted')).rejects.toMatchObject({ code: 2 })
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+  }, 30000)
+
   it.each([
     ['plan', 'SIGINT'],
     ['verify', 'SIGTERM'],

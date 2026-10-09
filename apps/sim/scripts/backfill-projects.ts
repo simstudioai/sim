@@ -230,6 +230,7 @@ Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 
       counts.pendingCleanup = manifest.repairs.filter(
         (repair) => !report.repairsCompleted.includes(repair.workspaceId)
       ).length
+      counts.conflicts = manifest.conflicts.length
       logger.info('Project verification', { databaseId, ...counts })
       if (Object.values(counts).some((count) => count !== 0)) process.exitCode = 2
       return
