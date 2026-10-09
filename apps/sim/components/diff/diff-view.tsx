@@ -86,18 +86,21 @@ interface HunkRowsProps {
   wrapLines: boolean
 }
 
-/** Pairs adjacent removed and added runs for bounded word-level highlighting. */
+/** Pairs removed and added lines within each change block for bounded word-level highlighting. */
 function wordSegments(lines: DiffLine[]): Map<DiffLine, Segment[]> {
   const segments = new Map<DiffLine, Segment[]>()
   for (let index = 0; index < lines.length; ) {
-    if (lines[index].type !== 'del') {
+    if (lines[index].type === 'context') {
       index++
       continue
     }
     const dels: DiffLine[] = []
-    while (lines[index]?.type === 'del') dels.push(lines[index++])
     const adds: DiffLine[] = []
-    while (lines[index]?.type === 'add') adds.push(lines[index++])
+    while (index < lines.length && lines[index].type !== 'context') {
+      const line = lines[index++]
+      if (line.type === 'del') dels.push(line)
+      else adds.push(line)
+    }
     for (let pair = 0; pair < Math.min(dels.length, adds.length); pair++) {
       if (dels[pair].text.length + adds[pair].text.length > WORD_DIFF_MAX_CHARS) continue
       const parts = diffWordsWithSpace(dels[pair].text, adds[pair].text)
@@ -242,14 +245,9 @@ function pairedItems(items: VisibleItem[]): PairedItem[] {
     const key = item.key
     while (index < items.length) {
       const next = items[index]
-      if (!('line' in next) || next.line.type !== 'del') break
-      removed.push(next.line)
-      index++
-    }
-    while (index < items.length) {
-      const next = items[index]
-      if (!('line' in next) || next.line.type !== 'add') break
-      added.push(next.line)
+      if (!('line' in next) || next.line.type === 'context') break
+      if (next.line.type === 'del') removed.push(next.line)
+      else added.push(next.line)
       index++
     }
     for (let pair = 0; pair < Math.max(removed.length, added.length); pair++) {
