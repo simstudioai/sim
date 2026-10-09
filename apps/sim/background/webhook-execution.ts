@@ -722,17 +722,32 @@ export async function resolveWebhookExecutionProviderConfig<
   }
 }
 
-async function resolveCredentialAccountUserId(credentialId: string): Promise<string | undefined> {
+/**
+ * The user who owns the OAuth account behind a credential. `accountless` credentials
+ * (service accounts, managed OAuth such as a custom Slack bot) have no account row by
+ * design; `missing` means the credential or its account no longer exists.
+ */
+async function resolveCredentialAccountUserId(
+  credentialId: string
+): Promise<{ status: 'resolved'; userId: string } | { status: 'accountless' | 'missing' }> {
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved) {
-    return undefined
+    return { status: 'missing' }
+  }
+  if (
+    resolved.credentialType === 'service_account' ||
+    resolved.credentialType === 'managed_oauth'
+  ) {
+    return { status: 'accountless' }
   }
   const [credentialRecord] = await db
     .select({ userId: account.userId })
     .from(account)
     .where(eq(account.id, resolved.accountId))
     .limit(1)
-  return credentialRecord?.userId
+  return credentialRecord
+    ? { status: 'resolved', userId: credentialRecord.userId }
+    : { status: 'missing' }
 }
 
 /**
@@ -873,15 +888,16 @@ async function executeWebhookJobInternal(
             workspaceId
           )
         : loadDeployedWorkflowState(payload.workflowId, workspaceId)
-      const [workflowData, webhookRows, resolvedCredentialUserId] = await Promise.all([
+      const [workflowData, webhookRows, credentialAccount] = await Promise.all([
         workflowStatePromise,
         db.select().from(webhook).where(eq(webhook.id, payload.webhookId)).limit(1),
         payload.credentialId
           ? resolveCredentialAccountUserId(payload.credentialId)
           : Promise.resolve(undefined),
       ])
-      const credentialAccountUserId = resolvedCredentialUserId
-      if (payload.credentialId && !credentialAccountUserId) {
+      const credentialAccountUserId =
+        credentialAccount?.status === 'resolved' ? credentialAccount.userId : undefined
+      if (credentialAccount?.status === 'missing') {
         logger.warn(
           `[${requestId}] Failed to resolve credential account for credential ${payload.credentialId}`
         )
