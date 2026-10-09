@@ -729,9 +729,7 @@ export async function executeResponsesProviderRequest(
       }
 
       logger.info(
-        `Processing ${toolCallsInResponse.length} tool calls in parallel (iteration ${
-          iterationCount + 1
-        }/${MAX_TOOL_ITERATIONS})`
+        `Processing ${toolCallsInResponse.length} tool calls in parallel (iteration ${iterationCount + 1})`
       )
 
       const toolsStartTime = Date.now()
