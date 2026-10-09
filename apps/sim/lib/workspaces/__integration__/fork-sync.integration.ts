@@ -30,7 +30,7 @@ import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-i
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import * as workflowMcpSync from '@/lib/mcp/workflow-mcp-sync'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
-import { createProjectForWorkspace } from '@/lib/projects/membership'
+import { createProjectRecord } from '@/lib/projects/membership'
 import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
 import {
@@ -147,21 +147,22 @@ describe('authorized fork and sync against PostgreSQL', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
-      id: sourceWorkspaceId,
-      name: 'Fork source fixture',
-      ownerId: userId,
-      billedAccountUserId: userId,
-      allowPersonalApiKeys: true,
-    })
-    await db.transaction((tx) =>
-      createProjectForWorkspace(tx, {
-        workspaceId: sourceWorkspaceId,
+    await db.transaction(async (tx) => {
+      const projectId = await createProjectRecord(tx, {
         name: 'Fork source fixture',
         ownerId: userId,
         organizationId: null,
       })
-    )
+      await tx.insert(workspace).values({
+        id: sourceWorkspaceId,
+        projectId,
+        name: 'Fork source fixture',
+        ownerId: userId,
+        billedAccountUserId: userId,
+        allowPersonalApiKeys: true,
+      })
+      await tx.insert(projectWorkspace).values({ projectId, workspaceId: sourceWorkspaceId })
+    })
     await db.insert(permissions).values({
       id: generateId(),
       userId,

@@ -182,12 +182,12 @@ export async function getProjectAccountDeletionBlockers(
   return blockers
 }
 
-/** Account teardown may erase a wholly private Project, but never strand a surviving one. */
+/** Transfers surviving Projects and returns private Projects to delete after their workspaces. */
 export async function prepareProjectsForAccountDeletion(
   tx: DbTransaction,
   userId: string,
   doomedWorkspaceIds: string[]
-): Promise<void> {
+): Promise<string[]> {
   const ownedEnvironments = await tx
     .select({ id: workspace.id })
     .from(workspace)
@@ -213,6 +213,7 @@ export async function prepareProjectsForAccountDeletion(
     records.map((record) => record.id)
   )
   const doomed = new Set(doomedWorkspaceIds)
+  const projectsToDelete: string[] = []
   const now = new Date()
   for (const record of records) {
     const decision = await planProjectDeletion(
@@ -225,8 +226,7 @@ export async function prepareProjectsForAccountDeletion(
     )
     if ('blocker' in decision) throw new ProjectConflictError(decision.blocker)
     if ('remove' in decision) {
-      await tx.delete(projectWorkspace).where(eq(projectWorkspace.projectId, record.id))
-      await tx.delete(project).where(eq(project.id, record.id))
+      projectsToDelete.push(record.id)
       continue
     }
     if (!decision.archive && !decision.ownerId) continue
@@ -239,4 +239,5 @@ export async function prepareProjectsForAccountDeletion(
       })
       .where(eq(project.id, record.id))
   }
+  return projectsToDelete
 }

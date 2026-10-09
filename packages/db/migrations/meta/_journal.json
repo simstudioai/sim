@@ -2815,6 +2815,13 @@
       "when": 1791496539437,
       "tag": "0402_table_row_change_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 403,
+      "version": "7",
+      "when": 1791506453532,
+      "tag": "0403_workspace_project_column",
+      "breakpoints": true
     }
   ]
 }

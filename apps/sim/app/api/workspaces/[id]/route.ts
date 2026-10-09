@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteWorkspaceBodySchema, updateWorkspaceContract } from '@/lib/api/contracts'
@@ -51,7 +52,7 @@ export const GET = withRouteHandler(
 
     return NextResponse.json({
       workspace: {
-        ...workspaceDetails,
+        ...omit(workspaceDetails, ['projectId']),
         permissions: userPermission,
       },
     })
@@ -216,7 +217,7 @@ export const PATCH = withRouteHandler(
 
       return NextResponse.json({
         workspace: {
-          ...updatedWorkspace,
+          ...omit(updatedWorkspace, ['projectId']),
           permissions: userPermission,
         },
       })

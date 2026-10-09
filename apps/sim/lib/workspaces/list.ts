@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { pinnedItem, settings, type workspace as workspaceTable } from '@sim/db/schema'
 import type { PermissionType } from '@sim/platform-authz/workspace'
+import { omit } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
 import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import {
@@ -19,7 +20,7 @@ import { listRecentWorkspaceIds, sortByVisitRecency } from '@/lib/workspaces/vis
 type WorkspaceRow = typeof workspaceTable.$inferSelect
 
 /** Accessible workspace row decorated with the viewer's role and invite policy flags. */
-export type WorkspaceWithInviteFlags = WorkspaceRow &
+export type WorkspaceWithInviteFlags = Omit<WorkspaceRow, 'projectId'> &
   WorkspaceInviteFlags & {
     role: 'owner' | 'admin' | 'member'
     permissions: PermissionType
@@ -94,7 +95,7 @@ async function buildWorkspacesWithInviteFlags(
     const invitePolicy = evaluateWorkspaceInvitePolicy(workspaceDetails, { billedPlanCategory })
 
     return {
-      ...workspaceDetails,
+      ...omit(workspaceDetails, ['projectId']),
       role:
         workspaceDetails.ownerId === userId
           ? ('owner' as const)

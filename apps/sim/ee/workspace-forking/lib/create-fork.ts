@@ -303,6 +303,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
 
     await tx.insert(workspace).values({
       id: childWorkspaceId,
+      projectId: parentProject?.id ?? null,
       name: childName,
       ownerId: userId,
       organizationId: policy.organizationId,

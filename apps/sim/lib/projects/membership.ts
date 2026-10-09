@@ -117,10 +117,10 @@ function forkSubtree(workspaceId: string): SQL {
     )`
 }
 
-export async function createProjectForWorkspace(
+/** Creates the Project before its first workspace; the caller links both in the same transaction. */
+export async function createProjectRecord(
   tx: DbTransaction,
   input: {
-    workspaceId: string
     name: string
     organizationId: string | null
     ownerId: string
@@ -134,7 +134,6 @@ export async function createProjectForWorkspace(
     organizationId: input.organizationId,
     ownerId: input.ownerId,
   })
-  await tx.insert(projectWorkspace).values({ projectId: id, workspaceId: input.workspaceId })
   return id
 }
 
@@ -143,7 +142,7 @@ export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: strin
   return withProjectLockTimeout(tx, PROJECT_CHANGING, async () => {
     await acquireBackfillWriteLocks(tx, [workspaceId])
     const [membership] = await tx
-      .select()
+      .select({ projectId: projectWorkspace.projectId })
       .from(projectWorkspace)
       .where(eq(projectWorkspace.workspaceId, workspaceId))
       .limit(1)
@@ -277,12 +276,21 @@ export async function splitForkProject(
     organizationId: owner.organizationId,
     ownerId: root.owner_id,
   })
-  await tx
-    .update(projectWorkspace)
-    .set({ projectId: id })
-    .where(
-      and(eq(projectWorkspace.projectId, owner.id), inArray(projectWorkspace.workspaceId, ids))
-    )
+  await withProjectLockTimeout(tx, PROJECT_CHANGING, async () => {
+    await tx
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(inArray(workspace.id, ids))
+      .orderBy(asc(workspace.id))
+      .for('no key update')
+    await tx.update(workspace).set({ projectId: id }).where(inArray(workspace.id, ids))
+    await tx
+      .update(projectWorkspace)
+      .set({ projectId: id })
+      .where(
+        and(eq(projectWorkspace.projectId, owner.id), inArray(projectWorkspace.workspaceId, ids))
+      )
+  })
   if (owner.organizationId) {
     await acquirePermissionGroupOrgLock(tx, owner.organizationId)
     await tx.execute(sql`
