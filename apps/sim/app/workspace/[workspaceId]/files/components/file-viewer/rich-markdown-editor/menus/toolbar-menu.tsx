@@ -72,6 +72,9 @@ export function ToolbarMenu({ editor, label, value, active, items }: ToolbarMenu
       <DropdownMenuContent
         align='start'
         className='w-[220px]'
+        onCloseAutoFocus={(event) => {
+          if (editor.isFocused) event.preventDefault()
+        }}
         onKeyDown={(event) => event.stopPropagation()}
       >
         {items.map(({ label: itemLabel, icon: Icon, shortcut, active, disabled, onSelect }) => (
