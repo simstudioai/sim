@@ -1,7 +1,8 @@
 COMMIT;
 --> statement-breakpoint
 BEGIN;
-SET LOCAL transaction_timeout = '5s';
+SELECT set_config(CASE WHEN current_setting('transaction_timeout', true) IS NULL
+  THEN 'idle_in_transaction_session_timeout' ELSE 'transaction_timeout' END, '5s', true);
 SET LOCAL statement_timeout = '5s';
 -- Install both directions together, without queuing behind a live writer.
 LOCK TABLE workspace IN ACCESS EXCLUSIVE MODE NOWAIT;
@@ -74,7 +75,8 @@ BEGIN
       ORDER BY w.id COLLATE "C" LIMIT 100
     ) batch;
     EXIT WHEN batch_ids IS NULL;
-    PERFORM set_config('transaction_timeout', '5s', true);
+    PERFORM set_config(CASE WHEN current_setting('transaction_timeout', true) IS NULL
+      THEN 'idle_in_transaction_session_timeout' ELSE 'transaction_timeout' END, '5s', true);
     retry := false;
     BEGIN
       PERFORM id FROM workspace WHERE id = ANY(batch_ids) ORDER BY id COLLATE "C"
@@ -108,6 +110,10 @@ BEGIN
   RAISE NOTICE 'Project column copy complete: % environments copied', copied;
 END;
 $$;
+--> statement-breakpoint
+-- Older servers need a whole-CALL bound; committed batches survive a timeout and replay.
+SELECT set_config('statement_timeout', CASE WHEN current_setting('transaction_timeout', true) IS NULL
+  THEN '5s' ELSE '15min' END, false);
 --> statement-breakpoint
 CALL pg_temp.copy_workspace_projects();
 --> statement-breakpoint
