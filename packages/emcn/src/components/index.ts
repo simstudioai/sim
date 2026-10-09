@@ -102,6 +102,7 @@ export {
   DropdownMenuTrigger,
   dropdownMenuRowClass,
 } from './dropdown-menu/dropdown-menu'
+export { MENU_STYLES } from './dropdown-menu/styles'
 export { Expandable, ExpandableContent } from './expandable/expandable'
 export { DashedDividerLine, FieldDivider } from './field-divider/field-divider'
 export { Info } from './info/info'

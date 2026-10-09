@@ -1083,6 +1083,10 @@ export function initSession(
       const scopeId = browserScopeIdForView(view)
       if (scopeId) withBrowserScope(scopeId, () => applyPendingUserFocus(view))
     },
+    restoreTabThrottling: (view) => {
+      const scopeId = browserScopeIdForView(view)
+      if (scopeId) withBrowserScope(scopeId, applyAutomationTabPolicy)
+    },
     onViewDetached: (view) => {
       if (!view) return
       const scopeId = browserScopeIdForView(view)
@@ -2806,15 +2810,6 @@ export function setAutomationNeedsAttention(needsAttention: boolean): void {
   if (currentScope.automationNeedsAttention === needsAttention) return
   currentScope.automationNeedsAttention = needsAttention
   events?.onTabsChanged()
-}
-
-/**
- * Re-applies the tab throttling policy after a caller temporarily suspended it
- * (the panel's reveal pulse). Exempts the automation-active tab exactly as the
- * internal policy does.
- */
-export function reassertTabThrottling(): void {
-  applyAutomationTabPolicy()
 }
 
 /**

@@ -1,6 +1,6 @@
-import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import type { ShopifyCustomerResponse, ShopifyGetCustomerParams } from '@/tools/shopify/types'
 import { CUSTOMER_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
+import { getShopifyHeaders, getShopifyUrl } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const shopifyGetCustomerTool: ToolConfig<ShopifyGetCustomerParams, ShopifyCustomerResponse> =
@@ -13,12 +13,19 @@ export const shopifyGetCustomerTool: ToolConfig<ShopifyGetCustomerParams, Shopif
     oauth: {
       required: true,
       provider: 'shopify',
+      authoritativeParams: ['domain', 'idToken'],
     },
 
     params: {
-      shopDomain: {
+      accessToken: {
         type: 'string',
         required: true,
+        visibility: 'hidden',
+        description: 'Shopify Admin API token supplied by the connected credential',
+      },
+      shopDomain: {
+        type: 'string',
+        required: false,
         visibility: 'user-only',
         description: 'Your Shopify store domain (e.g., mystore.myshopify.com)',
       },
@@ -31,20 +38,11 @@ export const shopifyGetCustomerTool: ToolConfig<ShopifyGetCustomerParams, Shopif
     },
 
     request: {
-      url: (params) =>
-        `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+      url: getShopifyUrl,
       method: 'POST',
-      headers: (params) => {
-        if (!params.accessToken) {
-          throw new Error('Missing access token for Shopify API request')
-        }
-        return {
-          'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': params.accessToken,
-        }
-      },
+      headers: getShopifyHeaders,
       body: (params) => {
-        if (!params.customerId) {
+        if (!params.customerId?.trim()) {
           throw new Error('Customer ID is required')
         }
 
@@ -61,11 +59,24 @@ export const shopifyGetCustomerTool: ToolConfig<ShopifyGetCustomerParams, Shopif
               updatedAt
               note
               tags
+              numberOfOrders
+              locale
+              taxExempt
+              emailMarketingConsent {
+                marketingState
+                marketingOptInLevel
+                consentUpdatedAt
+              }
+              smsMarketingConsent {
+                marketingState
+                marketingOptInLevel
+                consentUpdatedAt
+              }
               amountSpent {
                 amount
                 currencyCode
               }
-              addresses {
+              addresses(first: 250) {
                 firstName
                 lastName
                 address1
@@ -85,14 +96,18 @@ export const shopifyGetCustomerTool: ToolConfig<ShopifyGetCustomerParams, Shopif
                 address2
                 city
                 province
+                provinceCode
                 country
+                countryCode
                 zip
+                phone
               }
             }
           }
+
         `,
           variables: {
-            id: params.customerId,
+            id: params.customerId.trim(),
           },
         }
       },
@@ -101,10 +116,10 @@ export const shopifyGetCustomerTool: ToolConfig<ShopifyGetCustomerParams, Shopif
     transformResponse: async (response) => {
       const data = await response.json()
 
-      if (data.errors) {
+      if (!response.ok || data.errors?.length) {
         return {
           success: false,
-          error: data.errors[0]?.message || 'Failed to get customer',
+          error: data.errors?.[0]?.message || 'Failed to get customer',
           output: {},
         }
       }

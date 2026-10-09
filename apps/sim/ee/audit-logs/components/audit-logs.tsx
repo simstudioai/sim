@@ -581,7 +581,7 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
         entries={allEntries.map(toActivityEntry)}
         emptyState={
           isLoading || isWorkspaceScopePending ? undefined : isWorkspaceScopeUnavailable ? (
-            <SettingsEmptyState tone='error'>
+            <SettingsEmptyState>
               Couldn't check that workspace. Refresh to try again.
             </SettingsEmptyState>
           ) : isWorkspaceScopeUnresolved ? (

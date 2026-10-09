@@ -35,6 +35,7 @@ import {
 } from '@/main/desktop-executor/executor'
 import { createExecutorJournal } from '@/main/desktop-executor/journal'
 import {
+  type ClaimedDesktopCall,
   DESKTOP_EXECUTOR_PROTOCOL_VERSION,
   type DesktopExecutorTiming,
   type DesktopImportEntryRequest,
@@ -79,6 +80,8 @@ export interface DesktopExecutorService {
    * journal, whenever it is asked; empty when the journal cannot be read.
    */
   pendingResults(): Promise<Set<string>>
+  /** Confirms that Sim still authorizes this device to execute the claimed call. */
+  revalidateCall(call: ClaimedDesktopCall): Promise<boolean>
   /** Stores one entry of a claimed import, as this device's registered session. */
   importEntry(
     request: DesktopImportEntryRequest,
@@ -486,6 +489,12 @@ export function createDesktopExecutorService(
     },
     pendingResults() {
       return pendingResultsSnapshot()
+    },
+    async revalidateCall(call) {
+      const current = client
+      if (!current || !deps.accountDataAvailable()) return false
+      await current.renewLease(call.toolCallId, call.executionToken)
+      return client === current && deps.accountDataAvailable()
     },
     importEntry(request, signal) {
       if (!client) throw new Error('The Sim desktop app is not signed in to Sim.')

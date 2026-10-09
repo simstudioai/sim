@@ -7,6 +7,7 @@ import { type ChatResponse, V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { readNdjson } from '../../http/ndjson'
 import { sanitize } from '../../output/render'
+import { callsOperations } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 
 /** The final payload, as `POST /api/v2/chat` answers it. */
@@ -98,7 +99,7 @@ function ignoreBrokenPipe(stream: NodeJS.WriteStream): () => void {
  */
 
 export function attachChat(program: Command): void {
-  program
+  const chat = program
     .command('chat')
     .description('Ask Sim and print the reply')
     .argument('<message>', 'What to ask Sim')
@@ -197,4 +198,5 @@ Examples:
         restorePipeHandling?.()
       }
     })
+  callsOperations(chat, ['chat'])
 }

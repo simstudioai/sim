@@ -455,7 +455,7 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
 
   if (!whitelabel) {
     return (
-      <SettingsEmptyState tone='error'>
+      <SettingsEmptyState>
         {getErrorMessage(settingsError, 'Failed to load whitelabeling settings')}
       </SettingsEmptyState>
     )

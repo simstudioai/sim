@@ -12,14 +12,14 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 const {
   mockUseConfigureSSO,
   mockUseDeleteSSOProvider,
-  mockUseOrganizationBilling,
+  mockUseOrganizationPlanSeats,
   mockUseSetPrimarySSOProvider,
   mockUseSSOProviders,
 } = vi.hoisted(() => ({
   mockUseConfigureSSO: vi.fn(),
   mockUseDeleteSSOProvider: vi.fn(),
   mockUseSetPrimarySSOProvider: vi.fn(),
-  mockUseOrganizationBilling: vi.fn(),
+  mockUseOrganizationPlanSeats: vi.fn(),
   mockUseSSOProviders: vi.fn(),
 }))
 
@@ -258,8 +258,8 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-resource-row
   ),
 }))
 
-vi.mock('@/hooks/queries/organization', () => ({
-  useOrganizationBilling: mockUseOrganizationBilling,
+vi.mock('@/hooks/queries/organization-plan-seats', () => ({
+  useOrganizationPlanSeats: mockUseOrganizationPlanSeats,
 }))
 
 import { SSO } from '@/ee/sso/components/sso-settings'
@@ -333,8 +333,8 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
   mockUseSession.mockReturnValue({ data: { user: { id: 'user-1' } } })
-  mockUseOrganizationBilling.mockReturnValue({
-    data: { data: { subscriptionPlan: 'enterprise' } },
+  mockUseOrganizationPlanSeats.mockReturnValue({
+    data: { data: { subscriptionPlan: 'enterprise', hasEnterprisePlan: true } },
     error: null,
     isFetching: false,
     isLoading: false,
@@ -374,6 +374,18 @@ afterEach(() => {
  * their secret or saves the literal string "[REDACTED]" as one.
  */
 describe('SSO client secret preservation', () => {
+  it('withholds provider editing when an Enterprise subscription is not usable', () => {
+    mockUseOrganizationPlanSeats.mockReturnValue({
+      data: { data: { subscriptionPlan: 'enterprise', hasEnterprisePlan: false } },
+      isLoading: false,
+      error: null,
+    })
+    renderSso('org-a')
+    startEditing()
+    expect(container.querySelector('#sso-client-secret')).toBeNull()
+    expect(findButton('Update')).toBeUndefined()
+  })
+
   function secretInput() {
     return container.querySelector<HTMLInputElement>('#sso-client-secret')
   }
