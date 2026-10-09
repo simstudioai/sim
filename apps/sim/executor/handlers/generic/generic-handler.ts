@@ -15,6 +15,18 @@ import { getTool } from '@/tools/utils'
 
 const logger = createLogger('GenericBlockHandler')
 
+const JSON_SCALAR_TEXT = /^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)$/
+
+/**
+ * Whether a trimmed string can be JSON text at all. A json-typed input also accepts plain
+ * strings (a file id, a URL, a reference) that are kept as-is; skipping them avoids a parse
+ * that can only fail. Every valid JSON text passes, so parse results are unchanged.
+ */
+function mayBeJsonText(text: string): boolean {
+  const first = text[0]
+  return first === '{' || first === '[' || first === '"' || JSON_SCALAR_TEXT.test(text)
+}
+
 interface BlockBoundaryPaths {
   paths: ResolvedSecretInputPath[]
   requiredProjectionRoots: Set<string>
@@ -197,7 +209,7 @@ export class GenericBlockHandler implements BlockHandler {
           const value = finalInputs[key]
           if (typeof value === 'string' && value.trim().length > 0) {
             const inputType = typeof inputSchema === 'object' ? inputSchema.type : inputSchema
-            if (inputType === 'json' || inputType === 'array') {
+            if ((inputType === 'json' || inputType === 'array') && mayBeJsonText(value.trim())) {
               try {
                 finalInputs[key] = JSON.parse(value.trim())
               } catch (error) {
