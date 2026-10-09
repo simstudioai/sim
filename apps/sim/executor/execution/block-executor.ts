@@ -3,6 +3,7 @@ import { describeError, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { logFailureOnce, markFailureKind, markFailureLogged } from '@/lib/core/errors/failure-log'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
@@ -806,11 +807,17 @@ export class BlockExecutor {
           diagnosticRegistry ?? ctx.resolvedSecretTraceRegistry
         )
 
-    this.execLogger.error(
+    /** A user Stop or the run's own time limit aborted this block; neither is a Sim fault. */
+    if (isAbort && ctx.abortSignal?.aborted) markFailureKind(error, 'user')
+    logFailureOnce(
+      this.execLogger,
       phase === 'input_resolution' ? 'Failed to resolve block inputs' : 'Block execution failed',
+      error,
       {
         blockId: node.id,
         blockType: block.metadata?.id,
+        executionId: ctx.executionId,
+        workflowId: ctx.workflowId,
         ...errorDiagnostic,
       }
     )
@@ -861,7 +868,7 @@ export class BlockExecutor {
         ? error
         : new Error(errorMessage)
 
-    throw buildBlockExecutionError({
+    const blockError = buildBlockExecutionError({
       block,
       error: errorToThrow,
       context: ctx,
@@ -870,6 +877,9 @@ export class BlockExecutor {
         executionTime: duration,
       },
     })
+    /** A thrown primitive has no `cause` link back to the value logged above. */
+    markFailureLogged(blockError)
+    throw blockError
   }
 
   private hasErrorPortEdge(node: DAGNode): boolean {

@@ -1,3 +1,4 @@
+import { markFailureLogged, wasFailureLogged } from '@/lib/core/errors/failure-log'
 import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import {
   normalizeRecord,
@@ -117,6 +118,7 @@ export class FunctionBlockHandler implements BlockHandler {
           ? new NonRetryableExecutionError(result.error || 'Function execution is indeterminate')
           : new Error(result.error || 'Function execution failed')
       attachTrustedExecutionCost(error, result.output?.cost)
+      if (wasFailureLogged(result.output)) markFailureLogged(error)
       throw error
     }
 

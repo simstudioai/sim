@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord, omit } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { logFailureOnce, markFailureKind, markFailureLogged } from '@/lib/core/errors/failure-log'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import {
   projectModelSchemaAnnotations,
@@ -310,6 +311,30 @@ function isTransportTimeout(error: unknown): boolean {
 /**
  * Handler for Agent blocks that process LLM requests with optional tools.
  */
+/**
+ * The user-facing message for a provider request that never got an answer, or null when the
+ * provider did answer. The original message is appended for timeouts rather than replaced:
+ * providers annotate it with the request phase they died in, which is the only thing
+ * separating a request that was never answered from one whose body stalled.
+ */
+function describeProviderTransportFailure(error: Error): string | null {
+  if (isTransportTimeout(error)) {
+    return `Provider request timed out - the API took too long to respond (${error.message})`
+  }
+  if (error.name === 'TypeError' && error.message.includes('fetch')) {
+    return 'Network error - unable to connect to provider API. Please check your internet connection.'
+  }
+  if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
+    return 'Unable to connect to server - DNS or connection issue'
+  }
+  return null
+}
+
+function isAmbiguousProviderKeyRejection(error: unknown): boolean {
+  const status = (error as { status?: unknown } | null)?.status
+  return status === 401 || status === 402 || status === 403
+}
+
 export class AgentBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === BlockType.AGENT
@@ -3059,9 +3084,18 @@ export class AgentBlockHandler implements BlockHandler {
     block: SerializedBlock
   ) {
     const executionTime = Date.now() - startTime
+    const transportFailure = error instanceof Error ? describeProviderTransportFailure(error) : null
+    if (transportFailure) {
+      markFailureKind(error, 'third_party_server')
+    } else if (isAmbiguousProviderKeyRejection(error)) {
+      /** The handler cannot tell a hosted provider key (ours) from the author's own. */
+      markFailureKind(error, 'internal')
+    }
 
-    logger.error(
+    logFailureOnce(
+      logger,
       'Error executing provider request',
+      error,
       projectAgentDiagnosticMetadata(
         ctx,
         {
@@ -3081,25 +3115,10 @@ export class AgentBlockHandler implements BlockHandler {
       )
     )
 
-    if (!(error instanceof Error)) return
-
-    /**
-     * The original message is appended rather than replaced: providers annotate it with
-     * the request phase they died in, which is the only thing separating a request that
-     * was never answered from one whose body stalled.
-     */
-    if (isTransportTimeout(error)) {
-      throw new Error(
-        `Provider request timed out - the API took too long to respond (${error.message})`
-      )
-    }
-    if (error.name === 'TypeError' && error.message.includes('fetch')) {
-      throw new Error(
-        'Network error - unable to connect to provider API. Please check your internet connection.'
-      )
-    }
-    if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
-      throw new Error('Unable to connect to server - DNS or connection issue')
+    if (transportFailure) {
+      const replacement = new Error(transportFailure)
+      markFailureLogged(replacement)
+      throw replacement
     }
   }
 

@@ -18,6 +18,14 @@ import {
 import { isHosted } from '@/lib/core/config/env-flags'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import {
+  classifyFailure,
+  logFailureOnce,
+  markDeliberateFailure,
+  markFailureKind,
+  markFailureLogged,
+} from '@/lib/core/errors/failure-log'
+import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
+import {
   createTimeoutAbortController,
   DEFAULT_EXECUTION_TIMEOUT_MS,
   getMaxExecutionTimeout,
@@ -1196,6 +1204,11 @@ async function readToolResponseBody(
   }
 }
 
+/** A provider refusing Sim's own hosted key is Sim's fault, not the workflow author's. */
+function isOwnHostedKeyRejection(status: unknown): boolean {
+  return status === 401 || status === 402 || status === 403
+}
+
 /**
  * Create an Error instance from errorInfo and attach useful context
  * Uses the error extractor registry to find the best error message
@@ -1838,10 +1851,14 @@ async function executeToolImplementation(
       }
     }
 
-    validateRequiredParametersAfterMerge(toolId, tool, contextParams)
-
     if (!tool) {
       throw new Error(`Tool not found: ${toolId}`)
+    }
+
+    try {
+      validateRequiredParametersAfterMerge(toolId, tool, contextParams)
+    } catch (validationError) {
+      throw markFailureKind(validationError, 'user')
     }
 
     await normalizeFileParams(tool, contextParams, scope, executionContext)
@@ -2323,15 +2340,25 @@ async function executeToolImplementation(
     const normalizedError = toError(error)
     const databaseQueryError = findDatabaseQueryError(error)
     const databaseErrorCause = databaseQueryError ? describeError(error) : undefined
-    logger.error(
-      `[${requestId}] Error executing tool ${toolId}:`,
-      projectToolLogMetadata(
+    const upstreamStatus = (error as { status?: unknown } | null)?.status
+    if (hostedKeyForMetrics && isOwnHostedKeyRejection(upstreamStatus)) {
+      markFailureKind(error, 'internal')
+    }
+    const toolContext = params._context as Record<string, unknown> | undefined
+    logFailureOnce(logger, `[${requestId}] Error executing tool ${toolId}:`, error, {
+      toolId,
+      workflowId: executionContext?.workflowId ?? undefined,
+      executionId: executionContext?.executionId,
+      blockId: typeof toolContext?.blockId === 'string' ? toolContext.blockId : undefined,
+      ...(typeof upstreamStatus === 'number' ? { status: upstreamStatus } : {}),
+      ...projectToolLogMetadata(
         {
           ...(databaseErrorCause
             ? { cause: databaseErrorCause }
             : {
                 error: normalizedError.message,
                 stack: error instanceof Error ? error.stack : undefined,
+                errorData: (error as { data?: unknown } | null)?.data,
               }),
         },
         resolvedSecretTraceRegistry,
@@ -2341,8 +2368,8 @@ async function executeToolImplementation(
           ...(databaseErrorCause ? { cause: databaseErrorCause } : {}),
         },
         structuralOnlyToolLogs
-      )
-    )
+      ),
+    })
 
     if (hostedKeyForMetrics) {
       hostedKeyMetrics.recordFailed({
@@ -2420,12 +2447,16 @@ async function executeToolImplementation(
     const responseData = isRecordLike(rawResponseData) ? rawResponseData : undefined
     const functionSandboxCost =
       normalizedToolId === 'function_execute' ? readFunctionSandboxCost(responseData) : undefined
+    const failureOutput = {
+      ...errorDetails,
+      ...(functionSandboxCost ? { cost: functionSandboxCost } : {}),
+    }
+    /** A handler rebuilding this result as a thrown error carries `output`, and with it both marks. */
+    markFailureLogged(failureOutput)
+    markFailureKind(failureOutput, classifyFailure(error))
     return {
       success: false,
-      output: {
-        ...errorDetails,
-        ...(functionSandboxCost ? { cost: functionSandboxCost } : {}),
-      },
+      output: failureOutput,
       error: errorMessage,
       ...(responseData?.retryable === false ? { retryable: false } : {}),
       // Sim's own status (hosted-key 429/503) survives the flattening from a
@@ -3048,22 +3079,6 @@ async function executeToolRequest(
         throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
       }
 
-      logger.error(
-        `[${requestId}] External tool error for ${toolId}:`,
-        projectToolLogMetadata(
-          {
-            status: errorInfo.status,
-            errorData: errorInfo.data,
-          },
-          resolvedSecretTraceRegistry,
-          {
-            status: errorInfo.status,
-            hasErrorData: errorInfo.data !== null,
-          },
-          structuralOnlyToolLogs
-        )
-      )
-
       throw errorToTransform
     }
 
@@ -3096,86 +3111,61 @@ async function executeToolRequest(
     const { isError, errorInfo } = isErrorResponse(response, responseData)
 
     if (isError) {
-      const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
-
-      logger.error(
-        `[${requestId}] External tool error for ${toolId}:`,
-        projectToolLogMetadata(
-          {
-            status: errorInfo?.status,
-            errorData: errorInfo?.data,
-          },
-          resolvedSecretTraceRegistry,
-          {
-            status: errorInfo?.status,
-            hasErrorData: errorInfo?.data !== null && errorInfo?.data !== undefined,
-          },
-          structuralOnlyToolLogs
-        )
-      )
-
-      throw errorToTransform
+      throw createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
     }
 
     if (tool.transformResponse) {
-      try {
-        // Forward the real body stream. Some transformResponse helpers (e.g. TikTok)
-        // read via readResponseTextWithLimit, which requires `.body` (or Content-Length)
-        // and otherwise mis-reports a false "response exceeded maximum size" error.
-        const mockResponse = {
-          ok: response.ok,
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers,
-          url: fullUrl,
-          body: response.body,
-          json: () => response.json(),
-          text: () => response.text(),
-          arrayBuffer: () => response.arrayBuffer(),
-          blob: () => response.blob(),
-        } as Response
+      // Forward the real body stream. Some transformResponse helpers (e.g. TikTok)
+      // read via readResponseTextWithLimit, which requires `.body` (or Content-Length)
+      // and otherwise mis-reports a false "response exceeded maximum size" error.
+      const mockResponse = {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+        url: fullUrl,
+        body: response.body,
+        json: () => response.json(),
+        text: () => response.text(),
+        arrayBuffer: () => response.arrayBuffer(),
+        blob: () => response.blob(),
+      } as Response
 
-        const data = await tool.transformResponse(mockResponse, params, { signal })
-        if (tool.request.responseType === 'binary' && data.success) {
-          if (!context) throw new Error('Binary file output requires trusted execution context')
-          const file = data.output?.file
-          if (
-            !isRecordLike(file) ||
-            !Buffer.isBuffer(file.data) ||
-            typeof file.name !== 'string' ||
-            typeof file.mimeType !== 'string'
-          ) {
-            throw new Error('Binary download tools must return a buffered file output')
-          }
-          return await storeInternalToolFileResult(
-            createInternalToolFileResult(
-              { buffer: file.data, name: file.name, mimeType: file.mimeType },
-              (stored) => ({ ...data, output: { ...data.output, file: stored } })
-            ),
-            context,
-            (body) => {
-              if (!isToolResponse(body)) throw new Error('Invalid binary tool response')
-              return body
-            },
-            signal
-          )
-        }
-        return data
+      /**
+       * A transform throws a plain `Error` to report what the provider rejected (Slack's
+       * `{ ok: false }` arrives as a 200). A `TypeError` from the transform itself is ours.
+       */
+      let data: ToolResponse
+      try {
+        data = await tool.transformResponse(mockResponse, params, { signal })
       } catch (transformError) {
-        const normalizedError = toError(transformError)
-        logger.error(
-          `[${requestId}] Transform response error for ${toolId}:`,
-          projectToolLogMetadata(
-            { error: normalizedError.message },
-            resolvedSecretTraceRegistry,
-            {
-              errorName: normalizedError.name,
-            },
-            structuralOnlyToolLogs
-          )
-        )
-        throw transformError
+        throw markDeliberateFailure(transformError, 'third_party_client')
       }
+      if (tool.request.responseType === 'binary' && data.success) {
+        if (!context) throw new Error('Binary file output requires trusted execution context')
+        const file = data.output?.file
+        if (
+          !isRecordLike(file) ||
+          !Buffer.isBuffer(file.data) ||
+          typeof file.name !== 'string' ||
+          typeof file.mimeType !== 'string'
+        ) {
+          throw new Error('Binary download tools must return a buffered file output')
+        }
+        return await storeInternalToolFileResult(
+          createInternalToolFileResult(
+            { buffer: file.data, name: file.name, mimeType: file.mimeType },
+            (stored) => ({ ...data, output: { ...data.output, file: stored } })
+          ),
+          context,
+          (body) => {
+            if (!isToolResponse(body)) throw new Error('Invalid binary tool response')
+            return body
+          },
+          signal
+        )
+      }
+      return data
     }
 
     return {
@@ -3194,18 +3184,7 @@ async function executeToolRequest(
       structuralOnlyToolLogs
     )
 
-    const normalizedError = toError(error)
-    logger.error(
-      `[${requestId}] External request error for ${toolId}:`,
-      projectToolLogMetadata(
-        { error: normalizedError.message },
-        resolvedSecretTraceRegistry,
-        {
-          errorName: normalizedError.name,
-        },
-        structuralOnlyToolLogs
-      )
-    )
+    if (isRetryableNetworkError(error)) markFailureKind(error, 'third_party_server')
 
     throw error
   }

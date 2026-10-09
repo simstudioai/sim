@@ -419,7 +419,11 @@ vi.mock('@/tools/utils.server', async (importOriginal) => {
 })
 
 import type { QueryClient } from '@tanstack/react-query'
+import { classifyFailure, wasFailureLogged } from '@/lib/core/errors/failure-log'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
+import { ApiBlockHandler } from '@/executor/handlers/api/api-handler'
+import { buildBlockExecutionError } from '@/executor/utils/errors'
+import type { SerializedBlock } from '@/serializer/types'
 import { executeTool, postProcessToolOutput } from '@/tools'
 import { tools } from '@/tools/registry'
 import { createToolConfig, getTool } from '@/tools/utils'
@@ -439,6 +443,15 @@ const mockResolveWorkspaceFileReference =
 const mockAssertPermissionsAllowed = permissionCheckMockFns.mockAssertPermissionsAllowed
 
 const mockToolsLogger = getMockLogger('Tools')
+
+/** Every level, so a secret-leak assertion holds wherever a failure's severity lands. */
+function allToolLogCalls() {
+  return [
+    mockToolsLogger.error.mock.calls,
+    mockToolsLogger.warn.mock.calls,
+    mockToolsLogger.info.mock.calls,
+  ]
+}
 
 /**
  * Overlay the mock tools onto the REAL registry object instead of vi.mock:
@@ -1610,8 +1623,8 @@ describe('executeTool Function', () => {
         error: untrustedDetail,
       })
       expect(JSON.stringify(result)).not.toContain(untrustedHeader)
-      expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(untrustedDetail)
-      expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(untrustedHeader)
+      expect(JSON.stringify(allToolLogCalls())).not.toContain(untrustedDetail)
+      expect(JSON.stringify(allToolLogCalls())).not.toContain(untrustedHeader)
       expect(registry.isComplete()).toBe(true)
     }
   )
@@ -1793,8 +1806,8 @@ describe('executeTool Function', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain(secret)
     expect(result.output?.cost).toEqual(cost)
-    expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
-    expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
+    expect(JSON.stringify(allToolLogCalls())).not.toContain(secret)
+    expect(JSON.stringify(allToolLogCalls())).not.toContain(runtimeAlias)
     expect(JSON.stringify(projectToolResultForCopilot(result, registry))).not.toContain(secret)
     expect(JSON.stringify(projectToolResultForCopilot(result, registry))).not.toContain(
       runtimeAlias
@@ -1831,8 +1844,8 @@ describe('executeTool Function', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain(secret)
-    expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
-    expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
+    expect(JSON.stringify(allToolLogCalls())).not.toContain(secret)
+    expect(JSON.stringify(allToolLogCalls())).not.toContain(runtimeAlias)
   })
 
   it('does not lift an invalid sandbox cost from a Function error response', async () => {
@@ -2625,6 +2638,9 @@ describe('executeTool Function', () => {
     mockToolsLogger.error.mockImplementation(() => {
       throw originalError
     })
+    mockToolsLogger.warn.mockImplementation(() => {
+      throw originalError
+    })
 
     const execution = executeTool(
       'function_execute',
@@ -2668,6 +2684,9 @@ describe('executeTool Function', () => {
     mockToolsLogger.error.mockImplementation(() => {
       throw originalError
     })
+    mockToolsLogger.warn.mockImplementation(() => {
+      throw originalError
+    })
 
     const execution = executeTool(
       'function_execute',
@@ -2705,6 +2724,9 @@ describe('executeTool Function', () => {
     )
     const originalError = new Error('Box failed')
     mockToolsLogger.error.mockImplementation(() => {
+      throw originalError
+    })
+    mockToolsLogger.warn.mockImplementation(() => {
       throw originalError
     })
 
@@ -5780,6 +5802,75 @@ describe('Centralized Error Handling', () => {
     expect(result.success).toBe(false)
     // Should fall back to HTTP status text when both parsing methods fail
     expect(result.error).toBe('Internal Server Error')
+  })
+
+  describe('failure attribution across the block boundary', () => {
+    const apiBlock: SerializedBlock = {
+      id: 'api-1',
+      position: { x: 0, y: 0 },
+      config: { tool: 'http_request', params: {} },
+      inputs: {},
+      outputs: {},
+      metadata: { id: 'api', name: 'Call' },
+      enabled: true,
+    }
+
+    /** Runs the real API block handler over the real `executeTool`, wrapped as the block executor wraps it. */
+    async function failApiBlock(response: Response): Promise<Error> {
+      mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+      mockSecureFetchWithPinnedIP.mockResolvedValue(toSecureFetchResponse(response))
+      const thrown = await new ApiBlockHandler()
+        .execute(createToolExecutionContext(), apiBlock, {
+          url: 'https://example.com/test',
+          method: 'GET',
+        })
+        .then(
+          () => undefined,
+          (error: unknown) => error
+        )
+      expect(thrown).toBeInstanceOf(Error)
+      return buildBlockExecutionError({ block: apiBlock, error: thrown as Error })
+    }
+
+    function jsonResponse(status: number, body: unknown): Response {
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+
+    it.each([
+      [404, 'third_party_client'],
+      [503, 'third_party_server'],
+    ] as const)(
+      'attributes an upstream %i to the third party, logged once by the tool layer',
+      async (status, kind) => {
+        const blockError = await failApiBlock(jsonResponse(status, { error: 'rejected' }))
+        expect(classifyFailure(blockError)).toBe(kind)
+        expect(wasFailureLogged(blockError)).toBe(true)
+      }
+    )
+
+    it.each([
+      [
+        'a provider rejection a transform reports as a plain Error',
+        new Error('channel_not_found'),
+        'third_party_client',
+      ],
+      ['a bug in the transform itself', new TypeError('data.channel is undefined'), 'internal'],
+    ] as const)('attributes %s', async (_name, transformError, kind) => {
+      const originalTransform = tools.http_request.transformResponse
+      tools.http_request.transformResponse = async () => {
+        throw transformError
+      }
+      try {
+        const blockError = await failApiBlock(jsonResponse(200, { ok: false }))
+        expect(classifyFailure(blockError)).toBe(kind)
+        expect(wasFailureLogged(blockError)).toBe(true)
+      } finally {
+        tools.http_request.transformResponse = originalTransform
+      }
+    })
   })
 })
 

@@ -6,6 +6,7 @@ import { generateId, isValidUuid } from '@sim/utils/id'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -847,7 +848,7 @@ export async function executeWorkflowService(
           })
         }
 
-        reqLogger.error(`Execution failed: ${errorMessage}`)
+        logFailureOnce(reqLogger, `Execution failed: ${errorMessage}`, error)
 
         let compactErrorOutput: NormalizedBlockOutput | undefined
         let compactErrorBlockOutputs: Record<string, unknown> | null = null

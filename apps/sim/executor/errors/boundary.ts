@@ -1,3 +1,5 @@
+import { markFailureKind } from '@/lib/core/errors/failure-log'
+
 /**
  * Machine-readable class of a custom-block failure. Every member describes a
  * fact the CONSUMER already knows or can act on — never the source workflow's
@@ -46,6 +48,7 @@ export class BoundarySafeError extends Error {
     super(options.message)
     this.name = 'BoundarySafeError'
     this.errorType = options.errorType
+    markFailureKind(this, 'user')
   }
 }
 

@@ -25,6 +25,7 @@ import {
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { env, envNumber } from '@/lib/core/config/env'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
   describeRetryableInfrastructureError,
   isRetryableInfrastructureError,
@@ -1267,10 +1268,13 @@ async function executeWebhookJobInternal(
       throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })
     }
 
-    logger.error(
+    logFailureOnce(
+      logger,
       `[${requestId}] Webhook execution failed`,
+      error,
       loggingSession.projectDiagnosticError(error, {
         workflowId: payload.workflowId,
+        executionId,
         provider: payload.provider,
       })
     )

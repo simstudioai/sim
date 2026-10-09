@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'
 import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
 import { BlockType, EDGE } from '@/executor/constants'
@@ -196,8 +197,10 @@ export class ExecutionEngine {
       this.finalizeIncompleteLogs()
 
       const errorMessage = normalizeError(error)
-      this.execLogger.error(
+      logFailureOnce(
+        this.execLogger,
         'Execution failed',
+        error,
         projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry)
       )
 
@@ -477,7 +480,11 @@ export class ExecutionEngine {
         })
       }
     } catch (error) {
-      this.execLogger.error('Node execution failed', {
+      /**
+       * Block failures were logged by the block executor. This catches a completion-handling
+       * fault, which only this frame sees when a concurrent failure already won `executionError`.
+       */
+      logFailureOnce(this.execLogger, 'Node execution failed', error, {
         nodeId,
         ...projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry),
       })

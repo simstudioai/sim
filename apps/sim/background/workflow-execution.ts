@@ -16,6 +16,7 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
   capExecutionTimeoutMs,
   createTimeoutAbortController,
@@ -306,8 +307,10 @@ export async function executeWorkflowJob(
           metadata: payload.metadata,
         }
       } catch (error: unknown) {
-        logger.error(
+        logFailureOnce(
+          logger,
           `[${requestId}] Workflow execution failed: ${workflowId}`,
+          error,
           loggingSession.projectDiagnosticError(error, { executionId })
         )
 

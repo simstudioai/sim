@@ -26,6 +26,7 @@ import {
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
   createTimeoutAbortController,
   getTimeoutErrorMessage,
@@ -1615,8 +1616,10 @@ async function handleExecutePost(
           return payloadTooLargeResponse()
         }
 
-        reqLogger.error(
+        logFailureOnce(
+          reqLogger,
           'Non-SSE execution failed',
+          error,
           loggingSession.projectDiagnosticError(error, { isTimeout: executionTimedOut })
         )
 
@@ -2420,8 +2423,10 @@ async function handleExecutePost(
             ? getTimeoutErrorMessage(timeoutController.timeoutMs)
             : getErrorMessage(error, 'Unknown error')
 
-          reqLogger.error(
+          logFailureOnce(
+            reqLogger,
             'SSE execution failed',
+            error,
             loggingSession.projectDiagnosticError(error, { isTimeout })
           )
 

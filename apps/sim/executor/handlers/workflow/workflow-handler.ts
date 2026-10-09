@@ -4,6 +4,12 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import type { Variable, WorkflowState } from '@sim/workflow-types/workflow'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import {
+  classifyFailure,
+  logFailureOnce,
+  markFailureKind,
+  markFailureLogged,
+} from '@/lib/core/errors/failure-log'
 import { getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
@@ -315,16 +321,19 @@ export class WorkflowBlockHandler implements BlockHandler {
       // for a custom block too — but `childWorkflowName` is still the source
       // workflow id at this point, so a custom block must carry its own block
       // name instead of leaking that id across the invocation boundary.
-      throw new ChildWorkflowError({
-        message: depthError,
-        childWorkflowName: isCustomBlock
-          ? block.metadata?.name || 'Custom block'
-          : childWorkflowName,
-        childWorkflowInstanceId: instanceId,
-        ...(isCustomBlock
-          ? { consumerFacing: { errorType: 'depth_limit' as const, message: depthError } }
-          : {}),
-      })
+      throw markFailureKind(
+        new ChildWorkflowError({
+          message: depthError,
+          childWorkflowName: isCustomBlock
+            ? block.metadata?.name || 'Custom block'
+            : childWorkflowName,
+          childWorkflowInstanceId: instanceId,
+          ...(isCustomBlock
+            ? { consumerFacing: { errorType: 'depth_limit' as const, message: depthError } }
+            : {}),
+        }),
+        'user'
+      )
     }
 
     let childWorkflowSnapshotId: string | undefined
@@ -1007,7 +1016,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       return mappedResult
     } catch (error: unknown) {
-      logger.error('Error executing child workflow', {
+      logFailureOnce(logger, 'Error executing child workflow', error, {
         errorName: toError(error).name,
         hasWorkflowId: workflowId.length > 0,
       })
@@ -1025,7 +1034,16 @@ export class WorkflowBlockHandler implements BlockHandler {
       // `buildBoundaryFailure` preserves an already-attached `consumerFacing`, so the
       // depth guard keeps its own classification.
       if (isCustomBlock) {
-        throw this.buildBoundaryFailure(error, block, instanceId, childExecutionId, traceChildRuns)
+        const boundaryFailure = this.buildBoundaryFailure(
+          error,
+          block,
+          instanceId,
+          childExecutionId,
+          traceChildRuns
+        )
+        /** The boundary severs `cause`, so the logged mark has to cross it explicitly. */
+        markFailureLogged(boundaryFailure)
+        throw boundaryFailure
       }
 
       // An error this same invocation already attributed (e.g. the depth guard, or
@@ -1172,14 +1190,19 @@ export class WorkflowBlockHandler implements BlockHandler {
       ChildWorkflowError.isChildWorkflowError(error) && error.consumerFacing
         ? error.consumerFacing
         : undefined
+    /** The boundary severs `cause`, so the failure's attribution has to cross it explicitly. */
+    const failureKind = classifyFailure(error)
     if (alreadyClassified) {
-      return new ChildWorkflowError({
-        message: alreadyClassified.message,
-        childWorkflowName: blockName,
-        childWorkflowInstanceId: instanceId,
-        consumerFacing: alreadyClassified,
-        ...traceHandle,
-      })
+      return markFailureKind(
+        new ChildWorkflowError({
+          message: alreadyClassified.message,
+          childWorkflowName: blockName,
+          childWorkflowInstanceId: instanceId,
+          consumerFacing: alreadyClassified,
+          ...traceHandle,
+        }),
+        failureKind
+      )
     }
 
     const safe = isBoundarySafeError(error) ? error : undefined
@@ -1193,16 +1216,19 @@ export class WorkflowBlockHandler implements BlockHandler {
         ? `Custom block execution failed (ref: ${ref})`
         : 'Custom block execution failed'
 
-    return new ChildWorkflowError({
-      message,
-      childWorkflowName: blockName,
-      childWorkflowInstanceId: instanceId,
-      consumerFacing: { errorType, ...(ref ? { ref } : {}), message },
-      // Carried even when `ref` is withheld (boundary-safe failures such as
-      // `cancelled` set no ref), so the parent's log always keeps the handle
-      // needed to join the child's own run at read time.
-      ...traceHandle,
-    })
+    return markFailureKind(
+      new ChildWorkflowError({
+        message,
+        childWorkflowName: blockName,
+        childWorkflowInstanceId: instanceId,
+        consumerFacing: { errorType, ...(ref ? { ref } : {}), message },
+        // Carried even when `ref` is withheld (boundary-safe failures such as
+        // `cancelled` set no ref), so the parent's log always keeps the handle
+        // needed to join the child's own run at read time.
+        ...traceHandle,
+      }),
+      failureKind
+    )
   }
 
   /**
@@ -1552,7 +1578,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       logger.warn(`Child workflow ${childWorkflowName} failed`)
       const rootErrorMessage = childResult.error || 'Child workflow execution failed'
       const chain = [childWorkflowName]
-      throw new ChildWorkflowError({
+      const childFailure = new ChildWorkflowError({
         message: formatWorkflowChainMessage(chain, rootErrorMessage),
         childWorkflowName,
         workflowChain: chain,
@@ -1561,6 +1587,9 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflowSnapshotId,
         childWorkflowInstanceId: instanceId,
       })
+      /** The child run logged its own failure; the warning above names it for this run. */
+      markFailureLogged(childFailure)
+      throw childFailure
     }
 
     const output: BlockOutput = {
