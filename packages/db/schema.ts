@@ -5648,8 +5648,13 @@ export interface ManagedOAuthProviderMetadata {
 
 export interface ManagedMcpToolSnapshot {
   name: string
+  title?: string
   description?: string
   inputSchema: Record<string, unknown>
+  outputSchema?: { type: 'object'; [key: string]: unknown }
+  annotations?: Record<string, unknown>
+  _meta?: Record<string, unknown>
+  icons?: Array<{ src: string; mimeType?: string; sizes?: string[]; theme?: 'light' | 'dark' }>
 }
 
 /** contract-pending(after all GitLab tokens migrate and workspace-token writers are retired): drop credential_personal_token_identity_unique; only the index is retired. */

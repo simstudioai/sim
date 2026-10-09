@@ -19,10 +19,7 @@ import {
   isOrganizationCredentialType,
   type OrganizationCredentialType,
 } from '@/lib/credential-groups/credential-types'
-import type {
-  CredentialGroupCredentialListContext,
-  ManagedCredentialGroupBinding,
-} from '@/lib/credential-groups/credentials'
+import type { CredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
 import {
   isManagedCredentialGroupBindingLive,
   loadCredentialGroupEnrollmentAccessForSubject,
@@ -108,25 +105,20 @@ export function requireCredentialGroupWorkflowActor(principal: Principal): Princ
 }
 
 /**
- * Authorizes a person using their own Credential Group credential from Chat.
- * The copilot delegation names the signed-in user and no workflow, so only the
+ * Authorizes a person using their own Credential Group credential from Chat or an App.
+ * The session or copilot delegation names the signed-in user and no workflow, so only the
  * actor statement is evaluated: the credential must be the one collected under
  * that user's own live enrollment. Nothing the model passes can widen this;
  * the acting user is the delegation's subject, not a tool argument.
  */
 async function requireCredentialGroupActorCredentialAccess(
-  principal: Extract<Principal, { kind: 'delegated' }>,
+  principal: Principal,
   context: CredentialGroupAuthorizationContext & { credentialGroupEnrollmentId: string },
-  binding: ManagedCredentialGroupBinding | null,
   resourcePolicy: ResourcePolicyBindingFor<'credential_group'>
 ): Promise<void> {
   const subject = resolvePrincipalSubject(principal)
   if (subject?.kind !== 'sim_user' || !subject.userId) {
     throw new OrchestrationError('forbidden', 'Credential Group actor access required')
-  }
-  /** Chat mints OAuth credentials only; a credential with no OAuth binding is not its to use. */
-  if (!binding) {
-    throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
   }
   if (context.organizationId) {
     const actorAccess = await loadCredentialGroupEnrollmentAccessForSubject(
@@ -174,7 +166,11 @@ export async function requireCredentialGroupCredentialAccess(
   },
   resourcePolicy: ResourcePolicyBindingFor<'credential_group'>
 ): Promise<void> {
-  if (principal.kind === 'delegated' && principal.serviceId === 'copilot') {
+  const managedMcp = context.credentialType.startsWith('mcp:')
+  const actorAccess =
+    (principal.kind === 'session' && managedMcp) ||
+    (principal.kind === 'delegated' && principal.serviceId === 'copilot')
+  if (actorAccess) {
     const subject = resolvePrincipalSubject(principal)
     if (subject?.kind !== 'sim_user' || !subject.userId) {
       throw new OrchestrationError('forbidden', 'Credential Group actor access required')
@@ -192,6 +188,9 @@ export async function requireCredentialGroupCredentialAccess(
   if (binding && !isManagedCredentialGroupBindingLive(binding)) {
     throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
   }
+  if (actorAccess && !binding && (!managedMcp || !context.organizationId)) {
+    throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
+  }
   if (context.organizationId) {
     if (!isOrganizationCredentialType(context.credentialType))
       throw new Error('Organization credential access requires a canonical credential type')
@@ -200,8 +199,8 @@ export async function requireCredentialGroupCredentialAccess(
       context.credentialType
     )
   }
-  if (principal.kind === 'delegated' && principal.serviceId === 'copilot') {
-    return requireCredentialGroupActorCredentialAccess(principal, context, binding, resourcePolicy)
+  if (actorAccess) {
+    return requireCredentialGroupActorCredentialAccess(principal, context, resourcePolicy)
   }
   if (!context.organizationId) {
     throw new OrchestrationError(

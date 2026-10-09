@@ -140,6 +140,13 @@ function LogDropdownItem({ item }: DropdownItemRenderProps) {
 }
 
 export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfig> = {
+  mcp: {
+    type: 'mcp',
+    label: 'MCP result',
+    icon: FileIcon,
+    renderTabIcon: (_resource, className) => <FileIcon className={className} />,
+    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
+  },
   sources: {
     type: 'sources',
     label: 'Sources',

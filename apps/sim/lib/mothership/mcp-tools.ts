@@ -3,6 +3,7 @@ import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-to
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
 import { discoverMcpServerToolsUseCase, getMcpServerUseCase } from '@/lib/mcp/application/use-cases'
+import { isMcpToolVisible } from '@/lib/mcp/presentation-metadata'
 import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
 import type { McpTool, McpToolSchema } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
@@ -84,7 +85,12 @@ export async function buildTaggedMcpToolSchemas(
       return tools
     })
   )
-  return dedupeMcpTools(discovered.flat().map(toMothershipMcpTool))
+  return dedupeMcpTools(
+    discovered
+      .flat()
+      .filter((tool) => isMcpToolVisible(tool, 'model'))
+      .map(toMothershipMcpTool)
+  )
 }
 
 /**
@@ -115,7 +121,8 @@ export async function buildSelectedMcpToolSchemas(
         discoveredByServer.set(serverId, discovery)
       }
       const match = (await discovery).find((tool) => tool.name === toolName)
-      if (!match) throw new Error(`MCP operation "${toolName}" is missing or not permitted`)
+      if (!match || !isMcpToolVisible(match, 'model'))
+        throw new Error(`MCP operation "${toolName}" is missing or not permitted`)
       return toMothershipMcpTool(match)
     })
   )

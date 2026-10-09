@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { predicateInputSchema, sortSpecSchema } from '@/lib/api/contracts/tables'
+import { MCP_PRESENTATION_MAX_ITEMS, mcpPresentationIdSchema } from '@/lib/mcp/presentation'
 import { ResourceAddress, SearchResource } from '@/lib/mothership/generated/resources'
 import {
   type MothershipResource,
@@ -20,8 +21,24 @@ const resourceAddressSchema = z
     executionId: z.string().optional(),
     search: SearchResource.optional(),
     sources: ResourceAddress.shape.sources,
+    mcp: z
+      .object({
+        presentationId: mcpPresentationIdSchema,
+        index: z
+          .number()
+          .int()
+          .min(0)
+          .max(MCP_PRESENTATION_MAX_ITEMS - 1),
+      })
+      .optional(),
   })
   .superRefine((resource, ctx) => {
+    if ((resource.type === 'mcp') !== (resource.mcp !== undefined))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['mcp'],
+        message: 'MCP result address is required only for MCP resources',
+      })
     if ((resource.type === 'sources') !== (resource.sources !== undefined))
       ctx.addIssue({
         code: 'custom',

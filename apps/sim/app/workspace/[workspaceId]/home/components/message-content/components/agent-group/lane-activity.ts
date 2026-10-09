@@ -1,3 +1,4 @@
+import { compactMcpPresentation } from '@/lib/mcp/presentation'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import {
   collectGroupTools,
@@ -17,6 +18,7 @@ function isStandaloneItem(item: AgentGroupItem): boolean {
   return (
     item.type !== 'tool' ||
     needsToolInput(item.data) ||
+    !!compactMcpPresentation(item.data.result?.output) ||
     item.data.toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID
   )
 }

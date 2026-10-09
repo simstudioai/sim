@@ -185,6 +185,7 @@ async function executeBoundTool(
           workflowId: context.workflowId,
           workspaceId: context.workspaceId,
           organizationId: context.organizationId,
+          chatOrganizationId: context.chatOrganizationId,
           executionId: context.executionId,
           chatId: context.chatId,
           toolCallId: context.toolCallId,

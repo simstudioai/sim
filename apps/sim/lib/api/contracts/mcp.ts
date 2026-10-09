@@ -95,7 +95,24 @@ export const mcpToolInputSchema: z.ZodType<McpToolSchema> = z
 
 export const mcpToolSchema = z.object({
   name: z.string(),
+  title: z.string().optional(),
   description: z.string().optional(),
+  annotations: z.record(z.string(), z.unknown()).optional(),
+  _meta: z.record(z.string(), z.unknown()).optional(),
+  outputSchema: z
+    .object({ type: z.literal('object') })
+    .passthrough()
+    .optional(),
+  icons: z
+    .array(
+      z.object({
+        src: z.string(),
+        mimeType: z.string().optional(),
+        sizes: z.array(z.string()).optional(),
+        theme: z.enum(['light', 'dark']).optional(),
+      })
+    )
+    .optional(),
   inputSchema: mcpToolInputSchema,
   serverId: z.string(),
   canonicalServerId: z.string().optional(),

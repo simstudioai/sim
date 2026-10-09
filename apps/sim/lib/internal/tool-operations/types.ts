@@ -17,6 +17,7 @@ export interface InternalToolOperationContext {
   workflowId: string
   workspaceId?: string
   organizationId?: string
+  chatOrganizationId?: string
   executionId?: string
   userId?: string
   executorDelegationOrigin?: ExecutorDelegationOrigin

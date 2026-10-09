@@ -3,6 +3,7 @@ import type { SearchResource } from '@/lib/mothership/generated/resources'
 export const MothershipResourceType = {
   search: 'search',
   sources: 'sources',
+  mcp: 'mcp',
   table: 'table',
   file: 'file',
   dashboard: 'dashboard',
@@ -41,6 +42,7 @@ export interface MothershipResource {
   search?: SearchResource
   /** Address of evidence already present in this conversation, never a provider query. */
   sources?: { messageId: string; requestId?: string }
+  mcp?: { presentationId: string; index: number }
 }
 
 /** A resource upsert may explicitly clear metadata that omission preserves. */
@@ -110,6 +112,7 @@ interface ResourcePolicy {
 const RESOURCE_POLICY: Record<MothershipResourceType, ResourcePolicy> = {
   search: { persisted: true },
   sources: { persisted: true },
+  mcp: { persisted: true },
   table: { persisted: true },
   file: { persisted: true },
   dashboard: { persisted: true },
@@ -260,6 +263,7 @@ const MERGED_FIELDS = {
   executionId: true,
   search: true,
   sources: true,
+  mcp: true,
 } as const satisfies Record<Exclude<keyof MothershipResource, 'type' | 'id'>, true>
 
 const MERGED_FIELD_NAMES = Object.keys(MERGED_FIELDS) as (keyof typeof MERGED_FIELDS)[]
@@ -293,6 +297,7 @@ export function mergeChatResource(
     ...(next.executionId !== undefined ? { executionId: next.executionId } : {}),
     ...(next.search !== undefined ? { search: next.search } : {}),
     ...(next.sources !== undefined ? { sources: next.sources } : {}),
+    ...(next.mcp !== undefined ? { mcp: next.mcp } : {}),
     title:
       (!prev.title.trim() || prev.title === prev.id || GENERIC_RESOURCE_TITLES.has(prev.title)) &&
       Boolean(next.title.trim()) &&

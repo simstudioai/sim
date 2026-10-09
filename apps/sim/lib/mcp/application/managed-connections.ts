@@ -189,8 +189,7 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
       })),
       tools: rows.flatMap((row) => {
         return row.tools.map((tool) => ({
-          name: tool.name,
-          description: tool.description,
+          ...tool,
           inputSchema: requireMcpToolSchema(tool.inputSchema),
           serverId: row.id,
           canonicalServerId: row.serverId,

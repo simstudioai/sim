@@ -1,6 +1,7 @@
 import { type ReactNode, useMemo } from 'react'
 import { isPlainRecord } from '@sim/utils/object'
 import { ActivityStatus, type ActivityStatusProps } from '@/components/ui/activity-status'
+import { compactMcpPresentation } from '@/lib/mcp/presentation'
 import {
   CallIntegrationTool,
   Read as ReadTool,
@@ -11,6 +12,7 @@ import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/reti
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import { useToolCallTitle } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-title'
 import { ToolPermissionCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-permission-card'
+import { McpResult } from '@/app/workspace/[workspaceId]/home/components/message-content/components/mcp-result/mcp-result'
 import {
   BrowserTakeoverQuestion,
   CredentialDisplay,
@@ -181,5 +183,13 @@ export function ToolCallItem({
       <ToolIcon className='size-full' />
     ),
   }
+  const presentation = compactMcpPresentation(result?.output)
+  if (presentation && !renderStatus)
+    return (
+      <div>
+        <ActivityStatus {...activity} />
+        <McpResult receipt={presentation.mcpPresentation} />
+      </div>
+    )
   return renderStatus ? renderStatus(activity) : <ActivityStatus {...activity} />
 }

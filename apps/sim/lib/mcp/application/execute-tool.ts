@@ -1,3 +1,4 @@
+import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
@@ -13,6 +14,8 @@ import {
   requireMcpOperationAccess,
 } from '@/lib/mcp/application/operation-access'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
+import { createMcpToolPresentation } from '@/lib/mcp/application/presentation'
+import { isMcpToolVisible, matchesMcpAppOrigin } from '@/lib/mcp/presentation-metadata'
 import { mcpService } from '@/lib/mcp/service'
 import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
 import type { McpTool, McpToolCall, McpToolResult } from '@/lib/mcp/types'
@@ -36,12 +39,22 @@ export interface ExecuteMcpToolInput {
   callChain?: string[]
   timeoutMs?: number
   signal?: AbortSignal
+  presentation?: 'snapshot' | 'app'
+  appOrigin?: { toolName: string; resourceUri: string }
   onResolvedSecretTraceProvenance?: (provenance: ResolvedSecretTraceProvenanceV1) => void
 }
 
-export type ExecuteMcpToolResult =
+export type ExecuteMcpToolResult = (
   | { success: true; output: McpToolResult }
-  | { success: false; error: string }
+  | { success: false; error: string; output?: McpToolResult }
+) & {
+  presentation?: {
+    tool: McpTool
+    result: McpToolResult
+    arguments: Record<string, unknown>
+    resources?: ReadResourceResult['contents']
+  }
+}
 
 function hasType(value: unknown): value is SchemaProperty {
   return typeof value === 'object' && value !== null && 'type' in value
@@ -102,7 +115,7 @@ export function transformToolResult(result: McpToolResult): ExecuteMcpToolResult
   if (!result.isError) return { success: true, output: result }
   const firstContent = Array.isArray(result.content) ? result.content[0] : undefined
   const errorText =
-    firstContent && typeof firstContent === 'object' && typeof firstContent.text === 'string'
+    firstContent && firstContent.type === 'text' && typeof firstContent.text === 'string'
       ? firstContent.text.trim()
       : ''
   return { success: false, error: errorText || 'Tool execution failed' }
@@ -149,7 +162,11 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       { signal: input.signal, requireComplete: true }
     )
     const tool = tools.find((candidate) => candidate.name === input.toolName)
+    if (principal.kind === 'session' && !matchesMcpAppOrigin(tools, input.appOrigin))
+      throw new OrchestrationError('forbidden', 'The originating MCP App is no longer available')
     if (!tool) throw new OrchestrationError('not_found', 'Tool not found on the specified server')
+    if (!isMcpToolVisible(tool, principal.kind === 'session' ? 'app' : 'model'))
+      throw new OrchestrationError('forbidden', 'MCP operation is unavailable to this caller')
     const args =
       allowed.argumentsMode === 'generated'
         ? coerceToolArguments(tool, { ...input.arguments })
@@ -183,6 +200,21 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
     )
     input.signal?.throwIfAborted()
     const result = transformToolResult(providerResult)
+    if (input.presentation) result.presentation = { tool, result: providerResult, arguments: args }
+    if (input.presentation === 'snapshot')
+      result.presentation = await createMcpToolPresentation(
+        { tool, result: providerResult, arguments: args },
+        (uri, signal) =>
+          mcpService.readResource({
+            serverId: context.server.id,
+            workspaceId: context.workspaceId,
+            userId,
+            uri,
+            signal,
+            onResolvedSecretTraceProvenance: input.onResolvedSecretTraceProvenance,
+          }),
+        input.signal
+      )
     if (!result.success) return result
 
     try {

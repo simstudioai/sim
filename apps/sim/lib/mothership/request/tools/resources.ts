@@ -90,6 +90,7 @@ export async function handleResourceSideEffects(
           for (let index = 0; index < deleted.length; index += 1) {
             if (isAborted()) break
             const resource = deleted[index]
+            if (resource.type === 'mcp') continue
             const projected = projectedDeleted[index]
             await onEvent?.({
               type: MothershipStreamV1EventType.resource,
@@ -126,7 +127,7 @@ export async function handleResourceSideEffects(
                 ...projectedResources[index],
                 type: resource.type,
                 id: resource.id,
-                ...((resource.workspaceId ?? workspaceId)
+                ...(resource.type !== 'mcp' && (resource.workspaceId ?? workspaceId)
                   ? { workspaceId: resource.workspaceId ?? workspaceId }
                   : {}),
               }))
@@ -146,7 +147,9 @@ export async function handleResourceSideEffects(
             resources: resources.map((r) => ({ type: r.type, id: r.id, title: r.title })),
           })
           const upserts = resources.filter(
-            (resource) => !('clearViewId' in resource && resource.clearViewId === true)
+            (resource) =>
+              resource.type !== 'mcp' &&
+              !('clearViewId' in resource && resource.clearViewId === true)
           )
           persistChatResources(chatId, upserts).catch((err) => {
             logger.warn('Failed to persist chat resources', {
@@ -157,6 +160,7 @@ export async function handleResourceSideEffects(
 
           for (const resource of resources) {
             if (isAborted()) break
+            if (resource.type === 'mcp') continue
             if ('clearViewId' in resource && resource.clearViewId === true) {
               const viewId = toRecord(params?.args).viewId
               if (resource.type !== 'table' || typeof viewId !== 'string' || !viewId.trim()) {
@@ -186,7 +190,7 @@ export async function handleResourceSideEffects(
               type: MothershipStreamV1EventType.resource,
               payload: {
                 op: MothershipStreamV1ResourceOp.upsert,
-                resource,
+                resource: { ...resource, type: resource.type },
                 ...(toolName === 'search_workspace' && resource.type === 'search'
                   ? {
                       searchResult: searchResultFromToolResult(projectedResult.output, actorUserId),

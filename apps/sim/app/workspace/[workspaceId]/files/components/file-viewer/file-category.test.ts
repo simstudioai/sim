@@ -7,7 +7,7 @@ vi.mock('@/lib/uploads/utils/validation', () => ({
 
 vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-import { resolveFileCategory } from './file-category'
+import { resolveFileCategory } from '@/lib/uploads/utils/file-category'
 
 describe('resolveFileCategory — MIME priority', () => {
   it('text/plain MIME + .pdf extension → text-editable (MIME wins)', () => {

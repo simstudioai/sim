@@ -36,6 +36,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
 import { resolveFileResourceSelectionId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { deploymentKeys } from '@/hooks/queries/deployments'
+import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
@@ -59,11 +60,21 @@ function agentIdForSpan(ctx: StreamLoopContext, spanId: string): string | undefi
  */
 function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode, replay: boolean): void {
   const { deps } = ctx
-  if (!deps.workspaceId) return
   const name = node.name
   const output = node.result?.output
   const isSuccess = node.status === 'success'
   const params = node.args
+  const extractedResources =
+    isSuccess && isResourceToolName(name)
+      ? extractResourcesFromToolResult(name, params, output)
+      : []
+  const mcpResources = extractedResources.filter((resource) => resource.type === 'mcp')
+  if (mcpResources.length) {
+    const chatId = deps.chatIdRef.current
+    if (chatId)
+      void deps.queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+  }
+  if (!deps.workspaceId) return
   const calledBy = agentIdForSpan(ctx, node.spanId)
 
   if (DEPLOY_TOOL_NAMES.has(name) && isSuccess) {
@@ -90,10 +101,6 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode, replay
     void invalidateWorkflowLists(deps.queryClient, deps.workspaceId, ['active', 'archived'])
   }
 
-  const extractedResources =
-    isSuccess && isResourceToolName(name)
-      ? extractResourcesFromToolResult(name, params, output)
-      : []
   for (const resource of extractedResources) {
     invalidateResourceQueries(deps.queryClient, deps.workspaceId, resource.type, resource.id)
   }

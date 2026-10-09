@@ -3,6 +3,7 @@
 import { useRef } from 'react'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
+import { useFileContentSource } from '@/hooks/use-file-content-source'
 
 export type DocPreviewState = 'empty' | 'loading' | 'ready' | 'stale'
 
@@ -127,8 +128,10 @@ export function stepDocPreviewBinary({
  * binary resolves for the new file, so one viewer never renders another file's content.
  */
 export function useDocPreviewBinary(workspaceId: string, file: DocPreviewFile): DocPreviewBinary {
+  const source = useFileContentSource()
+  const hasCommittedContent = source.hasCommittedContent ?? (file.size ?? 0) > 0
   const query = useWorkspaceFileBinary(workspaceId, file.id, file.key, {
-    enabled: (file.size ?? 0) > 0,
+    enabled: hasCommittedContent,
     version: Number(new Date(file.updatedAt)) || file.size,
   })
 
@@ -145,7 +148,7 @@ export function useDocPreviewBinary(workspaceId: string, file: DocPreviewFile): 
     data: query.data,
     isPlaceholderData: query.isPlaceholderData,
     error: (query.error as Error | null) ?? null,
-    hasCommittedContent: (file.size ?? 0) > 0,
+    hasCommittedContent,
     prevHasResolvedForFile: hasResolvedForFileRef.current,
     prevLastGood: lastGoodRef.current,
   })

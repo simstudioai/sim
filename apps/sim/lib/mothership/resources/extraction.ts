@@ -1,4 +1,5 @@
 import { toRecord } from '@sim/utils/object'
+import { compactMcpPresentation } from '@/lib/mcp/presentation'
 import {
   ApplyFileEdit,
   CreateEmptyFile,
@@ -41,7 +42,11 @@ const RESOURCE_TOOL_NAMES: Set<string> = new Set([
 ])
 
 export function isResourceToolName(toolName: string): boolean {
-  return RESOURCE_TOOL_NAMES.has(toolName)
+  return (
+    RESOURCE_TOOL_NAMES.has(toolName) ||
+    toolName === 'mcp_run_operation' ||
+    toolName.startsWith('mcp-')
+  )
 }
 
 function getOperation(params: Record<string, unknown> | undefined): string | undefined {
@@ -71,6 +76,14 @@ export function extractResourcesFromToolResult(
   output: unknown
 ): ChatResource[] {
   if (!isResourceToolName(toolName)) return []
+  const presentation = compactMcpPresentation(output)?.mcpPresentation
+  if (presentation)
+    return presentation.items.map((item) => ({
+      type: 'mcp',
+      id: item.identity,
+      title: item.title,
+      mcp: { presentationId: presentation.id, index: item.index },
+    }))
 
   const result = toRecord(output)
   const data = toRecord(result.data)

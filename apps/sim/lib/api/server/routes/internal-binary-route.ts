@@ -1,6 +1,5 @@
-import { describePrincipalAuth, type Principal, type SessionPrincipal } from '@sim/auth/principal'
+import { describePrincipalAuth, type SessionPrincipal } from '@sim/auth/principal'
 import { setRequestAuth } from '@sim/logger'
-import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import {
   methodMatchesContract,
@@ -8,6 +7,7 @@ import {
 } from '@/lib/api/server/routes/definition'
 import {
   type InternalErrorPolicy,
+  type InternalRateLimitPolicy,
   InternalUnauthenticatedError,
   internalErrorResponse,
   type internalSessionAuth,
@@ -24,12 +24,6 @@ import type { ParsedRequest } from '@/lib/api/server/validation'
 import { parseRequest } from '@/lib/api/server/validation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-
-interface InternalBinaryRateLimitPolicy {
-  readonly kind: 'none'
-  readonly reason: string
-  enforce(request: NextRequest, principal: Principal): Promise<void>
-}
 
 interface InternalBinaryRouteDefinition<
   C extends BinaryApiRouteContract,
@@ -51,7 +45,7 @@ interface InternalBinaryRouteOptions<
   R,
 > extends InternalBinaryRouteDefinition<C, O, I, R> {
   auth: typeof internalSessionAuth
-  rateLimit: InternalBinaryRateLimitPolicy
+  rateLimit: InternalRateLimitPolicy
   errorPolicy: InternalErrorPolicy
   onSuccess?(args: { principal: SessionPrincipal; input: I; result: R }): void | Promise<void>
 }
@@ -93,7 +87,8 @@ export function defineInternalBinaryRoute<
       }
       setRequestAuth(describePrincipalAuth(principal))
 
-      await options.rateLimit.enforce(request, principal)
+      const rateLimitResponse = await options.rateLimit.enforce(request, principal)
+      if (rateLimitResponse) return responseWithRequestId(rateLimitResponse)
       const parsed = await parseRequest(options.contract, request, context ?? {})
       if (!parsed.success) return responseWithRequestId(parsed.response)
 

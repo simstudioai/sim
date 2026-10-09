@@ -70,22 +70,22 @@ export function ChatResourcePanel({
     [onSummarize, chat.sendMessage]
   )
   return (
-    <ChatPanelLayout
-      collapsed={isResourceCollapsed}
-      label='resource view'
-      activityCount={resourceActivityIds.size}
-      onToggle={isResourceCollapsed ? expandResource : collapseResource}
-      onResize={handleResourceResizePointerDown}
-      onResizeKeyDown={handleResourceResizeKeyDown}
-      onResizeFocus={handleResourceResizeFocus}
-      panel={
-        <MothershipResourcesProvider
-          selectResource={selectResourceFromUser}
-          addResource={addResourceFromUser}
-          removeResource={removeResource}
-          reorderResources={reorderResources}
-          collapseResource={collapseResource}
-        >
+    <MothershipResourcesProvider
+      selectResource={selectResourceFromUser}
+      addResource={addResourceFromUser}
+      removeResource={removeResource}
+      reorderResources={reorderResources}
+      collapseResource={collapseResource}
+    >
+      <ChatPanelLayout
+        collapsed={isResourceCollapsed}
+        label='resource view'
+        activityCount={resourceActivityIds.size}
+        onToggle={isResourceCollapsed ? expandResource : collapseResource}
+        onResize={handleResourceResizePointerDown}
+        onResizeKeyDown={handleResourceResizeKeyDown}
+        onResizeFocus={handleResourceResizeFocus}
+        panel={
           <Suspense fallback={null}>
             <MothershipView
               ref={mothershipRef}
@@ -106,10 +106,10 @@ export function ChatResourcePanel({
               className={skipResourceTransition ? 'transition-none!' : undefined}
             />
           </Suspense>
-        </MothershipResourcesProvider>
-      }
-    >
-      {children}
-    </ChatPanelLayout>
+        }
+      >
+        {children}
+      </ChatPanelLayout>
+    </MothershipResourcesProvider>
   )
 }

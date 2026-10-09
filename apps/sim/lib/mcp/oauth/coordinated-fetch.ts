@@ -3,6 +3,7 @@ import {
   type OAuthClientProvider,
   UnauthorizedError,
 } from '@modelcontextprotocol/sdk/client/auth.js'
+import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { mcpAuthGuarded } from '@/lib/mcp/oauth/auth'
 import { withMcpOauthRefreshLock } from '@/lib/mcp/oauth/storage'
@@ -44,7 +45,11 @@ export function createMcpEndpointFetch(
  */
 export function createCoordinatedMcpOauthFetch(
   { credentialId, loadProvider, initialProvider }: McpOauthSession,
-  options: { serverUrl: string; fetch: FetchLike }
+  options: {
+    serverUrl: string
+    fetch: FetchLike
+    onTokens?: (tokens: OAuthTokens) => Promise<void>
+  }
 ): FetchLike {
   const serverUrl = new URL(options.serverUrl)
   let currentProvider = initialProvider
@@ -61,6 +66,7 @@ export function createCoordinatedMcpOauthFetch(
     for (let attempt = 0; ; attempt++) {
       init?.signal?.throwIfAborted()
       const tokens = await provider.tokens()
+      if (tokens) await options.onTokens?.(tokens)
       const headers = new Headers(init?.headers)
       if (tokens && !headers.has('authorization')) {
         headers.set('authorization', `Bearer ${tokens.access_token}`)

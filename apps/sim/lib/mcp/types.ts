@@ -1,4 +1,4 @@
-import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -89,7 +89,11 @@ export interface McpToolSchema {
 }
 
 /** SDK `Tool` plus the server context Sim tracks. */
-export interface McpTool extends Pick<Tool, 'name' | 'description'> {
+export interface McpTool
+  extends Pick<
+    Tool,
+    'name' | 'title' | 'description' | 'annotations' | '_meta' | 'icons' | 'outputSchema'
+  > {
   inputSchema: McpToolSchema
   canonicalServerId?: string
   serverId: string
@@ -102,16 +106,7 @@ export interface McpToolCall {
   arguments: Record<string, unknown>
 }
 
-export interface McpToolResult {
-  content?: Array<{
-    type: 'text' | 'image' | 'resource'
-    text?: string
-    data?: string
-    mimeType?: string
-  }>
-  isError?: boolean
-  [key: string]: unknown
-}
+export type McpToolResult = CallToolResult
 
 export interface McpConnectionStatus {
   connected: boolean

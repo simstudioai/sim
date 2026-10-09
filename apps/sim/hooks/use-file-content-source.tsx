@@ -57,6 +57,8 @@ export interface ImageDimensionsSource {
  */
 export interface FileContentSource {
   buildUrl: (key: string, opts?: FileContentUrlOptions) => string
+  /** Immutable external results are ready even when the source does not report a byte size. */
+  hasCommittedContent?: boolean
   /**
    * Map an embedded image `src` to a display URL scoped to the current context: the in-app source
    * points at the workspace-scoped inline route, the public source at the token-scoped cascade route.

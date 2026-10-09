@@ -8,6 +8,8 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { planForkMcpPresentations } from '@/lib/mcp/presentation-lifecycle'
+import { mcpPresentationKey } from '@/lib/mcp/presentation-storage'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import {
@@ -129,7 +131,12 @@ export const forkChat = defineAuthorizedChatUseCase({
       const now = new Date()
 
       const plan = planChatFileCopies({ rows: sourceFiles, newChatId: newId, userId, now })
-      preparedBlobs = [...plan.blobTasks, ...planForkInlineImages(forkedMessages, chatId, newId)]
+      const mcpCopies = planForkMcpPresentations(forkedMessages, chatId, newId)
+      preparedBlobs = [
+        ...plan.blobTasks,
+        ...planForkInlineImages(forkedMessages, chatId, newId),
+        ...mcpCopies,
+      ]
       const { failed, failedCopyIds } = await executeChatFileBlobCopies(preparedBlobs)
       const failedIds = new Set(failedCopyIds)
       const maps = {
@@ -137,7 +144,19 @@ export const forkChat = defineAuthorizedChatUseCase({
         workspaceId: context.workspaceId,
       }
       /** A chat-owned file whose copy failed is a ghost here too: no published copy stands in for it. */
-      const newChatResources = rewriteResourceFileRefs(parentResources, maps, chatOwnedFileIds)
+      const copiedMcpKeys = new Set(
+        mcpCopies.filter((task) => !failedIds.has(task.copyId)).map((task) => task.sourceKey)
+      )
+      const newChatResources = rewriteResourceFileRefs(
+        parentResources,
+        maps,
+        chatOwnedFileIds
+      ).filter(
+        (resource) =>
+          resource.type !== 'mcp' ||
+          (resource.mcp &&
+            copiedMcpKeys.has(mcpPresentationKey(chatId, resource.mcp.presentationId)))
+      )
       const cutUser = [...forkedMessages].reverse().find((message) => message.role === 'user')
       if (!cutUser) throw new Error('The fork has no user message')
       workerCopyRequested = true
