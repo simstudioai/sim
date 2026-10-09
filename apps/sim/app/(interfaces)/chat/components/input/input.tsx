@@ -2,7 +2,15 @@
 
 import type React from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Badge, Button, cn, Tooltip } from '@sim/emcn'
+import {
+  Badge,
+  Button,
+  cn,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  Tooltip,
+  useScrollEdges,
+} from '@sim/emcn'
 import { ArrowUp, Paperclip, StopFilled, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -30,11 +38,13 @@ export const ChatInput: React.FC<{
 }> = ({ onSubmit, isStreaming = false, onStopStreaming }) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const attachmentsRef = useRef<HTMLDivElement>(null)
   const [inputValue, setInputValue] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [uploadErrors, setUploadErrors] = useState<string[]>([])
   const [dragCounter, setDragCounter] = useState(0)
   const isDragOver = dragCounter > 0
+  const attachmentEdges = useScrollEdges(attachmentsRef, { enabled: attachedFiles.length > 0 })
 
   useLayoutEffect(() => {
     const el = textareaRef.current
@@ -172,45 +182,54 @@ export const ChatInput: React.FC<{
           }}
         >
           {attachedFiles.length > 0 && (
-            <div className='mb-1.5 flex flex-wrap gap-1.5 max-md:max-h-24 max-md:overflow-y-auto max-md:overscroll-contain'>
-              {attachedFiles.map((file) => (
-                <Tooltip.Root key={file.id}>
-                  <Tooltip.Trigger asChild>
-                    <div className='group relative size-[56px] shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-3)]'>
-                      {file.dataUrl ? (
-                        <img
-                          src={file.dataUrl}
-                          alt={file.name}
-                          className='size-full object-cover'
-                        />
-                      ) : (
-                        <div className='flex size-full flex-col items-center justify-center gap-0.5 text-[var(--text-muted)]'>
-                          <Paperclip className='size-[18px]' />
-                          <span className='max-w-[48px] truncate px-[2px] text-[9px]'>
-                            {file.name.split('.').pop()}
+            <div
+              ref={attachmentsRef}
+              className={cn(
+                'mb-1.5 max-md:max-h-24 max-md:overflow-y-auto max-md:overscroll-contain',
+                scrollFadeClass
+              )}
+              {...scrollFadeAttributes(attachmentEdges)}
+            >
+              <div className='flex flex-wrap gap-1.5'>
+                {attachedFiles.map((file) => (
+                  <Tooltip.Root key={file.id}>
+                    <Tooltip.Trigger asChild>
+                      <div className='group relative size-[56px] shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-3)]'>
+                        {file.dataUrl ? (
+                          <img
+                            src={file.dataUrl}
+                            alt={file.name}
+                            className='size-full object-cover'
+                          />
+                        ) : (
+                          <div className='flex size-full flex-col items-center justify-center gap-0.5 text-[var(--text-muted)]'>
+                            <Paperclip className='size-[18px]' />
+                            <span className='max-w-[48px] truncate px-[2px] text-[9px]'>
+                              {file.name.split('.').pop()}
+                            </span>
+                          </div>
+                        )}
+                        <Button
+                          variant='ghost'
+                          aria-label={`Remove ${file.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemoveFile(file.id)
+                          }}
+                          className='absolute top-[2px] right-[2px] size-11 items-start justify-end p-0 focus-visible:opacity-100 md:pointer-fine:size-[16px] md:pointer-fine:opacity-0 md:pointer-fine:group-hover:opacity-100'
+                        >
+                          <span className='flex size-7 items-center justify-center rounded-full bg-black/60 text-white md:pointer-fine:size-4'>
+                            <X className='size-[10px]' />
                           </span>
-                        </div>
-                      )}
-                      <Button
-                        variant='ghost'
-                        aria-label={`Remove ${file.name}`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleRemoveFile(file.id)
-                        }}
-                        className='absolute top-[2px] right-[2px] size-11 items-start justify-end p-0 focus-visible:opacity-100 md:pointer-fine:size-[16px] md:pointer-fine:opacity-0 md:pointer-fine:group-hover:opacity-100'
-                      >
-                        <span className='flex size-7 items-center justify-center rounded-full bg-black/60 text-white md:pointer-fine:size-4'>
-                          <X className='size-[10px]' />
-                        </span>
-                      </Button>
-                    </div>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>
-                    <p className='max-w-[200px] truncate'>{file.name}</p>
-                  </Tooltip.Content>
-                </Tooltip.Root>
-              ))}
+                        </Button>
+                      </div>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>
+                      <p className='max-w-[200px] truncate'>{file.name}</p>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                ))}
+              </div>
             </div>
           )}
 

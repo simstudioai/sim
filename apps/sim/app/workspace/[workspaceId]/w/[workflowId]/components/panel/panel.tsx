@@ -522,6 +522,18 @@ export const Panel = memo(function Panel() {
     [copilotSendMessage]
   )
 
+  const openPanel = useCallback(
+    (tab: PanelTab) => {
+      if (panelRef.current && getComputedStyle(panelRef.current).position === 'absolute') {
+        setIsChatOpen(false)
+        setVariablesOpen(false)
+      }
+      setIsMobilePanelOpen(true)
+      setActiveTab(tab)
+    },
+    [setIsChatOpen, setVariablesOpen, setIsMobilePanelOpen, setActiveTab]
+  )
+
   /**
    * Mark hydration as complete on mount
    * This allows React to take over visibility control from CSS
@@ -545,14 +557,14 @@ export const Panel = memo(function Panel() {
       /** A mode-bearing send (Ask) belongs to the home chat, which has the mode; left unclaimed, it is stored for that surface. */
       if (detail.requestMode) return
       e.preventDefault()
-      setActiveTab('copilot')
+      openPanel('copilot')
       copilotSendMessage(detail.message, detail.fileAttachments, detail.contexts, {
         ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
       })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
-  }, [isCopilotTabAvailable, setActiveTab, copilotSendMessage])
+  }, [isCopilotTabAvailable, openPanel, copilotSendMessage])
 
   useEffect(() => {
     if (activeTab !== 'copilot') return
@@ -725,8 +737,7 @@ export const Panel = memo(function Panel() {
       {
         id: 'focus-toolbar-search',
         handler: () => {
-          setIsMobilePanelOpen(true)
-          setActiveTab('toolbar')
+          openPanel('toolbar')
           toolbarRef.current?.focusSearch()
         },
         overrides: {

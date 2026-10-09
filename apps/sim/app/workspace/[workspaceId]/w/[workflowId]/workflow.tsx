@@ -992,6 +992,7 @@ const WorkflowContent = React.memo(
           subBlockValues
         )
         usePanelEditorStore.getState().setCurrentBlockId(id)
+        if (type === 'note') usePanelStore.getState().setIsMobilePanelOpen(false)
       },
       [
         collaborativeBatchAddBlocks,
@@ -1533,6 +1534,7 @@ const WorkflowContent = React.memo(
         requestNoteRename(block.id)
         return
       }
+      usePanelStore.getState().setIsMobilePanelOpen(true)
       usePanelEditorStore.getState().setCurrentBlockId(block.id)
       usePanelEditorStore.getState().triggerRename()
     }, [contextMenuBlocks])
