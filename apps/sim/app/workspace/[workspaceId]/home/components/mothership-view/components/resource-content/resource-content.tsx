@@ -314,12 +314,6 @@ export const ResourceContent = memo(function ResourceContent({
         fileId={resource.id}
         downloadSourceRef={downloadSourceRef}
         previewMode={previewMode}
-        streamingContent={previewSession?.fileId === resource.id ? textStreamingContent : undefined}
-        isAgentEditing={isAgentEditing}
-        streamIsIncremental={streamIsIncremental}
-        streamOperation={previewSession?.operation}
-        disableStreamingAutoScroll={disableStreamingAutoScroll}
-        previewContextKey={previewContextKey}
       />
     )
   }

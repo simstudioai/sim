@@ -19,15 +19,14 @@ interface ProjectFileProps {
   fileId: string
   downloadSourceRef?: MutableRefObject<FileDownloadSource | null>
   previewMode?: PreviewMode
-  streamingContent?: string
-  isAgentEditing?: boolean
-  streamIsIncremental?: boolean
-  streamOperation?: string
-  disableStreamingAutoScroll?: boolean
-  previewContextKey?: string
 }
 
-export function EmbeddedProjectFile({ projectId, fileId, ...viewerProps }: ProjectFileProps) {
+export function EmbeddedProjectFile({
+  projectId,
+  fileId,
+  downloadSourceRef,
+  previewMode,
+}: ProjectFileProps) {
   useFileListRoom({ owner: { entityType: 'project', entityId: projectId } })
   const { data, isPending, error } = useProjectFile(projectId, fileId)
   if (isPending) {
@@ -51,7 +50,8 @@ export function EmbeddedProjectFile({ projectId, fileId, ...viewerProps }: Proje
   return (
     <div className='flex h-full flex-col overflow-hidden'>
       <FileViewer
-        {...viewerProps}
+        downloadSourceRef={downloadSourceRef}
+        previewMode={previewMode}
         key={data.file.id}
         file={data.file}
         owner={data.file.owner}

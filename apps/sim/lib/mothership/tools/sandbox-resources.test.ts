@@ -304,14 +304,15 @@ describe('sandbox resource ownership and publication', () => {
 })
 
 it.each([
-  [true, true, true, 1],
-  [false, true, true, undefined],
-  [true, false, true, undefined],
-  [true, true, false, undefined],
+  [true, true, true, true, 1],
+  [false, true, true, true, undefined],
+  [true, false, true, true, undefined],
+  [true, true, false, true, undefined],
+  [true, true, true, false, undefined],
 ] as const)(
-  'negotiates the callback protocol only with admission=%s flag=%s peer=%s',
-  async (admitted, enabled, supported, expected) => {
-    setEnv({ PROJECT_FILES_ENABLED: true })
+  'negotiates the callback protocol only with admission=%s projects=%s peer=%s files=%s',
+  async (admitted, enabled, supported, filesEnabled, expected) => {
+    setEnv({ PROJECT_FILES_ENABLED: filesEnabled })
     featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(enabled)
     vi.stubGlobal(
       'fetch',

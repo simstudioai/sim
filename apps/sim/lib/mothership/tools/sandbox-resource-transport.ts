@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { NextRequest } from 'next/server'
+import { v2CopyFileItemsContract } from '@/lib/api/contracts/v2/file-copy'
 import { v2DownloadFileContract, v2ReadFileTextContract } from '@/lib/api/contracts/v2/files'
 import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
@@ -19,6 +20,7 @@ import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resour
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
+import { proxySandboxFileCopyRequest } from '@/lib/mothership/tools/sandbox-file-copy'
 import { proxySandboxProjectFileRequest } from '@/lib/mothership/tools/sandbox-project-files'
 import {
   readSandboxResourceScope,
@@ -51,6 +53,8 @@ export async function proxySandboxResourceRequest(
   const scope = await readSandboxResourceScope(token, request.headers.get('x-api-key'))
   if (!scope)
     return Response.json({ error: 'Sandbox tool execution is no longer active' }, { status: 403 })
+  if (path === v2CopyFileItemsContract.path)
+    return proxySandboxFileCopyRequest(request, token, scope)
   const ownerHeader = request.headers.get('x-mothership-file-owner')
   let owner: FileOperationOwner | undefined
   if (ownerHeader !== null) {

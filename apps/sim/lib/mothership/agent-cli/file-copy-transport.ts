@@ -36,6 +36,7 @@ export function createFileCopyCliTransport(
         }
       )
       if (!parsed.success) return parsed.response
+      request.signal.throwIfAborted()
       try {
         const principal = markCopilotFileCopyRequest(request, context, bound)
         requireResourceDelegation(principal, {

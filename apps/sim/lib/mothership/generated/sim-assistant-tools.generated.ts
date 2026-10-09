@@ -369,7 +369,7 @@ export const listWorkspacesInputSchema = z.object({
 
 /** Project discovery accepts pagination only; the conversation determines the accessible scope. */
 export const listUserProjectsInputSchema = z.object({
-  cursor: z.string().uuid().optional(),
+  cursor: z.string().min(1).optional(),
   limit: z.number().int().min(1).max(100).default(50),
 })
 export type ListUserProjectsInput = z.output<typeof listUserProjectsInputSchema>

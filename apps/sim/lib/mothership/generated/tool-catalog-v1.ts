@@ -7933,12 +7933,7 @@ export const ListUserProjects: ToolCatalogEntry = {
     $schema: 'http://json-schema.org/draft-07/schema#',
     type: 'object',
     properties: {
-      cursor: {
-        type: 'string',
-        format: 'uuid',
-        pattern:
-          '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
-      },
+      cursor: { type: 'string', minLength: 1 },
       limit: { default: 50, type: 'integer', minimum: 1, maximum: 100 },
     },
   },
