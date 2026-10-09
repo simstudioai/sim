@@ -390,12 +390,6 @@ it('inventories private operation admission without executing route requests', a
       },
       {
         "audience": null,
-        "method": "POST",
-        "operation": "invitations.send_batch",
-        "path": "/api/v2/workspaces/[workspaceId]/invitations",
-      },
-      {
-        "audience": null,
         "method": "GET",
         "operation": "permission_groups.read_user_config",
         "path": "/api/v2/workspaces/[workspaceId]/permission-config",
