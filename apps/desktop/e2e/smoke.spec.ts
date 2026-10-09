@@ -1,11 +1,12 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ElectronApplication } from '@playwright/test'
 import { _electron as electron, expect, test } from '@playwright/test'
+import { getErrorMessage } from '@sim/utils/errors'
 
 const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 
@@ -87,6 +88,131 @@ test.describe('desktop shell smoke', () => {
     const window = await app.firstWindow()
     await expect(window.locator('#app')).toHaveText('fixture-app')
     expect(window.url()).toBe(`${origin}/home`)
+  })
+
+  test('Folder Access opens from the focused main window and server picker', async () => {
+    const checks: {
+      name: string
+      status: 'passed' | 'failed'
+      durationMs: number
+      shown?: boolean
+      closed?: boolean
+      parentUrl?: string | null
+      error?: string
+    }[] = []
+    const reportPath =
+      process.env.DESKTOP_FOLDER_ACCESS_MENU_REPORT_PATH ??
+      test.info().outputPath('folder-access-menu.json')
+    for (const surface of ['main window', 'server picker']) {
+      const started = Date.now()
+      const check: (typeof checks)[number] = {
+        name: `Folder Access opens in the ${surface}`,
+        status: 'failed',
+        durationMs: 0,
+      }
+      checks.push(check)
+      try {
+        if (surface === 'main window') {
+          app = await launchApp(origin)
+          const window = await app.firstWindow()
+          await expect(window.locator('#app')).toHaveText('fixture-app')
+        }
+        const expectedUrl =
+          surface === 'main window' ? `${origin}/home` : 'sim-shell://pages/server.html'
+        if (surface === 'server picker') {
+          const opened = app.waitForEvent('window')
+          await app.evaluate(({ Menu }) => {
+            const item = Menu.getApplicationMenu()
+              ?.items.flatMap((entry) => entry.submenu?.items ?? [])
+              .find((entry) => entry.label === 'Server…')
+            if (!item) throw new Error('Server menu item missing')
+            item.click()
+          })
+          const picker = await opened
+          await expect(picker).toHaveURL(expectedUrl)
+          await expect(picker.getByLabel('Server URL')).toBeFocused()
+        }
+        await app.evaluate(({ app, BrowserWindow }, url) => {
+          const focused = BrowserWindow.getAllWindows().find(
+            (candidate) => candidate.webContents.getURL() === url
+          )
+          if (!focused) throw new Error('Expected menu owner is missing')
+          app.focus({ steal: true })
+          focused.focus()
+        }, expectedUrl)
+        await expect
+          .poll(() =>
+            app.evaluate(({ BrowserWindow }) =>
+              BrowserWindow.getFocusedWindow()?.webContents.getURL()
+            )
+          )
+          .toBe(expectedUrl)
+        const observation = await app.evaluateHandle(({ BrowserWindow, Menu }) => {
+          const focused = BrowserWindow.getFocusedWindow()
+          const item = Menu.getApplicationMenu()
+            ?.items.flatMap((entry) => entry.submenu?.items ?? [])
+            .find((entry) => entry.label === 'Folder Access…')
+          if (!focused || !item) throw new Error('Folder Access menu or focused window missing')
+          const state: {
+            shown: boolean
+            parentUrl: string | null
+            closed: boolean
+            menu: Electron.Menu | null
+          } = { shown: false, parentUrl: null, closed: false, menu: null }
+          const originalPopup = Menu.prototype.popup
+          Menu.prototype.popup = function (options) {
+            state.menu = this
+            const parent = options?.window
+            if (parent instanceof BrowserWindow) state.parentUrl = parent.webContents.getURL()
+            this.once('menu-will-show', () => {
+              state.shown = true
+            })
+            this.once('menu-will-close', () => {
+              state.closed = true
+            })
+            originalPopup.call(this, options)
+          }
+          try {
+            item.click(undefined, focused, focused.webContents)
+          } finally {
+            Menu.prototype.popup = originalPopup
+          }
+          return state
+        })
+        try {
+          await expect
+            .poll(() => observation.evaluate(({ shown, parentUrl }) => ({ shown, parentUrl })), {
+              message: `Folder Access should open in the ${surface}`,
+            })
+            .toEqual({ shown: true, parentUrl: expectedUrl })
+          await observation.evaluate(({ menu }) => menu?.closePopup())
+          await expect
+            .poll(() => observation.evaluate(({ closed }) => closed), {
+              message: `Folder Access should close in the ${surface}`,
+            })
+            .toBe(true)
+        } finally {
+          Object.assign(
+            check,
+            await observation.evaluate(({ shown, parentUrl, closed }) => ({
+              shown,
+              parentUrl,
+              closed,
+            }))
+          )
+          await observation.evaluate(({ menu }) => menu?.closePopup())
+          await observation.dispose()
+        }
+        check.status = 'passed'
+      } catch (error) {
+        check.error = getErrorMessage(error)
+        throw error
+      } finally {
+        check.durationMs = Date.now() - started
+        mkdirSync(dirname(reportPath), { recursive: true })
+        writeFileSync(reportPath, JSON.stringify({ checks }, null, 2))
+      }
+    }
   })
 
   test('presents one stock Chrome user agent on every request from the first load', async () => {

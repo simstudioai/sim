@@ -216,7 +216,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
         {
           label: 'Folder Access…',
           click: (_item, focusedWindow) => {
-            const win = focusedMainOrFallback(focusedWindow)
+            const win = focusedWindowOrMain(focusedWindow)
             if (win) deps.openFolderAccess(win)
           },
         },
