@@ -1,7 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
-  createDelegatedPrincipal,
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -96,11 +95,6 @@ describe('authorized access request execution', () => {
       scopes: ['api:write'],
       expiresAt: new Date('2099-01-01'),
     },
-    createDelegatedPrincipal({
-      subjectUserId: 'requester',
-      workspaceId: 'workspace',
-      audience: 'sim:settings',
-    }),
   ])(
     'preserves the $kind actor through preparation, transactional reauthorization and audit',
     async (caller) => {
