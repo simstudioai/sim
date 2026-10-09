@@ -146,7 +146,7 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
 
     const limits = planLimits[planName] ?? planLimits.free
 
-    logger.info('Retrieved workspace table limits', {
+    logger.debug('Retrieved workspace table limits', {
       workspaceId,
       billedAccountUserId: payer.billedAccountUserId,
       planName,

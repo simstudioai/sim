@@ -625,7 +625,7 @@ async function handleCallPhase(
   // tool a second time, racing the in-band execution on mutations.
   const willDispatch =
     !isInternal && !inbandOwned && (staticSimExecuted || simExecutable || clientExecutable)
-  logger.info('Tool call routing decision', {
+  logger.debug('Tool call routing decision', {
     toolCallId,
     toolName,
     scope,

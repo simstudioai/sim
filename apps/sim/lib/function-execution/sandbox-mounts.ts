@@ -366,7 +366,7 @@ export async function resolveUserFileMounts(args: {
       recordCount: unprovenancedMountCount,
     })
   }
-  logger.info('Resolved sandbox file mounts', {
+  logger.debug('Resolved sandbox file mounts', {
     mountCount: sandboxFiles.length,
     bufferedBytes: budget.buffered,
     urlBytes: budget.url,
