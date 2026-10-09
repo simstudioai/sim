@@ -59,6 +59,14 @@ export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, Shopif
       description: 'Purchase order number',
     },
 
+    includeDetails: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Include product variants, addresses, and fulfillments; requires read_products, protected-address access, and a scope accepted by Fulfillment',
+    },
+
     shopDomain: {
       type: 'string',
       required: false,
@@ -192,6 +200,9 @@ export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, Shopif
                   lastName
                   phone
                 }
+                ${
+                  params.includeDetails === true
+                    ? `
                 lineItems(first: 10) {
                   pageInfo {
                     hasNextPage
@@ -273,7 +284,7 @@ export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, Shopif
                   zip
                   phone
                 }
-                fulfillments {
+                fulfillments(first: 50) {
                   id
                   status
                   createdAt
@@ -283,6 +294,9 @@ export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, Shopif
                     number
                     url
                   }
+                }
+                `
+                    : ''
                 }
               }
               userErrors {

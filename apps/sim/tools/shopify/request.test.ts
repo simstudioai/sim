@@ -4,6 +4,7 @@ import { shopifyAdjustInventoryTool } from '@/tools/shopify/adjust_inventory'
 import { shopifyCancelOrderTool } from '@/tools/shopify/cancel_order'
 import { shopifyCreateFulfillmentTool } from '@/tools/shopify/create_fulfillment'
 import { shopifyGetProductTool } from '@/tools/shopify/get_product'
+import { shopifyUpdateOrderTool } from '@/tools/shopify/update_order'
 import { shopifyUpdateProductVariantsTool } from '@/tools/shopify/update_product_variants'
 
 describe('Shopify credential destination', () => {
@@ -92,6 +93,26 @@ describe('Shopify fulfillment tracking', () => {
     const wire = await jsonResponse(body).json()
     expect(wire.variables.fulfillment).not.toHaveProperty('trackingInfo')
   })
+})
+
+describe('Shopify order update scope compatibility', () => {
+  it.each([undefined, false, true])(
+    'requests product, address, and fulfillment details only when explicitly enabled (%s)',
+    async (includeDetails) => {
+      const body = shopifyUpdateOrderTool.request.body?.({
+        accessToken: 'test-token',
+        orderId: 'gid://shopify/Order/1',
+        note: 'Updated note',
+        includeDetails,
+      })
+      const wire = await jsonResponse(body).json()
+      for (const field of ['variant', 'shippingAddress', 'billingAddress', 'fulfillments']) {
+        const selection = new RegExp(`\\b${field}\\s*(?:\\([^)]*\\))?\\s*\\{`)
+        expect(selection.test(wire.query)).toBe(includeDetails === true)
+      }
+      expect(wire.variables.input).toEqual({ id: 'gid://shopify/Order/1', note: 'Updated note' })
+    }
+  )
 })
 
 describe('Shopify order cancellation acknowledgement', () => {

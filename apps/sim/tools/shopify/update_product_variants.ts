@@ -3,7 +3,7 @@ import type {
   ShopifyUpdateProductVariantsParams,
   ShopifyUserError,
 } from '@/tools/shopify/types'
-import { VARIANT_PROPERTIES } from '@/tools/shopify/types'
+import { BULK_VARIANT_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import {
   getShopifyHeaders,
   getShopifyUrl,
@@ -136,7 +136,7 @@ export const shopifyUpdateProductVariantsTool: ToolConfig<
     productVariants: {
       type: 'array',
       description: 'Variants successfully created or updated',
-      items: { type: 'object', properties: VARIANT_PROPERTIES },
+      items: { type: 'object', properties: BULK_VARIANT_OUTPUT_PROPERTIES },
     },
     userErrors: {
       type: 'array',

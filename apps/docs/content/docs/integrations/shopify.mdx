@@ -17,7 +17,7 @@ Use [Shopify](https://www.shopify.com/) to manage products, orders, customers, i
 
 ## Usage Instructions
 
-Manage Shopify products and variants, orders, customers, inventory, collections, and merchant-managed fulfillment using Admin GraphQL API 2026-10. Discover fulfillment orders, ship selected items, update tracking, and check cancellation jobs. Continue list and nested results with the returned cursors. Product activation does not publish to sales channels. Orders normally cover the last 60 days; older orders and protected customer fields require Shopify approval and access. Expanded list details are optional and use smaller pages to stay within query-cost limits.
+Manage Shopify products and variants, orders, customers, inventory, collections, and merchant-managed fulfillment using Admin GraphQL API 2026-10. Discover fulfillment orders, ship selected items, update tracking, and check cancellation jobs. Continue list and nested results with the returned cursors. Product activation does not publish to sales channels. Orders normally cover the last 60 days; older orders and protected customer fields require Shopify approval and access. Expanded list details are optional and use smaller pages to stay within query-cost limits. Expanded order-update responses are opt-in and require product, protected-address, and fulfillment access.
 
 
 
@@ -698,6 +698,7 @@ Update an existing order in your Shopify store (note, tags, email)
 | `customAttributes` | array | No | Order attributes as an array of \{key, value\} objects |
 | `metafields` | array | No | MetafieldInput array: namespace, key, type, value, or id |
 | `poNumber` | string | No | Purchase order number |
+| `includeDetails` | boolean | No | Include product variants, addresses, and fulfillments; requires read_products, protected-address access, and a scope accepted by Fulfillment |
 | `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `orderId` | string | Yes | Order ID to update \(gid://shopify/Order/123456789\) |
 | `note` | string | No | New order note |

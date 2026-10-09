@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import { dirname } from 'node:path'
 import { db } from '@sim/db'
-import { account, credential, user, workspace } from '@sim/db/schema'
+import { account, credential, pendingCredentialDraft, user, workspace } from '@sim/db/schema'
 import { createDeferred, type Deferred } from '@sim/testing/helpers/deferred'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -338,8 +338,30 @@ describe('Shopify offline installation tokens against PostgreSQL and HTTP', () =
     expect(await rows()).toEqual(before)
   })
 
-  it('reconnects the numeric shop account without breaking saved credential links or sibling users', async () => {
-    await connect()
+  it('completes a reconnect draft without breaking saved credential links or sibling users', async () => {
+    const draftId = generateId()
+    const previousCredentialUpdate = new Date(0)
+    await db
+      .update(credential)
+      .set({ updatedAt: previousCredentialUpdate })
+      .where(eq(credential.id, credentialId))
+    await db.insert(pendingCredentialDraft).values({
+      id: draftId,
+      userId: userIds[0],
+      workspaceId,
+      providerId: 'shopify',
+      displayName: 'Shopify reconnect fixture',
+      credentialId,
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+
+    await completeShopifyOAuthConnection({
+      code: 'fixture-authorization-code',
+      shopDomain,
+      userId: userIds[0],
+      draftId,
+    })
+
     const saved = await rows()
     for (const row of saved.filter((item) => item.accountId === shopId)) {
       expect(row.accessToken).toBe('fixture-access-1')
@@ -350,6 +372,10 @@ describe('Shopify offline installation tokens against PostgreSQL and HTTP', () =
     expect(saved.find((row) => row.accountId === '999')?.refreshToken).toBe('fixture-refresh-0')
     const [link] = await db.select().from(credential).where(eq(credential.id, credentialId))
     expect(link.accountId).toBe(rowIds[0])
+    expect(link.updatedAt.getTime()).toBeGreaterThan(previousCredentialUpdate.getTime())
+    expect(
+      await db.select().from(pendingCredentialDraft).where(eq(pendingCredentialDraft.id, draftId))
+    ).toHaveLength(0)
     expect(
       await db
         .select()

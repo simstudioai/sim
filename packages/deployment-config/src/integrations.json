@@ -23799,7 +23799,7 @@
       "slug": "shopify",
       "name": "Shopify",
       "description": "Manage products, orders, customers, and inventory in your Shopify store",
-      "longDescription": "Manage Shopify products and variants, orders, customers, inventory, collections, and merchant-managed fulfillment using Admin GraphQL API 2026-10. Discover fulfillment orders, ship selected items, update tracking, and check cancellation jobs. Continue list and nested results with the returned cursors. Product activation does not publish to sales channels. Orders normally cover the last 60 days; older orders and protected customer fields require Shopify approval and access. Expanded list details are optional and use smaller pages to stay within query-cost limits.",
+      "longDescription": "Manage Shopify products and variants, orders, customers, inventory, collections, and merchant-managed fulfillment using Admin GraphQL API 2026-10. Discover fulfillment orders, ship selected items, update tracking, and check cancellation jobs. Continue list and nested results with the returned cursors. Product activation does not publish to sales channels. Orders normally cover the last 60 days; older orders and protected customer fields require Shopify approval and access. Expanded list details are optional and use smaller pages to stay within query-cost limits. Expanded order-update responses are opt-in and require product, protected-address, and fulfillment access.",
       "bgColor": "#FFFFFF",
       "iconName": "ShopifyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/shopify",

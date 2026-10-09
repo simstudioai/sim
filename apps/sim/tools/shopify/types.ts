@@ -75,7 +75,7 @@ const ADDRESS_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Variant properties from Shopify ProductVariant object */
-export const VARIANT_PROPERTIES = {
+const VARIANT_PROPERTIES = {
   id: { type: 'string', description: 'Unique variant identifier (GID)' },
   title: { type: 'string', description: 'Variant title' },
   price: { type: 'string', description: 'Variant price' },
@@ -120,6 +120,40 @@ export const VARIANT_PROPERTIES = {
     nullable: true,
     description: 'Available inventory quantity',
     optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Variant fields always selected by bulk create and update mutations, including nullable values. */
+export const BULK_VARIANT_OUTPUT_PROPERTIES = {
+  ...VARIANT_PROPERTIES,
+  barcode: { type: 'string', nullable: true, description: 'Variant barcode' },
+  taxable: { type: 'boolean', description: 'Whether the variant is taxable' },
+  inventoryPolicy: { type: 'string', description: 'Inventory policy (DENY or CONTINUE)' },
+  inventoryItem: {
+    type: 'object',
+    description: 'Inventory item for stock operations',
+    properties: {
+      id: { type: 'string', description: 'Inventory item GID' },
+      sku: { type: 'string', nullable: true, description: 'SKU' },
+      tracked: { type: 'boolean', description: 'Whether stock is tracked' },
+    },
+  },
+  selectedOptions: {
+    type: 'array',
+    description: 'Selected product options',
+    items: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Option name' },
+        value: { type: 'string', description: 'Selected value' },
+      },
+    },
+  },
+  compareAtPrice: { type: 'string', nullable: true, description: 'Compare at price' },
+  inventoryQuantity: {
+    type: 'number',
+    nullable: true,
+    description: 'Available inventory quantity',
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -456,6 +490,7 @@ export const ORDER_OUTPUT_PROPERTIES = {
     properties: ORDER_CUSTOMER_PROPERTIES,
   },
   lineItems: {
+    optional: true,
     type: 'object',
     description: 'Order line items page; use Get Order with lineItemsAfter for subsequent pages',
     properties: {
@@ -481,17 +516,18 @@ export const ORDER_OUTPUT_PROPERTIES = {
     },
   },
   shippingAddress: {
+    optional: true,
     type: 'object',
     nullable: true,
     description: 'Shipping address',
     properties: ADDRESS_PROPERTIES,
   },
   billingAddress: {
+    optional: true,
     type: 'object',
     nullable: true,
     description: 'Billing address',
     properties: ADDRESS_PROPERTIES,
-    optional: true,
   },
   fulfillments: {
     type: 'array',
@@ -892,13 +928,13 @@ interface ShopifyOrder {
     | (Pick<ShopifyCustomer, 'id' | 'email' | 'firstName' | 'lastName'> &
         Partial<Pick<ShopifyCustomer, 'phone'>>)
     | null
-  lineItems: {
+  lineItems?: {
     pageInfo: ShopifyPageInfo
     edges: Array<{
       node: ShopifyLineItem
     }>
   }
-  shippingAddress: ShopifyAddress | null
+  shippingAddress?: ShopifyAddress | null
   billingAddress?: ShopifyAddress | null
   fulfillments?: ShopifyFulfillment[]
 }
@@ -1107,6 +1143,7 @@ export interface ShopifyListOrdersParams extends ShopifyBaseParams {
 }
 
 export interface ShopifyUpdateOrderParams extends ShopifyBaseParams {
+  includeDetails?: boolean
   phone?: string
   shippingAddress?: Record<string, unknown> | string
   customAttributes?: Array<Record<string, unknown>> | string
@@ -1605,7 +1642,7 @@ export interface ShopifyUpdateProductVariantsParams extends ShopifyBaseParams {
 
 /** Returned variants and provider validation errors, including partial-update results. */
 export interface ShopifyProductVariantsResponse extends ToolResponse {
-  output: { productVariants?: ShopifyVariant[]; userErrors?: ShopifyUserError[] }
+  output: { productVariants?: Required<ShopifyVariant>[]; userErrors?: ShopifyUserError[] }
 }
 
 /** Fulfillment identifier and cursor controls for reading its fulfilled line items. */

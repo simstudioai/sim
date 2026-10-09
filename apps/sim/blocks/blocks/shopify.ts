@@ -23,7 +23,7 @@ export const ShopifyBlock: BlockConfig = {
   description: 'Manage products, orders, customers, and inventory in your Shopify store',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Manage Shopify products and variants, orders, customers, inventory, collections, and merchant-managed fulfillment using Admin GraphQL API 2026-10. Discover fulfillment orders, ship selected items, update tracking, and check cancellation jobs. Continue list and nested results with the returned cursors. Product activation does not publish to sales channels. Orders normally cover the last 60 days; older orders and protected customer fields require Shopify approval and access. Expanded list details are optional and use smaller pages to stay within query-cost limits.',
+    'Manage Shopify products and variants, orders, customers, inventory, collections, and merchant-managed fulfillment using Admin GraphQL API 2026-10. Discover fulfillment orders, ship selected items, update tracking, and check cancellation jobs. Continue list and nested results with the returned cursors. Product activation does not publish to sales channels. Orders normally cover the last 60 days; older orders and protected customer fields require Shopify approval and access. Expanded list details are optional and use smaller pages to stay within query-cost limits. Expanded order-update responses are opt-in and require product, protected-address, and fulfillment access.',
   docsLink: 'https://docs.sim.ai/integrations/shopify',
   category: 'tools',
   integrationType: IntegrationType.Commerce,
@@ -453,7 +453,7 @@ export const ShopifyBlock: BlockConfig = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a Shopify search query using field:value filters such as title:shirt or created_at:>2026-01-01. Return ONLY the Shopify search query.',
+          'Generate a Shopify search query using field:value filters such as first_name:Jane or customer_date:>2026-01-01. Return ONLY the Shopify search query.',
         placeholder: 'Describe the filter or tags',
       },
       condition: {
@@ -470,7 +470,7 @@ export const ShopifyBlock: BlockConfig = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a Shopify search query using field:value filters such as title:shirt or created_at:>2026-01-01. Return ONLY the Shopify search query.',
+          'Generate a Shopify search query using field:value filters such as sku:ABC123 or created_at:>2026-01-01. Return ONLY the Shopify search query.',
         placeholder: 'Describe the filter or tags',
       },
       condition: {
@@ -483,7 +483,10 @@ export const ShopifyBlock: BlockConfig = {
       title: 'Include Expanded Details',
       type: 'switch',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['shopify_list_products', 'shopify_list_orders'] },
+      condition: {
+        field: 'operation',
+        value: ['shopify_list_products', 'shopify_list_orders', 'shopify_update_order'],
+      },
     },
     {
       id: 'first',
@@ -537,7 +540,7 @@ export const ShopifyBlock: BlockConfig = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a Shopify search query using field:value filters such as title:shirt or created_at:>2026-01-01. Return ONLY the Shopify search query.',
+          'Generate a Shopify search query using field:value filters such as financial_status:paid or created_at:>2026-01-01. Return ONLY the Shopify search query.',
         placeholder: 'Describe the filter or tags',
       },
       condition: {
@@ -845,7 +848,7 @@ export const ShopifyBlock: BlockConfig = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a Shopify search query using field:value filters such as title:shirt or created_at:>2026-01-01. Return ONLY the Shopify search query.',
+          'Generate a Shopify search query using field:value filters such as title:Summer or updated_at:>2026-01-01. Return ONLY the Shopify search query.',
         placeholder: 'Describe the filter or tags',
       },
       condition: {
@@ -938,7 +941,7 @@ export const ShopifyBlock: BlockConfig = {
         prompt:
           'Generate Shopify metafields: MetafieldInput array: namespace, key, type, value, or id. Return ONLY the JSON array.',
         placeholder: 'Describe the values to send',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -957,7 +960,7 @@ export const ShopifyBlock: BlockConfig = {
         prompt:
           'Generate Shopify collectionsToJoin: Collection GIDs to add the product to. Return ONLY the JSON array.',
         placeholder: 'Describe the values to send',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -990,7 +993,7 @@ export const ShopifyBlock: BlockConfig = {
         prompt:
           'Generate Shopify productOptions: OptionCreateInput array with name and values: [{name: "Size", values: [{name: "Small"}]}]. Return ONLY the JSON array.',
         placeholder: 'Describe the values to send',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -1014,7 +1017,7 @@ export const ShopifyBlock: BlockConfig = {
         prompt:
           'Generate Shopify media: CreateMediaInput array with originalSource, mediaContentType, and optional alt. Return ONLY the JSON array.',
         placeholder: 'Describe the values to send',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -1030,7 +1033,7 @@ export const ShopifyBlock: BlockConfig = {
         prompt:
           'Generate Shopify collectionsToLeave: Collection GIDs to remove the product from. Return ONLY the JSON array.',
         placeholder: 'Describe the values to send',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -1062,7 +1065,7 @@ export const ShopifyBlock: BlockConfig = {
         prompt:
           'Generate Shopify addresses: MailingAddressInput array; replacing addresses is deprecated by Shopify. Return ONLY the JSON array.',
         placeholder: 'Describe the values to send',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -1162,7 +1165,7 @@ export const ShopifyBlock: BlockConfig = {
         prompt:
           'Generate Shopify customAttributes: Order attributes as an array of {key, value} objects. Return ONLY the JSON array.',
         placeholder: 'Describe the values to send',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -1231,7 +1234,7 @@ export const ShopifyBlock: BlockConfig = {
         prompt:
           'Generate Shopify ProductVariantsBulkInput objects. For creation use optionValues with optionName and name plus price; for updates use variant id plus only changed fields such as price. Never supply an id for creation. Return ONLY the JSON array.',
         placeholder: 'Describe the values to send',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -1284,7 +1287,7 @@ export const ShopifyBlock: BlockConfig = {
         prompt:
           'Generate Shopify fulfillmentOrderLineItems: [{"id":"gid://shopify/FulfillmentOrderLineItem/123","quantity":1}]; omit for all remaining items. Return ONLY the JSON array.',
         placeholder: 'Describe the values to send',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -1323,7 +1326,7 @@ export const ShopifyBlock: BlockConfig = {
         enabled: true,
         prompt: 'Generate Shopify trackingNumbers: ["1Z123", "1Z456"]. Return ONLY the JSON array.',
         placeholder: 'Describe the values to send',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -1339,7 +1342,7 @@ export const ShopifyBlock: BlockConfig = {
         prompt:
           'Generate Shopify trackingUrls: ["https://carrier.example/track/1Z123"]. Return ONLY the JSON array.',
         placeholder: 'Describe the values to send',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -1990,7 +1993,8 @@ export const ShopifyBlock: BlockConfig = {
     productQuery: { type: 'string', description: 'Product search query' },
     includeDetails: {
       type: 'boolean',
-      description: 'Include expanded product or order details with smaller pages',
+      description:
+        'Include expanded details; order updates require product, protected-address, and fulfillment access',
     },
     first: { type: 'number', description: 'Maximum number of results to return' },
     orderId: { type: 'string', description: 'Order ID' },

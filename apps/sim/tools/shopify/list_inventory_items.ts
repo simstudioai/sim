@@ -161,10 +161,10 @@ export const shopifyListInventoryItemsTool: ToolConfig<
           tracked: boolean
           createdAt: string
           updatedAt: string
-          variant?: {
+          variant: {
             id: string
             title: string
-            product?: {
+            product: {
               id: string
               title: string
             }
