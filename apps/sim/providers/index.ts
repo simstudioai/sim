@@ -134,8 +134,9 @@ async function prepareProviderFileAttachments(request: ProviderRequest): Promise
 /**
  * Maximum model round trips in an Agent block's tool-call loop. Unbounded by
  * default: the loop runs until the model stops calling tools, bounded only by
- * the execution timeout and usage limits. Set the `MAX_TOOL_ITERATIONS` env var
- * to a positive integer to impose a ceiling; any other value leaves it unbounded.
+ * the execution timeout (none when billing is disabled and no timeout env var is
+ * set) and usage limits. Set the `MAX_TOOL_ITERATIONS` env var to a positive
+ * integer to impose a ceiling; any other value leaves it unbounded.
  */
 export const MAX_TOOL_ITERATIONS = envNumber(env.MAX_TOOL_ITERATIONS, Number.POSITIVE_INFINITY, {
   min: 1,

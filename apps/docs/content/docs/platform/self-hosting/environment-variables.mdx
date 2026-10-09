@@ -69,7 +69,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 </Callout>
 
 <Callout type="info">
-  **Agent tool-call depth.** An Agent block keeps calling tools until the model answers, bounded only by the execution timeout. Set `MAX_TOOL_ITERATIONS` (for example `MAX_TOOL_ITERATIONS=50`) to cap the model round trips per block; every iteration is another model call.
+  **Agent tool-call depth.** An Agent block keeps calling tools until the model answers, with no round-trip limit by default. With billing disabled there is also no execution timeout unless `EXECUTION_TIMEOUT_FREE` (sync) or `EXECUTION_TIMEOUT_ASYNC_FREE` (async) is set, so a looping agent keeps making paid model calls. Set `MAX_TOOL_ITERATIONS` (for example `MAX_TOOL_ITERATIONS=50`) to cap the model round trips per block, or set those timeouts to bound the whole run.
 </Callout>
 
 ### Catalog visibility
