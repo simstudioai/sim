@@ -1,4 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type ElectronApplication, expect, test } from '@playwright/test'
@@ -200,6 +207,115 @@ test.describe('background executor', () => {
       expect(JSON.stringify((await settled(sim, next)).data)).toContain(
         'background consent fixture'
       )
+    })
+  })
+
+  test('background consent cannot grant access when Sim cannot verify the call', async () => {
+    const userData = mkdtempSync(join(tmpdir(), 'sim-executor-offline-consent-'))
+    const launched = await launch(sim, userData)
+    app = launched.app
+    const deviceId = await registeredDevice(sim)
+    const readable = join(userData, 'private.txt')
+    writeFileSync(readable, 'offline consent fixture')
+
+    await check('offline approval returns an error without remembering a grant', async () => {
+      const shown = launched.app.waitForEvent('window')
+      const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+      const prompt = await shown
+      await expect(prompt.getByRole('button', { name: 'Allow folder', exact: true })).toBeVisible()
+      sim.disconnect()
+      await prompt.getByRole('button', { name: 'Allow folder', exact: true }).click()
+      await expect
+        .poll(() =>
+          launched.app.evaluate(({ safeStorage }, toolCallId) => {
+            const fs = process.getBuiltinModule('node:fs')
+            const path = `${process.env.SIM_DESKTOP_USER_DATA}/desktop-executor-journal.json`
+            const envelope = JSON.parse(fs.readFileSync(path, 'utf8'))
+            const journal = JSON.parse(
+              safeStorage.decryptString(Buffer.from(envelope.ciphertext, 'base64'))
+            ) as { entries: { toolCallId: string; state: string }[] }
+            return journal.entries.find((entry) => entry.toolCallId === toolCallId)?.state
+          }, call)
+        )
+        .toBe('result')
+      sim.reconnect()
+      const completion = await settled(sim, call)
+      expect(completion.status).toBe('error')
+      expect(JSON.stringify(completion)).not.toContain('offline consent fixture')
+      const nextPrompt = launched.app.waitForEvent('window')
+      const next = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+      await (await nextPrompt).getByRole('button', { name: "Don't allow", exact: true }).click()
+      expect((await settled(sim, next)).status).toBe('error')
+    })
+  })
+
+  test('background consent does not reopen the main app after its windows are closed', async () => {
+    test.skip(process.platform !== 'darwin', 'The macOS app remains running without a window.')
+    const userData = mkdtempSync(join(tmpdir(), 'sim-executor-windowless-consent-'))
+    const launched = await launch(sim, userData)
+    app = launched.app
+    const deviceId = await registeredDevice(sim)
+    const readable = join(userData, 'private.txt')
+    writeFileSync(readable, 'windowless consent fixture')
+    await launched.window.close()
+
+    await check('only the standalone consent window opens for a background read', async () => {
+      const shown = launched.app.waitForEvent('window')
+      const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+      const prompt = await shown
+      await expect(prompt.getByRole('button', { name: 'Allow folder', exact: true })).toBeVisible()
+      expect(
+        await launched.app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().map((window) => window.getParentWindow() === null)
+        )
+      ).toEqual([true])
+      await prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      expect((await settled(sim, call)).status).toBe('error')
+    })
+  })
+
+  test('sign-out clears folder grants even when desktop settings cannot be saved', async () => {
+    const userData = mkdtempSync(join(tmpdir(), 'sim-executor-grant-cleanup-'))
+    const launched = await launch(sim, userData)
+    app = launched.app
+    const deviceId = await registeredDevice(sim)
+    const readable = join(userData, 'private.txt')
+    writeFileSync(readable, 'cleanup consent fixture')
+    const shown = launched.app.waitForEvent('window')
+    const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+    await (await shown).getByRole('button', { name: 'Allow folder', exact: true }).click()
+    expect((await settled(sim, call)).status).toBe('success')
+    const grants = join(userData, 'local-filesystem-grants.json')
+    expect(existsSync(grants)).toBe(true)
+    await launched.window.evaluate(() => {
+      const button = document.createElement('button')
+      button.textContent = 'Enable full file access'
+      button.onclick = async () => {
+        const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+        await api.settings.setFullFileAccess?.(true)
+        button.textContent = 'Full file access enabled'
+      }
+      document.body.append(button)
+    })
+    await launched.window
+      .getByRole('button', { name: 'Enable full file access', exact: true })
+      .click()
+    await expect(
+      launched.window.getByRole('button', { name: 'Full file access enabled', exact: true })
+    ).toBeVisible()
+    const settings = join(userData, 'settings.json')
+    if (existsSync(settings)) renameSync(settings, `${settings}.backup`)
+    mkdirSync(settings)
+
+    await check('failed settings persistence does not skip independent grant cleanup', async () => {
+      await launched.app.evaluate(({ Menu }) => {
+        const item = Menu.getApplicationMenu()
+          ?.items.flatMap((entry) => entry.submenu?.items ?? [])
+          .find((entry) => entry.label === 'Sign Out')
+        if (!item) throw new Error('Missing Sign Out menu item')
+        item.click()
+      })
+      await expect.poll(() => existsSync(grants)).toBe(false)
     })
   })
 
