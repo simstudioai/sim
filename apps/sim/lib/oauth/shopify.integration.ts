@@ -822,12 +822,18 @@ describe('Shopify offline installation tokens against PostgreSQL and HTTP', () =
     ).toBe(true)
   })
 
-  it('rolls back every ownership-history page when a later association fails and retries the complete capture', async () => {
-    const owners = Array.from({ length: 101 }, () => ({
+  it('rolls back every ownership-history page on failure and retries only Shopify associations', async () => {
+    const owners = Array.from({ length: 102 }, (_, index) => ({
       workspaceId: generateId(),
       credentialId: generateId(),
+      providerId: index === 0 ? 'google-email' : 'shopify',
     }))
-    const lastCredentialId = [...owners.map((owner) => owner.credentialId), credentialId]
+    const lastCredentialId = [
+      ...owners
+        .filter((owner) => owner.providerId === 'shopify')
+        .map((owner) => owner.credentialId),
+      credentialId,
+    ]
       .sort()
       .at(-1)
     await db.insert(workspace).values(
@@ -843,7 +849,7 @@ describe('Shopify offline installation tokens against PostgreSQL and HTTP', () =
         id: owner.credentialId,
         workspaceId: owner.workspaceId,
         type: 'oauth' as const,
-        providerId: 'shopify',
+        providerId: owner.providerId,
         accountId: rowIds[0],
         displayName: 'History page fixture',
         createdBy: userIds[0],

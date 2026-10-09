@@ -120,6 +120,7 @@ export async function rememberShopifyAccountScopes(accountId: string): Promise<v
           and(
             eq(credential.accountId, accountId),
             eq(credential.type, 'oauth'),
+            eq(credential.providerId, 'shopify'),
             cursor ? gt(credential.id, cursor) : undefined
           )
         )
