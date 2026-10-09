@@ -54,10 +54,13 @@ function ChangelogContent({ workspaceId }: ChangelogProps) {
       ) : (
         <div
           ref={setScrollElement}
-          className={cn('@container/changelog min-h-0 flex-1 overflow-y-auto', scrollFadeClass)}
+          className={cn(
+            '@container/changelog min-h-0 flex-1 overflow-y-auto py-10',
+            scrollFadeClass
+          )}
           {...scrollFadeAttributes(edges)}
         >
-          <div className='mx-auto flex max-w-[960px] flex-col gap-12 px-8 py-10'>
+          <div className='mx-auto flex max-w-[960px] flex-col gap-12 px-8'>
             {releases.map((release) => (
               <ReleaseEntry
                 key={release.id}

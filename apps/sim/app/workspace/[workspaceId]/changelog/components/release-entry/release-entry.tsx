@@ -31,6 +31,7 @@ const DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'num
 /** One shipped release: the date and version rail, then its title, body, and change lines. */
 export function ReleaseEntry({ workspaceId, release, canEdit, onEditDetails }: ReleaseEntryProps) {
   const saveRef = useRef<(() => Promise<void>) | null>(null)
+  const saveFailedRef = useRef(false)
   const [editingBody, setEditingBody] = useState(false)
   const [savingBody, setSavingBody] = useState(false)
   const file = useAddressedWorkspaceFileRecord(workspaceId, release.fileId)
@@ -60,14 +61,17 @@ export function ReleaseEntry({ workspaceId, release, canEdit, onEditDetails }: R
                 disabled={savingBody}
                 onClick={async () => {
                   setSavingBody(true)
+                  saveFailedRef.current = false
                   try {
                     await saveRef.current?.()
-                    setEditingBody(false)
                   } catch (error) {
-                    toast.error(getErrorMessage(error, 'Failed to save notes'))
+                    if (!saveFailedRef.current)
+                      toast.error(getErrorMessage(error, 'Failed to save notes'))
+                    saveFailedRef.current = true
                   } finally {
                     setSavingBody(false)
                   }
+                  if (!saveFailedRef.current) setEditingBody(false)
                 }}
               >
                 {savingBody ? 'Saving...' : 'Done'}
@@ -106,6 +110,10 @@ export function ReleaseEntry({ workspaceId, release, canEdit, onEditDetails }: R
               canEdit={editingBody}
               readOnly={!editingBody}
               saveRef={saveRef}
+              onSaveError={(error) => {
+                saveFailedRef.current = true
+                toast.error(getErrorMessage(error, 'Failed to save notes'))
+              }}
             />
           </div>
         ) : null}

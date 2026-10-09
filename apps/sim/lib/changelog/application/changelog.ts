@@ -119,9 +119,10 @@ function decodeCursor(cursor: string): ReleaseCursor {
   const separator = cursor.indexOf(':')
   const millis = Number(cursor.slice(0, separator))
   const id = cursor.slice(separator + 1)
-  if (separator < 1 || !Number.isSafeInteger(millis) || id.length === 0)
+  const publishedAt = new Date(millis)
+  if (separator < 1 || Number.isNaN(publishedAt.getTime()) || id.length === 0)
     throw new OrchestrationError('validation', 'cursor must be the nextCursor from a list')
-  return { publishedAt: new Date(millis), id }
+  return { publishedAt, id }
 }
 
 async function assertChangesInWorkspace(
