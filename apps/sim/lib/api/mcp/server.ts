@@ -116,6 +116,7 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
       annotations: {
         title: 'Search operations',
         readOnlyHint: true,
+        destructiveHint: false,
         idempotentHint: true,
         openWorldHint: false,
       },
@@ -133,6 +134,7 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
       annotations: {
         title: 'Describe operation',
         readOnlyHint: true,
+        destructiveHint: false,
         idempotentHint: true,
         openWorldHint: false,
       },
@@ -155,6 +157,7 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
       annotations: {
         title: 'Read from Sim',
         readOnlyHint: true,
+        destructiveHint: false,
         idempotentHint: true,
         openWorldHint: false,
       },
