@@ -46,7 +46,7 @@ const environment = {
   SOCKET_SERVER_URL: process.env.SOCKET_SERVER_URL,
 }
 const execute = promisify(execFile)
-const run = (command: string) =>
+const run = (command: string, artifacts = { manifest, report }) =>
   execute(
     'bun',
     [
@@ -54,8 +54,8 @@ const run = (command: string) =>
       'scripts/backfill-projects.ts',
       command,
       '--manifest',
-      manifest,
-      ...(command === 'plan' ? [] : ['--report', report, '--ack-release-drained']),
+      artifacts.manifest,
+      ...(command === 'plan' ? [] : ['--report', artifacts.report, '--ack-release-drained']),
     ],
     {
       cwd: new URL('../../../', import.meta.url),
@@ -121,6 +121,61 @@ afterAll(async () => {
 })
 
 describe('Operator archive repair against the full compatible schema', () => {
+  it.each(['workspace', 'project', 'row'] as const)(
+    'defers a busy %s lock, repairs unrelated environments and resumes without losing progress',
+    async (lock) => {
+      const ownerId = `owner-${lock}`
+      const busyId = `busy-${lock}`
+      const freeId = `free-${lock}`
+      const projectId = `project-${lock}`
+      const artifacts = {
+        manifest: join(directory, `${lock}-manifest.json`),
+        report: join(directory, `${lock}-report.json`),
+      }
+      const holder = postgres(url.toString(), { max: 1, onnotice: () => {} })
+      try {
+        await client`INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at)
+          VALUES (${ownerId},'Owner',${`${lock}@fixture.test`},true,now(),now())`
+        await client`INSERT INTO project (id,name,owner_id,archived_at)
+          VALUES (${projectId},'Archived Project',${ownerId},'2026-05-01')`
+        await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,project_id,archived_at)
+          VALUES (${busyId},'Busy',${ownerId},${ownerId},${projectId},'2026-05-01'),
+            (${freeId},'Free',${ownerId},${ownerId},NULL,'2026-05-01')`
+        await client`INSERT INTO workflow (id,name,user_id,workspace_id,last_synced,created_at,updated_at)
+          VALUES (${busyId},'Busy flow',${ownerId},${busyId},now(),now(),now()),
+            (${freeId},'Free flow',${ownerId},${freeId},now(),now(),now())`
+        await run('plan', artifacts)
+        await holder.begin(async (tx) => {
+          if (lock === 'row') await tx`SELECT id FROM workspace WHERE id = ${busyId} FOR SHARE`
+          else {
+            const key = lock === 'workspace' ? `project-backfill:${busyId}` : `project:${projectId}`
+            await tx`SELECT pg_advisory_xact_lock(hashtextextended(${key},0))`
+          }
+          await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
+          expect(JSON.parse(await readFile(artifacts.report, 'utf8'))).toMatchObject({
+            status: 'incomplete',
+            repairsCompleted: [freeId],
+          })
+          expect(await client`SELECT workspace_id FROM workflow WHERE archived_at IS NULL`).toEqual(
+            [{ workspace_id: busyId }]
+          )
+        })
+        await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
+        expect(JSON.parse(await readFile(artifacts.report, 'utf8')).repairsCompleted).toEqual(
+          expect.arrayContaining([freeId, busyId])
+        )
+        await run('apply', artifacts)
+        await run('verify', artifacts)
+      } finally {
+        await holder.end({ timeout: 2 })
+        await client`DELETE FROM workspace WHERE owner_id = ${ownerId}`
+        await client`DELETE FROM project WHERE owner_id = ${ownerId}`
+        await client`DELETE FROM "user" WHERE id = ${ownerId}`
+      }
+    },
+    60000
+  )
+
   it('commits the complete cascade, reports external failure and resumes cleanup from its original manifest', async () => {
     await client`INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at) VALUES ('owner','Owner','repair@fixture.test',true,now(),now())`
     await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,archived_at) VALUES ('env','Archived','owner','owner','2026-05-01')`

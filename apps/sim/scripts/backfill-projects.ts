@@ -331,14 +331,25 @@ Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 
           if (stop || attempts >= maxBatches || performance.now() - started >= seconds * 1000) break
           await assertLock()
           attempts++
-          await repairArchivedProjectEnvironment(sql, repair, progress.runId)
-          await assertLock()
-          completedRepairs.add(repair.workspaceId)
-          await checkpoint()
-          logger.info('Archive repair completed', {
-            workspaceId: repair.workspaceId,
-            workflows: repair.workflowIds.length,
-          })
+          try {
+            await repairArchivedProjectEnvironment(sql, repair, progress.runId)
+            await assertLock()
+            completedRepairs.add(repair.workspaceId)
+            await checkpoint()
+            logger.info('Archive repair completed', {
+              workspaceId: repair.workspaceId,
+              workflows: repair.workflowIds.length,
+            })
+          } catch (error) {
+            const transient = getTransientDatabaseFailure(error)
+            if (!(error instanceof ProjectBackfillBusy) && !transient) throw error
+            await assertLock()
+            logger.warn('Archive repair deferred', {
+              workspaceId: repair.workspaceId,
+              failure: transient ?? 'busy',
+              error: describeError(error),
+            })
+          }
           await sleep(pauseMs)
         }
       } else {
