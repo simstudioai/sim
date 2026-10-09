@@ -131,18 +131,13 @@ async function prepareProviderFileAttachments(request: ProviderRequest): Promise
   }
 }
 
-/** Round trips an Agent block's tool loop takes before it is forced to answer. */
-const DEFAULT_MAX_TOOL_ITERATIONS = 20
-
 /**
- * Maximum number of iterations for tool call loops to prevent infinite loops.
- * Used across all providers that support tool/function calling.
- *
- * Self-hosted deployments that need longer agent runs raise it with the
- * `MAX_TOOL_ITERATIONS` env var; a value that is not a positive integer falls
- * back to {@link DEFAULT_MAX_TOOL_ITERATIONS}.
+ * Maximum model round trips in an Agent block's tool-call loop. Unbounded by
+ * default: the loop runs until the model stops calling tools, bounded only by
+ * the execution timeout and usage limits. Set the `MAX_TOOL_ITERATIONS` env var
+ * to a positive integer to impose a ceiling; any other value leaves it unbounded.
  */
-export const MAX_TOOL_ITERATIONS = envNumber(env.MAX_TOOL_ITERATIONS, DEFAULT_MAX_TOOL_ITERATIONS, {
+export const MAX_TOOL_ITERATIONS = envNumber(env.MAX_TOOL_ITERATIONS, Number.POSITIVE_INFINITY, {
   min: 1,
   integer: true,
 })
