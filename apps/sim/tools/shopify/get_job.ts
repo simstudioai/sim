@@ -7,6 +7,7 @@ import { CANCELLATION_RESULT_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import { getShopifyHeaders, getShopifyUrl, readShopifyResult } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** Polls a legacy job or cancellation result, including asynchronous cancellation errors. */
 export const shopifyGetJobTool: ToolConfig<ShopifyGetJobParams, ShopifyJobResponse> = {
   id: 'shopify_get_job',
   name: 'Shopify Get Job',

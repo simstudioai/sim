@@ -8,10 +8,10 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Pagination info output properties */
 export const PAGE_INFO_OUTPUT_PROPERTIES = {
-  startCursor: { type: 'string', optional: true, description: 'Cursor at the start of this page' },
+  startCursor: { type: 'string', nullable: true, description: 'Cursor at the start of this page' },
   endCursor: {
     type: 'string',
-    optional: true,
+    nullable: true,
     description: 'Cursor to pass as after for the next page',
   },
   hasNextPage: { type: 'boolean', description: 'Whether there are more results after this page' },
@@ -41,17 +41,37 @@ const MONEY_BAG_PROPERTIES = {
 
 /** Address properties from Shopify MailingAddress object */
 const ADDRESS_PROPERTIES = {
-  firstName: { type: 'string', description: 'First name', optional: true },
-  lastName: { type: 'string', description: 'Last name', optional: true },
-  address1: { type: 'string', description: 'Street address line 1', optional: true },
-  address2: { type: 'string', description: 'Street address line 2', optional: true },
-  city: { type: 'string', description: 'City', optional: true },
-  province: { type: 'string', description: 'Province or state name', optional: true },
-  provinceCode: { type: 'string', description: 'Province or state code', optional: true },
-  country: { type: 'string', description: 'Country name', optional: true },
-  countryCode: { type: 'string', description: 'Country code (ISO 3166-1 alpha-2)', optional: true },
-  zip: { type: 'string', description: 'Postal or ZIP code', optional: true },
-  phone: { type: 'string', description: 'Phone number', optional: true },
+  firstName: { type: 'string', nullable: true, description: 'First name' },
+  lastName: { type: 'string', nullable: true, description: 'Last name' },
+  address1: {
+    type: 'string',
+    nullable: true,
+    description: 'Street address line 1',
+    optional: true,
+  },
+  address2: {
+    type: 'string',
+    nullable: true,
+    description: 'Street address line 2',
+    optional: true,
+  },
+  city: { type: 'string', nullable: true, description: 'City' },
+  province: { type: 'string', nullable: true, description: 'Province or state name' },
+  provinceCode: {
+    type: 'string',
+    nullable: true,
+    description: 'Province or state code',
+    optional: true,
+  },
+  country: { type: 'string', nullable: true, description: 'Country name' },
+  countryCode: {
+    type: 'string',
+    nullable: true,
+    description: 'Country code (ISO 3166-1 alpha-2)',
+    optional: true,
+  },
+  zip: { type: 'string', nullable: true, description: 'Postal or ZIP code' },
+  phone: { type: 'string', nullable: true, description: 'Phone number', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
 /** Variant properties from Shopify ProductVariant object */
@@ -59,7 +79,7 @@ export const VARIANT_PROPERTIES = {
   id: { type: 'string', description: 'Unique variant identifier (GID)' },
   title: { type: 'string', description: 'Variant title' },
   price: { type: 'string', description: 'Variant price' },
-  barcode: { type: 'string', optional: true, description: 'Variant barcode' },
+  barcode: { type: 'string', nullable: true, optional: true, description: 'Variant barcode' },
   taxable: { type: 'boolean', optional: true, description: 'Whether the variant is taxable' },
   inventoryPolicy: {
     type: 'string',
@@ -72,7 +92,7 @@ export const VARIANT_PROPERTIES = {
     description: 'Inventory item for stock operations',
     properties: {
       id: { type: 'string', description: 'Inventory item GID' },
-      sku: { type: 'string', optional: true, description: 'SKU' },
+      sku: { type: 'string', nullable: true, description: 'SKU' },
       tracked: { type: 'boolean', description: 'Whether stock is tracked' },
     },
   },
@@ -88,10 +108,16 @@ export const VARIANT_PROPERTIES = {
       },
     },
   },
-  compareAtPrice: { type: 'string', description: 'Compare at price', optional: true },
-  sku: { type: 'string', description: 'Stock keeping unit', optional: true },
+  compareAtPrice: {
+    type: 'string',
+    nullable: true,
+    description: 'Compare at price',
+    optional: true,
+  },
+  sku: { type: 'string', nullable: true, description: 'Stock keeping unit' },
   inventoryQuantity: {
     type: 'number',
+    nullable: true,
     description: 'Available inventory quantity',
     optional: true,
   },
@@ -99,26 +125,31 @@ export const VARIANT_PROPERTIES = {
 
 /** Image properties from Shopify Image object */
 const IMAGE_PROPERTIES = {
-  id: { type: 'string', description: 'Unique image identifier (GID)', optional: true },
+  id: { type: 'string', nullable: true, description: 'Unique image identifier (GID)' },
   url: { type: 'string', description: 'Image URL' },
-  altText: { type: 'string', description: 'Alternative text for accessibility', optional: true },
+  altText: { type: 'string', nullable: true, description: 'Alternative text for accessibility' },
 } as const satisfies Record<string, OutputProperty>
 
 const FEATURED_IMAGE_OUTPUT_PROPERTIES = {
   url: { type: 'string', description: 'Featured image URL' },
-  altText: { type: 'string', description: 'Alternative text for accessibility', optional: true },
+  altText: { type: 'string', nullable: true, description: 'Alternative text for accessibility' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Tracking info properties from Shopify FulfillmentTrackingInfo object */
 const TRACKING_INFO_PROPERTIES = {
-  company: { type: 'string', description: 'Shipping carrier name', optional: true },
-  number: { type: 'string', description: 'Tracking number', optional: true },
-  url: { type: 'string', description: 'Tracking URL', optional: true },
+  company: { type: 'string', nullable: true, description: 'Shipping carrier name' },
+  number: { type: 'string', nullable: true, description: 'Tracking number' },
+  url: { type: 'string', nullable: true, description: 'Tracking URL' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Product output properties based on Shopify Product GraphQL object */
 export const PRODUCT_OUTPUT_PROPERTIES = {
-  templateSuffix: { type: 'string', optional: true, description: 'Theme template suffix' },
+  templateSuffix: {
+    type: 'string',
+    nullable: true,
+    optional: true,
+    description: 'Theme template suffix',
+  },
   requiresSellingPlan: {
     type: 'boolean',
     optional: true,
@@ -126,6 +157,7 @@ export const PRODUCT_OUTPUT_PROPERTIES = {
   },
   category: {
     type: 'object',
+    nullable: true,
     optional: true,
     description: 'Product taxonomy category',
     properties: {
@@ -141,12 +173,13 @@ export const PRODUCT_OUTPUT_PROPERTIES = {
     type: 'object',
     description: 'Search engine listing',
     properties: {
-      title: { type: 'string', optional: true, description: 'SEO title' },
-      description: { type: 'string', optional: true, description: 'SEO description' },
+      title: { type: 'string', nullable: true, description: 'SEO title' },
+      description: { type: 'string', nullable: true, description: 'SEO description' },
     },
   },
   onlineStoreUrl: {
     type: 'string',
+    nullable: true,
     optional: true,
     description: 'Online store URL, null when not published',
   },
@@ -227,36 +260,36 @@ export const PRODUCT_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-/** Customer output properties based on Shopify Customer GraphQL object */
-export const CUSTOMER_OUTPUT_PROPERTIES = {
+/** Customer fields returned by list queries, excluding the separate addresses collection. */
+export const CUSTOMER_SUMMARY_OUTPUT_PROPERTIES = {
   emailMarketingConsent: {
     type: 'object',
-    optional: true,
+    nullable: true,
     description: 'Email marketing consent',
     properties: {
       marketingState: { type: 'string', description: 'Consent state' },
-      marketingOptInLevel: { type: 'string', optional: true, description: 'Opt-in level' },
-      consentUpdatedAt: { type: 'string', optional: true, description: 'Consent update timestamp' },
+      marketingOptInLevel: { type: 'string', nullable: true, description: 'Opt-in level' },
+      consentUpdatedAt: { type: 'string', nullable: true, description: 'Consent update timestamp' },
     },
   },
   smsMarketingConsent: {
     type: 'object',
-    optional: true,
+    nullable: true,
     description: 'SMS marketing consent',
     properties: {
       marketingState: { type: 'string', description: 'Consent state' },
       marketingOptInLevel: { type: 'string', description: 'Opt-in level' },
-      consentUpdatedAt: { type: 'string', optional: true, description: 'Consent update timestamp' },
+      consentUpdatedAt: { type: 'string', nullable: true, description: 'Consent update timestamp' },
     },
   },
   id: { type: 'string', description: 'Unique customer identifier (GID)' },
-  email: { type: 'string', description: 'Customer email address', optional: true },
-  firstName: { type: 'string', description: 'Customer first name', optional: true },
-  lastName: { type: 'string', description: 'Customer last name', optional: true },
-  phone: { type: 'string', description: 'Customer phone number', optional: true },
+  email: { type: 'string', nullable: true, description: 'Customer email address' },
+  firstName: { type: 'string', nullable: true, description: 'Customer first name' },
+  lastName: { type: 'string', nullable: true, description: 'Customer last name' },
+  phone: { type: 'string', nullable: true, description: 'Customer phone number' },
   createdAt: { type: 'string', description: 'Account creation timestamp (ISO 8601)' },
   updatedAt: { type: 'string', description: 'Last modification timestamp (ISO 8601)' },
-  note: { type: 'string', description: 'Internal notes about the customer', optional: true },
+  note: { type: 'string', nullable: true, description: 'Internal notes about the customer' },
   tags: {
     type: 'array',
     description: 'Customer tags for categorization',
@@ -273,6 +306,17 @@ export const CUSTOMER_OUTPUT_PROPERTIES = {
     description: 'Total amount spent by customer',
     properties: MONEY_PROPERTIES,
   },
+  defaultAddress: {
+    type: 'object',
+    nullable: true,
+    description: 'Customer default address',
+    properties: ADDRESS_PROPERTIES,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Full customer fields returned by individual reads and customer mutations. */
+export const CUSTOMER_OUTPUT_PROPERTIES = {
+  ...CUSTOMER_SUMMARY_OUTPUT_PROPERTIES,
   addresses: {
     type: 'array',
     description: 'Customer addresses',
@@ -280,18 +324,8 @@ export const CUSTOMER_OUTPUT_PROPERTIES = {
       type: 'object',
       properties: ADDRESS_PROPERTIES,
     },
-    optional: true,
-  },
-  defaultAddress: {
-    type: 'object',
-    description: 'Customer default address',
-    properties: ADDRESS_PROPERTIES,
-    optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
-
-const { addresses, ...customerSummaryProperties } = CUSTOMER_OUTPUT_PROPERTIES
-export const CUSTOMER_SUMMARY_OUTPUT_PROPERTIES = customerSummaryProperties
 
 /** Line item properties from Shopify LineItem GraphQL object */
 const LINE_ITEM_PROPERTIES = {
@@ -300,9 +334,9 @@ const LINE_ITEM_PROPERTIES = {
   quantity: { type: 'number', description: 'Quantity ordered' },
   variant: {
     type: 'object',
+    nullable: true,
     description: 'Associated product variant',
     properties: VARIANT_PROPERTIES,
-    optional: true,
   },
   originalTotalSet: {
     optional: true,
@@ -340,15 +374,20 @@ const FULFILLMENT_PROPERTIES = {
 /** Order customer properties (subset of full customer) */
 const ORDER_CUSTOMER_PROPERTIES = {
   id: { type: 'string', description: 'Unique customer identifier (GID)' },
-  email: { type: 'string', description: 'Customer email address', optional: true },
-  firstName: { type: 'string', description: 'Customer first name', optional: true },
-  lastName: { type: 'string', description: 'Customer last name', optional: true },
-  phone: { type: 'string', description: 'Customer phone number', optional: true },
+  email: { type: 'string', nullable: true, description: 'Customer email address' },
+  firstName: { type: 'string', nullable: true, description: 'Customer first name' },
+  lastName: { type: 'string', nullable: true, description: 'Customer last name' },
+  phone: { type: 'string', nullable: true, description: 'Customer phone number', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
 /** Order output properties based on Shopify Order GraphQL object */
 export const ORDER_OUTPUT_PROPERTIES = {
-  poNumber: { type: 'string', optional: true, description: 'Purchase order number' },
+  poNumber: {
+    type: 'string',
+    nullable: true,
+    optional: true,
+    description: 'Purchase order number',
+  },
   customAttributes: {
     type: 'array',
     optional: true,
@@ -357,21 +396,21 @@ export const ORDER_OUTPUT_PROPERTIES = {
       type: 'object',
       properties: {
         key: { type: 'string', description: 'Attribute key' },
-        value: { type: 'string', optional: true, description: 'Attribute value' },
+        value: { type: 'string', nullable: true, description: 'Attribute value' },
       },
     },
   },
   id: { type: 'string', description: 'Unique order identifier (GID)' },
   name: { type: 'string', description: 'Order name (e.g., #1001)' },
-  email: { type: 'string', description: 'Customer email for the order', optional: true },
-  phone: { type: 'string', description: 'Customer phone for the order', optional: true },
+  email: { type: 'string', nullable: true, description: 'Customer email for the order' },
+  phone: { type: 'string', nullable: true, description: 'Customer phone for the order' },
   createdAt: { type: 'string', description: 'Order creation timestamp (ISO 8601)' },
   updatedAt: { type: 'string', description: 'Last modification timestamp (ISO 8601)' },
-  cancelledAt: { type: 'string', description: 'Cancellation timestamp (ISO 8601)', optional: true },
-  closedAt: { type: 'string', description: 'Closure timestamp (ISO 8601)', optional: true },
+  cancelledAt: { type: 'string', nullable: true, description: 'Cancellation timestamp (ISO 8601)' },
+  closedAt: { type: 'string', nullable: true, description: 'Closure timestamp (ISO 8601)' },
   displayFinancialStatus: {
     type: 'string',
-    optional: true,
+    nullable: true,
     description:
       'Financial status (PENDING, AUTHORIZED, PARTIALLY_PAID, PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED)',
   },
@@ -387,12 +426,13 @@ export const ORDER_OUTPUT_PROPERTIES = {
   },
   subtotalPriceSet: {
     type: 'object',
+    nullable: true,
     description: 'Order subtotal (before shipping and taxes)',
     properties: MONEY_BAG_PROPERTIES,
-    optional: true,
   },
   totalTaxSet: {
     type: 'object',
+    nullable: true,
     description: 'Total tax amount',
     properties: MONEY_BAG_PROPERTIES,
     optional: true,
@@ -403,7 +443,7 @@ export const ORDER_OUTPUT_PROPERTIES = {
     properties: MONEY_BAG_PROPERTIES,
     optional: true,
   },
-  note: { type: 'string', description: 'Order note', optional: true },
+  note: { type: 'string', nullable: true, description: 'Order note' },
   tags: {
     type: 'array',
     description: 'Order tags',
@@ -411,9 +451,9 @@ export const ORDER_OUTPUT_PROPERTIES = {
   },
   customer: {
     type: 'object',
+    nullable: true,
     description: 'Customer who placed the order',
     properties: ORDER_CUSTOMER_PROPERTIES,
-    optional: true,
   },
   lineItems: {
     type: 'object',
@@ -439,16 +479,16 @@ export const ORDER_OUTPUT_PROPERTIES = {
         },
       },
     },
-    optional: true,
   },
   shippingAddress: {
     type: 'object',
+    nullable: true,
     description: 'Shipping address',
     properties: ADDRESS_PROPERTIES,
-    optional: true,
   },
   billingAddress: {
     type: 'object',
+    nullable: true,
     description: 'Billing address',
     properties: ADDRESS_PROPERTIES,
     optional: true,
@@ -493,7 +533,7 @@ export const FULFILLMENT_OUTPUT_PROPERTIES = {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Fulfillment line item identifier (GID)' },
-        quantity: { type: 'number', optional: true, description: 'Quantity fulfilled' },
+        quantity: { type: 'number', nullable: true, description: 'Quantity fulfilled' },
         lineItem: {
           type: 'object',
           description: 'Associated order line item',
@@ -504,6 +544,19 @@ export const FULFILLMENT_OUTPUT_PROPERTIES = {
       },
     },
   },
+} as const satisfies Record<string, OutputProperty>
+
+/** Selected Shopify LocationAddress fields for inventory locations. */
+const LOCATION_ADDRESS_PROPERTIES = {
+  address1: { type: 'string', nullable: true, description: 'Street address line 1' },
+  address2: { type: 'string', nullable: true, description: 'Street address line 2' },
+  city: { type: 'string', nullable: true, description: 'City' },
+  province: { type: 'string', nullable: true, description: 'Province or state name' },
+  provinceCode: { type: 'string', nullable: true, description: 'Province or state code' },
+  country: { type: 'string', nullable: true, description: 'Country name' },
+  countryCode: { type: 'string', nullable: true, description: 'Country code (ISO 3166-1 alpha-2)' },
+  zip: { type: 'string', nullable: true, description: 'Postal or ZIP code' },
+  phone: { type: 'string', nullable: true, description: 'Phone number' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Location output properties based on Shopify Location GraphQL object */
@@ -518,18 +571,7 @@ export const LOCATION_OUTPUT_PROPERTIES = {
   address: {
     type: 'object',
     description: 'Location address',
-    properties: {
-      address1: ADDRESS_PROPERTIES.address1,
-      address2: ADDRESS_PROPERTIES.address2,
-      city: ADDRESS_PROPERTIES.city,
-      province: ADDRESS_PROPERTIES.province,
-      provinceCode: ADDRESS_PROPERTIES.provinceCode,
-      country: ADDRESS_PROPERTIES.country,
-      countryCode: ADDRESS_PROPERTIES.countryCode,
-      zip: ADDRESS_PROPERTIES.zip,
-      phone: ADDRESS_PROPERTIES.phone,
-    },
-    optional: true,
+    properties: LOCATION_ADDRESS_PROPERTIES,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -538,16 +580,16 @@ export const COLLECTION_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique collection identifier (GID)' },
   title: { type: 'string', description: 'Collection title' },
   handle: { type: 'string', description: 'URL-friendly collection identifier' },
-  description: { type: 'string', description: 'Plain text description', optional: true },
-  descriptionHtml: { type: 'string', description: 'HTML-formatted description', optional: true },
+  description: { type: 'string', description: 'Plain text description' },
+  descriptionHtml: { type: 'string', description: 'HTML-formatted description' },
   productsCount: { type: 'number', description: 'Number of products in the collection' },
   sortOrder: { type: 'string', description: 'Product sort order in the collection' },
   updatedAt: { type: 'string', description: 'Last modification timestamp (ISO 8601)' },
   image: {
     type: 'object',
+    nullable: true,
     description: 'Collection image',
     properties: IMAGE_PROPERTIES,
-    optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -577,9 +619,9 @@ export const COLLECTION_WITH_PRODUCTS_OUTPUT_PROPERTIES = {
         totalInventory: { type: 'number', description: 'Total inventory across all variants' },
         featuredImage: {
           type: 'object',
+          nullable: true,
           description: 'Featured product image',
           properties: FEATURED_IMAGE_OUTPUT_PROPERTIES,
-          optional: true,
         },
       },
     },
@@ -590,12 +632,12 @@ export const COLLECTION_WITH_PRODUCTS_OUTPUT_PROPERTIES = {
 export const INVENTORY_LEVEL_OUTPUT_PROPERTIES = {
   pageInfo: {
     type: 'object',
-    optional: true,
+    nullable: true,
     description: 'Location pagination when no locationId is supplied',
     properties: PAGE_INFO_OUTPUT_PROPERTIES,
   },
   id: { type: 'string', description: 'Inventory item identifier (GID)' },
-  sku: { type: 'string', description: 'Stock keeping unit', optional: true },
+  sku: { type: 'string', nullable: true, description: 'Stock keeping unit' },
   tracked: { type: 'boolean', description: 'Whether inventory is tracked' },
   levels: {
     type: 'array',
@@ -630,7 +672,7 @@ export const INVENTORY_ADJUSTMENT_OUTPUT_PROPERTIES = {
     properties: {
       createdAt: { type: 'string', description: 'Adjustment timestamp (ISO 8601)' },
       reason: { type: 'string', description: 'Adjustment reason' },
-      referenceDocumentUri: { type: 'string', optional: true, description: 'Source document URI' },
+      referenceDocumentUri: { type: 'string', nullable: true, description: 'Source document URI' },
     },
   },
   changes: {
@@ -643,21 +685,21 @@ export const INVENTORY_ADJUSTMENT_OUTPUT_PROPERTIES = {
         delta: { type: 'number', description: 'Quantity change amount' },
         quantityAfterChange: {
           type: 'number',
-          optional: true,
+          nullable: true,
           description: 'Quantity after adjustment, when available',
         },
         item: {
           type: 'object',
-          optional: true,
+          nullable: true,
           description: 'Inventory item',
           properties: {
             id: { type: 'string', description: 'Inventory item identifier (GID)' },
-            sku: { type: 'string', description: 'Stock keeping unit', optional: true },
+            sku: { type: 'string', nullable: true, description: 'Stock keeping unit' },
           },
         },
         location: {
           type: 'object',
-          optional: true,
+          nullable: true,
           description: 'Location of the adjustment',
           properties: {
             id: { type: 'string', description: 'Location identifier (GID)' },
@@ -672,7 +714,7 @@ export const INVENTORY_ADJUSTMENT_OUTPUT_PROPERTIES = {
 /** Inventory item output properties based on Shopify InventoryItem GraphQL object */
 export const INVENTORY_ITEM_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique inventory item identifier (GID)' },
-  sku: { type: 'string', description: 'Stock keeping unit', optional: true },
+  sku: { type: 'string', nullable: true, description: 'Stock keeping unit' },
   tracked: { type: 'boolean', description: 'Whether inventory is tracked' },
   createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
   updatedAt: { type: 'string', description: 'Last modification timestamp (ISO 8601)' },
@@ -689,10 +731,8 @@ export const INVENTORY_ITEM_OUTPUT_PROPERTIES = {
           id: { type: 'string', description: 'Product identifier (GID)' },
           title: { type: 'string', description: 'Product title' },
         },
-        optional: true,
       },
     },
-    optional: true,
   },
   inventoryLevelsPageInfo: {
     type: 'object',
@@ -728,6 +768,7 @@ export const CANCEL_ORDER_OUTPUT_PROPERTIES = {
   message: { type: 'string', description: 'Status message' },
 } as const satisfies Record<string, OutputProperty>
 
+/** Cancellation status and errors; a completed job can still report an unsuccessful cancellation. */
 export const CANCELLATION_RESULT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Cancellation result GID; pass to Get Job' },
   done: {
@@ -744,30 +785,31 @@ export const CANCELLATION_RESULT_OUTPUT_PROPERTIES = {
       properties: {
         field: {
           type: 'array',
-          optional: true,
+          nullable: true,
           description: 'Input field path',
           items: { type: 'string' },
         },
         message: { type: 'string', description: 'Error message' },
-        code: { type: 'string', optional: true, description: 'Cancellation error code' },
+        code: { type: 'string', nullable: true, description: 'Cancellation error code' },
       },
     },
   },
   order: {
     type: 'object',
-    optional: true,
+    nullable: true,
     description: 'Associated order',
     properties: {
       id: { type: 'string', description: 'Order GID' },
       cancelledAt: {
         type: 'string',
-        optional: true,
+        nullable: true,
         description: 'Cancellation timestamp, null until cancelled',
       },
     },
   },
 } as const satisfies Record<string, OutputProperty>
 
+/** Asynchronous cancellation result, including provider errors and the nullable associated order. */
 export interface ShopifyCancellationResult {
   id: string
   done: boolean
@@ -833,7 +875,7 @@ interface ShopifyOrder {
   id: string
   name: string
   email: string | null
-  phone?: string | null
+  phone: string | null
   createdAt: string
   updatedAt: string
   cancelledAt: string | null
@@ -841,8 +883,8 @@ interface ShopifyOrder {
   displayFinancialStatus: string | null
   displayFulfillmentStatus: string
   totalPriceSet: ShopifyMoneyBag
-  subtotalPriceSet: ShopifyMoneyBag
-  totalTaxSet?: ShopifyMoneyBag
+  subtotalPriceSet: ShopifyMoneyBag | null
+  totalTaxSet?: ShopifyMoneyBag | null
   totalShippingPriceSet?: ShopifyMoneyBag
   note: string | null
   tags: string[]
@@ -922,7 +964,7 @@ interface ShopifyCustomer {
     amount: string
     currencyCode: string
   }
-  addresses?: ShopifyAddress[]
+  addresses: ShopifyAddress[]
   defaultAddress: ShopifyAddress | null
 }
 
@@ -1276,7 +1318,7 @@ export interface ShopifyCustomerResponse extends ToolResponse {
 
 export interface ShopifyCustomersResponse extends ToolResponse {
   output: {
-    customers?: ShopifyCustomer[]
+    customers?: Omit<ShopifyCustomer, 'addresses'>[]
     pageInfo?: {
       hasNextPage: boolean
       hasPreviousPage: boolean
@@ -1346,10 +1388,10 @@ export interface ShopifyInventoryItemsResponse extends ToolResponse {
       tracked: boolean
       createdAt: string
       updatedAt: string
-      variant?: {
+      variant: {
         id: string
         title: string
-        product?: {
+        product: {
           id: string
           title: string
         }
@@ -1391,7 +1433,7 @@ export interface ShopifyLocationsResponse extends ToolResponse {
         countryCode: string | null
         zip: string | null
         phone: string | null
-      } | null
+      }
     }>
     pageInfo?: {
       hasNextPage: boolean
@@ -1408,8 +1450,8 @@ export interface ShopifyCollectionsResponse extends ToolResponse {
       id: string
       title: string
       handle: string
-      description: string | null
-      descriptionHtml: string | null
+      description: string
+      descriptionHtml: string
       productsCount: number
       sortOrder: string
       updatedAt: string
@@ -1434,8 +1476,8 @@ export interface ShopifyCollectionResponse extends ToolResponse {
       id: string
       title: string
       handle: string
-      description: string | null
-      descriptionHtml: string | null
+      description: string
+      descriptionHtml: string
       productsCount: number
       sortOrder: string
       updatedAt: string
@@ -1468,6 +1510,7 @@ export interface ShopifyDeleteResponse extends ToolResponse {
   }
 }
 
+/** Connection cursors and navigation flags; cursors are null when a page contains no edges. */
 export interface ShopifyPageInfo {
   hasNextPage: boolean
   hasPreviousPage: boolean
@@ -1475,26 +1518,37 @@ export interface ShopifyPageInfo {
   endCursor: string | null
 }
 
+/** Shopify validation error, with a null field path when the error is not tied to an input field. */
 export interface ShopifyUserError {
   field: string[] | null
   message: string
 }
+
+/** Accepts either a legacy Job GID or an OrderCancelJobResult GID for polling. */
 export interface ShopifyGetJobParams extends ShopifyBaseParams {
   jobId: string
 }
+
+/** Polling output containing the legacy job or the richer cancellation result for the requested GID. */
 export interface ShopifyJobResponse extends ToolResponse {
   output: { job?: { id: string; done: boolean }; jobResult?: ShopifyCancellationResult }
 }
+
+/** Order identifier and cursor controls for listing its fulfillment assignments. */
 export interface ShopifyListFulfillmentOrdersParams extends ShopifyBaseParams {
   orderId: string
   first?: number
   after?: string
 }
+
+/** Fulfillment assignment identifier and cursor controls for its line items. */
 export interface ShopifyGetFulfillmentOrderParams extends ShopifyBaseParams {
   fulfillmentOrderId: string
   first?: number
   after?: string
 }
+
+/** Assigned fulfillment work with remaining quantities, supported actions, and a page of line items. */
 export interface ShopifyFulfillmentOrder {
   id: string
   orderId: string
@@ -1522,32 +1576,46 @@ export interface ShopifyFulfillmentOrder {
     pageInfo: ShopifyPageInfo
   }
 }
+
+/** A page of fulfillment assignments and cursors for retrieving the next page. */
 export interface ShopifyFulfillmentOrdersResponse extends ToolResponse {
   output: { fulfillmentOrders?: ShopifyFulfillmentOrder[]; pageInfo?: ShopifyPageInfo }
 }
+
+/** One fulfillment assignment, including cursors for continuing its line-item connection. */
 export interface ShopifyFulfillmentOrderResponse extends ToolResponse {
   output: { fulfillmentOrder?: ShopifyFulfillmentOrder }
 }
+
+/** Variants and optional media to create for one product, with standalone-variant handling. */
 export interface ShopifyCreateProductVariantsParams extends ShopifyBaseParams {
   productId: string
   variants: Array<Record<string, unknown>> | string
   strategy?: 'DEFAULT' | 'REMOVE_STANDALONE_VARIANT' | 'PRESERVE_STANDALONE_VARIANT'
   media?: Array<Record<string, unknown>> | string
 }
+
+/** Variant updates for one product, optionally retaining valid updates when others fail. */
 export interface ShopifyUpdateProductVariantsParams extends ShopifyBaseParams {
   productId: string
   variants: Array<Record<string, unknown>> | string
   allowPartialUpdates?: boolean
   media?: Array<Record<string, unknown>> | string
 }
+
+/** Returned variants and provider validation errors, including partial-update results. */
 export interface ShopifyProductVariantsResponse extends ToolResponse {
   output: { productVariants?: ShopifyVariant[]; userErrors?: ShopifyUserError[] }
 }
+
+/** Fulfillment identifier and cursor controls for reading its fulfilled line items. */
 export interface ShopifyGetFulfillmentParams extends ShopifyBaseParams {
   fulfillmentId: string
   first?: number
   after?: string
 }
+
+/** Tracking details for a fulfillment and an optional customer-notification flag. */
 export interface ShopifyUpdateFulfillmentTrackingParams extends ShopifyBaseParams {
   fulfillmentId: string
   trackingInfo:
@@ -1556,6 +1624,7 @@ export interface ShopifyUpdateFulfillmentTrackingParams extends ShopifyBaseParam
   notifyCustomer?: boolean
 }
 
+/** Fulfillment assignment fields with line-item cursors for subsequent reads and partial fulfillment. */
 export const FULFILLMENT_ORDER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Fulfillment order GID to pass to Create Fulfillment' },
   orderId: { type: 'string', description: 'Associated order GID' },
@@ -1563,8 +1632,8 @@ export const FULFILLMENT_ORDER_OUTPUT_PROPERTIES = {
   requestStatus: { type: 'string', description: 'Fulfillment request status' },
   createdAt: { type: 'string', description: 'Creation timestamp' },
   updatedAt: { type: 'string', description: 'Last update timestamp' },
-  fulfillAt: { type: 'string', optional: true, description: 'Earliest fulfillment timestamp' },
-  fulfillBy: { type: 'string', optional: true, description: 'Fulfillment deadline' },
+  fulfillAt: { type: 'string', nullable: true, description: 'Earliest fulfillment timestamp' },
+  fulfillBy: { type: 'string', nullable: true, description: 'Fulfillment deadline' },
   assignedLocation: {
     type: 'object',
     description: 'Assigned fulfillment location',
@@ -1572,7 +1641,7 @@ export const FULFILLMENT_ORDER_OUTPUT_PROPERTIES = {
       name: { type: 'string', description: 'Assigned location name' },
       location: {
         type: 'object',
-        optional: true,
+        nullable: true,
         description: 'Current location',
         properties: {
           id: { type: 'string', description: 'Location GID' },
@@ -1590,7 +1659,7 @@ export const FULFILLMENT_ORDER_OUTPUT_PROPERTIES = {
         action: { type: 'string', description: 'Permitted action' },
         externalUrl: {
           type: 'string',
-          optional: true,
+          nullable: true,
           description: 'External fulfillment URL when applicable',
         },
       },
@@ -1623,12 +1692,12 @@ export const FULFILLMENT_ORDER_OUTPUT_PROPERTIES = {
                 remainingQuantity: { type: 'number', description: 'Quantity still to fulfill' },
                 inventoryItemId: {
                   type: 'string',
-                  optional: true,
+                  nullable: true,
                   description: 'Inventory item GID',
                 },
                 productTitle: { type: 'string', description: 'Product title' },
-                variantTitle: { type: 'string', optional: true, description: 'Variant title' },
-                sku: { type: 'string', optional: true, description: 'SKU' },
+                variantTitle: { type: 'string', nullable: true, description: 'Variant title' },
+                sku: { type: 'string', nullable: true, description: 'SKU' },
                 lineItem: {
                   type: 'object',
                   description: 'Original order line item',

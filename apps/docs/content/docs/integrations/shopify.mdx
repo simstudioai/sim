@@ -924,7 +924,7 @@ Create a new customer in your Shopify store
 |   ↳ `amountSpent` | object | Total amount spent by customer |
 |     ↳ `amount` | string | Decimal money amount |
 |     ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|   ↳ `addresses` | array | Customer addresses |
+|   ↳ `defaultAddress` | object | Customer default address |
 |     ↳ `firstName` | string | First name |
 |     ↳ `lastName` | string | Last name |
 |     ↳ `address1` | string | Street address line 1 |
@@ -936,7 +936,7 @@ Create a new customer in your Shopify store
 |     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
 |     ↳ `zip` | string | Postal or ZIP code |
 |     ↳ `phone` | string | Phone number |
-|   ↳ `defaultAddress` | object | Customer default address |
+|   ↳ `addresses` | array | Customer addresses |
 |     ↳ `firstName` | string | First name |
 |     ↳ `lastName` | string | Last name |
 |     ↳ `address1` | string | Street address line 1 |
@@ -988,7 +988,7 @@ Get a single customer by ID from your Shopify store
 |   ↳ `amountSpent` | object | Total amount spent by customer |
 |     ↳ `amount` | string | Decimal money amount |
 |     ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|   ↳ `addresses` | array | Customer addresses |
+|   ↳ `defaultAddress` | object | Customer default address |
 |     ↳ `firstName` | string | First name |
 |     ↳ `lastName` | string | Last name |
 |     ↳ `address1` | string | Street address line 1 |
@@ -1000,7 +1000,7 @@ Get a single customer by ID from your Shopify store
 |     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
 |     ↳ `zip` | string | Postal or ZIP code |
 |     ↳ `phone` | string | Phone number |
-|   ↳ `defaultAddress` | object | Customer default address |
+|   ↳ `addresses` | array | Customer addresses |
 |     ↳ `firstName` | string | First name |
 |     ↳ `lastName` | string | Last name |
 |     ↳ `address1` | string | Street address line 1 |
@@ -1033,6 +1033,41 @@ List customers from your Shopify store with optional filtering
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customers` | array | List of customers |
+|   ↳ `emailMarketingConsent` | object | Email marketing consent |
+|     ↳ `marketingState` | string | Consent state |
+|     ↳ `marketingOptInLevel` | string | Opt-in level |
+|     ↳ `consentUpdatedAt` | string | Consent update timestamp |
+|   ↳ `smsMarketingConsent` | object | SMS marketing consent |
+|     ↳ `marketingState` | string | Consent state |
+|     ↳ `marketingOptInLevel` | string | Opt-in level |
+|     ↳ `consentUpdatedAt` | string | Consent update timestamp |
+|   ↳ `id` | string | Unique customer identifier \(GID\) |
+|   ↳ `email` | string | Customer email address |
+|   ↳ `firstName` | string | Customer first name |
+|   ↳ `lastName` | string | Customer last name |
+|   ↳ `phone` | string | Customer phone number |
+|   ↳ `createdAt` | string | Account creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `note` | string | Internal notes about the customer |
+|   ↳ `tags` | array | Customer tags for categorization |
+|   ↳ `numberOfOrders` | string | Lifetime order count as an unsigned integer string |
+|   ↳ `locale` | string | Customer locale |
+|   ↳ `taxExempt` | boolean | Whether the customer is tax exempt |
+|   ↳ `amountSpent` | object | Total amount spent by customer |
+|     ↳ `amount` | string | Decimal money amount |
+|     ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|   ↳ `defaultAddress` | object | Customer default address |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 | `pageInfo` | object | Pagination information |
 |   ↳ `startCursor` | string | Cursor at the start of this page |
 |   ↳ `endCursor` | string | Cursor to pass as after for the next page |
@@ -1090,7 +1125,7 @@ Update an existing customer in your Shopify store
 |   ↳ `amountSpent` | object | Total amount spent by customer |
 |     ↳ `amount` | string | Decimal money amount |
 |     ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|   ↳ `addresses` | array | Customer addresses |
+|   ↳ `defaultAddress` | object | Customer default address |
 |     ↳ `firstName` | string | First name |
 |     ↳ `lastName` | string | Last name |
 |     ↳ `address1` | string | Street address line 1 |
@@ -1102,7 +1137,7 @@ Update an existing customer in your Shopify store
 |     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
 |     ↳ `zip` | string | Postal or ZIP code |
 |     ↳ `phone` | string | Phone number |
-|   ↳ `defaultAddress` | object | Customer default address |
+|   ↳ `addresses` | array | Customer addresses |
 |     ↳ `firstName` | string | First name |
 |     ↳ `lastName` | string | Last name |
 |     ↳ `address1` | string | Street address line 1 |
@@ -1284,6 +1319,15 @@ List inventory locations from your Shopify store. Use this to find location IDs 
 |   ↳ `isActive` | boolean | Whether the location is active |
 |   ↳ `fulfillsOnlineOrders` | boolean | Whether the location fulfills online orders |
 |   ↳ `address` | object | Location address |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 | `pageInfo` | object | Pagination information |
 |   ↳ `startCursor` | string | Cursor at the start of this page |
 |   ↳ `endCursor` | string | Cursor to pass as after for the next page |

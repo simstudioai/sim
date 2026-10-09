@@ -1511,12 +1511,15 @@ export const ShopifyBlock: BlockConfig = {
         return params.operation || 'shopify_list_products'
       },
       params: (params) => {
-        const first = parseOptionalNumberInput(params.first, 'first')
+        const operation = params.operation || 'shopify_list_products'
+        const first = LIST_OPERATIONS.some((listOperation) => listOperation === operation)
+          ? parseOptionalNumberInput(params.first, 'first')
+          : undefined
         const baseParams: Record<string, unknown> = {
           handle: params.handle?.trim() || undefined,
           seo: params.seo,
           category: params.category?.trim() || undefined,
-          templateSuffix: params.templateSuffix?.trim() || undefined,
+          templateSuffix: params.templateSuffix?.trim(),
           metafields: params.metafields,
           collectionsToJoin: params.collectionsToJoin,
           requiresSellingPlan: parseOptionalBooleanInput(params.requiresSellingPlan),
@@ -1531,7 +1534,7 @@ export const ShopifyBlock: BlockConfig = {
           smsMarketingConsent: params.smsMarketingConsent,
           shippingAddress: params.shippingAddress,
           customAttributes: params.customAttributes,
-          poNumber: params.poNumber?.trim() || undefined,
+          poNumber: params.poNumber?.trim(),
           after: params.after,
           reverse: parseOptionalBooleanInput(params.reverse),
           includeDetails: parseOptionalBooleanInput(params.includeDetails),
@@ -1551,17 +1554,10 @@ export const ShopifyBlock: BlockConfig = {
           name: params.name?.trim() || undefined,
           referenceDocumentUri: params.referenceDocumentUri?.trim() || undefined,
           ledgerDocumentUri: params.ledgerDocumentUri?.trim() || undefined,
-          changeFromQuantity: parseOptionalNumberInput(
-            params.changeFromQuantity,
-            'changeFromQuantity'
-          ),
           refundMethod: params.refundMethod,
           orderPhone: params.orderPhone,
-          variantsFirst: parseOptionalNumberInput(params.variantsFirst, 'variantsFirst'),
           variantsAfter: params.variantsAfter,
-          imagesFirst: parseOptionalNumberInput(params.imagesFirst, 'imagesFirst'),
           imagesAfter: params.imagesAfter,
-          lineItemsFirst: parseOptionalNumberInput(params.lineItemsFirst, 'lineItemsFirst'),
           lineItemsAfter: params.lineItemsAfter,
           productsAfter: params.productsAfter,
           first,
@@ -1569,7 +1565,7 @@ export const ShopifyBlock: BlockConfig = {
           shopDomain: params.shopDomain?.trim(),
         }
 
-        switch (params.operation || 'shopify_list_products') {
+        switch (operation) {
           case 'shopify_create_product':
             if (!params.title?.trim()) {
               throw new Error('Product title is required.')
@@ -1594,6 +1590,8 @@ export const ShopifyBlock: BlockConfig = {
             return {
               ...baseParams,
               productId: params.productId.trim(),
+              variantsFirst: parseOptionalNumberInput(params.variantsFirst, 'variantsFirst'),
+              imagesFirst: parseOptionalNumberInput(params.imagesFirst, 'imagesFirst'),
             }
 
           case 'shopify_list_products':
@@ -1638,6 +1636,7 @@ export const ShopifyBlock: BlockConfig = {
             return {
               ...baseParams,
               orderId: params.orderId.trim(),
+              lineItemsFirst: parseOptionalNumberInput(params.lineItemsFirst, 'lineItemsFirst'),
             }
 
           case 'shopify_list_orders':
@@ -1776,6 +1775,10 @@ export const ShopifyBlock: BlockConfig = {
               inventoryItemId: params.inventoryItemId.trim(),
               locationId: params.locationId.trim(),
               delta: Number(params.delta),
+              changeFromQuantity: parseOptionalNumberInput(
+                params.changeFromQuantity,
+                'changeFromQuantity'
+              ),
             }
 
           case 'shopify_list_locations':

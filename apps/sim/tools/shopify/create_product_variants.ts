@@ -12,6 +12,7 @@ import {
 } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** Creates variants for one product and returns validation errors alongside the created variants. */
 export const shopifyCreateProductVariantsTool: ToolConfig<
   ShopifyCreateProductVariantsParams,
   ShopifyProductVariantsResponse
@@ -144,7 +145,7 @@ export const shopifyCreateProductVariantsTool: ToolConfig<
         properties: {
           field: {
             type: 'array',
-            optional: true,
+            nullable: true,
             description: 'Input field path',
             items: { type: 'string' },
           },

@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http'
 import { dirname } from 'node:path'
 import { db } from '@sim/db'
 import { account, credential, user, workspace } from '@sim/db/schema'
+import { createDeferred, type Deferred } from '@sim/testing/helpers/deferred'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -10,6 +11,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { refreshTokenIfNeeded } from '@/lib/oauth/credential-service'
 import * as refreshCoordination from '@/lib/oauth/refresh-coordination'
 import { completeShopifyOAuthConnection } from '@/lib/oauth/shopify'
+import { ShopifyOAuthError } from '@/lib/oauth/shopify-installation'
 
 vi.hoisted(() => {
   process.env.SHOPIFY_CLIENT_ID = 'shopify-integration-client'
@@ -35,18 +37,20 @@ let activeRequests = 0
 let malformedField: string | undefined
 let rejectionStatus: number | undefined
 let identityRejectionStatus: number | undefined
+let pausedTokenResponse: { headersReceived: Deferred<void>; release: Deferred<void> } | undefined
 
 async function rows() {
   return db.select().from(account).where(inArray(account.id, rowIds))
 }
 
-async function connect(userId = userIds[0]) {
+async function connect(userId = userIds[0], signal?: AbortSignal) {
   const input = {
     code: 'fixture-authorization-code',
     accessToken: 'fixture-access-0',
     shopDomain,
     scope: 'read_products',
     userId,
+    signal,
   }
   return completeShopifyOAuthConnection(input)
 }
@@ -132,18 +136,29 @@ beforeAll(async () => {
       scope: 'read_products',
     }
     if (malformedField) delete tokens[malformedField]
+    if (pausedTokenResponse) {
+      const payload = JSON.stringify(tokens)
+      response.write(payload.slice(0, 1))
+      await pausedTokenResponse.release.promise
+      response.end(payload.slice(1))
+      return
+    }
     response.end(JSON.stringify(tokens))
   })
   await new Promise<void>((resolve) => provider.listen(0, '127.0.0.1', resolve))
   const address = provider.address()
   if (!address || typeof address === 'string') throw new Error('Provider fixture failed to bind')
   providerUrl = `http://127.0.0.1:${address.port}`
-  vi.stubGlobal('fetch', (input: string | URL | Request, init?: RequestInit) => {
+  vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
     const target = new URL(typeof input === 'string' || input instanceof URL ? input : input.url)
     if (![shopDomain, 'accounts.shopify.com'].includes(target.hostname)) {
       throw new Error('Unexpected provider target')
     }
-    return originalFetch(`${providerUrl}${target.pathname}`, init)
+    const response = await originalFetch(`${providerUrl}${target.pathname}`, init)
+    if (target.pathname === '/admin/oauth/access_token') {
+      pausedTokenResponse?.headersReceived.resolve()
+    }
+    return response
   })
 })
 
@@ -156,6 +171,7 @@ beforeEach(async () => {
   malformedField = undefined
   rejectionStatus = undefined
   identityRejectionStatus = undefined
+  pausedTokenResponse = undefined
   await db.delete(credential).where(eq(credential.id, credentialId))
   await db.delete(account).where(inArray(account.userId, userIds))
   await db.insert(account).values(
@@ -186,6 +202,7 @@ beforeEach(async () => {
 })
 
 afterEach((context) => {
+  pausedTokenResponse?.release.resolve()
   checks.push({
     name: context.task.name,
     status: context.task.result?.state ?? 'unknown',
@@ -194,6 +211,7 @@ afterEach((context) => {
 })
 
 afterAll(async () => {
+  globalThis.fetch = originalFetch
   await db.delete(workspace).where(eq(workspace.id, workspaceId))
   await db.delete(user).where(inArray(user.id, userIds))
   if (provider) {
@@ -208,6 +226,55 @@ afterAll(async () => {
 })
 
 describe('Shopify offline installation tokens against PostgreSQL and HTTP', () => {
+  it('preserves caller cancellation before any token acquisition', async () => {
+    const controller = new AbortController()
+    const reason = new DOMException('Connection cancelled', 'AbortError')
+    controller.abort(reason)
+    const before = await rows()
+
+    await expect(connect(userIds[0], controller.signal)).rejects.toBe(reason)
+
+    expect(tokenRequests).toBe(0)
+    expect(await rows()).toEqual(before)
+  })
+
+  it.each(['caller', 'provider deadline'] as const)(
+    'distinguishes %s cancellation while consuming a token response body',
+    async (source) => {
+      const controller = new AbortController()
+      const reason = new DOMException(
+        'fixture-private-abort-reason',
+        source === 'caller' ? 'AbortError' : 'TimeoutError'
+      )
+      const timeout =
+        source === 'provider deadline'
+          ? vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(controller.signal)
+          : undefined
+      const paused = { headersReceived: createDeferred<void>(), release: createDeferred<void>() }
+      pausedTokenResponse = paused
+      const before = await rows()
+      const outcome = connect(
+        userIds[0],
+        source === 'caller' ? controller.signal : undefined
+      ).catch((error: unknown) => error)
+      try {
+        await paused.headersReceived.promise
+        controller.abort(reason)
+        const error = await outcome
+        if (source === 'caller') {
+          expect(error).toBe(reason)
+        } else {
+          expect(error).toBeInstanceOf(ShopifyOAuthError)
+          expect(error).toMatchObject({ callbackError: 'shopify_token_error' })
+        }
+        expect(await rows()).toEqual(before)
+      } finally {
+        paused.release.resolve()
+        timeout?.mockRestore()
+      }
+    }
+  )
+
   it('retains the replacement chain when clearing the previous terminal-error flag fails', async () => {
     const clearFlag = vi
       .spyOn(refreshCoordination, 'clearOAuthRefreshDeadFlag')

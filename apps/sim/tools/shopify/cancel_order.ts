@@ -181,7 +181,7 @@ export const shopifyCancelOrderTool: ToolConfig<
   outputs: {
     jobResult: {
       type: 'object',
-      optional: true,
+      nullable: true,
       description:
         'Cancellation outcome; pass its ID to Get Job until done, then inspect status and errors',
       properties: CANCELLATION_RESULT_OUTPUT_PROPERTIES,

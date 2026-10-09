@@ -16,6 +16,7 @@ import {
 } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** Lists an order's fulfillment assignments with cursors for subsequent pages. */
 export const shopifyListFulfillmentOrdersTool: ToolConfig<
   ShopifyListFulfillmentOrdersParams,
   ShopifyFulfillmentOrdersResponse

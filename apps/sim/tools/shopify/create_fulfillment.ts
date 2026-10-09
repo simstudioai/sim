@@ -130,8 +130,10 @@ export const shopifyCreateFulfillmentTool: ToolConfig<
         trackingInfo.url = params.trackingUrl
       }
 
-      trackingInfo.numbers = parseShopifyArray<string>(params.trackingNumbers, 'trackingNumbers')
-      trackingInfo.urls = parseShopifyArray<string>(params.trackingUrls, 'trackingUrls')
+      const trackingNumbers = parseShopifyArray<string>(params.trackingNumbers, 'trackingNumbers')
+      const trackingUrls = parseShopifyArray<string>(params.trackingUrls, 'trackingUrls')
+      if (trackingNumbers !== undefined) trackingInfo.numbers = trackingNumbers
+      if (trackingUrls !== undefined) trackingInfo.urls = trackingUrls
 
       const fulfillmentInput: {
         lineItemsByFulfillmentOrder: Array<{

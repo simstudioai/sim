@@ -12,6 +12,7 @@ import {
 } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** Updates product variants and preserves successful changes when partial updates are enabled. */
 export const shopifyUpdateProductVariantsTool: ToolConfig<
   ShopifyUpdateProductVariantsParams,
   ShopifyProductVariantsResponse
@@ -145,7 +146,7 @@ export const shopifyUpdateProductVariantsTool: ToolConfig<
         properties: {
           field: {
             type: 'array',
-            optional: true,
+            nullable: true,
             description: 'Input field path',
             items: { type: 'string' },
           },

@@ -12,6 +12,7 @@ import {
 } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** Reads a fulfillment with cursor pagination for its fulfilled line items. */
 export const shopifyGetFulfillmentTool: ToolConfig<
   ShopifyGetFulfillmentParams,
   ShopifyFulfillmentResponse

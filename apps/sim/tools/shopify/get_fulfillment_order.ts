@@ -12,6 +12,7 @@ import {
 } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** Reads assigned fulfillment work and a page of its remaining line items. */
 export const shopifyGetFulfillmentOrderTool: ToolConfig<
   ShopifyGetFulfillmentOrderParams,
   ShopifyFulfillmentOrderResponse

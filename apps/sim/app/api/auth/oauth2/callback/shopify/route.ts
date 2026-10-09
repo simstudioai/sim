@@ -130,6 +130,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     return clearShopifyOAuthCookies(NextResponse.redirect(finalUrl))
   } catch (error) {
+    if (request.signal.aborted) throw error
     logger.error('Shopify OAuth callback failed')
     const errorCode =
       error instanceof EnvCapabilityConfigurationError && error.capabilityId === 'oauth'

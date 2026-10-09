@@ -13,6 +13,7 @@ import {
 } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** Updates shipment tracking and optionally sends the customer a notification. */
 export const shopifyUpdateFulfillmentTrackingTool: ToolConfig<
   ShopifyUpdateFulfillmentTrackingParams,
   ShopifyFulfillmentResponse

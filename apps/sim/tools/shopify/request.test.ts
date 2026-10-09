@@ -2,6 +2,7 @@ import { jsonResponse } from '@sim/testing/helpers/http'
 import { describe, expect, it } from 'vitest'
 import { shopifyAdjustInventoryTool } from '@/tools/shopify/adjust_inventory'
 import { shopifyCancelOrderTool } from '@/tools/shopify/cancel_order'
+import { shopifyCreateFulfillmentTool } from '@/tools/shopify/create_fulfillment'
 import { shopifyGetProductTool } from '@/tools/shopify/get_product'
 import { shopifyUpdateProductVariantsTool } from '@/tools/shopify/update_product_variants'
 
@@ -79,6 +80,17 @@ describe('Shopify partial variant updates', () => {
     expect(result?.success).toBe(true)
     expect(result?.output.productVariants?.[0].id).toBe('gid://shopify/ProductVariant/1')
     expect(result?.output.userErrors).toHaveLength(1)
+  })
+})
+
+describe('Shopify fulfillment tracking', () => {
+  it('omits tracking input from the wire when no tracking details were supplied', async () => {
+    const body = shopifyCreateFulfillmentTool.request.body?.({
+      accessToken: 'test-token',
+      fulfillmentOrderId: 'gid://shopify/FulfillmentOrder/1',
+    })
+    const wire = await jsonResponse(body).json()
+    expect(wire.variables.fulfillment).not.toHaveProperty('trackingInfo')
   })
 })
 

@@ -68,15 +68,21 @@ function tokenExpiry(value: unknown, issuedAt: number): Date {
   return expiry
 }
 
-async function readShopifyResponse(response: Response): Promise<Record<string, unknown>> {
+async function readShopifyResponse(
+  response: Response,
+  requestSignal: AbortSignal,
+  callerSignal?: AbortSignal
+): Promise<Record<string, unknown>> {
   try {
     return toRecord(
       await readResponseJsonWithLimit(response, {
         maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
         label: 'Shopify OAuth response',
+        signal: requestSignal,
       })
     )
   } catch {
+    callerSignal?.throwIfAborted()
     throw new ShopifyOAuthError('Invalid Shopify OAuth response', 'shopify_token_error')
   }
 }
@@ -89,6 +95,7 @@ async function exchangeToken(
   const { values } = requireConfiguredOAuthClient('shopify')
   const issuedAt = Date.now()
   const timeout = AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS)
+  const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
   let response: Response
   try {
     response = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
@@ -101,12 +108,13 @@ async function exchangeToken(
         ...('code' in grant ? { expiring: '1' } : { grant_type: 'refresh_token' }),
       }),
       redirect: 'error',
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      signal: requestSignal,
     })
   } catch {
+    signal?.throwIfAborted()
     throw new ShopifyOAuthError('Shopify token response unavailable', 'shopify_token_error')
   }
-  const data = await readShopifyResponse(response)
+  const data = await readShopifyResponse(response, requestSignal, signal)
   if (!response.ok) {
     const errorCode =
       'refresh_token' in grant && response.status === 401 && data.error === 'invalid_request'
@@ -146,6 +154,7 @@ async function fetchShopAccountId(
   signal?: AbortSignal
 ): Promise<string> {
   const timeout = AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS)
+  const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
   const response = await fetch(
     `https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
     {
@@ -153,10 +162,10 @@ async function fetchShopAccountId(
       headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: 'query ShopifyOAuthIdentity { shop { id } }' }),
       redirect: 'error',
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      signal: requestSignal,
     }
   )
-  const payload = await readShopifyResponse(response)
+  const payload = await readShopifyResponse(response, requestSignal, signal)
   const shop = toRecord(toRecord(payload.data).shop)
   const id =
     typeof shop.id === 'string' ? /^gid:\/\/shopify\/Shop\/(\d+)$/.exec(shop.id)?.[1] : undefined
