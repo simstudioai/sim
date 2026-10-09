@@ -31,7 +31,7 @@ import {
  * - `chipVariants({...})` → any other element (`<div role='button'>`, `<DropdownMenuTrigger asChild>` inner, etc.)
  *
  * @remarks
- * The implicit **default** variant is the bare pill — transparent, `--surface-hover` on hover. Omit `variant`
+ * The implicit **default** variant is the bare pill — transparent, `--surface-hover` on hover and keyboard focus. Omit `variant`
  * to get it (shadcn-style); never write `variant='default'`. Named variants:
  * `filled` (`--surface-5` light / `--surface-4` dark fill, `--surface-hover` hover) — a borderless surface reserved for
  * chip FIELDS/TRIGGERS ({@link ChipInput}/{@link ChipDropdown}/{@link ChipSelect}/{@link ChipDatePicker}), **never `Chip`
@@ -79,7 +79,11 @@ const chipVariants = cva(
       fullWidth: { true: 'flex w-full', false: 'inline-flex' },
     },
     compoundVariants: [
-      { variant: ['default', 'filled'], active: false, className: chipHoverSurfaceClass },
+      {
+        variant: ['default', 'filled'],
+        active: false,
+        className: `${chipHoverSurfaceClass} focus-visible:bg-[var(--surface-hover)]`,
+      },
       { variant: ['default', 'filled'], active: true, className: chipActiveSurfaceClass },
     ],
     defaultVariants: { variant: 'default', shape: 'default', active: false, fullWidth: false },
