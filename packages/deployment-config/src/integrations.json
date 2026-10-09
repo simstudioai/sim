@@ -23799,7 +23799,7 @@
       "slug": "shopify",
       "name": "Shopify",
       "description": "Manage products, orders, customers, and inventory in your Shopify store",
-      "longDescription": "Integrate Shopify into your workflow. Manage products, orders, customers, and inventory. Create, read, update, and delete products. List and manage orders. Handle customer data and adjust inventory levels.",
+      "longDescription": "Manage Shopify products and variants, orders, customers, inventory, collections, and merchant-managed fulfillment using Admin GraphQL API 2026-10. Discover fulfillment orders, ship selected items, update tracking, and check cancellation jobs. Continue list and nested results with the returned cursors. Product activation does not publish to sales channels. Orders normally cover the last 60 days; older orders and protected customer fields require Shopify approval and access. Expanded list details are optional and use smaller pages to stay within query-cost limits. Expanded order-update responses are opt-in and require product, protected-address, and fulfillment access.",
       "bgColor": "#FFFFFF",
       "iconName": "ShopifyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/shopify",
@@ -23878,18 +23878,46 @@
         },
         {
           "name": "Create Fulfillment",
-          "description": "Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (get this from the order details)."
+          "description": "Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (use List Fulfillment Orders to find it)."
         },
         {
           "name": "List Collections",
           "description": "List product collections from your Shopify store. Filter by title, type (custom/smart), or handle."
         },
         {
+          "name": "List Fulfillment Orders",
+          "description": "Find fulfillment order IDs and remaining items for an order at merchant-managed locations"
+        },
+        {
+          "name": "Get Fulfillment Order",
+          "description": "Read a fulfillment order and one page of line items for partial fulfillment"
+        },
+        {
+          "name": "Get Job",
+          "description": "Read Shopify job progress or the outcome and errors of an order cancellation"
+        },
+        {
+          "name": "Create Product Variants",
+          "description": "Create product variants with pricing, options, inventory attributes, and metafields"
+        },
+        {
+          "name": "Update Product Variants",
+          "description": "Update product variants with pricing, options, inventory attributes, and metafields"
+        },
+        {
+          "name": "Get Fulfillment",
+          "description": "Read shipment tracking and one page of fulfilled line items"
+        },
+        {
+          "name": "Update Fulfillment Tracking",
+          "description": "Update tracking numbers, URLs, or carrier for an existing fulfillment"
+        },
+        {
           "name": "Get Collection",
           "description": "Get a specific collection by ID, including its products. Use this to retrieve products within a collection."
         }
       ],
-      "operationCount": 21,
+      "operationCount": 28,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

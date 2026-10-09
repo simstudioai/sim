@@ -11,4 +11,4 @@
  *
  * @see https://shopify.dev/docs/api/usage/versioning
  */
-export const SHOPIFY_API_VERSION = '2025-10'
+export const SHOPIFY_API_VERSION = '2026-10'

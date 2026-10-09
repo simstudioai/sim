@@ -1,6 +1,11 @@
-import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import type { ShopifyOrderResponse, ShopifyUpdateOrderParams } from '@/tools/shopify/types'
 import { ORDER_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
+import {
+  getShopifyHeaders,
+  getShopifyUrl,
+  parseShopifyArray,
+  parseShopifyObject,
+} from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, ShopifyOrderResponse> = {
@@ -12,12 +17,59 @@ export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, Shopif
   oauth: {
     required: true,
     provider: 'shopify',
+    authoritativeParams: ['domain', 'idToken'],
   },
 
   params: {
-    shopDomain: {
+    accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
+      description: 'Shopify Admin API token supplied by the connected credential',
+    },
+    phone: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Customer phone number for the order',
+    },
+    shippingAddress: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'MailingAddressInput object with firstName, lastName, address1, address2, city, provinceCode, countryCode, zip, and phone',
+    },
+    customAttributes: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Order attributes as an array of {key, value} objects',
+    },
+    metafields: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'MetafieldInput array: namespace, key, type, value, or id',
+    },
+    poNumber: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Purchase order number',
+    },
+
+    includeDetails: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Include product variants, addresses, and fulfillments; requires read_products, protected-address access, and a scope accepted by Fulfillment',
+    },
+
+    shopDomain: {
+      type: 'string',
+      required: false,
       visibility: 'user-only',
       description: 'Your Shopify store domain (e.g., mystore.myshopify.com)',
     },
@@ -48,25 +100,16 @@ export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, Shopif
   },
 
   request: {
-    url: (params) =>
-      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+    url: getShopifyUrl,
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for Shopify API request')
-      }
-      return {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': params.accessToken,
-      }
-    },
+    headers: getShopifyHeaders,
     body: (params) => {
-      if (!params.orderId) {
+      if (!params.orderId?.trim()) {
         throw new Error('Order ID is required to update an order')
       }
 
       const input: Record<string, unknown> = {
-        id: params.orderId,
+        id: params.orderId.trim(),
       }
 
       if (params.note !== undefined) {
@@ -79,6 +122,15 @@ export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, Shopif
         input.email = params.email
       }
 
+      if (params.phone !== undefined) input.phone = params.phone
+      if (params.shippingAddress !== undefined)
+        input.shippingAddress = parseShopifyObject(params.shippingAddress, 'shippingAddress')
+      if (params.customAttributes !== undefined)
+        input.customAttributes = parseShopifyArray(params.customAttributes, 'customAttributes')
+      if (params.metafields !== undefined)
+        input.metafields = parseShopifyArray(params.metafields, 'metafields')
+      if (params.poNumber !== undefined) input.poNumber = params.poNumber
+
       return {
         query: `
           mutation orderUpdate($input: OrderInput!) {
@@ -90,21 +142,161 @@ export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, Shopif
                 phone
                 createdAt
                 updatedAt
-                note
-                tags
+                cancelledAt
+                closedAt
                 displayFinancialStatus
                 displayFulfillmentStatus
+                poNumber
+                customAttributes {
+                  key
+                  value
+                }
                 totalPriceSet {
                   shopMoney {
                     amount
                     currencyCode
                   }
+                  presentmentMoney {
+                    amount
+                    currencyCode
+                  }
                 }
+                subtotalPriceSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                  presentmentMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+                totalTaxSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                  presentmentMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+                totalShippingPriceSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                  presentmentMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+                note
+                tags
                 customer {
                   id
                   email
                   firstName
                   lastName
+                  phone
+                }
+                ${
+                  params.includeDetails === true
+                    ? `
+                lineItems(first: 10) {
+                  pageInfo {
+                    hasNextPage
+                    hasPreviousPage
+                    startCursor
+                    endCursor
+                  }
+                  edges {
+                    node {
+                      id
+                      title
+                      quantity
+                      variant {
+                        id
+                        title
+                        price
+                        compareAtPrice
+                        inventoryQuantity
+                        sku
+                        barcode
+                        taxable
+                        inventoryPolicy
+                        inventoryItem {
+                          id
+                          sku
+                          tracked
+                        }
+                        selectedOptions {
+                          name
+                          value
+                        }
+                      }
+                      originalTotalSet {
+                        shopMoney {
+                          amount
+                          currencyCode
+                        }
+                        presentmentMoney {
+                          amount
+                          currencyCode
+                        }
+                      }
+                      discountedTotalSet {
+                        shopMoney {
+                          amount
+                          currencyCode
+                        }
+                        presentmentMoney {
+                          amount
+                          currencyCode
+                        }
+                      }
+                    }
+                  }
+                }
+                shippingAddress {
+                  firstName
+                  lastName
+                  address1
+                  address2
+                  city
+                  province
+                  provinceCode
+                  country
+                  countryCode
+                  zip
+                  phone
+                }
+                billingAddress {
+                  firstName
+                  lastName
+                  address1
+                  address2
+                  city
+                  province
+                  provinceCode
+                  country
+                  countryCode
+                  zip
+                  phone
+                }
+                fulfillments(first: 50) {
+                  id
+                  status
+                  createdAt
+                  updatedAt
+                  trackingInfo {
+                    company
+                    number
+                    url
+                  }
+                }
+                `
+                    : ''
                 }
               }
               userErrors {
@@ -113,6 +305,7 @@ export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, Shopif
               }
             }
           }
+
         `,
         variables: {
           input,
@@ -124,10 +317,10 @@ export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, Shopif
   transformResponse: async (response) => {
     const data = await response.json()
 
-    if (data.errors) {
+    if (!response.ok || data.errors?.length) {
       return {
         success: false,
-        error: data.errors[0]?.message || 'Failed to update order',
+        error: data.errors?.[0]?.message || 'Failed to update order',
         output: {},
       }
     }

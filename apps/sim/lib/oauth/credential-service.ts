@@ -44,6 +44,10 @@ import { refreshOAuthToken, TOKEN_REFRESH_TIMEOUT_MS } from '@/lib/oauth/oauth'
 import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
 import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
 import {
+  getShopifyRefreshScope,
+  refreshShopifyInstallation,
+} from '@/lib/oauth/shopify-installation'
+import {
   extractSlackTeamId,
   fanOutSlackTokenChain,
   getFreshestSlackChain,
@@ -913,8 +917,10 @@ const REFRESH_FOLLOWER_MAX_WAIT_MS = REFRESH_LOCK_TTL_SEC * 1000
 function refreshCoordinationScope(
   accountId: string,
   providerId: string,
-  providerAccountId: string | null | undefined
+  providerAccountId: string | null | undefined,
+  idToken?: string | null
 ): string {
+  if (providerId === 'shopify' && idToken) return getShopifyRefreshScope(idToken)
   const slackTeamId = isSlackProvider(providerId) ? extractSlackTeamId(providerAccountId) : null
   return slackTeamId ? `slack:${slackTeamId}` : accountId
 }
@@ -939,14 +945,23 @@ export async function getCredentialTerminalRefreshError(
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved || resolved.credentialType === 'service_account' || !resolved.accountId) return null
   const [row] = await db
-    .select({ providerId: account.providerId, providerAccountId: account.accountId })
+    .select({
+      providerId: account.providerId,
+      providerAccountId: account.accountId,
+      idToken: account.idToken,
+    })
     .from(account)
     .where(eq(account.id, resolved.accountId))
     .limit(1)
   if (!row) return null
   const errorCode = await getRecentTerminalError(
     getOAuthRefreshCoordinationIdentity(
-      refreshCoordinationScope(resolved.accountId, row.providerId, row.providerAccountId)
+      refreshCoordinationScope(
+        resolved.accountId,
+        row.providerId,
+        row.providerAccountId,
+        row.idToken
+      )
     )
   )
   return errorCode ? { errorCode, providerId: row.providerId } : null
@@ -993,6 +1008,7 @@ async function performCoalescedRefresh({
   userId,
   privacyMode,
 }: CoalescedRefreshOptions): Promise<string | null> {
+  if (providerId === 'shopify') return refreshShopifyInstallation(accountId)
   /**
    * Slack bot tokens are per-installation (team × app): every account row for
    * one team holds a copy of the same rotating chain, so refreshes are locked,
