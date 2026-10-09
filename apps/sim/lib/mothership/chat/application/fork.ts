@@ -157,7 +157,14 @@ export const forkChat = defineAuthorizedChatUseCase({
 
       /** Publish only after both the file bytes and the worker conversation are prepared. */
       await db.transaction(async (tx) => {
-        if (parent.workspaceId) await lockActiveWorkspace(tx, parent.workspaceId)
+        if (parent.workspaceId) {
+          const currentWorkspace = await lockActiveWorkspace(tx, parent.workspaceId)
+          if (currentWorkspace.organizationId !== context.workspaceOrganizationId)
+            throw new OrchestrationError(
+              'conflict',
+              'Workspace organization changed. Refresh and retry.'
+            )
+        }
         /**
          * The fork can share keys with its source (organization attachments, files whose copy
          * failed), and chat cleanup deletes a shared key once no remaining chat references it,

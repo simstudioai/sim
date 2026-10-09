@@ -46,7 +46,10 @@ const inheritedBenchmarkEnabled = vi.hoisted(() => {
 })
 /** The worker conversation copy is a separate service; Sim persistence and authorization stay real. */
 const workerCopy = vi.hoisted(() => vi.fn(async () => {}))
-vi.mock('@/lib/mothership/chat/fork-worker', () => ({ copyWorkerConversation: workerCopy }))
+vi.mock('@/lib/mothership/chat/fork-worker', () => ({
+  copyWorkerConversation: workerCopy,
+  discardWorkerConversation: vi.fn(async () => {}),
+}))
 
 const ids = {
   owner: generateId(),
@@ -426,7 +429,7 @@ describe('private KG selection through authorized application boundaries', () =>
     }
   })
 
-  it('forks the current graph binding after a workspace moves during worker copy', async () => {
+  it('refuses to publish a fork authorized before its workspace moved organizations', async () => {
     await create('Before fork move')
     const parent = await createWorkspaceChat.execute({
       principal: principal(),
@@ -436,6 +439,11 @@ describe('private KG selection through authorized application boundaries', () =>
     await appendCopilotChatMessages(parent.id, [
       { id: messageId, role: 'user', content: 'Fixture', timestamp: new Date().toISOString() },
     ])
+    const before = await db
+      .select({ id: copilotChats.id })
+      .from(copilotChats)
+      .where(eq(copilotChats.workspaceId, ids.workspace))
+      .orderBy(copilotChats.id)
     const copied = createDeferred<void>()
     const release = createDeferred<void>()
     workerCopy.mockImplementationOnce(async () => {
@@ -446,6 +454,10 @@ describe('private KG selection through authorized application boundaries', () =>
       principal: principal(),
       input: { chatId: parent.id, upToMessageId: messageId },
     })
+    const outcome = fork.then(
+      () => null,
+      (error: unknown) => error
+    )
     try {
       await copied.promise
       await db.transaction(async (tx) => {
@@ -460,15 +472,16 @@ describe('private KG selection through authorized application boundaries', () =>
           .where(eq(workspace.id, ids.workspace))
       })
       release.resolve()
-      const result = await fork
-      const [stored] = await db
-        .select({ memorySpaceId: copilotChats.memorySpaceId })
+      expect(await outcome).toMatchObject({ code: 'conflict' })
+      const after = await db
+        .select({ id: copilotChats.id })
         .from(copilotChats)
-        .where(eq(copilotChats.id, result.id))
-      expect(stored.memorySpaceId).toBeNull()
+        .where(eq(copilotChats.workspaceId, ids.workspace))
+        .orderBy(copilotChats.id)
+      expect(after).toEqual(before)
     } finally {
       release.resolve()
-      await fork
+      await outcome
       await db
         .update(workspace)
         .set({ organizationId: ids.org })

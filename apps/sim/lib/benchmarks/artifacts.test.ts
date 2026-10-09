@@ -50,6 +50,26 @@ describe('benchmark reference integrity', () => {
     expect(() => validateBenchmarkRedaction(artifacts)).not.toThrow()
   })
 
+  it('rejects a repeated gold answer that survives outside the masks', () => {
+    expect(() =>
+      validateBenchmarkRedaction({
+        ...artifacts,
+        redactedSpec:
+          '[[BLANK:owner]] owns follow-up until Engineering accepts. Support monitors it.',
+      })
+    ).toThrow()
+  })
+
+  it('does not mistake a blank identifier for a surviving gold answer', () => {
+    expect(() =>
+      validateBenchmarkRedaction({
+        referenceSpec: 'owner approves the request.',
+        redactedSpec: '[[BLANK:owner]] approves the request.',
+        blanks: [{ id: 'owner', answer: 'owner' }],
+      })
+    ).not.toThrow()
+  })
+
   it('rejects a redaction that quietly changes an unmasked requirement', () => {
     expect(() =>
       validateBenchmarkRedaction({ ...artifacts, redactedSpec: '[[BLANK:owner]] owns everything.' })

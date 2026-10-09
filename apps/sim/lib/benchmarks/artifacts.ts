@@ -59,6 +59,15 @@ export function validateBenchmarkRedaction(
       'Every blank must appear as [[BLANK:id]], and replacing the masks with their answers must restore the reference exactly'
     )
   }
+  const visiblePassages = artifacts.redactedSpec.split(/\[\[BLANK:[A-Za-z0-9_-]+\]\]/)
+  if (
+    [...answers.values()].some((answer) => visiblePassages.some((text) => text.includes(answer)))
+  ) {
+    throw new OrchestrationError(
+      'validation',
+      'Every occurrence of a selected answer must be masked'
+    )
+  }
 }
 
 /** Editing an upstream artifact atomically discards results derived from its previous value. */

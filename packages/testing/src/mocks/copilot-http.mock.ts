@@ -41,6 +41,11 @@ export const copilotHttpMockFns = {
     ok: false,
     json: async () => ({ error: message }),
   })),
+  mockCreateForbiddenResponse: vi.fn((message: string) => ({
+    status: 403,
+    ok: false,
+    json: async () => ({ error: message }),
+  })),
   mockCreateNotFoundResponse: vi.fn((message: string) => ({
     status: 404,
     ok: false,
@@ -74,6 +79,7 @@ export const copilotHttpMock = {
   NotificationStatus: NotificationStatusMock,
   createUnauthorizedResponse: copilotHttpMockFns.mockCreateUnauthorizedResponse,
   createBadRequestResponse: copilotHttpMockFns.mockCreateBadRequestResponse,
+  createForbiddenResponse: copilotHttpMockFns.mockCreateForbiddenResponse,
   createNotFoundResponse: copilotHttpMockFns.mockCreateNotFoundResponse,
   createInternalServerErrorResponse: copilotHttpMockFns.mockCreateInternalServerErrorResponse,
   createRequestId: copilotHttpMockFns.mockCreateRequestId,

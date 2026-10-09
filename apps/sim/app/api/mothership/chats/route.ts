@@ -75,6 +75,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
  * Creates an empty mothership chat and returns its ID.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
+  let isWorkspaceRequest = false
   try {
     const { userId, isAuthenticated, principal } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -84,6 +85,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const validation = await parseRequest(createMothershipChatContract, request, {})
     if (!validation.success) return validation.response
     const { workspaceId, organizationId, mode } = validation.data.body
+    isWorkspaceRequest = Boolean(workspaceId)
 
     if (organizationId) {
       if (!principal) return createUnauthorizedResponse()
@@ -110,11 +112,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ success: true, id: chat.id })
   } catch (error) {
     const code = asOrchestrationError(error)?.code
+    if (
+      isWorkspaceAccessDeniedError(error) ||
+      (isWorkspaceRequest && (code === 'not_found' || code === 'forbidden'))
+    )
+      return createForbiddenResponse('Workspace access denied')
     if (code === 'not_found' || code === 'forbidden')
       return createForbiddenResponse('Organization access denied')
-    if (isWorkspaceAccessDeniedError(error)) {
-      return createForbiddenResponse('Workspace access denied')
-    }
     logger.error('Error creating mothership chat:', error)
     return createInternalServerErrorResponse('Failed to create chat')
   }
