@@ -87,7 +87,7 @@ export default async function WorkspaceLayout({
       activeOrganizationId
     ),
     isMothershipModelSelectorEnabled(),
-    isPlanModeEnabled(session.user.id),
+    isPlanModeEnabled(session.user.id).catch(() => false),
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
     isWorkflowTestsEnabled(hostContext.hostOrganizationId),

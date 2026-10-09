@@ -22,7 +22,7 @@ export const benchmarkBlankSchema = z
         /^[A-Za-z0-9_-]{1,64}$/,
         'Blank IDs must contain letters, numbers, underscores, or hyphens'
       ),
-    answer: z.string().min(1, 'A blank must have an answer'),
+    answer: z.string().refine((value) => value.trim().length > 0, 'A blank must have an answer'),
   })
   .strict()
 export const benchmarkSourceSchema = z

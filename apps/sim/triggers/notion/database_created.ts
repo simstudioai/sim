@@ -1,11 +1,11 @@
 import { NotionIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildDatabaseEventOutputs,
   buildNotionExtraFields,
   notionSetupInstructions,
   notionTriggerOptions,
 } from '@/triggers/notion/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

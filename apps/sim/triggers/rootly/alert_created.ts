@@ -1,11 +1,11 @@
 import { RootlyIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildRootlyAlertOutputs,
   buildRootlyExtraFields,
   rootlySetupInstructions,
   rootlyTriggerOptions,
 } from '@/triggers/rootly/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const rootlyAlertCreatedTrigger: TriggerConfig = {

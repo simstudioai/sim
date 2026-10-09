@@ -39,6 +39,12 @@ interface Execution {
 }
 const executions = new Map<string, Execution>()
 
+function releaseExecution(toolCallId: string, execution: Execution): void {
+  if (executions.get(toolCallId) === execution) executions.delete(toolCallId)
+  execution.release?.()
+  execution.release = undefined
+}
+
 async function deliver(toolCallId: string, execution: Execution): Promise<void> {
   if (execution.reporting) return execution.reporting
   const completion = execution.completion
@@ -49,11 +55,7 @@ async function deliver(toolCallId: string, execution: Execution): Promise<void> 
     completion.message,
     completion.data
   )
-    .then(() => {
-      executions.delete(toolCallId)
-      execution.release?.()
-      execution.release = undefined
-    })
+    .then(() => releaseExecution(toolCallId, execution))
     .catch((error) => {
       logger.warn('Computer action result delivery failed; retained for redelivery', {
         toolCallId,
@@ -156,12 +158,14 @@ export async function executeComputerToolOnClient(
         completion.status,
         completion.message,
         completion.data
-      ).catch((error) =>
-        logger.warn('Computer action page-exit result failed', {
-          toolCallId,
-          error: getErrorMessage(error),
-        })
       )
+        .then(() => releaseExecution(toolCallId, execution))
+        .catch((error) =>
+          logger.warn('Computer action page-exit result failed', {
+            toolCallId,
+            error: getErrorMessage(error),
+          })
+        )
     }
     try {
       if (

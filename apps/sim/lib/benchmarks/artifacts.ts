@@ -12,7 +12,7 @@ export function redactBenchmarkSpec(
   referenceSpec: string,
   blanks: BenchmarkArtifacts['blanks']
 ): string {
-  if (!blanks.length || blanks.some((blank) => !blank.answer)) {
+  if (!blanks.length || blanks.some((blank) => !blank.answer.trim())) {
     throw new OrchestrationError('validation', 'Select at least one nonempty passage to redact')
   }
   const ids = new Map(blanks.map((blank) => [blank.answer, blank.id]))
@@ -68,7 +68,7 @@ export function applyBenchmarkPatch(
 ): BenchmarkArtifacts {
   const next = { ...current }
   if (patch.taskBrief !== undefined && patch.taskBrief !== current.taskBrief) {
-    if (next.modelRuns) next.modelRuns = omit(next.modelRuns, ['distill', 'redact'])
+    if (next.modelRuns) next.modelRuns = omit(next.modelRuns, ['distill'])
     next.taskBrief = patch.taskBrief
     next.generatedSpec = null
     next.reconstruction = null

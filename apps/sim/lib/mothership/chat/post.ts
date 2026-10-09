@@ -394,7 +394,11 @@ type UnifiedChatRequest = z.infer<typeof ChatMessageSchema>
 function backgroundExecutorDeviceId(body: UnifiedChatRequest): string | undefined {
   const desktop = body.desktopCapabilities
   if (body.mode === 'assistant' || !desktop?.deviceId || !desktop.executor) return undefined
-  return desktop.browser || desktop.terminal || desktop.localFiles || desktop.localFilesystem
+  return desktop.browser ||
+    desktop.terminal ||
+    desktop.localFiles ||
+    desktop.localFilesystem ||
+    desktop.computerUse
     ? desktop.deviceId
     : undefined
 }

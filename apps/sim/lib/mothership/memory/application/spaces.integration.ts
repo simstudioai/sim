@@ -28,6 +28,7 @@ import {
   createOrganizationChat,
   createOrganizationChatRecord,
 } from '@/lib/mothership/chat/organization-chats'
+import { chatPubSub } from '@/lib/mothership/chat-status'
 import {
   MEMORY_SCOPE_AUDIENCE,
   readMemoryScope,
@@ -214,6 +215,24 @@ describe('private KG selection through authorized application boundaries', () =>
         .from(mothershipMemorySelections)
         .where(eq(mothershipMemorySelections.userId, ids.owner))
     ).toHaveLength(0)
+  })
+
+  it('publishes the creating owner with a private workspace chat event', async () => {
+    if (!chatPubSub) throw new Error('Server chat status channel unavailable')
+    await chatPubSub.ready()
+    const event = createDeferred<{ chatId: string; userId?: string }>()
+    const unsubscribe = chatPubSub.onStatusChanged((value) => {
+      if (value.type === 'created' && value.workspaceId === ids.workspace) event.resolve(value)
+    })
+    try {
+      const chat = await createWorkspaceChat.execute({
+        principal: principal(),
+        input: { workspaceId: ids.workspace },
+      })
+      expect(await event.promise).toMatchObject({ chatId: chat.id, userId: ids.owner })
+    } finally {
+      unsubscribe()
+    }
   })
 
   it('keeps old chats and forks on their original graph while new chats across workspaces use the selection', async () => {

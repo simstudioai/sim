@@ -1,11 +1,11 @@
 import { PlaneIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildPlaneExtraFields,
   buildPlaneOutputs,
   planeSetupInstructions,
   planeTriggerOptions,
 } from '@/triggers/plane/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const planeProjectDeletedTrigger: TriggerConfig = {

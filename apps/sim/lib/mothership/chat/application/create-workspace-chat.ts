@@ -51,7 +51,10 @@ export const createWorkspaceChat = defineAuthorizedWorkspaceUseCase({
     if (!chat) throw new Error('Failed to create workspace chat')
     return chat
   },
-  afterSuccess({ context, result }) {
-    publishChatStatusChanged(context, { chatId: result.id, type: 'created' })
+  afterSuccess({ principal, context, result }) {
+    publishChatStatusChanged(
+      { ...context, userId: requirePrincipalSubjectUserId(principal) },
+      { chatId: result.id, type: 'created' }
+    )
   },
 })

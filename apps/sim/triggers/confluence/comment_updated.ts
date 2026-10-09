@@ -1,11 +1,11 @@
 import { ConfluenceIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildCommentOutputs,
   buildConfluenceExtraFields,
   confluenceSetupInstructions,
   confluenceTriggerOptions,
 } from '@/triggers/confluence/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

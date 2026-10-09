@@ -94,26 +94,60 @@ describe('computer action delivery', () => {
     }
   )
 
-  it('retains a known terminal result for page exit after normal delivery fails', async () => {
-    const beacon = vi.fn(() => false)
-    vi.stubGlobal('navigator', { sendBeacon: beacon })
-    mocks.complete.mockRejectedValueOnce(new Error('offline'))
+  it.each([true, false])(
+    'releases page-exit listeners and delivery capacity only after acknowledgment: %s',
+    async (acknowledged) => {
+      const beacon = vi.fn(() => false)
+      vi.stubGlobal('navigator', { sendBeacon: beacon })
+      const ids = Array.from({ length: 8 }, nextId)
+      mocks.complete.mockRejectedValue(new Error('offline'))
+      if (!acknowledged) mocks.pageExit.mockRejectedValue(new Error('offline'))
+      try {
+        for (const id of ids) await executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+        expect(mocks.execute).toHaveBeenCalledTimes(8)
+        window.dispatchEvent(new Event('pagehide'))
+        expect(beacon).toHaveBeenCalledTimes(8)
+        expect(mocks.cancel).not.toHaveBeenCalled()
+        await flushMicrotasks()
+        beacon.mockClear()
+        window.dispatchEvent(new Event('pagehide'))
+        expect(beacon).toHaveBeenCalledTimes(acknowledged ? 0 : 8)
+        await flushMicrotasks()
+        mocks.complete.mockResolvedValue(undefined)
+        await executeComputerToolOnClient(nextId(), { action: 'list_apps' }, now())
+        expect(mocks.execute).toHaveBeenCalledTimes(acknowledged ? 9 : 8)
+      } finally {
+        mocks.complete.mockResolvedValue(undefined)
+        for (const id of ids) await executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+      }
+      expect(mocks.execute).toHaveBeenCalledTimes(acknowledged ? 9 : 8)
+    }
+  )
+
+  it('keeps a newer retained result when an earlier delivery is acknowledged late', async () => {
+    vi.stubGlobal('navigator', { sendBeacon: vi.fn(() => false) })
+    const report = createDeferred<void>()
+    mocks.complete.mockReturnValueOnce(report.promise)
     const id = nextId()
-    await executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+    const original = executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+    await flushMicrotasks()
     try {
       window.dispatchEvent(new Event('pagehide'))
-      expect(beacon).toHaveBeenCalledOnce()
-      expect(mocks.pageExit).toHaveBeenCalledWith(
-        id,
-        'success',
-        expect.any(String),
-        expect.anything()
-      )
-      expect(mocks.cancel).not.toHaveBeenCalled()
-    } finally {
+      await flushMicrotasks()
+      mocks.complete.mockRejectedValueOnce(new Error('offline'))
       await executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+    } finally {
+      report.resolve()
+      await original
     }
+    await executeComputerToolOnClient(id, { action: 'list_apps' })
     expect(mocks.execute).toHaveBeenCalledOnce()
+    expect(mocks.complete).toHaveBeenLastCalledWith(
+      id,
+      'error',
+      expect.stringContaining('may already have run'),
+      expect.objectContaining({ doNotRetry: true })
+    )
   })
 
   it('allows the full action budget, then cancels and reports an uncertain result', async () => {

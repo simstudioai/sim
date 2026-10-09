@@ -108,7 +108,7 @@ export function build{Service}Outputs(): Record<string, TriggerOutput> {
 
 ```typescript
 import { {Service}Icon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import { build{Service}ExtraFields, build{Service}Outputs, {service}SetupInstructions, {service}TriggerOptions } from '@/triggers/{service}/utils'
 import type { TriggerConfig } from '@/triggers/types'
 

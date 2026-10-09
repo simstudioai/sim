@@ -144,8 +144,10 @@ export class ComputerUseService {
     for (const work of this.queued.values()) {
       if (!toolCallId || work.toolCallId === toolCallId) work.controller.abort()
     }
-    if (!toolCallId || this.active?.toolCallId === toolCallId) this.deps.native.stop()
-    this.invalidateSnapshots()
+    if (!toolCallId || this.active?.toolCallId === toolCallId) {
+      this.deps.native.stop()
+      this.invalidateSnapshots()
+    }
   }
 
   /** Register Stop before awaiting the server's one-shot tool authorization. */

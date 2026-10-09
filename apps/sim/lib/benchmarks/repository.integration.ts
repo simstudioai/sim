@@ -862,6 +862,19 @@ describe('private benchmark persistence and attempt fencing', () => {
     expect((await getBenchmarkRunRecord({ ...scope, runId: saved.runId })).automaticCorrect).toBe(1)
   })
 
+  it('rejects nonpositive saved run versions at the database boundary', async () => {
+    const saved = await saveGrade()
+    for (const version of [0, -1]) {
+      await expect(
+        connection`UPDATE mothership_benchmark_runs SET version = ${version} WHERE id = ${saved.runId}`
+      ).rejects.toMatchObject({
+        code: '23514',
+        constraint_name: 'mothership_benchmark_runs_version_check',
+      })
+    }
+    expect((await getBenchmarkRunRecord({ ...scope, runId: saved.runId })).version).toBe(1)
+  })
+
   it('paginates distinct and tied PostgreSQL microsecond timestamps without omissions', async () => {
     const first = await saveGrade()
     const second = await saveGrade()

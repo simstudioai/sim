@@ -104,7 +104,7 @@ export function BenchmarkResults({
                     {result.basis === 'missing'
                       ? ' · Missing from plan'
                       : result.basis === 'reference'
-                        ? ' · Reference resolved'
+                        ? ' · Reference evidence'
                         : ''}
                     {review ? ` · ${result.correct ? 'Recovered' : 'Not recovered'}` : ''}
                   </dt>

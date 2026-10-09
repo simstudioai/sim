@@ -389,12 +389,12 @@ func discoverApps() throws -> [[String: Any]] {
     var entries: [String: [String: Any]] = [:]
     let roots = [URL(fileURLWithPath: "/Applications"), URL(fileURLWithPath: "/System/Applications"), FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications")]
     var inspected = 0
-    for root in roots {
+    scanRoots: for root in roots {
         guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else { continue }
         for case let url as URL in enumerator {
             try checkCancellation()
+            if inspected >= 5000 || entries.count >= 1000 { break scanRoots }
             inspected += 1
-            if inspected > 5000 || entries.count >= 1000 { break }
             if url.pathExtension == "app" {
                 enumerator.skipDescendants()
                 guard let bundle = Bundle(url: url), let id = bundle.bundleIdentifier, id.utf8.count <= 255 else { continue }

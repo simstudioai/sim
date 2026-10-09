@@ -9,7 +9,10 @@ function containsQuote(value: unknown, quote: string): boolean {
   if (typeof value === 'string') return value.includes(quote)
   if (Array.isArray(value)) return value.some((item) => containsQuote(item, quote))
   const record = parseCitationRecord(value)
-  return record !== null && Object.values(record).some((item) => containsQuote(item, quote))
+  return (
+    record !== null &&
+    Object.entries(record).some(([key, item]) => key !== 'citationId' && containsQuote(item, quote))
+  )
 }
 
 /** Preserve only evidence actually retrieved for the answer's exact anchor in the submitted spec. */

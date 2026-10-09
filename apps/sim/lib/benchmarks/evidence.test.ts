@@ -68,6 +68,33 @@ describe('benchmark source provenance', () => {
     }
   )
 
+  it('does not accept an opaque citation identifier as source evidence', () => {
+    const [verified] = verifyRecoveryEvidence(
+      support,
+      [
+        {
+          ...answer,
+          sources: [{ citationId: 'opaque-reference-123', quote: 'opaque-reference-123' }],
+        },
+      ],
+      [
+        {
+          ...call,
+          result: {
+            success: true,
+            data: {
+              results: [
+                { citationId: 'opaque-reference-123', content: 'Unrelated source content.' },
+              ],
+            },
+          },
+        },
+      ]
+    )
+    expect(verified.sources).toEqual([])
+    expect(verified.evidenceError).toContain('opaque-reference-123')
+  })
+
   it('does not turn an unsafe retrieved URL into a clickable source', () => {
     const [verified] = verifyRecoveryEvidence(
       support,

@@ -1,11 +1,11 @@
 import { IncidentioIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildIncidentioAlertOutputs,
   buildIncidentioExtraFields,
   incidentioSetupInstructions,
   incidentioTriggerOptions,
 } from '@/triggers/incidentio/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

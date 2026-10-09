@@ -4,6 +4,7 @@ import {
   redactBenchmarkSpec,
   validateBenchmarkRedaction,
 } from '@/lib/benchmarks/artifacts'
+import { DEFAULT_BENCHMARK_EVALUATOR } from '@/lib/benchmarks/models'
 import type { BenchmarkArtifacts } from '@/lib/benchmarks/types'
 
 const artifacts: BenchmarkArtifacts = {
@@ -31,6 +32,7 @@ describe('benchmark reference integrity', () => {
   it('rejects missing, duplicate, or overlapping passages that cannot produce every blank', () => {
     for (const blanks of [
       [{ id: 'missing', answer: 'Elsewhere' }],
+      [{ id: 'whitespace', answer: ' ' }],
       [
         { id: 'first', answer: 'Support' },
         { id: 'second', answer: 'Support' },
@@ -66,6 +68,17 @@ describe('benchmark reference integrity', () => {
         blanks: [...artifacts.blanks, firstBlank],
       })
     ).toThrow()
+  })
+
+  it('retains redaction provenance when only the brief changes', () => {
+    const recorded = { config: DEFAULT_BENCHMARK_EVALUATOR, durationMs: 200 }
+    const result = applyBenchmarkPatch(
+      { ...artifacts, modelRuns: { distill: recorded, redact: recorded, plan: recorded } },
+      { taskBrief: 'Explain the escalation handoff.' }
+    )
+    expect(result.modelRuns).toEqual({ redact: recorded })
+    expect(result.redactedSpec).toBe(artifacts.redactedSpec)
+    expect(result.generatedSpec).toBeNull()
   })
 
   it('invalidates the target-dependent artifacts when the reference changes', () => {

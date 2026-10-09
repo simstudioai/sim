@@ -66,9 +66,16 @@ export function Benchmark({ organizationId, canPlan, runAsUserId }: BenchmarkPro
       ) : (
         <>
           {benchmarks.error && (
-            <p role='alert' className='text-[var(--text-error)] text-small'>
-              {benchmarks.error.message}
-            </p>
+            <div className='flex items-center justify-between gap-3'>
+              <p role='alert' className='text-[var(--text-error)] text-small'>
+                {benchmarks.error.message}
+              </p>
+              {!benchmarks.isFetchNextPageError && (
+                <Chip disabled={benchmarks.isFetching} onClick={() => void benchmarks.refetch()}>
+                  Retry
+                </Chip>
+              )}
+            </div>
           )}
           {benchmarks.isLoading ? (
             <p role='status' className='text-[var(--text-muted)] text-small'>

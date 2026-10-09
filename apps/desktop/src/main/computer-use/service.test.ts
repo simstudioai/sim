@@ -470,8 +470,10 @@ describe('native computer use authority and lifecycle', () => {
     expect(approveApp).toHaveBeenCalledTimes(3)
   })
 
-  it('Stop cancels a tool still waiting on server authorization', async () => {
-    const { service, native } = setup()
+  it('Stop cancels pending authorization without invalidating another chat observation', async () => {
+    const { service, native, state, click } = setup()
+    await state('unrelated-chat')
+    native.request.mockClear()
     let finish: (value: { scopeId: string; input: unknown }) => void = () => {}
     const authorize = vi.fn(
       () =>
@@ -485,6 +487,7 @@ describe('native computer use authority and lifecycle', () => {
     finish({ scopeId: 'chat', input: { action: 'list_apps' } })
     await rejected
     expect(native.request).not.toHaveBeenCalled()
+    await expect(click('s1', 'unrelated-chat')).resolves.toMatchObject({ kind: 'action' })
   })
 
   it('rejects concurrent duplicate claims before contacting the server again', async () => {

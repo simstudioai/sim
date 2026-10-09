@@ -31,6 +31,8 @@ describe('computer transport', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
   it.each([
+    null,
+    undefined,
     { supported: false, enabled: true },
     { supported: true, enabled: false },
   ])('refuses unavailable device state %j', async (status) => {
