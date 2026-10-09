@@ -1,7 +1,5 @@
 import { EnvCapabilityConfigurationError } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@sim/security/compare'
-import { hmacSha256Hex } from '@sim/security/hmac'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   shopifyCallbackQuerySchema,
@@ -14,6 +12,13 @@ import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { completeShopifyOAuthConnection } from '@/lib/oauth/shopify'
+import { completeShopifyInstallHandoff } from '@/lib/oauth/shopify-handoff'
+import {
+  parseShopifyInstallState,
+  SHOPIFY_INSTALL_TTL_MS,
+  shopifyInstallCookieName,
+  validateShopifyQueryHmac,
+} from '@/lib/oauth/shopify-install-protocol'
 import { ShopifyOAuthError } from '@/lib/oauth/shopify-installation'
 import { parseShopifyOAuthState } from '@/lib/oauth/shopify-state'
 
@@ -32,40 +37,16 @@ function clearShopifyOAuthCookies(response: NextResponse): NextResponse {
   return response
 }
 
-/**
- * Validates the HMAC signature from Shopify to ensure the request is authentic
- * @see https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/offline-access-tokens
- */
-function validateHmac(searchParams: URLSearchParams, clientSecret: string): boolean {
-  const hmac = searchParams.get('hmac')
-  if (!hmac) {
-    return false
-  }
-
-  const params: Record<string, string> = {}
-  searchParams.forEach((value, key) => {
-    if (key !== 'hmac') {
-      params[key] = value
-    }
-  })
-
-  const message = Object.keys(params)
-    .sort()
-    .map((key) => `${key}=${params[key]}`)
-    .join('&')
-
-  const generatedHmac = hmacSha256Hex(message, clientSecret)
-
-  return safeCompare(hmac, generatedHmac)
-}
-
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const baseUrl = getBaseUrl()
+  const installationFlow =
+    request.nextUrl.searchParams.get('state')?.startsWith('install.') ?? false
+  const errorPath = installationFlow ? '/oauth/shopify/connect' : APP_ENTRY_PATH
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=unauthorized`)
+    const session = installationFlow ? null : await getSession()
+    if (!installationFlow && !session?.user?.id) {
+      return NextResponse.redirect(`${baseUrl}${errorPath}?error=unauthorized`)
     }
 
     const { searchParams } = request.nextUrl
@@ -79,31 +60,56 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       values: { SHOPIFY_CLIENT_SECRET: clientSecret },
     } = requireConfiguredOAuthClient('shopify')
 
-    if (!validateHmac(searchParams, clientSecret)) {
+    if (!validateShopifyQueryHmac(searchParams, clientSecret)) {
       logger.error('HMAC validation failed in Shopify OAuth callback')
-      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_hmac_invalid`)
+      return NextResponse.redirect(`${baseUrl}${errorPath}?error=shopify_hmac_invalid`)
     }
 
     if (!state) {
       logger.error('Missing state in Shopify OAuth callback')
-      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_state_mismatch`)
+      return NextResponse.redirect(`${baseUrl}${errorPath}?error=shopify_state_mismatch`)
     }
 
     if (!code) {
       logger.error('No code received from Shopify')
-      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_no_code`)
+      return NextResponse.redirect(`${baseUrl}${errorPath}?error=shopify_no_code`)
     }
 
-    const shopDomain = shop
+    const shopDomain = installationFlow ? shop?.toLowerCase() : shop
     if (!shopDomain) {
       logger.error('No shop domain available')
-      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_no_shop`)
+      return NextResponse.redirect(`${baseUrl}${errorPath}?error=shopify_no_shop`)
     }
 
     if (!shopifyShopDomainSchema.safeParse(shopDomain).success) {
       logger.error('Invalid shop domain format:', { shopDomain })
-      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_invalid_shop`)
+      return NextResponse.redirect(`${baseUrl}${errorPath}?error=shopify_invalid_shop`)
     }
+
+    if (installationFlow) {
+      const attemptId = parseShopifyInstallState(state, shopDomain, clientSecret)
+      const browserProof = request.cookies.get(shopifyInstallCookieName(attemptId))?.value ?? ''
+      await completeShopifyInstallHandoff({
+        attemptId,
+        browserProof,
+        shopDomain,
+        code,
+        signal: request.signal,
+      })
+      const destination = new URL('/oauth/shopify/connect', baseUrl)
+      destination.searchParams.set('attempt', attemptId)
+      const response = NextResponse.redirect(destination)
+      response.headers.set('Cache-Control', 'no-store')
+      response.cookies.set(shopifyInstallCookieName(attemptId), browserProof, {
+        httpOnly: true,
+        secure: new URL(baseUrl).protocol === 'https:',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: SHOPIFY_INSTALL_TTL_MS / 1000,
+      })
+      return response
+    }
+    if (!session?.user?.id) throw new Error('Shopify connection requires a Sim user')
 
     const { draftId, returnUrl } = parseShopifyOAuthState({
       state,
@@ -139,7 +145,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           ? error.callbackError
           : 'shopify_callback_error'
     return clearShopifyOAuthCookies(
-      NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=${errorCode}`)
+      NextResponse.redirect(`${baseUrl}${errorPath}?error=${errorCode}`)
     )
   }
 })

@@ -1,5 +1,6 @@
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { connectShopifyInstallation } from '@/lib/oauth/shopify-installation'
+import { rememberShopifyAccountScopes } from '@/lib/shopify/privacy/installation-scopes'
 
 interface CompleteShopifyOAuthConnectionParams {
   code: string
@@ -20,4 +21,5 @@ export async function completeShopifyOAuthConnection(
     providerId: 'shopify',
     accountId,
   })
+  await rememberShopifyAccountScopes(accountId)
 }

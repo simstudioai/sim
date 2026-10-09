@@ -1,15 +1,17 @@
 import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
+import { account, shopifyInstallationAttempt } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, gt, isNotNull, sql } from 'drizzle-orm'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbTransaction } from '@/lib/db/types'
 import { TOKEN_REFRESH_TIMEOUT_MS } from '@/lib/oauth/oauth'
 import {
   clearOAuthRefreshDeadFlag,
@@ -175,6 +177,106 @@ async function fetchShopAccountId(
   return id
 }
 
+/** Serializes all changes to one app/store token chain, including anonymous installations. */
+export async function lockShopifyInstallation(
+  tx: DbTransaction,
+  shopDomain: string
+): Promise<void> {
+  await acquireAdvisoryXactLock(
+    tx,
+    'shopify_oauth',
+    getOAuthRefreshCoordinationIdentity(getShopifyRefreshScope(shopDomain))
+  )
+}
+
+/** Fans a rotated pair out to linked accounts and still-unclaimed browser handoffs. */
+async function persistShopifyTokenChain(
+  tx: DbTransaction,
+  shopDomain: string,
+  shopId: string,
+  chain: ShopifyTokenChain
+): Promise<void> {
+  const { values } = requireConfiguredOAuthClient('shopify')
+  const { encrypted } = await encryptSecret(
+    JSON.stringify({ accessToken: chain.accessToken, refreshToken: chain.refreshToken })
+  )
+  const now = new Date()
+  await tx
+    .update(account)
+    .set({ ...chain, idToken: shopDomain, updatedAt: now })
+    .where(and(eq(account.providerId, 'shopify'), eq(account.accountId, shopId)))
+  await tx
+    .update(shopifyInstallationAttempt)
+    .set({
+      encryptedTokens: encrypted,
+      accessTokenExpiresAt: chain.accessTokenExpiresAt,
+      refreshTokenExpiresAt: chain.refreshTokenExpiresAt,
+      ...(chain.scope !== undefined ? { scope: chain.scope } : {}),
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(shopifyInstallationAttempt.clientId, values.SHOPIFY_CLIENT_ID),
+        eq(shopifyInstallationAttempt.shopDomain, shopDomain),
+        eq(shopifyInstallationAttempt.shopId, shopId),
+        isNotNull(shopifyInstallationAttempt.encryptedTokens),
+        gt(shopifyInstallationAttempt.expiresAt, now)
+      )
+    )
+}
+
+/** Acquires and durably fans out an installation pair under the caller's installation lock. */
+export async function acquireShopifyInstallationTokens(
+  tx: DbTransaction,
+  params: { shopDomain: string; code: string; signal?: AbortSignal }
+): Promise<{ shopId: string; chain: ShopifyTokenChain }> {
+  const shopDomain = normalizeShopDomain(params.shopDomain)
+  const { values } = requireConfiguredOAuthClient('shopify')
+  const identities = await tx
+    .selectDistinct({ accountId: account.accountId })
+    .from(account)
+    .where(and(eq(account.providerId, 'shopify'), sql`lower(${account.idToken}) = ${shopDomain}`))
+    .limit(2)
+  const pending = await tx
+    .selectDistinct({ shopId: shopifyInstallationAttempt.shopId })
+    .from(shopifyInstallationAttempt)
+    .where(
+      and(
+        eq(shopifyInstallationAttempt.clientId, values.SHOPIFY_CLIENT_ID),
+        eq(shopifyInstallationAttempt.shopDomain, shopDomain),
+        isNotNull(shopifyInstallationAttempt.shopId),
+        gt(shopifyInstallationAttempt.expiresAt, new Date())
+      )
+    )
+    .limit(2)
+  const ids = new Set([
+    ...identities.map((row) => row.accountId),
+    ...pending.map((row) => row.shopId),
+  ])
+  const verifiedShopId = [...ids][0]
+  if (
+    ids.size > 1 ||
+    (verifiedShopId !== undefined && (verifiedShopId === null || !/^\d+$/.test(verifiedShopId)))
+  ) {
+    throw new ShopifyOAuthError(
+      'Shopify installation identity is inconsistent',
+      'shopify_callback_error'
+    )
+  }
+  // Validate encryption configuration before Shopify invalidates the previous refresh token.
+  await encryptSecret('')
+  const chain = await exchangeToken(shopDomain, { code: params.code }, params.signal)
+  const shopId =
+    verifiedShopId ?? (await fetchShopAccountId(shopDomain, chain.accessToken, params.signal))
+  await persistShopifyTokenChain(tx, shopDomain, shopId, chain)
+  try {
+    await clearOAuthRefreshDeadFlag(getShopifyRefreshScope(shopDomain))
+  } catch {
+    logger.warn('Shopify terminal-error flag could not be cleared')
+  }
+  return { shopId, chain }
+}
+
 /** Acquires and saves one rotating chain while retaining each user's existing account row. */
 export async function connectShopifyInstallation(params: {
   code: string
@@ -183,55 +285,29 @@ export async function connectShopifyInstallation(params: {
   signal?: AbortSignal
 }): Promise<string> {
   const shopDomain = normalizeShopDomain(params.shopDomain)
-  const scope = getShopifyRefreshScope(shopDomain)
   return db.transaction(async (tx) => {
-    await acquireAdvisoryXactLock(tx, 'shopify_oauth', getOAuthRefreshCoordinationIdentity(scope))
-    const identities = await tx
-      .selectDistinct({ accountId: account.accountId })
-      .from(account)
-      .where(and(eq(account.providerId, 'shopify'), sql`lower(${account.idToken}) = ${shopDomain}`))
-      .limit(2)
-    const verifiedShopId = identities[0]?.accountId
-    if (identities.length > 1 || (verifiedShopId !== undefined && !/^\d+$/.test(verifiedShopId))) {
-      throw new ShopifyOAuthError(
-        'Shopify installation identity is inconsistent',
-        'shopify_callback_error'
-      )
-    }
-    const findUserAccount = (shopId: string) =>
-      tx.query.account.findFirst({
-        where: and(
-          eq(account.providerId, 'shopify'),
-          eq(account.accountId, shopId),
-          eq(account.userId, params.userId)
-        ),
-        columns: { id: true },
-      })
-    const verifiedAccount = verifiedShopId ? await findUserAccount(verifiedShopId) : undefined
-    const chain = await exchangeToken(shopDomain, { code: params.code }, params.signal)
-    const shopId =
-      verifiedShopId ?? (await fetchShopAccountId(shopDomain, chain.accessToken, params.signal))
-    const installation = and(eq(account.providerId, 'shopify'), eq(account.accountId, shopId))
-    const existing = verifiedShopId ? verifiedAccount : await findUserAccount(shopId)
-    const now = new Date()
-    const data = { ...chain, idToken: shopDomain, updatedAt: now }
-    await tx.update(account).set(data).where(installation)
-    const accountId = existing?.id ?? generateId()
-    if (!existing) {
-      await tx.insert(account).values({
-        id: accountId,
-        accountId: shopId,
-        providerId: 'shopify',
-        userId: params.userId,
-        ...data,
-        createdAt: now,
-      })
-    }
-    try {
-      await clearOAuthRefreshDeadFlag(scope)
-    } catch {
-      logger.warn('Shopify terminal-error flag could not be cleared')
-    }
+    await lockShopifyInstallation(tx, shopDomain)
+    const { shopId, chain } = await acquireShopifyInstallationTokens(tx, { ...params, shopDomain })
+    const existing = await tx.query.account.findFirst({
+      where: and(
+        eq(account.providerId, 'shopify'),
+        eq(account.accountId, shopId),
+        eq(account.userId, params.userId)
+      ),
+      columns: { id: true },
+    })
+    if (existing) return existing.id
+    const accountId = generateId()
+    await tx.insert(account).values({
+      id: accountId,
+      accountId: shopId,
+      providerId: 'shopify',
+      userId: params.userId,
+      ...chain,
+      idToken: shopDomain,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
     return accountId
   })
 }
@@ -274,10 +350,7 @@ export async function refreshShopifyInstallation(accountId: string): Promise<str
         }
         return null
       }
-      await tx
-        .update(account)
-        .set({ ...chain, updatedAt: new Date() })
-        .where(and(eq(account.providerId, 'shopify'), eq(account.accountId, stored.accountId)))
+      await persistShopifyTokenChain(tx, shopDomain, stored.accountId, chain)
       return chain.accessToken
     })
   } catch {

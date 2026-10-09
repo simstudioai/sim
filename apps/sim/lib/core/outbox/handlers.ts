@@ -33,6 +33,7 @@ import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/docume
 import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 import { INBOX_CLEANUP_EVENT } from '@/lib/mothership/inbox/cleanup-event'
 import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resource-cleanup-event'
+import { SHOPIFY_PRIVACY_RECEIVED_EVENT } from '@/lib/shopify/privacy/outbox-events'
 import {
   WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT,
   WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
@@ -62,6 +63,13 @@ import { FORK_CONTENT_COPY_EVENT } from '@/ee/workspace-forking/application/cont
  * export of the module as used.
  */
 export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
+  {
+    events: [SHOPIFY_PRIVACY_RECEIVED_EVENT],
+    load: async () => {
+      const { shopifyPrivacyOutboxHandlers } = await import('@/lib/shopify/privacy/outbox')
+      return shopifyPrivacyOutboxHandlers
+    },
+  },
   {
     events: [SLACK_SEARCH_TURN_EVENT],
     load: async () => {

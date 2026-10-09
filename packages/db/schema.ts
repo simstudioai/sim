@@ -4756,6 +4756,128 @@ export const idempotencyKey = pgTable(
   })
 )
 
+/** App installation handoff state expires independently of user-owned credentials. */
+export const shopifyInstallationAttempt = pgTable(
+  'shopify_installation_attempt',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull(),
+    shopDomain: text('shop_domain').notNull(),
+    browserHash: text('browser_hash').notNull(),
+    shopId: text('shop_id'),
+    encryptedTokens: text('encrypted_tokens'),
+    accessTokenExpiresAt: timestamp('access_token_expires_at'),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+    scope: text('scope'),
+    expiresAt: timestamp('expires_at').notNull(),
+    claimedByUserId: text('claimed_by_user_id'),
+    credentialId: text('credential_id'),
+    workspaceId: text('workspace_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    shopExpiryIdx: index('shopify_installation_attempt_shop_expiry_idx').on(
+      table.clientId,
+      table.shopDomain,
+      table.expiresAt
+    ),
+    expiresAtIdx: index('shopify_installation_attempt_expires_at_idx').on(table.expiresAt),
+    browserExpiryIdx: index('shopify_installation_attempt_browser_expiry_idx').on(
+      table.browserHash,
+      table.expiresAt
+    ),
+  })
+)
+
+/** Minimal installation ownership history must survive OAuth and credential deletion. */
+export const shopifyInstallationScope = pgTable(
+  'shopify_installation_scope',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull(),
+    shopId: text('shop_id').notNull(),
+    shopDomain: text('shop_domain').notNull(),
+    ownerType: text('owner_type').notNull(),
+    ownerId: text('owner_id').notNull(),
+    accountId: text('account_id').notNull(),
+    credentialId: text('credential_id').notNull(),
+    firstSeenAt: timestamp('first_seen_at').notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    associationUnique: uniqueIndex('shopify_installation_scope_association_unique').on(
+      table.clientId,
+      table.shopId,
+      table.ownerType,
+      table.ownerId,
+      table.credentialId
+    ),
+    shopIdx: index('shopify_installation_scope_shop_idx').on(
+      table.clientId,
+      table.shopId,
+      table.id
+    ),
+    ownerCheck: check(
+      'shopify_installation_scope_owner_check',
+      sql`${table.ownerType} IN ('workspace', 'organization')`
+    ),
+  })
+)
+
+/** Receipt acknowledgement and evidence-backed privacy fulfillment are separate states. */
+export const shopifyPrivacyRequest = pgTable(
+  'shopify_privacy_request',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull(),
+    webhookId: text('webhook_id').notNull(),
+    topic: text('topic').notNull(),
+    shopId: text('shop_id').notNull(),
+    shopDomain: text('shop_domain').notNull(),
+    payloadHash: text('payload_hash').notNull(),
+    encryptedPayload: text('encrypted_payload').notNull(),
+    status: text('status').notNull().default('received'),
+    assignedToUserId: text('assigned_to_user_id'),
+    encryptedEvidence: text('encrypted_evidence'),
+    revision: integer('revision').notNull().default(0),
+    receivedAt: timestamp('received_at').notNull().defaultNow(),
+    dueAt: timestamp('due_at').notNull(),
+    triagedAt: timestamp('triaged_at'),
+    escalatedAt: timestamp('escalated_at'),
+    completedAt: timestamp('completed_at'),
+    completedByUserId: text('completed_by_user_id'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    deliveryUnique: uniqueIndex('shopify_privacy_request_delivery_unique').on(
+      table.clientId,
+      table.webhookId
+    ),
+    activePayloadUnique: uniqueIndex('shopify_privacy_request_active_payload_unique')
+      .on(table.clientId, table.payloadHash)
+      .where(sql`${table.completedAt} IS NULL`),
+    deadlineIdx: index('shopify_privacy_request_deadline_idx').on(
+      table.status,
+      table.dueAt,
+      table.id
+    ),
+    shopIdx: index('shopify_privacy_request_shop_idx').on(
+      table.clientId,
+      table.shopId,
+      table.receivedAt
+    ),
+    topicCheck: check(
+      'shopify_privacy_request_topic_check',
+      sql`${table.topic} IN ('customers/data_request', 'customers/redact', 'shop/redact')`
+    ),
+    statusCheck: check(
+      'shopify_privacy_request_status_check',
+      sql`${table.status} IN ('received', 'awaiting_review', 'processing', 'legal_hold', 'completed')`
+    ),
+  })
+)
+
 export const outboxEvent = pgTable(
   'outbox_event',
   {

@@ -11,6 +11,7 @@ import { type ProcessOutboxResult, processOutboxEvents } from '@/lib/core/outbox
 import { DeadlineExceededError } from '@/lib/core/utils/deadline'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { recoverKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-recovery'
+import { maintainShopifyPrivacy } from '@/lib/shopify/privacy/outbox'
 import { reapStaleBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
 
 const logger = createLogger('OutboxProcessor')
@@ -70,6 +71,7 @@ export async function runOutboxProcessor(): Promise<OutboxProcessorResult> {
     prunedEvents,
     durationMs: Date.now() - startedAt,
   }
+  await maintainShopifyPrivacy()
   /** Fail the run so a broken handler module stays as visible as the crash its static import caused. */
   if (result.unloadedEventTypes.length > 0) {
     const message = `Outbox handler modules failed to load; left pending: ${result.unloadedEventTypes.join(', ')}`
