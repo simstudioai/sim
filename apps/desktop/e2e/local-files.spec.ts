@@ -232,6 +232,9 @@ createRoot(document.getElementById('settings')).render(
     const folderConsent = await folderPrompt
     const queuedRead = invoke({ operation: 'read', toolCallId: 'text' })
     void queuedRead.catch(() => {})
+    await expect(
+      folderConsent.getByRole('button', { name: 'Allow folder', exact: true })
+    ).toBeVisible()
     expect(
       await folderConsent.evaluate(() => typeof (globalThis as { simDesktop?: unknown }).simDesktop)
     ).toBe('undefined')
@@ -432,12 +435,12 @@ createRoot(document.getElementById('settings')).render(
               openApproved(
                 root: string,
                 relative: string,
-                dev: number,
-                ino: number,
+                dev: bigint,
+                ino: bigint,
                 directory: boolean
               ): Promise<number>
             }
-            const root = await stat(paths.source)
+            const root = await stat(paths.source, { bigint: true })
             const denied = async (path: string, ino = root.ino) => {
               try {
                 const fd = await native.openApproved(paths.source, path, root.dev, ino, false)
@@ -460,12 +463,19 @@ createRoot(document.getElementById('settings')).render(
               text,
               ancestor: await denied('native-link/private.txt'),
               traversal: await denied('../Reports-other/private.txt'),
-              replaced: await denied('native-parent/inside.txt', root.ino + 1),
+              replaced: await denied('native-parent/inside.txt', root.ino + 1n),
+              overflow: await denied('native-parent/inside.txt', root.ino + (1n << 64n)),
             }
           },
           { source: realpathSync(source) }
         )
-        expect(result).toEqual({ text: 'inside', ancestor: true, traversal: true, replaced: true })
+        expect(result).toEqual({
+          text: 'inside',
+          ancestor: true,
+          traversal: true,
+          replaced: true,
+          overflow: true,
+        })
       } finally {
         rmSync(linked)
         rmSync(parent, { recursive: true })

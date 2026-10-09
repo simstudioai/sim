@@ -21,8 +21,8 @@ export interface PersistedLocalFilesystemGrant {
   id: string
   name: string
   rootPath: string
-  dev?: number
-  ino?: number
+  dev?: number | string
+  ino?: number | string
   bookmark?: string
 }
 
@@ -43,6 +43,15 @@ interface EncryptedGrantEnvelope {
   ciphertext: string
 }
 
+function isStoredIdentity(value: unknown): value is number | string {
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value >= 0
+  return (
+    typeof value === 'string' &&
+    /^(0|[1-9][0-9]{0,19})$/.test(value) &&
+    BigInt(value) <= 18446744073709551615n
+  )
+}
+
 function isPersistedGrant(value: unknown): value is PersistedLocalFilesystemGrant {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const grant = value as Record<string, unknown>
@@ -58,12 +67,7 @@ function isPersistedGrant(value: unknown): value is PersistedLocalFilesystemGran
     grant.rootPath.length <= MAX_GRANT_PATH_LENGTH &&
     !grant.rootPath.includes('\0') &&
     ((grant.dev === undefined && grant.ino === undefined) ||
-      (typeof grant.dev === 'number' &&
-        Number.isSafeInteger(grant.dev) &&
-        grant.dev >= 0 &&
-        typeof grant.ino === 'number' &&
-        Number.isSafeInteger(grant.ino) &&
-        grant.ino >= 0)) &&
+      (isStoredIdentity(grant.dev) && isStoredIdentity(grant.ino))) &&
     (grant.bookmark === undefined ||
       (typeof grant.bookmark === 'string' &&
         grant.bookmark.length > 0 &&

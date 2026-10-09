@@ -4,6 +4,7 @@ import {
   mkdtempSync,
   readFileSync,
   renameSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -307,16 +308,28 @@ test.describe('background executor', () => {
     if (existsSync(settings)) renameSync(settings, `${settings}.backup`)
     mkdirSync(settings)
 
-    await check('failed settings persistence does not skip independent grant cleanup', async () => {
-      await launched.app.evaluate(({ Menu }) => {
-        const item = Menu.getApplicationMenu()
-          ?.items.flatMap((entry) => entry.submenu?.items ?? [])
-          .find((entry) => entry.label === 'Sign Out')
-        if (!item) throw new Error('Missing Sign Out menu item')
-        item.click()
-      })
-      await expect.poll(() => existsSync(grants)).toBe(false)
-    })
+    try {
+      await check(
+        'failed settings persistence does not skip independent grant cleanup',
+        async () => {
+          const failedSignOut = launched.app.waitForEvent('window')
+          await launched.app.evaluate(({ Menu }) => {
+            const item = Menu.getApplicationMenu()
+              ?.items.flatMap((entry) => entry.submenu?.items ?? [])
+              .find((entry) => entry.label === 'Sign Out')
+            if (!item) throw new Error('Missing Sign Out menu item')
+            item.click()
+          })
+          const failure = await failedSignOut
+          await failure.getByRole('button', { name: 'OK', exact: true }).click()
+          expect(existsSync(join(userData, 'account-data-teardown-required.json'))).toBe(true)
+          await expect.poll(() => existsSync(grants)).toBe(false)
+        }
+      )
+    } finally {
+      rmSync(settings, { recursive: true, force: true })
+      if (existsSync(`${settings}.backup`)) renameSync(`${settings}.backup`, settings)
+    }
   })
 
   test('B: a result produced while the network is cut is delivered once after reconnecting', async () => {
