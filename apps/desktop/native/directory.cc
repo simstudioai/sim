@@ -8,6 +8,7 @@
 #include <cerrno>
 #include <climits>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -150,8 +151,8 @@ struct ApprovedOpen {
   napi_deferred deferred = nullptr;
   std::string root;
   std::string relative;
-  double dev = 0;
-  double ino = 0;
+  uint64_t dev = 0;
+  uint64_t ino = 0;
   bool directory = false;
   int descriptor = -1;
   std::string error;
@@ -162,8 +163,8 @@ static void OpenApprovedPath(napi_env, void* data) {
   int descriptor = open(request->root.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
   struct stat metadata;
   if (descriptor < 0 || fstat(descriptor, &metadata) != 0 ||
-      static_cast<double>(metadata.st_dev) != request->dev ||
-      static_cast<double>(metadata.st_ino) != request->ino) {
+      static_cast<uint64_t>(metadata.st_dev) != request->dev ||
+      static_cast<uint64_t>(metadata.st_ino) != request->ino) {
     if (descriptor >= 0) close(descriptor);
     request->error = "The approved folder changed. Request access again.";
     return;
@@ -232,13 +233,15 @@ static napi_value OpenApproved(napi_env env, napi_callback_info info) {
   size_t count = 5;
   napi_value arguments[5];
   auto* request = new ApprovedOpen();
+  bool devLossless = false;
+  bool inoLossless = false;
   if (napi_get_cb_info(env, info, &count, arguments, nullptr, nullptr) != napi_ok || count != 5 ||
       !ReadPath(env, arguments[0], request->root) || request->root.empty() || request->root[0] != '/' ||
       !ReadPath(env, arguments[1], request->relative) ||
       (!request->relative.empty() && (request->relative.front() == '/' || request->relative.back() == '/')) ||
-      napi_get_value_double(env, arguments[2], &request->dev) != napi_ok ||
-      napi_get_value_double(env, arguments[3], &request->ino) != napi_ok ||
-      !std::isfinite(request->dev) || !std::isfinite(request->ino) ||
+      napi_get_value_bigint_uint64(env, arguments[2], &request->dev, &devLossless) != napi_ok ||
+      napi_get_value_bigint_uint64(env, arguments[3], &request->ino, &inoLossless) != napi_ok ||
+      !devLossless || !inoLossless ||
       napi_get_value_bool(env, arguments[4], &request->directory) != napi_ok) {
     delete request;
     napi_throw_type_error(env, nullptr, "Expected a granted root, relative path, identity, and path kind.");

@@ -97,8 +97,8 @@ const GRANT_SCOPED_OPERATIONS: ReadonlySet<string> = new Set([
 
 interface GrantedMount extends LocalFilesystemMount {
   rootPath: string
-  dev: number
-  ino: number
+  dev: bigint
+  ino: bigint
   bookmark?: string
   stopAccessing?: () => void
 }
@@ -651,7 +651,7 @@ export class LocalFilesystemService {
   async grantDirectory(
     selected: SelectedDirectory,
     generation: number,
-    expected?: { dev: number; ino: number }
+    expected?: { dev: bigint; ino: bigint }
   ): Promise<LocalFilesystemData> {
     const stopAccessing = selected.bookmark
       ? this.startAccessingBookmark(selected.bookmark)
@@ -667,7 +667,7 @@ export class LocalFilesystemService {
 
     try {
       const rootPath = await realpath(selected.path)
-      const rootStat = await stat(rootPath)
+      const rootStat = await stat(rootPath, { bigint: true })
       if (!isAccountDataGenerationCurrent(generation)) {
         throw new LocalFilesystemError('CANCELLED', 'The folder request expired during sign-out.')
       }
@@ -781,7 +781,7 @@ export class LocalFilesystemService {
   }
 
   private async assertMountCurrent(mount: GrantedMount): Promise<void> {
-    const root = await lstat(mount.rootPath)
+    const root = await lstat(mount.rootPath, { bigint: true })
     const current = this.mounts.get(mount.id)
     if (!current || current.rootPath !== mount.rootPath) throw mountNotFound()
     if (
@@ -853,7 +853,7 @@ export class LocalFilesystemService {
       const stopAccessing = grant.bookmark ? this.startAccessingBookmark(grant.bookmark) : undefined
       try {
         const rootPath = await realpath(grant.rootPath)
-        const rootStat = await stat(rootPath)
+        const rootStat = await stat(rootPath, { bigint: true })
         if (!isAccountDataGenerationCurrent(generation)) {
           stopAccessing?.()
           return
@@ -861,7 +861,10 @@ export class LocalFilesystemService {
         if (
           !rootStat.isDirectory() ||
           rootPath !== grant.rootPath ||
-          (grant.dev !== undefined && (grant.dev !== rootStat.dev || grant.ino !== rootStat.ino))
+          (grant.dev !== undefined &&
+            (grant.ino === undefined ||
+              BigInt(grant.dev) !== rootStat.dev ||
+              BigInt(grant.ino) !== rootStat.ino))
         ) {
           stopAccessing?.()
           needsPersist = true
@@ -895,8 +898,8 @@ export class LocalFilesystemService {
       id: mount.id,
       name: mount.name,
       rootPath: mount.rootPath,
-      dev: mount.dev,
-      ino: mount.ino,
+      dev: mount.dev.toString(),
+      ino: mount.ino.toString(),
       ...(mount.bookmark ? { bookmark: mount.bookmark } : {}),
     }))
   }

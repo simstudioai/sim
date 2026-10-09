@@ -15,8 +15,8 @@ interface NativeDirectoryBridge {
   openApproved: (
     root: string,
     relativePath: string,
-    dev: number,
-    ino: number,
+    dev: bigint,
+    ino: bigint,
     directory: boolean
   ) => Promise<number>
 }
@@ -36,7 +36,7 @@ function nativeBridge(): NativeDirectoryBridge {
 export async function openNativeFile(
   root: string,
   relativePath: string,
-  identity: { dev: number; ino: number },
+  identity: { dev: bigint; ino: bigint },
   directory: boolean
 ) {
   let descriptor = await nativeBridge().openApproved(

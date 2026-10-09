@@ -19,7 +19,7 @@ function executeLocalFileRequest(request: unknown, authorization: LocalFileAutho
     path: String(authorization.args.path),
     resolve: realpath,
     open: async (path, directory = false) =>
-      openNativeFile(root, relative(root, path), await stat(root), directory),
+      openNativeFile(root, relative(root, path), await stat(root, { bigint: true }), directory),
   })
 }
 

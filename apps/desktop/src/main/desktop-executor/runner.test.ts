@@ -52,7 +52,12 @@ function runner(overrides: Partial<DesktopToolRunnerDeps> = {}) {
             resolve: realpath,
             open: async (path, directory = false) => {
               const root = await realpath(dirname(String(call.args.path)))
-              return openNativeFile(root, relative(root, path), await stat(root), directory)
+              return openNativeFile(
+                root,
+                relative(root, path),
+                await stat(root, { bigint: true }),
+                directory
+              )
             },
           }
         ),

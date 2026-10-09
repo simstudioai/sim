@@ -219,7 +219,9 @@ createRoot(document.getElementById('settings')).render(
         process.env.DESKTOP_LOCAL_FILES_REPORT_PATH ??
         test.info().outputPath('local-file-consent.png'),
     })
-    await denial.getByRole('button', { name: "Don't allow", exact: true }).click()
+    await denial
+      .getByRole('button', { name: "Don't allow", exact: true })
+      .click({ noWaitAfter: true })
     await expect.poll(() => deniedResults.length).toBe(2)
     expect(deniedResults).toEqual([
       { ok: false, error: expect.any(String) },
@@ -232,10 +234,15 @@ createRoot(document.getElementById('settings')).render(
     const folderConsent = await folderPrompt
     const queuedRead = invoke({ operation: 'read', toolCallId: 'text' })
     void queuedRead.catch(() => {})
+    await expect(
+      folderConsent.getByRole('button', { name: 'Allow folder', exact: true })
+    ).toBeVisible()
     expect(
       await folderConsent.evaluate(() => typeof (globalThis as { simDesktop?: unknown }).simDesktop)
     ).toBe('undefined')
-    await folderConsent.getByRole('button', { name: 'Allow folder', exact: true }).click()
+    await folderConsent
+      .getByRole('button', { name: 'Allow folder', exact: true })
+      .click({ noWaitAfter: true })
     expect(await folderRead).toMatchObject({ ok: true, data: { representation: 'directory' } })
     expect(await queuedRead).toMatchObject({ ok: true, data: { text: 'native file contents' } })
     const canonicalRequest = {
@@ -292,7 +299,9 @@ createRoot(document.getElementById('settings')).render(
       await invoke({ operation: 'cancel', toolCallId: 'sharedLeader' })
       expect(await leader.result).toMatchObject({ ok: false })
       await expect(leader.prompt.getByRole('dialog')).toBeVisible()
-      await leader.prompt.getByRole('button', { name: 'Allow folder', exact: true }).click()
+      await leader.prompt
+        .getByRole('button', { name: 'Allow folder', exact: true })
+        .click({ noWaitAfter: true })
       expect(await survivor).toMatchObject({ ok: true, data: { text: 'shared contents' } })
     })
     await test.step('Full file access is opt-in, survives restart, and stops granting access when disabled', async () => {
@@ -375,7 +384,9 @@ createRoot(document.getElementById('settings')).render(
         window.getByRole('switch', { name: 'Full file access', exact: true })
       ).not.toBeChecked()
       const permission = await requestPermission({ operation: 'read', toolCallId: 'fullAccess' })
-      await permission.prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      await permission.prompt
+        .getByRole('button', { name: "Don't allow", exact: true })
+        .click({ noWaitAfter: true })
       expect(await permission.result).toMatchObject({ ok: false })
     })
     await test.step('a folder grant works in another chat but does not permit symlink escapes', async () => {
@@ -400,7 +411,9 @@ createRoot(document.getElementById('settings')).render(
       await expect(escapedRead.prompt.getByRole('dialog')).toContainText(
         JSON.stringify(realpathSync(outside))
       )
-      await escapedRead.prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      await escapedRead.prompt
+        .getByRole('button', { name: "Don't allow", exact: true })
+        .click({ noWaitAfter: true })
       expect(await escapedRead.result).toMatchObject({ ok: false })
       rmSync(join(source, 'linked.txt'))
     })
@@ -410,7 +423,9 @@ createRoot(document.getElementById('settings')).render(
         const stale = await requestPermission({ operation: 'read', toolCallId: 'stale' })
         if (changed) calls.stale.args.path = join(source, 'report.txt')
         else calls.stale = undefined
-        await stale.prompt.getByRole('button', { name: 'Allow folder', exact: true }).click()
+        await stale.prompt
+          .getByRole('button', { name: 'Allow folder', exact: true })
+          .click({ noWaitAfter: true })
         expect(await stale.result).toMatchObject({ ok: false })
       }
     })
@@ -432,12 +447,12 @@ createRoot(document.getElementById('settings')).render(
               openApproved(
                 root: string,
                 relative: string,
-                dev: number,
-                ino: number,
+                dev: bigint,
+                ino: bigint,
                 directory: boolean
               ): Promise<number>
             }
-            const root = await stat(paths.source)
+            const root = await stat(paths.source, { bigint: true })
             const denied = async (path: string, ino = root.ino) => {
               try {
                 const fd = await native.openApproved(paths.source, path, root.dev, ino, false)
@@ -460,12 +475,19 @@ createRoot(document.getElementById('settings')).render(
               text,
               ancestor: await denied('native-link/private.txt'),
               traversal: await denied('../Reports-other/private.txt'),
-              replaced: await denied('native-parent/inside.txt', root.ino + 1),
+              replaced: await denied('native-parent/inside.txt', root.ino + 1n),
+              overflow: await denied('native-parent/inside.txt', root.ino + (1n << 64n)),
             }
           },
           { source: realpathSync(source) }
         )
-        expect(result).toEqual({ text: 'inside', ancestor: true, traversal: true, replaced: true })
+        expect(result).toEqual({
+          text: 'inside',
+          ancestor: true,
+          traversal: true,
+          replaced: true,
+          overflow: true,
+        })
       } finally {
         rmSync(linked)
         rmSync(parent, { recursive: true })
@@ -654,7 +676,9 @@ createRoot(document.getElementById('settings')).render(
       await closed
       expect(await cancelled.result).toMatchObject({ ok: false })
       const again = await requestPermission({ operation: 'read', toolCallId: 'cancelled' })
-      await again.prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      await again.prompt
+        .getByRole('button', { name: "Don't allow", exact: true })
+        .click({ noWaitAfter: true })
       expect(await again.result).toMatchObject({ ok: false })
     })
     await test.step('consent escapes direction controls in folder names', async () => {
@@ -663,14 +687,18 @@ createRoot(document.getElementById('settings')).render(
       calls.bidi = { toolName: 'read_local_file', args: { path: folder } }
       const bidi = await requestPermission({ operation: 'read', toolCallId: 'bidi' })
       await expect(bidi.prompt.getByRole('dialog')).toContainText('Bidi\\u061c\\u200e\\u200f')
-      await bidi.prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      await bidi.prompt
+        .getByRole('button', { name: "Don't allow", exact: true })
+        .click({ noWaitAfter: true })
       expect(await bidi.result).toMatchObject({ ok: false })
     })
     await test.step('an unanswered prompt does not block approved folders', async () => {
       calls.blocker = { toolName: 'read_local_file', args: { path: join(outside, 'private.txt') } }
       const blocker = await requestPermission({ operation: 'read', toolCallId: 'blocker' })
       expect(await invoke({ operation: 'read', toolCallId: 'text' })).toMatchObject({ ok: true })
-      await blocker.prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      await blocker.prompt
+        .getByRole('button', { name: "Don't allow", exact: true })
+        .click({ noWaitAfter: true })
       expect(await blocker.result).toMatchObject({ ok: false })
     })
     await test.step('cancelled calls cannot reuse an approved folder', async () => {
@@ -688,7 +716,9 @@ createRoot(document.getElementById('settings')).render(
       renameSync(proposed, join(root, 'Original'))
       mkdirSync(proposed)
       writeFileSync(join(proposed, 'unapproved.txt'), 'replacement folder contents')
-      await retargeted.prompt.getByRole('button', { name: 'Allow folder', exact: true }).click()
+      await retargeted.prompt
+        .getByRole('button', { name: 'Allow folder', exact: true })
+        .click({ noWaitAfter: true })
       expect(await retargeted.result).toMatchObject({ ok: false })
     })
     const result = await invoke({ operation: 'manifest', toolCallId: 'import' })
@@ -763,7 +793,9 @@ createRoot(document.getElementById('settings')).render(
         'Local files'
       )
       const revoked = await requestPermission({ operation: 'read', toolCallId: 'text' })
-      await revoked.prompt.getByRole('button', { name: 'Allow folder', exact: true }).click()
+      await revoked.prompt
+        .getByRole('button', { name: 'Allow folder', exact: true })
+        .click({ noWaitAfter: true })
       expect(await revoked.result).toMatchObject({ ok: true })
     })
 
@@ -778,12 +810,16 @@ createRoot(document.getElementById('settings')).render(
         'Local files'
       )
       const replaced = await requestPermission({ operation: 'read', toolCallId: 'text' })
-      await replaced.prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      await replaced.prompt
+        .getByRole('button', { name: "Don't allow", exact: true })
+        .click({ noWaitAfter: true })
       expect(await replaced.result).toMatchObject({ ok: false })
       rmSync(source, { recursive: true })
       renameSync(join(root, 'Original-reports'), source)
       const restored = await requestPermission({ operation: 'read', toolCallId: 'text' })
-      await restored.prompt.getByRole('button', { name: 'Allow folder', exact: true }).click()
+      await restored.prompt
+        .getByRole('button', { name: 'Allow folder', exact: true })
+        .click({ noWaitAfter: true })
       expect(await restored.result).toMatchObject({ ok: true })
     })
 
@@ -820,7 +856,9 @@ createRoot(document.getElementById('settings')).render(
         )
         .toMatchObject({ fullFileAccess: false })
       const revoked = await requestPermission({ operation: 'read', toolCallId: 'text' })
-      await revoked.prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      await revoked.prompt
+        .getByRole('button', { name: "Don't allow", exact: true })
+        .click({ noWaitAfter: true })
       expect(await revoked.result).toMatchObject({ ok: false })
     })
     await test.step('a failed settings write reports the error and leaves Full file access disabled', async () => {

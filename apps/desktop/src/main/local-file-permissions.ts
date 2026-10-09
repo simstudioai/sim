@@ -11,7 +11,7 @@ import { openNativeFile } from '@/main/native-directory'
 const MAX_PENDING_REQUESTS = 32
 
 interface LocalFilePermissionContext {
-  parent: () => Promise<BrowserWindow>
+  parent: () => Promise<BrowserWindow | null>
   origin: string
   generation: number
   signal: AbortSignal
@@ -73,7 +73,7 @@ export class LocalFilePermissions {
     if (this.fullFileAccess()) {
       const info = await stat(path)
       const folder = info.isDirectory() ? path : dirname(path)
-      const identity = await stat(folder)
+      const identity = await stat(folder, { bigint: true })
       return this.authorizedAccess(
         {
           path,
@@ -171,7 +171,7 @@ export class LocalFilePermissions {
   ): Promise<void> {
     const context = await this.currentContext(contexts, signal)
     if (await this.filesystem.nativeAccess(folder)) return
-    const root = await lstat(folder)
+    const root = await lstat(folder, { bigint: true })
     if (!root.isDirectory()) throw new Error('The folder is no longer available.')
     const displayedPath = JSON.stringify(folder).replace(
       /\p{Bidi_Control}/gu,
@@ -180,7 +180,7 @@ export class LocalFilePermissions {
     signal.throwIfAborted()
     const parent = await context.parent()
     await this.currentContext(contexts, signal)
-    const result = await showShellDialog(parent, {
+    const options = {
       signal,
       title: 'Allow access to this folder?',
       message: displayedPath,
@@ -188,7 +188,8 @@ export class LocalFilePermissions {
       buttons: ['Allow folder', "Don't allow"],
       defaultId: 1,
       cancelId: 1,
-    })
+    }
+    const result = await (parent ? showShellDialog(parent, options) : showShellDialog(options))
     signal.throwIfAborted()
     if (result.response !== 0) throw new Error('The user did not allow this local file access.')
     const current = await this.currentContext(contexts, signal)

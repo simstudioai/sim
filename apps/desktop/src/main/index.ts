@@ -176,8 +176,9 @@ function main(): void {
   )
   const clearLocalFileAccess = async () => {
     config.set('fullFileAccess', false)
-    if (!config.flush()) throw new Error('Full file access could not be disabled')
+    const saved = config.flush()
     await localFilesystem.forgetAll()
+    if (!saved) throw new Error('Full file access could not be disabled')
   }
   const scopeEvents = new ScopedEventRouter()
   const terminal = new TerminalRegistry(
@@ -645,7 +646,7 @@ function main(): void {
           const authorization = { toolName: call.toolName, args: call.args }
           try {
             const access = await localFilePermissions.authorize(authorization, {
-              parent: ensureMainWindow,
+              parent: async () => getMainWindow(),
               origin,
               generation,
               signal,
@@ -653,7 +654,7 @@ function main(): void {
                 isAccountDataGenerationCurrent(generation) &&
                 accountDataAvailable() &&
                 appOrigin() === origin,
-              revalidate: async () => !signal.aborted,
+              revalidate: () => desktopExecutor.revalidateCall(call),
             })
             return await executeLocalFileRequest(request, authorization, access)
           } catch (error) {
