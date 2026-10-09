@@ -433,6 +433,12 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
       await userInput('#draft')
       await panelAction({ action: 'reload' })
       await expect(shell.getByRole('button', { name: 'Stay', exact: true })).toBeFocused()
+      await shell.getByRole('dialog').screenshot({
+        path: test.info().outputPath('leave-page-modal.png'),
+        animations: 'allow',
+        caret: 'initial',
+      })
+      await expect(shell.getByRole('button', { name: 'Stay', exact: true })).toBeFocused()
       await shell.keyboard.press('Escape')
       await expect.poll(pageDialog).toBeNull()
       await expect
