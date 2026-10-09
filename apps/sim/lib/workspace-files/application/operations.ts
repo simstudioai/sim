@@ -25,10 +25,12 @@ const HUMAN_FILE_TOOL_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot', 'executor'],
 } as const
 /**
- * Chat may list, read and revert versions as the delegating user: a version text read reports the
- * snapshot's secret provenance to Chat's delivery observer like a current-file read, and a revert
- * writes a new, undoable version. Deleting a version purges history irreversibly and downloading
- * one hands out raw bytes, so both admit direct callers only.
+ * Chat may list, read and revert versions as the delegating user: a version text read refuses a
+ * delegated caller unless a delivery observer records the snapshot's secret provenance, and a
+ * revert writes a new, undoable version that reinstates that provenance. Deleting a version purges
+ * history irreversibly, so it admits direct callers only. Download stays direct-only too, but it
+ * is not a hard boundary for a writer: reverting to a version and downloading the current file
+ * reaches the same bytes, with provenance tracked at each step.
  */
 const VERSION_HISTORY_PRINCIPAL_POLICY = ALL_COPILOT_PRINCIPAL_POLICY
 const DIRECT_PRINCIPAL_POLICY = {

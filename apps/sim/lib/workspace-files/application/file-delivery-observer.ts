@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import type { Principal } from '@sim/auth/principal'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 
 const observer = new AsyncLocalStorage<
@@ -19,4 +20,23 @@ export async function reportWorkspaceFileDelivery(
   provenance?: WorkspaceFileSecretProvenance
 ): Promise<void> {
   await observer.getStore()?.(provenance)
+}
+
+/** A delegated read reached stored bytes with no observer to record their secret provenance. */
+export class WorkspaceFileDeliveryUnobservedError extends Error {
+  constructor() {
+    super('File read provenance is unavailable. Retry the read.')
+    this.name = 'WorkspaceFileDeliveryUnobservedError'
+  }
+}
+
+/**
+ * Refuses a delegated caller before any bytes load unless a delivery observer is installed, so a
+ * secret in the content cannot reach a model without its provenance being recorded, whatever
+ * transport composed the call.
+ */
+export function requireDelegatedWorkspaceFileDeliveryObserver(principal: Principal): void {
+  if (principal.kind === 'delegated' && !hasWorkspaceFileDeliveryObserver()) {
+    throw new WorkspaceFileDeliveryUnobservedError()
+  }
 }
