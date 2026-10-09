@@ -8359,7 +8359,7 @@
         "operationId": "createWorkspaceInvitations",
         "summary": "Create Workspace Invitations",
         "description": "Invite people to a workspace or grant access immediately to existing organization members. Requires workspace administrator access and current invitation eligibility; organization administrator invitations also require organization administrator access. Recipients are processed independently: inspect failed even after HTTP 200, and inspect invitation status before retrying a delivery failure. Existing access is preserved. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
-        "x-sim-operation": "invitations.send_batch",
+        "x-sim-operation": "workspace_invitations.send_batch",
         "x-oauth-scope": "api:write",
         "tags": ["Workspaces"],
         "parameters": [

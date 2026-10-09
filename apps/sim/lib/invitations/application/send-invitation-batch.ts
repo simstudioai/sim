@@ -21,7 +21,6 @@ import {
   authorizeWorkspaceOperation,
   requireAllowedWorkspacePrincipal,
 } from '@/lib/core/application/workspace-authorization'
-import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import {
   OrchestrationError,
   type OrchestrationRequestContext,
@@ -29,6 +28,7 @@ import {
 import {
   invitationAuthorityOperations,
   invitationOperations,
+  workspaceInvitationOperations,
 } from '@/lib/invitations/application/operations'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 import { prepareOrganizationInvitationContext } from '@/lib/invitations/organization-invitations'
@@ -307,18 +307,12 @@ async function executeInvitationBatch(
   return result
 }
 
-export const workspaceInvitationSendOperation = defineWorkspaceOperation({
-  id: 'workspace_invitations.send_batch',
-  minimumRole: 'admin',
-  capability: 'invitations.send',
-  workspaceApiKey: 'deny',
-  principalKinds: ['session', 'delegated'],
-  delegatedServices: ['copilot'],
-})
-
-/** Workspace batches retain per-target admission checks and per-email outcomes. */
+/**
+ * One workspace's batch, shared by the public v2 command and Chat. Every target
+ * keeps its admission checks and every email its own outcome.
+ */
 export const sendWorkspaceInvitationBatch = defineAuthorizedWorkspaceUseCase({
-  operation: workspaceInvitationSendOperation,
+  operation: workspaceInvitationOperations.sendBatch,
   resolveContext: ({
     principal,
     input,

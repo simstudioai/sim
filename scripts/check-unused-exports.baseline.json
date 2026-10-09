@@ -4645,7 +4645,6 @@
   "apps/sim/lib/invitations/application/manage-invitation.ts#WorkspaceInvitationActionInput",
   "apps/sim/lib/invitations/application/manage-invitation.ts#invitationManagementOperations",
   "apps/sim/lib/invitations/application/manage-invitation.ts#workspaceInvitationManagementOperations",
-  "apps/sim/lib/invitations/application/send-invitation-batch.ts#workspaceInvitationSendOperation",
   "apps/sim/lib/invitations/core.ts#AcceptInvitationFailure",
   "apps/sim/lib/invitations/core.ts#AcceptInvitationSuccess",
   "apps/sim/lib/invitations/core.ts#INVITATION_EXPIRY_DAYS",
