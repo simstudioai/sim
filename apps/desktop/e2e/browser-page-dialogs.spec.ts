@@ -364,6 +364,40 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
     await panelAction({ action: 'reload' })
     await expect.poll(() => pageTitle()).toBe('form')
 
+    await check('clean reloads and navigation never ask to discard changes', async () => {
+      await panelAction({ action: 'reload' })
+      await expect.poll(() => pageTitle()).toBe('form')
+      expect(await pageDialog()).toBeNull()
+      await panelAction({ action: 'navigate', url: `${site}/next` })
+      await expect.poll(pageUrl).toBe(`${site}/next`)
+      expect(await pageDialog()).toBeNull()
+      await panelAction({ action: 'back' })
+      await expect.poll(pageUrl).toBe(`${site}/form`)
+      expect(await pageDialog()).toBeNull()
+    })
+
+    await check('clearing a draft removes the leave warning', async () => {
+      await userInput('#draft', 'temporary draft')
+      await inPage("document.getElementById('draft').value = ''")
+      await panelAction({ action: 'navigate', url: `${site}/next` })
+      await expect.poll(pageUrl).toBe(`${site}/next`)
+      expect(await pageDialog()).toBeNull()
+      await panelAction({ action: 'navigate', url: `${site}/form` })
+      await expect.poll(pageUrl).toBe(`${site}/form`)
+    })
+
+    await check('same-page navigation preserves a draft without a leave warning', async () => {
+      await userInput('#draft', 'same-page draft')
+      await panelAction({ action: 'navigate', url: `${site}/form#section` })
+      await expect.poll(pageUrl).toBe(`${site}/form#section`)
+      expect(await pageDialog()).toBeNull()
+      expect(await inPage<string>("document.getElementById('draft').value")).toBe('same-page draft')
+      await panelAction({ action: 'back' })
+      await expect.poll(pageUrl).toBe(`${site}/form`)
+      expect(await pageDialog()).toBeNull()
+      await inPage("document.getElementById('draft').value = ''")
+    })
+
     await check('leaving a draft from the URL bar asks, and Stay keeps it', async () => {
       await userInput('#draft', 'draft')
       await expect
