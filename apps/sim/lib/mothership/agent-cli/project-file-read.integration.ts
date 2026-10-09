@@ -5,7 +5,6 @@ import { dirname, join } from 'node:path'
 import { db } from '@sim/db'
 import {
   permissions,
-  projectWorkspace,
   user,
   userStats,
   workspace,
@@ -103,10 +102,10 @@ async function fixture() {
     permissionType: 'admin',
   })
   const [binding] = await db
-    .select()
-    .from(projectWorkspace)
-    .where(eq(projectWorkspace.workspaceId, workspaceId))
-  if (!binding) throw new Error('Project fixture missing')
+    .select({ projectId: workspace.projectId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+  if (!binding?.projectId) throw new Error('Project fixture missing')
   const ids = { userId, workspaceId, projectId: binding.projectId }
   fixtures.push(ids)
   const context: AgentCliExecutionContext = {

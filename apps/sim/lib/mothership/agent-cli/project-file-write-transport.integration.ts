@@ -11,7 +11,6 @@ import {
   folder,
   outboxEvent,
   permissions,
-  projectWorkspace,
   uploadSession,
   user,
   userStats,
@@ -133,10 +132,10 @@ async function fixture(crossProject = false) {
     permissionType: 'admin',
   })
   const [binding] = await db
-    .select()
-    .from(projectWorkspace)
-    .where(eq(projectWorkspace.workspaceId, workspaceId))
-  if (!binding) throw new Error('Project fixture missing')
+    .select({ projectId: workspace.projectId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+  if (!binding?.projectId) throw new Error('Project fixture missing')
   const originWorkspaceId = crossProject ? generateId() : workspaceId
   if (crossProject) {
     await insertWorkspaceFixture(db, {

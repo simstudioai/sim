@@ -16,7 +16,6 @@ import {
   permissionGroupWorkspace,
   permissions,
   project,
-  projectWorkspace,
   publicShare,
   subscription,
   user,
@@ -152,10 +151,10 @@ async function fixture() {
     name: 'Content environment',
   })
   const [binding] = await db
-    .select()
-    .from(projectWorkspace)
-    .where(eq(projectWorkspace.workspaceId, workspaceId))
-  if (!binding) throw new Error('Project fixture missing')
+    .select({ projectId: workspace.projectId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+  if (!binding?.projectId) throw new Error('Project fixture missing')
   await db.insert(permissions).values({
     id: generateId(),
     userId: editorId,
@@ -2953,10 +2952,10 @@ describe.skipIf(!redisUrl)('authenticated workbench copy callback', () => {
         name: 'Copy destination',
       })
       const [destinationBinding] = await db
-        .select()
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, destinationWorkspaceId))
-      if (!destinationBinding) throw new Error('Destination Project missing')
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(eq(workspace.id, destinationWorkspaceId))
+      if (!destinationBinding?.projectId) throw new Error('Destination Project missing')
       const destinationPermissionId = generateId()
       await db.insert(permissions).values({
         id: destinationPermissionId,
@@ -3181,11 +3180,12 @@ describe.skipIf(!redisUrl)('authenticated workbench copy callback', () => {
         vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
         expect((await callback()).status).toBe(201)
         const baseline = await destinationRows()
-        for (const headers of [
+        const invalidHeaders: Record<string, string>[] = [
           { 'x-api-key': generateId() },
           { 'x-mothership-workspace-id': f.workspaceId },
           { 'x-mothership-file-owner': JSON.stringify(sourceOwner) },
-        ])
+        ]
+        for (const headers of invalidHeaders)
           expect((await callback(body, headers)).status).toBe(403)
         expect((await callback(body, {}, 'GET')).status).toBe(405)
         expect((await callback({ ...body, workspaceId: f.workspaceId })).status).toBe(400)

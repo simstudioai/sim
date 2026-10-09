@@ -1,14 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { db } from '@sim/db'
-import {
-  copilotChats,
-  permissions,
-  projectWorkspace,
-  user,
-  workspace,
-  workspaceFiles,
-} from '@sim/db/schema'
+import { copilotChats, permissions, user, workspace, workspaceFiles } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createRouteContext } from '@sim/testing/helpers/http'
@@ -103,10 +96,10 @@ async function fixture(crossProject = false) {
     permissionType: 'admin',
   })
   const [binding] = await db
-    .select()
-    .from(projectWorkspace)
-    .where(eq(projectWorkspace.workspaceId, workspaceId))
-  if (!binding) throw new Error('Project binding missing')
+    .select({ projectId: workspace.projectId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+  if (!binding?.projectId) throw new Error('Project binding missing')
   const projectId = binding.projectId
   const originWorkspaceId = crossProject ? generateId() : workspaceId
   if (crossProject) {

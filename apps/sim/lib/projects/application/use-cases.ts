@@ -262,11 +262,11 @@ export const getCurrentWorkspaceProject: OperationUseCase<
     if (!workspaceId) return { project: null }
     return db.transaction(async (tx) => {
       const [membership] = await tx
-        .select({ projectId: projectWorkspace.projectId })
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, workspaceId))
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(eq(workspace.id, workspaceId))
         .limit(1)
-      if (!membership) return { project: null }
+      if (!membership?.projectId) return { project: null }
       const [context] = await authorizeProjectsForRead(tx, principal, [membership.projectId])
       if (
         !context ||
