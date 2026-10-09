@@ -284,8 +284,14 @@ describe('chat-delegated credential sharing', () => {
     expect(await shared.json()).toMatchObject(refusal)
   })
 
-  it('refuses demoting or removing a workspace admin', async () => {
+  it("refuses demoting or removing a workspace admin's existing grant", async () => {
     const asAdmin = chat(adminId)
+    const granted = await asAdmin(query, {
+      method: 'POST',
+      body: { userId: coAdminId, role: 'admin' },
+    })
+    expect(granted.status).toBe(201)
+    expect(await activeGrantsFor(coAdminId)).toEqual([{ role: 'admin' }])
 
     const demoted = await asAdmin(query, {
       method: 'POST',
@@ -297,12 +303,8 @@ describe('chat-delegated credential sharing', () => {
         message: 'Workspace admins are automatically credential admins and cannot be demoted',
       },
     })
+    expect(await activeGrantsFor(coAdminId)).toEqual([{ role: 'admin' }])
 
-    const promoted = await asAdmin(query, {
-      method: 'POST',
-      body: { userId: coAdminId, role: 'admin' },
-    })
-    expect(promoted.status).toBe(201)
     const removed = await asAdmin(`/${coAdminId}${query}`, { method: 'DELETE' })
     expect(removed.status).toBe(400)
     expect(await removed.json()).toMatchObject({
