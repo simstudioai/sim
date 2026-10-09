@@ -939,7 +939,10 @@ createRoot(document.getElementById('settings')).render(
         try {
           await toggle.click()
           await expect(
-            window.getByText('Could not update file access', { exact: true })
+            window.getByText(
+              'Could not save file access settings. Your previous setting may return after restarting Sim.',
+              { exact: true }
+            )
           ).toBeVisible()
           await expect(toggle).not.toBeChecked()
           expect(
