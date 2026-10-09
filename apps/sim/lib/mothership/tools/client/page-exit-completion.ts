@@ -35,7 +35,7 @@ export function compactCompletionForPageExit(
       ...(data.doNotRetry === true ? { doNotRetry: true } : {}),
       ...(data.sessionClosed === true ? { sessionClosed: true } : {}),
       resultOmittedDuringPageExit: true,
-      note: 'The action reached a known terminal state, but its full result was too large for unload-safe delivery. Do not repeat a side-effecting action. Take a fresh observation to recover current state.',
+      note: 'The full result was too large for unload-safe delivery. Do not repeat a side-effecting action. Take a fresh observation to recover current state.',
     },
   }
 }

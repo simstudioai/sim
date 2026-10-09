@@ -90,6 +90,7 @@ function ComputerUseSettingsControls() {
               <span className='text-[var(--text-muted)] text-sm'>Allowed</span>
             ) : (
               <Chip
+                aria-label={`Open System Settings for ${permission === 'accessibility' ? 'Accessibility' : 'Screen Recording'}`}
                 disabled={pending || !status?.enabled}
                 onClick={() =>
                   void update(async () => setStatus(await bridge.requestPermission(permission)))
