@@ -301,14 +301,15 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
     pathname.startsWith('/api/webhooks/tiktok') ||
     pathname.startsWith('/api/webhooks/agentmail')
   const isMcpEndpoint = pathname.startsWith('/api/mcp/')
-  const isMcpOauthDiscoveryEndpoint =
+  const isMcpDiscoveryEndpoint =
     pathname.startsWith('/.well-known/oauth-authorization-server') ||
-    pathname.startsWith('/.well-known/oauth-protected-resource')
+    pathname.startsWith('/.well-known/oauth-protected-resource') ||
+    pathname === '/.well-known/openai-apps-challenge'
   const isSuspicious = SUSPICIOUS_UA_PATTERNS.some((pattern) => pattern.test(userAgent))
 
   // Block suspicious requests, but exempt machine-to-machine endpoints that may
   // legitimately omit User-Agent headers (webhooks and MCP protocol discovery/calls).
-  if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpOauthDiscoveryEndpoint) {
+  if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpDiscoveryEndpoint) {
     logger.warn('Blocked suspicious request', {
       userAgent,
       ip: getClientIp(request),
