@@ -20,19 +20,33 @@ export function isCopilotRequest(request: Request): boolean {
   return INVOCATIONS.has(request)
 }
 
-/** The code-owned use case must explicitly admit Copilot and declare its domain audience. */
+export type CopilotRouteUseCase = Pick<
+  OperationUseCase<ApplicationOperation, unknown, unknown>,
+  'operation' | 'delegationAudience'
+>
+
+/**
+ * The audience a route admits Copilot under, or none when Mothership is refused. The
+ * code-owned use case must explicitly admit Copilot and declare its domain audience. The
+ * route inventory evaluates this same rule to publish which CLI commands chat can run.
+ */
+export function copilotRouteAudience(
+  operation: ApplicationOperation,
+  useCase?: CopilotRouteUseCase
+): string | undefined {
+  return useCase?.operation === operation ? useCase.delegationAudience || undefined : undefined
+}
+
 export function copilotRequestPrincipal(
   request: Request,
   operation: ApplicationOperation,
-  useCase?: Pick<
-    OperationUseCase<ApplicationOperation, unknown, unknown>,
-    'operation' | 'delegationAudience'
-  >
+  useCase?: CopilotRouteUseCase
 ): DelegatedPrincipal | undefined {
   const invocation = INVOCATIONS.get(request)
   if (!invocation) return undefined
-  if (useCase?.operation !== operation || !useCase.delegationAudience) return undefined
-  const principal = createCopilotChatPrincipal(invocation, useCase.delegationAudience)
+  const audience = copilotRouteAudience(operation, useCase)
+  if (!audience) return undefined
+  const principal = createCopilotChatPrincipal(invocation, audience)
   markCopilotWorkspaceInvocation(principal)
   return principal
 }

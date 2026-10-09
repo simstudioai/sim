@@ -7,6 +7,7 @@ import { azureDevOpsHandler } from '@/lib/webhooks/providers/azure-devops'
 import { bitbucketHandler } from '@/lib/webhooks/providers/bitbucket'
 import { calcomHandler } from '@/lib/webhooks/providers/calcom'
 import { calendlyHandler } from '@/lib/webhooks/providers/calendly'
+import { checkrHandler } from '@/lib/webhooks/providers/checkr'
 import { circlebackHandler } from '@/lib/webhooks/providers/circleback'
 import { clerkHandler } from '@/lib/webhooks/providers/clerk'
 import { clickupHandler } from '@/lib/webhooks/providers/clickup'
@@ -78,6 +79,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   bitbucket: bitbucketHandler,
   calendly: calendlyHandler,
   calcom: calcomHandler,
+  checkr: checkrHandler,
   circleback: circlebackHandler,
   clerk: clerkHandler,
   clickup: clickupHandler,

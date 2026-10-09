@@ -104,6 +104,7 @@ export interface DesktopSettings {
   /** Whether omnibox typing may request live Google search completions. */
   browserSearchSuggestionsEnabled?: boolean
   terminalEnabled?: boolean
+  fullFileAccess?: boolean
   /** Keep the machine awake while a chat is running desktop work in the background. */
   preventSleepWhileRunning?: boolean
   /** Native app access is opt-in and cleared when the signed-in account changes. */
@@ -241,6 +242,7 @@ const DEFAULT_SETTINGS: DesktopSettings = {
   browserEnabled: true,
   browserSearchSuggestionsEnabled: true,
   terminalEnabled: true,
+  fullFileAccess: false,
   preventSleepWhileRunning: true,
 }
 

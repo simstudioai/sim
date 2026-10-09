@@ -1,5 +1,13 @@
 import type { TriggerOutput } from '@/triggers/types'
 
+export const SLACK_AGENT_SCOPES = [
+  'assistant:write',
+  'chat:write',
+  'chat:write.customize',
+  'im:history',
+  'im:write',
+] as const
+
 export const SLACK_STREAM_RESPONSE_EVENTS = ['message', 'app_mention']
 
 /**

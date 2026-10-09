@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { canUseBenchmarks } from '@/lib/benchmarks/application/access'
+import { canUseBenchmarks } from '@/lib/benchmarks/config'
 
 export default async function BenchmarkPage({
   params,

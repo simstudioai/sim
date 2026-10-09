@@ -203,7 +203,7 @@ export const MothershipView = memo(
     const activeFile = active?.type === 'file' ? files?.find((f) => f.id === active.id) : undefined
     const isActiveCsv = active?.type === 'file' && getFileExtension(active.title) === 'csv'
 
-    const isActivePreviewable =
+    const isActiveFilePreviewable =
       canEdit &&
       active?.type === 'file' &&
       // Dashboards store extensionless names, so the record's type decides once it loads.
@@ -221,6 +221,8 @@ export const MothershipView = memo(
       // A Sim page is locked to its rendered view (the pdf model — the raw
       // source is not a mode this surface offers), so no toggle either.
       activeFile?.type !== SIM_PAGE_CONTENT_TYPE
+    // A test shows its source, its results, or both, like an HTML file; the viewer enforces edits.
+    const isActivePreviewable = isActiveFilePreviewable || active?.type === 'test'
 
     return (
       <ChatPanelContent

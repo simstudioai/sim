@@ -67,6 +67,8 @@
         "node-gyp",
         // Imported inside the generated source string in sandbox/bundles/build.ts.
         "pptxgenjs",
+        "@vitest/expect",
+        "@vitest/spy",
         // Next aliases this marker to its bundled server-only module.
         "server-only",
         // Knip's email CLI plugin infers this transitive preview implementation.

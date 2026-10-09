@@ -427,7 +427,7 @@ export function Admin() {
           </div>
 
           {usersError && (
-            <p className='text-[var(--text-error)] text-small'>
+            <p className='text-[var(--text-muted)] text-small'>
               {getErrorMessage(usersError, 'Failed to fetch users')}
             </p>
           )}

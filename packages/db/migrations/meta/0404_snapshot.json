@@ -1,6 +1,6 @@
 {
-  "id": "d5705ade-24a2-4417-8359-756f509c70ec",
-  "prevId": "f0cc8ce3-8485-42f3-ae9b-b9beee9afd49",
+  "id": "f0cc8ce3-8485-42f3-ae9b-b9beee9afd49",
+  "prevId": "44e8985f-7e13-4c8f-84d7-be85dc491ba6",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -30058,8 +30058,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.mothership_benchmarks": {
-      "name": "mothership_benchmarks",
+    "public.workflow_test": {
+      "name": "workflow_test",
       "schema": "",
       "columns": {
         "id": {
@@ -30068,20 +30068,8 @@
           "primaryKey": true,
           "notNull": true
         },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_workspace_id": {
-          "name": "source_workspace_id",
+        "workspace_id": {
+          "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -30092,46 +30080,46 @@
           "primaryKey": false,
           "notNull": true
         },
-        "artifacts": {
-          "name": "artifacts",
-          "type": "jsonb",
+        "title": {
+          "name": "title",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "version": {
-          "name": "version",
-          "type": "integer",
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body_file_id": {
+          "name": "body_file_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cases": {
+          "name": "cases",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
-          "default": 1
+          "default": "'[]'"
         },
-        "running_stage": {
-          "name": "running_stage",
+        "source_hash": {
+          "name": "source_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "attempt_id": {
-          "name": "attempt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "lease_expires_at": {
-          "name": "lease_expires_at",
+        "deleted_at": {
+          "name": "deleted_at",
           "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "planner_chat_id": {
-          "name": "planner_chat_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -30151,44 +30139,209 @@
         }
       },
       "indexes": {
-        "mothership_benchmarks_owner_created_idx": {
-          "name": "mothership_benchmarks_owner_created_idx",
+        "workflow_test_workspace_name_unique": {
+          "name": "workflow_test_workspace_name_unique",
           "columns": [
             {
-              "expression": "organization_id",
+              "expression": "workspace_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
+              "expression": "name",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
+          "where": "\"workflow_test\".\"deleted_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
         },
-        "mothership_benchmarks_workspace_idx": {
-          "name": "mothership_benchmarks_workspace_idx",
+        "workflow_test_body_file_unique": {
+          "name": "workflow_test_body_file_unique",
           "columns": [
             {
-              "expression": "source_workspace_id",
+              "expression": "body_file_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workflow_test_workspace_id_workspace_id_fk": {
+          "name": "workflow_test_workspace_id_workspace_id_fk",
+          "tableFrom": "workflow_test",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workflow_test_body_file_id_workspace_files_id_fk": {
+          "name": "workflow_test_body_file_id_workspace_files_id_fk",
+          "tableFrom": "workflow_test",
+          "tableTo": "workspace_files",
+          "columnsFrom": ["body_file_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workflow_test_created_by_user_id_user_id_fk": {
+          "name": "workflow_test_created_by_user_id_user_id_fk",
+          "tableFrom": "workflow_test",
+          "tableTo": "user",
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workflow_test_run": {
+      "name": "workflow_test_run",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "test_id": {
+          "name": "test_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'running'"
+        },
+        "passed": {
+          "name": "passed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "failed": {
+          "name": "failed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "skipped": {
+          "name": "skipped",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "report": {
+          "name": "report",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_hash": {
+          "name": "source_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ran_against": {
+          "name": "ran_against",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "progress": {
+          "name": "progress",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "triggered_by_actor": {
+          "name": "triggered_by_actor",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "triggered_by_user_id": {
+          "name": "triggered_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "workflow_test_run_test_version_started_idx": {
+          "name": "workflow_test_run_test_version_started_idx",
+          "columns": [
+            {
+              "expression": "test_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -30201,31 +30354,31 @@
         }
       },
       "foreignKeys": {
-        "mothership_benchmarks_organization_id_organization_id_fk": {
-          "name": "mothership_benchmarks_organization_id_organization_id_fk",
-          "tableFrom": "mothership_benchmarks",
-          "tableTo": "organization",
-          "columnsFrom": ["organization_id"],
+        "workflow_test_run_test_id_workflow_test_id_fk": {
+          "name": "workflow_test_run_test_id_workflow_test_id_fk",
+          "tableFrom": "workflow_test_run",
+          "tableTo": "workflow_test",
+          "columnsFrom": ["test_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "mothership_benchmarks_user_id_user_id_fk": {
-          "name": "mothership_benchmarks_user_id_user_id_fk",
-          "tableFrom": "mothership_benchmarks",
-          "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "mothership_benchmarks_source_workspace_id_workspace_id_fk": {
-          "name": "mothership_benchmarks_source_workspace_id_workspace_id_fk",
-          "tableFrom": "mothership_benchmarks",
+        "workflow_test_run_workspace_id_workspace_id_fk": {
+          "name": "workflow_test_run_workspace_id_workspace_id_fk",
+          "tableFrom": "workflow_test_run",
           "tableTo": "workspace",
-          "columnsFrom": ["source_workspace_id"],
+          "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workflow_test_run_triggered_by_user_id_user_id_fk": {
+          "name": "workflow_test_run_triggered_by_user_id_user_id_fk",
+          "tableFrom": "workflow_test_run",
+          "tableTo": "user",
+          "columnsFrom": ["triggered_by_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -30233,13 +30386,17 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "mothership_benchmarks_version_check": {
-          "name": "mothership_benchmarks_version_check",
-          "value": "\"mothership_benchmarks\".\"version\" > 0"
+        "workflow_test_run_version_check": {
+          "name": "workflow_test_run_version_check",
+          "value": "\"workflow_test_run\".\"version\" IN ('draft', 'deployed')"
         },
-        "mothership_benchmarks_attempt_check": {
-          "name": "mothership_benchmarks_attempt_check",
-          "value": "(\"mothership_benchmarks\".\"running_stage\" IS NULL AND \"mothership_benchmarks\".\"attempt_id\" IS NULL AND \"mothership_benchmarks\".\"lease_expires_at\" IS NULL) OR (\"mothership_benchmarks\".\"running_stage\" IS NOT NULL AND \"mothership_benchmarks\".\"running_stage\" IN ('distill', 'redact', 'plan', 'reconstruct', 'grade') AND \"mothership_benchmarks\".\"attempt_id\" IS NOT NULL AND \"mothership_benchmarks\".\"lease_expires_at\" IS NOT NULL)"
+        "workflow_test_run_status_check": {
+          "name": "workflow_test_run_status_check",
+          "value": "\"workflow_test_run\".\"status\" IN ('running', 'passed', 'failed', 'error')"
+        },
+        "workflow_test_run_completed_check": {
+          "name": "workflow_test_run_completed_check",
+          "value": "(\"workflow_test_run\".\"status\" = 'running') = (\"workflow_test_run\".\"completed_at\" IS NULL)"
         }
       },
       "isRLSEnabled": false
@@ -30461,7 +30618,8 @@
         "voice-input",
         "enrichment",
         "voice-output",
-        "api-tool"
+        "api-tool",
+        "workflow-test"
       ]
     },
     "public.workspace_file_search_index_status": {

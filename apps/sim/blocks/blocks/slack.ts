@@ -19,7 +19,7 @@ import {
   parseOptionalNumberInput,
 } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
-import { SLACK_AGENT_SCOPES } from '@/triggers/slack/capabilities'
+import { SLACK_AGENT_SCOPES } from '@/triggers/slack/shared'
 
 /**
  * Canonical basic/advanced pair for the channel target, shared by the card

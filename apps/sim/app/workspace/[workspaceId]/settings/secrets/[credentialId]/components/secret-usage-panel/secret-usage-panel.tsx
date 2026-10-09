@@ -103,11 +103,7 @@ export function SecretUsagePanel({ workspaceId, secretName, scope }: SecretUsage
   )
 
   if (isError) {
-    return (
-      <SettingsEmptyState variant='inline' tone='error'>
-        Could not load usage.
-      </SettingsEmptyState>
-    )
+    return <SettingsEmptyState variant='inline'>Could not load usage.</SettingsEmptyState>
   }
 
   return (

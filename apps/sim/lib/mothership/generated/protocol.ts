@@ -138,7 +138,7 @@ export type DesktopContext = z.infer<typeof DesktopContextSchema>;
  * the list travels in a forgeable payload. The wire accepts any name, so Sim can add one
  * before the worker learns it.
  */
-export const ENTITLEMENTS = { dashboards: "dashboards" } as const;
+export const ENTITLEMENTS = { dashboards: "dashboards", tests: "tests" } as const;
 export type Entitlement = (typeof ENTITLEMENTS)[keyof typeof ENTITLEMENTS];
 export const Entitlements = z.array(z.string().min(1).max(64)).max(32);
 

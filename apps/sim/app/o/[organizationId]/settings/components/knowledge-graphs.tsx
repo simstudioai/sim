@@ -46,7 +46,7 @@ export function KnowledgeGraphs({ organizationId }: KnowledgeGraphsProps) {
       ]}
     >
       {error ? (
-        <SettingsEmptyState tone='error'>{error.message}</SettingsEmptyState>
+        <SettingsEmptyState>{error.message}</SettingsEmptyState>
       ) : isLoading ? (
         <SettingsEmptyState>Loading knowledge graphs...</SettingsEmptyState>
       ) : (

@@ -4,11 +4,11 @@ import { member, organization, user, workspace } from '@sim/db/schema'
 import { and, asc, eq, gt, ilike, isNull, or } from 'drizzle-orm'
 import {
   authorizeBenchmarkTarget,
-  canUseBenchmarks,
   defineAuthorizedBenchmarkUseCase,
 } from '@/lib/benchmarks/application/access'
 import { requireBenchmarkSourceAccess } from '@/lib/benchmarks/application/cases'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
+import { canUseBenchmarks } from '@/lib/benchmarks/config'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { canCreateOrganizationWorkspace } from '@/lib/workspaces/policy'

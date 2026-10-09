@@ -1,10 +1,18 @@
+import { db } from '@sim/db'
 import { env } from '@/lib/core/config/env'
 import { isMothershipBenchmarkEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
+import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 
 /** Restart Sim after changing the benchmark flag in the deployment secret. */
-export function isBenchmarkEnabled(): boolean {
+function isBenchmarkEnabled(): boolean {
   return isMothershipBenchmarkEnabled
+}
+
+export async function canUseBenchmarks(userId: string, executor: DbOrTx = db): Promise<boolean> {
+  if (!isBenchmarkEnabled()) return false
+  return (await verifyEffectiveSuperUser(userId, executor)).effectiveSuperUser
 }
 
 export function requireBenchmarkEnabled(): void {

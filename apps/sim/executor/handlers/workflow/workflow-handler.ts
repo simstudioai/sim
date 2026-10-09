@@ -888,6 +888,9 @@ export class WorkflowBlockHandler implements BlockHandler {
           // Propagate in-flight block-output redaction into child workflows so
           // nested blocks mask outputs too (recurses: each child forwards it).
           piiBlockOutputRedaction: ctx.piiBlockOutputRedaction,
+          // A workflow test's mocks and spies reach every child it runs, except a custom
+          // block's: that workflow is the publisher's, so the test mocks the block whole.
+          testHooks: isCustomBlock ? undefined : ctx.testHooks,
           callChain: childCallChain,
           // A custom block's own session markers and the parent's live stream, fanned
           // out together — see `childCallbacks` above for why this is not two spreads.

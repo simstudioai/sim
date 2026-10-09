@@ -37,6 +37,7 @@ export interface DesktopSettingsService {
   getPreferences(): DesktopPreferences
   setPreference(key: DesktopPreferenceKey, value: boolean): DesktopPreferences
   setBrowserSearchSuggestionsEnabled(enabled: boolean): DesktopPreferences
+  setFullFileAccess(enabled: boolean): DesktopPreferences
   setPreventSleepWhileRunning(enabled: boolean): DesktopPreferences
   setAppearancePreference(
     key: DesktopAppearanceSettingKey,
@@ -52,6 +53,7 @@ export interface DesktopSettingsService {
 
 interface DesktopSettingsServiceDeps {
   config: ConfigStore
+  onFullFileAccessChanged?: (preferences: DesktopPreferences) => void
   getMainWindow: () => BrowserWindow | null
   openMainWindowAt: (route?: string) => void
   setAutoDownloadUpdates: (enabled: boolean) => void
@@ -96,6 +98,7 @@ function readPreferences(
     browserEnabled: config.get('browserEnabled') ?? true,
     browserSearchSuggestionsEnabled: config.get('browserSearchSuggestionsEnabled') ?? true,
     terminalEnabled: config.get('terminalEnabled') ?? true,
+    fullFileAccess: config.get('fullFileAccess') === true,
     preventSleepWhileRunning: config.get('preventSleepWhileRunning') ?? true,
     browserTheme: isDesktopAppearanceTheme(browserTheme) ? browserTheme : 'app',
     browserDefaultZoom: isDesktopZoomPercent(browserDefaultZoom) ? browserDefaultZoom : 100,
@@ -178,6 +181,19 @@ export function createDesktopSettingsService(
       deps.config.set('browserSearchSuggestionsEnabled', enabled)
       deps.config.flush()
       return read()
+    },
+    setFullFileAccess(enabled) {
+      deps.config.set('fullFileAccess', enabled)
+      if (!deps.config.flush()) {
+        deps.config.set('fullFileAccess', false)
+        deps.onFullFileAccessChanged?.(read())
+        throw new Error(
+          'Could not save file access settings. Your previous setting may return after restarting Sim.'
+        )
+      }
+      const preferences = read()
+      deps.onFullFileAccessChanged?.(preferences)
+      return preferences
     },
     setPreventSleepWhileRunning(enabled) {
       deps.config.set('preventSleepWhileRunning', enabled)

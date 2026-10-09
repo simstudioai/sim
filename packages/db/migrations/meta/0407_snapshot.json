@@ -1,6 +1,6 @@
 {
-  "id": "646a9b97-9a65-4b58-bd83-46d98102661e",
-  "prevId": "53807721-83e0-4aae-b672-34d6528d1f30",
+  "id": "53807721-83e0-4aae-b672-34d6528d1f30",
+  "prevId": "8b40e391-0e6c-48f0-9680-ba7ab8f8d1c0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -30378,10 +30378,349 @@
         "mothership_benchmark_runs_score_check": {
           "name": "mothership_benchmark_runs_score_check",
           "value": "\"mothership_benchmark_runs\".\"total\" > 0 AND \"mothership_benchmark_runs\".\"correct\" >= 0 AND \"mothership_benchmark_runs\".\"correct\" <= \"mothership_benchmark_runs\".\"total\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.workflow_test": {
+      "name": "workflow_test",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
         },
-        "mothership_benchmark_runs_automatic_score_check": {
-          "name": "mothership_benchmark_runs_automatic_score_check",
-          "value": "\"mothership_benchmark_runs\".\"automatic_correct\" >= 0 AND \"mothership_benchmark_runs\".\"automatic_correct\" <= \"mothership_benchmark_runs\".\"total\""
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body_file_id": {
+          "name": "body_file_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cases": {
+          "name": "cases",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'"
+        },
+        "source_hash": {
+          "name": "source_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "workflow_test_workspace_name_unique": {
+          "name": "workflow_test_workspace_name_unique",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workflow_test\".\"deleted_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workflow_test_body_file_unique": {
+          "name": "workflow_test_body_file_unique",
+          "columns": [
+            {
+              "expression": "body_file_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workflow_test_workspace_id_workspace_id_fk": {
+          "name": "workflow_test_workspace_id_workspace_id_fk",
+          "tableFrom": "workflow_test",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workflow_test_body_file_id_workspace_files_id_fk": {
+          "name": "workflow_test_body_file_id_workspace_files_id_fk",
+          "tableFrom": "workflow_test",
+          "tableTo": "workspace_files",
+          "columnsFrom": ["body_file_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workflow_test_created_by_user_id_user_id_fk": {
+          "name": "workflow_test_created_by_user_id_user_id_fk",
+          "tableFrom": "workflow_test",
+          "tableTo": "user",
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workflow_test_run": {
+      "name": "workflow_test_run",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "test_id": {
+          "name": "test_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'running'"
+        },
+        "passed": {
+          "name": "passed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "failed": {
+          "name": "failed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "skipped": {
+          "name": "skipped",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "report": {
+          "name": "report",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_hash": {
+          "name": "source_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ran_against": {
+          "name": "ran_against",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "progress": {
+          "name": "progress",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "triggered_by_actor": {
+          "name": "triggered_by_actor",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "triggered_by_user_id": {
+          "name": "triggered_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "workflow_test_run_test_version_started_idx": {
+          "name": "workflow_test_run_test_version_started_idx",
+          "columns": [
+            {
+              "expression": "test_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workflow_test_run_test_id_workflow_test_id_fk": {
+          "name": "workflow_test_run_test_id_workflow_test_id_fk",
+          "tableFrom": "workflow_test_run",
+          "tableTo": "workflow_test",
+          "columnsFrom": ["test_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workflow_test_run_workspace_id_workspace_id_fk": {
+          "name": "workflow_test_run_workspace_id_workspace_id_fk",
+          "tableFrom": "workflow_test_run",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workflow_test_run_triggered_by_user_id_user_id_fk": {
+          "name": "workflow_test_run_triggered_by_user_id_user_id_fk",
+          "tableFrom": "workflow_test_run",
+          "tableTo": "user",
+          "columnsFrom": ["triggered_by_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workflow_test_run_version_check": {
+          "name": "workflow_test_run_version_check",
+          "value": "\"workflow_test_run\".\"version\" IN ('draft', 'deployed')"
+        },
+        "workflow_test_run_status_check": {
+          "name": "workflow_test_run_status_check",
+          "value": "\"workflow_test_run\".\"status\" IN ('running', 'passed', 'failed', 'error')"
+        },
+        "workflow_test_run_completed_check": {
+          "name": "workflow_test_run_completed_check",
+          "value": "(\"workflow_test_run\".\"status\" = 'running') = (\"workflow_test_run\".\"completed_at\" IS NULL)"
         }
       },
       "isRLSEnabled": false
@@ -30603,7 +30942,8 @@
         "voice-input",
         "enrichment",
         "voice-output",
-        "api-tool"
+        "api-tool",
+        "workflow-test"
       ]
     },
     "public.workspace_file_search_index_status": {

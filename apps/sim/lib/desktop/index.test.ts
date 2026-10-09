@@ -1,8 +1,12 @@
 import { createDeferred } from '@sim/testing/helpers/deferred'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const requestAvailability = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/api/client', () => ({ requestJson: requestAvailability }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+const requestAvailability = apiClientRequestMockFns.mockRequestJson
 
 import {
   getDesktopChatCapabilities,

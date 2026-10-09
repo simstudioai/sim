@@ -12,6 +12,7 @@ import {
 } from '@/lib/desktop/executor/availability'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
+import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
@@ -70,6 +71,7 @@ export default async function WorkspaceLayout({
     planModeEnabled,
     organizationHref,
     dashboardsEnabled,
+    workflowTestsEnabled,
     desktopExecutorRegistered,
     computerUseEnabled,
   ] = await Promise.all([
@@ -88,6 +90,7 @@ export default async function WorkspaceLayout({
     isPlanModeEnabled(session.user.id),
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
+    isWorkflowTestsEnabled(hostContext.hostOrganizationId),
     hasDesktopBackgroundExecutor(session.user.id),
     isComputerUseAvailable(),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
@@ -100,6 +103,7 @@ export default async function WorkspaceLayout({
       <FeatureFlagsProvider
         flags={{
           dashboards: dashboardsEnabled,
+          'workflow-tests': workflowTestsEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': planModeEnabled,

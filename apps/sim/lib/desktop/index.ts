@@ -24,7 +24,7 @@
 import type { BrowserKnownSession } from '@sim/browser-protocol'
 import type { DesktopPreferences, SimDesktopApi } from '@sim/desktop-bridge'
 import { truncate } from '@sim/utils/string'
-import { requestJson } from '@/lib/api/client'
+import { requestJson } from '@/lib/api/client/request'
 import { computerUseAvailabilityContract } from '@/lib/api/contracts/computer-use'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,

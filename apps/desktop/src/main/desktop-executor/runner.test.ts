@@ -1,8 +1,10 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { TerminalToolResponse } from '@sim/terminal-protocol'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { app } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DeviceRequestError } from '@/main/desktop-executor/client'
 import type {
   ClaimedDesktopCall,
@@ -10,6 +12,13 @@ import type {
 } from '@/main/desktop-executor/protocol'
 import { createDesktopToolRunner, type DesktopToolRunnerDeps } from '@/main/desktop-executor/runner'
 import { executeLocalFileRequest } from '@/main/local-files'
+import { openNativeFile } from '@/main/native-directory'
+
+vi.mock('electron', () => import('@/test/electron-mock'))
+
+beforeEach(() => {
+  vi.mocked(app.getAppPath).mockReturnValue(fileURLToPath(new URL('../../..', import.meta.url)))
+})
 
 function terminalCall(toolCallId: string, operation: string): ClaimedDesktopCall {
   return {
@@ -35,7 +44,23 @@ function runner(overrides: Partial<DesktopToolRunnerDeps> = {}) {
     terminal: { executeTool: vi.fn(), cancelTool: vi.fn(async () => true) },
     localFiles: {
       request: (call, request) =>
-        executeLocalFileRequest(request, { toolName: call.toolName, args: call.args }),
+        executeLocalFileRequest(
+          request,
+          { toolName: call.toolName, args: call.args },
+          {
+            path: String(call.args.path),
+            resolve: realpath,
+            open: async (path, directory = false) => {
+              const root = await realpath(dirname(String(call.args.path)))
+              return openNativeFile(
+                root,
+                relative(root, path),
+                await stat(root, { bigint: true }),
+                directory
+              )
+            },
+          }
+        ),
     },
     imports: { importEntry: vi.fn() },
     localFilesystem: { handle: vi.fn(), vfsRoot: () => 'user-local/x--1' },

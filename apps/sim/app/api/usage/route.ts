@@ -8,6 +8,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { internalBillingReadErrorPolicy } from '@/lib/api/server/routes/billing-read'
 import {
   readUsageLimit,
   type UsageLimitResult,
@@ -48,7 +49,7 @@ export const GET = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: usageLimitOperations.read,
   rateLimit,
-  errorPolicy,
+  errorPolicy: internalBillingReadErrorPolicy,
   mapInput: ({ query }) => query,
   useCase: readUsageLimit,
   present,

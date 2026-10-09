@@ -2169,22 +2169,8 @@ function getProviderAuthConfig(
         supportsRefreshTokenRotation: true,
       }
     }
-    case 'shopify': {
-      // Shopify access tokens don't expire and don't support refresh tokens
-      // This configuration is provided for completeness but won't be used for token refresh
-      const { clientId, clientSecret } = getConfiguredClientCredentials(
-        'shopify',
-        'SHOPIFY_CLIENT_ID',
-        'SHOPIFY_CLIENT_SECRET'
-      )
-      return {
-        tokenEndpoint: 'https://accounts.shopify.com/oauth/token',
-        clientId,
-        clientSecret,
-        useBasicAuth: false,
-        supportsRefreshTokenRotation: false,
-      }
-    }
+    case 'shopify':
+      throw new Error('Shopify refresh requires its persisted installation context')
     case 'zoom': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'zoom',

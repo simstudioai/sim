@@ -143,6 +143,7 @@ export interface OAuthConfig {
     | 'cloudId'
     | 'credentialType'
     | 'domain'
+    | 'idToken'
     | 'instanceUrl'
     | 'realmId'
     | 'quickBooksEnvironment'

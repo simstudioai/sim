@@ -5,7 +5,8 @@
  * The source is `buildProgram()` — the same command tree `--help` and the generated docs
  * read — so the model's card can never describe a command the CLI does not have. Each
  * leaf carries its positionals and options as commander declares them, plus the top-level
- * shape of its JSON response resolved from the v2 OpenAPI documents.
+ * shape of its JSON response resolved from the v2 OpenAPI documents, and
+ * `mothershipUnavailable` when Sim refuses a Mothership caller any operation it calls.
  *
  *   bun run packages/sim-cli/scripts/print-command-inventory.ts > inventory.json
  */
@@ -21,6 +22,7 @@ import {
 } from '#sim-cli/contract/reference'
 import { V2_OPERATIONS, type V2OperationName } from '#sim-cli/generated/v2-api'
 import { buildProgram } from '#sim-cli/program'
+import { calledOperations } from '#sim-cli/runtime/called-operations'
 import { camel, deriveCommandPath } from '#sim-cli/runtime/derive'
 import { cursorSlot, flagNameFor } from '#sim-cli/runtime/request'
 
@@ -51,6 +53,11 @@ interface InventoryCommand extends CommandReference {
   description: string
   args: InventoryArgument[]
   options: InventoryOption[]
+  /**
+   * Sim refuses Mothership for an operation this command calls, so chat cannot run it.
+   * Absent when every call is admitted or the command calls no known operation.
+   */
+  mothershipUnavailable?: true
 }
 
 function isHiddenCommand(command: Command): boolean {
@@ -88,6 +95,28 @@ const OPENAPI_DOCS: ReferenceDocument[] = fs
   .readdirSync(path.join(ROOT, 'apps/docs'))
   .filter((name) => /^openapi-v2-.*\.json$/.test(name))
   .map((name) => JSON.parse(fs.readFileSync(path.join(ROOT, 'apps/docs', name), 'utf8')))
+
+/**
+ * `METHOD path` of every route Sim refuses a Mothership caller, as the route inventory
+ * evaluates the admission rule (`apps/sim/lib/api/server/routes/copilot-route-inventory.test.ts`).
+ */
+const MOTHERSHIP_REFUSED = new Set(
+  (
+    JSON.parse(
+      fs.readFileSync(
+        path.join(ROOT, 'apps/sim/lib/api/server/routes/copilot-refused-routes.json'),
+        'utf8'
+      )
+    ) as { method: string; path: string }[]
+  ).map((route) => `${route.method} ${route.path}`)
+)
+
+function mothershipRefuses(operations: readonly V2OperationName[]): boolean {
+  return operations.some((name) => {
+    const { method, path: route } = V2_OPERATIONS[name]
+    return MOTHERSHIP_REFUSED.has(`${method} ${route}`)
+  })
+}
 
 const program = buildProgram()
 const inventory: InventoryCommand[] = collectLeaves(program, []).map(
@@ -128,12 +157,14 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
     const reference = op
       ? commandReference(OPENAPI_DOCS, op, jsonFields, cursorSlot(op) !== null)
       : {}
+    const called = calledOperations(command) ?? (operation ? [operation] : [])
     return {
       path: cmdPath,
       description: command.description(),
       args,
       options,
       ...reference,
+      ...(mothershipRefuses(called) ? { mothershipUnavailable: true as const } : {}),
     }
   }
 )

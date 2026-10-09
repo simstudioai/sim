@@ -1,4 +1,4 @@
-import { canUseBenchmarks } from '@/lib/benchmarks/application/access'
+import { canUseBenchmarks } from '@/lib/benchmarks/config'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { DbOrTx } from '@/lib/db/types'
 

@@ -55,6 +55,7 @@ import {
 } from '../generated/v2-api'
 import { requestAllPages, resolvePath, SimApiError, type SimClient } from '../http/client'
 import { type Column, printList, printRecord, safeOneLine, text } from '../output/render'
+import { callsOperations } from '../runtime/called-operations'
 
 type SelectableWorkspace = ListWorkspacesResponse['data'][number]
 
@@ -967,7 +968,7 @@ function presentVerification(verification: Verification): string {
 }
 
 export function whoamiCommand(): Command {
-  return new Command('whoami')
+  const whoami = new Command('whoami')
     .description('Show the resolved profile, where each setting came from, and whether it works')
     .option('--no-verify', 'Skip the API check and only print the resolved settings')
     .action(async (options: { verify: boolean }, command: Command) => {
@@ -1034,6 +1035,7 @@ export function whoamiCommand(): Command {
       const exitCode = WHOAMI_EXIT_CODES[verification.status]
       if (exitCode !== 0) setSoftExitCode(exitCode)
     })
+  return callsOperations(whoami, ['getMeta', 'getWorkspace'])
 }
 
 interface ProfileRow {

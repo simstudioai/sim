@@ -43,6 +43,7 @@ async function executeReadWorkspaceFileContent({
     includeDeleted: input.includeDeleted,
     throwOnError: true,
     includeChatUploads: true,
+    includeTestFiles: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
   const content = await fetchWorkspaceFileBuffer(file, {
@@ -69,7 +70,11 @@ async function executeReadWorkspaceFileContent({
  */
 export const readWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
-  resolveContext: ({ input }) =>
-    resolveActiveWorkspaceFileContext({ ...input, includeChatUploads: true }),
+  resolveContext: ({ principal, input }) =>
+    resolveActiveWorkspaceFileContext({
+      ...input,
+      includeChatUploads: true,
+      ownedFilePrincipal: principal,
+    }),
   execute: executeReadWorkspaceFileContent,
 })
