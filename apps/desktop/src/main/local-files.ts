@@ -1,5 +1,4 @@
-import { constants } from 'node:fs'
-import { lstat, open, stat } from 'node:fs/promises'
+import { lstat, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type {
   DesktopLocalFileEntry,
@@ -41,37 +40,8 @@ function assertImportPath(root: string, candidate: string): void {
     throw new Error('The file is outside this import source.')
 }
 
-async function openApprovedPath(path: string, access: LocalFileAccess, directory = false) {
-  const canonical = await access.resolve(path)
-  if (canonical !== path)
-    throw new Error('The local path changed while it was being opened. Try again.')
-  const file = await open(
-    canonical,
-    constants.O_RDONLY |
-      constants.O_NOFOLLOW |
-      constants.O_NONBLOCK |
-      (directory ? constants.O_DIRECTORY : 0)
-  )
-  try {
-    const info = await file.stat()
-    const verified = await access.resolve(path)
-    const current = await lstat(verified)
-    if (
-      (directory ? !info.isDirectory() : !info.isFile()) ||
-      canonical !== verified ||
-      info.dev !== current.dev ||
-      info.ino !== current.ino
-    )
-      throw new Error('The local file changed while it was being opened. Try again.')
-    return file
-  } catch (error) {
-    await file.close()
-    throw error
-  }
-}
-
 async function readApprovedDirectory(path: string, access: LocalFileAccess) {
-  const handle = await openApprovedPath(path, access, true)
+  const handle = await access.open(path, true)
   try {
     const listing = await readNativeDirectory(handle.fd, MAX_ENTRIES)
     const canonical = await access.resolve(path)
@@ -103,7 +73,7 @@ async function inspect(
     }
   }
   if (!info.isFile()) throw new Error('The path is not a regular file or directory.')
-  const file = await openApprovedPath(path, access)
+  const file = await access.open(path)
   try {
     const info = await file.stat()
     const header = Buffer.alloc(16)
@@ -280,7 +250,7 @@ export async function executeLocalFileRequest(
     const canonical = await access.resolve(child)
     assertImportPath(root, canonical)
     const offset = boundedInteger(request.offset, 0, Number.MAX_SAFE_INTEGER)
-    const file = await openApprovedPath(canonical, access)
+    const file = await access.open(canonical)
     try {
       const info = await file.stat()
       if (!info.isFile() || revision(info) !== request.revision)

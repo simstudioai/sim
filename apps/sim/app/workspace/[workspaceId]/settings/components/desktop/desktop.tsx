@@ -73,6 +73,13 @@ export function Desktop() {
     setPreferences
   )
 
+  const { pending: fullFileAccessPending, mutate: setFullFileAccess } =
+    useDesktopPreferenceMutation(
+      async (bridge, enabled: boolean) => bridge.settings.setFullFileAccess?.(enabled),
+      'Could not update file access',
+      setPreferences
+    )
+
   if (!preferences) {
     return null
   }
@@ -106,20 +113,13 @@ export function Desktop() {
             onCheckedChange={(checked) => void updatePreference('launchAtLogin', checked)}
           />
           {supportsPreventSleep && (
-            <div className='flex items-center justify-between gap-4'>
-              <div className='flex min-w-0 flex-col gap-1'>
-                <Label htmlFor='desktop-prevent-sleep'>Prevent sleep while a chat is running</Label>
-                <p className='text-[var(--text-muted)] text-caption'>
-                  Closing the lid still puts your computer to sleep
-                </p>
-              </div>
-              <Switch
-                id='desktop-prevent-sleep'
-                checked={preferences.preventSleepWhileRunning ?? true}
-                disabled={preventSleepPending}
-                onCheckedChange={(checked) => void setPreventSleep(checked)}
-              />
-            </div>
+            <PreferenceRow
+              id='desktop-prevent-sleep'
+              label='Prevent sleep while a chat is running'
+              checked={preferences.preventSleepWhileRunning ?? true}
+              disabled={preventSleepPending}
+              onCheckedChange={(checked) => void setPreventSleep(checked)}
+            />
           )}
           <PreferenceRow
             id='desktop-tray-enabled'
@@ -137,6 +137,18 @@ export function Desktop() {
           />
         </div>
       </SettingsSection>
+
+      {getDesktopBridge()?.settings.setFullFileAccess && (
+        <SettingsSection label='Local files'>
+          <PreferenceRow
+            id='desktop-full-file-access'
+            label='Full file access'
+            checked={preferences.fullFileAccess ?? false}
+            disabled={fullFileAccessPending}
+            onCheckedChange={(checked) => void setFullFileAccess(checked)}
+          />
+        </SettingsSection>
+      )}
 
       <SettingsSection label='Notifications'>
         <div className='flex flex-col gap-3'>

@@ -868,6 +868,8 @@ export function cloneTerminalSelectedProfile(
 }
 
 export interface DesktopPreferences {
+  /** Allows authorized local file tools to run without per-folder approval on this device. */
+  fullFileAccess?: boolean
   notificationsEnabled: boolean
   notificationSounds: boolean
   notificationsOnlyWhenUnfocused: boolean
@@ -984,6 +986,8 @@ interface SimDesktopSettingsApi {
    * compatibility with installed shells that predate the background executor.
    */
   setPreventSleepWhileRunning?(enabled: boolean): Promise<DesktopPreferences>
+  /** Optional for installed shells that predate the explicit full-file-access setting. */
+  setFullFileAccess?(enabled: boolean): Promise<DesktopPreferences>
   notify(payload: DesktopNotificationPayload): Promise<boolean>
   /** Overrides the appearance requested by browser pages. */
   setBrowserTheme(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>

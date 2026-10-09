@@ -88,7 +88,7 @@ import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
 import { hasRecentDeliberateInput, hasRecentDiscreteInput } from '@/main/input-activity'
-import { LocalFilePermissions } from '@/main/local-file-permissions'
+import type { LocalFilePermissions } from '@/main/local-file-permissions'
 import { executeLocalFileRequest } from '@/main/local-files'
 import type { LocalFileAccess, LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
@@ -347,6 +347,7 @@ export interface IpcDeps {
   isLocalPageUrl: (url: string) => boolean
   retryLoad: (sender: WebContents) => void
   localFilesystem: LocalFilesystemService
+  localFilePermissions: LocalFilePermissions
   terminal: TerminalRegistry
   scopeEvents: Pick<
     ScopedEventRouter,
@@ -613,7 +614,6 @@ async function authorizeLocalFilesystemTool(
  * unvalidated args they must parse themselves.
  */
 export function registerIpcHandlers(deps: IpcDeps): void {
-  const localFilePermissions = new LocalFilePermissions(deps.localFilesystem)
   const activeLocalFiles = new Map<string, Set<AbortController>>()
   let activeLocalFileCount = 0
   const browserScopeBySender = new WeakMap<WebContents, string>()
@@ -822,6 +822,17 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (enabled) =>
         typeof enabled === 'boolean'
           ? deps.settings.setBrowserSearchSuggestionsEnabled(enabled)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:set-full-file-access': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      needsUserActivation: true,
+      requiresAccountData: true,
+      denied: null,
+      handler: (enabled) =>
+        typeof enabled === 'boolean'
+          ? deps.settings.setFullFileAccess(enabled)
           : deps.settings.getPreferences(),
     },
     'desktop:settings:set-prevent-sleep': {
@@ -2197,8 +2208,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             const parent = deps.getWindowForContents(event.sender)
             if (!parent)
               return { ok: false, error: 'A desktop window is required to approve file access.' }
-            const access = await localFilePermissions.authorize(authorization, {
-              parent,
+            const access = await deps.localFilePermissions.authorize(authorization, {
+              parent: async () => parent,
               origin,
               generation,
               signal: controller.signal,
