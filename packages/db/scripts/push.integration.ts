@@ -157,6 +157,34 @@ export const knowledgeBases = pgTable('knowledge_base', {
     ])
   }, 30_000)
 
+  it.each([false, true])(
+    'uses the direct migration connection for Project reconciliation (application URL present=%s)',
+    async (applicationUrlPresent) => {
+      const unavailable = new URL(fixtureUrl)
+      unavailable.port = '1'
+      const result = spawnSync(
+        'bun',
+        [
+          '--no-env-file',
+          fileURLToPath(new URL('./reconcile-project-membership.ts', import.meta.url)),
+          '--prepare',
+        ],
+        {
+          env: {
+            ...process.env,
+            DATABASE_URL: applicationUrlPresent ? unavailable.toString() : undefined,
+            MIGRATION_DATABASE_URL: fixtureUrl,
+          },
+          encoding: 'utf8',
+          timeout: 15_000,
+        }
+      )
+      expect(result.error).toBeUndefined()
+      expect(result.status, result.stdout + result.stderr).toBe(0)
+    },
+    30_000
+  )
+
   it('preserves legacy Project assignments and synchronizes both writers through schema push and replay', async () => {
     await sql`CREATE TABLE project (id text PRIMARY KEY)`
     await sql`CREATE TABLE workspace (id text PRIMARY KEY, forked_from_workspace_id text)`

@@ -4,8 +4,8 @@ import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import postgres from 'postgres'
 
 const logger = createLogger('ProjectMembershipPush')
-const url = process.env.DATABASE_URL
-if (!url) throw new Error('DATABASE_URL is required for Project schema push reconciliation')
+const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
+if (!url) throw new Error('A database URL is required for Project schema push reconciliation')
 const sql = postgres(url, { max: 1, prepare: false, connect_timeout: 10, max_lifetime: null })
 try {
   const [state] = await sql<
