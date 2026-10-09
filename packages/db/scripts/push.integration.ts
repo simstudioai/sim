@@ -195,7 +195,7 @@ export const knowledgeBases = pgTable('knowledge_base', {
     await schema(`export const projects = pgTable('project', { id: text('id').primaryKey() })
 export const workspaces = pgTable('workspace', {
   id: text('id').primaryKey(), forkedFromWorkspaceId: text('forked_from_workspace_id'), projectId: text('project_id'),
-}, (table) => [index('workspace_project_id_id_idx').on(table.projectId, table.id)])
+}, (table) => [index('workspace_project_id_id_idx').on(table.projectId, table.id).concurrently()])
 export const memberships = pgTable('project_workspace', {
   projectId: text('project_id').notNull(), workspaceId: text('workspace_id').notNull().unique(),
 })`)

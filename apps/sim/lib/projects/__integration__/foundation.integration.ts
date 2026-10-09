@@ -207,17 +207,18 @@ async function fixture(org = true, count = 2) {
 
 /**
  * Waits until the operation under test is blocked behind `blockerPid`: a session whose
- * current statement contains `waitingIn` (an advisory lock tag or row-lock clause), so an
- * unrelated waiter cannot release the barrier early.
+ * current statement contains `waitingIn` (an advisory lock tag or row-lock clause).
+ * When the caller owns the transaction, `waitingPid` identifies that exact backend.
  */
-async function waitUntilBlockedBy(blockerPid: number, waitingIn: string) {
+async function waitUntilBlockedBy(blockerPid: number, waitingIn: string, waitingPid?: number) {
   await expect
     .poll(
       async () =>
         (
           await db.execute(sql`
             SELECT 1 FROM pg_stat_activity
-            WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))
+            WHERE ${waitingPid === undefined ? sql`true` : sql`pid = ${waitingPid}`}
+              AND ${blockerPid} = ANY(pg_blocking_pids(pid))
               AND position(${waitingIn.toLowerCase()} in lower(query)) > 0
           `)
         ).length,
@@ -1394,14 +1395,22 @@ describe('Project foundation at the database and application boundary', () => {
         )
       })
       const blocker = await held.promise
+      const detachPid = createDeferred<number>()
       const detach = db
-        .transaction((tx) => splitForkProject(tx, f.ids[1]))
+        .transaction(async (tx) => {
+          const [backend] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+          detachPid.resolve(backend.pid)
+          return splitForkProject(tx, f.ids[1])
+        })
         .then(
           () => null,
-          (error: unknown) => error
+          (error: unknown) => {
+            detachPid.reject(error)
+            return error
+          }
         )
       try {
-        await waitUntilBlockedBy(blocker, "lock='project'")
+        await waitUntilBlockedBy(blocker, "lock='project'", await detachPid.promise)
       } finally {
         release.resolve()
         await legacy

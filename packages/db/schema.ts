@@ -2061,7 +2061,7 @@ export const workspace = pgTable(
   (table) => ({
     ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
     organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
-    projectIdIdx: index('workspace_project_id_id_idx').on(table.projectId, table.id),
+    projectIdIdx: index('workspace_project_id_id_idx').on(table.projectId, table.id).concurrently(),
     nonNegativeStorage: check(
       'workspace_storage_used_bytes_non_negative',
       sql`${table.storageUsedBytes} >= 0`
