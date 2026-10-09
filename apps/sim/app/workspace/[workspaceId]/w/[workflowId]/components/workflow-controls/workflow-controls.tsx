@@ -28,6 +28,7 @@ import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-util
 import { useShowActionBar, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -38,6 +39,7 @@ const logger = createLogger('WorkflowControls')
  * Floating controls for canvas mode, undo/redo, and fit-to-view.
  */
 export const WorkflowControls = memo(function WorkflowControls() {
+  const isMobile = useIsMobile()
   const reactFlowInstance = useReactFlow()
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
   const { mode, setMode } = useCanvasModeStore(
@@ -100,70 +102,75 @@ export const WorkflowControls = memo(function WorkflowControls() {
          * CONTENT_WINDOW_GAP; these controls measure from the canvas floor and
          * wall, so they take the 12 directly.
          */
-        className='absolute bottom-3 left-3 z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1'
+        className='absolute bottom-3 left-3 z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1 max-md:pointer-coarse:h-auto'
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}
-        <Popover open={isCanvasModeOpen} onOpenChange={setIsCanvasModeOpen} size='sm'>
-          <Tooltip.Root>
-            <PopoverTrigger asChild>
-              <div className='flex cursor-pointer items-center gap-1'>
-                <Tooltip.Trigger asChild>
+        {!isMobile && (
+          <Popover open={isCanvasModeOpen} onOpenChange={setIsCanvasModeOpen} size='sm'>
+            <Tooltip.Root>
+              <PopoverTrigger asChild>
+                <div className='flex cursor-pointer items-center gap-1'>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      aria-label={mode === 'hand' ? 'Mover' : 'Pointer'}
+                      className='size-[28px] rounded-sm p-0'
+                      variant='active'
+                    >
+                      {mode === 'hand' ? (
+                        <Hand className='size-[14px]' />
+                      ) : (
+                        <Cursor className='size-[14px]' />
+                      )}
+                    </Button>
+                  </Tooltip.Trigger>
                   <Button
-                    aria-label={mode === 'hand' ? 'Mover' : 'Pointer'}
-                    className='size-[28px] rounded-sm p-0'
-                    variant='active'
+                    aria-label='Change canvas mode'
+                    variant='ghost'
+                    className={cn('size-[20px] rounded-sm p-0', chipHoverSurfaceClass)}
                   >
-                    {mode === 'hand' ? (
-                      <Hand className='size-[14px]' />
-                    ) : (
-                      <Cursor className='size-[14px]' />
-                    )}
+                    <ChevronDown
+                      className={cn(disclosureChevronClass, isCanvasModeOpen && 'rotate-180')}
+                    />
                   </Button>
-                </Tooltip.Trigger>
-                <Button
-                  aria-label='Change canvas mode'
-                  variant='ghost'
-                  className={cn('size-[20px] rounded-sm p-0', chipHoverSurfaceClass)}
-                >
-                  <ChevronDown
-                    className={cn(disclosureChevronClass, isCanvasModeOpen && 'rotate-180')}
-                  />
-                </Button>
-              </div>
-            </PopoverTrigger>
-            <Tooltip.Content side='top'>{mode === 'hand' ? 'Mover' : 'Pointer'}</Tooltip.Content>
-          </Tooltip.Root>
-          <PopoverContent side='top' sideOffset={8} maxWidth={100} minWidth={100}>
-            <PopoverItem
-              onClick={() => {
-                setMode('hand')
-                setIsCanvasModeOpen(false)
-              }}
-            >
-              <Hand className='size-[14px]' />
-              <span>Mover</span>
-            </PopoverItem>
-            <PopoverItem
-              onClick={() => {
-                setMode('cursor')
-                setIsCanvasModeOpen(false)
-              }}
-            >
-              <Cursor className='size-[14px]' />
-              <span>Pointer</span>
-            </PopoverItem>
-          </PopoverContent>
-        </Popover>
+                </div>
+              </PopoverTrigger>
+              <Tooltip.Content side='top'>{mode === 'hand' ? 'Mover' : 'Pointer'}</Tooltip.Content>
+            </Tooltip.Root>
+            <PopoverContent side='top' sideOffset={8} maxWidth={100} minWidth={100}>
+              <PopoverItem
+                onClick={() => {
+                  setMode('hand')
+                  setIsCanvasModeOpen(false)
+                }}
+              >
+                <Hand className='size-[14px]' />
+                <span>Mover</span>
+              </PopoverItem>
+              <PopoverItem
+                onClick={() => {
+                  setMode('cursor')
+                  setIsCanvasModeOpen(false)
+                }}
+              >
+                <Cursor className='size-[14px]' />
+                <span>Pointer</span>
+              </PopoverItem>
+            </PopoverContent>
+          </Popover>
+        )}
 
-        <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
+        <div className='mx-1 hidden h-[20px] w-px bg-[var(--border)] md:block' />
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
               aria-label='Undo'
               variant='ghost'
-              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
+              className={cn(
+                'size-[28px] rounded-sm p-0 max-md:pointer-coarse:size-11',
+                chipHoverSurfaceClass
+              )}
               onClick={undo}
               disabled={!canUndo}
             >
@@ -180,7 +187,10 @@ export const WorkflowControls = memo(function WorkflowControls() {
             <Button
               aria-label='Redo'
               variant='ghost'
-              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
+              className={cn(
+                'size-[28px] rounded-sm p-0 max-md:pointer-coarse:size-11',
+                chipHoverSurfaceClass
+              )}
               onClick={redo}
               disabled={!canRedo}
             >
@@ -199,7 +209,10 @@ export const WorkflowControls = memo(function WorkflowControls() {
             <Button
               aria-label='Fit to View'
               variant='ghost'
-              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
+              className={cn(
+                'size-[28px] rounded-sm p-0 max-md:pointer-coarse:size-11',
+                chipHoverSurfaceClass
+              )}
               onClick={handleFitToView}
             >
               <SelectAll className='size-[14px]' />

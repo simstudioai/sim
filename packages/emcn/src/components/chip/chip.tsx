@@ -59,7 +59,7 @@ import {
  * {@link chipHoverSurfaceClass}.
  */
 const chipVariants = cva(
-  `group cursor-pointer ${chipGeometryUnroundedClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
+  `group cursor-pointer ${chipGeometryUnroundedClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60 max-md:pointer-coarse:min-h-11 max-md:pointer-coarse:min-w-11`,
   {
     variants: {
       variant: {
@@ -88,6 +88,9 @@ const chipVariants = cva(
 
 type ChipIcon = ComponentType<{ className?: string }>
 
+const CHIP_MOBILE_ICON_ONLY_CLASS =
+  'max-md:size-11 max-md:shrink-0 max-md:justify-center max-md:gap-0 max-md:px-0'
+
 /**
  * Variants a `Chip`/`ChipLink` may render. The `default` (bare) chip is implicit
  * — omit `variant` to get it — and `filled` is excluded by design: it is reserved
@@ -106,6 +109,8 @@ interface ChipBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant
   rightIcon?: ChipIcon
   /** Custom content rendered after the label, such as a spinning loader. Takes precedence over `rightIcon`. */
   rightAdornment?: ReactNode
+  /** Below the desktop breakpoint, show the icon or adornment in a 44px square and retain the label for assistive technology. Requires a glyph and label. */
+  mobileIconOnly?: boolean
   children?: ReactNode
 }
 
@@ -120,11 +125,17 @@ function ChipContent({
   leftAdornment,
   rightIcon: RightIcon,
   rightAdornment,
+  mobileIconOnly,
   children,
 }: ChipBaseProps) {
   const isInverse = variant === 'primary' || variant === 'destructive'
   const iconClass = cn(chipContentIconClass, isInverse && 'text-current')
-  const labelClass = cn(chipContentLabelClass, 'flex-1', isInverse && 'text-current')
+  const labelClass = cn(
+    chipContentLabelClass,
+    'flex-1',
+    isInverse && 'text-current',
+    mobileIconOnly && 'max-md:sr-only'
+  )
   const textLabel =
     typeof children === 'string' || typeof children === 'number' ? String(children) : null
   return (
@@ -146,6 +157,7 @@ interface ChipProps
 
 /**
  * @example <Chip leftIcon={Credit} onClick={openBilling}>{balance}</Chip>
+ * @example <Chip leftIcon={Download} mobileIconOnly onClick={download}>Download</Chip>
  */
 const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
   {
@@ -158,17 +170,28 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
     leftAdornment,
     rightIcon,
     rightAdornment,
+    mobileIconOnly,
     children,
     type,
     ...props
   },
   ref
 ) {
+  const compactOnMobile = Boolean(
+    mobileIconOnly &&
+      (leftIcon || rightIcon || leftAdornment || rightAdornment) &&
+      children != null &&
+      children !== false
+  )
   return (
     <button
       ref={ref}
       type={type ?? 'button'}
-      className={cn(chipVariants({ variant, shape, active, fullWidth }), className)}
+      className={cn(
+        chipVariants({ variant, shape, active, fullWidth }),
+        compactOnMobile && CHIP_MOBILE_ICON_ONLY_CLASS,
+        className
+      )}
       {...props}
     >
       <ChipContent
@@ -177,6 +200,7 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
         leftAdornment={leftAdornment}
         rightIcon={rightIcon}
         rightAdornment={rightAdornment}
+        mobileIconOnly={compactOnMobile}
       >
         {children}
       </ChipContent>
@@ -203,15 +227,26 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
     leftAdornment,
     rightIcon,
     rightAdornment,
+    mobileIconOnly,
     children,
     ...props
   },
   ref
 ) {
+  const compactOnMobile = Boolean(
+    mobileIconOnly &&
+      (leftIcon || rightIcon || leftAdornment || rightAdornment) &&
+      children != null &&
+      children !== false
+  )
   return (
     <Link
       ref={ref}
-      className={cn(chipVariants({ variant, shape, active, fullWidth }), className)}
+      className={cn(
+        chipVariants({ variant, shape, active, fullWidth }),
+        compactOnMobile && CHIP_MOBILE_ICON_ONLY_CLASS,
+        className
+      )}
       {...props}
     >
       <ChipContent
@@ -220,6 +255,7 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
         leftAdornment={leftAdornment}
         rightIcon={rightIcon}
         rightAdornment={rightAdornment}
+        mobileIconOnly={compactOnMobile}
       >
         {children}
       </ChipContent>

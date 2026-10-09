@@ -147,21 +147,31 @@ export const ResourceOptions = memo(function ResourceOptions({
   if (!hasContent) return null
 
   return (
-    <div className={cn('border-[var(--border)] border-b py-2.5', search ? 'px-6' : 'px-4')}>
-      <div className='flex items-center'>
+    <div className={cn('border-[var(--border)] border-b px-4 py-2.5', search && 'md:px-6')}>
+      <div className='flex flex-wrap items-center gap-y-2 md:flex-nowrap'>
         {search && <SearchSection search={search} />}
         {/* `ml-auto` moves to `trailing` when present so the menu cluster stays put
             and only the trailing action is pushed to the far edge. */}
-        <div className={cn('flex shrink-0 items-center gap-1.5', search && !trailing && 'ml-auto')}>
+        <div
+          className={cn(
+            'flex min-w-0 flex-wrap items-center gap-1.5 md:shrink-0 md:flex-nowrap',
+            search && !trailing && 'ml-auto'
+          )}
+        >
           {aside}
-          <div className='flex items-center gap-1'>
+          <div className='flex min-w-0 flex-wrap items-center gap-1 md:flex-nowrap'>
             {filterTags?.map((tag) => (
               <Chip key={tag.label} rightIcon={X} onClick={tag.onRemove}>
                 {tag.label}
               </Chip>
             ))}
             {isToggleFilter && filter.mode === 'toggle' ? (
-              <Chip active={filter.active} leftIcon={ListFilter} onClick={filter.onToggle}>
+              <Chip
+                active={filter.active}
+                leftIcon={ListFilter}
+                mobileIconOnly
+                onClick={filter.onToggle}
+              >
                 Filter
               </Chip>
             ) : popoverFilter ? (
@@ -176,7 +186,7 @@ export const ResourceOptions = memo(function ResourceOptions({
                 <PopoverPrimitive.Anchor asChild>
                   <div className='flex items-center gap-1'>
                     <PopoverPrimitive.Trigger asChild>
-                      <Chip active={popoverFilter.active} leftIcon={ListFilter}>
+                      <Chip active={popoverFilter.active} leftIcon={ListFilter} mobileIconOnly>
                         Filter
                       </Chip>
                     </PopoverPrimitive.Trigger>
@@ -221,9 +231,9 @@ export const ResourceOptions = memo(function ResourceOptions({
 
 const SearchSection = memo(function SearchSection({ search }: { search: SearchConfig }) {
   return (
-    <div className='relative flex flex-1 items-center gap-1.5'>
+    <div className='relative flex min-w-0 basis-full items-center gap-1.5 md:flex-1 md:basis-auto'>
       {SEARCH_ICON}
-      <div className='flex flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+      <div className='flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {search.tags?.map((tag, i) => (
           <Chip
             key={`${tag.label}-${tag.value}`}
@@ -289,7 +299,7 @@ export const SortDropdown = memo(function SortDropdown({
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
-        <Chip active={Boolean(active)} leftIcon={ArrowUpDown}>
+        <Chip active={Boolean(active)} leftIcon={ArrowUpDown} mobileIconOnly>
           Sort
         </Chip>
       </DropdownMenuTrigger>

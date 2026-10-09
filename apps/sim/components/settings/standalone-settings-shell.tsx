@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import { usePathname } from 'next/navigation'
+import { SettingsMobileNavigation } from '@/components/settings/mobile-navigation'
 import {
   ACCOUNT_SETTINGS_GROUPS,
   ACCOUNT_SETTINGS_ITEMS,
@@ -104,7 +105,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
 
   return (
     <SettingsNavigationProvider>
-      <div className='flex h-screen w-full overflow-hidden bg-[var(--surface-1)]'>
+      <div className='flex h-dvh w-full overflow-hidden bg-[var(--surface-1)]'>
         {/*
           Mirrors the in-workspace chrome (WorkspaceChrome): a flush, borderless
           sidebar column against the app surface, meeting the content pane on a
@@ -113,7 +114,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
         */}
         <aside
           className={cn(
-            'flex h-full w-[var(--sidebar-expanded-width)] shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3',
+            'hidden h-full w-[var(--sidebar-expanded-width)] shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3 md:flex',
             SIDEBAR_NO_MOTION_CLASS
           )}
           aria-label={`${SETTINGS_PLANE_CHROME[plane].label} settings navigation`}
@@ -121,7 +122,20 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
           {sidebar}
         </aside>
         <div className='flex min-w-0 flex-1 flex-col'>
-          <main className='flex-1 overflow-hidden border-[var(--border)] border-l bg-[var(--bg)]'>
+          {plane === 'account' ? (
+            <SettingsMobileNavigation
+              activeSection={accountSection}
+              items={accountItems}
+              hrefForSection={getAccountSettingsHref}
+            />
+          ) : (
+            <SettingsMobileNavigation
+              activeSection={selfHostSection}
+              items={selfHostItems}
+              hrefForSection={getSelfHostSettingsHref}
+            />
+          )}
+          <main className='min-h-0 flex-1 overflow-hidden border-[var(--border)] bg-[var(--bg)] md:border-l'>
             <SettingsPendingSection resolveMeta={(section) => pendingSectionMeta(plane, section)}>
               <SettingsHeaderProvider>
                 <SettingsHeaderShell>

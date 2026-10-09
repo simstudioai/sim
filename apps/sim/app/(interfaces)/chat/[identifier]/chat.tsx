@@ -1,6 +1,6 @@
 'use client'
 
-import { type RefObject, useCallback, useMemo, useRef, useState } from 'react'
+import { type ReactNode, type RefObject, useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import {
@@ -24,6 +24,7 @@ import { useChatStreaming } from '@/app/(interfaces)/chat/hooks'
 import SSOAuth from '@/ee/sso/components/sso-auth'
 import { useDeployedChatConfig } from '@/hooks/queries/chats'
 import { useGitHubStars } from '@/hooks/queries/github-stars'
+import { useMobileViewport } from '@/hooks/use-mobile-viewport'
 
 const logger = createLogger('ChatClient')
 
@@ -49,6 +50,23 @@ function fileToBase64(file: File): Promise<string> {
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
+}
+
+interface ChatViewportProps {
+  children: ReactNode
+}
+
+function ChatViewport({ children }: ChatViewportProps) {
+  const ref = useRef<HTMLDivElement>(null)
+  useMobileViewport({ ref })
+  return (
+    <div
+      ref={ref}
+      className='light desktop-title-bar-page fixed inset-0 z-[var(--z-dropdown)] flex flex-col bg-[var(--bg)] text-[var(--text-primary)] max-md:top-[var(--mobile-viewport-top,0px)] max-md:bottom-auto max-md:h-[var(--mobile-viewport-height,100dvh)] max-md:min-h-0!'
+    >
+      {children}
+    </div>
+  )
 }
 
 export default function ChatClient({ identifier }: { identifier: string }) {
@@ -309,7 +327,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   }
 
   return (
-    <div className='light desktop-title-bar-page fixed inset-0 z-[var(--z-dropdown)] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+    <ChatViewport>
       <DesktopTitleBarLane />
       <ChatHeader chatConfig={chatConfig} starCount={starCount} />
 
@@ -323,7 +341,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         chatConfig={chatConfig}
       />
 
-      <div className='relative p-3 pb-4 md:p-4 md:pb-6'>
+      <div className='relative shrink-0 md:p-4 md:pb-6'>
         <div className='relative mx-auto max-w-3xl md:max-w-[748px]'>
           <ChatInput
             onSubmit={(value, files) => {
@@ -334,6 +352,6 @@ export default function ChatClient({ identifier }: { identifier: string }) {
           />
         </div>
       </div>
-    </div>
+    </ChatViewport>
   )
 }

@@ -7,6 +7,7 @@ import {
   Button,
   Chip,
   ChipConfirmModal,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -20,7 +21,7 @@ import {
   Trash,
   toast,
 } from '@sim/emcn'
-import { BubbleChatDelay, Download, Lock, Plus, Unlock } from '@sim/emcn/icons'
+import { BubbleChatDelay, Download, Lock, Plus, Unlock, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
@@ -166,6 +167,7 @@ export const Panel = memo(function Panel() {
   const [isExporting, setIsExporting] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false)
 
   // Hooks
   const userPermissions = useUserPermissionsContext()
@@ -725,6 +727,21 @@ export const Panel = memo(function Panel() {
 
   return (
     <>
+      <div
+        className={cn(
+          'absolute top-3 right-3 z-[var(--z-dropdown)] @min-[960px]/workflow:hidden',
+          isChatOpen && 'hidden'
+        )}
+      >
+        <Chip
+          variant='border-shadow'
+          aria-expanded={isMobilePanelOpen}
+          aria-controls='workflow-panel'
+          onClick={() => setIsMobilePanelOpen(true)}
+        >
+          Workflow
+        </Chip>
+      </div>
       {showLimitRequest && memberLimitTarget && (
         <RequestAccessModal
           scope={{ kind: 'workspace', workspaceId }}
@@ -735,17 +752,36 @@ export const Panel = memo(function Panel() {
       )}
       <aside
         ref={panelRef}
-        className='panel-container relative shrink-0 overflow-hidden bg-[var(--bg)]'
+        id='workflow-panel'
+        className={cn(
+          'panel-container @max-[960px]/workflow:absolute relative @max-[960px]/workflow:inset-0 @max-[960px]/workflow:z-[var(--z-dropdown)] @max-[960px]/workflow:w-full! shrink-0 overflow-hidden bg-[var(--bg)]',
+          !isMobilePanelOpen && '@max-[960px]/workflow:hidden'
+        )}
         aria-label='Workflow panel'
       >
         <div className='flex h-full flex-col border-[var(--border)] border-l pt-3.5'>
+          <div className='flex @min-[960px]/workflow:hidden shrink-0 items-center justify-between px-3 pb-2'>
+            <span className='text-[var(--text-body)] text-sm'>Workflow</span>
+            <Button
+              variant='ghost'
+              size='icon'
+              aria-label='Back to canvas'
+              className='size-11'
+              onClick={() => setIsMobilePanelOpen(false)}
+            >
+              <X className='size-[14px]' />
+            </Button>
+          </div>
           {/* Header */}
           <div className='flex shrink-0 items-center justify-between px-2'>
             {/* More and Chat */}
             <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button aria-label='Workflow actions' className='size-[30px]'>
+                  <Button
+                    aria-label='Workflow actions'
+                    className='@max-[960px]/workflow:size-11 size-[30px]'
+                  >
                     <MoreHorizontal className='size-[14px]' />
                   </Button>
                 </DropdownMenuTrigger>
@@ -806,9 +842,12 @@ export const Panel = memo(function Panel() {
               </DropdownMenu>
               <Button
                 aria-label={isChatOpen ? 'Close chat' : 'Open chat'}
-                className='size-[30px]'
+                className='@max-[960px]/workflow:size-11 size-[30px]'
                 variant={isChatOpen ? 'active' : 'default'}
-                onClick={() => setIsChatOpen(!isChatOpen)}
+                onClick={() => {
+                  setIsChatOpen(!isChatOpen)
+                  setIsMobilePanelOpen(false)
+                }}
               >
                 {isChatOpen ? <BubbleChatClose /> : <BubbleChatPreview />}
               </Button>
@@ -1027,7 +1066,7 @@ export const Panel = memo(function Panel() {
 
         {/* Resize Handle */}
         <div
-          className='absolute top-0 bottom-0 left-[-4px] z-20 w-[8px] cursor-ew-resize'
+          className='absolute top-0 bottom-0 left-[-4px] z-20 @min-[960px]/workflow:block hidden w-[8px] cursor-ew-resize'
           onPointerDown={handlePointerDown}
           role='separator'
           aria-orientation='vertical'

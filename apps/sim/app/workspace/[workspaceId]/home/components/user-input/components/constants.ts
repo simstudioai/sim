@@ -56,7 +56,7 @@ export interface PlusMenuHandle {
 }
 
 /** Shared draft typography for Build and Search composers. */
-export const PROMPT_TEXT_CLASSES = 'font-body text-[14px] leading-[24px] tracking-[-0.015em]'
+export const PROMPT_TEXT_CLASSES = 'font-body text-md leading-[24px] tracking-[-0.015em] md:text-sm'
 
 /**
  * Box and typography shared by the textarea and its mirror overlay — both must

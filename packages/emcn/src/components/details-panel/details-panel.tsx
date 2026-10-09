@@ -33,7 +33,7 @@ export const DetailsPanel = forwardRef<HTMLDivElement, DetailsPanelProps>(
       <>
         {open && (
           <div
-            className='absolute top-0 right-[calc(var(--details-panel-width)_-_4px)] bottom-0 z-[var(--z-dropdown)] w-[8px] cursor-ew-resize'
+            className='absolute top-0 right-[calc(var(--details-panel-width)_-_4px)] bottom-0 z-[var(--z-dropdown)] hidden w-[8px] cursor-ew-resize md:block'
             style={widthStyle}
             onMouseDown={onResizeStart}
             role='separator'
@@ -46,7 +46,7 @@ export const DetailsPanel = forwardRef<HTMLDivElement, DetailsPanelProps>(
           ref={ref}
           inert={!open || props.inert}
           className={cn(
-            'absolute top-0 right-0 bottom-0 z-[var(--z-dropdown)] w-[var(--details-panel-width)] overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out',
+            'absolute top-0 right-0 bottom-0 z-[var(--z-dropdown)] w-full overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out motion-reduce:transition-none md:w-[var(--details-panel-width)]',
             open ? 'translate-x-0' : 'translate-x-full',
             className
           )}

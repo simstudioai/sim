@@ -146,6 +146,7 @@ import {
 import { useUpdateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
 import { useOperationAccess } from '@/hooks/use-operation-access'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
@@ -337,8 +338,9 @@ const WorkflowContent = React.memo(
     const hasCompletedInitialEmbeddedFitRef = useRef(false)
     const initializedViewportWorkflowIdRef = useRef<string | null>(null)
     const userFocusedWorkflowIdRef = useRef<string | null>(null)
+    const isMobile = useIsMobile()
     const canvasMode = useCanvasModeStore((state) => state.mode)
-    const isHandMode = embedded ? true : canvasMode === 'hand'
+    const isHandMode = embedded || isMobile ? true : canvasMode === 'hand'
     const { handleCanvasMouseDown, selectionProps } = useShiftSelectionLock({ isHandMode })
     const [oauthModal, setOauthModal] = useState<{
       provider: OAuthProvider
@@ -4774,13 +4776,14 @@ const WorkflowContent = React.memo(
      */
     const nodesForRender = useMemo(() => {
       const elevatedNodes = sortNodesParentsFirst(displayNodes).map((node) => {
-        if (node.type === 'subflowNode') return node
+        const renderedNode = isMobile ? { ...node, draggable: false, connectable: false } : node
+        if (node.type === 'subflowNode') return renderedNode
         const target = getBlockZIndex(node.zIndex ?? BLOCK_Z_BASE, {
           isSelected: node.selected,
           isLastInteracted: node.id === lastInteractedNodeId,
         })
-        if (target === node.zIndex) return node
-        return { ...node, zIndex: target }
+        if (target === node.zIndex) return renderedNode
+        return { ...renderedNode, zIndex: target }
       })
 
       if (!pendingConnect) return elevatedNodes
@@ -4802,14 +4805,14 @@ const WorkflowContent = React.memo(
           initialHeight: CONNECTION_BLOCK_SELECTOR_DIMENSIONS.height,
           zIndex: CONNECTION_PICKER_Z,
           dragHandle: '.workflow-drag-handle',
-          draggable: true,
+          draggable: !isMobile,
           selectable: false,
           connectable: false,
           deletable: false,
           focusable: false,
         } satisfies Node<ConnectionBlockSelectorData>,
       ]
-    }, [closeConnectionBlockSelector, displayNodes, lastInteractedNodeId, pendingConnect])
+    }, [closeConnectionBlockSelector, displayNodes, isMobile, lastInteractedNodeId, pendingConnect])
 
     /** Transforms edges to include selection state and delete handlers. Memoized to prevent re-renders. */
     /* Subscribed rather than read from `getState()`: the edge z below depends on
@@ -5041,7 +5044,7 @@ const WorkflowContent = React.memo(
     }, [blocksStructureHash, embedded, isWorkflowReady, scheduleEmbeddedFit])
 
     return (
-      <div className='flex size-full overflow-hidden'>
+      <div className='@container/workflow relative flex size-full overflow-hidden'>
         <div className='flex min-w-0 flex-1 flex-col'>
           <div
             ref={canvasContainerRef}
@@ -5149,14 +5152,14 @@ const WorkflowContent = React.memo(
                   onPointerMove={handleCanvasPointerMove}
                   onPointerLeave={handleCanvasPointerLeave}
                   elementsSelectable={!embedded}
-                  selectionOnDrag={embedded ? false : selectionProps.selectionOnDrag}
+                  selectionOnDrag={embedded || isMobile ? false : selectionProps.selectionOnDrag}
                   selectionMode={SelectionMode.Partial}
-                  panOnDrag={embedded ? true : selectionProps.panOnDrag}
+                  panOnDrag={embedded || isMobile ? true : selectionProps.panOnDrag}
                   selectionKeyCode={embedded ? null : selectionProps.selectionKeyCode}
                   multiSelectionKeyCode={embedded ? null : ['Meta', 'Control', 'Shift']}
-                  nodesConnectable={!embedded && effectivePermissions.canEdit}
+                  nodesConnectable={!embedded && !isMobile && effectivePermissions.canEdit}
                   connectOnClick={false}
-                  nodesDraggable={!embedded && effectivePermissions.canEdit}
+                  nodesDraggable={!embedded && !isMobile && effectivePermissions.canEdit}
                   draggable={false}
                   noWheelClassName='allow-scroll'
                   edgesFocusable={!embedded}

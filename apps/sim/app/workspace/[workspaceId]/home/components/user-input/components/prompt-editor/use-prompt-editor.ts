@@ -39,6 +39,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { type McpServer, useMcpToolServers } from '@/hooks/queries/mcp'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
+import { isMobileViewport } from '@/hooks/use-is-mobile'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -100,9 +101,9 @@ function getCaretAnchor(
  */
 export interface PromptEditorKeyPolicy {
   /**
-   * Enter without Shift (and not composing): the newline is suppressed and
-   * this fires instead — after the open mention/skills menu has had its chance
-   * to confirm a selection. Omit to keep native newline insertion.
+   * Desktop Enter without Shift (and not composing) submits after any open
+   * mention/skills menu has had its chance to confirm a selection. Mobile
+   * Enter inserts a newline. Omit to keep native newline insertion everywhere.
    */
   onSubmit?: () => void
   /**
@@ -956,7 +957,13 @@ export function usePromptEditor({
         }
       }
 
-      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && policy?.onSubmit) {
+      if (
+        e.key === 'Enter' &&
+        !e.shiftKey &&
+        !e.nativeEvent.isComposing &&
+        !isMobileViewport() &&
+        policy?.onSubmit
+      ) {
         e.preventDefault()
         policy.onSubmit()
         return

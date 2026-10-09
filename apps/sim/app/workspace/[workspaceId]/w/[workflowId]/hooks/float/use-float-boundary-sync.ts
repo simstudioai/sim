@@ -45,7 +45,13 @@ export function useFloatBoundarySync({
 }: UseFloatBoundarySyncProps) {
   const rafIdRef = useRef<number | null>(null)
   const positionRef = useRef(position)
-  const previousDimensionsRef = useRef({ sidebarWidth: 0, panelWidth: 0, terminalHeight: 0 })
+  const previousDimensionsRef = useRef({
+    sidebarWidth: 0,
+    panelWidth: 0,
+    terminalHeight: 0,
+    viewportWidth: 0,
+    viewportHeight: 0,
+  })
 
   positionRef.current = position
 
@@ -53,22 +59,32 @@ export function useFloatBoundarySync({
     const sidebarWidth = readBoundaryDimension('.sidebar-shell-outer', '--sidebar-width')
     const panelWidth = readBoundaryDimension('.panel-container', '--panel-width')
     const terminalHeight = readBoundaryDimension('.terminal-container', '--terminal-height')
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
 
     const prev = previousDimensionsRef.current
     if (
       prev.sidebarWidth === sidebarWidth &&
       prev.panelWidth === panelWidth &&
-      prev.terminalHeight === terminalHeight
+      prev.terminalHeight === terminalHeight &&
+      prev.viewportWidth === viewportWidth &&
+      prev.viewportHeight === viewportHeight
     ) {
       return
     }
 
-    previousDimensionsRef.current = { sidebarWidth, panelWidth, terminalHeight }
+    previousDimensionsRef.current = {
+      sidebarWidth,
+      panelWidth,
+      terminalHeight,
+      viewportWidth,
+      viewportHeight,
+    }
 
     const minX = sidebarWidth
-    const maxX = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - width
+    const maxX = viewportWidth - CONTENT_WINDOW_GAP - panelWidth - width
     const minY = CONTENT_WINDOW_GAP
-    const maxY = window.innerHeight - CONTENT_WINDOW_GAP - terminalHeight - height
+    const maxY = viewportHeight - CONTENT_WINDOW_GAP - terminalHeight - height
 
     const currentPos = positionRef.current
 

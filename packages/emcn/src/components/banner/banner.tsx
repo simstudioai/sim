@@ -60,7 +60,10 @@ export function Banner({
           {actionLabel ? (
             <Button
               variant={actionVariant}
-              className={cn('h-[28px] shrink-0 px-2 text-[12px]', actionClassName)}
+              className={cn(
+                'h-[28px] shrink-0 px-2 text-[12px] max-md:pointer-coarse:min-h-11',
+                actionClassName
+              )}
               onClick={onAction}
               disabled={actionDisabled}
               {...actionProps}

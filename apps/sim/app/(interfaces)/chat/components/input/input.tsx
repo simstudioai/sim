@@ -8,6 +8,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { PublicChatActionButton } from '@/app/(interfaces)/chat/components/input/public-chat-action-button'
+import { isMobileViewport } from '@/hooks/use-is-mobile'
 
 const logger = createLogger('ChatInput')
 
@@ -49,10 +50,8 @@ export const ChatInput: React.FC<{
     const maxSize = 10 * 1024 * 1024
     const maxFiles = 15
 
-    for (let i = 0; i < selectedFiles.length; i++) {
+    for (const file of Array.from(selectedFiles)) {
       if (attachedFiles.length + newFiles.length >= maxFiles) break
-
-      const file = selectedFiles[i]
 
       if (file.size > maxSize) {
         setUploadErrors((prev) => [...prev, `${file.name} is too large (max 10MB)`])
@@ -111,7 +110,7 @@ export const ChatInput: React.FC<{
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !isMobileViewport()) {
       e.preventDefault()
       handleSubmit()
     }
@@ -125,7 +124,7 @@ export const ChatInput: React.FC<{
   const canSubmit = (inputValue.trim().length > 0 || attachedFiles.length > 0) && !isStreaming
 
   return (
-    <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-linear-to-t from-[var(--bg)] to-transparent px-4 pb-4 md:px-0 md:pb-4'>
+    <div className='relative flex w-full shrink-0 items-center justify-center bg-linear-to-t from-[var(--bg)] to-transparent px-3 pb-[max(12px,env(safe-area-inset-bottom))] md:fixed md:right-0 md:bottom-0 md:left-0 md:px-0 md:pb-4'>
       <div className='w-full max-w-3xl md:max-w-[748px]'>
         {uploadErrors.length > 0 && (
           <div className='mb-3 flex flex-col gap-2'>
@@ -168,7 +167,7 @@ export const ChatInput: React.FC<{
           }}
         >
           {attachedFiles.length > 0 && (
-            <div className='mb-1.5 flex flex-wrap gap-1.5'>
+            <div className='mb-1.5 flex flex-wrap gap-1.5 max-md:max-h-24 max-md:overflow-y-auto max-md:overscroll-contain'>
               {attachedFiles.map((file) => (
                 <Tooltip.Root key={file.id}>
                   <Tooltip.Trigger asChild>
@@ -194,9 +193,11 @@ export const ChatInput: React.FC<{
                           e.stopPropagation()
                           handleRemoveFile(file.id)
                         }}
-                        className='absolute top-[2px] right-[2px] size-[16px] rounded-full bg-black/60 p-0 text-white opacity-0 hover-hover:text-white group-hover:opacity-100'
+                        className='absolute top-[2px] right-[2px] size-11 items-start justify-end p-0 focus-visible:opacity-100 md:size-[16px] md:opacity-0 md:group-hover:opacity-100'
                       >
-                        <X className='size-[10px]' />
+                        <span className='flex size-7 items-center justify-center rounded-full bg-black/60 text-white md:size-4'>
+                          <X className='size-[10px]' />
+                        </span>
                       </Button>
                     </div>
                   </Tooltip.Trigger>
@@ -215,7 +216,8 @@ export const ChatInput: React.FC<{
             onKeyDown={handleKeyDown}
             placeholder={isDragOver ? 'Drop files here...' : 'Enter a message...'}
             rows={1}
-            className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[15px] text-[var(--text-primary)] leading-[24px] caret-[var(--text-primary)] outline-hidden [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
+            aria-label='Message'
+            className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[var(--text-primary)] text-md leading-[24px] caret-[var(--text-primary)] outline-hidden [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))] md:text-base [&::-webkit-scrollbar]:hidden'
           />
 
           <div className='flex items-center justify-between'>

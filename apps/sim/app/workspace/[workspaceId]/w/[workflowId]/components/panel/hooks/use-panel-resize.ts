@@ -7,7 +7,9 @@ import { usePanelStore } from '@/stores/panel'
  * floored at the minimum so a narrow viewport can never invert the clamp
  * and force the panel below {@link PANEL_WIDTH.MIN}.
  */
-function computePanelWidth(ev: PointerEvent): number {
+function computePanelWidth(ev: PointerEvent): number | null {
+  const panel = getPanelContainer()
+  if (panel && getComputedStyle(panel).position === 'absolute') return null
   const maxWidth = Math.max(PANEL_WIDTH.MIN, window.innerWidth * PANEL_WIDTH.MAX_PERCENTAGE)
   const newWidth = window.innerWidth - CONTENT_WINDOW_GAP - ev.clientX
   return Math.min(Math.max(newWidth, PANEL_WIDTH.MIN), maxWidth)
@@ -45,6 +47,14 @@ export function usePanelResize() {
     getTarget: getPanelContainer,
     getExtraTargets: getToastViewport,
     compute: computePanelWidth,
-    commit: setPanelWidth,
+    commit: (width) => {
+      const panel = getPanelContainer()
+      if (panel && getComputedStyle(panel).position === 'absolute') return
+      setPanelWidth(width)
+    },
+    onStart: () => {
+      const panel = getPanelContainer()
+      return Boolean(panel && getComputedStyle(panel).position !== 'absolute')
+    },
   })
 }

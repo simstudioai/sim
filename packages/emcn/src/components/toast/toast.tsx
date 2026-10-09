@@ -430,13 +430,14 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
               reduceMotion={reduceMotion}
             />
           </div>
-          <div className='flex h-5 shrink-0 items-center'>
+          <div className='flex h-5 shrink-0 items-center max-md:pointer-coarse:h-11'>
             <Button
               variant='quiet'
               onClick={dismiss}
               aria-label='Dismiss notification'
               title='Dismiss'
               size='icon'
+              className='max-md:pointer-coarse:size-11'
             >
               <X className='size-[16px]' />
             </Button>
@@ -710,17 +711,17 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                    * pre-drag position until the drag commits.
                    */
                   data-toast-viewport=''
-                  className='fixed z-[var(--z-toast)] m-0 list-none p-0'
+                  className='fixed z-[var(--z-toast)] m-0 list-none p-0 max-md:right-4! max-md:bottom-[max(16px,env(safe-area-inset-bottom))]!'
                   exit={{
                     opacity: 0,
                     transition: reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeIn' },
                   }}
                   style={{
                     right: isWorkflowPage
-                      ? `calc(var(--panel-width) + var(--workspace-content-gap, 0px) + ${WORKFLOW_INSET_PX}px)`
+                      ? `clamp(${WORKFLOW_INSET_PX}px, calc(var(--panel-width) + var(--workspace-content-gap, 0px) + ${WORKFLOW_INSET_PX}px), max(${WORKFLOW_INSET_PX}px, calc(100vw - var(--sidebar-width, 0px) - ${TOAST_WIDTH} - ${WORKFLOW_INSET_PX}px)))`
                       : `${VIEWPORT_INSET_PX}px`,
                     bottom: isWorkflowPage
-                      ? `calc(var(--terminal-height) + var(--workspace-content-gap, 0px) + ${WORKFLOW_INSET_PX}px)`
+                      ? `clamp(${WORKFLOW_INSET_PX}px, calc(var(--terminal-height) + var(--workspace-content-gap, 0px) + ${WORKFLOW_INSET_PX}px), max(${WORKFLOW_INSET_PX}px, calc(100dvh - ${containerHeight}px - ${WORKFLOW_INSET_PX}px)))`
                       : `${VIEWPORT_INSET_PX}px`,
                     width: TOAST_WIDTH,
                     height: containerHeight,

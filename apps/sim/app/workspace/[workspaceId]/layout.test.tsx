@@ -73,6 +73,7 @@ vi.mock('@/app/workspace/[workspaceId]/components/session-expired', () => ({
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
   WorkspaceChrome: mockWorkspaceChrome,
+  WorkspaceViewport: ({ children }: { children: ReactNode }) => children,
 }))
 
 vi.mock('@/lib/desktop/executor/presence', () => ({

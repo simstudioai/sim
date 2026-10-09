@@ -16,6 +16,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  ChevronLeft,
   Clipboard,
   Download,
   MoreHorizontal,
@@ -86,6 +87,7 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
  * are accessed directly from useTerminalStore to reduce prop drilling.
  */
 export interface OutputPanelProps {
+  onBackToLogs: () => void
   selectedEntry: ConsoleEntry
   handleOutputPanelResizePointerDown: (e: React.PointerEvent<HTMLElement>) => void
   handleHeaderClick: () => void
@@ -110,6 +112,7 @@ export interface OutputPanelProps {
  * Accesses store-backed settings directly to reduce prop drilling.
  */
 export const OutputPanel = React.memo(function OutputPanel({
+  onBackToLogs,
   selectedEntry,
   handleOutputPanelResizePointerDown,
   handleHeaderClick,
@@ -290,12 +293,12 @@ export const OutputPanel = React.memo(function OutputPanel({
   return (
     <>
       <div
-        className='absolute top-0 right-0 bottom-0 flex flex-col border-[var(--border)] border-l bg-[var(--bg)]'
+        className='absolute top-0 right-0 bottom-0 flex flex-col border-[var(--border)] border-l bg-[var(--bg)] max-md:w-full!'
         style={{ width: 'var(--output-panel-width)' }}
       >
         {/* Horizontal Resize Handle */}
         <div
-          className='-ml-1 absolute top-0 bottom-0 left-0 z-20 w-[8px] cursor-ew-resize'
+          className='-ml-1 absolute top-0 bottom-0 left-0 z-20 hidden w-[8px] cursor-ew-resize md:block'
           onPointerDown={handleOutputPanelResizePointerDown}
           role='separator'
           aria-label='Resize output panel'
@@ -304,10 +307,22 @@ export const OutputPanel = React.memo(function OutputPanel({
 
         {/* Header */}
         <div
-          className='group flex h-[30px] shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-2.5'
+          className='group flex h-11 shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-2.5 md:h-[30px]'
           onClick={handleHeaderClick}
         >
           <div className='flex items-center'>
+            <Button
+              variant='ghost'
+              size='icon'
+              aria-label='Back to logs'
+              className='size-11 md:hidden'
+              onClick={(event) => {
+                event.stopPropagation()
+                onBackToLogs()
+              }}
+            >
+              <ChevronLeft className='size-[14px]' />
+            </Button>
             <Button
               variant='ghost'
               className={cn(
@@ -411,7 +426,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               </Tooltip.Content>
             </Tooltip.Root>
             {hasEntries && (
-              <>
+              <div className='hidden items-center gap-2 md:flex'>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
@@ -444,7 +459,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
                   </Tooltip.Content>
                 </Tooltip.Root>
-              </>
+              </div>
             )}
             <Popover open={outputOptionsOpen} onOpenChange={setOutputOptionsOpen} size='sm'>
               <PopoverTrigger asChild>
@@ -493,7 +508,7 @@ export const OutputPanel = React.memo(function OutputPanel({
         {/* Search Overlay */}
         {isOutputSearchActive && (
           <div
-            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--bg)] px-1.5 shadow-xs'
+            className='absolute top-11 right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--bg)] px-1.5 shadow-xs md:top-[30px]'
             onClick={(e) => e.stopPropagation()}
             data-toolbar-root
             data-search-active='true'

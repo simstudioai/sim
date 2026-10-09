@@ -1,9 +1,9 @@
 'use client'
 
-import type { MouseEvent, ReactNode } from 'react'
+import type { PointerEvent, ReactNode } from 'react'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { bindPreviewWheelZoom, cn } from '@sim/emcn'
-import { PreviewToolbar } from './preview-toolbar'
+import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
 
 const ZOOM_MIN = 0.25
 const ZOOM_MAX = 4
@@ -78,7 +78,7 @@ export function ZoomablePreview({
   const [contentSize, setContentSize] = useState<Size>({ width: 0, height: 0 })
   const viewportRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const isDragging = useRef(false)
+  const activePointerIdRef = useRef<number | null>(null)
   const dragStart = useRef({ x: 0, y: 0 })
   const offsetAtDragStart = useRef({ x: 0, y: 0 })
   const hasInteractedRef = useRef(false)
@@ -214,18 +214,19 @@ export function ZoomablePreview({
     setOffset({ x: 0, y: 0 })
   }, [initialScale, resetKey])
 
-  const handleMouseDown = (e: MouseEvent) => {
-    if (e.button !== 0) return
+  const handlePointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || activePointerIdRef.current !== null || !e.isPrimary) return
     hasInteractedRef.current = true
-    isDragging.current = true
+    activePointerIdRef.current = e.pointerId
+    e.currentTarget.setPointerCapture(e.pointerId)
     dragStart.current = { x: e.clientX, y: e.clientY }
     offsetAtDragStart.current = offsetRef.current
     if (viewportRef.current) viewportRef.current.style.cursor = 'grabbing'
     e.preventDefault()
   }
 
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!isDragging.current) return
+  const handlePointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    if (activePointerIdRef.current !== e.pointerId) return
     setOffset(
       clampOffset(
         containerSizeRef.current,
@@ -239,8 +240,12 @@ export function ZoomablePreview({
     )
   }
 
-  const handleMouseUp = () => {
-    isDragging.current = false
+  const handlePointerEnd = (e: PointerEvent<HTMLDivElement>) => {
+    if (activePointerIdRef.current !== e.pointerId) return
+    activePointerIdRef.current = null
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
     if (viewportRef.current) viewportRef.current.style.cursor = 'grab'
   }
 
@@ -260,16 +265,20 @@ export function ZoomablePreview({
         ref={viewportRef}
         role='application'
         aria-label='Zoomable preview'
-        className='relative min-h-0 flex-1 cursor-grab overflow-hidden'
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        className='relative min-h-0 flex-1 cursor-grab touch-pinch-zoom overflow-hidden'
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onLostPointerCapture={handlePointerEnd}
       >
         <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
           <div
             ref={contentRef}
-            className={cn('flex items-center justify-center', contentClassName)}
+            className={cn(
+              'flex items-center justify-center will-change-transform',
+              contentClassName
+            )}
             style={{
               transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
               transformOrigin: 'center center',

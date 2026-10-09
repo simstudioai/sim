@@ -31,7 +31,7 @@ export function EnrichmentsSidebar({ open, ...rest }: EnrichmentsSidebarProps) {
       role='dialog'
       aria-label='Enrichments'
       className={cn(
-        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out',
+        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out motion-reduce:transition-none md:w-[400px]',
         open ? 'translate-x-0 shadow-overlay' : 'translate-x-full'
       )}
     >
@@ -71,14 +71,14 @@ function EnrichmentsSidebarBody({
   if (editGroup && !editEnrichment) {
     return (
       <div className='flex h-full flex-col'>
-        <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+        <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px] max-md:pointer-coarse:py-0.5'>
           <h2 className='text-[var(--text-primary)] text-small'>Enrichment</h2>
           <Button
             variant='ghost'
             size='sm'
             onClick={onClose}
             iconPadding='sm'
-            className='size-7 flex-none'
+            className='size-7 flex-none max-md:pointer-coarse:size-11'
             aria-label='Close'
           >
             <X className='size-[14px]' />
@@ -118,14 +118,14 @@ function EnrichmentsSidebarBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px] max-md:pointer-coarse:py-0.5'>
         <h2 className='text-[var(--text-primary)] text-small'>Enrichments</h2>
         <Button
           variant='ghost'
           size='sm'
           onClick={onClose}
           iconPadding='sm'
-          className='size-7 flex-none'
+          className='size-7 flex-none max-md:pointer-coarse:size-11'
           aria-label='Close'
         >
           <X className='size-[14px]' />

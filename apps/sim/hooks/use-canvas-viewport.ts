@@ -16,12 +16,14 @@ export interface CanvasViewportOptions {
 
 /**
  * Gets the visible canvas bounds accounting for sidebar, terminal, and panel overlays.
- * When embedded, uses the container rect directly since CSS variable offsets don't apply.
+ * Embedded canvases and layouts with an overlaid panel use the rendered container bounds.
  */
 function getVisibleCanvasBounds(options?: CanvasViewportOptions): VisibleBounds {
   const flowContainer = document.querySelector('.react-flow')
+  const panel = document.querySelector('.panel-container')
+  const hasOverlayPanel = panel && getComputedStyle(panel).position === 'absolute'
 
-  if (options?.embedded && flowContainer) {
+  if ((options?.embedded || hasOverlayPanel) && flowContainer) {
     const rect = flowContainer.getBoundingClientRect()
     return {
       width: rect.width,

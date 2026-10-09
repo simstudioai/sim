@@ -172,7 +172,6 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     sendMessage,
     stopGeneration,
     resolvedChatId,
-    resources,
     removeResource,
     messageQueue,
     removeFromQueue,
@@ -417,7 +416,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
 
   return (
     <ChatResourcePanel workspaceId={workspaceId} chat={chat} panel={panel}>
-      <div className='relative flex h-full min-w-[min(480px,100%)] flex-1 flex-col'>
+      <div className='relative flex h-full @max-[960px]/chat-panel:min-w-0 min-w-0 flex-1 flex-col md:min-w-[min(480px,100%)]'>
         {showEmptyState && (
           <div
             className={cn(
@@ -440,7 +439,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
         {showEmptyState ? (
           <div className='h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
             {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
-            <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
+            <div className='flex min-h-full flex-col items-center justify-center px-3 pt-14 pb-8 md:px-6 md:pt-[2vh] md:pb-[22vh]'>
               <h1 className={cn(pageHeadingClassName, 'mb-7 max-w-chat')}>
                 What should we get done{firstName ? `, ${firstName}` : ''}?
               </h1>
@@ -462,7 +461,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
                   />
                 </ChatSurfaceProvider>
                 {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
-                <div className='absolute inset-x-0 top-full'>
+                <div className='relative md:absolute md:inset-x-0 md:top-full'>
                   <SuggestedActions
                     onSelectPrompt={(prompt) =>
                       initialViewUserInputRef.current?.populatePrompt(prompt)
@@ -503,7 +502,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
             draftScopeKey={draftScopeKey}
             animateInput={isInputEntering}
             onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
-            initialScrollBlocked={resources.length > 0 && isResourceCollapsed}
+            initialScrollBlocked={panel.initialScrollBlocked}
           />
         )}
       </div>

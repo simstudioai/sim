@@ -148,14 +148,15 @@ const UNSCROLLED = Symbol('unscrolled')
 const LAYOUT_STYLES = {
   'mothership-view': {
     scrollContainer:
-      'mt-[var(--workspace-content-title-bar-inset)] min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-2 [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]',
+      'mt-[var(--workspace-content-title-bar-inset)] min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-4 pb-2 md:px-6 [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]',
     sizer: 'relative mx-auto w-full max-w-chat',
     rowGap: 'pb-6',
     userRow: 'flex flex-col items-end gap-[6px] pt-3',
-    attachmentWidth: 'max-w-[70%]',
-    userBubble: 'max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
+    attachmentWidth: 'max-w-[85%] md:max-w-[70%]',
+    userBubble:
+      'max-w-[85%] md:max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
     assistantRow: 'group/msg',
-    footer: 'shrink-0 px-[24px] pb-[16px]',
+    footer: 'shrink-0 px-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-[24px] md:pb-[16px]',
     footerInner: 'mx-auto max-w-chat',
   },
   'copilot-view': {
@@ -841,7 +842,9 @@ export function MothershipChat({
         onKeyDown={find.onKeyDown}
         tabIndex={-1}
         className={cn(
-          'relative flex h-full min-h-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',
+          'relative flex h-full min-h-0 min-w-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',
+          layout === 'mothership-view' &&
+            '@max-[960px]/chat-panel:mt-[var(--resource-header-controls-height)] @max-[960px]/chat-panel:h-auto @max-[960px]/chat-panel:flex-1',
           inter.className,
           className
         )}
@@ -932,7 +935,10 @@ export function MothershipChat({
         </div>
 
         <div
-          className={cn(styles.footer, animateInput && 'animate-slide-in-bottom')}
+          className={cn(
+            styles.footer,
+            animateInput && 'animate-slide-in-bottom motion-reduce:animate-none'
+          )}
           onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
         >
           <div className={styles.footerInner}>

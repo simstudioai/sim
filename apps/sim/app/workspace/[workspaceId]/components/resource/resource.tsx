@@ -15,6 +15,7 @@ import {
 import {
   Button,
   Checkbox,
+  Chip,
   cellIconNodeClass,
   chipActiveSurfaceClass,
   chipContentGap,
@@ -24,7 +25,7 @@ import {
   cn,
   Loader,
 } from '@sim/emcn'
-import { ChevronLeft, ChevronRight, Pin } from '@sim/emcn/icons'
+import { ChevronLeft, ChevronRight, MoreHorizontal, Pin } from '@sim/emcn/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
@@ -186,7 +187,7 @@ interface ResourceProps {
 function ResourceRoot({ children, onContextMenu }: ResourceProps) {
   return (
     <div
-      className='relative flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'
+      className='relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-[var(--bg)]'
       onContextMenu={onContextMenu}
     >
       {children}
@@ -387,7 +388,15 @@ const ResourceTable = memo(function ResourceTable({
         onDragLeave={bodyDrop?.onDragLeave}
         onDrop={bodyDrop?.onDrop}
       >
-        <div role='table' className='grid w-full text-small'>
+        <div
+          role='table'
+          className='grid w-full min-w-[var(--resource-table-min-width)] text-small md:min-w-0'
+          style={
+            {
+              '--resource-table-min-width': `${Math.max(360, columns.length * 136 + 120 + (hasCheckbox ? 52 : 0))}px`,
+            } as CSSProperties
+          }
+        >
           <div
             role='rowgroup'
             className='sticky top-0 z-10 grid border-[var(--border)] border-b bg-[var(--bg)]'
@@ -411,7 +420,7 @@ const ResourceTable = memo(function ResourceTable({
                 <div
                   key={col.id}
                   role='columnheader'
-                  className='flex h-10 min-w-0 items-center px-6 py-1.5 text-left font-normal text-[var(--text-muted)] text-small'
+                  className='flex h-10 min-w-0 items-center px-3 py-1.5 text-left font-normal text-[var(--text-muted)] text-small md:px-6'
                 >
                   <span className='min-w-0 truncate'>{col.header}</span>
                 </div>
@@ -770,10 +779,25 @@ const DataRow = memo(function DataRow({
           />
         </div>
       )}
-      {columns.map((col) => {
+      {columns.map((col, index) => {
         const cell = row.cells[col.id]
         return (
-          <div key={col.id} role='cell' className='flex min-w-0 items-center px-6 py-2.5'>
+          <div
+            key={col.id}
+            role='cell'
+            className='flex min-h-11 min-w-0 items-center gap-1 px-3 pointer-coarse:py-0 py-0 md:min-h-0 md:px-6 md:py-2.5'
+          >
+            {index === 0 && onRowContextMenu && (
+              <Chip
+                leftIcon={MoreHorizontal}
+                aria-label={cell?.label ? `Actions for ${cell.label}` : 'Row actions'}
+                className='pointer-coarse:flex hidden size-11 shrink-0 justify-center max-md:flex'
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onRowContextMenu(event, row.id)
+                }}
+              />
+            )}
             <CellContent
               icon={cell?.icon}
               label={cell?.label || EMPTY_CELL_PLACEHOLDER}

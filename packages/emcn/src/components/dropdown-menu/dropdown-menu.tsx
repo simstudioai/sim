@@ -125,7 +125,7 @@ const MENU_MAX_HEIGHT_CLASS = 'max-h-[min(420px,var(--radix-popper-available-hei
  * Root and submenu surfaces share the platform's 12px floating corner, a 4px
  * gutter around the chip-radius rows, and the standard medium elevation.
  */
-const CONTENT_BASE_CLASSES = `z-[var(--z-popover)] ${MENU_MAX_HEIGHT_CLASS} min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none ${MENU_STYLES.surface} ${MENU_STYLES.padding}`
+const CONTENT_BASE_CLASSES = `z-[var(--z-popover)] ${MENU_MAX_HEIGHT_CLASS} min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none ${MENU_STYLES.surface} ${MENU_STYLES.padding} max-md:min-w-0! max-md:max-w-[calc(100vw-1rem)]!`
 
 /**
  * Menu root. Inside a `ModalContent` (Radix modal dialog) the menu is forced
