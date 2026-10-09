@@ -617,10 +617,8 @@ function instrumentTab(contents: WebContents): void {
         const requested = driverScopeState().dialogResponse
         return requested?.contents === contents ? requested.response : null
       }),
-    offerToUser: (kind, message, frameUrl, respond) =>
-      session.withBrowserScope(scopeId, () =>
-        session.offerPageDialogToUser(contents, { kind, message, frameUrl }, respond)
-      ),
+    claimUserDialog: () =>
+      session.withBrowserScope(scopeId, () => session.claimUserDialog(contents)),
     onDialogClosed: inScope(() => session.notePageDialogClosed(contents)),
     claimUserLeave: () => session.withBrowserScope(scopeId, () => session.claimUserLeave(contents)),
   }
@@ -5229,6 +5227,14 @@ export async function executeTool(
       ) {
         throw new ToolError('This browser action was cancelled before it started.')
       }
+      session.withBrowserScope(resolvedScopeId, () => {
+        const automation = session.automationTab()
+        if (automation && session.hasPendingPageDialog(automation.view.webContents)) {
+          throw new ToolError(
+            'The user is answering a dialog on this page. Wait for their answer before using it.'
+          )
+        }
+      })
       state.activeToolCallId = toolCallId ?? null
       const executionController = new AbortController()
       let cancelActiveExecution: () => void = () => {}

@@ -122,7 +122,9 @@ export interface AgentTab {
   openerTabId?: string
   /** A user action asked for this page to take focus once it is on screen. */
   pendingUserFocus?: boolean
-  /** A dialog this page opened that waits on the user, and how to answer it. */
+  /** Electron owns the native alert or confirm until CDP reports it closed. */
+  nativePageDialogOpen?: boolean
+  /** A leave-site decision that waits on the user, and how to answer it. */
   pageDialog?: { request: BrowserPageDialog; respond: (accept: boolean) => void }
   /** Replays the user's browser-chrome navigation if the page asks before unloading. */
   pendingLeave?: () => unknown
@@ -1901,25 +1903,9 @@ function userOwnsPageDialogs(tab: AgentTab): boolean {
   return automationTabClaimedByUser() && !currentScope.automationActive
 }
 
-/**
- * Holds a dialog for the user. `frameUrl` is the frame that opened it, so an
- * embedded site's dialog is labelled with its own origin, not the page's.
- */
-function holdPageDialogForUser(
-  tab: AgentTab,
-  {
-    kind,
-    message,
-    frameUrl,
-  }: { kind: BrowserPageDialog['kind']; message: string; frameUrl: string },
-  respond: (accept: boolean) => void
-): void {
+function holdPageDialogForUser(tab: AgentTab, respond: (accept: boolean) => void): void {
   if (tab.pageDialog) answerPageDialog(tab, false)
-  let origin = ''
-  try {
-    origin = new URL(frameUrl || tab.view.webContents.getURL()).origin
-  } catch {}
-  tab.pageDialog = { request: { requestId: generateId(), kind, message, origin }, respond }
+  tab.pageDialog = { request: { requestId: generateId(), kind: 'beforeunload' }, respond }
   events?.onPageStateChanged(tab.view.webContents)
 }
 
@@ -1931,34 +1917,56 @@ function answerPageDialog(tab: AgentTab, accept: boolean): void {
   dialog.respond(accept)
 }
 
-/**
- * Hands a page's alert or confirm to the user when it is theirs to answer.
- * Returns false when the shell must answer it instead, as it does for agent
- * work and for pages the user cannot see.
- */
-export function offerPageDialogToUser(
-  contents: WebContents,
-  dialog: { kind: 'alert' | 'confirm'; message: string; frameUrl: string },
-  respond: (accept: boolean) => void
-): boolean {
+/** Lets Electron display a single native alert or confirm for the user. */
+export function claimUserDialog(contents: WebContents): boolean {
   const tab = tabForContents(contents)
-  if (!tab || !userOwnsPageDialogs(tab)) return false
-  holdPageDialogForUser(tab, dialog, respond)
+  if (!tab || !tab.view.getVisible() || !userOwnsPageDialogs(tab)) return false
+  tab.nativePageDialogOpen = true
   return true
 }
 
-/** The page closed its own dialog, by navigating away or crashing. */
+function invalidatePageDialog(tab: AgentTab): void {
+  const hadPageDialog = Boolean(tab.pageDialog)
+  tab.pendingLeave = undefined
+  tab.allowNextUnload = false
+  tab.pageDialog = undefined
+  if (hadPageDialog && !tab.view.webContents.isDestroyed()) {
+    events?.onPageStateChanged(tab.view.webContents)
+  }
+}
+
+/** Clears native dialog ownership after the user answers or the page closes it. */
 export function notePageDialogClosed(contents: WebContents): void {
   const tab = tabForContents(contents)
-  if (!tab?.pageDialog || tab.pageDialog.request.kind === 'beforeunload') return
-  tab.pageDialog = undefined
-  events?.onPageStateChanged(contents)
+  if (!tab?.nativePageDialogOpen) return
+  tab.nativePageDialogOpen = false
+  focusAfterPageDialog(tab)
+}
+
+/** Prevents automation from answering or replacing a decision the user owns. */
+export function hasPendingPageDialog(contents: WebContents): boolean {
+  const tab = tabForContents(contents)
+  return Boolean(tab?.nativePageDialogOpen || tab?.pageDialog)
+}
+
+function focusAfterPageDialog(tab: AgentTab): void {
+  const contents = tab.view.webContents
+  if (
+    !contents.isDestroyed() &&
+    tab.id === currentScope.activeTabId &&
+    getBrowserScopeId() === getActiveBrowserScopeId() &&
+    isPanelVisible()
+  ) {
+    focusPageForUser(contents)
+  }
 }
 
 /** The user's answer to the exact dialog the renderer showed. */
 export function respondToPageDialog(requestId: string, accept: boolean): void {
   const tab = tabs.find((entry) => entry.pageDialog?.request.requestId === requestId)
-  if (tab) answerPageDialog(tab, accept)
+  if (!tab) return
+  focusAfterPageDialog(tab)
+  answerPageDialog(tab, accept)
 }
 
 /** The dialog on this page awaiting the user's answer, if any. */
@@ -1977,7 +1985,7 @@ export function claimUserLeave(contents: WebContents): boolean {
   const leave = tab.pendingLeave
   tab.pendingLeave = undefined
   if (!leave || !userOwnsPageDialogs(tab)) return false
-  holdPageDialogForUser(tab, { kind: 'beforeunload', message: '', frameUrl: '' }, (accept) => {
+  holdPageDialogForUser(tab, (accept) => {
     if (!accept) return
     tab.allowNextUnload = true
     leave()
@@ -2581,6 +2589,8 @@ function initializeTabView(
     bindToBrowserScope(scopeId, (_event, details) => {
       const tab = tabs.find((entry) => entry.view === view)
       if (!tab) return
+      tab.nativePageDialogOpen = false
+      invalidatePageDialog(tab)
       if (tab.recoveringUnresponsive) {
         tab.recoveringUnresponsive = false
         contents.reload()
@@ -2717,8 +2727,7 @@ function initializeTabView(
       if (!details.isMainFrame) return
       const tab = tabForContents(contents)
       if (!tab) return
-      tab.pendingLeave = undefined
-      tab.allowNextUnload = false
+      invalidatePageDialog(tab)
     })
   )
   contents.on(
@@ -2789,9 +2798,6 @@ export function hasSession(): boolean {
 export function setAutomationActive(active: boolean): void {
   if (currentScope.automationActive === active) return
   currentScope.automationActive = active
-  // A dialog left open blocks the page, and the agent must never wait on one.
-  const automation = automationTab()
-  if (active && automation?.pageDialog) answerPageDialog(automation, false)
   applyAutomationTabPolicy()
   events?.onTabsChanged()
 }

@@ -63,7 +63,7 @@ function createOopifFrameFixture() {
 
 /** Callbacks for a page with no user to ask, so the shell answers every dialog. */
 const shellAnswersDialogs = {
-  offerToUser: () => false,
+  claimUserDialog: () => false,
   onDialogClosed: () => {},
   claimUserLeave: () => false,
 }

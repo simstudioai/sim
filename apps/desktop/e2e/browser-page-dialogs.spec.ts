@@ -1,9 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  type Dialog,
   type ElectronApplication,
   _electron as electron,
   expect,
@@ -13,12 +14,18 @@ import {
 import type { BrowserPageDialog, BrowserToolName } from '@sim/browser-protocol'
 import type { SimDesktopApi } from '@sim/desktop-bridge'
 import { getErrorMessage } from '@sim/utils/errors'
+import { build } from 'esbuild'
+import postcss from 'postcss'
+import loadPostcssConfig from 'postcss-load-config'
 
 const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 const SCOPE = 'browser-page-dialogs-e2e'
-const SHELL_FIXTURE = '<!doctype html><title>Sim fixture</title><h1>Browser dialogs fixture</h1>'
+const SIM_DIR = fileURLToPath(new URL('../../sim/', import.meta.url))
+const SHELL_FIXTURE =
+  '<!doctype html><title>Sim fixture</title><link rel="stylesheet" href="/fixture.css"><h1>Browser dialogs fixture</h1><div id="root"></div><div id="native-panel" style="position:absolute;top:80px;bottom:0;left:0;right:0"></div><script src="/fixture.js"></script>'
 const FORM_FIXTURE = `<!doctype html><title>form</title>
 <input id="draft" aria-label="Draft">
+<button id="long-message" onclick="alert('Details '.repeat(150) + 'Final decision detail')">Long message</button>
 <button id="delete" onclick="document.title = 'confirm:' + confirm('Delete the report?')">Delete</button>
 <script>addEventListener('beforeunload', (event) => {
   if (document.getElementById('draft').value) { event.preventDefault(); event.returnValue = '' }
@@ -27,6 +34,7 @@ const FORM_FIXTURE = `<!doctype html><title>form</title>
 type Bridge = typeof globalThis & {
   simDesktop: SimDesktopApi
   pageDialog?: BrowserPageDialog | null
+  pageIssue?: string | null
   boundsTimer?: number
 }
 
@@ -60,15 +68,74 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
       throw error
     }
   }
+  const browserComponents = join(
+    SIM_DIR,
+    'app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session'
+  )
+  const bundle = await build({
+    stdin: {
+      contents: `import { createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { useBrowserSessionStore as store } from ${JSON.stringify(join(SIM_DIR, 'stores/browser-session/store.ts'))};
+import { BrowserPageDialogModal } from ${JSON.stringify(join(browserComponents, 'browser-page-dialog.tsx'))};
+import { useBrowserPanelOcclusion } from ${JSON.stringify(join(browserComponents, 'browser-panel-occlusion.ts'))};
+const scope = ${JSON.stringify(SCOPE)};
+const api = globalThis.simDesktop.browserAgent;
+api.onPageState(state => store.getState().setPageState(state));
+store.subscribe(state => {
+  globalThis.pageDialog = state.sessions[scope]?.pageState?.dialog ?? null;
+  globalThis.pageIssue = state.sessions[scope]?.pageState?.issue?.kind ?? null;
+});
+function Fixture() {
+  const page = store(state => state.sessions[scope]?.pageState);
+  useBrowserPanelOcclusion(scope, page?.tabId ?? null, true, () => document.getElementById('native-panel')?.getBoundingClientRect() ?? null);
+  return createElement(BrowserPageDialogModal, {
+    dialog: page?.dialog,
+    open: Boolean(page?.dialog),
+    onAnswer: (requestId, allowed) => api.panelAction({action:'respond-dialog',requestId,allowed},scope),
+  });
+}
+createRoot(document.getElementById('root')).render(createElement(Fixture));`,
+      resolveDir: SIM_DIR,
+      loader: 'tsx',
+    },
+    bundle: true,
+    write: false,
+    outfile: test.info().outputPath('fixture.js'),
+    external: ['node:async_hooks'],
+    banner: { js: 'var process={env:{NODE_ENV:"development"},browser:true};' },
+    format: 'iife',
+    platform: 'browser',
+    tsconfig: join(SIM_DIR, 'tsconfig.json'),
+    define: { 'process.env.NODE_ENV': '"development"' },
+  })
+  const config = await loadPostcssConfig({}, SIM_DIR)
+  const stylesheet = join(SIM_DIR, 'app/_styles/globals.css')
+  const css = await postcss(config.plugins).process(readFileSync(stylesheet, 'utf8'), {
+    from: stylesheet,
+  })
   const calls = new Map<string, { chatId: string; toolName: BrowserToolName; args: unknown }>()
   const server: Server = createServer(async (request, response) => {
     const path = new URL(request.url ?? '/', 'http://localhost').pathname
+    if (path === '/fixture.js' || path === '/fixture.css') {
+      response.setHeader('Content-Type', path.endsWith('.js') ? 'text/javascript' : 'text/css')
+      response.end(
+        path.endsWith('.js')
+          ? bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.text
+          : css.css
+      )
+      return
+    }
     if (path === '/api/desktop/tool/authorize') {
       let body = ''
       for await (const chunk of request) body += chunk.toString()
       const authorization = calls.get(JSON.parse(body).toolCallId)
       response.writeHead(authorization ? 200 : 403, { 'Content-Type': 'application/json' })
       response.end(JSON.stringify(authorization ?? {}))
+      return
+    }
+    if (path === '/broken') {
+      response.destroy()
       return
     }
     // The app origin serves the shell; the same server on localhost is the web.
@@ -102,10 +169,24 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
     app = shellApp
     // A dialog listener stops Playwright auto-dismissing page dialogs, so the desktop's own
     // handling decides their outcome exactly as it does in production.
-    const leaveDialogsToDesktop = (page: Page) => page.on('dialog', () => {})
+    const nativeDialogs: Dialog[] = []
+    const leaveDialogsToDesktop = (page: Page) =>
+      page.on('dialog', (dialog) => nativeDialogs.push(dialog))
+    const nextNativeDialog = async () => {
+      await expect.poll(() => nativeDialogs.length).toBeGreaterThan(0)
+      const dialog = nativeDialogs.shift()
+      if (!dialog) throw new Error('Missing native dialog')
+      return dialog
+    }
     shellApp.context().pages().forEach(leaveDialogsToDesktop)
     shellApp.context().on('page', leaveDialogsToDesktop)
     const shell = await shellApp.firstWindow()
+    await shellApp.evaluate(({ app, BrowserWindow }) => {
+      const host = BrowserWindow.getAllWindows()[0]
+      if (!host) throw new Error('Missing host window')
+      app.focus({ steal: true })
+      host.focus()
+    })
     await expect(shell.getByRole('heading')).toHaveText('Browser dialogs fixture')
     await shell.evaluate(async (scope) => {
       const bridge = globalThis as Bridge
@@ -120,9 +201,6 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
       updateBounds()
       bridge.boundsTimer = window.setInterval(updateBounds, 200)
       bridge.pageDialog = null
-      api.onPageState((state) => {
-        bridge.pageDialog = state.dialog ?? null
-      })
     }, SCOPE)
 
     let callCount = 0
@@ -139,6 +217,15 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
     }
     /** Browser-chrome actions are user gestures, so each follows a real click in Sim. */
     const panelAction = async (action: Record<string, unknown>) => {
+      if (action.action === 'respond-dialog' && (await shell.getByRole('dialog').count())) {
+        await shell
+          .getByRole('button', {
+            name: action.allowed ? 'Leave' : 'Stay',
+            exact: true,
+          })
+          .click()
+        return
+      }
       await shell.getByRole('heading').click()
       await shell.evaluate(
         ({ action, scope }) =>
@@ -209,16 +296,51 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
     await panelAction({ action: 'enable-page-dialogs' })
     await inPage("document.title = 'form'")
 
-    await check("the user's confirm waits for their answer", async () => {
+    nativeDialogs.length = 0
+    await check("the user's confirm waits for their answer without a duplicate modal", async () => {
       await userInput('#delete')
-      await expect
-        .poll(pageDialog)
-        .toMatchObject({ kind: 'confirm', message: 'Delete the report?' })
+      const dialog = await nextNativeDialog()
+      expect(dialog.type()).toBe('confirm')
+      expect(dialog.message()).toBe('Delete the report?')
       expect(await pageTitle()).toBe('form')
-      const dialog = await pageDialog()
-      await panelAction({ action: 'respond-dialog', requestId: dialog?.requestId, allowed: true })
+      expect(await pageDialog()).toBeNull()
+      await expect(shell.getByRole('dialog')).toHaveCount(0)
+      await dialog.accept()
       await expect.poll(() => pageTitle()).toBe('confirm:true')
-      await expect.poll(pageDialog).toBeNull()
+    })
+
+    await check('a user sees the complete decision text beyond the diagnostic limit', async () => {
+      await userInput('#long-message')
+      const dialog = await nextNativeDialog()
+      expect(dialog.message()).toBe(`${'Details '.repeat(150)}Final decision detail`)
+      await dialog.accept()
+    })
+
+    await check('automation leaves a user-owned confirmation unanswered', async () => {
+      await inPage("document.title = 'form'")
+      await userInput('#delete')
+      const dialog = await nextNativeDialog()
+      const callId = `browser-dialogs-${++callCount}`
+      calls.set(callId, { chatId: SCOPE, toolName: 'browser_snapshot', args: {} })
+      const result = await shell.evaluate(
+        ({ callId, scope }) =>
+          (globalThis as Bridge).simDesktop.browserAgent.executeTool(
+            callId,
+            'browser_snapshot',
+            {},
+            scope
+          ),
+        { callId, scope: SCOPE }
+      )
+      expect(result.ok).toBe(false)
+      await shell.evaluate(
+        ({ callId, scope }) =>
+          (globalThis as Bridge).simDesktop.browserAgent.cancelTool?.(callId, scope),
+        { callId, scope: SCOPE }
+      )
+      expect(await pageTitle()).toBe('form')
+      await dialog.accept()
+      await expect.poll(() => pageTitle()).toBe('confirm:true')
     })
 
     await check("the agent's dialogs never wait on the user", async () => {
@@ -236,6 +358,11 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
       await expect.poll(() => pageTitle()).toBe('confirm:true')
       expect(await pageDialog()).toBeNull()
     })
+
+    // CDP answers the JavaScript call but Electron owns its native sheet. Reload
+    // ends the native dialogs before testing the renderer's leave-site modal.
+    await panelAction({ action: 'reload' })
+    await expect.poll(() => pageTitle()).toBe('form')
 
     await check('leaving a draft from the URL bar asks, and Stay keeps it', async () => {
       await userInput('#draft', 'draft')
@@ -260,6 +387,25 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
       expect(await inPage<string>("document.getElementById('draft').value")).toBe('draft')
     })
 
+    await check('Escape keeps the draft and returns typing to the page', async () => {
+      await userInput('#draft')
+      await panelAction({ action: 'reload' })
+      await expect(shell.getByRole('button', { name: 'Stay', exact: true })).toBeFocused()
+      await shell.keyboard.press('Escape')
+      await expect.poll(pageDialog).toBeNull()
+      await expect
+        .poll(() =>
+          shellApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getURL())
+        )
+        .toBe(`${site}/form`)
+      await shellApp.evaluate(({ webContents }) => {
+        const contents = webContents.getFocusedWebContents()
+        if (!contents) throw new Error('Missing focused page')
+        contents.sendInputEvent({ type: 'char', keyCode: 'x' })
+      })
+      expect(await inPage<string>("document.getElementById('draft').value")).toBe('xdraft')
+    })
+
     await check('Leave lets the navigation through without asking again', async () => {
       await panelAction({ action: 'navigate', url: `${site}/next` })
       await expect.poll(pageDialog).toMatchObject({ kind: 'beforeunload' })
@@ -268,6 +414,41 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
       await expect.poll(pageUrl).toBe(`${site}/next`)
       expect(await pageDialog()).toBeNull()
     })
+    await check('a crashed page drops its pending Leave decision', async () => {
+      await panelAction({ action: 'navigate', url: `${site}/form` })
+      await expect.poll(pageUrl).toBe(`${site}/form`)
+      await userInput('#draft', 'draft')
+      await panelAction({ action: 'reload' })
+      await expect.poll(pageDialog).toMatchObject({ kind: 'beforeunload' })
+      const stale = await pageDialog()
+      await shellApp.evaluate(({ webContents }, url) => {
+        webContents
+          .getAllWebContents()
+          .find((contents) => contents.getURL() === url)
+          ?.forcefullyCrashRenderer()
+      }, `${site}/form`)
+      await expect.poll(pageDialog).toBeNull()
+      await panelAction({ action: 'respond-dialog', requestId: stale?.requestId, allowed: true })
+      await panelAction({ action: 'reload' })
+      await expect.poll(() => pageTitle()).toBe('form')
+      await expect.poll(pageDialog).toBeNull()
+    })
+
+    await check('Back from a failed load does not capture a later page navigation', async () => {
+      await userInput('#draft', 'draft')
+      await panelAction({ action: 'navigate', url: `${site}/broken` })
+      await expect.poll(pageDialog).toMatchObject({ kind: 'beforeunload' })
+      const dialog = await pageDialog()
+      await panelAction({ action: 'respond-dialog', requestId: dialog?.requestId, allowed: true })
+      await expect
+        .poll(() => shell.evaluate(() => (globalThis as Bridge).pageIssue))
+        .toBe('load-error')
+      await panelAction({ action: 'back' })
+      await inPage(`setTimeout(() => { location.href = ${JSON.stringify(`${site}/next`)} })`)
+      await expect.poll(pageUrl).toBe(`${site}/next`)
+      expect(await pageDialog()).toBeNull()
+    })
+
     /** Opens a page-initiated confirm (no user gesture) on the tab at `path`. */
     const confirmFromPage = (path: string) =>
       shellApp.evaluate(({ webContents }, url) => {
@@ -306,6 +487,14 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
     )
 
     await check('a dialog while the browser is off screen stays automatic', async () => {
+      const tabs = await shell.evaluate(
+        async (scope) =>
+          (await (globalThis as Bridge).simDesktop.browserAgent.activateScope(scope)).tabs,
+        SCOPE
+      )
+      const tabId = tabs.find((tab) => tab.url === `${site}/agent`)?.tabId
+      expect(tabId).toBeTruthy()
+      await panelAction({ action: 'switch-tab', tabId })
       await shell.evaluate((scope) => {
         const bridge = globalThis as Bridge
         window.clearInterval(bridge.boundsTimer)

@@ -298,7 +298,7 @@ export interface BrowserPanelAction {
      * page blocked on a dialog nobody can see.
      */
     | 'enable-page-dialogs'
-    /** Answers {@link BrowserPageState.dialog}; `allowed` is OK / Leave. */
+    /** Answers {@link BrowserPageState.dialog}; `allowed` is Leave. */
     | 'respond-dialog'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
@@ -318,18 +318,10 @@ export interface BrowserPanelAction {
   allowed?: boolean
 }
 
-/**
- * A page dialog waiting on the user: `alert` and `confirm` from the page, or
- * `beforeunload` when leaving would discard what the page says is unsaved.
- * Electron removes `prompt()`, so there is no text-entry kind.
- */
+/** A leave-site decision awaiting the user's answer in browser chrome. */
 export interface BrowserPageDialog {
   requestId: string
-  kind: 'alert' | 'confirm' | 'beforeunload'
-  /** The page's own text; empty for `beforeunload`, whose text browsers never show. */
-  message: string
-  /** Origin of the page that opened the dialog, shown so a page cannot pose as Sim. */
-  origin: string
+  kind: 'beforeunload'
 }
 
 export type BrowserMediaDevice = 'microphone' | 'camera'

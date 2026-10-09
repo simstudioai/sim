@@ -13,6 +13,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import type { NativeImage, WebContents, WebFrameMain } from 'electron'
 
 const logger = createLogger('BrowserAgentCdp')
@@ -38,19 +39,11 @@ export interface DialogResponse {
 export interface CdpCallbacks {
   /** A JS dialog was handled; the driver surfaces it to the model. */
   onDialog: (dialog: PageDialog) => void
-  /** The running action's requested answer; dialogs are dismissed when it has none. */
+  /** The running action's requested answer; defaults to declining the dialog. */
   dialogResponse: () => DialogResponse | null
-  /**
-   * Offers an alert or confirm to the user, who answers later through
-   * `respond`. Returns false when the shell must answer it now instead.
-   */
-  offerToUser: (
-    kind: 'alert' | 'confirm',
-    message: string,
-    frameUrl: string,
-    respond: (accept: boolean) => void
-  ) => boolean
-  /** The page closed its dialog itself, by navigating away or crashing. */
+  /** Leaves a visible user-owned alert or confirm to Electron's native dialog. */
+  claimUserDialog: () => boolean
+  /** The dialog ended through a user answer, a CDP answer, or page teardown. */
   onDialogClosed: () => void
   /** True when the user, not the shell, decides this beforeunload. */
   claimUserLeave: () => boolean
@@ -209,28 +202,18 @@ function handleDebuggerEvent(
   }
   if (method === 'Page.javascriptDialogOpening') {
     const type = String(params.type ?? 'dialog')
-    const message = String(params.message ?? '').slice(0, 500)
+    const rawMessage = String(params.message ?? '')
+    const message = truncateAtCodePoint(rawMessage, 500, '')
     const requested = callbacks?.dialogResponse() ?? null
-    // The user answers a dialog on the page they are using, unless an agent
-    // action asked for a specific answer. Electron decides beforeunload itself
-    // (will-prevent-unload), so that kind is only acknowledged here.
-    if (!requested && (type === 'alert' || type === 'confirm')) {
-      const frameUrl = typeof params.url === 'string' ? params.url : ''
-      const offered = callbacks?.offerToUser(type, message, frameUrl, (accept) => {
-        void answerDialog(contents, { accept }, parentSessionId).then((handled) => {
-          if (!handled) logger.warn('Could not answer page dialog for the user', { type })
-        })
-      })
-      if (offered) return
+    if (!requested && (type === 'alert' || type === 'confirm') && callbacks?.claimUserDialog()) {
+      return
     }
     if (type === 'beforeunload' && callbacks?.claimUserLeave()) {
       // The user's Leave replays the navigation; this unload stays cancelled.
       void answerDialog(contents, { accept: false }, parentSessionId)
       return
     }
-    // Otherwise dialogs never stay open: beforeunload is accepted, and alert/confirm
-    // follow the running action's requested answer, defaulting to dismissal so an
-    // unexpected dialog can never block the page.
+    // CDP unblocks JavaScript, but Electron may retain the native dialog until navigation.
     const accept = type === 'beforeunload' || requested?.accept === true
     void answerDialog(contents, { accept }, parentSessionId).then((handled) => {
       if (handled) logger.info('Handled page dialog', { type, accept })
