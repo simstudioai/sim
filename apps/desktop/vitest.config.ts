@@ -6,6 +6,7 @@ export default mergeConfig(
   sharedConfig,
   defineConfig({
     test: {
+      globalSetup: ['src/test/global-setup.ts'],
       setupFiles: ['src/test/setup.ts'],
       include: ['src/**/*.test.ts'],
       exclude: ['**/e2e/**'],

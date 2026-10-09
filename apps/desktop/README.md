@@ -52,7 +52,7 @@ bun run dev                 # bundle + launch against https://www.sim.ai
 SIM_DESKTOP_ORIGIN=http://localhost:3000 bun run dev   # against local sim
 ```
 
-- `bun run test` — vitest unit suite (electron is mocked; runs anywhere).
+- `bun run test` — Vitest suite with Electron mocked. Native directory cases build and run on macOS/Linux; Windows can run the remaining cases without compiling native modules. `bun run test:watch` uses the same setup.
 - `bun run test:e2e` — Playwright `_electron` smoke suite against a fixture origin (macOS, real Electron window).
 - `bun run type-check` / `lint:check` — standard workspace checks; CI picks these up automatically via `turbo run`.
 - `SIM_DESKTOP_USER_DATA=<dir>` isolates settings/partition state (used by e2e).
