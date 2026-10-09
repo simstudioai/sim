@@ -4376,6 +4376,33 @@ const WorkflowContent = React.memo(
 
           const position = getAbsolutePosition(mountedNode)
           const { width: nodeWidth, height: nodeHeight } = getFocusDimensions(mountedNode)
+          if (isMobile && mountedNode.type === 'noteBlock') {
+            const isExpanded = Boolean(
+              canvasContainerRef.current?.querySelector(
+                `[data-id="${CSS.escape(mountedNode.id)}"] [data-note-expanded]`
+              )
+            )
+            const width = isExpanded ? BLOCK_DIMENSIONS.NOTE_EXPANDED_WIDTH : nodeWidth
+            const height = isExpanded ? BLOCK_DIMENSIONS.NOTE_EXPANDED_HEIGHT : nodeHeight
+            fitViewToBounds({
+              nodes: [
+                {
+                  ...mountedNode,
+                  position: {
+                    x: position.x + (nodeWidth - width) / 2,
+                    y: position.y + (nodeHeight - height) / 2,
+                  },
+                  measured: { width, height },
+                },
+              ],
+              padding: SUBFLOW_FOCUS_PADDING,
+              maxZoom: 1,
+              minZoom: 0.1,
+              duration: durationMs,
+            })
+            onFocusStart?.()
+            return
+          }
           const currentZoom = reactFlowInstance.getViewport().zoom
           const targetZoom = Math.max(currentZoom, 1)
           reactFlowInstance.setCenter(position.x + nodeWidth / 2, position.y + nodeHeight / 2, {
@@ -4425,7 +4452,7 @@ const WorkflowContent = React.memo(
 
         waitForSettledCanvas()
       },
-      [fitViewToBounds, getNodeAbsolutePosition, getNodes, reactFlowInstance]
+      [fitViewToBounds, getNodeAbsolutePosition, getNodes, isMobile, reactFlowInstance]
     )
 
     /**
@@ -4785,7 +4812,7 @@ const WorkflowContent = React.memo(
      */
     const nodesForRender = useMemo(() => {
       const elevatedNodes = sortNodesParentsFirst(displayNodes).map((node) => {
-        const renderedNode = isMobile ? { ...node, draggable: false, connectable: false } : node
+        const renderedNode = isMobile ? { ...node, draggable: false } : node
         if (node.type === 'subflowNode') return renderedNode
         const target = getBlockZIndex(node.zIndex ?? BLOCK_Z_BASE, {
           isSelected: node.selected,
@@ -5168,7 +5195,7 @@ const WorkflowContent = React.memo(
                     panOnDrag={embedded || isMobile ? true : selectionProps.panOnDrag}
                     selectionKeyCode={embedded ? null : selectionProps.selectionKeyCode}
                     multiSelectionKeyCode={embedded ? null : ['Meta', 'Control', 'Shift']}
-                    nodesConnectable={!embedded && !isMobile && effectivePermissions.canEdit}
+                    nodesConnectable={!embedded && effectivePermissions.canEdit}
                     connectOnClick={false}
                     nodesDraggable={!embedded && !isMobile && effectivePermissions.canEdit}
                     draggable={false}

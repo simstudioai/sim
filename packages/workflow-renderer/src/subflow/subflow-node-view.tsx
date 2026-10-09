@@ -111,11 +111,11 @@ const getCursorHandleSize = (side: WorkflowBorderCursorHandle['edgeSide']) =>
 /** Invisible React Flow handles aligned with the painted connection knobs. */
 const getHandleClasses = (position: 'left' | 'right') => {
   const baseClasses =
-    'z-20! h-[38px]! w-[14px]! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0!'
+    "z-20! h-[38px]! w-[14px]! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0! pointer-coarse:before:absolute pointer-coarse:before:inset-y-0 pointer-coarse:before:content-['']"
 
   const positionClasses = {
-    left: 'left-[-7px]!',
-    right: 'right-[-7px]!',
+    left: 'left-[-7px]! pointer-coarse:before:right-0 pointer-coarse:before:left-[-30px]',
+    right: 'right-[-7px]! pointer-coarse:before:right-[-30px] pointer-coarse:before:left-0',
   }
 
   return cn(baseClasses, positionClasses[position])

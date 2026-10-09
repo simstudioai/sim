@@ -323,9 +323,9 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
       if (!isFloatingLayout()) {
         useChatStore.getState().setIsChatOpen(false)
         useVariablesModalStore.getState().setIsOpen(false)
+        usePanelStore.getState().setIsMobilePanelOpen(match.blockType !== 'note')
       }
       usePanelEditorStore.getState().setCurrentBlockId(match.blockId)
-      usePanelStore.getState().setIsMobilePanelOpen(true)
       usePanelEditorSearchStore.getState().setActiveSearchTarget({
         ...createActiveSearchTarget(match, query),
       })
