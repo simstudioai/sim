@@ -3,36 +3,32 @@ import { db } from '@sim/db'
 import { member } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type {
-  OrganizationBillingSummaryOperation,
-  OrganizationBillingSummaryPrincipal,
-} from '@/lib/billing/application/organization-billing-summary/operations'
+  OrganizationBillingOperation,
+  OrganizationBillingPrincipal,
+} from '@/lib/billing/application/organization-billing/operations'
 import { organizationBillingSettingsActor } from '@/lib/billing/application/organization-settings-actor'
 import { ForbiddenOperationError, type OperationUseCase } from '@/lib/core/application'
 
-export interface AuthorizedOrganizationBillingSummaryContext {
+interface AuthorizedOrganizationBillingContext {
   organizationId: string
   actorUserId: string
   userRole: 'admin' | 'owner'
 }
 
-interface AuthorizedOrganizationBillingSummaryDefinition<
-  O extends OrganizationBillingSummaryOperation,
-  I,
-  R,
-> {
+interface AuthorizedOrganizationBillingDefinition<O extends OrganizationBillingOperation, I, R> {
   operation: O
   organizationId(input: I): string
   execute(args: {
-    principal: OrganizationBillingSummaryPrincipal
+    principal: OrganizationBillingPrincipal
     input: I
-    context: AuthorizedOrganizationBillingSummaryContext
+    context: AuthorizedOrganizationBillingContext
   }): Promise<R>
 }
 
 function requireBillingSettingsPrincipal(
   principal: Principal,
-  operation: OrganizationBillingSummaryOperation
-): asserts principal is OrganizationBillingSummaryPrincipal {
+  operation: OrganizationBillingOperation
+): asserts principal is OrganizationBillingPrincipal {
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
     throw new ForbiddenOperationError(
       'PRINCIPAL_KIND_NOT_PERMITTED',
@@ -43,14 +39,14 @@ function requireBillingSettingsPrincipal(
 
 /**
  * Authorizes the organization payer read once and carries the canonical role into
- * presentation. Membership alone is insufficient because the summary includes the
- * organization's pooled spend, payment state, and configurable usage ceiling.
+ * presentation. Billing settings require current administrator authority, including
+ * plan and seat reads that do not load usage analytics.
  */
-export function defineAuthorizedOrganizationBillingSummaryUseCase<
-  const O extends OrganizationBillingSummaryOperation,
+export function defineAuthorizedOrganizationBillingUseCase<
+  const O extends OrganizationBillingOperation,
   I,
   R,
->(definition: AuthorizedOrganizationBillingSummaryDefinition<O, I, R>): OperationUseCase<O, I, R> {
+>(definition: AuthorizedOrganizationBillingDefinition<O, I, R>): OperationUseCase<O, I, R> {
   return {
     operation: definition.operation,
     async execute({ principal, input }) {

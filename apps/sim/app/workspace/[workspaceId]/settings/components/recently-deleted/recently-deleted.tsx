@@ -548,7 +548,7 @@ export function RecentlyDeleted() {
       />
 
       {error ? (
-        <SettingsEmptyState tone='error'>
+        <SettingsEmptyState>
           {toError(error).message || 'Failed to load deleted items'}
         </SettingsEmptyState>
       ) : isLoading && filtered.length === 0 ? null : filtered.length === 0 ? (

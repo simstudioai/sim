@@ -5,8 +5,8 @@ import {
 } from '@sim/testing/factories/principal.factory'
 import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineAuthorizedOrganizationBillingSummaryUseCase } from '@/lib/billing/application/organization-billing-summary/authorized-organization-billing-summary-use-case'
-import { organizationBillingSummaryOperations } from '@/lib/billing/application/organization-billing-summary/operations'
+import { defineAuthorizedOrganizationBillingUseCase } from '@/lib/billing/application/organization-billing/authorized-organization-billing-use-case'
+import { organizationBillingOperations } from '@/lib/billing/application/organization-billing/operations'
 import { ForbiddenOperationError } from '@/lib/core/application'
 
 const mocks = {
@@ -17,8 +17,8 @@ const mocks = {
 const session = createSessionPrincipal()
 const personalKey = createPersonalApiKeyPrincipal()
 
-const useCase = defineAuthorizedOrganizationBillingSummaryUseCase({
-  operation: organizationBillingSummaryOperations.read,
+const useCase = defineAuthorizedOrganizationBillingUseCase({
+  operation: organizationBillingOperations.read,
   organizationId: (input: { organizationId: string }) => input.organizationId,
   execute: mocks.execute,
 })

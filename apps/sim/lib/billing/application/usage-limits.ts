@@ -1,7 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { dbReplica } from '@sim/db'
 import { getUserUsageLimitInfo, updateUserUsageLimit } from '@/lib/billing'
-import { getOrganizationBillingSummary } from '@/lib/billing/application/organization-billing-summary/get-organization-billing-summary'
+import { getOrganizationBillingSummary } from '@/lib/billing/application/organization-billing/get-organization-billing-summary'
 import { organizationBillingSettingsActor } from '@/lib/billing/application/organization-settings-actor'
 import {
   type UsageLimitReadInput,

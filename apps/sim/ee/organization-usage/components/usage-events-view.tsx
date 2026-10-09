@@ -85,9 +85,7 @@ export function UsageEventsView({ organizationId, backHref }: UsageEventsViewPro
         {isLoading ? (
           <SettingsEmptyState variant='inline'>Loading usage…</SettingsEmptyState>
         ) : isError ? (
-          <SettingsEmptyState variant='inline' tone='error'>
-            Couldn't load usage events.
-          </SettingsEmptyState>
+          <SettingsEmptyState variant='inline'>Couldn't load usage events.</SettingsEmptyState>
         ) : events.length === 0 ? (
           <SettingsEmptyState variant='inline'>No usage in this period.</SettingsEmptyState>
         ) : (
