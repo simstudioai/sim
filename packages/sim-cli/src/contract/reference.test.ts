@@ -13,7 +13,12 @@ import { cursorSlot } from '#sim-cli/runtime/request'
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 
 /** Read the actual producer, including command aliases and generated API documents. */
-function inventory(): { path: string[]; shape?: string; body?: string }[] {
+function inventory(): {
+  path: string[]
+  shape?: string
+  body?: string
+  mothershipUnavailable?: true
+}[] {
   return JSON.parse(
     execFileSync('bun', ['run', 'packages/sim-cli/scripts/print-command-inventory.ts'], {
       cwd: ROOT,
@@ -60,6 +65,18 @@ describe('CLI reference producer', () => {
     expect(find('workflows list').shape).toContain('nextCursor:string|null')
     expect(find('files get').shape).toBeUndefined()
     expect(find('files share get').shape).toContain('|{data:null}')
+  })
+
+  it('marks every command that calls a route Mothership is refused', () => {
+    const commands = inventory()
+    const flag = (path: string) =>
+      commands.find((entry) => entry.path.join(' ') === path)?.mothershipUnavailable
+    expect(flag('meta status')).toBe(true)
+    expect(flag('whoami')).toBe(true)
+    expect(flag('files versions download')).toBe(true)
+    expect(flag('workspaces get')).toBeUndefined()
+    expect(flag('workspaces invitations create')).toBeUndefined()
+    expect(flag('files get')).toBeUndefined()
   })
 
   it('the real CLI accepts both row bodies and prints their distinct 201 payloads', async () => {
