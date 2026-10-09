@@ -1,5 +1,6 @@
 import { db, dbFor } from '@sim/db'
 import {
+  changelogRelease,
   copilotChats,
   document,
   folder as folderTable,
@@ -256,8 +257,8 @@ async function deleteExpiredLegacyWorkspaceFileRows(
   return result
 }
 
-/** Contexts whose bytes count toward the workspace's billed storage: a test's source is one. */
-const BILLED_FILE_CONTEXTS: readonly StorageContext[] = ['workspace', 'test']
+/** Contexts whose bytes count toward the workspace's billed storage: owned bodies are billed too. */
+const BILLED_FILE_CONTEXTS: readonly StorageContext[] = ['workspace', 'test', 'changelog']
 
 async function deleteExpiredUnbilledWorkspaceFileRows(
   rows: WorkspaceFileScope['multiContextRows'],
@@ -348,6 +349,21 @@ async function deleteExpiredBillableWorkspaceFileRows(
                 lt(workflowTest.deletedAt, retentionDate)
               )
             )
+          await tx.delete(changelogRelease).where(
+            inArray(
+              changelogRelease.bodyFileId,
+              tx
+                .select({ id: workspaceFiles.id })
+                .from(workspaceFiles)
+                .where(
+                  and(
+                    inArray(workspaceFiles.id, fileIds),
+                    isNotNull(workspaceFiles.deletedAt),
+                    lt(workspaceFiles.deletedAt, retentionDate)
+                  )
+                )
+            )
+          )
           await releaseWorkspaceFileVersionsForPurgeInTx(tx, fileIds, retentionDate)
           const deletedRows = await tx
             .delete(workspaceFiles)
