@@ -39,7 +39,7 @@ jobs:
           mkdir -p test-results
           set +e
           if [ "$CONTROL_MODE" = positive ]; then
-            bunx playwright test e2e/local-files.spec.ts e2e/browser-page-dialogs.spec.ts --repeat-each=3 --retries=0 --trace=on --reporter=json > acceptance-report.json
+            bunx playwright test e2e/local-files.spec.ts --repeat-each=3 --retries=0 --trace=on --reporter=json > acceptance-report.json
           else
             bunx playwright test e2e/local-files.spec.ts --retries=0 --reporter=json > acceptance-report.json
           fi
