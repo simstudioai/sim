@@ -152,8 +152,8 @@ describe('collectUnquotedJsonStringReferences', () => {
   })
 
   /**
-   * Quoting is only safe for text without a double quote, backslash, or line
-   * break, since the text is inserted raw; free text such as a model reply has
+   * Quoting is only safe for text without a double quote, backslash, or control
+   * character, since the text is inserted raw; free text such as a model reply has
    * to be built into JSON by a Function block instead.
    */
   it('advises quoting only for plain text and a Function block for free text', () => {
@@ -164,7 +164,9 @@ describe('collectUnquotedJsonStringReferences', () => {
       })
     )
     expect(finding?.reason).toContain('"<start.order_id>"')
-    expect(finding?.reason).toMatch(/double quote, backslash, or line break/)
+    expect(finding?.reason).toMatch(
+      /double quote, backslash, line break, or other control character/
+    )
     expect(finding?.reason).toMatch(/Function block/)
     expect(finding?.reason).not.toMatch(/Quote each one/)
   })

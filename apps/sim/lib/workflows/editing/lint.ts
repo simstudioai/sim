@@ -799,7 +799,7 @@ function unquotedJsonReferenceTokens(json: string): string[] {
  * parse it at run time, while lint, deploy, and every earlier run of a draft
  * that never reached the block stay clean. No JSON-aware escaping exists
  * outside Function code, so quoting is only safe for text that can never hold a
- * quote, backslash, or line break. Only references whose declared
+ * quote, backslash, or control character. Only references whose declared
  * output type is `string` are reported: numbers, booleans, and objects already
  * resolve to JSON values, and an undeclared type cannot be judged here.
  */
@@ -850,7 +850,7 @@ export function collectUnquotedJsonStringReferences(
         field,
         value,
         kind: 'block-output',
-        reason: `unquoted-json-string: these references resolve to text, which is inserted raw, so the field is not valid JSON at run time unless the text is itself JSON. Quoting, e.g. "${value[0]}", works only for text that never contains a double quote, backslash, or line break, such as an id. For free text such as a model reply, build the JSON in a Function block, which reads references as values, and set this field to only that block's result reference.`,
+        reason: `unquoted-json-string: these references resolve to text, which is inserted raw, so the field is not valid JSON at run time unless the text is itself JSON. Quoting, e.g. "${value[0]}", works only for text that never contains a double quote, backslash, line break, or other control character, such as an id. For free text such as a model reply, build the JSON in a Function block, which reads references as values, and set this field to only that block's result reference.`,
       })
     }
   }
