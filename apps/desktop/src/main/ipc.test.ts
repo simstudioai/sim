@@ -134,6 +134,7 @@ import {
 import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { trackInputActivity } from '@/main/input-activity'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
+import { LocalFilePermissions } from '@/main/local-file-permissions'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { isLocalPageUrl } from '@/main/local-pages'
 import { TerminalRegistry } from '@/main/terminal/registry'
@@ -287,6 +288,9 @@ describe('registerIpcHandlers', () => {
     mockCoordinator.showChooser.mockClear()
     mockCoordinator.listFillOptions.mockClear()
     mockCoordinator.fillCredential.mockClear()
+    const localFilesystem = new LocalFilesystemService({
+      chooseDirectory: vi.fn(async () => null),
+    })
     deps = {
       appOrigin: () => APP,
       getExecutorDevice: () => null,
@@ -297,9 +301,8 @@ describe('registerIpcHandlers', () => {
       beginOAuthConnect: vi.fn(async () => true),
       prepareSourceConnect: vi.fn(() => 's'.repeat(32)),
       cancelSourceConnect: vi.fn(() => true),
-      localFilesystem: new LocalFilesystemService({
-        chooseDirectory: vi.fn(async () => null),
-      }),
+      localFilesystem,
+      localFilePermissions: new LocalFilePermissions(localFilesystem),
       terminal: new TerminalRegistry(),
       scopeEvents: {
         activateBrowser: vi.fn(),
@@ -311,6 +314,7 @@ describe('registerIpcHandlers', () => {
         getPreferences: vi.fn(() => DEFAULT_DESKTOP_PREFERENCES),
         setPreference: vi.fn(),
         setBrowserSearchSuggestionsEnabled: vi.fn(),
+        setFullFileAccess: vi.fn(),
         setPreventSleepWhileRunning: vi.fn(),
         setAppearancePreference: vi.fn(),
         setBrowserDefaultZoom: vi.fn(),

@@ -104,7 +104,9 @@ test.describe('background executor', () => {
         args: { command: `sleep 1; echo B-${n} >> '${marker}'`, waitSeconds: 30 },
       })
     )
+    const readConsent = launched.app.waitForEvent('window')
     const localRead = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+    await (await readConsent).getByRole('button', { name: 'Allow folder', exact: true }).click()
 
     await window.goto(`${sim.origin}/workspace/ws-other/home`)
     await window.reload()
@@ -154,6 +156,50 @@ test.describe('background executor', () => {
 
     await check('A: the lease is renewed while calls wait and run', async () => {
       expect(Math.max(...terminalRuns.map((id) => sim.requireCall(id).renewals))).toBeGreaterThan(0)
+    })
+  })
+
+  test('background file reads require consent and Stop cancels pending permission', async () => {
+    const userData = mkdtempSync(join(tmpdir(), 'sim-executor-consent-'))
+    const launched = await launch(sim, userData)
+    app = launched.app
+    const deviceId = await registeredDevice(sim)
+    const readable = join(userData, 'private.txt')
+    writeFileSync(readable, 'background consent fixture')
+
+    await check('background read stays pending until folder consent', async () => {
+      const shown = launched.app.waitForEvent('window', { timeout: 10_000 })
+      const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+      const prompt = await shown
+      await expect(prompt.getByRole('button', { name: 'Allow folder', exact: true })).toBeVisible()
+      expect(sim.requireCall(call).completions).toHaveLength(0)
+      await prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      const completion = await settled(sim, call)
+      expect(completion.status).toBe('error')
+      expect(JSON.stringify(completion)).not.toContain('background consent fixture')
+    })
+
+    await check('Stop dismisses background consent without granting access', async () => {
+      const shown = launched.app.waitForEvent('window', { timeout: 10_000 })
+      const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+      const prompt = await shown
+      await expect(prompt.getByRole('button', { name: 'Allow folder', exact: true })).toBeVisible()
+      sim.stopCall(call)
+      await expect.poll(() => prompt.isClosed()).toBe(true)
+      await settled(sim, call)
+      expect(sim.requireCall(call).completions[0]?.outcome).toBe('superseded')
+    })
+
+    await check('approved background reads reuse the shared folder grant', async () => {
+      const shown = launched.app.waitForEvent('window', { timeout: 10_000 })
+      const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+      const prompt = await shown
+      await prompt.getByRole('button', { name: 'Allow folder', exact: true }).click()
+      expect((await settled(sim, call)).status).toBe('success')
+      const next = sim.issue(deviceId, CHAT_A, 'read_local_file', { path: readable })
+      expect(JSON.stringify((await settled(sim, next)).data)).toContain(
+        'background consent fixture'
+      )
     })
   })
 
@@ -237,11 +283,14 @@ test.describe('background executor', () => {
     writeFileSync(join(source, 'q3', 'export.bin'), large)
     await launched.window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
 
+    const importConsent = launched.app.waitForEvent('window')
     const call = sim.issue(deviceId, CHAT_B, 'import_local_files', {
       path: source,
       targetWorkspaceId: WORKSPACE,
       folderId: 'folder-e2e',
     })
+
+    await (await importConsent).getByRole('button', { name: 'Allow folder', exact: true }).click()
 
     await check('D: the import completes with every entry it stored', async () => {
       const completion = await settled(sim, call, 60_000)

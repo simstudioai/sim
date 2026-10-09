@@ -37,6 +37,7 @@ import type {
   LocalFilesystemGrantStore,
   PersistedLocalFilesystemGrant,
 } from '@/main/local-filesystem-grant-store'
+import { openNativeFile } from '@/main/native-directory'
 
 const MAX_URI_LENGTH = 4096
 const MAX_LIST_ENTRIES = 500
@@ -354,6 +355,7 @@ async function selectDirectoryEntries(
 export interface LocalFileAccess {
   path: string
   resolve: (path: string) => Promise<string>
+  open: (path: string, directory?: boolean) => ReturnType<typeof openNativeFile>
 }
 
 export class LocalFilesystemService {
@@ -498,10 +500,7 @@ export class LocalFilesystemService {
               'Local filesystem operation is not supported.'
             )
         }
-        if (grant) {
-          if (this.mounts.get(grant.id)?.rootPath !== grant.rootPath) throw mountNotFound()
-          await this.assertMountCurrent(grant)
-        }
+        if (grant) await this.assertMountCurrent(grant)
       } finally {
         if (requestId) {
           this.activeRequests.delete(requestId)
@@ -756,15 +755,38 @@ export class LocalFilesystemService {
         await this.assertMountCurrent(mount)
         return resolved
       }
-      return { path, resolve: resolveGranted }
+      return {
+        path,
+        resolve: resolveGranted,
+        open: async (requested, directory = false) => {
+          const canonical = await resolveGranted(requested)
+          if (canonical !== requested) throw new Error('The local path changed. Try again.')
+          const file = await openNativeFile(
+            mount.rootPath,
+            relative(mount.rootPath, canonical),
+            mount,
+            directory
+          )
+          try {
+            await this.assertMountCurrent(mount)
+            return file
+          } catch (error) {
+            await file.close()
+            throw error
+          }
+        },
+      }
     }
     return null
   }
 
   private async assertMountCurrent(mount: GrantedMount): Promise<void> {
     const root = await lstat(mount.rootPath)
+    const current = this.mounts.get(mount.id)
+    if (!current || current.rootPath !== mount.rootPath) throw mountNotFound()
     if (
-      this.mounts.get(mount.id) !== mount ||
+      current.dev !== mount.dev ||
+      current.ino !== mount.ino ||
       !root.isDirectory() ||
       root.dev !== mount.dev ||
       root.ino !== mount.ino

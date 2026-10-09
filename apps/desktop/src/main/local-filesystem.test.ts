@@ -409,7 +409,7 @@ describe('LocalFilesystemService', () => {
       }
       expect(
         await service.handle({ operation: 'read', uri: `${granted.uri}README.md` })
-      ).toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
+      ).toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })
     }
   )
 

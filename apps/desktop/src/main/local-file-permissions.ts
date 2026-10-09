@@ -1,21 +1,28 @@
 import { lstat, realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { isDesktopScopeId } from '@sim/desktop-bridge'
 import type { BrowserWindow } from 'electron'
 import { showShellDialog } from '@/main/dialogs'
 import type { LocalFileAuthorization } from '@/main/local-files'
 import type { LocalFileAccess, LocalFilesystemService } from '@/main/local-filesystem'
+import { openNativeFile } from '@/main/native-directory'
 
 const MAX_PENDING_REQUESTS = 32
 
 interface LocalFilePermissionContext {
-  parent: BrowserWindow
+  parent: () => Promise<BrowserWindow>
   origin: string
   generation: number
   signal: AbortSignal
   isCurrent: () => boolean
   revalidate: () => Promise<boolean>
+}
+
+interface PendingFolderDecision {
+  contexts: Set<LocalFilePermissionContext>
+  controller: AbortController
+  decision: Promise<void>
 }
 
 function nativePath(value: unknown): string {
@@ -29,7 +36,7 @@ function nativePath(value: unknown): string {
 
 function assertCurrent(context: LocalFilePermissionContext): void {
   context.signal.throwIfAborted()
-  if (context.parent.isDestroyed() || !context.isCurrent())
+  if (!context.isCurrent())
     throw new Error('This local file request expired. Ask again in the current chat.')
 }
 
@@ -43,9 +50,12 @@ async function revalidate(context: LocalFilePermissionContext): Promise<void> {
 /** Shares each pending folder decision while remembered access remains concurrent. */
 export class LocalFilePermissions {
   private queue: Promise<void> = Promise.resolve()
-  private readonly pending = new Map<string, Promise<void>>()
+  private readonly pending = new Map<string, PendingFolderDecision>()
 
-  constructor(private readonly filesystem: LocalFilesystemService) {}
+  constructor(
+    private readonly filesystem: LocalFilesystemService,
+    private readonly fullFileAccess: () => boolean = () => false
+  ) {}
 
   async authorize(
     authorization: LocalFileAuthorization,
@@ -60,6 +70,20 @@ export class LocalFilePermissions {
     )
       throw new Error('A valid destination workspace and folder are required for imports.')
     const path = await realpath(nativePath(authorization.args.path))
+    if (this.fullFileAccess()) {
+      const info = await stat(path)
+      const folder = info.isDirectory() ? path : dirname(path)
+      const identity = await stat(folder)
+      return this.authorizedAccess(
+        {
+          path,
+          resolve: realpath,
+          open: (requested, directory = false) =>
+            openNativeFile(folder, relative(folder, requested), identity, directory),
+        },
+        { ...context, isCurrent: () => context.isCurrent() && this.fullFileAccess() }
+      )
+    }
     const existing = await this.filesystem.nativeAccess(path)
     if (existing) return this.authorizedAccess(existing, context)
     const info = await stat(path)
@@ -68,25 +92,84 @@ export class LocalFilePermissions {
     const folder = info.isDirectory() ? path : dirname(path)
     const key = JSON.stringify([context.generation, context.origin, folder])
     let pending = this.pending.get(key)
+    if (pending?.controller.signal.aborted) pending = undefined
     if (!pending) {
       if (this.pending.size >= MAX_PENDING_REQUESTS)
         throw new Error('Too many local file requests are waiting for permission. Try again later.')
-      const decision = this.queue.then(() => this.requestFolder(folder, context))
+      const contexts = new Set<LocalFilePermissionContext>()
+      const controller = new AbortController()
+      const decision = this.queue.then(() =>
+        this.requestFolder(folder, contexts, controller.signal)
+      )
       this.queue = decision.then(
         () => undefined,
         () => undefined
       )
-      pending = decision.finally(() => this.pending.delete(key))
-      this.pending.set(key, pending)
+      const request = { contexts, controller, decision }
+      pending = request
+      this.pending.set(key, request)
+      void this.queue.then(() => {
+        if (this.pending.get(key) === request) this.pending.delete(key)
+      })
     }
-    await pending
+    pending.contexts.add(context)
+    await this.waitForDecision(pending, context)
     const access = await this.filesystem.nativeAccess(path)
     if (!access) throw new Error('The approved folder is no longer available.')
     return this.authorizedAccess(access, context)
   }
 
-  private async requestFolder(folder: string, context: LocalFilePermissionContext): Promise<void> {
-    await revalidate(context)
+  private waitForDecision(
+    pending: PendingFolderDecision,
+    context: LocalFilePermissionContext
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const leave = () => {
+        context.signal.removeEventListener('abort', cancel)
+        pending.contexts.delete(context)
+        if (pending.contexts.size === 0) pending.controller.abort()
+      }
+      const cancel = () => {
+        leave()
+        reject(context.signal.reason)
+      }
+      context.signal.addEventListener('abort', cancel, { once: true })
+      pending.decision.then(
+        () => {
+          leave()
+          resolve()
+        },
+        (error) => {
+          leave()
+          reject(error)
+        }
+      )
+      if (context.signal.aborted) cancel()
+    })
+  }
+
+  private async currentContext(
+    contexts: Set<LocalFilePermissionContext>,
+    signal: AbortSignal
+  ): Promise<LocalFilePermissionContext> {
+    signal.throwIfAborted()
+    for (const context of contexts) {
+      try {
+        await revalidate(context)
+        if (contexts.has(context)) return context
+      } catch {
+        signal.throwIfAborted()
+      }
+    }
+    throw new Error('The local file requests are no longer pending. Ask again in the current chat.')
+  }
+
+  private async requestFolder(
+    folder: string,
+    contexts: Set<LocalFilePermissionContext>,
+    signal: AbortSignal
+  ): Promise<void> {
+    const context = await this.currentContext(contexts, signal)
     if (await this.filesystem.nativeAccess(folder)) return
     const root = await lstat(folder)
     if (!root.isDirectory()) throw new Error('The folder is no longer available.')
@@ -94,9 +177,11 @@ export class LocalFilePermissions {
       /\p{Bidi_Control}/gu,
       (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`
     )
-    assertCurrent(context)
-    const result = await showShellDialog(context.parent, {
-      signal: context.signal,
+    signal.throwIfAborted()
+    const parent = await context.parent()
+    await this.currentContext(contexts, signal)
+    const result = await showShellDialog(parent, {
+      signal,
       title: 'Allow access to this folder?',
       message: displayedPath,
       detail: `Sim can read files in this folder and its subfolders, use them across chats, and import them into your workspaces on ${context.origin}.\n\nManage or remove access in File → Folder Access.`,
@@ -104,10 +189,10 @@ export class LocalFilePermissions {
       defaultId: 1,
       cancelId: 1,
     })
-    assertCurrent(context)
+    signal.throwIfAborted()
     if (result.response !== 0) throw new Error('The user did not allow this local file access.')
-    await revalidate(context)
-    await this.filesystem.grantDirectory({ path: folder }, context.generation, root)
+    const current = await this.currentContext(contexts, signal)
+    await this.filesystem.grantDirectory({ path: folder }, current.generation, root)
   }
 
   private async authorizedAccess(
@@ -122,6 +207,20 @@ export class LocalFilePermissions {
       return resolved
     }
     await resolveApproved(access.path)
-    return { path: access.path, resolve: resolveApproved }
+    return {
+      path: access.path,
+      resolve: resolveApproved,
+      open: async (path, directory) => {
+        assertCurrent(context)
+        const file = await access.open(path, directory)
+        try {
+          assertCurrent(context)
+          return file
+        } catch (error) {
+          await file.close()
+          throw error
+        }
+      },
+    }
   }
 }
