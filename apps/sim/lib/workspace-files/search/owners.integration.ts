@@ -10,7 +10,6 @@ import {
   organization,
   permissions,
   project,
-  projectWorkspace,
   user,
   workspace,
   workspaceFileSearchBuild,
@@ -119,10 +118,7 @@ async function fixture() {
     workspaceMode: 'organization',
     name: 'Search environment',
   })
-  const [binding] = await db
-    .select()
-    .from(projectWorkspace)
-    .where(eq(projectWorkspace.workspaceId, workspaceId))
+  const [binding] = await db.select().from(workspace).where(eq(workspace.id, workspaceId))
   if (!binding) throw new Error('Missing Project binding')
   await db.insert(permissions).values({
     id: generateId(),
