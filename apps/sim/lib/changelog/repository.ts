@@ -7,8 +7,10 @@ import {
   workflowDeploymentVersion,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, asc, desc, eq, inArray, lt, or, sql } from 'drizzle-orm'
-import type { ReleaseVersion } from '@/lib/changelog/version'
+import { and, asc, desc, eq, inArray, lt, ne, or, sql } from 'drizzle-orm'
+import { formatReleaseVersion, type ReleaseVersion } from '@/lib/changelog/version'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 export type ChangelogReleaseRow = typeof changelogRelease.$inferSelect
@@ -63,16 +65,57 @@ export async function insertReleaseInTx(
   changes: ChangelogChangeInput[]
 ): Promise<ChangelogReleaseRow> {
   const [row] = await tx.insert(changelogRelease).values(values).returning()
-  await insertChanges(tx, row.id, changes)
+  await insertChanges(tx, row.workspaceId, row.id, changes)
   return row
+}
+
+/**
+ * A deployment ships in at most one release. The workspace lock serializes change writes, so two
+ * concurrent publishes cannot both claim it.
+ */
+async function assertDeploymentsUnreleased(
+  tx: DbTransaction,
+  workspaceId: string,
+  releaseId: string,
+  changes: ChangelogChangeInput[]
+): Promise<void> {
+  const deploymentIds = [
+    ...new Set(changes.flatMap((c) => (c.deploymentVersionId ? [c.deploymentVersionId] : []))),
+  ]
+  if (deploymentIds.length === 0) return
+  await acquireAdvisoryXactLock(tx, 'changelog_release', `changelog_release:${workspaceId}`)
+  const released = await tx
+    .selectDistinct({
+      deploymentVersionId: changelogChange.deploymentVersionId,
+      major: changelogRelease.versionMajor,
+      minor: changelogRelease.versionMinor,
+      patch: changelogRelease.versionPatch,
+    })
+    .from(changelogChange)
+    .innerJoin(changelogRelease, eq(changelogRelease.id, changelogChange.releaseId))
+    .where(
+      and(
+        inArray(changelogChange.deploymentVersionId, deploymentIds),
+        ne(changelogChange.releaseId, releaseId)
+      )
+    )
+  if (released.length > 0)
+    throw new OrchestrationError(
+      'conflict',
+      `Already released: ${released
+        .map((r) => `${r.deploymentVersionId} in ${formatReleaseVersion(r)}`)
+        .join(', ')}. A deployment ships in one release.`
+    )
 }
 
 async function insertChanges(
   tx: DbTransaction,
+  workspaceId: string,
   releaseId: string,
   changes: ChangelogChangeInput[]
 ): Promise<void> {
   if (changes.length === 0) return
+  await assertDeploymentsUnreleased(tx, workspaceId, releaseId, changes)
   await tx.insert(changelogChange).values(
     changes.map((change, position) => ({
       id: generateId(),
@@ -212,7 +255,7 @@ export async function updateRelease(
     if (!row) return null
     if (changes) {
       await tx.delete(changelogChange).where(eq(changelogChange.releaseId, releaseId))
-      await insertChanges(tx, releaseId, changes)
+      await insertChanges(tx, row.workspaceId, releaseId, changes)
     }
     const changesByRelease = await listChangesByRelease([releaseId], tx)
     return { row, changes: changesByRelease.get(releaseId) ?? [] }
