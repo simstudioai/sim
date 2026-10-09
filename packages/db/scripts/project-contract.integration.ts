@@ -567,7 +567,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         for (let attempt = 0; attempt < 100; attempt++) {
           if (
             (
-              await sql`SELECT 1 FROM pg_stat_activity WHERE query LIKE '%CALL pg_temp.backfill_project_families%' AND wait_event = 'PgSleep'`
+              await sql`SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND query LIKE '%CALL pg_temp.backfill_project_families%' AND wait_event = 'PgSleep'`
             ).length
           ) {
             retrying = true
@@ -660,7 +660,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           await sleep(10)
         }
         expect(committed).toBeTruthy()
-        await sql`SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND query LIKE '%CALL pg_temp.backfill_project_families%'`
+        await sql`SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND query LIKE '%CALL pg_temp.backfill_project_families%'`
         expect(getPostgresErrorCode(await result)).toBe('57014')
       } finally {
         release.resolve()
