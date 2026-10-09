@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { formatAttributionForNotification } from '@/lib/analytics/attribution'
 import {
   getDemoRequestCompanySizeLabel,
   submitDemoRequestContract,
@@ -60,6 +61,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const { firstName, lastName, companyEmail, phoneNumber, companySize, details } =
       parsed.data.body
+    const attribution = formatAttributionForNotification((name) => req.cookies.get(name)?.value)
 
     logger.info(`[${requestId}] Processing demo request`, {
       email: `${companyEmail.substring(0, 3)}***`,
@@ -75,7 +77,7 @@ Company size: ${getDemoRequestCompanySizeLabel(companySize)}
 
 Details:
 ${details}
-`
+${attribution ? `\nAttribution:\n${attribution}\n` : ''}`
 
     const emailResult = await sendEmail({
       to: [`enterprise@${env.EMAIL_DOMAIN || getEmailDomain()}`],

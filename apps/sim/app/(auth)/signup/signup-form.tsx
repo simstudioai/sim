@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -13,7 +13,7 @@ import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
+import { captureEvent } from '@/lib/posthog/client'
 import {
   buildAuthCrossLink,
   DEFAULT_POST_AUTH_ROUTE,
@@ -35,6 +35,7 @@ import {
   SocialLoginButtons,
   SSOLoginButton,
 } from '@/app/(auth)/components'
+import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 
 const logger = createLogger('SignupForm')
 
@@ -111,11 +112,9 @@ function SignupFormContent({
   const { refetch: refetchSession } = useSession()
   const posthog = usePostHog()
   const { measurement, marketing } = useTrackingConsent()
+  useCaptureWhenReady('signup_page_viewed', {})
   const [isLoading, setIsLoading] = useState(false)
 
-  useEffect(() => {
-    captureClientEvent('signup_page_viewed', {})
-  }, [])
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
@@ -485,6 +484,7 @@ function SignupFormContent({
 
       {showBottomSection && (
         <SocialLoginButtons
+          view='signup'
           githubAvailable={githubAvailable}
           googleAvailable={googleAvailable}
           microsoftAvailable={microsoftAvailable}
