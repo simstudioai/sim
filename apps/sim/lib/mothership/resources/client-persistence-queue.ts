@@ -1,3 +1,4 @@
+import type { FileOwner } from '@/lib/mothership/generated/file-owner'
 import type { MothershipResource, MothershipResourceUpdate } from '@/lib/mothership/resources/types'
 import {
   getChatResourceKey,
@@ -56,7 +57,7 @@ export class ResourcePersistenceQueue {
     scopeId: string,
     base?: MothershipResource
   ): void {
-    const key = this.getKey(scopeId, update.type, update.id, update.workspaceId)
+    const key = this.getKey(scopeId, update.type, update.id, update.workspaceId, update.owner)
     const trackedLocally =
       this.desiredUpdates.has(key) || this.pendingKeys.has(key) || this.inFlight.has(key)
     if (base && !trackedLocally) this.persistedKeys.add(key)
@@ -91,9 +92,10 @@ export class ResourcePersistenceQueue {
     id: string,
     scopeId: string,
     assumePersisted = false,
-    workspaceId?: string
+    workspaceId?: string,
+    owner?: FileOwner
   ): RemovedResourcePersistence {
-    const key = this.getKey(scopeId, type, id, workspaceId)
+    const key = this.getKey(scopeId, type, id, workspaceId, owner)
     const trackedLocally =
       this.desiredUpdates.has(key) || this.pendingKeys.has(key) || this.inFlight.has(key)
     if (assumePersisted && !trackedLocally) this.persistedKeys.add(key)
@@ -142,9 +144,10 @@ export class ResourcePersistenceQueue {
     scopeId: string,
     type: MothershipResource['type'],
     id: string,
-    workspaceId?: string
+    workspaceId?: string,
+    owner?: FileOwner
   ): boolean {
-    return this.desiredUpdates.has(this.getKey(scopeId, type, id, workspaceId))
+    return this.desiredUpdates.has(this.getKey(scopeId, type, id, workspaceId, owner))
   }
 
   /** Projects writes still in flight over server history, including queued removals. */
@@ -157,7 +160,13 @@ export class ResourcePersistenceQueue {
     )
     const projected: MothershipResource[] = []
     for (const resource of resources) {
-      const key = this.getKey(scopeId, resource.type, resource.id, resource.workspaceId)
+      const key = this.getKey(
+        scopeId,
+        resource.type,
+        resource.id,
+        resource.workspaceId,
+        resource.owner
+      )
       if (this.pendingRemovals.has(key)) continue
       const update = remaining.get(key)
       projected.push(update ? mergeChatResource(resource, update) : resource)
@@ -316,8 +325,9 @@ export class ResourcePersistenceQueue {
     scopeId: string,
     type: MothershipResource['type'],
     id: string,
-    workspaceId?: string
+    workspaceId?: string,
+    owner?: FileOwner
   ): string {
-    return `${this.getScopePrefix(scopeId)}${getChatResourceKey({ type, id, workspaceId })}`
+    return `${this.getScopePrefix(scopeId)}${getChatResourceKey({ type, id, workspaceId, owner })}`
   }
 }

@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FILE_DOC_EVENTS, type FileDocPresence } from '@sim/realtime-protocol/file-doc'
+import { useQueryClient } from '@tanstack/react-query'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { FileDocProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider'
 import { useReportFileDocOthers } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
+import { resolveFileQueryOwner } from '@/hooks/queries/utils/file-owner-query-adapters'
 
 /** The live collaboration binding the editor wires into TipTap's Collaboration
  * (the {@link Y.Doc}) and CollaborationCaret (the awareness). */
@@ -22,6 +24,7 @@ export interface FileDocCollaboration {
    * provider is consumed for its readiness signal (`synced`) and fatal `join-error`.
    */
   provider: FileDocProvider | null
+  canWrite: boolean
   /**
    * The local caret identity published to awareness: `name`/`color` for CollaborationCaret,
    * and `clientId` so the caret activity extension can tag each caret node (see
@@ -32,7 +35,8 @@ export interface FileDocCollaboration {
 }
 
 interface UseFileDocCollaborationParams {
-  workspaceId: string
+  workspaceId?: string
+  projectId?: string
   fileId: string
   userId: string
   userName: string
@@ -53,12 +57,14 @@ interface UseFileDocCollaborationParams {
  */
 export function useFileDocCollaboration({
   workspaceId,
+  projectId,
   fileId,
   userId,
   userName,
   enabled,
 }: UseFileDocCollaborationParams): FileDocCollaboration | null {
   const { socket } = useSocket()
+  const queryClient = useQueryClient()
 
   // The Y.Doc + Awareness are the editor's authoritative binding — created once
   // and stable for the hook's life (see sim-react-performance: lazy-init ref).
@@ -97,23 +103,42 @@ export function useFileDocCollaboration({
   }, [])
 
   const [provider, setProvider] = useState<FileDocProvider | null>(null)
+  const [canWrite, setCanWrite] = useState(!projectId)
 
   useEffect(() => {
-    if (!enabled || !socket) return
+    if (!enabled || !socket || (!projectId && !workspaceId)) return
     // Non-null: both refs are set during render before any effect runs, and are never destroyed
     // (see above), so this always binds the same doc/awareness the editor froze at mount.
     const doc = docRef.current as Y.Doc
     const awareness = awarenessRef.current as Awareness
-    const fileProvider = new FileDocProvider(socket, fileId, doc, awareness, {
-      owner: { entityType: 'workspace', entityId: workspaceId },
-      userId,
-    })
+    const scope = projectId
+      ? { owner: { entityType: 'project' as const, entityId: projectId }, userId }
+      : workspaceId
+        ? { owner: { entityType: 'workspace' as const, entityId: workspaceId }, userId }
+        : undefined
+    if (!scope) return
+    const fileProvider = new FileDocProvider(socket, fileId, doc, awareness, scope)
+    setCanWrite(fileProvider.canWrite)
+    const reloadAfterWriteLoss = async () => {
+      const target = resolveFileQueryOwner(
+        projectId ? { entityType: 'project', entityId: projectId } : undefined,
+        workspaceId
+      )
+      if (!target) return
+      const filters = target.adapter.invalidationFilters(target.id, fileId)
+      await Promise.all(filters.map((filter) => queryClient.cancelQueries(filter)))
+      await Promise.all(filters.map((filter) => queryClient.resetQueries(filter)))
+    }
+    fileProvider.on('permission', setCanWrite)
+    fileProvider.on('write-access-lost', reloadAfterWriteLoss)
     setProvider(fileProvider)
     return () => {
+      fileProvider.off('permission', setCanWrite)
+      fileProvider.off('write-access-lost', reloadAfterWriteLoss)
       fileProvider.destroy()
       setProvider(null)
     }
-  }, [enabled, socket, fileId, workspaceId, userId])
+  }, [enabled, socket, fileId, workspaceId, projectId, userId, queryClient])
 
   const reportOthers = useReportFileDocOthers()
   const reportOthersRef = useRef(reportOthers)
@@ -172,9 +197,10 @@ export function useFileDocCollaboration({
             doc: docRef.current as Y.Doc,
             awareness: awarenessRef.current as Awareness,
             provider,
+            canWrite,
             user,
           }
         : null,
-    [enabled, provider, user]
+    [enabled, provider, canWrite, user]
   )
 }

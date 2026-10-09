@@ -1,16 +1,107 @@
 import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import { requestRaw } from '@/lib/api/client/request'
+import {
+  downloadProjectFileItemsContract,
+  exportProjectFileSnapshotContract,
+} from '@/lib/api/contracts/project-file-downloads'
+import {
+  type ProjectFileRecord,
+  readProjectFileArtifactContract,
+  readProjectFileContentContract,
+} from '@/lib/api/contracts/project-files'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { normalizeMimeType } from '@/lib/uploads/utils/mime'
+import {
+  type FileOwnerAdapters,
+  requireFileOwnerAdapter,
+} from '@/lib/workspace-files/owner-adapters'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 
 /** Action-time content from the mounted viewer, scoped so another file cannot consume it. */
-export interface FileDownloadSource {
+export type FileDownloadSource = {
   fileId: string
-  workspaceId: string
   getContent: () => string | null
+} & (
+  | { workspaceId: string; owner?: never }
+  | { owner: { entityType: 'project'; entityId: string }; workspaceId?: never }
+)
+
+interface FileDownloadAdapter {
+  exportSnapshot: (ownerId: string, fileId: string, content: string) => Promise<Response>
+  downloadArchive: (ownerId: string, fileIds: string[], folderIds: string[]) => Promise<Response>
+  archiveName: string
+}
+
+const OWNER_DOWNLOADS: FileOwnerAdapters<FileDownloadAdapter> = {
+  workspace: {
+    exportSnapshot: (ownerId, fileId, content) =>
+      requestRaw(
+        exportWorkspaceFileSnapshotContract,
+        { params: { id: ownerId, fileId }, body: { content } },
+        { cache: 'no-store' }
+      ),
+    downloadArchive: (ownerId, fileIds, folderIds) =>
+      requestRaw(
+        downloadWorkspaceFileItemsContract,
+        { params: { id: ownerId }, query: { fileIds, folderIds } },
+        { cache: 'no-store' }
+      ),
+    archiveName: 'workspace-files.zip',
+  },
+  project: {
+    exportSnapshot: (ownerId, fileId, content) =>
+      requestRaw(
+        exportProjectFileSnapshotContract,
+        { params: { id: ownerId, fileId }, body: { content } },
+        { cache: 'no-store' }
+      ),
+    downloadArchive: (ownerId, fileIds, folderIds) =>
+      requestRaw(
+        downloadProjectFileItemsContract,
+        { params: { id: ownerId }, query: { fileIds, folderIds } },
+        { cache: 'no-store' }
+      ),
+    archiveName: 'project-files.zip',
+  },
+}
+
+async function downloadMarkdownSnapshot(
+  owner: EditableFileOwner,
+  record: { id: string; name: string },
+  source?: FileDownloadSource | null
+): Promise<boolean> {
+  if (!source || source.fileId !== record.id) return false
+  const sourceOwner = source.owner ?? {
+    entityType: 'workspace',
+    entityId: source.workspaceId,
+  }
+  if (sourceOwner.entityType !== owner.entityType || sourceOwner.entityId !== owner.entityId) {
+    return false
+  }
+  const content = source.getContent()
+  if (content === null) return false
+  await exportMarkdownSnapshot(owner, record, content)
+  return true
+}
+
+async function exportMarkdownSnapshot(
+  owner: EditableFileOwner,
+  record: { id: string; name: string },
+  content: string
+): Promise<void> {
+  // Source editing accepts larger drafts than the bounded image-bundling endpoint.
+  if (
+    utf8ByteLength(content, PASTE_LIMITS.RICH_MARKDOWN_BYTES) > PASTE_LIMITS.RICH_MARKDOWN_BYTES
+  ) {
+    saveBlob(new Blob([content], { type: 'text/markdown; charset=utf-8' }), record.name)
+    return
+  }
+  const adapter = requireFileOwnerAdapter(OWNER_DOWNLOADS, owner)
+  const response = await adapter.exportSnapshot(owner.entityId, record.id, content)
+  saveBlob(await response.blob(), fileNameFromDisposition(response, record.name))
 }
 
 export function saveBlob(blob: Blob, fileName: string): void {
@@ -46,33 +137,16 @@ export async function triggerFileDownload(
   source?: FileDownloadSource | null
 ): Promise<void> {
   const isMarkdown = isMarkdownFile(record) || normalizeMimeType(record.type) === 'text/x-markdown'
-
-  const content =
+  if (
     isMarkdown &&
     record.vfsNamespace !== 'uploads' &&
     (record.storageContext ?? 'workspace') === 'workspace' &&
-    source?.fileId === record.id &&
-    source.workspaceId === record.workspaceId
-      ? source.getContent()
-      : null
-
-  if (content !== null) {
-    /** Source editing accepts larger drafts than the bounded image-bundling endpoint. */
-    if (
-      utf8ByteLength(content, PASTE_LIMITS.RICH_MARKDOWN_BYTES) > PASTE_LIMITS.RICH_MARKDOWN_BYTES
-    ) {
-      saveBlob(new Blob([content], { type: 'text/markdown; charset=utf-8' }), record.name)
-      return
-    }
-    const response = await requestRaw(
-      exportWorkspaceFileSnapshotContract,
-      {
-        params: { id: record.workspaceId, fileId: record.id },
-        body: { content },
-      },
-      { cache: 'no-store' }
-    )
-    saveBlob(await response.blob(), fileNameFromDisposition(response, record.name))
+    (await downloadMarkdownSnapshot(
+      { entityType: 'workspace', entityId: record.workspaceId },
+      record,
+      source
+    ))
+  ) {
     return
   }
 
@@ -90,25 +164,47 @@ export async function triggerFileDownload(
   saveBlob(await response.blob(), fileNameFromDisposition(response, record.name))
 }
 
+/** Downloads the selected Project's rendered artifact, preserving an open Markdown draft. */
+export async function triggerProjectFileDownload(
+  record: ProjectFileRecord,
+  source?: FileDownloadSource | null
+): Promise<void> {
+  if (isMarkdownFile(record) || normalizeMimeType(record.type) === 'text/x-markdown') {
+    if (await downloadMarkdownSnapshot(record.owner, record, source)) return
+    const response = await requestRaw(
+      readProjectFileContentContract,
+      { params: { id: record.owner.entityId, fileId: record.id } },
+      { cache: 'no-store' }
+    )
+    await exportMarkdownSnapshot(record.owner, record, await response.text())
+    return
+  }
+  const response = await requestRaw(
+    readProjectFileArtifactContract,
+    { params: { id: record.owner.entityId, fileId: record.id }, query: {} },
+    { cache: 'no-store' }
+  )
+  saveBlob(await response.blob(), fileNameFromDisposition(response, record.name))
+}
+
 /**
  * Download a selection of files as a zip. Fetched rather than navigated to, so a
  * rejection — a document still compiling, an entry too large — surfaces as an error the
  * caller can show in place instead of replacing the page with raw JSON. `requestRaw`
  * throws an `ApiClientError` carrying the route's own message.
  */
-export async function triggerArchiveDownload(input: {
-  workspaceId: string
-  fileIds?: string[]
-  folderIds?: string[]
-}): Promise<void> {
-  const response = await requestRaw(
-    downloadWorkspaceFileItemsContract,
-    {
-      params: { id: input.workspaceId },
-      query: { fileIds: input.fileIds ?? [], folderIds: input.folderIds ?? [] },
-    },
-    { cache: 'no-store' }
+export async function triggerArchiveDownload(
+  input: { fileIds?: string[]; folderIds?: string[] } & (
+    | { workspaceId: string; owner?: never }
+    | { owner: EditableFileOwner; workspaceId?: never }
   )
-
-  saveBlob(await response.blob(), fileNameFromDisposition(response, 'workspace-files.zip'))
+): Promise<void> {
+  const owner = input.owner ?? { entityType: 'workspace', entityId: input.workspaceId }
+  const adapter = requireFileOwnerAdapter(OWNER_DOWNLOADS, owner)
+  const response = await adapter.downloadArchive(
+    owner.entityId,
+    input.fileIds ?? [],
+    input.folderIds ?? []
+  )
+  saveBlob(await response.blob(), fileNameFromDisposition(response, adapter.archiveName))
 }

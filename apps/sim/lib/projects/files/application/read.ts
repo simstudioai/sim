@@ -37,6 +37,14 @@ interface ListProjectFilesResult {
   capabilities: { canRead: true; canWrite: boolean }
 }
 
+/** Capability hints describe this request's authority; later operations always reauthorize. */
+export const getProjectFileCapabilities = defineAuthorizedProjectFileUseCase({
+  operation: projectFileOperations.list,
+  async execute({ context }) {
+    return { owner: context.owner, canRead: true as const, canWrite: context.canWrite }
+  },
+})
+
 export const listProjectFiles = defineAuthorizedProjectFileUseCase<
   typeof projectFileOperations.list,
   ListProjectFilesInput,

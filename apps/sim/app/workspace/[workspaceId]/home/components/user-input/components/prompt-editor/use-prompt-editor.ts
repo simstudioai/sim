@@ -7,6 +7,7 @@ import {
   attachSelectionContextToClipboard,
   readSelectionContextFromClipboard,
 } from '@/lib/mothership/chat/selection-clipboard'
+import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import { snapSelectionToChips } from '@/app/workspace/[workspaceId]/home/components/user-input/chip-selection'
 import {
@@ -23,6 +24,7 @@ import {
 import type { SkillsMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/skills-menu-dropdown'
 import { useSkillAutoMention } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-skill-auto-mention'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
   useContextManagement,
   useIntegrationAutoMention,
@@ -38,7 +40,10 @@ import {
   uniqueContextLabel,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { type McpServer, useMcpToolServers } from '@/hooks/queries/mcp'
+import { useWorkspaceProject } from '@/hooks/queries/project-files'
+import { useProjectInventory } from '@/hooks/queries/projects'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
+import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -178,6 +183,48 @@ export function usePromptEditor({
 }: UsePromptEditorProps) {
   const contextsEnabledRef = useRef(contextsEnabled)
   contextsEnabledRef.current = contextsEnabled
+  const projectsEnabled = useFeatureFlag('projects')
+  const projectFilesEnabled = useFeatureFlag('project-files')
+  const projectSelectionsEnabled = projectsEnabled && projectFilesEnabled
+  const { data: workspaceProject } = useWorkspaceProject(
+    contextsEnabled && projectSelectionsEnabled && !organizationId ? workspaceId : undefined
+  )
+  const { data: projects } = useProjectInventory(
+    organizationId,
+    contextsEnabled && projectSelectionsEnabled
+  )
+  const { data: workspaces } = useOrderedWorkspacesQuery(contextsEnabled && Boolean(organizationId))
+  const selectionOwners = useMemo(() => {
+    const owners: FileOperationOwner[] = []
+    if (!contextsEnabled) return owners
+    if (workspaceId) owners.push({ entityType: 'workspace', entityId: workspaceId })
+    if (organizationId) {
+      for (const workspace of workspaces ?? []) {
+        if (workspace.organizationId === organizationId && workspace.id !== workspaceId)
+          owners.push({ entityType: 'workspace', entityId: workspace.id })
+      }
+      for (const project of projectSelectionsEnabled ? (projects ?? []) : []) {
+        if (project.organizationId === organizationId && !project.archivedAt)
+          owners.push({ entityType: 'project', entityId: project.id })
+      }
+    } else if (
+      projectSelectionsEnabled &&
+      workspaceProject &&
+      !workspaceProject.project.archivedAt &&
+      workspaceProject.project.environments.some((environment) => environment.id === workspaceId)
+    ) {
+      owners.push({ entityType: 'project', entityId: workspaceProject.project.id })
+    }
+    return owners
+  }, [
+    contextsEnabled,
+    workspaceId,
+    organizationId,
+    projectSelectionsEnabled,
+    projects,
+    workspaces,
+    workspaceProject,
+  ])
   const { data: queriedSkills = [], isPlaceholderData: skillsAreStale } = useSkills(
     contextsEnabled ? workspaceId : ''
   )
@@ -514,9 +561,17 @@ export function usePromptEditor({
 
   const insertResource = useCallback(
     (resource: MothershipResource, selected = contextManagementRef.current.selectedContexts) => {
-      const mapped = mapResourceToContext(resource)
+      let mapped = mapResourceToContext(resource)
       if (!mapped) return
-      const ownerWorkspaceId = resource.workspaceId ?? workspaceIdRef.current
+      if (resource.owner && resource.owner.entityType !== 'workspace') {
+        if (resource.owner.entityType !== 'project' || mapped.kind !== 'file') return
+        mapped = { ...mapped, owner: { entityType: 'project', entityId: resource.owner.entityId } }
+        return insertMention(mapped, selected)
+      }
+      const ownerWorkspaceId =
+        resource.owner?.entityId ?? resource.workspaceId ?? workspaceIdRef.current
+      if (mapped.kind === 'file' && resource.owner)
+        mapped = { ...mapped, owner: { entityType: 'workspace', entityId: ownerWorkspaceId } }
       return insertMention(
         organizationId && ownerWorkspaceId && isWorkspaceOwnedContext(mapped)
           ? { ...mapped, workspaceId: ownerWorkspaceId }
@@ -527,7 +582,17 @@ export function usePromptEditor({
     [insertMention, organizationId]
   )
 
-  /** Tags a whole workspace in an organization chat: "I'm working in this one". */
+  /** Tags shared Project context without selecting an environment. */
+  const insertProject = useCallback(
+    (project: { id: string; name: string }) => {
+      insertMention(
+        { kind: 'project', projectId: project.id, label: project.name },
+        contextManagementRef.current.selectedContexts
+      )
+    },
+    [insertMention]
+  )
+
   const insertWorkspace = useCallback(
     (workspace: { id: string; name: string }) => {
       insertMention(
@@ -1120,140 +1185,143 @@ export function usePromptEditor({
     syncSlashState(textarea, textarea.value, focusPos)
   }, [textareaRef, mentionTokens, adoptDomValue, syncMentionState, syncSlashState])
 
-  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const textarea = e.currentTarget
-    const pastedPlainText = e.clipboardData?.getData('text/plain') ?? ''
-    // A selection copied from a file/table (Cmd+C) carries its context on a
-    // custom clipboard type — paste it as a reference chip instead of plain text.
-    // Registers via `addContext` (not the notified path) so paste never opens a
-    // side panel, matching the portable-chip-link paste below.
-    //
-    // `preventDefault` waits until there is a chip to insert: when the selection
-    // is already attached there is nothing to add, and claiming the event anyway
-    // would swallow the keystroke entirely — no chip and no text. Falling through
-    // pastes the selection's plain text, which is what the user asked for.
-    const selectionContext = contextsEnabledRef.current
-      ? readSelectionContextFromClipboard(e.clipboardData, workspaceIdRef.current)
-      : null
-    const preparedSelection = selectionContext
-      ? prepareContextForInsert(selectionContext, contextManagementRef.current.selectedContexts)
-      : null
-    if (preparedSelection) {
-      e.preventDefault()
-      const selStart = textarea.selectionStart ?? valueRef.current.length
-      const selEnd = textarea.selectionEnd ?? selStart
-      const needsSpaceBefore = selStart > 0 && !/\s/.test(valueRef.current.charAt(selStart - 1))
-      const insert = `${needsSpaceBefore ? ' ' : ''}@${preparedSelection.label} `
-      textarea.setRangeText(insert, selStart, selEnd, 'end')
-      const caret = selStart + insert.length
-      contextManagementRef.current.addContext(preparedSelection)
-      valueRef.current = textarea.value
-      setValueState(textarea.value)
-      requestAnimationFrame(() => textarea.setSelectionRange(caret, caret))
-      return
-    }
-
-    if (pastedPlainText) {
-      const admission = assessTextPaste({
-        pastedText: pastedPlainText,
-        maxPastedBytes: PASTE_LIMITS.CHAT_BYTES,
-        maxPastedCharacters: PASTE_LIMITS.CHAT_CHARACTERS,
-        currentText: textarea.value,
-        selectionStart: textarea.selectionStart,
-        selectionEnd: textarea.selectionEnd,
-        maxResultBytes: PASTE_LIMITS.CHAT_BYTES,
-        maxResultCharacters: PASTE_LIMITS.CHAT_CHARACTERS,
-      })
-      if (!admission.accepted) {
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const textarea = e.currentTarget
+      const pastedPlainText = e.clipboardData?.getData('text/plain') ?? ''
+      // A selection copied from a file/table (Cmd+C) carries its context on a
+      // custom clipboard type — paste it as a reference chip instead of plain text.
+      // Registers via `addContext` (not the notified path) so paste never opens a
+      // side panel, matching the portable-chip-link paste below.
+      //
+      // `preventDefault` waits until there is a chip to insert: when the selection
+      // is already attached there is nothing to add, and claiming the event anyway
+      // would swallow the keystroke entirely — no chip and no text. Falling through
+      // pastes the selection's plain text, which is what the user asked for.
+      const selectionContext = contextsEnabledRef.current
+        ? readSelectionContextFromClipboard(e.clipboardData, selectionOwners)
+        : null
+      const preparedSelection = selectionContext
+        ? prepareContextForInsert(selectionContext, contextManagementRef.current.selectedContexts)
+        : null
+      if (preparedSelection) {
         e.preventDefault()
-        toast.warning('Paste is too large for a message', {
-          description: `Messages support up to ${PASTE_LIMITS.CHAT_CHARACTERS.toLocaleString()} characters. Attach the content as a file to send more without slowing the editor.`,
+        const selStart = textarea.selectionStart ?? valueRef.current.length
+        const selEnd = textarea.selectionEnd ?? selStart
+        const needsSpaceBefore = selStart > 0 && !/\s/.test(valueRef.current.charAt(selStart - 1))
+        const insert = `${needsSpaceBefore ? ' ' : ''}@${preparedSelection.label} `
+        textarea.setRangeText(insert, selStart, selEnd, 'end')
+        const caret = selStart + insert.length
+        contextManagementRef.current.addContext(preparedSelection)
+        valueRef.current = textarea.value
+        setValueState(textarea.value)
+        requestAnimationFrame(() => textarea.setSelectionRange(caret, caret))
+        return
+      }
+
+      if (pastedPlainText) {
+        const admission = assessTextPaste({
+          pastedText: pastedPlainText,
+          maxPastedBytes: PASTE_LIMITS.CHAT_BYTES,
+          maxPastedCharacters: PASTE_LIMITS.CHAT_CHARACTERS,
+          currentText: textarea.value,
+          selectionStart: textarea.selectionStart,
+          selectionEnd: textarea.selectionEnd,
+          maxResultBytes: PASTE_LIMITS.CHAT_BYTES,
+          maxResultCharacters: PASTE_LIMITS.CHAT_CHARACTERS,
+        })
+        if (!admission.accepted) {
+          e.preventDefault()
+          toast.warning('Paste is too large for a message', {
+            description: `Messages support up to ${PASTE_LIMITS.CHAT_CHARACTERS.toLocaleString()} characters. Attach the content as a file to send more without slowing the editor.`,
+          })
+          return
+        }
+      }
+
+      // Portable chip links (`[label](sim:kind/id)`) re-create their chip on
+      // paste-back. Rewrite each link span to its `@label ` token (the trailing
+      // space is REQUIRED so useContextManagement's pruning doesn't purge the
+      // freshly-added context) and register the contexts directly.
+      const pastedText = pastedPlainText
+      const links = contextsEnabledRef.current ? parseChipLinks(pastedText) : []
+      if (links.length > 0) {
+        e.preventDefault()
+
+        const pastedContexts: ChatContext[] = []
+        let rewritten = ''
+        let cursor = 0
+        for (let i = 0; i < links.length; i++) {
+          const link = links[i]
+          let between = pastedText.slice(cursor, link.start)
+          // Self-heal: a run of plain spaces sitting ENTIRELY between two chips is
+          // glue the codec re-emits, so collapse it to one space — gaps accumulated
+          // by earlier pastes clean themselves up. Newlines and prose-bordering
+          // whitespace contain non-space chars and are left verbatim.
+          if (i > 0 && /^ +$/.test(between)) between = ' '
+          rewritten += between
+          const ctx = chipLinkToContext(link)
+          pastedContexts.push(ctx)
+          // Insert the kind-correct token (skill EM-SPACE sentinel, slash `/`, `@`
+          // else) so the chip re-renders with its proper trigger glyph and the
+          // context pruning (keyed on the same per-kind prefix) keeps it. Append
+          // a single separator ONLY when the next source char is non-whitespace
+          // (chip→chip / chip→word); existing whitespace and end-of-string already
+          // supply the boundary, so re-pasting never accumulates spaces.
+          const next = pastedText.charAt(link.end)
+          rewritten += /\S/.test(next) ? `${chipDisplayToken(ctx)} ` : chipDisplayToken(ctx)
+          cursor = link.end
+        }
+        rewritten += pastedText.slice(cursor)
+
+        const selStart = textarea.selectionStart ?? valueRef.current.length
+        const selEnd = textarea.selectionEnd ?? selStart
+        const needsSpaceBefore =
+          selStart > 0 &&
+          !/\s/.test(valueRef.current.charAt(selStart - 1)) &&
+          /^[@/\u2003]/.test(rewritten)
+        const insert = needsSpaceBefore ? ` ${rewritten}` : rewritten
+
+        textarea.setRangeText(insert, selStart, selEnd, 'end')
+        const newValue = textarea.value
+        const caret = selStart + insert.length
+
+        // Use addContext directly — NOT the notified path — so pasting does NOT
+        // auto-open host side panels (the notified path fires onContextAdd).
+        for (const ctx of pastedContexts) contextManagementRef.current.addContext(ctx)
+
+        valueRef.current = newValue
+        setValueState(newValue)
+        requestAnimationFrame(() => {
+          textarea.setSelectionRange(caret, caret)
         })
         return
       }
-    }
 
-    // Portable chip links (`[label](sim:kind/id)`) re-create their chip on
-    // paste-back. Rewrite each link span to its `@label ` token (the trailing
-    // space is REQUIRED so useContextManagement's pruning doesn't purge the
-    // freshly-added context) and register the contexts directly.
-    const pastedText = pastedPlainText
-    const links = contextsEnabledRef.current ? parseChipLinks(pastedText) : []
-    if (links.length > 0) {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      const pastedFiles: File[] = []
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file') {
+          const file = item.getAsFile()
+          if (file) pastedFiles.push(file)
+        }
+      }
+
+      if (pastedFiles.length === 0) return
+      const acceptFiles = onPasteFilesRef.current
+      if (!acceptFiles) return
+
       e.preventDefault()
-
-      const pastedContexts: ChatContext[] = []
-      let rewritten = ''
-      let cursor = 0
-      for (let i = 0; i < links.length; i++) {
-        const link = links[i]
-        let between = pastedText.slice(cursor, link.start)
-        // Self-heal: a run of plain spaces sitting ENTIRELY between two chips is
-        // glue the codec re-emits, so collapse it to one space — gaps accumulated
-        // by earlier pastes clean themselves up. Newlines and prose-bordering
-        // whitespace contain non-space chars and are left verbatim.
-        if (i > 0 && /^ +$/.test(between)) between = ' '
-        rewritten += between
-        const ctx = chipLinkToContext(link)
-        pastedContexts.push(ctx)
-        // Insert the kind-correct token (skill EM-SPACE sentinel, slash `/`, `@`
-        // else) so the chip re-renders with its proper trigger glyph and the
-        // context pruning (keyed on the same per-kind prefix) keeps it. Append
-        // a single separator ONLY when the next source char is non-whitespace
-        // (chip→chip / chip→word); existing whitespace and end-of-string already
-        // supply the boundary, so re-pasting never accumulates spaces.
-        const next = pastedText.charAt(link.end)
-        rewritten += /\S/.test(next) ? `${chipDisplayToken(ctx)} ` : chipDisplayToken(ctx)
-        cursor = link.end
+      const dt = new DataTransfer()
+      for (const file of pastedFiles) {
+        dt.items.add(file)
       }
-      rewritten += pastedText.slice(cursor)
-
-      const selStart = textarea.selectionStart ?? valueRef.current.length
-      const selEnd = textarea.selectionEnd ?? selStart
-      const needsSpaceBefore =
-        selStart > 0 &&
-        !/\s/.test(valueRef.current.charAt(selStart - 1)) &&
-        /^[@/\u2003]/.test(rewritten)
-      const insert = needsSpaceBefore ? ` ${rewritten}` : rewritten
-
-      textarea.setRangeText(insert, selStart, selEnd, 'end')
-      const newValue = textarea.value
-      const caret = selStart + insert.length
-
-      // Use addContext directly — NOT the notified path — so pasting does NOT
-      // auto-open host side panels (the notified path fires onContextAdd).
-      for (const ctx of pastedContexts) contextManagementRef.current.addContext(ctx)
-
-      valueRef.current = newValue
-      setValueState(newValue)
-      requestAnimationFrame(() => {
-        textarea.setSelectionRange(caret, caret)
-      })
-      return
-    }
-
-    const items = e.clipboardData?.items
-    if (!items) return
-
-    const pastedFiles: File[] = []
-    for (const item of Array.from(items)) {
-      if (item.kind === 'file') {
-        const file = item.getAsFile()
-        if (file) pastedFiles.push(file)
-      }
-    }
-
-    if (pastedFiles.length === 0) return
-    const acceptFiles = onPasteFilesRef.current
-    if (!acceptFiles) return
-
-    e.preventDefault()
-    const dt = new DataTransfer()
-    for (const file of pastedFiles) {
-      dt.items.add(file)
-    }
-    acceptFiles(dt.files)
-  }, [])
+      acceptFiles(dt.files)
+    },
+    [selectionOwners]
+  )
 
   /**
    * On copy/cut, write a portable representation of the selection to the
@@ -1282,13 +1350,19 @@ export function usePromptEditor({
       const soleSelectionChip =
         selectionChips.length === 1 &&
         selected.replace(chipDisplayToken(selectionChips[0]), '').trim().length === 0
-      if (soleSelectionChip) {
+      const selection = selectionChips[0]
+      if (
+        soleSelectionChip &&
+        (selection.kind === 'file_selection' || selection.kind === 'table_selection')
+      ) {
         e.preventDefault()
         e.clipboardData.setData('text/plain', selected)
         attachSelectionContextToClipboard(
           e.clipboardData,
-          selectionChips[0],
-          workspaceIdRef.current
+          selection,
+          selection.kind === 'file_selection' && selection.owner
+            ? selection.owner
+            : (selection.workspaceId ?? workspaceIdRef.current)
         )
         return true
       }
@@ -1349,6 +1423,7 @@ export function usePromptEditor({
     /** @internal Wiring consumed by the {@link PromptEditor} view. */
     workspaceId,
     organizationId,
+    selectionOwners,
     contextsEnabled,
     /** @internal */
     skills,
@@ -1368,6 +1443,7 @@ export function usePromptEditor({
     insertResource,
     /** @internal */
     insertWorkspace,
+    insertProject,
     /** @internal */
     handleSkillSelect,
     /** @internal */

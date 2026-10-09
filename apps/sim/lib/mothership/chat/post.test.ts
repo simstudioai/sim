@@ -43,6 +43,7 @@ import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getChatResourceKey, type MothershipResource } from '@/lib/mothership/resources/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const flags = vi.hoisted(() => ({ plan: vi.fn(), models: vi.fn() }))
@@ -66,6 +67,7 @@ const {
   generateWorkspaceSnapshot,
   processContextsServer,
   resolveActiveResourceContext,
+  resolveOwnedFileContext,
   createSSEStream,
   acquirePendingChatStream,
   getPendingChatStreamId,
@@ -82,6 +84,7 @@ const {
   generateWorkspaceSnapshot: vi.fn(),
   processContextsServer: vi.fn(),
   resolveActiveResourceContext: vi.fn(),
+  resolveOwnedFileContext: vi.fn(),
   createSSEStream: vi.fn(),
   acquirePendingChatStream: vi.fn(),
   getPendingChatStreamId: vi.fn(),
@@ -167,6 +170,7 @@ vi.mock('@/lib/mothership/chat/workspace-context', () => ({
 vi.mock('@/lib/mothership/chat/process-contents', () => ({
   processContextsServer,
   resolveActiveResourceContext,
+  resolveOwnedFileContext,
 }))
 
 vi.mock('@/lib/mothership/chat/application/admit-turn', () => ({
@@ -995,6 +999,33 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
+  it('keeps a workspace file panel identity when the first message creates a chat', async () => {
+    const panel: MothershipResource = { type: 'file', id: 'file-1', title: 'Draft' }
+    resolveOwnedFileContext.mockResolvedValue({
+      type: 'active_resource',
+      content: '',
+      resource: {
+        ...panel,
+        title: 'Canonical file',
+        owner: { entityType: 'workspace', entityId: 'ws-1' },
+      },
+    })
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Read this file',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          resourceAttachments: [panel],
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    const persisted: MothershipResource[] = persistChatResources.mock.calls[0][1]
+    expect(persisted.map(getChatResourceKey)).toEqual([getChatResourceKey(panel)])
+  })
+
   it('never persists browser tab attachments, which the desktop app restores itself', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
@@ -1088,7 +1119,8 @@ describe('handleUnifiedChatPost', () => {
       'ws-1',
       'chat-1',
       expect.any(ResolvedSecretTraceRegistry),
-      undefined
+      undefined,
+      'agent'
     )
     expect(resolveActiveResourceContext).toHaveBeenCalledWith(
       'table',
@@ -1204,7 +1236,8 @@ describe('handleUnifiedChatPost', () => {
       'ws-1',
       'chat-1',
       expect.any(ResolvedSecretTraceRegistry),
-      undefined
+      undefined,
+      'agent'
     )
   })
 

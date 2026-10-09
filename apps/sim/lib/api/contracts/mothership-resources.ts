@@ -3,6 +3,7 @@ import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/prim
 import { predicateInputSchema, sortSpecSchema } from '@/lib/api/contracts/tables'
 import { ResourceAddress, SearchResource } from '@/lib/mothership/generated/resources'
 import {
+  hasValidChatResourceOwner,
   type MothershipResource,
   MothershipResourceType,
   PERSISTED_RESOURCE_TYPES,
@@ -13,6 +14,7 @@ const resourceAddressSchema = z
   .object({
     type: z.enum(PERSISTED_RESOURCE_TYPES),
     id: requiredFieldSchema('resource.id cannot be empty'),
+    owner: ResourceAddress.shape.owner,
     workspaceId: workspaceIdSchema.optional(),
     workspaceName: z.string().max(256).optional(),
     path: z.string().optional(),
@@ -22,6 +24,12 @@ const resourceAddressSchema = z
     sources: ResourceAddress.shape.sources,
   })
   .superRefine((resource, ctx) => {
+    if (!hasValidChatResourceOwner(resource))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['owner'],
+        message: 'Resource owner conflicts with its address',
+      })
     if ((resource.type === 'sources') !== (resource.sources !== undefined))
       ctx.addIssue({
         code: 'custom',
@@ -55,6 +63,23 @@ const resourceAddressSchema = z
 export const mothershipResourceSchema = resourceAddressSchema.safeExtend({
   title: z.string(),
 }) satisfies z.ZodType<MothershipResource>
+
+/** Removal uses the same file owner constraints as resource creation and hydration. */
+export const mothershipResourceRemovalSchema = z
+  .object({
+    owner: ResourceAddress.shape.owner,
+    workspaceId: workspaceIdSchema.optional(),
+    resourceType: z.enum(PERSISTED_RESOURCE_TYPES),
+    resourceId: requiredFieldSchema('resourceId cannot be empty'),
+  })
+  .superRefine((resource, ctx) => {
+    if (!hasValidChatResourceOwner({ ...resource, type: resource.resourceType }))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['owner'],
+        message: 'Resource owner conflicts with its address',
+      })
+  })
 
 /** The query visible in an embedded table, including changes not saved yet. */
 export const mothershipTableViewContextSchema = z

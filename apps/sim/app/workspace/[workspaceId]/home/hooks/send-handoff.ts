@@ -102,6 +102,8 @@ function isChatContext(value: unknown): value is ChatContext {
       return typeof value.folderId === 'string'
     case 'filefolder':
       return typeof value.fileFolderId === 'string'
+    case 'project':
+      return typeof value.projectId === 'string' && value.workspaceId === undefined
     case 'workspace':
       return typeof value.workspaceId === 'string'
     case 'docs':

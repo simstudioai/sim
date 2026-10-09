@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { hasCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
@@ -22,6 +23,7 @@ export const DurableChatRequestSchema = ChatPayloadSchema.safeExtend({
 export const StreamRecoveryConfigSchema = z
   .object({
     kind: z.literal('interactive_stream'),
+    resourceAuthoringVersion: z.literal(1).optional(),
     billingAdmission: BillingAdmissionSchema.optional(),
     request: DurableChatRequestSchema,
     goRoute: z.enum(['/api/mothership', '/api/copilot']),
@@ -53,5 +55,14 @@ export function streamRecoveryConfig(
     clientToolPickupExpected: options.clientToolPickupExpected ?? true,
     userTimezone: options.executionContext?.userTimezone,
     requestMode: options.executionContext?.requestMode,
+    resourceAuthoringVersion: hasCopilotResourceAdmission({
+      ...options,
+      ...options.executionContext,
+      copilotToolExecution: true,
+      copilotResourceAdmission:
+        options.executionContext?.copilotResourceAdmission ?? options.copilotResourceAdmission,
+    })
+      ? 1
+      : undefined,
   })
 }

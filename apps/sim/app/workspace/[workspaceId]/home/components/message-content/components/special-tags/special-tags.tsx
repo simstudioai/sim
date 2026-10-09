@@ -53,6 +53,7 @@ import {
   parseSearchConnectionBody,
   searchConnectionTargetSchema,
 } from '@/lib/knowledge/search/connection-target'
+import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
@@ -96,6 +97,7 @@ import type {
 // ConnectServiceAccountModal, and that edge would pull the modal into this
 // chunk and defeat the lazy() split below.
 import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
@@ -111,6 +113,7 @@ import {
   useUpsertWorkspaceEnvironment,
 } from '@/hooks/queries/environment'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { useProjectFile } from '@/hooks/queries/project-files'
 import { useTablesList } from '@/hooks/queries/tables'
 import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -362,6 +365,7 @@ export const WORKSPACE_RESOURCE_TAG_TYPES = ['workflow', 'table', 'dashboard', '
 export type WorkspaceResourceTagType = (typeof WORKSPACE_RESOURCE_TAG_TYPES)[number]
 
 export interface WorkspaceResourceTagData {
+  owner?: FileOperationOwner
   /** Explicit resource owner in organization chat; omitted on a workspace surface. */
   workspaceId?: string
   type: WorkspaceResourceTagType
@@ -677,6 +681,16 @@ function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceT
 
   const id = typeof value.id === 'string' ? value.id.trim() : ''
   const path = typeof value.path === 'string' ? value.path.trim() : ''
+  if (value.owner !== undefined) {
+    const parsed = FileOperationOwner.safeParse(value.owner)
+    return (
+      parsed.success &&
+      parsed.data.entityType === 'project' &&
+      value.type === 'file' &&
+      value.workspaceId === undefined &&
+      id.length > 0
+    )
+  }
   if (value.type === 'file') return id.length > 0 || path.length > 0
   return id.length > 0
 }
@@ -1951,7 +1965,12 @@ function toChatMessageContext(data: WorkspaceResourceTagData, label: string): Ch
     case 'dashboard':
       return { kind: 'dashboard', label, dashboardId: data.id ?? '' }
     case 'file':
-      return { kind: 'file', label, fileId: data.id ?? data.path ?? '' }
+      return {
+        kind: 'file',
+        label,
+        fileId: data.id ?? data.path ?? '',
+        ...(data.owner ? { owner: data.owner } : {}),
+      }
   }
 }
 
@@ -1965,6 +1984,16 @@ export function WorkspaceResourceDisplay(props: WorkspaceResourceDisplayProps) {
     workspaceId?: string
     organizationId?: string
   }>()
+  if (props.data.owner?.entityType === 'project' && props.data.id) {
+    return (
+      <ProjectFileResourceDisplay
+        projectId={props.data.owner.entityId}
+        fileId={props.data.id.trim()}
+        title={props.data.title}
+        onSelect={props.onSelect}
+      />
+    )
+  }
   if (organizationId) {
     const target = props.data.workspaceId
     if (!target) return <span role='status'>This resource needs an explicit workspace target.</span>
@@ -1982,6 +2011,44 @@ export function WorkspaceResourceDisplay(props: WorkspaceResourceDisplayProps) {
   if (!workspaceId || (props.data.workspaceId && props.data.workspaceId !== workspaceId))
     return <span role='status'>This resource belongs to a different workspace.</span>
   return <WorkspaceResourceDisplayContent {...props} workspaceId={workspaceId} />
+}
+
+interface ProjectFileResourceDisplayProps {
+  projectId: string
+  fileId: string
+  title?: string
+  onSelect?: (resource: WorkspaceResourceRef) => void
+}
+
+function ProjectFileResourceDisplay({
+  projectId,
+  fileId,
+  title,
+  onSelect,
+}: ProjectFileResourceDisplayProps) {
+  const projectsEnabled = useFeatureFlag('projects')
+  const projectFilesEnabled = useFeatureFlag('project-files')
+  const enabled = projectsEnabled && projectFilesEnabled
+  const { data, isError } = useProjectFile(enabled ? projectId : undefined, fileId)
+  const file = data?.file
+  const label = file?.name ?? title ?? 'File'
+  if (isError) return <span role='status'>File unavailable.</span>
+  return (
+    <ResourceMention
+      icon={
+        <ContextMentionIcon
+          context={{ kind: 'file', fileId, label, fileName: file?.name }}
+          className='size-[12px] shrink-0 text-[var(--text-icon)]'
+        />
+      }
+      title={label}
+      onSelect={
+        file && onSelect
+          ? () => onSelect({ type: 'file', id: file.id, title: file.name, owner: file.owner })
+          : undefined
+      }
+    />
+  )
 }
 
 function WorkspaceResourceDisplayContent({

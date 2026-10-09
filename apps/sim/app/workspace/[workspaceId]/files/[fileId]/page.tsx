@@ -2,9 +2,10 @@ import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { getSession } from '@/lib/auth'
+import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import FilesFileLoading from '@/app/workspace/[workspaceId]/files/[fileId]/loading'
-import { Files } from '@/app/workspace/[workspaceId]/files/files'
+import { FilesBrowser } from '@/app/workspace/[workspaceId]/files/browser'
 import { prefetchFilesBrowser } from '@/app/workspace/[workspaceId]/files/prefetch'
 
 export const metadata: Metadata = {
@@ -41,7 +42,7 @@ export default async function FilesFilePage({
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <Suspense fallback={<FilesFileLoading />}>
-        <Files />
+        <FilesBrowser projectFilesEnabled={await isProjectFileApiEnabled()} />
       </Suspense>
     </HydrationBoundary>
   )

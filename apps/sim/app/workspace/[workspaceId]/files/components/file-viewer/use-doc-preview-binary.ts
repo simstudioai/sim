@@ -113,6 +113,11 @@ export function stepDocPreviewBinary({
   return { resolved, hasResolvedForFile, lastGood: resolved.lastGood }
 }
 
+interface UseDocPreviewBinaryProps {
+  workspaceId: string | undefined
+  file: DocPreviewFile
+}
+
 /**
  * Resolves the compiled binary to render for a generated or uploaded document and
  * retains the last successfully fetched binary as a fallback.
@@ -126,7 +131,10 @@ export function stepDocPreviewBinary({
  * placeholder (which still holds the prior file's bytes) is ignored until a fresh
  * binary resolves for the new file, so one viewer never renders another file's content.
  */
-export function useDocPreviewBinary(workspaceId: string, file: DocPreviewFile): DocPreviewBinary {
+export function useDocPreviewBinary({
+  workspaceId,
+  file,
+}: UseDocPreviewBinaryProps): DocPreviewBinary {
   const query = useWorkspaceFileBinary(workspaceId, file.id, file.key, {
     enabled: (file.size ?? 0) > 0,
     version: Number(new Date(file.updatedAt)) || file.size,

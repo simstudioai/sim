@@ -4,71 +4,50 @@ import { requestJson } from '@/lib/api/client/request'
 import {
   type AuthenticatePublicFileResponse,
   authenticatePublicFileContract,
-  getFileShareContract,
   requestPublicFileOtpContract,
-  type ShareRecord,
   type UpsertFileShareBody,
-  upsertFileShareContract,
   type VerifyPublicFileOtpResponse,
   verifyPublicFileOtpContract,
 } from '@/lib/api/contracts/public-shares'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
+import { getFileShareQueryAdapter } from '@/hooks/queries/utils/file-share-query-adapters'
 
 export const FILE_SHARE_STALE_TIME = 30 * 1000
 
-/**
- * Query key factories for public shares
- */
-const shareKeys = {
-  all: ['publicShares'] as const,
-  details: () => [...shareKeys.all, 'detail'] as const,
-  detail: (workspaceId: string, fileId: string) =>
-    [...shareKeys.details(), workspaceId, fileId] as const,
-}
-
-async function fetchFileShare(
-  workspaceId: string,
+export function useFileShare(
+  owner: EditableFileOwner,
   fileId: string,
-  signal?: AbortSignal
-): Promise<ShareRecord | null> {
-  const data = await requestJson(getFileShareContract, {
-    params: { id: workspaceId, fileId },
-    signal,
-  })
-  return data.share
-}
-
-export function useFileShare(workspaceId: string, fileId: string, options?: { enabled?: boolean }) {
-  return useQuery({
-    queryKey: shareKeys.detail(workspaceId, fileId),
-    queryFn: ({ signal }) => fetchFileShare(workspaceId, fileId, signal),
-    enabled: Boolean(workspaceId) && Boolean(fileId) && (options?.enabled ?? true),
+  options?: { enabled?: boolean }
+) {
+  const adapter = getFileShareQueryAdapter(owner)
+  const query = useQuery({
+    queryKey: adapter.key(owner.entityId, fileId),
+    queryFn: ({ signal }) => adapter.read(owner.entityId, fileId, signal),
+    enabled: Boolean(fileId) && (options?.enabled ?? true),
     staleTime: FILE_SHARE_STALE_TIME,
     refetchOnMount: 'always',
   })
+  return { ...query, data: query.data === undefined ? undefined : adapter.state(query.data) }
 }
 
 interface UpsertFileShareVariables extends UpsertFileShareBody {
-  workspaceId: string
+  owner: EditableFileOwner
   fileId: string
 }
 
 export function useUpsertFileShare() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ workspaceId, fileId, ...body }: UpsertFileShareVariables) =>
-      requestJson(upsertFileShareContract, {
-        params: { id: workspaceId, fileId },
-        body,
-      }),
-    onSuccess: (data, { workspaceId, fileId }) => {
-      queryClient.setQueryData(shareKeys.detail(workspaceId, fileId), data.share)
+    mutationFn: ({ owner, fileId, ...body }: UpsertFileShareVariables) =>
+      getFileShareQueryAdapter(owner).update(owner.entityId, fileId, body),
+    onSuccess: (data, { owner, fileId }) => {
+      getFileShareQueryAdapter(owner).store(queryClient, owner.entityId, fileId, data.share)
     },
     onError: (error) => {
       toast.error(error.message)
     },
-    onSettled: (_data, _error, { workspaceId }) => {
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
+    onSettled: (_data, _error, { owner, fileId }) => {
+      getFileShareQueryAdapter(owner).invalidate(queryClient, owner.entityId, fileId)
     },
   })
 }

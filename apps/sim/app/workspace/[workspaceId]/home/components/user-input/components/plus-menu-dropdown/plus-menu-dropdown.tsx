@@ -12,9 +12,13 @@ import {
   dropdownMenuRowClass,
   OverflowText,
 } from '@sim/emcn'
+import { Folder } from '@sim/emcn/icons'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import type { Project } from '@/lib/api/contracts/projects'
+import { getChatResourceKey } from '@/lib/mothership/resources/types'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import {
+  ProjectResourceSubmenu,
   ResourceMenuSections,
   resourceFromItem,
   useAvailableResources,
@@ -26,6 +30,7 @@ import {
   mergeOrganizationResourceInventories,
   OrganizationResourceInventory,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/organization-resource-inventory'
+import { useAvailableProjectInventories } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/project-resources'
 import {
   byResourceMenuOrder,
   getResourceConfig,
@@ -44,6 +49,8 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { useProjectInventory } from '@/hooks/queries/projects'
 import { useOrderedWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
 import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
@@ -60,10 +67,13 @@ const RESOURCE_MENU_WIDTH_CLASS = 'w-[360px] min-w-0 max-w-[min(360px,calc(100vw
 
 type MentionCandidate =
   | ResourceMentionCandidate
+  | { type: 'project'; item: Pick<Project, 'id' | 'name'> }
   | { type: 'workspace'; item: Pick<Workspace, 'id' | 'name' | 'logoUrl'> }
 
 function candidateKey({ type, item }: MentionCandidate): string {
-  return `${type}:${'workspaceId' in item ? item.workspaceId : ''}:${item.id}`
+  return type === 'workspace' || type === 'project'
+    ? `${type}:${item.id}`
+    : getChatResourceKey(resourceFromItem(type, item))
 }
 
 /**
@@ -95,6 +105,7 @@ function isNativeResourceGroup({ type }: { type: MothershipResourceType }): bool
 
 const EMPTY_BROWSER_TABS = [] as const
 const EMPTY_TERMINAL_TABS = [] as const
+const EMPTY_PROJECTS: Project[] = []
 
 interface PlusMenuDropdownProps {
   workspaceId: string
@@ -110,6 +121,7 @@ interface PlusMenuDropdownProps {
   onResourceSelect: (resource: MothershipResource) => void
   /** Tags a whole workspace; offered only in organization chats. */
   onWorkspaceSelect: (workspace: { id: string; name: string }) => void
+  onProjectSelect: (project: { id: string; name: string }) => void
   onClose: () => void
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   pendingCursorRef: React.MutableRefObject<number | null>
@@ -125,6 +137,7 @@ export const PlusMenuDropdown = React.memo(
       warm,
       onResourceSelect,
       onWorkspaceSelect,
+      onProjectSelect,
       onClose,
       textareaRef,
       pendingCursorRef,
@@ -155,6 +168,14 @@ export const PlusMenuDropdown = React.memo(
       enabled: inventoryEnabled,
       includeFolderMentions: true,
     })
+    const projectsEnabled = useFeatureFlag('projects')
+    const projectFilesEnabled = useFeatureFlag('project-files')
+    const projectSelectionEnabled = projectsEnabled && projectFilesEnabled
+    const projectQuery = useProjectInventory(organizationId, inventoryEnabled && projectsEnabled)
+    const projects =
+      projectsEnabled && !projectQuery.isError
+        ? (projectQuery.data ?? EMPTY_PROJECTS)
+        : EMPTY_PROJECTS
     const { data: allWorkspaces, isPending: workspacesPending } = useOrderedWorkspacesQuery(
       Boolean(organizationId) && inventoryEnabled
     )
@@ -171,8 +192,12 @@ export const PlusMenuDropdown = React.memo(
         current[workspaceId] === inventory ? current : { ...current, [workspaceId]: inventory }
       )
     }, [])
+    const projectInventories = useAvailableProjectInventories({
+      projects,
+      enabled: inventoryEnabled && Boolean(organizationId),
+    })
     const combined = organizationId
-      ? mergeOrganizationResourceInventories(workspaces, inventories)
+      ? mergeOrganizationResourceInventories(workspaces, inventories, projects, projectInventories)
       : workspaceInventory
     const { structureFolders } = combined
     const availableResources = organizationId
@@ -180,7 +205,11 @@ export const PlusMenuDropdown = React.memo(
           byResourceMenuOrder
         )
       : combined.groups
-    const isHydrating = combined.isHydrating || Boolean(organizationId && workspacesPending)
+    const isHydrating =
+      combined.isHydrating ||
+      Boolean(
+        organizationId && (workspacesPending || (projectSelectionEnabled && projectQuery.isPending))
+      )
 
     const doOpen = useCallback(
       (anchor: { left: number; top: number }, options?: { mention?: boolean }) => {
@@ -233,6 +262,15 @@ export const PlusMenuDropdown = React.memo(
     const filteredItems = useMemo((): MentionCandidate[] | null => {
       const q = query.toLowerCase().trim()
       if (!isMention && !q) return null
+      const projectItems: MentionCandidate[] = (
+        projectSelectionEnabled
+          ? q
+            ? projects
+            : projects.slice(0, MENTION_PREVIEW_DEFAULT_LIMIT)
+          : EMPTY_PROJECTS
+      )
+        .filter((project) => project.name.toLowerCase().includes(q))
+        .map((item) => ({ type: 'project', item }))
       const workspaceItems: MentionCandidate[] = (
         q ? workspaces : workspaces.slice(0, MENTION_PREVIEW_DEFAULT_LIMIT)
       )
@@ -246,8 +284,8 @@ export const PlusMenuDropdown = React.memo(
             visibleResources,
             (type) => getResourceConfig(type).mentionPreviewLimit ?? MENTION_PREVIEW_DEFAULT_LIMIT
           )
-      return [...workspaceItems, ...resourceItems]
-    }, [isMention, query, visibleResources, workspaces])
+      return [...projectItems, ...workspaceItems, ...resourceItems]
+    }, [isMention, query, visibleResources, workspaces, projects, projectSelectionEnabled])
 
     const activeIndex = Math.max(
       0,
@@ -294,8 +332,14 @@ export const PlusMenuDropdown = React.memo(
       closeAfterSelect()
     }
 
+    const handleProjectSelect = (project: { id: string; name: string }) => {
+      onProjectSelect(project)
+      closeAfterSelect()
+    }
+
     const handleCandidateSelect = (candidate: MentionCandidate) => {
       if (candidate.type === 'workspace') handleWorkspaceSelect(candidate.item)
+      else if (candidate.type === 'project') handleProjectSelect(candidate.item)
       else handleSelect(resourceFromItem(candidate.type, candidate.item))
     }
     const handleSelectRef = useRef(handleCandidateSelect)
@@ -414,6 +458,7 @@ export const PlusMenuDropdown = React.memo(
               onChange={receiveInventory}
             />
           ))}
+
         <DropdownMenuTrigger asChild>
           <div
             className='pointer-events-none fixed size-0'
@@ -452,6 +497,21 @@ export const PlusMenuDropdown = React.memo(
                   menu FocusScope steal focus from the search input back to the content root. */}
             <div hidden={filteredItems !== null}>
               {organizationId &&
+                projects.map((project) => (
+                  <ProjectResourceSubmenu
+                    key={project.id}
+                    project={project}
+                    workspaces={workspaces}
+                    onSelectProject={projectSelectionEnabled ? handleProjectSelect : undefined}
+                    excludeTypes={WORKSPACE_SUBMENU_EXCLUDED_TYPES}
+                    selectFolders
+                    onSelect={handleSelect}
+                    onSelectWorkspace={handleWorkspaceSelect}
+                    subContentClassName={RESOURCE_MENU_WIDTH_CLASS}
+                  />
+                ))}
+              {organizationId &&
+                !projectsEnabled &&
                 workspaces.map((workspace) => (
                   <WorkspaceResourceSubmenu
                     key={workspace.id}
@@ -463,6 +523,15 @@ export const PlusMenuDropdown = React.memo(
                     subContentClassName={RESOURCE_MENU_WIDTH_CLASS}
                   />
                 ))}
+              {organizationId && projectsEnabled && !projects.length && (
+                <div className='flex h-[28px] items-center justify-center px-2 text-[var(--text-muted)] text-caption'>
+                  {projectQuery.isPending
+                    ? 'Loading projects'
+                    : projectQuery.isError
+                      ? 'Unable to load projects'
+                      : 'No accessible projects'}
+                </div>
+              )}
               <ResourceMenuSections
                 sections={treeSections}
                 groups={
@@ -478,8 +547,14 @@ export const PlusMenuDropdown = React.memo(
               (filteredItems.length > 0 ? (
                 filteredItems.map((candidate, index) => {
                   const { type, item } = candidate
-                  const config = type === 'workspace' ? null : getResourceConfig(type)
-                  const workspaceName = 'workspaceName' in item ? item.workspaceName : undefined
+                  const config =
+                    type === 'workspace' || type === 'project' ? null : getResourceConfig(type)
+                  const ownerName =
+                    'projectName' in item && item.projectName
+                      ? item.projectName
+                      : 'workspaceName' in item
+                        ? item.workspaceName
+                        : undefined
                   const isActive = index === activeIndex
                   /* Items arrive grouped by family (one group per type, ordered by
                      RESOURCE_MENU_ORDER), so a type change marks a section boundary.
@@ -489,7 +564,14 @@ export const PlusMenuDropdown = React.memo(
                   return (
                     <React.Fragment key={candidateKey(candidate)}>
                       {startsSection && (
-                        <DropdownMenuLabel>{config?.label ?? 'Workspaces'}</DropdownMenuLabel>
+                        <DropdownMenuLabel>
+                          {config?.label ??
+                            (type === 'project'
+                              ? 'Projects'
+                              : projectsEnabled
+                                ? 'Environments'
+                                : 'Workspaces')}
+                        </DropdownMenuLabel>
                       )}
                       <button
                         type='button'
@@ -506,7 +588,12 @@ export const PlusMenuDropdown = React.memo(
                           isActive && 'bg-[var(--surface-hover)]'
                         )}
                       >
-                        {candidate.type === 'workspace' ? (
+                        {candidate.type === 'project' ? (
+                          <>
+                            <Folder className='size-[14px]' />
+                            <DropdownMenuItemLabel label={candidate.item.name} />
+                          </>
+                        ) : candidate.type === 'workspace' ? (
                           <>
                             <IdentityTile
                               initial={getWorkspaceInitial(candidate.item.name)}
@@ -519,9 +606,9 @@ export const PlusMenuDropdown = React.memo(
                             item: candidate.item,
                           })
                         )}
-                        {typeof workspaceName === 'string' && (
+                        {typeof ownerName === 'string' && (
                           <OverflowText
-                            label={workspaceName}
+                            label={ownerName}
                             className='ml-auto max-w-[35%] shrink-0 text-[var(--text-muted)] text-xs'
                           />
                         )}

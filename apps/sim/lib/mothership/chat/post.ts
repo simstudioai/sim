@@ -31,6 +31,7 @@ import {
 import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
 import { chatOperations } from '@/lib/mothership/application/operations'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
+import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
 import {
@@ -57,6 +58,7 @@ import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import {
   processContextsServer,
   resolveActiveResourceContext,
+  resolveOwnedFileContext,
 } from '@/lib/mothership/chat/process-contents'
 import {
   MAX_FILE_SELECTION_TEXT_LENGTH,
@@ -71,8 +73,11 @@ import {
 } from '@/lib/mothership/constants'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
+import { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners'
 import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
+import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import {
+  type ChatContextItem,
   type ChatRequest,
   type ModelSelection,
   ModelSelectionSchema,
@@ -229,6 +234,7 @@ const ChatContextSchema = z
       'browser_tab',
       'terminal_tab',
       'workspace',
+      'project',
     ]),
     label: z.string().max(MAX_CHAT_CONTEXT_LABEL_LENGTH),
     chatId: z.string().optional(),
@@ -242,11 +248,13 @@ const ChatContextSchema = z
     viewId: mothershipResourceSchema.shape.viewId,
     currentView: mothershipTableViewContextSchema.optional(),
     fileId: z.string().optional(),
+    owner: FileOperationOwner.optional(),
     dashboardId: z.string().optional(),
     folderId: z.string().optional(),
     fileFolderId: z.string().optional(),
     skillId: z.string().optional(),
     workspaceId: z.string().min(1).max(200).optional(),
+    projectId: z.string().min(1).max(200).optional(),
     serverId: z.string().optional(),
     scheduleId: z.string().optional(),
     tabId: z.string().optional(),
@@ -260,7 +268,28 @@ const ChatContextSchema = z
     columnIds: z.array(z.string()).max(MAX_TABLE_SELECTION_COLUMNS).optional(),
     selection: z.union([BrowserTextSelectionSchema, TerminalTextSelectionSchema]).optional(),
   })
-  .superRefine(({ kind, selection, workspaceId }, refinementContext) => {
+  .superRefine(({ kind, selection, workspaceId, projectId, owner }, refinementContext) => {
+    if (
+      (kind === 'project' && (!projectId || workspaceId !== undefined)) ||
+      (kind !== 'project' && projectId !== undefined)
+    ) {
+      refinementContext.addIssue({
+        code: 'custom',
+        path: ['projectId'],
+        message: 'A Project context requires only a Project target',
+      })
+    }
+    if (
+      owner &&
+      ((kind !== 'file' && kind !== 'file_selection') ||
+        (owner.entityType !== 'workspace' && workspaceId) ||
+        (owner.entityType === 'workspace' && workspaceId && owner.entityId !== workspaceId))
+    )
+      refinementContext.addIssue({
+        code: 'custom',
+        path: ['owner'],
+        message: 'File owner conflicts with the context target',
+      })
     if (kind === 'workspace' && !workspaceId) {
       refinementContext.addIssue({
         code: 'custom',
@@ -535,6 +564,7 @@ function collectChatMcpServerIds(
 }
 
 async function resolveAgentContexts(params: {
+  requestMode: UnifiedChatRequest['mode']
   contexts?: UnifiedChatRequest['contexts']
   resourceAttachments?: UnifiedChatRequest['resourceAttachments']
   organizationId?: string
@@ -546,8 +576,9 @@ async function resolveAgentContexts(params: {
   chatId?: string
   resolvedSecretTraceRegistry?: ExecutionContext['resolvedSecretTraceRegistry']
   requestId: string
-}): Promise<Array<{ type: string; content: string; tag?: string; path?: string }>> {
+}): Promise<ChatContextItem[]> {
   const {
+    requestMode,
     contexts,
     resourceAttachments,
     organizationId,
@@ -561,7 +592,7 @@ async function resolveAgentContexts(params: {
     requestId,
   } = params
 
-  let agentContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
+  let agentContexts: ChatContextItem[] = []
 
   if (Array.isArray(contexts) && contexts.length > 0) {
     try {
@@ -572,7 +603,8 @@ async function resolveAgentContexts(params: {
         workspaceId,
         chatId,
         resolvedSecretTraceRegistry,
-        organizationId
+        organizationId,
+        requestMode
       )
     } catch (error) {
       logger.error(`[${requestId}] Failed to process contexts`, error)
@@ -620,6 +652,65 @@ async function resolveAgentContexts(params: {
             content: `The user's Search results tab has this retrieval address: ${JSON.stringify(resource.search)}. This is query context, not retrieved evidence; use the search tools for current authorized results.`,
           }
         }
+        if (resource.type === 'file') {
+          if (resource.viewId || resource.currentView)
+            throw new Error('Invalid file resource target')
+          const usesWorkspace =
+            !resource.owner ||
+            getCopilotFileOwnerAdapter(resource.owner).resourceScope === 'workspace'
+          const assertedWorkspaceId = usesWorkspace
+            ? (resource.owner?.entityId ?? resource.workspaceId)
+            : undefined
+          if (
+            resource.workspaceId &&
+            (!usesWorkspace || resource.workspaceId !== assertedWorkspaceId)
+          )
+            throw new Error('File owner conflicts with the selected workspace')
+          const target = usesWorkspace
+            ? organizationId || assertedWorkspaceId
+              ? await resolveInvocationWorkspace(
+                  { userId, workspaceId, organizationId, chatId },
+                  assertedWorkspaceId
+                )
+              : workspaceId
+                ? { workspaceId }
+                : null
+            : null
+          const owner =
+            resource.owner ??
+            (target ? { entityType: 'workspace' as const, entityId: target.workspaceId } : null)
+          if (!owner || (usesWorkspace && !target))
+            throw new Error('File resource requires an owner')
+          const readContext = () =>
+            resolveOwnedFileContext(
+              { owner, fileId: resource.id },
+              { userId, workspaceId: target?.workspaceId ?? workspaceId, chatId, requestMode }
+            )
+          const ctx = target
+            ? await withWorkspaceInvocationScope(
+                { workspaceId: target.workspaceId, organizationId },
+                readContext
+              )
+            : await readContext()
+          if (persistResources && ctx.resource)
+            authorizedResources.push(
+              mothershipResourceSchema.parse({
+                ...resource,
+                ...ctx.resource,
+                ...(usesWorkspace ? { owner: resource.owner } : {}),
+                ...(organizationId && target
+                  ? { workspaceId: target.workspaceId }
+                  : { workspaceId: undefined, workspaceName: undefined }),
+              })
+            )
+          return {
+            ...ctx,
+            ...(organizationId && target
+              ? { content: `Workspace ${target.workspaceId}:\n${ctx.content}` }
+              : {}),
+            tag: resource.active ? '@active_tab' : '@open_tab',
+          }
+        }
         const target =
           organizationId || resource.workspaceId
             ? await resolveInvocationWorkspace(
@@ -629,7 +720,13 @@ async function resolveAgentContexts(params: {
             : workspaceId
               ? { workspaceId }
               : null
-        if (!target) return null
+        if (!target) throw new Error('Resource target requires a workspace')
+        if (
+          resource.owner &&
+          (resource.owner.entityType !== 'workspace' ||
+            resource.owner.entityId !== target.workspaceId)
+        )
+          throw new Error('File owner does not match the selected workspace')
         const ctx = await withWorkspaceInvocationScope(
           { workspaceId: target.workspaceId, organizationId },
           () =>
@@ -1320,6 +1417,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           },
           () =>
             resolveAgentContexts({
+              requestMode: body.mode,
               contexts: normalizedContexts,
               resourceAttachments: body.resourceAttachments,
               organizationId: branch.kind === 'organization' ? branch.organizationId : undefined,
@@ -1383,6 +1481,18 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         executionContext.assistantSearch = body.assistantSearch
 
       executionContext.userPermission = userPermission ?? undefined
+      if (actualChatId || workspaceId) {
+        const invocation = actualChatId
+          ? { kind: 'chat' as const, chatId: actualChatId }
+          : workspaceId
+            ? { kind: 'workspace' as const, workspaceId }
+            : undefined
+        if (invocation)
+          executionContext.copilotResourceAdmission = createCopilotResourceAdmission({
+            userId: authenticatedUserId,
+            invocation,
+          })
+      }
 
       /** Trace catalog preparation and attachment tracking before durable admission. */
       const preparedPayload = await withCopilotSpan(
@@ -1500,6 +1610,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             },
             recovery: {
               kind: 'interactive_stream',
+              resourceAuthoringVersion: 1,
               request: { ...requestPayload, messageId: userMessageId, chatId: actualChatId },
               goRoute: branch.goRoute,
               clientToolPickupExpected,

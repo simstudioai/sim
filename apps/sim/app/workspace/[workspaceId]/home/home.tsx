@@ -32,9 +32,12 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
 import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
-import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { getProjectFileQueryOptions } from '@/hooks/queries/project-files'
+import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/utils/workspace-file-query'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
@@ -45,12 +48,7 @@ import {
   type UserInputHandle,
 } from './components'
 import { getMothershipUseChatOptions, useChat } from './hooks'
-import type {
-  FileAttachmentForApi,
-  MothershipResource,
-  MothershipResourceType,
-  WorkspaceResourceRef,
-} from './types'
+import type { FileAttachmentForApi, MothershipResource, WorkspaceResourceRef } from './types'
 
 const logger = createLogger('Home')
 
@@ -72,6 +70,8 @@ export function Home(props: HomeProps) {
 
 function HomeContent({ chatId, userName, userId }: HomeProps) {
   useOAuthReturnRouter()
+  const projectsEnabled = useFeatureFlag('projects')
+  const projectFilesEnabled = useFeatureFlag('project-files')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const queryClient = useQueryClient()
   const controller = useResourcePanelController()
@@ -304,7 +304,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
 
   function resolveResourceFromContext(
     context: ChatContext
-  ): { type: MothershipResourceType; id: string } | null {
+  ): Pick<MothershipResource, 'type' | 'id' | 'owner' | 'workspaceId'> | null {
     switch (context.kind) {
       case 'workflow':
       case 'current_workflow':
@@ -316,9 +316,16 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
       case 'table_selection':
         return context.tableId ? { type: 'table', id: context.tableId } : null
       case 'file':
-        return context.fileId ? { type: 'file', id: context.fileId } : null
       case 'file_selection':
-        return context.fileId ? { type: 'file', id: context.fileId } : null
+        return context.fileId
+          ? {
+              type: 'file',
+              id: context.fileId,
+              owner: context.owner,
+              workspaceId:
+                context.owner?.entityType === 'project' ? undefined : context.workspaceId,
+            }
+          : null
       case 'dashboard':
         return { type: 'dashboard', id: context.dashboardId }
       default:
@@ -353,10 +360,16 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     // one of several chips doesn't yank a slideover the others still point at.
     const stillReferenced = remaining.some((other) => {
       const otherResolved = resolveResourceFromContext(other)
-      return otherResolved?.type === resolved.type && otherResolved.id === resolved.id
+      return (
+        otherResolved?.type === resolved.type &&
+        otherResolved.id === resolved.id &&
+        otherResolved.owner?.entityType === resolved.owner?.entityType &&
+        otherResolved.owner?.entityId === resolved.owner?.entityId &&
+        otherResolved.workspaceId === resolved.workspaceId
+      )
     })
     if (stillReferenced) return
-    removeResource(resolved.type, resolved.id)
+    removeResource(resolved.type, resolved.id, resolved.workspaceId, resolved.owner)
   }
 
   function openWorkspaceResource(resource: MothershipResource) {
@@ -371,6 +384,27 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
    * viewed or removed.
    */
   async function handleWorkspaceResourceSelect(ref: WorkspaceResourceRef) {
+    if (ref.type === 'file' && ref.owner?.entityType === 'project') {
+      if (!projectsEnabled || !projectFilesEnabled) return
+      if (!ref.id) {
+        toast.error('This Project file reference is missing its ID')
+        return
+      }
+      const result = await queryClient
+        .fetchQuery({ ...getProjectFileQueryOptions(ref.owner.entityId, ref.id), staleTime: 0 })
+        .catch(() => null)
+      if (!result) {
+        toast.error(`Couldn't open "${ref.title}" in this Project`)
+        return
+      }
+      openWorkspaceResource({
+        type: 'file',
+        id: result.file.id,
+        title: result.file.name,
+        owner: result.file.owner,
+      })
+      return
+    }
     const immediate = resolveWorkspaceResourceRef(ref, workspaceFiles)
     if (immediate) {
       openWorkspaceResource(immediate)

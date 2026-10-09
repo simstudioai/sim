@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { toRecord } from '@sim/utils/object'
+import { omit, toRecord } from '@sim/utils/object'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
@@ -19,6 +19,11 @@ import {
 } from '@/lib/mothership/resources/persistence'
 import { searchResultFromToolResult } from '@/lib/mothership/resources/search-tool-result'
 import { changeStoredChatResources } from '@/lib/mothership/resources/store'
+import {
+  getChatResourceWorkspaceId,
+  hasValidChatResourceOwner,
+  normalizeChatResource,
+} from '@/lib/mothership/resources/types'
 
 const logger = createLogger('CopilotResourceEffects')
 
@@ -65,7 +70,13 @@ export async function handleResourceSideEffects(
 
       if (hasDeleteCapability(toolName)) {
         const deleted = extractDeletedResourcesFromToolResult(toolName, params, result.output).map(
-          (resource) => ({ ...resource, ...(workspaceId ? { workspaceId } : {}) })
+          (resource) => {
+            const resourceWorkspaceId = getChatResourceWorkspaceId(resource, workspaceId)
+            return normalizeChatResource({
+              ...omit(resource, ['workspaceId']),
+              ...(resourceWorkspaceId ? { workspaceId: resourceWorkspaceId } : {}),
+            })
+          }
         )
         const projectedDeleted = extractDeletedResourcesFromToolResult(
           toolName,
@@ -98,6 +109,7 @@ export async function handleResourceSideEffects(
                   type: resource.type,
                   id: resource.id,
                   ...(resource.workspaceId ? { workspaceId: resource.workspaceId } : {}),
+                  ...(resource.owner ? { owner: resource.owner } : {}),
                   title: projected?.title ?? '',
                 },
               },
@@ -121,14 +133,18 @@ export async function handleResourceSideEffects(
               : []
         const resources =
           projectedResources.length === rawResources.length
-            ? rawResources.map((resource, index) => ({
-                ...projectedResources[index],
-                type: resource.type,
-                id: resource.id,
-                ...((resource.workspaceId ?? workspaceId)
-                  ? { workspaceId: resource.workspaceId ?? workspaceId }
-                  : {}),
-              }))
+            ? rawResources
+                .map((resource, index) => {
+                  const resourceWorkspaceId = getChatResourceWorkspaceId(resource, workspaceId)
+                  return normalizeChatResource({
+                    ...omit(projectedResources[index], ['owner', 'workspaceId']),
+                    type: resource.type,
+                    id: resource.id,
+                    ...(resource.owner ? { owner: resource.owner } : {}),
+                    ...(resourceWorkspaceId ? { workspaceId: resourceWorkspaceId } : {}),
+                  })
+                })
+                .filter(hasValidChatResourceOwner)
             : []
 
         if (resources.length > 0) {

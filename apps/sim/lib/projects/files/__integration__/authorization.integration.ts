@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { dirname, resolve } from 'node:path'
 import type {
   OAuthAccessTokenPrincipal,
@@ -34,9 +35,20 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  copilotRequestPrincipal,
+  markCopilotProjectFileRequest,
+} from '@/lib/api/server/routes/copilot-request'
 import type { DbTransaction } from '@/lib/db/types'
+import { createProjectFileCliTransport } from '@/lib/mothership/agent-cli/project-file-transport'
+import { executeCopilotProjectDiscovery } from '@/lib/mothership/application/execute-project-use-case'
+import { withFileOwnerContext } from '@/lib/mothership/application/file-owner-context'
+import {
+  type CopilotExecutionContext,
+  createCopilotResourceAdmission,
+} from '@/lib/mothership/auth/application-delegation'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
-import { renameProject } from '@/lib/projects/application'
+import { listProjects, renameProject } from '@/lib/projects/application'
 import {
   createProjectFileFolder,
   getProjectFileMetadata,
@@ -959,6 +971,126 @@ describe('Project file authority at the database boundary', () => {
       ).rejects.toMatchObject({ code: 'forbidden' })
     }
   )
+  check(
+    'private v2 admission preserves the actor and rechecks live Project membership',
+    async () => {
+      const f = await fixture()
+      const chatId = generateId()
+      const fileId = generateId()
+      await db.insert(copilotChats).values({
+        id: chatId,
+        userId: f.readerId,
+        organizationId: f.organizationId,
+        workspaceId: null,
+        type: 'mothership',
+        config: { conversationMode: 'agent' },
+        title: 'Private Project files',
+      })
+      await db.insert(workspaceFiles).values({
+        id: fileId,
+        userId: f.ownerId,
+        projectId: f.projectId,
+        context: 'project',
+        key: `project/${f.projectId}/${fileId}`,
+        originalName: 'architecture.md',
+        contentType: 'text/markdown',
+        sizeBytes: 0,
+      })
+      const request = new Request(
+        `http://localhost/api/v2/projects/${f.projectId}/files/${fileId}/metadata`
+      )
+      markCopilotProjectFileRequest(
+        request,
+        {
+          userId: f.readerId,
+          organizationId: f.organizationId,
+          chatId,
+          toolCallId: generateId(),
+          copilotToolExecution: true,
+          copilotResourceAdmission: createCopilotResourceAdmission({
+            userId: f.readerId,
+            invocation: { kind: 'chat', chatId },
+          }),
+        },
+        { projectId: f.projectId, fileId }
+      )
+      const principal = copilotRequestPrincipal(
+        request,
+        projectFileOperations.readMetadata,
+        getProjectFileMetadata
+      )
+      if (!principal) throw new Error('Private Project admission did not produce a principal')
+      const input = { projectId: f.projectId, fileId }
+      expect(await getProjectFileMetadata.execute({ principal, input })).toMatchObject({
+        file: { id: fileId, owner: { entityType: 'project', entityId: f.projectId } },
+        capabilities: { canRead: true, canWrite: false },
+      })
+      await expect(
+        getProjectFileMetadata.execute({ principal, input: { ...input, fileId: generateId() } })
+      ).rejects.toMatchObject({ code: 'forbidden' })
+      await db.delete(permissions).where(eq(permissions.userId, f.readerId))
+      await expect(getProjectFileMetadata.execute({ principal, input })).rejects.toMatchObject({
+        code: 'not_found',
+      })
+    }
+  )
+
+  check(
+    'Project-only v2 transport reaches the canonical route and cannot change owners',
+    async () => {
+      const f = await fixture()
+      const fileId = generateId()
+      await db.insert(workspaceFiles).values({
+        id: fileId,
+        userId: f.ownerId,
+        projectId: f.projectId,
+        context: 'project',
+        key: `project/${f.projectId}/${fileId}`,
+        originalName: 'transport.md',
+        contentType: 'text/markdown',
+        sizeBytes: 0,
+      })
+      const context: CopilotExecutionContext = {
+        userId: f.readerId,
+        workspaceId: f.workspaces[0],
+        toolCallId: generateId(),
+        copilotToolExecution: true,
+        copilotResourceAdmission: createCopilotResourceAdmission({
+          userId: f.readerId,
+          invocation: { kind: 'workspace', workspaceId: f.workspaces[0] },
+        }),
+      }
+      const endpoint = 'http://localhost:3000'
+      const filePath = `/api/v2/projects/${f.projectId}/files/${fileId}/metadata`
+      const transport = createProjectFileCliTransport(endpoint, context, {
+        projectId: f.projectId,
+        fileId,
+      })
+      const response = await transport(`${endpoint}${filePath}`)
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({
+        data: { id: fileId, owner: { entityType: 'project', entityId: f.projectId } },
+      })
+      for (const url of [
+        `http://other.invalid${filePath}`,
+        `${endpoint}/api/v2/projects/${generateId()}/files/${fileId}/metadata`,
+        `${endpoint}/api/v2/projects/${f.projectId}/files/${generateId()}/metadata`,
+        `${endpoint}/api/v2/projects/${f.projectId}/files/folders`,
+        `${endpoint}/api/v2/files/${fileId}/metadata?workspaceId=${f.workspaces[0]}`,
+      ]) {
+        expect((await transport(url)).status).toBe(400)
+      }
+      const projectTransport = createProjectFileCliTransport(endpoint, context, {
+        projectId: f.projectId,
+      })
+      expect(
+        (await projectTransport(`${endpoint}/api/v2/projects/${f.projectId}/files`)).status
+      ).toBe(200)
+      expect((await projectTransport(`${endpoint}${filePath}`)).status).toBe(200)
+      context.boundWorkflowExecutionId = 'workflow-run'
+      expect((await transport(`${endpoint}${filePath}`)).status).toBe(403)
+    }
+  )
 })
 
 describe('shared file identity and current actor authority', () => {
@@ -1415,6 +1547,66 @@ describe('Mothership origin navigation and independent Project authority', () =>
     await grant(f.readerId, workspaceId, 'admin')
     return { workspaceId, projectId: binding.projectId }
   }
+
+  function context(f: Awaited<ReturnType<typeof fixture>>): CopilotExecutionContext {
+    return {
+      userId: f.readerId,
+      workspaceId: f.workspaces[0],
+      requestMode: 'agent',
+      toolCallId: generateId(),
+      copilotToolExecution: true,
+      copilotResourceAdmission: createCopilotResourceAdmission({
+        userId: f.readerId,
+        invocation: { kind: 'workspace', workspaceId: f.workspaces[0] },
+      }),
+    }
+  }
+
+  check('origin A discovers accessible B while current-parent hints remain A', async () => {
+    const f = await fixture()
+    const b = await target(f)
+    const execution = context(f)
+    const listed = await executeCopilotProjectDiscovery(execution, listProjects, { limit: 100 })
+    expect(listed.projects.map((row) => row.id).sort()).toEqual([f.projectId, b.projectId].sort())
+    const peer = createServer((_request, response) => {
+      response.setHeader('X-Mothership-File-Owner-Protocol', '1')
+      response.end()
+    })
+    await new Promise<void>((resolve) => peer.listen(0, '127.0.0.1', resolve))
+    try {
+      const address = peer.address()
+      if (!address || typeof address === 'string') throw new Error('Protocol peer unavailable')
+      for (const [workspaceId, projectId] of [
+        [f.workspaces[0], f.projectId],
+        [b.workspaceId, b.projectId],
+      ]) {
+        const current = {
+          ...execution,
+          workspaceId,
+          copilotResourceAdmission: createCopilotResourceAdmission({
+            userId: f.readerId,
+            invocation: { kind: 'workspace', workspaceId },
+          }),
+        }
+        const hints = await withFileOwnerContext(
+          {},
+          current,
+          `http://127.0.0.1:${address.port}`,
+          '/api/mothership'
+        )
+        expect(hints.project).toMatchObject({ id: projectId })
+      }
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        peer.close((error) => (error ? reject(error) : resolve()))
+      )
+    }
+    await db
+      .delete(permissions)
+      .where(and(eq(permissions.userId, f.readerId), eq(permissions.entityId, b.workspaceId)))
+    const revoked = await executeCopilotProjectDiscovery(execution, listProjects, { limit: 100 })
+    expect(revoked.projects.map((row) => row.id)).toEqual([f.projectId])
+  })
 
   check(
     'origin A reads and writes B and authorizes A to B copy with independent live grants',

@@ -8,9 +8,11 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import type { SimToolExecutionOwner } from '@/lib/mothership/async-runs/execution-lease'
 import { isActiveSandboxResourceOwner } from '@/lib/mothership/async-runs/repository'
 import { ResourcePayload } from '@/lib/mothership/generated/resources'
+import { supportsFileOwnerProtocol } from '@/lib/mothership/request/lifecycle/file-owner-protocol'
 import type { StreamEvent } from '@/lib/mothership/request/types'
 import { persistResourceEffect } from '@/lib/mothership/resources/persist-effect'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
 
 const logger = createLogger('MothershipSandboxResources')
 const CONTEXT_TTL_SECONDS = 600
@@ -25,6 +27,7 @@ const scopeSchema = z
     workspaceId: z.string().optional(),
     organizationId: z.string().optional(),
     apiKeyHash: z.string(),
+    fileOwnerProtocolVersion: z.literal(1).optional(),
   })
   .refine(
     (scope) => Boolean(scope.workspaceId) !== Boolean(scope.organizationId),
@@ -37,9 +40,12 @@ interface ActiveSandboxResourceScope {
     chatId: string
     workspaceId?: string
     organizationId?: string
+    resourceAdmitted?: boolean
+    mothershipBaseURL?: string
   }
   signal: AbortSignal
   token?: string
+  fileOwnerProtocolVersion?: 1
 }
 
 const resourceScope = new AsyncLocalStorage<ActiveSandboxResourceScope>()
@@ -47,6 +53,11 @@ const resourceScope = new AsyncLocalStorage<ActiveSandboxResourceScope>()
 /** Server-admitted physical session owner; never sourced from code arguments. */
 export function activeSandboxChatOwner() {
   return resourceScope.getStore()?.identity
+}
+
+/** Negotiated routing hint; callback authorization remains bound to the active lease. */
+export function activeSandboxFileOwnerProtocol() {
+  return resourceScope.getStore()?.fileOwnerProtocolVersion
 }
 
 const contextKey = (token: string) => `mothership:sandbox-resources:${token}:context`
@@ -78,7 +89,25 @@ export async function sandboxResourceEndpoint(
   )
     throw new Error('Sandbox resource scope does not match the active tool')
   const token = active.token ?? generateId()
-  const scope: SandboxResourceScope = { ...identity, apiKeyHash: sha256Hex(apiKey) }
+  const fileOwnerProtocolVersion =
+    identity.resourceAdmitted &&
+    identity.mothershipBaseURL &&
+    (await isProjectFileApiEnabled()) &&
+    (await supportsFileOwnerProtocol(identity.mothershipBaseURL))
+      ? 1
+      : undefined
+  const scope: SandboxResourceScope = {
+    toolCallId: identity.toolCallId,
+    runId: identity.runId,
+    userId: identity.userId,
+    ownerToken: identity.ownerToken,
+    chatId: identity.chatId,
+    workspaceId: identity.workspaceId,
+    organizationId: identity.organizationId,
+    apiKeyHash: sha256Hex(apiKey),
+    fileOwnerProtocolVersion,
+  }
+  active.fileOwnerProtocolVersion = fileOwnerProtocolVersion
   await redisClient().set(contextKey(token), JSON.stringify(scope), 'EX', CONTEXT_TTL_SECONDS)
   active.token = token
   if (active.signal.aborted) {

@@ -41,6 +41,14 @@ function portableWorkspaceResourceMarkdown(
   workspaceFiles: readonly WorkspaceFileRecord[]
 ): CopyableMarkdownResult {
   const label = workspaceResourceLabel(data)
+  if (data.owner?.entityType === 'project') {
+    return {
+      markdown: data.id?.trim()
+        ? serializePortableChipLink('file', data.id.trim(), label, data.owner)
+        : label,
+      hasUnresolvedFile: false,
+    }
+  }
   const resource = resolveWorkspaceResourceRef({ ...data, title: data.title ?? '' }, workspaceFiles)
   return {
     markdown: resource

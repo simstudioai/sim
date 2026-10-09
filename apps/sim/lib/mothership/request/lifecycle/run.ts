@@ -15,6 +15,7 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { withFileOwnerContext } from '@/lib/mothership/application/file-owner-context'
 import { SIM_TOOL_EXECUTION_LEASE_SECONDS } from '@/lib/mothership/async-runs/execution-lease'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
 import {
@@ -22,6 +23,7 @@ import {
   getChatViewDesktopLeaseRemainingMs,
   updateRunStatus,
 } from '@/lib/mothership/async-runs/repository'
+import type { CopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import {
   CLIENT_TOOL_RESULT_TIMEOUT_MS,
   TOOL_WATCHDOG_RESUME_GRACE_MS,
@@ -275,6 +277,7 @@ function resultContent(context: StreamingContext, options: CopilotLifecycleOptio
 }
 
 export interface CopilotLifecycleOptions extends OrchestratorOptions {
+  copilotResourceAdmission?: CopilotResourceAdmission
   /** Trusted entry point for Search metering; never read from model arguments. */
   searchSurface?: 'copilot' | 'slack'
   mcpBlockId?: string
@@ -490,6 +493,8 @@ export async function runCopilotLifecycle(
       throw new Error('Organization execution context does not match its authenticated scope')
     }
     execContext.messageId = payloadMsgId
+    if (lifecycleOptions.copilotResourceAdmission)
+      execContext.copilotResourceAdmission = lifecycleOptions.copilotResourceAdmission
     if (options.recovery?.userTimezone) execContext.userTimezone = options.recovery.userTimezone
     execContext.requestMode = requestMode
     execContext.searchSurface = lifecycleOptions.searchSurface ?? 'copilot'
@@ -1219,6 +1224,8 @@ async function runCheckpointLoop(
     }
     payload = { ...payload, organizationId: lifecycleOrganizationId, chatId: execContext.chatId }
   }
+
+  payload = await withFileOwnerContext(payload, execContext, mothershipBaseURL, initialRoute)
 
   for (;;) {
     await options.assertControllerOwnership?.()

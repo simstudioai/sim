@@ -4,10 +4,12 @@ import { redirect } from 'next/navigation'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
@@ -55,7 +57,14 @@ export default async function OrganizationLayout({
   if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  const [, modelSelectorEnabled, planModeEnabled, dashboardsEnabled] = await Promise.all([
+  const [
+    ,
+    modelSelectorEnabled,
+    planModeEnabled,
+    dashboardsEnabled,
+    projectsEnabled,
+    projectFilesEnabled,
+  ] = await Promise.all([
     prefetchOrganizationSidebar(
       queryClient,
       organizationId,
@@ -65,6 +74,8 @@ export default async function OrganizationLayout({
     isMothershipModelSelectorEnabled(),
     isPlanModeEnabled(),
     isDashboardsEnabled(organizationId),
+    isFeatureEnabled('projects'),
+    isProjectFileApiEnabled(),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
@@ -72,6 +83,8 @@ export default async function OrganizationLayout({
     <HydrationBoundary state={dehydrate(queryClient)}>
       <FeatureFlagsProvider
         flags={{
+          projects: projectsEnabled,
+          'project-files': projectFilesEnabled,
           dashboards: dashboardsEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,

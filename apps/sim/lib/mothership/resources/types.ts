@@ -1,3 +1,4 @@
+import type { FileOwner } from '@/lib/mothership/generated/file-owner'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
 
 export const MothershipResourceType = {
@@ -21,10 +22,11 @@ export type MothershipResourceType =
   (typeof MothershipResourceType)[keyof typeof MothershipResourceType]
 
 export interface MothershipResource {
+  owner?: FileOwner
   type: MothershipResourceType
   id: string
   title: string
-  /** Canonical resource owner; independent of the conversation's owner. */
+  /** Non-file workspace scope, or the legacy workspace file address. */
   workspaceId?: string
   workspaceName?: string
   path?: string
@@ -57,6 +59,7 @@ export interface MothershipResourceUpdate extends MothershipResource {
  * than filled in.
  */
 export interface WorkspaceResourceRef {
+  owner?: FileOwner
   type: MothershipResourceType
   id?: string
   path?: string
@@ -64,21 +67,77 @@ export interface WorkspaceResourceRef {
   workspaceId?: string
 }
 
+/** Explicit file ownership never inherits the conversation's workspace. */
+export function getChatResourceWorkspaceId(
+  resource: Pick<MothershipResource, 'workspaceId' | 'owner'>,
+  fallbackWorkspaceId?: string
+): string | undefined {
+  if (!resource.owner) return resource.workspaceId ?? fallbackWorkspaceId
+  return resource.owner.entityType === 'workspace' ? resource.owner.entityId : undefined
+}
+
+/** File owner pairs must agree with any legacy address supplied alongside them. */
+export function hasValidChatResourceOwner(
+  resource: Pick<MothershipResource, 'type' | 'workspaceId' | 'owner'>
+): boolean {
+  if (!resource.owner)
+    return (
+      (resource.type !== 'file' && resource.type !== 'filefolder') ||
+      resource.workspaceId === undefined ||
+      hasAddressableId(resource.workspaceId)
+    )
+  if (
+    (resource.type !== 'file' && resource.type !== 'filefolder') ||
+    !hasAddressableId(resource.owner.entityId)
+  )
+    return false
+  if (resource.owner.entityType === 'workspace')
+    return resource.workspaceId === undefined || resource.workspaceId === resource.owner.entityId
+  return resource.owner.entityType === 'project' && resource.workspaceId === undefined
+}
+
+/** Normalizes known file addresses without inferring ownership for older unscoped panels. */
+export function normalizeChatResource(
+  resource: MothershipResourceUpdate
+): MothershipResourceUpdate {
+  if (
+    (resource.type !== 'file' && resource.type !== 'filefolder') ||
+    resource.workspaceId === undefined ||
+    !hasValidChatResourceOwner(resource)
+  )
+    return resource
+  const { workspaceId, ...rest } = resource
+  return {
+    ...rest,
+    owner: resource.owner ?? { entityType: 'workspace', entityId: workspaceId },
+  }
+}
+
 /** Scope is part of identity for aliases such as integration names and folder paths. */
 export function getChatResourceKey(
-  resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>
+  resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>
 ): string {
-  return resource.workspaceId
-    ? JSON.stringify([resource.workspaceId, resource.type, resource.id])
+  if (resource.owner && resource.owner.entityType !== 'workspace')
+    return JSON.stringify([
+      resource.owner.entityType,
+      resource.owner.entityId,
+      resource.type,
+      resource.id,
+    ])
+  const workspaceId = getChatResourceWorkspaceId(resource)
+  return workspaceId
+    ? JSON.stringify([workspaceId, resource.type, resource.id])
     : `${resource.type}:${resource.id}`
 }
 
 /** UUID resources keep their existing deep links; workspace aliases need their owner in the URL. */
 export function getChatResourceSelectionId(resource: MothershipResource): string {
+  if (resource.owner && resource.owner.entityType !== 'workspace')
+    return getChatResourceKey(resource)
   const canonicalId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     resource.id
   )
-  return resource.workspaceId && !canonicalId && !isEphemeralResource(resource)
+  return getChatResourceWorkspaceId(resource) && !canonicalId && !isEphemeralResource(resource)
     ? getChatResourceKey(resource)
     : resource.id
 }
@@ -192,14 +251,16 @@ function withoutDesktopSessionResources(
 
 /**
  * The canonical form of a chat's resource list: legacy desktop panel rows and
- * unaddressable resources dropped. Every path that reads or writes stored
+ * unaddressable resources dropped and known file addresses normalized. Every path that reads or writes stored
  * resources goes through this, which is what heals chats that already hold
  * one.
  */
 export function sanitizeChatResources(
   resources: readonly MothershipResource[]
 ): MothershipResource[] {
-  return withoutDesktopSessionResources(resources).filter(isAddressableResource)
+  return withoutDesktopSessionResources(resources)
+    .filter((resource) => isAddressableResource(resource) && hasValidChatResourceOwner(resource))
+    .map(normalizeChatResource)
 }
 
 /**
@@ -250,6 +311,7 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
  * and its no-op check.
  */
 const MERGED_FIELDS = {
+  owner: true,
   title: true,
   workspaceId: true,
   workspaceName: true,
@@ -275,6 +337,8 @@ export function mergeChatResource(
   prev: MothershipResource | undefined,
   next: MothershipResourceUpdate
 ): MothershipResource {
+  prev = prev ? normalizeChatResource(prev) : undefined
+  next = normalizeChatResource(next)
   if (!prev) {
     // Copied, never aliased: the result lands in React state, the query cache
     // and the pending-write queue at once, and `next` is the caller's object.
@@ -284,6 +348,7 @@ export function mergeChatResource(
   const { viewId: _previousViewId, ...prevWithoutViewId } = prev
   const merged: MothershipResource = {
     ...(next.clearViewId === true ? prevWithoutViewId : prev),
+    ...(next.owner !== undefined ? { owner: next.owner } : {}),
     ...(next.workspaceId !== undefined ? { workspaceId: next.workspaceId } : {}),
     ...(next.workspaceName !== undefined ? { workspaceName: next.workspaceName } : {}),
     ...(next.path !== undefined ? { path: next.path } : {}),

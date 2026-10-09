@@ -45,6 +45,7 @@ import {
   MAX_RENDERED_DOCUMENT_BYTES,
   needsRenderedArtifact,
 } from '@/lib/uploads/utils/file-utils'
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
 import {
   observeWorkspaceFileDelivery,
@@ -292,7 +293,7 @@ const snapshotMarkdownAssets = defineAuthorizedProjectFileUseCase<
     if (!source) throw new OrchestrationError('not_found', 'File not found')
     if (
       !isMarkdownFile({ name: source.originalName, type: source.contentType }) &&
-      source.contentType !== 'text/x-markdown'
+      normalizeMimeType(source.contentType) !== 'text/x-markdown'
     )
       throw new OrchestrationError('validation', 'Only Markdown files support snapshot export')
     if (

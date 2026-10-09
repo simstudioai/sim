@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacesQuery: () => ({ data: mocks.workspaces }),
+  useOrderedWorkspacesQuery: () => ({ data: mocks.workspaces }),
 }))
 vi.mock('@/hooks/queries/skills', () => ({
   useSkills: () => ({ data: [] }),
@@ -234,6 +235,8 @@ async function render(
             dashboards: false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
+            projects: false,
+            'project-files': false,
           }}
         >
           <Harness />
@@ -311,6 +314,8 @@ it.each([
               dashboards: false,
               'mothership-model-selector': false,
               'mothership-plan-mode': planEnabled,
+              projects: false,
+              'project-files': false,
             }}
           >
             <Harness />
@@ -405,6 +410,8 @@ it('keeps restored queued skills scoped when replacing a draft', async () => {
             dashboards: false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
+            projects: false,
+            'project-files': false,
           }}
         >
           <Harness />

@@ -10,6 +10,12 @@ import {
   type KnowledgeDocumentUploadTransfer,
 } from '@/lib/api/contracts/knowledge/upload-sessions'
 import {
+  abortProjectFileUploadContract,
+  completeProjectFileUploadContract,
+  createProjectFileUploadContract,
+  getProjectFileUploadPartUrlsContract,
+} from '@/lib/api/contracts/project-file-uploads'
+import {
   abortInternalFileUploadContract,
   type CreateInternalFileUploadBody,
   completeInternalFileUploadContract,
@@ -23,6 +29,14 @@ import { getFileContentType } from '@/lib/uploads/utils/file-utils'
 
 interface UploadWorkspaceFileSessionParams {
   workspaceId: string
+  folderId?: string | null
+  file: File
+  signal?: AbortSignal
+  onProgress?: (event: UploadProgressEvent) => void
+}
+
+interface UploadProjectFileSessionParams {
+  projectId: string
   folderId?: string | null
   file: File
   signal?: AbortSignal
@@ -100,6 +114,50 @@ export async function uploadWorkspaceFileSession(params: UploadWorkspaceFileSess
   return uploadInternalFileSession({
     purpose: 'workspace_file',
     ...params,
+  })
+}
+
+export async function uploadProjectFileSession(params: UploadProjectFileSessionParams) {
+  const { projectId, file, signal, onProgress } = params
+  const created = await requestJson(createProjectFileUploadContract, {
+    params: { id: projectId },
+    body: {
+      name: file.name,
+      contentType: getFileContentType(file),
+      size: file.size,
+      folderId: params.folderId ?? undefined,
+    },
+    signal,
+  })
+  const target = { id: projectId, uploadId: created.session.id }
+  const headers = { 'upload-token': created.uploadToken }
+  return runCreatedUpload({
+    file,
+    transfer: created.transfer,
+    signal,
+    onProgress,
+    getPartUrls: async (partNumbers) => {
+      const result = await requestJson(getProjectFileUploadPartUrlsContract, {
+        params: target,
+        headers,
+        body: { partNumbers },
+        signal,
+      })
+      return result.parts
+    },
+    complete: async () => {
+      const completed = await requestJson(completeProjectFileUploadContract, {
+        params: target,
+        headers,
+        body: {},
+        signal,
+      })
+      if (!completed.result) throw new Error('Completed Project upload returned no file')
+      return completed.result
+    },
+    abort: async () => {
+      await requestJson(abortProjectFileUploadContract, { params: target, headers })
+    },
   })
 }
 

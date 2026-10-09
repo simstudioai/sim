@@ -1,3 +1,5 @@
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import {
   mothershipAsyncRunsMock,
   mothershipAsyncRunsMockFns,
@@ -5,6 +7,8 @@ import {
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamEvent } from '@/lib/mothership/request/types'
+
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 const { values, lists, seen, persist, redis } = vi.hoisted(() => {
   const values = new Map<string, string>()
@@ -298,3 +302,42 @@ describe('sandbox resource ownership and publication', () => {
     expect(persist).toHaveBeenCalledTimes(1)
   })
 })
+
+it.each([
+  [true, true, true, true, 1],
+  [false, true, true, true, undefined],
+  [true, false, true, true, undefined],
+  [true, true, false, true, undefined],
+  [true, true, true, false, undefined],
+] as const)(
+  'negotiates the callback protocol only with admission=%s projects=%s peer=%s files=%s',
+  async (admitted, enabled, supported, filesEnabled, expected) => {
+    setEnv({ PROJECT_FILES_ENABLED: filesEnabled })
+    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(enabled)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(null, {
+            headers: supported ? { 'X-Mothership-File-Owner-Protocol': '1' } : {},
+          })
+      )
+    )
+    await withSandboxResourceScope(
+      {
+        ...identity,
+        resourceAdmitted: admitted,
+        mothershipBaseURL: 'https://selected-worker.invalid',
+      },
+      new AbortController().signal,
+      undefined,
+      async () => {
+        const endpoint = await sandboxResourceEndpoint('https://sim.test', args, 'secret')
+        const token = endpoint.split('/').at(-1)
+        if (!token) throw new Error('Callback token missing')
+        const scope = await readSandboxResourceScope(token, 'secret')
+        expect(scope?.fileOwnerProtocolVersion).toBe(expected)
+      }
+    )
+  }
+)

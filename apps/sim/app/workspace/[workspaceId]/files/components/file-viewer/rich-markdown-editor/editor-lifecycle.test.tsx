@@ -6,6 +6,7 @@ import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/fil
 import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { PASTE_LIMITS } from '@sim/utils/paste'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type Editor, Extension } from '@tiptap/core'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,9 +25,11 @@ import { LoadedRichMarkdownEditor } from '@/app/workspace/[workspaceId]/files/co
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/files')
 
-const { collaborationRef, uploadFile } = vi.hoisted(() => ({
+const { collaborationRef, uploadFile, uploadProjectFile, fileSource } = vi.hoisted(() => ({
   collaborationRef: { current: null as unknown },
   uploadFile: vi.fn(),
+  uploadProjectFile: vi.fn(),
+  fileSource: { owner: undefined as { entityType: 'project'; entityId: string } | undefined },
 }))
 
 vi.mock(
@@ -37,9 +40,12 @@ vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.mock('@/hooks/queries/workspace-files', () => ({
   useUploadWorkspaceFile: () => ({ mutateAsync: uploadFile }),
 }))
+vi.mock('@/hooks/queries/project-files', () => ({
+  useUploadProjectFile: () => ({ mutateAsync: uploadProjectFile }),
+}))
 vi.mock('@/hooks/use-add-to-chat', () => ({ useAddToChat: () => vi.fn() }))
 vi.mock('@/hooks/use-file-content-source', () => ({
-  useFileContentSource: () => ({ resolveImageSrc: (src: string) => src }),
+  useFileContentSource: () => ({ owner: fileSource.owner, resolveImageSrc: (src: string) => src }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/components', () => ({ FindBar: () => null }))
 vi.mock(
@@ -99,6 +105,7 @@ const FILE: WorkspaceFileRecord = {
   uploadedAt: new Date('2026-09-03T20:00:00Z'),
 }
 let root: Root
+let queryClient: QueryClient
 let container: HTMLDivElement
 const onChange = vi.fn()
 const onEditSource = vi.fn()
@@ -168,27 +175,29 @@ async function render(
   await act(async () => {
     const update = () =>
       root.render(
-        <Suspense fallback='Loading editor'>
-          <LoadedRichMarkdownEditor
-            file={FILE}
-            workspaceId={FILE.workspaceId}
-            content={content}
-            acceptedBaselineContent={acceptedBaselineContent}
-            isStreaming={options.isStreaming ?? false}
-            streamIsIncremental={options.streamIsIncremental}
-            canEdit={canEdit}
-            userId='user-1'
-            userName='User'
-            collaborative={options.collaborative}
-            enableFind={false}
-            onChange={options.onChange ?? onChange}
-            onEditSource={onEditSource}
-            onClientAutosaveChange={onClientAutosaveChange}
-            onSaveShortcut={options.onSaveShortcut ?? onSaveShortcut}
-            downloadSourceRef={options.downloadSourceRef}
-          />
-          <SuspendAfterEditor active={options.suspend ?? false} />
-        </Suspense>
+        <QueryClientProvider client={queryClient}>
+          <Suspense fallback='Loading editor'>
+            <LoadedRichMarkdownEditor
+              file={FILE}
+              workspaceId={fileSource.owner ? undefined : FILE.workspaceId}
+              content={content}
+              acceptedBaselineContent={acceptedBaselineContent}
+              isStreaming={options.isStreaming ?? false}
+              streamIsIncremental={options.streamIsIncremental}
+              canEdit={canEdit}
+              userId='user-1'
+              userName='User'
+              collaborative={options.collaborative}
+              enableFind={false}
+              onChange={options.onChange ?? onChange}
+              onEditSource={onEditSource}
+              onClientAutosaveChange={onClientAutosaveChange}
+              onSaveShortcut={options.onSaveShortcut ?? onSaveShortcut}
+              downloadSourceRef={options.downloadSourceRef}
+            />
+            <SuspendAfterEditor active={options.suspend ?? false} />
+          </Suspense>
+        </QueryClientProvider>
       )
     if (options.suspend) startTransition(update)
     else update()
@@ -203,6 +212,8 @@ function getEditor() {
 
 beforeEach(() => {
   uploadFile.mockReset()
+  uploadProjectFile.mockReset()
+  fileSource.owner = undefined
   collaborationRef.current = null
   vi.spyOn(toast, 'warning').mockReturnValue('test-toast')
   vi.spyOn(toast, 'info').mockReturnValue('uploading-toast')
@@ -211,9 +222,13 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
+  queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
+  })
 })
 afterEach(async () => {
   await act(async () => root.unmount())
+  queryClient.clear()
   container.remove()
 })
 
@@ -226,6 +241,7 @@ describe('loaded rich editor lifecycle', () => {
     const frontmatter = '---\r\n# Metadata\r\ntitle: Updated\r\n---\r\n\r\n'
     config.set(FILE_DOC_SEED.frontmatterKey, frontmatter)
     collaborationRef.current = {
+      canWrite: true,
       doc,
       awareness: new Awareness(doc),
       provider,
@@ -332,6 +348,7 @@ describe('loaded rich editor lifecycle', () => {
     const doc = new Y.Doc()
     doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
     collaborationRef.current = {
+      canWrite: true,
       doc,
       awareness: new Awareness(doc),
       provider,
@@ -371,6 +388,7 @@ describe('loaded rich editor lifecycle', () => {
     const provider = new FakeFileDocProvider()
     const doc = new Y.Doc()
     collaborationRef.current = {
+      canWrite: true,
       doc,
       awareness: new Awareness(doc),
       provider,
@@ -411,6 +429,7 @@ describe('loaded rich editor lifecycle', () => {
       const doc = new Y.Doc()
       doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
       collaborationRef.current = {
+        canWrite: true,
         doc,
         awareness: new Awareness(doc),
         provider,
@@ -471,4 +490,18 @@ describe('loaded rich editor lifecycle', () => {
     expect(abandonedOnChange).not.toHaveBeenCalled()
     expect(abandonedSave).not.toHaveBeenCalled()
   })
+})
+
+it('inserts an uploaded inline image using its Project content address', async () => {
+  fileSource.owner = { entityType: 'project', entityId: 'project-a' }
+  uploadProjectFile.mockResolvedValue({ file: { id: 'image-a' } })
+  await render('Project document')
+  await act(async () => getEditor().storage.slashCommand.insertImage(1))
+  const input = container.querySelector<HTMLInputElement>('input[type="file"]')
+  if (!input) throw new Error('Editor image picker is unavailable')
+  Object.defineProperty(input, 'files', {
+    value: [new File(['image'], 'diagram.png', { type: 'image/png' })],
+  })
+  await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })))
+  expect(getEditor().getHTML()).toContain('src="/api/projects/project-a/files/image-a/content"')
 })

@@ -16,6 +16,7 @@ import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
+import { useProjectFileInventory, useWorkspaceProject } from '@/hooks/queries/project-files'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
@@ -42,6 +43,7 @@ export interface AvailableItemsByType {
 export interface StructureFolders {
   table: AvailableItem[]
   knowledgebase: AvailableItem[]
+  file: AvailableItem[]
 }
 
 export interface AvailableResources {
@@ -56,6 +58,7 @@ export interface AvailableResources {
 }
 
 interface UseAvailableResourcesOptions {
+  includeProjectFiles?: boolean
   /** Chat can attach every folder family, so these lists also gate mention hydration. */
   includeFolderMentions?: boolean
   /**
@@ -97,8 +100,20 @@ export function useAvailableResources(
   options?: UseAvailableResourcesOptions
 ): AvailableResources {
   const dashboardsEnabled = useFeatureFlag('dashboards')
+  const projectFilesEnabled = useFeatureFlag('project-files')
   const enabled = options?.enabled ?? true
   const excludeTypes = options?.excludeTypes
+  const projectEnabled =
+    projectFilesEnabled &&
+    enabled &&
+    options?.includeProjectFiles !== false &&
+    Boolean(workspaceId) &&
+    !excludeTypes?.includes('file')
+  const parent = useWorkspaceProject(workspaceId, projectEnabled)
+  const project = projectEnabled && !parent.isError ? parent.data?.project : undefined
+  const projectInventory = useProjectFileInventory(project?.id, projectEnabled)
+  const projectItems = project && !projectInventory.isError ? projectInventory.data : undefined
+  const projectRootId = project ? `project-file-scope:${project.id}` : undefined
   const browserAvailable = useSyncExternalStore(
     subscribeDesktopPreferences,
     isBrowserAgentAvailable,
@@ -171,6 +186,7 @@ export function useAvailableResources(
     (workflowsPending ||
       tablesPending ||
       filesPending ||
+      (projectEnabled && (parent.isPending || (Boolean(project) && projectInventory.isPending))) ||
       (dashboardsEnabled && !excludeTypes?.includes('dashboard') && dashboardsPending) ||
       knowledgeBasesPending ||
       foldersPending ||
@@ -220,7 +236,20 @@ export function useAvailableResources(
       },
       {
         type: 'file' as const,
-        items: (files ?? []).map((f) => ({ id: f.id, name: f.name, folderId: f.folderId ?? null })),
+        items: [
+          ...(files ?? []).map((f) => ({ id: f.id, name: f.name, folderId: f.folderId ?? null })),
+          ...(project && projectItems
+            ? projectItems
+                .filter((item) => item.kind === 'file')
+                .map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  folderId: item.parentId ?? projectRootId,
+                  owner: { entityType: 'project' as const, entityId: project.id },
+                  projectName: project.name,
+                }))
+            : []),
+        ],
       },
       {
         type: 'filefolder' as const,
@@ -310,6 +339,9 @@ export function useAvailableResources(
     fileFolders,
     tables,
     files,
+    project,
+    projectItems,
+    projectRootId,
     dashboardData,
     knowledgeBases,
     tasks,
@@ -329,8 +361,28 @@ export function useAvailableResources(
     return {
       table: toFolderItems(tableFolders),
       knowledgebase: toFolderItems(knowledgeBaseFolders),
+      file:
+        project && projectItems && projectRootId
+          ? [
+              {
+                id: projectRootId,
+                name: project.name,
+                owner: { entityType: 'project', entityId: project.id },
+                selectable: false,
+              },
+              ...projectItems
+                .filter((item) => item.kind === 'folder')
+                .map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  parentId: item.parentId ?? projectRootId,
+                  owner: { entityType: 'project' as const, entityId: project.id },
+                  selectable: false,
+                })),
+            ]
+          : [],
     }
-  }, [tableFolders, knowledgeBaseFolders])
+  }, [tableFolders, knowledgeBaseFolders, project, projectItems, projectRootId])
 
   // `groups` and `structureFolders` keep their own stable identities so the
   // consumers' downstream memos still key on them; only this wrapper changes

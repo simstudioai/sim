@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import {
   hasDesktopBackgroundExecutor,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/desktop/executor/availability'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
+import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
@@ -69,6 +71,8 @@ export default async function WorkspaceLayout({
     planModeEnabled,
     organizationHref,
     dashboardsEnabled,
+    projectsEnabled,
+    projectFilesEnabled,
     desktopExecutorRegistered,
   ] = await Promise.all([
     cookies(),
@@ -86,6 +90,8 @@ export default async function WorkspaceLayout({
     isPlanModeEnabled(),
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
+    isFeatureEnabled('projects'),
+    isProjectFileApiEnabled(),
     hasDesktopBackgroundExecutor(session.user.id),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
@@ -96,6 +102,8 @@ export default async function WorkspaceLayout({
     <HydrationBoundary state={dehydrate(queryClient)}>
       <FeatureFlagsProvider
         flags={{
+          projects: projectsEnabled,
+          'project-files': projectFilesEnabled,
           dashboards: dashboardsEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
