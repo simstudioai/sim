@@ -24,21 +24,36 @@ export async function runUploadLifecycleChecks(context: FilesE2EContext, directo
       const recovery = join(directory, 'after-reader-cancel.txt')
       await writeFile(recovery, 'Reader cancellation recovered\n')
       const reader = await page.evaluateHandle(() => {
-        const original = FileSystemDirectoryReader.prototype.readEntries
         const pending: (() => void)[] = []
         let calls = 0
         let released = false
-        FileSystemDirectoryReader.prototype.readEntries = function (success, failure) {
-          calls += 1
-          original.call(
-            this,
-            (entries) => {
-              if (released) success(entries)
-              else pending.push(() => success(entries))
-            },
-            failure
-          )
+        let prototype: FileSystemDirectoryReader | undefined
+        let original: FileSystemDirectoryReader['readEntries'] | undefined
+        const interceptDrop = (event: DragEvent) => {
+          if (prototype) return
+          for (const item of Array.from(event.dataTransfer?.items ?? [])) {
+            const entry = item.webkitGetAsEntry()
+            if (!entry?.isDirectory) continue
+            const nativeReader = (entry as FileSystemDirectoryEntry).createReader()
+            const readerPrototype = Object.getPrototypeOf(nativeReader) as FileSystemDirectoryReader
+            const readEntries = readerPrototype.readEntries
+            prototype = readerPrototype
+            original = readEntries
+            readerPrototype.readEntries = function (success, failure) {
+              calls += 1
+              readEntries.call(
+                this,
+                (entries) => {
+                  if (released) success(entries)
+                  else pending.push(() => success(entries))
+                },
+                failure
+              )
+            }
+            break
+          }
         }
+        window.addEventListener('drop', interceptDrop, true)
         return {
           get calls() {
             return calls
@@ -51,7 +66,8 @@ export async function runUploadLifecycleChecks(context: FilesE2EContext, directo
             for (const finish of pending.splice(0)) finish()
           },
           restore() {
-            FileSystemDirectoryReader.prototype.readEntries = original
+            window.removeEventListener('drop', interceptDrop, true)
+            if (prototype && original) prototype.readEntries = original
           },
         }
       })
