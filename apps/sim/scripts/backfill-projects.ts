@@ -10,6 +10,7 @@ import {
   ProjectBackfillBusy,
   ProjectBackfillConflict,
   projectBackfillDatabaseId,
+  readProjectGroupingReviews,
   verifyProjectBackfill,
 } from '@sim/db/maintenance/project-backfill'
 import { withUtcTimestamps } from '@sim/db/timestamps'
@@ -41,7 +42,15 @@ const manifestSchema = z
     databaseId: text,
     createdAt: text,
     families: z
-      .array(z.object({ rootId: text, members: z.array(member).min(1).max(1000) }).strict())
+      .array(
+        z
+          .object({
+            rootId: text,
+            members: z.array(member).min(1).max(1000),
+            projectMembers: z.array(member).min(1).max(1000).optional(),
+          })
+          .strict()
+      )
       .max(250000),
     repairs: z
       .array(
@@ -54,6 +63,22 @@ const manifestSchema = z
           .strict()
       )
       .max(250000),
+    groupings: z
+      .array(
+        z
+          .object({
+            projectId: text,
+            evidence: text,
+            members: z.array(member).min(1).max(1000),
+            destinationProjectId: text,
+            roots: z.array(text).max(1000),
+            decision: z.enum(['pending', 'retain', 'detach']),
+            detachRootId: text.optional(),
+          })
+          .strict()
+      )
+      .max(250000)
+      .default([]),
     conflicts: z.array(z.object({ id: text, reason: text }).strict()).max(250000),
   })
   .strict()
@@ -67,6 +92,7 @@ const progressSchema = z
     nextIndex: z.number().int().min(0),
     deferred: z.array(z.number().int().min(0)),
     repairsCompleted: z.array(text),
+    groupingsCompleted: z.array(text).default([]),
     assigned: z.number().int().min(0),
     projectsCreated: z.number().int().min(0),
     alreadyAssigned: z.number().int().min(0),
@@ -118,6 +144,7 @@ async function main() {
     allowPositionals: true,
     options: {
       manifest: { type: 'string' },
+      review: { type: 'string' },
       report: { type: 'string' },
       'batch-size': { type: 'string' },
       'max-batches': { type: 'string' },
@@ -131,9 +158,16 @@ async function main() {
     process.stdout.write(`Operator-controlled Project inspection and exceptional archive repair.
 Routine assignment and enforcement run through db:migrate.\n
 From apps/sim: bun --no-env-file scripts/backfill-projects.ts <command> [options]\n
-plan    Read-only discovery; atomically writes a new --manifest PATH (never overwrites).\nrepair  Repair only archived environments listed in --manifest; requires --report PATH.\napply   Optional maintenance: assign reviewed families from --manifest; requires --report PATH.\nverify  Validate the database and repair completion; requires --manifest and --report.\nstatus  Read --report; does not connect or resume.\n
+plan    Read-only discovery; writes a new --manifest PATH. Optional --review PATH carries reviewed grouping decisions.\nrepair  Repair reviewed archives and explicitly selected detached families; requires --report PATH.\napply   Optional maintenance: assign reviewed families from --manifest; requires --report PATH.\nverify  Validate the database and repair completion; requires --manifest and --report.\nstatus  Read --report; does not connect or resume.\n
 Writes require MIGRATION_DATABASE_URL pointing directly to the primary and --ack-release-drained.\nDeploy #8830 and verify old servers/workers drained first. Keep the reviewed manifest and report\nin durable private job storage. Review conflicts and repairs before repair/apply. Repair requires\nthe app runtime environment (DATABASE_URL must target the same database) for provider cleanup.\n
-Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 (1–3600), --pause-ms 100 (1–60000).\nA budget limits scheduling. Transactions use 3s statement limits and a 5s total limit on PG17+,\notherwise a 5s idle-transaction limit on PG16. Reuse the same report\nto resume; lost reports can be recreated safely from the same manifest. Changed families need a\nnew plan/report. Resolve conflicts and complete archive/provider cleanup before #8590.
+Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 (1–3600), --pause-ms 100 (1–60000).\nA budget limits scheduling. Transactions use 3s statement limits and a 5s total limit on PG17+,\notherwise a 5s idle-transaction limit on PG16. Reuse the same report\nto resume; lost reports can be recreated safely from the same manifest. Changed families need a\nnew plan/report. Review groupings explicitly: retain a legitimate group, or select one detachRootId
+and keep its generated destinationProjectId for replay. After detach, rediscover. Resolve all other
+conflicts and complete archive/provider cleanup before #8590. The registered runner can read exact retained-group decisions from PROJECT_BACKFILL_REVIEW_PATH.
+After an interrupted deployment, run packages/db/scripts/migrate.ts from the exact release checkout
+on an authorized operator host with that private manifest. Direct invocation does not run the GHA
+AWS preflight: freshly verify the compatible deployed release, old app/worker drainage and release
+coordination first. Prior failed CI is not continuing proof if deployment state changed. Once the
+runner succeeds and writes its normal receipt, the ordinary deployment retry needs no local file.
 The registered migration backfills remaining assignments, verifies, then enforces.\nExit: 0 complete, 2 running/paused/incomplete, 1 failure. Use db:migrate for routine backfill and enforcement after writer drainage.\n`)
     return
   }
@@ -143,6 +177,7 @@ The registered migration backfills remaining assignments, verifies, then enforce
     !['plan', 'repair', 'apply', 'verify', 'status'].includes(command)
   )
     throw new Error('Unknown command; use --help')
+  if (values.review && command !== 'plan') throw new Error('--review is only supported by plan')
   const manifestPath = values.manifest ? resolve(values.manifest) : null
   const reportPath = values.report ? resolve(values.report) : null
   if (manifestPath && manifestPath === reportPath)
@@ -209,7 +244,10 @@ The registered migration backfills remaining assignments, verifies, then enforce
     lockPid = lock.pid
     if (command === 'plan') {
       if (!manifestPath) throw new Error('plan requires --manifest')
-      const manifest = await discoverProjectBackfill(sql, databaseId)
+      const reviews = values.review
+        ? await readProjectGroupingReviews(resolve(values.review), databaseId)
+        : []
+      const manifest = await discoverProjectBackfill(sql, databaseId, reviews)
       await assertLock()
       await writeJson(manifestPath, manifest, false)
       logger.info('Reviewable Project plan written', {
@@ -273,6 +311,7 @@ The registered migration backfills remaining assignments, verifies, then enforce
         nextIndex: 0,
         deferred: [],
         repairsCompleted: [],
+        groupingsCompleted: [],
         assigned: 0,
         alreadyAssigned: 0,
         projectsCreated: 0,
@@ -332,7 +371,9 @@ The registered migration backfills remaining assignments, verifies, then enforce
             'Repair requires DATABASE_URL and MIGRATION_DATABASE_URL to identify the same database'
           )
         repairRuntimeLoaded = true
-        const { repairArchivedProjectEnvironment } = await import('@/lib/projects/backfill-repair')
+        const { repairArchivedProjectEnvironment, repairProjectGrouping } = await import(
+          '@/lib/projects/backfill-repair'
+        )
         for (const repair of manifest.repairs) {
           if (completedRepairs.has(repair.workspaceId)) continue
           if (stop || attempts >= maxBatches || performance.now() - started >= seconds * 1000) break
@@ -358,6 +399,30 @@ The registered migration backfills remaining assignments, verifies, then enforce
             })
           }
           await sleep(pauseMs)
+        }
+        for (const grouping of manifest.groupings) {
+          if (
+            grouping.decision !== 'detach' ||
+            progress.groupingsCompleted.includes(grouping.projectId)
+          )
+            continue
+          if (stop || attempts >= maxBatches || performance.now() - started >= seconds * 1000) break
+          await assertLock()
+          attempts++
+          try {
+            await repairProjectGrouping(sql, grouping)
+            await assertLock()
+            progress.groupingsCompleted.push(grouping.projectId)
+            await checkpoint()
+          } catch (error) {
+            if (!(error instanceof ProjectBackfillBusy) && !getTransientDatabaseFailure(error))
+              throw error
+            await assertLock()
+            logger.warn('Reviewed grouping repair deferred', {
+              projectId: grouping.projectId,
+              error: describeError(error),
+            })
+          }
         }
       } else {
         for (let position = 0; position < pending.length; ) {

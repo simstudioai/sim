@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
+import { readFile, stat } from 'node:fs/promises'
 import { countPendingProjectArchiveRepairs } from '@sim/db/maintenance/project-repairs'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { compareStrings, truncateAtCodePoint } from '@sim/utils/string'
 import type { Sql, TransactionSql } from 'postgres'
 
@@ -9,7 +11,7 @@ const logger = createLogger('ProjectBackfill')
 const MAX_WORKSPACES = 250_000
 const MAX_FAMILY = 1_000
 
-interface ProjectBackfillWorkspace {
+export type ProjectBackfillWorkspace = {
   id: string
   parentId: string | null
   ownerId: string
@@ -22,6 +24,7 @@ interface ProjectBackfillWorkspace {
 interface ProjectBackfillFamily {
   rootId: string
   members: ProjectBackfillWorkspace[]
+  projectMembers?: ProjectBackfillWorkspace[]
 }
 
 export interface ProjectArchiveRepair {
@@ -30,12 +33,23 @@ export interface ProjectArchiveRepair {
   workflowIds: string[]
 }
 
+export interface ProjectGroupingReview {
+  projectId: string
+  evidence: string
+  members: ProjectBackfillWorkspace[]
+  destinationProjectId: string
+  roots: string[]
+  decision: 'pending' | 'retain' | 'detach'
+  detachRootId?: string
+}
+
 interface ProjectBackfillManifest {
   version: 1
   databaseId: string
   createdAt: string
   families: ProjectBackfillFamily[]
   repairs: ProjectArchiveRepair[]
+  groupings: ProjectGroupingReview[]
   conflicts: { id: string; reason: string }[]
 }
 
@@ -51,8 +65,105 @@ export class ProjectBackfillBusy extends Error {}
 export function projectBackfillDatabaseId(url: string): string {
   const target = new URL(url)
   return createHash('sha256')
-    .update(`${target.hostname.toLowerCase()}:${target.port || '5432'}${target.pathname}`)
+    .update(
+      JSON.stringify({
+        host: target.hostname.toLowerCase() || process.env.PGHOST || 'localhost',
+        port: target.port || process.env.PGPORT || '5432',
+        database: target.pathname,
+        routing: [
+          'host',
+          'hostaddr',
+          'hostname',
+          'port',
+          'database',
+          'dbname',
+          'service',
+          'servicefile',
+          'target_session_attrs',
+        ].map((key) => [key, target.searchParams.getAll(key)]),
+      })
+    )
     .digest('hex')
+}
+
+/** Binds an explicit grouping decision to membership, lineage, lifecycle and ownership evidence. */
+export function projectGroupingEvidence(rows: ProjectBackfillWorkspace[]): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify(
+        [...rows]
+          .sort((a, b) => compareStrings(a.id, b.id))
+          .map((row) => ({
+            id: row.id,
+            parentId: row.parentId,
+            ownerId: row.ownerId,
+            organizationId: row.organizationId,
+            archivedAt: row.archivedAt,
+            projectId: effectiveProjectId(row),
+          }))
+      )
+    )
+    .digest('hex')
+}
+
+function isProjectBackfillWorkspace(value: unknown): value is ProjectBackfillWorkspace {
+  return (
+    isRecordLike(value) &&
+    typeof value.id === 'string' &&
+    typeof value.ownerId === 'string' &&
+    ['parentId', 'organizationId', 'archivedAt', 'projectId', 'legacyProjectId'].every(
+      (key) => value[key] === null || typeof value[key] === 'string'
+    )
+  )
+}
+
+/** Exceptional operator review stays in the existing private manifest, never the retiring connector. */
+export async function readProjectGroupingReviews(
+  path: string,
+  databaseId: string
+): Promise<ProjectGroupingReview[]> {
+  if ((await stat(path)).size > 128 * 1024 * 1024)
+    throw new Error('Project review exceeds artifact size limit')
+  const value: unknown = JSON.parse(await readFile(path, 'utf8'))
+  if (
+    !isRecordLike(value) ||
+    value.version !== 1 ||
+    value.databaseId !== databaseId ||
+    !Array.isArray(value.groupings)
+  )
+    throw new Error('Project grouping review does not match this database')
+  const reviews: ProjectGroupingReview[] = []
+  for (const item of value.groupings) {
+    if (
+      !isRecordLike(item) ||
+      !Array.isArray(item.members) ||
+      item.members.length > MAX_FAMILY ||
+      !item.members.every(isProjectBackfillWorkspace) ||
+      typeof item.destinationProjectId !== 'string' ||
+      typeof item.projectId !== 'string' ||
+      typeof item.evidence !== 'string' ||
+      !Array.isArray(item.roots) ||
+      item.roots.length > MAX_FAMILY ||
+      !item.roots.every((root): root is string => typeof root === 'string') ||
+      !['pending', 'retain', 'detach'].includes(String(item.decision)) ||
+      (item.detachRootId !== undefined && typeof item.detachRootId !== 'string')
+    )
+      throw new Error('Invalid Project grouping review')
+    if (projectGroupingEvidence(item.members) !== item.evidence)
+      throw new Error('Project grouping evidence does not match the reviewed members')
+    if (reviews.some((review) => review.projectId === item.projectId))
+      throw new Error('Duplicate Project grouping review')
+    reviews.push({
+      projectId: item.projectId,
+      evidence: item.evidence,
+      members: item.members,
+      destinationProjectId: item.destinationProjectId,
+      roots: item.roots,
+      decision: item.decision as ProjectGroupingReview['decision'],
+      ...(typeof item.detachRootId === 'string' ? { detachRootId: item.detachRootId } : {}),
+    })
+  }
+  return reviews
 }
 
 /** Checks physical prerequisites without trusting a local migration journal or a CLI flag. */
@@ -78,8 +189,7 @@ async function hasLegacyMemberships(tx: TransactionSql): Promise<boolean> {
 
 function legacyAssignment(tx: TransactionSql, legacy: boolean) {
   return legacy
-    ? tx`CASE WHEN w.project_id IS NULL THEN
-        (SELECT pw.project_id FROM project_workspace pw WHERE pw.workspace_id = w.id) END`
+    ? tx`(SELECT pw.project_id FROM project_workspace pw WHERE pw.workspace_id = w.id)`
     : tx`NULL::text`
 }
 
@@ -87,26 +197,19 @@ function effectiveProjectId(row: ProjectBackfillWorkspace): string | null {
   return row.projectId ?? row.legacyProjectId
 }
 
-function projectEnvironments(tx: TransactionSql, legacy: boolean, projectId: string) {
-  const columns = tx`SELECT id, archived_at FROM workspace WHERE project_id = ${projectId}`
-  return legacy
-    ? tx`${columns} UNION ALL
-        SELECT w.id, w.archived_at FROM project_workspace pw
-        JOIN workspace w ON w.id = pw.workspace_id
-        WHERE pw.project_id = ${projectId} AND w.project_id IS NULL`
-    : columns
-}
-
 /** Bounded discovery materializes only identity/scope metadata, never workflow content. */
 export async function discoverProjectBackfill(
   sql: Sql,
-  databaseId: string
+  databaseId: string,
+  reviews: ProjectGroupingReview[] = []
 ): Promise<ProjectBackfillManifest> {
   const rows: ProjectBackfillWorkspace[] = []
+  let legacyPresent = false
   let after = ''
   for (;;) {
     const page = await sql.begin(async (tx) => {
       const legacy = await hasLegacyMemberships(tx)
+      legacyPresent ||= legacy
       return tx<ProjectBackfillWorkspace[]>`
         SELECT w.id, w.forked_from_workspace_id AS "parentId", w.owner_id AS "ownerId",
           w.organization_id AS "organizationId", w.archived_at::text AS "archivedAt",
@@ -127,6 +230,7 @@ export async function discoverProjectBackfill(
     createdAt: new Date().toISOString(),
     families: [],
     repairs: [],
+    groupings: [],
     conflicts: [],
   }
   const byId = new Map(rows.map((row) => [row.id, row]))
@@ -158,16 +262,118 @@ export async function discoverProjectBackfill(
     if (group) group.push(row)
     else groups.set(root, [row])
   }
-  for (const [rootId, members] of groups) {
-    if (
-      members.every((row) => row.projectId !== null) &&
-      new Set(members.map((row) => row.projectId)).size === 1
-    )
+  const projects = await sql<
+    { id: string; ownerId: string; organizationId: string | null; archivedAt: string | null }[]
+  >`
+    SELECT id, owner_id AS "ownerId", organization_id AS "organizationId", archived_at::text AS "archivedAt" FROM project LIMIT 250001
+  `
+  if (projects.length > MAX_WORKSPACES)
+    throw new Error('Project discovery exceeds the Project limit')
+  const affectedProjects = new Set<string>()
+  const projectMembers = new Map<string, ProjectBackfillWorkspace[]>()
+  for (const row of rows) {
+    const id = effectiveProjectId(row)
+    if (!id) continue
+    const members = projectMembers.get(id) ?? []
+    members.push(row)
+    projectMembers.set(id, members)
+  }
+  for (const project of projects) {
+    const members = projectMembers.get(project.id) ?? []
+    if (!members.length) {
+      manifest.conflicts.push({
+        id: project.id,
+        reason: 'Empty Project requires explicit dependency review and operator remediation',
+      })
       continue
+    }
+    const roots = new Set(members.map((row) => rootById.get(row.id)))
+    if (
+      roots.size > 1 &&
+      members.some((row) => row.parentId === null && row.legacyProjectId !== project.id)
+    ) {
+      if (legacyPresent) {
+        const evidence = projectGroupingEvidence(members)
+        const reviewed = reviews.find(
+          (review) => review.projectId === project.id && review.evidence === evidence
+        )
+        const decision = reviewed?.decision ?? 'pending'
+        if (members.length > MAX_FAMILY) {
+          manifest.conflicts.push({
+            id: project.id,
+            reason: 'Oversized ambiguous Project grouping requires operator remediation',
+          })
+          continue
+        }
+        manifest.groupings.push({
+          projectId: project.id,
+          evidence,
+          members,
+          destinationProjectId: reviewed?.destinationProjectId ?? generateId(),
+          roots: [...roots]
+            .filter((root): root is string => typeof root === 'string')
+            .sort(compareStrings),
+          decision,
+          ...(reviewed?.detachRootId ? { detachRootId: reviewed.detachRootId } : {}),
+        })
+        if (decision !== 'retain')
+          manifest.conflicts.push({
+            id: project.id,
+            reason:
+              'Ambiguous multi-root Project grouping; review this manifest grouping or repair the known detached family before rediscovery',
+          })
+      }
+    }
+    if (
+      new Set(members.map((row) => row.organizationId)).size !== 1 ||
+      (!members[0].organizationId && members.some((row) => row.ownerId !== project.ownerId))
+    ) {
+      affectedProjects.add(project.id)
+    }
+    if (
+      members.some((row) => row.organizationId !== project.organizationId) ||
+      (project.archivedAt === null) !== members.some((row) => row.archivedAt === null)
+    )
+      affectedProjects.add(project.id)
+  }
+  const plannedProjectMembers = new Map(
+    [...projectMembers].map(([id, members]) => [id, [...members]])
+  )
+  for (const members of groups.values()) {
+    const projectIds = [
+      ...new Set(members.map(effectiveProjectId).filter((id): id is string => id !== null)),
+    ]
+    if (projectIds.length !== 1) continue
+    const planned = plannedProjectMembers.get(projectIds[0])
+    if (planned) planned.push(...members.filter((row) => effectiveProjectId(row) === null))
+  }
+  const scheduledMetadata = new Set<string>()
+  for (const [rootId, members] of groups) {
     const family = { rootId, members }
     try {
+      const complete =
+        members.every((row) => row.projectId !== null) &&
+        new Set(members.map((row) => row.projectId)).size === 1
+      validateFamily(family, complete)
+      if (
+        complete &&
+        !members.some(
+          (row) =>
+            row.projectId &&
+            affectedProjects.has(row.projectId) &&
+            !scheduledMetadata.has(row.projectId)
+        )
+      )
+        continue
       validateFamily(family)
-      manifest.families.push(family)
+      const projectId = members.map(effectiveProjectId).find((id) => id !== null)
+      if (projectId && (plannedProjectMembers.get(projectId)?.length ?? 0) > MAX_FAMILY)
+        throw new ProjectBackfillConflict('Oversized Project repair requires operator remediation')
+      if (projectId) scheduledMetadata.add(projectId)
+      manifest.families.push({
+        ...family,
+        ...(projectId ? { projectMembers: plannedProjectMembers.get(projectId) } : {}),
+      })
     } catch (error) {
       if (!(error instanceof ProjectBackfillConflict)) throw error
       manifest.conflicts.push({ id: rootId, reason: error.message })
@@ -211,23 +417,25 @@ export async function discoverProjectBackfill(
   return manifest
 }
 
-function validateFamily(family: ProjectBackfillFamily): void {
+function validateFamily(family: ProjectBackfillFamily, complete = false): void {
   const root = family.members.find((row) => row.id === family.rootId)
-  if (!root || root.parentId || family.members.length > MAX_FAMILY)
+  if (!root || root.parentId || (!complete && family.members.length > MAX_FAMILY))
     throw new ProjectBackfillConflict('Invalid or oversized fork family')
   const members = new Map(family.members.map((row) => [row.id, row]))
   if (members.size !== family.members.length)
     throw new ProjectBackfillConflict('Duplicate family member')
+  const connected = new Set([root.id])
   for (const row of family.members) {
     let current = row
     const visited = new Set<string>()
-    while (current.id !== root.id) {
+    while (!connected.has(current.id)) {
       if (visited.has(current.id)) throw new ProjectBackfillConflict('Cyclic family')
       visited.add(current.id)
       const parent = current.parentId ? members.get(current.parentId) : undefined
       if (!parent) throw new ProjectBackfillConflict('Disconnected family member')
       current = parent
     }
+    for (const id of visited) connected.add(id)
   }
   if (family.members.some((row) => row.organizationId !== root.organizationId))
     throw new ProjectBackfillConflict('Fork family spans organizations')
@@ -366,27 +574,75 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
       if (projectId) {
         const [existing] =
           await tx`SELECT owner_id, organization_id, archived_at::text FROM project WHERE id = ${projectId} FOR NO KEY UPDATE NOWAIT`
-        const familyIds = members.map((row) => row.id)
-        const [membership] = await tx`
-          SELECT EXISTS (SELECT 1 FROM (${projectEnvironments(tx, legacy, projectId)}) environments
-            WHERE archived_at IS NULL) AS active,
-            EXISTS (SELECT 1 FROM (${projectEnvironments(tx, legacy, projectId)}) environments
-            WHERE NOT id = ANY(${familyIds})) AS outside
+        const reviewedIds = family.projectMembers?.map((row) => row.id) ?? []
+        const evidenceRows = await tx<ProjectBackfillWorkspace[]>`
+          SELECT w.id, w.owner_id AS "ownerId", w.organization_id AS "organizationId", w.archived_at::text AS "archivedAt",
+            w.forked_from_workspace_id AS "parentId", w.project_id AS "projectId", ${legacyAssignment(tx, legacy)} AS "legacyProjectId"
+          FROM workspace w WHERE coalesce(w.project_id, ${legacyAssignment(tx, legacy)}) = ${projectId}
+            OR w.id = ANY(${reviewedIds})
+          ORDER BY w.id COLLATE "C" LIMIT 1001 FOR NO KEY UPDATE NOWAIT
         `
-        const hasActiveEnvironment = archiveAt === null || membership.active
+        const environments = evidenceRows.filter((row) => effectiveProjectId(row) === projectId)
+        if (!existing || evidenceRows.length > MAX_FAMILY)
+          throw new ProjectBackfillConflict(
+            'Missing Project or oversized Project repair; operator remediation required'
+          )
+        if (family.projectMembers) {
+          const reviewed = new Map(
+            [
+              ...family.projectMembers,
+              ...family.members.filter((row) => effectiveProjectId(row) === null),
+            ].map((row) => [row.id, row])
+          )
+          const currentIds = new Set(evidenceRows.map((row) => row.id))
+          if (
+            family.projectMembers.some((row) => !currentIds.has(row.id)) ||
+            evidenceRows.some((row) => {
+              const expected = reviewed.get(row.id)
+              return (
+                !expected ||
+                row.parentId !== expected.parentId ||
+                row.ownerId !== expected.ownerId ||
+                row.organizationId !== expected.organizationId ||
+                row.archivedAt !== expected.archivedAt ||
+                (effectiveProjectId(expected) !== null
+                  ? effectiveProjectId(row) !== effectiveProjectId(expected)
+                  : effectiveProjectId(row) !== null && effectiveProjectId(row) !== projectId)
+              )
+            })
+          )
+            throw new ProjectBackfillConflict('Reviewed Project membership changed; rediscover')
+        }
+        const allMembers = [
+          ...environments,
+          ...members.filter((row) => effectiveProjectId(row) === null),
+        ]
         if (
-          !existing ||
-          existing.organization_id !== root.organizationId ||
-          (existing.archived_at === null) !== hasActiveEnvironment ||
-          (!root.organizationId && existing.owner_id !== root.ownerId)
+          allMembers.some((row) => row.organizationId !== root.organizationId) ||
+          (!root.organizationId && allMembers.some((row) => row.ownerId !== existing.owner_id)) ||
+          (existing.organization_id !== root.organizationId &&
+            allMembers.some((row) => row.ownerId !== existing.owner_id))
         )
           throw new ProjectBackfillConflict(
-            'Existing Project has incompatible ownership, scope or archive state'
+            'Existing Project has ambiguous ownership or scope; operator remediation required'
           )
-        if (members.some((row) => effectiveProjectId(row) === null) && membership.outside)
-          throw new ProjectBackfillConflict(
-            'Partial assignment references a Project outside the reviewed family'
-          )
+        const projectArchiveAt = allMembers.some((row) => row.archivedAt === null)
+          ? null
+          : (allMembers
+              .map((row) => row.archivedAt ?? '')
+              .sort(compareStrings)
+              .at(-1) ?? null)
+        if (
+          existing.organization_id !== root.organizationId ||
+          (existing.archived_at === null) !== (projectArchiveAt === null)
+        ) {
+          if (!family.projectMembers)
+            throw new ProjectBackfillConflict(
+              'Project repair needs fresh Project-wide evidence; rediscover'
+            )
+          await tx`UPDATE project SET organization_id = ${root.organizationId},
+            archived_at = ${projectArchiveAt}::text::timestamp, updated_at = now() WHERE id = ${projectId}`
+        }
       } else {
         projectId = generateId()
         inserts.push({

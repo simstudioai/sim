@@ -7,6 +7,7 @@ import { promisify } from 'node:util'
 import {
   assignProjectBackfillBatch,
   discoverProjectBackfill,
+  type ProjectGroupingReview,
   projectBackfillDatabaseId,
   verifyProjectBackfill,
 } from '@sim/db/maintenance/project-backfill'
@@ -20,7 +21,7 @@ import { generateId } from '@sim/utils/id'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres, { type Sql } from 'postgres'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const migration = await readFile(
   new URL('../maintenance/project-membership.sql', import.meta.url),
@@ -94,7 +95,18 @@ async function prepareAndEnforce(sql: Sql) {
   await applyMigration(sql, migration)
 }
 
-async function runRegisteredProjectMigration(url: string) {
+async function runRegisteredProjectMigration(url: string, reviews?: ProjectGroupingReview[]) {
+  const previousPath = process.env.PROJECT_BACKFILL_REVIEW_PATH
+  const previousUrl = process.env.MIGRATION_DATABASE_URL
+  const directory = reviews ? await mkdtemp(join(tmpdir(), 'project-review-')) : null
+  if (directory) {
+    process.env.PROJECT_BACKFILL_REVIEW_PATH = join(directory, 'manifest.json')
+    process.env.MIGRATION_DATABASE_URL = url
+    await writeFile(
+      process.env.PROJECT_BACKFILL_REVIEW_PATH,
+      JSON.stringify({ version: 1, databaseId: projectBackfillDatabaseId(url), groupings: reviews })
+    )
+  }
   const runner = postgres(url, { max: 1, onnotice: () => undefined, max_lifetime: null })
   try {
     await runScriptMigrations(
@@ -103,6 +115,9 @@ async function runRegisteredProjectMigration(url: string) {
     )
   } finally {
     await runner.end({ timeout: 2 })
+    vi.stubEnv('PROJECT_BACKFILL_REVIEW_PATH', previousPath)
+    vi.stubEnv('MIGRATION_DATABASE_URL', previousUrl)
+    if (directory) await rm(directory, { recursive: true, force: true })
   }
 }
 
@@ -116,6 +131,151 @@ async function seed(sql: Sql) {
 const constraintFailure = (error: unknown) => getPostgresErrorCode(error) === '23514'
 
 describe('Project expand/backfill/contract against PostgreSQL', () => {
+  it('repairs fully assigned stale Project archive and scope without restoring environments or workflows', async () => {
+    await database(async (sql, url) => {
+      await sql`INSERT INTO project (id,name,owner_id,archived_at) VALUES
+        ('stale','Keep identity','owner','2026-01-01'), ('archived','Keep archive','owner',NULL)`
+      await sql`INSERT INTO workspace (id,name,owner_id,organization_id,project_id,archived_at) VALUES
+        ('root','Root','owner','org','stale','2026-01-01'),
+        ('old','Old','owner',NULL,'archived','2026-01-02')`
+      await sql`INSERT INTO workspace (id,name,owner_id,organization_id,project_id,forked_from_workspace_id)
+        VALUES ('child','Child','owner','org','stale','root')`
+      await sql`INSERT INTO workflow VALUES ('old-flow','root','2026-01-01'), ('live-flow','child',NULL)`
+      const before = await sql`SELECT id,archived_at FROM workspace ORDER BY id`
+      const workflows = await sql`SELECT * FROM workflow ORDER BY id`
+      await runRegisteredProjectMigration(url)
+      expect(
+        await sql`SELECT id,name,organization_id,archived_at::text FROM project ORDER BY id`
+      ).toEqual([
+        {
+          id: 'archived',
+          name: 'Keep archive',
+          organization_id: null,
+          archived_at: '2026-01-02 00:00:00',
+        },
+        { id: 'stale', name: 'Keep identity', organization_id: 'org', archived_at: null },
+      ])
+      expect(await sql`SELECT id,archived_at FROM workspace ORDER BY id`).toEqual(before)
+      expect(await sql`SELECT * FROM workflow ORDER BY id`).toEqual(workflows)
+      expect(Object.values(await verifyProjectBackfill(sql)).every((count) => count === 0)).toBe(
+        true
+      )
+    })
+  })
+
+  it('reports fully assigned mixed-scope and personal-owner conflicts without changing ownership', async () => {
+    await database(async (sql) => {
+      await sql`INSERT INTO "user" VALUES ('other')`
+      await sql`INSERT INTO project (id,name,owner_id) VALUES ('shared','Shared','owner')`
+      await sql`INSERT INTO workspace (id,name,owner_id,project_id) VALUES ('root','Root','owner','shared')`
+      await sql`INSERT INTO workspace (id,name,owner_id,project_id,forked_from_workspace_id)
+        VALUES ('child','Child','other','shared','root')`
+      expect((await discoverProjectBackfill(sql, 'fixture')).conflicts).toEqual([
+        { id: 'root', reason: expect.stringContaining('owners') },
+      ])
+      await sql`UPDATE workspace SET organization_id = 'org' WHERE id = 'child'`
+      expect((await discoverProjectBackfill(sql, 'fixture')).conflicts).toEqual([
+        { id: 'root', reason: expect.stringContaining('organizations') },
+      ])
+      expect(await sql`SELECT owner_id FROM project`).toEqual([{ owner_id: 'owner' }])
+    })
+  })
+
+  it('reports unproven multi-root grouping and accepts an exact reviewed retention decision', async () => {
+    await database(async (sql, url) => {
+      await sql`INSERT INTO project (id,name,owner_id) VALUES ('shared','Keep context','owner')`
+      await sql`INSERT INTO workspace (id,name,owner_id,project_id) VALUES
+        ('root','Root','owner','shared'), ('detached','Detached','owner','shared')`
+      expect((await discoverProjectBackfill(sql, 'fixture')).conflicts).toContainEqual({
+        id: 'shared',
+        reason: expect.stringContaining('grouping'),
+      })
+      await expect(runRegisteredProjectMigration(url)).rejects.toThrow('conflicts')
+      expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual([
+        { id: 'detached', project_id: 'shared' },
+        { id: 'root', project_id: 'shared' },
+      ])
+      const reviews = (await discoverProjectBackfill(sql, 'fixture')).groupings.map((group) => ({
+        ...group,
+        decision: 'retain' as const,
+      }))
+      await runRegisteredProjectMigration(url, reviews)
+      expect(await sql`SELECT id,name FROM project`).toEqual([
+        { id: 'shared', name: 'Keep context' },
+      ])
+    })
+  })
+
+  it.each(['root', 'unassigned-child'])(
+    'rediscoveries Project-wide evidence after a %s changes during repair planning',
+    async (changed) => {
+      await database(async (sql) => {
+        await sql`INSERT INTO project (id,name,owner_id,archived_at) VALUES ('shared','Shared','owner','2026-01-01')`
+        await sql`INSERT INTO workspace (id,name,owner_id,project_id) VALUES ('a','A','owner','shared'),('b','B','owner','shared')`
+        await sql`INSERT INTO project_workspace (project_id,workspace_id) VALUES ('shared','a'),('shared','b')`
+        await sql`INSERT INTO workspace (id,name,owner_id,forked_from_workspace_id) VALUES ('c','Pending child','owner','b')`
+        const manifest = await discoverProjectBackfill(sql, 'fixture')
+        await sql`UPDATE workspace SET archived_at = '2026-01-02' WHERE id = ${changed === 'root' ? 'b' : 'c'}`
+        await expect(assignProjectBackfillBatch(sql, [manifest.families[0]])).rejects.toThrow(
+          'rediscover'
+        )
+        expect(await sql`SELECT archived_at IS NOT NULL AS archived FROM project`).toEqual([
+          { archived: true },
+        ])
+        await prepareAndEnforce(sql)
+        expect(await sql`SELECT archived_at FROM project`).toEqual([{ archived_at: null }])
+      })
+    }
+  )
+
+  it.each([false, true])(
+    'replays a reviewed partial family after commit while preserving legitimate shared roots (shared=%s)',
+    async (shared) => {
+      await database(async (sql) => {
+        await sql`INSERT INTO project(id,name,owner_id) VALUES ('existing','Keep context','owner')`
+        await sql`INSERT INTO workspace(id,name,owner_id) VALUES ('root','Root','owner')`
+        await sql`INSERT INTO workspace(id,name,owner_id,forked_from_workspace_id) VALUES ('child','Child','owner','root')`
+        await sql`INSERT INTO project_workspace(project_id,workspace_id) VALUES ('existing','root')`
+        if (shared) {
+          await sql`INSERT INTO workspace(id,name,owner_id,project_id) VALUES ('other-root','Other','owner','existing')`
+          await sql`INSERT INTO project_workspace(project_id,workspace_id) VALUES ('existing','other-root')`
+          await sql`INSERT INTO workspace(id,name,owner_id,forked_from_workspace_id) VALUES ('other-child','Other child','owner','other-root')`
+        }
+        const manifest = await discoverProjectBackfill(sql, 'fixture')
+        const family = manifest.families.find((item) => item.rootId === 'root')
+        if (!family) throw new Error('Missing partial family')
+        expect(await assignProjectBackfillBatch(sql, [family])).toMatchObject({
+          assigned: 2,
+          projectsCreated: 0,
+        })
+        expect(await assignProjectBackfillBatch(sql, [family])).toMatchObject({
+          assigned: 0,
+          alreadyAssigned: 2,
+          projectsCreated: 0,
+        })
+        if (shared) {
+          const other = manifest.families.find((item) => item.rootId === 'other-root')
+          if (!other) throw new Error('Missing other partial family')
+          expect(await assignProjectBackfillBatch(sql, [other])).toMatchObject({
+            assigned: 1,
+            projectsCreated: 0,
+          })
+          expect(await assignProjectBackfillBatch(sql, [other])).toMatchObject({
+            assigned: 0,
+            alreadyAssigned: 2,
+            projectsCreated: 0,
+          })
+        }
+        expect(await sql`SELECT id,name FROM project`).toEqual([
+          { id: 'existing', name: 'Keep context' },
+        ])
+        expect(
+          await sql`SELECT id FROM workspace WHERE project_id IS DISTINCT FROM 'existing'`
+        ).toHaveLength(0)
+      })
+    }
+  )
+
   it('runs registered assignment before enforcement for forks, singletons and archived families', async () => {
     await database(async (sql, url) => {
       await sql`INSERT INTO workspace (id,name,owner_id,archived_at) VALUES
@@ -924,7 +1084,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         }
         try {
           await sql`INSERT INTO project (id,name,owner_id) VALUES ('empty','Empty','owner')`
-          await expect(run()).rejects.toThrow('validation failed')
+          await expect(run()).rejects.toThrow('conflicts')
           expect(await sql`SELECT * FROM drizzle.__drizzle_migrations`).toHaveLength(2)
           expect(await sql`SELECT * FROM script_migrations`).toHaveLength(0)
           await sql`DELETE FROM project WHERE id = 'empty'`
@@ -1373,15 +1533,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   })
 
-  it.each([
-    'cycle',
-    'assigned-cycle',
-    'split',
-    'scope',
-    'archive',
-    'outside-family',
-    'oversized',
-  ] as const)(
+  it.each(['cycle', 'assigned-cycle', 'split', 'oversized'] as const)(
     'refuses %s legacy data without silently changing existing assignments',
     async (scenario) => {
       await database(async (sql) => {
@@ -1400,13 +1552,6 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           if (scenario === 'split') {
             await sql`INSERT INTO project (id, name, owner_id) VALUES ('second', 'Second', 'owner')`
             await sql`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('second', 'child')`
-          } else if (scenario === 'scope') {
-            await sql`UPDATE project SET organization_id = 'org'`
-          } else if (scenario === 'archive') {
-            await sql`UPDATE project SET archived_at = now()`
-          } else {
-            await sql`INSERT INTO workspace (id, name, owner_id) VALUES ('outside', 'Outside', 'owner')`
-            await sql`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('existing', 'outside')`
           }
         }
         const before = await sql`SELECT w.id, coalesce(w.project_id, pw.project_id) AS project_id
@@ -1424,11 +1569,6 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           await sql`SELECT w.id, coalesce(w.project_id, pw.project_id) AS project_id
           FROM workspace w LEFT JOIN project_workspace pw ON pw.workspace_id = w.id ORDER BY w.id`
         ).toEqual(before)
-        if (scenario === 'outside-family') {
-          expect(
-            await sql`SELECT id FROM workspace WHERE id IN ('root','child') AND project_id IS NOT NULL`
-          ).toHaveLength(0)
-        }
       })
     }
   )
@@ -1459,6 +1599,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         await sql`INSERT INTO workspace (id, name, owner_id, forked_from_workspace_id)
           SELECT 'other-' || n, 'Other', 'owner', ${shape === 'large-family' ? 'root' : null} FROM generate_series(1, ${count}) n`
         await sql`UPDATE workspace SET project_id = 'existing'`
+        await sql`INSERT INTO project_workspace (project_id, workspace_id) SELECT 'existing', id FROM workspace`
         await prepareAndEnforce(sql)
         expect(await sql`SELECT id, name FROM project`).toEqual([
           { id: 'existing', name: 'Keep this Project' },

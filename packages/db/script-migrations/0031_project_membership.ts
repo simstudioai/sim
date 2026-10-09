@@ -4,6 +4,8 @@ import {
   discoverProjectBackfill,
   ProjectBackfillBusy,
   ProjectBackfillConflict,
+  projectBackfillDatabaseId,
+  readProjectGroupingReviews,
   verifyProjectBackfill,
 } from '@sim/db/maintenance/project-backfill'
 import { enforceProjectMembership } from '@sim/db/maintenance/project-enforcement'
@@ -49,7 +51,13 @@ export const projectMembershipMigration: ScriptMigration = {
           'Project archive cleanup is incomplete; resume repair with the original manifest before retrying'
         )
       }
-      const manifest = await discoverProjectBackfill(sql, 'migration-runner')
+      const reviewPath = process.env.PROJECT_BACKFILL_REVIEW_PATH
+      const reviewUrl = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
+      if (reviewPath && !reviewUrl)
+        throw new Error('Reviewed Project migration requires its database URL')
+      const databaseId = reviewUrl ? projectBackfillDatabaseId(reviewUrl) : 'migration-runner'
+      const reviews = reviewPath ? await readProjectGroupingReviews(reviewPath, databaseId) : []
+      const manifest = await discoverProjectBackfill(sql, databaseId, reviews)
       if (manifest.conflicts.length || manifest.repairs.length) {
         logger.error('Project preparation requires operator remediation', {
           conflicts: manifest.conflicts.slice(0, 50),
@@ -132,6 +140,11 @@ export const projectMembershipMigration: ScriptMigration = {
         )
       }
       await assertSession()
+      const remaining = await discoverProjectBackfill(sql, databaseId, reviews)
+      if (remaining.conflicts.length || remaining.repairs.length || remaining.families.length)
+        throw new ProjectBackfillConflict(
+          'Project evidence changed during preparation; rediscover and rerun'
+        )
       const counts = await verifyProjectBackfill(sql)
       logger.info('Project migration verification', counts)
       if (Object.values(counts).some((count) => count !== 0)) {

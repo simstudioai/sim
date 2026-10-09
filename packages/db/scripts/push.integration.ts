@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import drizzleConfig from '@sim/db/drizzle.config'
-import { ensureProjectArchiveRepairJournal } from '@sim/db/maintenance/project-repairs'
+import {
+  completeProjectArchiveRepair,
+  countPendingProjectArchiveRepairs,
+  ensureProjectArchiveRepairJournal,
+} from '@sim/db/maintenance/project-repairs'
 import { prepareForcedPush } from '@sim/db/scripts/prepare-push'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
@@ -159,6 +163,25 @@ export const knowledgeBases = pgTable('knowledge_base', {
     ])
   }, 30_000)
 
+  it('keeps the provider-cleanup gate visible across session search paths', async () => {
+    const scoped = postgres(fixtureUrl, {
+      max: 1,
+      connection: { search_path: 'old_scope,public' },
+      onnotice: () => {},
+    })
+    try {
+      await sql`CREATE SCHEMA old_scope`
+      await ensureProjectArchiveRepairJournal(scoped)
+      const repair = { workspaceId: 'archived', archivedAt: '2026-01-01', workflowIds: ['flow'] }
+      await scoped`INSERT INTO project_backfill_archive_repairs (workspace_id,repair) VALUES ('archived',${JSON.stringify(repair)}::text::jsonb)`
+      expect(await countPendingProjectArchiveRepairs(sql)).toBe(1)
+      await completeProjectArchiveRepair(sql, repair)
+      expect(await countPendingProjectArchiveRepairs(scoped)).toBe(0)
+    } finally {
+      await scoped.end()
+    }
+  })
+
   it.each([false, true])(
     'uses the direct migration connection for Project reconciliation (application URL present=%s)',
     async (applicationUrlPresent) => {
@@ -216,7 +239,23 @@ export const workspaces = pgTable('workspace', { id: text('id').primaryKey(), pr
     30_000
   )
 
-  it('installs Project lifecycle enforcement for fresh schema push and preserves it on replay', async () => {
+  it('installs Project lifecycle enforcement through the fresh-push reconciler and preserves it on replay', async () => {
+    function reconcileProjects() {
+      const result = spawnSync(
+        'bun',
+        [
+          '--no-env-file',
+          fileURLToPath(new URL('./reconcile-project-membership.ts', import.meta.url)),
+        ],
+        {
+          env: { ...process.env, DATABASE_URL: fixtureUrl, MIGRATION_DATABASE_URL: fixtureUrl },
+          encoding: 'utf8',
+          timeout: 15000,
+        }
+      )
+      expect(result.error).toBeUndefined()
+      expect(result.status, result.stdout + result.stderr).toBe(0)
+    }
     await schema(`export const projects = pgTable('project', {
   id: text('id').primaryKey(), name: text('name').notNull(), ownerId: text('owner_id').notNull(),
   organizationId: text('organization_id'), archivedAt: timestamp('archived_at'), updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -229,8 +268,10 @@ export const workspaces = pgTable('workspace', {
 export const workflows = pgTable('workflow', {
   id: text('id').primaryKey(), workspaceId: text('workspace_id'), archivedAt: timestamp('archived_at'),
 })`)
-    const first = runPush(['--force'])
+    const first = push()
     expect(first.error, first.stderr).toBeUndefined()
+    expect(first.status, first.stdout + first.stderr).toBe(0)
+    reconcileProjects()
     await expect(
       sql`INSERT INTO project (id,name,owner_id) VALUES ('empty','Empty','owner')`
     ).rejects.toMatchObject({ code: '23514' })
@@ -238,8 +279,10 @@ export const workflows = pgTable('workflow', {
       await tx`INSERT INTO project (id,name,owner_id) VALUES ('family','Family','owner')`
       await tx`INSERT INTO workspace (id,name,owner_id,project_id,forked_from_workspace_id) VALUES ('root','Root','owner','family',NULL), ('fork','Fork','owner','family','root')`
     })
-    const repeated = runPush(['--force'])
+    const repeated = push()
     expect(repeated.error, repeated.stderr).toBeUndefined()
+    expect(repeated.status, repeated.stdout + repeated.stderr).toBe(0)
+    reconcileProjects()
     expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual([
       { id: 'fork', project_id: 'family' },
       { id: 'root', project_id: 'family' },

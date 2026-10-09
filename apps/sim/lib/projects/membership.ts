@@ -204,7 +204,11 @@ export async function archiveProjectWithLastEnvironment(
  * Moves the detached subtree into a new Project and returns its id. Called before
  * clearing the edge, under the existing lineage lock.
  */
-export async function splitForkProject(tx: DbTransaction, workspaceId: string): Promise<string> {
+export async function splitForkProject(
+  tx: DbTransaction,
+  workspaceId: string,
+  newProjectId = generateId()
+): Promise<string> {
   const owner = await lockWorkspaceProject(tx, workspaceId)
   if (!owner) throw new ProjectConflictError('Workspace no longer exists')
   if (owner.archivedAt) throw new ProjectConflictError('Cannot disconnect an archived Project')
@@ -238,7 +242,7 @@ export async function splitForkProject(tx: DbTransaction, workspaceId: string): 
     throw new ProjectConflictError(
       'Disconnecting would remove the last active environment from this Project'
     )
-  const id = generateId()
+  const id = newProjectId
   await tx.insert(project).values({
     id,
     name: generatedProjectName(root.name),

@@ -4,6 +4,8 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, notExists, type SQL, sql } from 'drizzle-orm'
 import type { PgInsertValue } from 'drizzle-orm/pg-core'
 
+const fixtureProjects = new WeakMap<FixtureDatabase | FixtureTransaction, Set<string>>()
+
 type FixtureDatabase = typeof db
 type FixtureTransaction = Parameters<Parameters<FixtureDatabase['transaction']>[0]>[0]
 type WorkspaceRow = Omit<
@@ -20,7 +22,8 @@ export async function insertWorkspaceFixture(
   database: FixtureDatabase | FixtureTransaction,
   values: WorkspaceRow | WorkspaceRow[]
 ) {
-  return database.transaction(async (tx) => {
+  const createdProjectIds = new Set<string>()
+  const rows = await database.transaction(async (tx) => {
     const inputs = Array.isArray(values) ? values : [values]
     const byId = new Map(inputs.map((row) => [row.id, row]))
     const children = new Map<string, WorkspaceRow[]>()
@@ -35,7 +38,6 @@ export async function insertWorkspaceFixture(
     for (const row of ordered) ordered.push(...(children.get(row.id) ?? []))
     if (ordered.length !== inputs.length) throw new Error('Workspace fixture contains a fork cycle')
     const inserted = new Map<string, typeof workspace.$inferSelect>()
-    const createdProjectIds = new Set<string>()
     for (const row of ordered) {
       const [parent] = row.forkedFromWorkspaceId
         ? await tx
@@ -82,6 +84,10 @@ export async function insertWorkspaceFixture(
       return created
     })
   })
+  const owned = fixtureProjects.get(database) ?? new Set<string>()
+  for (const id of createdProjectIds) owned.add(id)
+  fixtureProjects.set(database, owned)
+  return rows
 }
 
 /** Removes fixture environments and their now-empty Projects in the same transaction. */
@@ -96,17 +102,18 @@ export async function deleteWorkspaceFixture(
       .from(workspace)
       .where(condition)
     await tx.delete(workspace).where(condition)
-    if (rows.length)
-      await tx.delete(project).where(
-        and(
-          inArray(
-            project.id,
-            rows.map((row) => row.projectId)
-          ),
-          notExists(
-            tx.select({ one: sql`1` }).from(workspace).where(eq(workspace.projectId, project.id))
+    const owned = fixtureProjects.get(database)
+    const projectIds = rows.map((row) => row.projectId).filter((id) => owned?.has(id))
+    if (projectIds.length)
+      await tx
+        .delete(project)
+        .where(
+          and(
+            inArray(project.id, projectIds),
+            notExists(
+              tx.select({ one: sql`1` }).from(workspace).where(eq(workspace.projectId, project.id))
+            )
           )
         )
-      )
   })
 }

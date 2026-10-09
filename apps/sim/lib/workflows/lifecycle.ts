@@ -420,7 +420,14 @@ export async function finishWorkflowArchive(
 
   if (workspaceId && mcpPubSub) {
     for (const serverId of new Set(serverIds)) {
-      mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+      try {
+        mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+      } catch (error) {
+        logger.warn(
+          `[${options.requestId}] MCP tools-changed publish failed for server ${serverId}`,
+          { error }
+        )
+      }
     }
   }
 }

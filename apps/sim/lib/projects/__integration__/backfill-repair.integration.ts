@@ -137,7 +137,7 @@ describe('Operator archive repair against the full compatible schema', () => {
         await client`INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at)
           VALUES (${ownerId},'Owner',${`${lock}@fixture.test`},true,now(),now())`
         await client`INSERT INTO project (id,name,owner_id,archived_at)
-          VALUES (${projectId},'Archived Project',${ownerId},'2026-05-01')`
+          VALUES (${projectId},'Stale active Project',${ownerId},NULL)`
         await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,project_id,archived_at)
           VALUES (${busyId},'Busy',${ownerId},${ownerId},${projectId},'2026-05-01'),
             (${freeId},'Free',${ownerId},${ownerId},NULL,'2026-05-01')`
@@ -167,6 +167,9 @@ describe('Operator archive repair against the full compatible schema', () => {
         expect(JSON.parse(await readFile(artifacts.report, 'utf8')).repairsCompleted).toEqual(
           expect.arrayContaining([freeId, busyId])
         )
+        expect(await client`SELECT archived_at::text FROM project WHERE id = ${projectId}`).toEqual(
+          [{ archived_at: '2026-05-01 00:00:00' }]
+        )
         await run('apply', artifacts)
         await run('verify', artifacts)
       } finally {
@@ -178,6 +181,139 @@ describe('Operator archive repair against the full compatible schema', () => {
     },
     60000
   )
+
+  it('repairs an explicitly reviewed detached family without changing environments and replays a lost report', async () => {
+    const artifacts = {
+      manifest: join(directory, 'detach-manifest.json'),
+      report: join(directory, 'detach-report.json'),
+    }
+    try {
+      await client`INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at)
+        VALUES ('detach-owner','Owner','detach@fixture.test',true,now(),now())`
+      await client`INSERT INTO project (id,name,owner_id) VALUES ('detach-project','Keep context','detach-owner')`
+      await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,project_id)
+        VALUES ('retained-root','Retained','detach-owner','detach-owner','detach-project'),
+          ('detached-root','Detached','detach-owner','detach-owner','detach-project')`
+      await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,project_id,forked_from_workspace_id)
+        VALUES ('detached-child','Child','detach-owner','detach-owner','detach-project','detached-root')`
+      await expect(run('plan', artifacts)).rejects.toMatchObject({ code: 2 })
+      const plan = JSON.parse(await readFile(artifacts.manifest, 'utf8'))
+      plan.groupings[0].decision = 'detach'
+      plan.groupings[0].detachRootId = 'detached-root'
+      await writeFile(artifacts.manifest, JSON.stringify(plan))
+      const before =
+        await client`SELECT id,owner_id,organization_id,archived_at,forked_from_workspace_id FROM workspace ORDER BY id`
+      const holder = postgres(url.toString(), { max: 1 })
+      try {
+        await holder.begin(async (tx) => {
+          await tx`SELECT pg_advisory_xact_lock(hashtextextended('project:detach-project',0))`
+          await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
+          expect(await client`SELECT id FROM project WHERE owner_id='detach-owner'`).toHaveLength(1)
+        })
+      } finally {
+        await holder.end()
+      }
+      await client`UPDATE workspace SET archived_at='2026-05-01' WHERE id='detached-child'`
+      await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 1 })
+      expect(await client`SELECT id FROM project WHERE owner_id='detach-owner'`).toHaveLength(1)
+      await client`UPDATE workspace SET archived_at=NULL WHERE id='detached-child'`
+      await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
+      const destination = plan.groupings[0].destinationProjectId
+      expect(
+        await client`SELECT id FROM workspace WHERE project_id = ${destination} ORDER BY id`
+      ).toEqual([{ id: 'detached-child' }, { id: 'detached-root' }])
+      expect(await client`SELECT id,name FROM project WHERE id = 'detach-project'`).toEqual([
+        { id: 'detach-project', name: 'Keep context' },
+      ])
+      expect(
+        await client`SELECT id,owner_id,organization_id,archived_at,forked_from_workspace_id FROM workspace ORDER BY id`
+      ).toEqual(before)
+      await rm(artifacts.report)
+      await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
+      expect(await client`SELECT id FROM project WHERE owner_id = 'detach-owner'`).toHaveLength(2)
+    } finally {
+      await client`DELETE FROM workspace WHERE owner_id = 'detach-owner'`
+      await client`DELETE FROM project WHERE owner_id = 'detach-owner'`
+      await client`DELETE FROM "user" WHERE id = 'detach-owner'`
+    }
+  }, 60000)
+
+  it('keeps a Project active when another active environment still uses legacy membership', async () => {
+    const artifacts = {
+      manifest: join(directory, 'legacy-active-manifest.json'),
+      report: join(directory, 'legacy-active-report.json'),
+    }
+    try {
+      await client`INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at)
+        VALUES ('legacy-owner','Owner','legacy@fixture.test',true,now(),now())`
+      await client`INSERT INTO project (id,name,owner_id) VALUES ('legacy-project','Project','legacy-owner')`
+      await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,project_id,archived_at)
+        VALUES ('legacy-archive','Archived','legacy-owner','legacy-owner','legacy-project','2026-05-01'),
+          ('legacy-live','Live','legacy-owner','legacy-owner',NULL,NULL)`
+      await client`INSERT INTO project_workspace (project_id,workspace_id) VALUES ('legacy-project','legacy-live'),('legacy-project','legacy-archive')`
+      await client`INSERT INTO workflow (id,name,user_id,workspace_id,last_synced,created_at,updated_at)
+        VALUES ('legacy-flow','Flow','legacy-owner','legacy-archive',now(),now(),now())`
+      await run('plan', artifacts)
+      await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
+      expect(await client`SELECT archived_at FROM project WHERE id='legacy-project'`).toEqual([
+        { archived_at: null },
+      ])
+    } finally {
+      await client`DELETE FROM workspace WHERE owner_id='legacy-owner'`
+      await client`DELETE FROM project WHERE id='legacy-project'`
+      await client`DELETE FROM "user" WHERE id='legacy-owner'`
+    }
+  }, 60000)
+
+  it('completes provider cleanup despite a throwing local MCP subscriber', async () => {
+    const serverId = generateId()
+    try {
+      await client`INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at)
+        VALUES ('local-owner','Owner','local@fixture.test',true,now(),now())`
+      await client`INSERT INTO project (id,name,owner_id) VALUES ('local-project','Project','local-owner')`
+      await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,project_id,archived_at)
+        VALUES ('local-env','Archived','local-owner','local-owner','local-project','2026-05-01')`
+      await client`INSERT INTO workflow (id,name,user_id,workspace_id,last_synced,created_at,updated_at)
+        VALUES ('local-flow','Flow','local-owner','local-env',now(),now(),now())`
+      await client`INSERT INTO workflow_mcp_server (id,workspace_id,created_by,name,is_public)
+        VALUES (${serverId},'local-env','local-owner','Server',true)`
+      await client`INSERT INTO workflow_mcp_tool (id,server_id,workflow_id,tool_name)
+        VALUES ('local-tool',${serverId},'local-flow','fixture')`
+      await execute(
+        'bun',
+        [
+          '--no-env-file',
+          '-e',
+          `
+        import { repairArchivedProjectEnvironment } from '@/lib/projects/backfill-repair';
+        import { mcpPubSub } from '@/lib/mcp/pubsub';
+        import { db, dbReplica } from '@sim/db';
+        import postgres from 'postgres';
+        const client = postgres(process.env.MIGRATION_DATABASE_URL, {max:1});
+        const unsubscribe = mcpPubSub.onWorkflowToolsChanged(() => { throw new Error('fixture subscriber failed'); });
+        try {
+          await repairArchivedProjectEnvironment(client, {workspaceId:'local-env', archivedAt:'2026-05-01 00:00:00', workflowIds:['local-flow']}, 'local-subscriber');
+        } finally {
+          unsubscribe(); mcpPubSub.dispose(); await client.end();
+          await Promise.all([...new Set([db.$client,dbReplica.$client])].map(client=>client.end()));
+        }
+      `,
+        ],
+        {
+          cwd: new URL('../../../', import.meta.url),
+          env: { ...environment, REDIS_URL: '' },
+          timeout: 45000,
+        }
+      )
+      expect(
+        await client`SELECT completed_at IS NOT NULL AS complete FROM public.project_backfill_archive_repairs WHERE workspace_id = 'local-env'`
+      ).toEqual([{ complete: true }])
+    } finally {
+      await client`DELETE FROM workspace WHERE id = 'local-env'`
+      await client`DELETE FROM project WHERE id = 'local-project'`
+      await client`DELETE FROM "user" WHERE id = 'local-owner'`
+    }
+  }, 60000)
 
   it('commits the complete cascade, reports external failure and resumes cleanup from its original manifest', async () => {
     await client`INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at) VALUES ('owner','Owner','repair@fixture.test',true,now(),now())`
@@ -277,5 +413,51 @@ describe('Operator archive repair against the full compatible schema', () => {
       await client`SELECT id AS project_id FROM project`
     )
     expect(await client`SELECT project_id FROM project_workspace`).toHaveLength(0)
+  }, 120000)
+  it('finishes the real migration entrypoint with exact reviewed grouping and retries deployment without the private file', async () => {
+    const artifacts = {
+      manifest: join(directory, 'entrypoint-manifest.json'),
+      report: join(directory, 'entrypoint-report.json'),
+    }
+    await client`INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at)
+      VALUES ('entry-owner','Owner','entry@fixture.test',true,now(),now())`
+    await client`INSERT INTO project (id,name,owner_id) VALUES ('entry-project','Keep shared context','entry-owner')`
+    await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,project_id)
+      VALUES ('entry-a','A','entry-owner','entry-owner','entry-project'),('entry-b','B','entry-owner','entry-owner','entry-project')`
+    await expect(run('plan', artifacts)).rejects.toMatchObject({ code: 2 })
+    const migrate = (reviewPath?: string) =>
+      execute('bun', ['--no-env-file', 'scripts/migrate.ts'], {
+        cwd: new URL('../../../../../packages/db/', import.meta.url),
+        env: { ...environment, PROJECT_BACKFILL_REVIEW_PATH: reviewPath },
+        timeout: 120000,
+      })
+    await expect(migrate()).rejects.toMatchObject({ code: 1 })
+    const reviewed = JSON.parse(await readFile(artifacts.manifest, 'utf8'))
+    reviewed.groupings[0].decision = 'retain'
+    await writeFile(artifacts.manifest, JSON.stringify(reviewed))
+    await client`UPDATE workspace SET archived_at='2026-05-01' WHERE id='entry-b'`
+    await expect(migrate(artifacts.manifest)).rejects.toMatchObject({ code: 1 })
+    expect(
+      await client`SELECT name FROM script_migrations WHERE name='0031_project_membership'`
+    ).toHaveLength(0)
+    expect(
+      await client`SELECT to_regclass('public.project_workspace') IS NOT NULL AS present`
+    ).toEqual([{ present: true }])
+    await client`UPDATE workspace SET archived_at=NULL WHERE id='entry-b'`
+    await migrate(artifacts.manifest)
+    expect(
+      await client`SELECT name FROM script_migrations WHERE name='0031_project_membership'`
+    ).toHaveLength(1)
+    expect(await client`SELECT to_regclass('public.project_workspace') AS connector`).toEqual([
+      { connector: null },
+    ])
+    expect(
+      await client`SELECT id,project_id FROM workspace WHERE owner_id='entry-owner' ORDER BY id`
+    ).toEqual([
+      { id: 'entry-a', project_id: 'entry-project' },
+      { id: 'entry-b', project_id: 'entry-project' },
+    ])
+    await rm(artifacts.manifest)
+    await migrate()
   }, 120000)
 })
