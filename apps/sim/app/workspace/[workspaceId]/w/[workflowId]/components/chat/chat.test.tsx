@@ -22,11 +22,6 @@ vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components
   ChatMessage: () => null,
   OutputSelect: () => null,
 }))
-vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/hooks/float', () => ({
-  useFloatDrag: () => ({}),
-  useFloatBoundarySync: () => {},
-  useFloatResize: () => ({}),
-}))
 
 let root: Root
 let container: HTMLDivElement
@@ -34,6 +29,11 @@ let container: HTMLDivElement
 beforeEach(() => {
   vi.useFakeTimers()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('matchMedia', () => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }))
   Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, value: vi.fn() })
   vi.stubGlobal(
     'ResizeObserver',

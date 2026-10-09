@@ -51,7 +51,10 @@ export function ActionBar({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 10 }}
         transition={{ duration: 0.2 }}
-        className={cn('-translate-x-1/2 fixed bottom-6 left-1/2 z-[var(--z-dropdown)]', className)}
+        className={cn(
+          '-translate-x-1/2 fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-[var(--z-dropdown)] max-md:max-w-[calc(100%-2rem)]',
+          className
+        )}
       >
         <div className='flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
           <span className='px-1 text-[var(--text-secondary)] text-small'>
@@ -82,7 +85,7 @@ export function ActionBar({
             )}
           </span>
 
-          <div className='flex items-center gap-[5px]'>
+          <div className='flex shrink-0 items-center gap-[5px]'>
             {showEnableButton && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>

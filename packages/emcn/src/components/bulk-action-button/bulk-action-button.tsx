@@ -6,7 +6,7 @@ import { chipFilledFillTokens, chipRadiusClass } from '../chip/chip-chrome'
 
 /** The shared 28px geometry and brand-hover treatment of selection action bars. */
 const bulkActionButtonVariants = cva(
-  `${chipRadiusClass} size-[28px] p-0 hover-hover:bg-[var(--brand-secondary)] hover-hover:text-[var(--text-inverse)]!`,
+  `${chipRadiusClass} size-[28px] p-0 hover-hover:bg-[var(--brand-secondary)] hover-hover:text-[var(--text-inverse)]! max-md:pointer-coarse:size-11`,
   {
     variants: {
       surface: {

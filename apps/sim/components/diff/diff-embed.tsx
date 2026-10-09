@@ -1,19 +1,13 @@
 'use client'
 
 import type { ComponentType, ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn'
 import { ArrowUpRight, Database, File } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { DiffView } from '@/components/diff/diff-view'
-import {
-  type DiffLine,
-  type DiffSource,
-  parseUnifiedDiff,
-  sameSource,
-  type UnifiedDiff,
-} from '@/lib/diff/unified'
+import { type DiffSource, parseUnifiedDiff, sameSource, type UnifiedDiff } from '@/lib/diff/unified'
 import { workspaceResourcePath } from '@/lib/resources'
 import { useDocumentQuery } from '@/hooks/queries/kb/knowledge'
 import { useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
@@ -23,6 +17,7 @@ interface DiffEmbedProps {
   source: string
   /** True while an agent is still writing the document, so the fence may be incomplete. */
   isStreaming: boolean
+  wrapLines?: boolean
 }
 interface NoticeProps {
   children: ReactNode
@@ -42,25 +37,27 @@ interface CardHeading {
   icon?: ComponentType<{ className?: string }>
   href?: string
 }
-interface ExcerptCardProps {
+interface SourceHeadingProps {
   heading: CardHeading
-  diff: UnifiedDiff
-  side: 'old' | 'new'
-}
-interface InlineMarkdownProps {
-  text: string
-}
-interface ProseLineProps {
-  line: DiffLine
+  side?: 'Before' | 'After'
 }
 interface CodeDiffProps {
   diff: UnifiedDiff
   heading: CardHeading
+  wrapLines: boolean
+}
+interface DocumentComparisonProps {
+  diff: UnifiedDiff
+  oldHeading: CardHeading
+  newHeading: CardHeading
+  wrapLines: boolean
+}
+interface ChangeCountsProps {
+  diff: UnifiedDiff
 }
 
 const NOTICE_CLASS =
-  'rounded-lg bg-[var(--surface-5)] p-4 pr-16 text-caption dark:bg-[var(--surface-4)]'
-const MARK = 'rounded-[3px] px-1 text-[var(--text-primary)]'
+  'min-h-[56px] rounded-lg bg-[var(--surface-5)] p-4 pr-[140px] text-caption sm:pr-[120px] dark:bg-[var(--surface-4)]'
 
 function Notice({ children, tone = 'muted' }: NoticeProps) {
   return (
@@ -77,7 +74,7 @@ function Notice({ children, tone = 'muted' }: NoticeProps) {
   )
 }
 
-function changeCounts(diff: UnifiedDiff): string {
+function ChangeCounts({ diff }: ChangeCountsProps) {
   let added = 0
   let removed = 0
   for (const hunk of diff.hunks)
@@ -85,7 +82,22 @@ function changeCounts(diff: UnifiedDiff): string {
       if (line.type === 'add') added++
       else if (line.type === 'del') removed++
     }
-  return `+${added} −${removed}`
+  return (
+    <div className='flex shrink-0 items-center gap-3 font-mono text-caption tabular-nums'>
+      <span
+        aria-label={`${added} added ${added === 1 ? 'line' : 'lines'}`}
+        className='text-[var(--badge-success-text)]'
+      >
+        +{added}
+      </span>
+      <span
+        aria-label={`${removed} removed ${removed === 1 ? 'line' : 'lines'}`}
+        className='text-[var(--badge-error-text)]'
+      >
+        −{removed}
+      </span>
+    </div>
+  )
 }
 
 function formatDate(value: string | Date | null | undefined): string | null {
@@ -129,11 +141,11 @@ function useDiffSource(
   }
 }
 
-function heading(resolved: ResolvedSource | null, fallback: string, detail: string): CardHeading {
-  if (!resolved) return { title: fallback, meta: detail }
+function heading(resolved: ResolvedSource | null, fallback: string): CardHeading {
+  if (!resolved) return { title: fallback, meta: '' }
   return {
     title: resolved.title,
-    meta: [resolved.kindLabel, resolved.updated && `Updated ${resolved.updated}`, detail]
+    meta: [resolved.kindLabel, resolved.updated && `Updated ${resolved.updated}`]
       .filter(Boolean)
       .join(' · '),
     icon: resolved.icon,
@@ -141,103 +153,55 @@ function heading(resolved: ResolvedSource | null, fallback: string, detail: stri
   }
 }
 
-const INLINE_MARKDOWN = /(\*\*[^*]+\*\*|`[^`]+`)/
-
-/** Renders the inline `**bold**` and `` `code` `` that source excerpts carry, as written. */
-function InlineMarkdown({ text }: InlineMarkdownProps) {
+function SourceHeading({ heading, side }: SourceHeadingProps) {
+  const Icon = heading.icon ?? File
   return (
-    <>
-      {text.split(INLINE_MARKDOWN).map((part, index) =>
-        part.startsWith('**') && part.endsWith('**') && part.length > 4 ? (
-          <strong key={index} className='font-medium'>
-            {part.slice(2, -2)}
-          </strong>
-        ) : part.startsWith('`') && part.endsWith('`') && part.length > 2 ? (
-          <code
-            key={index}
-            className='rounded-[3px] bg-[var(--surface-5)] px-1 font-mono text-caption dark:bg-[var(--surface-4)]'
-          >
-            {part.slice(1, -1)}
-          </code>
-        ) : (
-          part
-        )
-      )}
-    </>
-  )
-}
-
-/** Markdown headings read as headings; everything else is a paragraph of the source. */
-function ProseLine({ line }: ProseLineProps) {
-  const headingMatch = /^#{1,6}\s+(.*)$/.exec(line.text)
-  const text = headingMatch ? headingMatch[1] : line.text
-  const weight = headingMatch && 'font-medium'
-  if (line.type === 'context')
-    return (
-      <p className={cn('text-[var(--text-muted)]', weight)}>
-        <InlineMarkdown text={text} />
-      </p>
-    )
-  return (
-    <p>
-      <mark className={cn(MARK, 'bg-[var(--badge-amber-bg)]', weight)}>
-        <InlineMarkdown text={text} />
-      </mark>
-    </p>
-  )
-}
-
-/** One side of a two-document comparison, in the shape of the page it quotes, its claim marked. */
-function ExcerptCard({ heading, diff, side }: ExcerptCardProps) {
-  const Icon = heading.icon
-  const skip = side === 'old' ? 'add' : side === 'new' ? 'del' : null
-  return (
-    <article className='flex min-w-0 flex-col gap-3 rounded-lg border border-[var(--border)] px-4 py-3'>
-      <header className='flex items-start gap-2 pr-14'>
-        {Icon && <Icon className='mt-0.5 size-[14px] shrink-0 text-[var(--text-icon)]' />}
-        <div className='flex min-w-0 flex-1 flex-col'>
-          <div className='flex min-w-0 items-center gap-1'>
-            <span className='truncate text-[var(--text-body)] text-small'>{heading.title}</span>
-            {heading.href && (
-              <Link href={heading.href} aria-label={`Open ${heading.title}`} className='shrink-0'>
-                <ArrowUpRight className='size-[12px] text-[var(--text-icon)]' />
-              </Link>
-            )}
-          </div>
-          <span className='text-[var(--text-muted)] text-caption'>{heading.meta}</span>
-        </div>
-      </header>
-      <div className='flex flex-col gap-2 text-small leading-relaxed'>
-        {diff.hunks.map((hunk, hunkIndex) => (
-          <div key={hunkIndex} className='flex flex-col gap-2'>
-            {hunkIndex > 0 && <p className='text-[var(--text-muted)] text-caption'>⋯</p>}
-            {hunk.lines
-              .filter((line) => line.type !== skip && line.text.trim() !== '')
-              .map((line, index) => (
-                <ProseLine key={index} line={line} />
-              ))}
-          </div>
-        ))}
-      </div>
-    </article>
-  )
-}
-
-function CodeDiff({ diff, heading }: CodeDiffProps) {
-  const Icon = heading.icon
-  return (
-    <div className='overflow-hidden rounded-lg border border-[var(--border)] font-season'>
-      <div className='flex items-center gap-2 border-[var(--border)] border-b bg-[var(--surface-2)] py-1.5 pr-[68px] pl-3 text-caption'>
-        {Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
-        <span className='shrink-0 text-[var(--text-body)]'>{heading.title}</span>
-        {heading.href && (
-          <Link href={heading.href} aria-label={`Open ${heading.title}`} className='shrink-0'>
-            <ArrowUpRight className='size-[12px] text-[var(--text-icon)]' />
-          </Link>
+    <div className='flex min-w-0 flex-1 items-center gap-2'>
+      <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+      <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+        {side && heading.title !== side && (
+          <span className='text-[var(--text-muted)] text-caption'>{side}</span>
         )}
-        <span className='min-w-0 flex-1 truncate text-[var(--text-muted)]'>{heading.meta}</span>
+        <div className='flex min-w-0 items-center gap-1'>
+          <OverflowText label={heading.title} className='text-[var(--text-primary)] text-small' />
+          {heading.href && (
+            <Link href={heading.href} aria-label={`Open ${heading.title}`} className='shrink-0'>
+              <ArrowUpRight className='size-[14px] text-[var(--text-icon)]' />
+            </Link>
+          )}
+        </div>
+        {heading.meta && (
+          <OverflowText label={heading.meta} className='text-[var(--text-muted)] text-caption' />
+        )}
       </div>
-      <DiffView hunks={diff.hunks} />
+    </div>
+  )
+}
+
+function DocumentComparison({ diff, oldHeading, newHeading, wrapLines }: DocumentComparisonProps) {
+  return (
+    <div className='@container/diff overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-2)] font-season'>
+      <div className='grid grid-cols-2 border-[var(--border)] border-b @min-[480px]/diff:pt-0 pt-[56px]'>
+        <header className='flex min-w-0 items-center px-4 py-3'>
+          <SourceHeading heading={oldHeading} side='Before' />
+        </header>
+        <header className='flex min-w-0 items-center border-[var(--border)] border-l px-4 py-3 @min-[480px]/diff:pr-[140px] sm:@min-[480px]/diff:pr-[120px]'>
+          <SourceHeading heading={newHeading} side='After' />
+        </header>
+      </div>
+      <DiffView hunks={diff.hunks} prose wrapLines={wrapLines} />
+    </div>
+  )
+}
+
+function CodeDiff({ diff, heading, wrapLines }: CodeDiffProps) {
+  return (
+    <div className='@container/diff overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-2)] font-season'>
+      <header className='flex min-h-[56px] items-center gap-4 border-[var(--border)] border-b px-4 @min-[480px]/diff:pt-3 pt-[56px] @min-[480px]/diff:pr-[140px] pb-3 sm:@min-[480px]/diff:pr-[120px]'>
+        <SourceHeading heading={heading} />
+        <ChangeCounts diff={diff} />
+      </header>
+      <DiffView hunks={diff.hunks} wrapLines={wrapLines} />
     </div>
   )
 }
@@ -258,7 +222,7 @@ function parse(
  * with a link in each card header. An edit renders line by line; two different documents render
  * as side-by-side excerpts. A public share has no workspace session, so it shows no source names.
  */
-export function DiffEmbed({ source, isStreaming }: DiffEmbedProps) {
+export function DiffEmbed({ source, isStreaming, wrapLines = true }: DiffEmbedProps) {
   const params = useParams()
   const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : null
   const parsed = parse(source)
@@ -273,12 +237,20 @@ export function DiffEmbed({ source, isStreaming }: DiffEmbedProps) {
 
   if (comparison)
     return (
-      <div className='grid grid-cols-1 gap-3 font-season sm:grid-cols-2'>
-        <ExcerptCard diff={diff} side='old' heading={heading(oldSide, 'Before', '')} />
-        <ExcerptCard diff={diff} side='new' heading={heading(newSide, 'After', '')} />
-      </div>
+      <DocumentComparison
+        key={source}
+        diff={diff}
+        oldHeading={heading(oldSide, 'Before')}
+        newHeading={heading(newSide, 'After')}
+        wrapLines={wrapLines}
+      />
     )
   return (
-    <CodeDiff diff={diff} heading={heading(oldSide, diff.path ?? 'Diff', changeCounts(diff))} />
+    <CodeDiff
+      key={source}
+      diff={diff}
+      heading={heading(oldSide, diff.path ?? 'Diff')}
+      wrapLines={wrapLines}
+    />
   )
 }

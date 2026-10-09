@@ -1310,7 +1310,7 @@ export function Document({
       />
 
       <ActionBar
-        className={tablePagination ? 'bottom-[72px]' : undefined}
+        className={tablePagination ? 'bottom-[max(72px,env(safe-area-inset-bottom))]' : undefined}
         selectedCount={selectedChunks.size}
         onEnable={disabledCount > 0 && !isConnectorDocument ? handleBulkEnable : undefined}
         onDisable={enabledCount > 0 && !isConnectorDocument ? handleBulkDisable : undefined}

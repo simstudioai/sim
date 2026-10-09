@@ -7,7 +7,9 @@ import {
   apiClientRequestMockFns,
 } from '@sim/testing/mocks/api-client-request.mock'
 import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { integrationsAvailabilityMock } from '@sim/testing/mocks/integrations-availability.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
 import { dehydrate, hydrate, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,6 +25,8 @@ vi.mock('@/ee/access-requests/lib/application/requests', () => ({
   discoverAccessRequests: { execute: mocks.discovery },
 }))
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@sim/emcn', () => ({
   cn: (...values: string[]) => values.join(' '),
@@ -45,6 +49,11 @@ vi.mock('@/ee/access-requests/components/request-access-action', () => ({
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { prefetchWorkspaceAccess } from '@/app/workspace/[workspaceId]/prefetch-access'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
+import {
+  accessRequestKeys,
+  workspaceFeatureDiscoveryQuery,
+} from '@/hooks/queries/utils/access-request-keys'
+import { permissionGroupKeys } from '@/hooks/queries/utils/permission-group-keys'
 
 nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace' })
 
@@ -83,6 +92,7 @@ describe('workspace access hydration', () => {
     nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace' })
     mocks.policy.mockResolvedValue(policy)
     mocks.discovery.mockResolvedValue(discovery)
+    oauthUtilsMockFns.mockGetAllOAuthServices.mockReturnValue([])
     mockRequestJson.mockImplementation(() => new Promise(() => {}))
     server = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -113,7 +123,7 @@ describe('workspace access hydration', () => {
       if (failure === 'rejected') mocks.policy.mockRejectedValue(new Error('unavailable'))
       else mocks.policy.mockResolvedValue({ config: null })
       await prefetch()
-      expect(dehydrate(server).queries).toHaveLength(0)
+      expect(client.getQueryData(permissionGroupKeys.userConfig('workspace'))).toBeUndefined()
       expect(mocks.discovery).not.toHaveBeenCalled()
       expect(renderToString(tree())).toContain('Checking access')
       expect(renderToString(tree())).not.toContain('Workspace chat')
@@ -123,7 +133,9 @@ describe('workspace access hydration', () => {
     restrict()
     mocks.discovery.mockRejectedValue(new Error('unavailable'))
     await prefetch()
-    expect(dehydrate(server).queries).toHaveLength(1)
+    expect(
+      client.getQueryData(accessRequestKeys.discovery(workspaceFeatureDiscoveryQuery('workspace')))
+    ).toBeUndefined()
     expect(renderToString(tree())).toContain('Checking access')
     expect(renderToString(tree())).not.toContain('Workspace chat')
   })

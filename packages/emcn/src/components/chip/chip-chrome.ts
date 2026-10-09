@@ -39,7 +39,7 @@ export const chipBorderShadowRing =
  * further from the visible text the longer the value. Matches `Input`/`Textarea`.
  */
 export const chipFieldTextClass =
-  'text-[var(--text-body)] text-sm [letter-spacing:inherit] outline-hidden placeholder:text-[var(--text-muted)]'
+  'text-[var(--text-body)] text-sm [letter-spacing:inherit] outline-hidden placeholder:text-[var(--text-muted)] max-md:pointer-coarse:text-md'
 
 /**
  * Icon↔label gap of the canonical chip-content row — the icon↔label pair inside

@@ -39,6 +39,7 @@ describe('getOrgMemberUsageForBillingPeriod', () => {
       start: new Date('2026-06-01T00:00:00.000Z'),
       end: new Date('2026-07-01T00:00:00.000Z'),
     }
+    vi.spyOn(Date, 'now').mockReturnValue(billingPeriod.start.getTime())
     queueTableRows(usageLog, [{ cost: '4.5' }])
     mockGetOrganizationSubscription.mockResolvedValue({
       periodStart: new Date('2026-07-01T00:00:00.000Z'),

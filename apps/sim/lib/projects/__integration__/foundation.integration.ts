@@ -202,8 +202,7 @@ async function fixture(org = true, count = 2) {
 
 /**
  * Waits until the operation under test is blocked behind `blockerPid`: a session whose
- * current statement contains `waitingIn` (an advisory lock tag or row-lock clause), so an
- * unrelated waiter cannot release the barrier early.
+ * current statement contains `waitingIn` (an advisory lock tag or row-lock clause).
  */
 async function waitUntilBlockedBy(blockerPid: number, waitingIn: string) {
   await expect

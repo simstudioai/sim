@@ -16,6 +16,8 @@ export interface SidebarChromeState {
    * the chrome the card already provides (the title-bar lane, drag-resize).
    */
   isPeeking: boolean
+  /** Toggles mobile navigation or the persisted desktop sidebar, as appropriate. */
+  onToggle: () => void
 }
 
 const SidebarChromeContext = createContext<SidebarChromeState | null>(null)
@@ -25,16 +27,20 @@ interface SidebarChromeProviderProps extends SidebarChromeState {
 }
 
 /**
- * Hands the chrome's collapse and peek state to whichever sidebar it hosts. The
+ * Hands the chrome's state and toggle action to whichever sidebar it hosts. The
  * chrome owns that state; the sidebar is passed in as an element, so it cannot take
  * the values as props from a server layout — it reads them here instead.
  */
 export function SidebarChromeProvider({
   isCollapsed,
   isPeeking,
+  onToggle,
   children,
 }: SidebarChromeProviderProps) {
-  const value = useMemo(() => ({ isCollapsed, isPeeking }), [isCollapsed, isPeeking])
+  const value = useMemo(
+    () => ({ isCollapsed, isPeeking, onToggle }),
+    [isCollapsed, isPeeking, onToggle]
+  )
   return <SidebarChromeContext.Provider value={value}>{children}</SidebarChromeContext.Provider>
 }
 

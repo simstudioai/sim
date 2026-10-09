@@ -43,7 +43,7 @@ export function InputToolbar({
       <div
         ref={leadingRef}
         className={cn(
-          'flex h-[30px] shrink-0 items-center @max-[280px]/input-toolbar:gap-0 gap-1',
+          'flex min-h-[30px] shrink-0 items-center @max-[280px]/input-toolbar:gap-0 gap-1',
           editor && 'col-start-1',
           editor && (expanded ? 'row-start-2' : 'row-start-1')
         )}
@@ -60,7 +60,7 @@ export function InputToolbar({
       <div
         ref={trailingRef}
         className={cn(
-          'ml-auto flex h-[30px] shrink-0 items-center @max-[280px]/input-toolbar:gap-0 gap-1',
+          'ml-auto flex min-h-[30px] shrink-0 items-center @max-[280px]/input-toolbar:gap-0 gap-1',
           editor && 'col-start-3',
           editor && (expanded ? 'row-start-2' : 'row-start-1')
         )}

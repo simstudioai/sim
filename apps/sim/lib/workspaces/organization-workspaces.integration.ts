@@ -43,9 +43,15 @@ beforeAll(async () => {
     CREATE TABLE workspace (
       id text PRIMARY KEY, name text, owner_id text, organization_id text, workspace_mode text,
       project_id text NOT NULL REFERENCES project(id) ON DELETE RESTRICT,
+      forked_from_workspace_id text,
       billed_account_user_id text, allow_personal_api_keys boolean DEFAULT true,
       archived_at timestamp, organization_assigned_at timestamp, updated_at timestamp,
       storage_used_bytes bigint NOT NULL
+    );
+    CREATE TABLE project_workspace (
+      project_id text NOT NULL REFERENCES project(id) ON DELETE RESTRICT,
+      workspace_id text NOT NULL UNIQUE REFERENCES workspace(id) ON DELETE CASCADE,
+      PRIMARY KEY (project_id, workspace_id)
     );
     CREATE TABLE permissions (
       id text PRIMARY KEY, user_id text, entity_type text, entity_id text, permission_type text,
@@ -64,7 +70,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await connection.unsafe(`
-    TRUNCATE member, organization, project, permission_group, invitation, user_stats, workspace, permissions,
+    TRUNCATE member, organization, project, project_workspace, permission_group, invitation, user_stats, workspace, permissions,
       workspace_files, knowledge_base, document, knowledge_connector;
     INSERT INTO member VALUES ('owner-membership', 'org', 'org-owner', 'owner');
     INSERT INTO organization VALUES ('org', 40);

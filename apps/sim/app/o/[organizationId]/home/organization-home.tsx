@@ -335,7 +335,7 @@ function OrganizationHomeContent({
     )
 
   const content = (
-    <div className='flex h-full min-h-0 min-w-[min(480px,100%)] flex-1 flex-col bg-[var(--bg)]'>
+    <div className='flex h-full min-h-0 @max-[960px]/chat-panel:min-w-0 min-w-0 flex-1 flex-col bg-[var(--bg)] md:min-w-[min(480px,100%)]'>
       {hasChat ? (
         <MothershipChat
           onViewSources={(messageId, requestId) =>
@@ -390,7 +390,7 @@ function OrganizationHomeContent({
           chatId={chat.resolvedChatId}
           composer={composer}
           onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
-          initialScrollBlocked={chat.resources.length > 0 && panel.isResourceCollapsed}
+          initialScrollBlocked={panel.initialScrollBlocked}
         />
       ) : (
         <OrganizationLanding
@@ -403,7 +403,7 @@ function OrganizationHomeContent({
           }
         >
           {composer}
-          <div className='absolute inset-x-0 top-full'>
+          <div className='relative md:absolute md:inset-x-0 md:top-full'>
             {requestMode === 'agent' ? (
               <SuggestedActions
                 organizationId={organization.id}
