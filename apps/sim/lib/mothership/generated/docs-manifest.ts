@@ -101,6 +101,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/calcom.mdx',
   'integrations/calendly.mdx',
   'integrations/cbinsights.mdx',
+  'integrations/checkr.mdx',
   'integrations/circleback.mdx',
   'integrations/clay.mdx',
   'integrations/clerk.mdx',
