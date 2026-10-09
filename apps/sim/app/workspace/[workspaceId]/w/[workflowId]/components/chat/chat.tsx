@@ -11,8 +11,11 @@ import {
   PopoverItem,
   PopoverScrollArea,
   PopoverTrigger,
+  scrollFadeAttributes,
+  scrollFadeClass,
   Tooltip,
   Trash,
+  useScrollEdges,
 } from '@sim/emcn'
 import { ArrowUp, CircleAlert, Download, MoreVertical, Paperclip, Square, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -300,6 +303,7 @@ export function Chat() {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
+  const attachmentsRef = useRef<HTMLDivElement>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const preventZoomRef = usePreventZoom()
@@ -318,6 +322,9 @@ export function Chat() {
     handleDragLeave,
     handleDrop,
   } = useChatFileUpload()
+  const attachmentEdges = useScrollEdges(attachmentsRef, {
+    enabled: isChatOpen && chatFiles.length > 0,
+  })
 
   /**
    * Resolves the unified start block for chat execution, if available.
@@ -1084,10 +1091,19 @@ export function Chat() {
           >
             {/* File thumbnails */}
             {chatFiles.length > 0 && (
-              <div className='mt-1 flex flex-wrap gap-1.5'>
-                {chatFiles.map((file) => (
-                  <ChatFilePreview key={file.id} file={file} onRemove={removeFile} />
-                ))}
+              <div
+                ref={attachmentsRef}
+                className={cn(
+                  'mt-1 pointer-coarse:max-h-[102px] pointer-coarse:overflow-y-auto pointer-coarse:overscroll-contain',
+                  scrollFadeClass
+                )}
+                {...scrollFadeAttributes(attachmentEdges)}
+              >
+                <div className='flex flex-wrap gap-1.5'>
+                  {chatFiles.map((file) => (
+                    <ChatFilePreview key={file.id} file={file} onRemove={removeFile} />
+                  ))}
+                </div>
               </div>
             )}
 

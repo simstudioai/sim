@@ -557,7 +557,7 @@ async function exerciseViewport(
         `${prefix}/navigation opens, dismisses, and preserves desktop preferences`,
         page,
         async () => {
-          await visit(page, 'home')
+          await visit(page, 'files')
           const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
           const openNavigation = page.getByRole('button', { name: 'Open navigation', exact: true })
           await openNavigation.focus()
@@ -574,6 +574,8 @@ async function exerciseViewport(
           await expectContained(page, sidebar)
           if (viewport.name === 'phone') await capture(page, `${browserName}-phone-navigation`)
           await sidebar.getByRole('link', { name: 'New chat', exact: true }).tap()
+          await expect(page).toHaveURL(`${baseUrl.origin}/workspace/${workspaceId}/home`)
+          await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
           await expect(sidebar).toBeHidden()
           await page.getByRole('button', { name: 'Open navigation', exact: true }).tap()
           await page.getByRole('button', { name: 'Close navigation', exact: true }).tap()
