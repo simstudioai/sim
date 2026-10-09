@@ -180,7 +180,6 @@ import {
   airtableUpdateRecordTool,
   airtableUpsertRecordsTool,
 } from '@/tools/airtable'
-import { airweaveSearchTool } from '@/tools/airweave'
 import {
   algoliaAddRecordTool,
   algoliaBatchOperationsTool,
@@ -6369,7 +6368,6 @@ export const tools: Record<string, ExecutableToolConfig> = {
   agiloft_select_records: agiloftSelectRecordsTool,
   agiloft_update_record: agiloftUpdateRecordTool,
   agiloft_upsert_record: agiloftUpsertRecordTool,
-  airweave_search: airweaveSearchTool,
   amplitude_send_event: amplitudeSendEventTool,
   amplitude_identify_user: amplitudeIdentifyUserTool,
   amplitude_group_identify: amplitudeGroupIdentifyTool,
