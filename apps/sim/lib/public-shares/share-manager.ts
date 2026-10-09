@@ -1,5 +1,12 @@
 import { db } from '@sim/db'
-import { publicShare, user, type WorkspaceFileRow, workspace, workspaceFiles } from '@sim/db/schema'
+import {
+  folder,
+  publicShare,
+  user,
+  type WorkspaceFileRow,
+  workspace,
+  workspaceFiles,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -11,6 +18,8 @@ import type {
 } from '@/lib/api/contracts/public-shares'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { DbOrTx } from '@/lib/db/types'
+import { readActiveFolderAncestry } from '@/lib/public-shares/folder-scope'
 
 const logger = createLogger('PublicShareManager')
 
@@ -47,9 +56,10 @@ function mapShareRecord(row: PublicShareRow): ShareRecord {
 
 export async function getShareForResource(
   resourceType: ShareResourceType,
-  resourceId: string
+  resourceId: string,
+  executor: DbOrTx = db
 ): Promise<ShareRecord | null> {
-  const [row] = await db
+  const [row] = await executor
     .select()
     .from(publicShare)
     .where(and(eq(publicShare.resourceType, resourceType), eq(publicShare.resourceId, resourceId)))
@@ -138,9 +148,10 @@ export async function getWorkspaceShares(
   return result
 }
 
-interface UpsertFileShareInput {
+interface UpsertResourceShareInput {
   workspaceId: string
-  fileId: string
+  resourceType: ShareResourceType
+  resourceId: string
   userId: string
   isActive: boolean
   /** Defaults to the existing share's authType (or `'public'` for a new share). */
@@ -154,7 +165,7 @@ interface UpsertFileShareInput {
 }
 
 /**
- * Enable or disable the public share for a file. First enable inserts a row with
+ * Enable or disable a resource share. First enable inserts a row with
  * a fresh unguessable token; subsequent calls flip `isActive`/`authType` and keep
  * the token stable (so an existing link resolves again after re-enable).
  *
@@ -164,20 +175,24 @@ interface UpsertFileShareInput {
  * Disabling (going Private) always succeeds and preserves the stored config so a
  * later re-enable restores it. Validation failures throw {@link ShareValidationError}.
  */
-export async function upsertFileShare({
-  workspaceId,
-  fileId,
-  userId,
-  isActive,
-  authType,
-  password,
-  allowedEmails,
-  token,
-}: UpsertFileShareInput): Promise<ShareRecord> {
-  const [existing] = await db
+export async function upsertResourceShare(
+  {
+    workspaceId,
+    resourceType,
+    resourceId,
+    userId,
+    isActive,
+    authType,
+    password,
+    allowedEmails,
+    token,
+  }: UpsertResourceShareInput,
+  executor: DbOrTx = db
+): Promise<ShareRecord> {
+  const [existing] = await executor
     .select()
     .from(publicShare)
-    .where(and(eq(publicShare.resourceType, 'file'), eq(publicShare.resourceId, fileId)))
+    .where(and(eq(publicShare.resourceType, resourceType), eq(publicShare.resourceId, resourceId)))
     .limit(1)
 
   const finalAuthType: ShareAuthType =
@@ -214,12 +229,12 @@ export async function upsertFileShare({
     }
   }
 
-  const [row] = await db
+  const [row] = await executor
     .insert(publicShare)
     .values({
       id: generateId(),
-      resourceType: 'file',
-      resourceId: fileId,
+      resourceType,
+      resourceId,
       workspaceId,
       createdBy: userId,
       token: token ?? generateShortId(),
@@ -240,8 +255,9 @@ export async function upsertFileShare({
     })
     .returning()
 
-  logger.info('Upserted file share', {
-    fileId,
+  logger.info('Upserted resource share', {
+    resourceType,
+    resourceId,
     workspaceId,
     isActive,
     authType: finalAuthType,
@@ -256,7 +272,7 @@ export async function upsertFileShare({
  * is gone. The caller treats null as a 404 — the existence of a file is never
  * leaked through this path.
  */
-export interface ResolvedShare {
+interface ResolvedShare {
   share: PublicShareRow
   file: WorkspaceFileRow
   /** Owning workspace name, for provenance on the public page. */
@@ -265,7 +281,7 @@ export interface ResolvedShare {
   ownerName: string | null
 }
 
-export async function resolveActiveShareByToken(token: string): Promise<ResolvedShare | null> {
+async function resolveActiveShareByToken(token: string): Promise<ResolvedShare | null> {
   const [row] = await db
     .select({
       share: publicShare,
@@ -295,4 +311,58 @@ export async function resolveActiveShareByToken(token: string): Promise<Resolved
     workspaceName: row.workspaceName,
     ownerName: row.ownerName,
   }
+}
+
+/** Retains the file-share write contract while folders use the same policy storage. */
+export function upsertFileShare({
+  fileId,
+  ...input
+}: Omit<UpsertResourceShareInput, 'resourceType' | 'resourceId'> & {
+  fileId: string
+}): Promise<ShareRecord> {
+  return upsertResourceShare({ ...input, resourceType: 'file', resourceId: fileId })
+}
+
+export interface ResolvedFolderShare {
+  kind: 'folder'
+  share: PublicShareRow
+  folder: typeof folder.$inferSelect
+  workspaceName: string | null
+  ownerName: string | null
+}
+
+export type ResolvedResourceShare = (ResolvedShare & { kind: 'file' }) | ResolvedFolderShare
+
+/** Resolves a live capability without exposing deleted resources or archived folder ancestors. */
+export async function resolveActiveResourceShareByToken(
+  token: string
+): Promise<ResolvedResourceShare | null> {
+  const file = await resolveActiveShareByToken(token)
+  if (file) return { ...file, kind: 'file' }
+  const [resolved] = await db
+    .select({ share: publicShare, folder, workspaceName: workspace.name, ownerName: user.name })
+    .from(publicShare)
+    .innerJoin(
+      folder,
+      and(eq(folder.id, publicShare.resourceId), eq(folder.workspaceId, publicShare.workspaceId))
+    )
+    .innerJoin(workspace, eq(workspace.id, folder.workspaceId))
+    .leftJoin(user, eq(user.id, folder.userId))
+    .where(
+      and(
+        eq(publicShare.token, token),
+        eq(publicShare.isActive, true),
+        eq(publicShare.resourceType, 'folder'),
+        eq(folder.resourceType, 'file'),
+        isNull(folder.deletedAt),
+        isNull(workspace.archivedAt)
+      )
+    )
+    .limit(1)
+  if (
+    !resolved ||
+    !(await readActiveFolderAncestry(resolved.folder.workspaceId, resolved.folder.id))
+  )
+    return null
+  return { ...resolved, kind: 'folder' }
 }

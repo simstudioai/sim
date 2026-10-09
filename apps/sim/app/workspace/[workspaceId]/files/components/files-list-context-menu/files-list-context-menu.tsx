@@ -11,6 +11,7 @@ interface FilesListContextMenuProps {
   onCreateFile?: () => void
   onCreateFolder?: () => void
   onUploadFile?: () => void
+  onUploadFolder?: () => void
   disableCreate?: boolean
   disableCreateFolder?: boolean
   disableUpload?: boolean
@@ -23,6 +24,7 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
   onCreateFile,
   onCreateFolder,
   onUploadFile,
+  onUploadFolder,
   disableCreate = false,
   disableCreateFolder = false,
   disableUpload = false,
@@ -48,7 +50,13 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
         {onUploadFile && (
           <DropdownMenuItem disabled={disableUpload} onSelect={onUploadFile}>
             <Upload />
-            Upload
+            Upload files
+          </DropdownMenuItem>
+        )}
+        {onUploadFolder && (
+          <DropdownMenuItem disabled={disableUpload} onSelect={onUploadFolder}>
+            <Upload />
+            Upload folder
           </DropdownMenuItem>
         )}
         {onCreateFolder && (

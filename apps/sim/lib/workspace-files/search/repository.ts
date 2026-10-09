@@ -48,6 +48,7 @@ export interface WorkspaceFileSearchSource {
 }
 
 export interface WorkspaceFileSearchResult {
+  files?: Array<{ id: string; name: string; folderId: string | null }>
   results: Array<{
     fileId: string
     lineNumber: number
@@ -66,6 +67,7 @@ interface SearchWorkspaceFileIndexInput {
   maxResults: number
   /** Restricts the search to one folder scope. Absent searches the workspace. */
   folderScope?: FolderIdScope
+  includeFileMetadata?: boolean
   signal?: AbortSignal
 }
 
@@ -209,6 +211,7 @@ export async function searchWorkspaceFileIndex({
   pattern,
   maxResults,
   folderScope,
+  includeFileMetadata = false,
   signal,
 }: SearchWorkspaceFileIndexInput): Promise<WorkspaceFileSearchResult> {
   signal?.throwIfAborted()
@@ -402,6 +405,22 @@ export async function searchWorkspaceFileIndex({
           complete: indexStatus.pendingFiles === 0 && indexStatus.failedFiles === 0,
           indexStatus,
           sources: [...sourcesByFileId.values()],
+          ...(includeFileMetadata
+            ? {
+                files: [
+                  ...new Map(
+                    resultRows.map((row) => [
+                      row.fileId,
+                      {
+                        id: row.fileId,
+                        name: row.fileName,
+                        folderId: row.folderId,
+                      },
+                    ])
+                  ).values(),
+                ],
+              }
+            : {}),
         }
       } catch (error) {
         signal?.throwIfAborted()

@@ -8,8 +8,8 @@ import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { PublicShareAccessError, readPublicSharedFile } from '@/lib/public-shares/access'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { hasEmbeddedFileRef } from '@/lib/uploads/server/embedded-image-refs'
 import { resolveWorkspaceInlineImage } from '@/lib/uploads/server/inline-image'
@@ -61,21 +61,11 @@ export const GET = withRouteHandler(
       const { token } = parsed.data.params
       const ref = parsed.data.query
 
-      const resolved = await resolveActiveShareByToken(token)
-      if (!resolved) {
-        throw new FileNotFoundError('Not found')
-      }
-
-      const auth = await validateDeploymentAuth(
-        requestId,
-        resolved.share,
-        request,
-        undefined,
-        'file'
-      )
-      if (!auth.authorized) {
-        return NextResponse.json({ error: auth.error ?? 'auth_required_password' }, { status: 401 })
-      }
+      const resolved = await readPublicSharedFile({
+        token,
+        fileId: parsed.data.query.documentId,
+        authorize: (share) => validateDeploymentAuth(requestId, share, request, undefined, 'file'),
+      })
 
       const { file: doc } = resolved
       if (!doc.workspaceId) {
@@ -129,8 +119,16 @@ export const GET = withRouteHandler(
         request,
       })
 
+      response.headers.set('Cache-Control', 'private, no-store')
       return response
     } catch (error) {
+      if (error instanceof PublicShareAccessError) {
+        if (error.status === 404) return createErrorResponse(new FileNotFoundError('Not found'))
+        return NextResponse.json(
+          { error: error.message },
+          { status: error.status, headers: { 'Cache-Control': 'private, no-store' } }
+        )
+      }
       if (error instanceof FileNotFoundError) {
         return createErrorResponse(error)
       }

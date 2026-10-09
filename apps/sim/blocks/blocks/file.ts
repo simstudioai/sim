@@ -1112,7 +1112,7 @@ export const FileV5Block: BlockConfig = {
   description:
     'Read, search, get content, fetch, write, append, compress, decompress, and manage sharing for files',
   longDescription:
-    'Read workspace file objects, search indexed text across the workspace or selected folder scopes, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.',
+    'Read workspace file objects, search indexed text across the workspace or selected folder scopes, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file or folder.',
   hideFromToolbar: false,
   bestPractices: `
   - Read returns workspace file objects in the "files" output and does NOT include their text. It accepts selected files, canonical file IDs, or one or more workspace folders expanded at run time. Use it to pick files or pass file references downstream (e.g. as attachments).
@@ -1181,6 +1181,10 @@ export const FileV5Block: BlockConfig = {
           { text: 'into', field: MOVE_TARGET_FIELD },
         ],
         file_decompress: [{ text: 'Unzip', field: DECOMPRESS_FILE_FIELD, core: true }],
+        file_manage_folder_sharing: [
+          { text: 'Set sharing on folder', field: FOLDER_PATH_FIELD, core: true },
+          { text: 'to', field: 'shareVisibility' },
+        ],
         file_manage_sharing: [
           { text: 'Set sharing on', field: SHARE_FILE_FIELD, core: true },
           { text: 'to', field: 'shareVisibility' },
@@ -1205,6 +1209,7 @@ export const FileV5Block: BlockConfig = {
         { label: 'Compress', id: 'file_compress' },
         { label: 'Decompress', id: 'file_decompress' },
         { label: 'Manage Sharing', id: 'file_manage_sharing' },
+        { label: 'Manage Folder Sharing', id: 'file_manage_folder_sharing' },
         { label: 'Create Folder', id: 'file_create_folder' },
         { label: 'Move Folder', id: 'file_update_folder' },
         { label: 'Delete Folder', id: 'file_delete_folder' },
@@ -1728,7 +1733,10 @@ export const FileV5Block: BlockConfig = {
         { label: 'SSO', id: 'sso' },
       ],
       value: () => 'public',
-      condition: { field: 'operation', value: 'file_manage_sharing' },
+      condition: {
+        field: 'operation',
+        value: ['file_manage_sharing', 'file_manage_folder_sharing'],
+      },
     },
     {
       id: 'sharePassword',
@@ -1738,12 +1746,12 @@ export const FileV5Block: BlockConfig = {
       placeholder: 'Password for the public link',
       condition: {
         field: 'operation',
-        value: 'file_manage_sharing',
+        value: ['file_manage_sharing', 'file_manage_folder_sharing'],
         and: { field: 'shareVisibility', value: 'password' },
       },
       required: {
         field: 'operation',
-        value: 'file_manage_sharing',
+        value: ['file_manage_sharing', 'file_manage_folder_sharing'],
         and: { field: 'shareVisibility', value: 'password' },
       },
     },
@@ -1754,12 +1762,12 @@ export const FileV5Block: BlockConfig = {
       placeholder: 'Comma- or newline-separated emails or @domain patterns',
       condition: {
         field: 'operation',
-        value: 'file_manage_sharing',
+        value: ['file_manage_sharing', 'file_manage_folder_sharing'],
         and: { field: 'shareVisibility', value: ['email', 'sso'] },
       },
       required: {
         field: 'operation',
-        value: 'file_manage_sharing',
+        value: ['file_manage_sharing', 'file_manage_folder_sharing'],
         and: { field: 'shareVisibility', value: ['email', 'sso'] },
       },
     },
@@ -1773,9 +1781,17 @@ export const FileV5Block: BlockConfig = {
       mode: 'basic',
       condition: {
         field: 'operation',
-        value: ['file_list', 'file_update_folder', 'file_delete_folder'],
+        value: [
+          'file_list',
+          'file_update_folder',
+          'file_delete_folder',
+          'file_manage_folder_sharing',
+        ],
       },
-      required: { field: 'operation', value: ['file_update_folder', 'file_delete_folder'] },
+      required: {
+        field: 'operation',
+        value: ['file_update_folder', 'file_delete_folder', 'file_manage_folder_sharing'],
+      },
     },
     {
       id: 'manualFolderPath',
@@ -1786,9 +1802,17 @@ export const FileV5Block: BlockConfig = {
       placeholder: '/Reports/Q3%20Results',
       condition: {
         field: 'operation',
-        value: ['file_list', 'file_update_folder', 'file_delete_folder'],
+        value: [
+          'file_list',
+          'file_update_folder',
+          'file_delete_folder',
+          'file_manage_folder_sharing',
+        ],
       },
-      required: { field: 'operation', value: ['file_update_folder', 'file_delete_folder'] },
+      required: {
+        field: 'operation',
+        value: ['file_update_folder', 'file_delete_folder', 'file_manage_folder_sharing'],
+      },
     },
     {
       id: 'createParentPath',
@@ -1920,6 +1944,7 @@ export const FileV5Block: BlockConfig = {
       'file_compress',
       'file_decompress',
       'file_manage_sharing',
+      'file_manage_folder_sharing',
       'file_list',
       'file_create_folder',
       'file_update_folder',
@@ -2124,12 +2149,7 @@ export const FileV5Block: BlockConfig = {
           }
         }
 
-        if (operation === 'file_manage_sharing') {
-          const shareInput = params.shareInput
-          if (!shareInput) {
-            throw new Error('File is required to manage sharing')
-          }
-
+        if (operation === 'file_manage_sharing' || operation === 'file_manage_folder_sharing') {
           const allowedEmails =
             typeof params.shareAllowedEmails === 'string'
               ? params.shareAllowedEmails
@@ -2148,6 +2168,15 @@ export const FileV5Block: BlockConfig = {
             allowedEmails,
             workspaceId: params._context?.workspaceId,
           }
+
+          if (operation === 'file_manage_folder_sharing') {
+            const path = optionalText(params.folderRef)
+            if (!path) throw new Error('Folder is required to manage sharing')
+            return { path, ...shareParams }
+          }
+
+          const shareInput = params.shareInput
+          if (!shareInput) throw new Error('File is required to manage sharing')
 
           // Canonical IDs (advanced mode or upstream references) resolve directly.
           const fileIds = parseReadFileIds(shareInput)

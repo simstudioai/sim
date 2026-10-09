@@ -14,6 +14,8 @@ import {
 import {
   Chip,
   ChipChevronDown,
+  ChipCombobox,
+  type ComboboxOption,
   chipContentIconClass,
   chipDropTargetSurfaceClass,
   chipGeometryClass,
@@ -37,12 +39,12 @@ import {
   useIsOverflowing,
 } from '@sim/emcn'
 import { ArrowUpLeft } from '@sim/emcn/icons'
-import { createPortal } from 'react-dom'
 import { HEADER_ACTION_CLUSTER, TITLE_BAR_LANE_PT } from '@/components/page-header-bar'
 import { orderHeaderActions, SettingsActionChip } from '@/components/settings/settings-header'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 
 export interface DropdownOption {
+  id?: string
   label: string
   icon?: React.ElementType
   onClick: () => void
@@ -65,6 +67,8 @@ export interface BreadcrumbEditing {
 }
 
 export interface BreadcrumbItem {
+  id?: string
+  navigationItems?: DropdownOption[]
   label: string
   /**
    * The folder this crumb navigates to (`null` is the workspace root). Supplying it makes the
@@ -145,7 +149,6 @@ export const ResourceHeader = memo(function ResourceHeader({
   aside,
   breadcrumbDrop,
 }: ResourceHeaderProps) {
-  const headerRef = useRef<HTMLDivElement>(null)
   /**
    * Breadcrumb mode is reserved for nested pages (length > 1). A single-crumb
    * "breadcrumb" is just the current page, so it falls through to the static
@@ -156,6 +159,10 @@ export const ResourceHeader = memo(function ResourceHeader({
   const rootCrumb = breadcrumbs?.length === 1 ? breadcrumbs[0] : undefined
   const TitleIcon = Icon ?? rootCrumb?.icon
   const titleLabel = title ?? rootCrumb?.label
+  const collapsePath =
+    breadcrumbs != null &&
+    breadcrumbs.length > 4 &&
+    breadcrumbs.some((item) => item.navigationItems !== undefined)
   const terminalBreadcrumbIndex =
     hasBreadcrumbs && breadcrumbs[breadcrumbs.length - 1].terminal ? breadcrumbs.length - 1 : -1
   const currentResourceIndex =
@@ -167,7 +174,6 @@ export const ResourceHeader = memo(function ResourceHeader({
 
   return (
     <div
-      ref={headerRef}
       className={cn(
         'flex min-h-[48px] items-center border-[var(--border)] border-b px-4 pb-[8.5px]',
         TITLE_BAR_LANE_PT
@@ -177,6 +183,31 @@ export const ResourceHeader = memo(function ResourceHeader({
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
           {hasBreadcrumbs ? (
             breadcrumbs.map((crumb, i) => {
+              if (collapsePath && i > 0 && i < breadcrumbs.length - 2) {
+                if (i !== 1) return null
+                return (
+                  <Fragment key='collapsed-path'>
+                    <span className='mx-0.5 shrink-0 select-none text-[var(--text-icon)] text-sm'>
+                      /
+                    </span>
+                    <BreadcrumbSegment
+                      label='…'
+                      dropdownItems={breadcrumbs.slice(1, -2).flatMap((item) =>
+                        item.onClick
+                          ? [
+                              {
+                                id: item.id,
+                                label: item.label,
+                                onClick: item.onClick,
+                              },
+                            ]
+                          : []
+                      )}
+                      className='shrink-0'
+                    />
+                  </Fragment>
+                )
+              }
               const segmentClassName = getBreadcrumbSegmentClassName(
                 i,
                 breadcrumbs.length,
@@ -208,31 +239,41 @@ export const ResourceHeader = memo(function ResourceHeader({
                   : undefined
 
               return (
-                <Fragment key={`${crumb.label}-${i}`}>
+                <Fragment key={crumb.id ?? `${crumb.label}-${i}`}>
                   {i > 0 && (
                     <span className='mx-0.5 shrink-0 select-none text-[var(--text-icon)] text-sm'>
                       /
                     </span>
                   )}
-                  {showLocationPopover ? (
-                    <BreadcrumbLocationPopover
-                      icon={LocationIcon}
-                      breadcrumbs={breadcrumbs}
-                      className={segmentClassName}
-                      veilBoundaryRef={headerRef}
-                      drag={crumbDrag}
-                    />
-                  ) : (
-                    <BreadcrumbSegment
-                      icon={LocationIcon ?? crumb.icon}
-                      label={crumb.label}
-                      onClick={crumb.onClick}
-                      dropdownItems={crumb.dropdownItems}
-                      editing={crumb.editing}
-                      className={segmentClassName}
-                      drag={crumbDrag}
-                    />
-                  )}
+                  <div className={cn(segmentClassName, 'flex items-center gap-0.5')}>
+                    {showLocationPopover ? (
+                      <BreadcrumbLocationPopover
+                        icon={LocationIcon}
+                        breadcrumbs={breadcrumbs}
+                        className='min-w-0'
+                        drag={crumbDrag}
+                      />
+                    ) : (
+                      <BreadcrumbSegment
+                        icon={LocationIcon ?? crumb.icon}
+                        label={crumb.label}
+                        onClick={crumb.onClick}
+                        dropdownItems={
+                          crumb.navigationItems === undefined ? crumb.dropdownItems : undefined
+                        }
+                        editing={crumb.editing}
+                        className='min-w-0'
+                        drag={crumbDrag}
+                      />
+                    )}
+                    {crumb.navigationItems !== undefined && (
+                      <BreadcrumbNavigation
+                        label={crumb.label}
+                        items={crumb.navigationItems}
+                        actions={crumb.dropdownItems}
+                      />
+                    )}
+                  </div>
                 </Fragment>
               )
             })
@@ -382,7 +423,11 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
             {dropdownItems.map((item) => {
               const ItemIcon = item.icon
               return (
-                <DropdownMenuItem key={item.label} onClick={item.onClick} disabled={item.disabled}>
+                <DropdownMenuItem
+                  key={item.id ?? item.label}
+                  onClick={item.onClick}
+                  disabled={item.disabled}
+                >
                   {ItemIcon && <ItemIcon className='size-[14px]' />}
                   {item.label}
                 </DropdownMenuItem>
@@ -438,7 +483,6 @@ interface BreadcrumbLocationPopoverProps {
   icon: React.ElementType
   breadcrumbs: BreadcrumbItem[]
   className?: string
-  veilBoundaryRef: React.RefObject<HTMLDivElement | null>
   drag?: BreadcrumbSegmentProps['drag']
 }
 
@@ -454,7 +498,6 @@ function BreadcrumbLocationPopover({
   icon: Icon,
   breadcrumbs,
   className,
-  veilBoundaryRef,
   drag,
 }: BreadcrumbLocationPopoverProps) {
   const [open, setOpen] = useState(false)
@@ -474,7 +517,7 @@ function BreadcrumbLocationPopover({
    * click-to-navigate: a stationary click fires no enter event, so once
    * {@link navigateAndClose} sets `open` false nothing re-opens it before the
    * route swaps. (A move-driven open would re-fire under the resting cursor and
-   * flash the popover/veil back in mid-navigation.)
+   * reopen the popover mid-navigation.)
    */
   const openPopover = () => {
     cancelScheduledClose()
@@ -489,11 +532,6 @@ function BreadcrumbLocationPopover({
     }, POPOVER_CLOSE_DELAY_MS)
   }
 
-  /**
-   * Closes the popover up front, then runs the crumb's handler. Closing first
-   * lets the veil fade and the popover play its exit animation instead of
-   * snapping away when navigation unmounts the header.
-   */
   const navigateAndClose = (onClick?: () => void) => {
     if (!onClick) return
     cancelScheduledClose()
@@ -509,7 +547,6 @@ function BreadcrumbLocationPopover({
 
   return (
     <>
-      <LocationFocusVeil visible={open} boundaryRef={veilBoundaryRef} />
       <Popover size='md' open={open} onOpenChange={setOpen}>
         <PopoverAnchor asChild>
           <button
@@ -568,7 +605,7 @@ function BreadcrumbLocationPopover({
           <div className='flex flex-col gap-0.5'>
             {breadcrumbs.map((crumb, index) => (
               <BreadcrumbLocationItem
-                key={`${crumb.label}-${index}`}
+                key={crumb.id ?? `${crumb.label}-${index}`}
                 icon={crumb.icon || (index === 0 ? Icon : undefined)}
                 label={crumb.label}
                 onClick={crumb.onClick ? () => navigateAndClose(crumb.onClick) : undefined}
@@ -582,60 +619,42 @@ function BreadcrumbLocationPopover({
   )
 }
 
-function LocationFocusVeil({
-  visible,
-  boundaryRef,
-}: {
-  visible: boolean
-  boundaryRef: React.RefObject<HTMLDivElement | null>
-}) {
-  const [bounds, setBounds] = useState({ top: 0, left: 0 })
-  /**
-   * Portal-mount gate. The veil must render `null` on BOTH the server render
-   * and the first client (hydration) render — branching on
-   * `typeof document === 'undefined'` made the two renders diverge, which
-   * failed hydration and forced React to regenerate the whole page tree on
-   * the client (a visible header flash during load).
-   */
-  const [mounted, setMounted] = useState(false)
+interface BreadcrumbNavigationProps {
+  label: string
+  items: DropdownOption[]
+  actions?: DropdownOption[]
+}
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    if (!visible) return
-
-    const updateBounds = () => {
-      const boundary = boundaryRef.current
-      if (!boundary) return
-
-      const rect = boundary.getBoundingClientRect()
-      setBounds({ top: rect.top, left: rect.left })
+function BreadcrumbNavigation({ label, items, actions }: BreadcrumbNavigationProps) {
+  const toOption = (item: DropdownOption, index: number): ComboboxOption => {
+    const ItemIcon = item.icon
+    return {
+      value: item.id ?? String(index),
+      label: item.label,
+      iconElement: ItemIcon ? <ItemIcon className='size-[14px]' /> : undefined,
+      onSelect: item.onClick,
+      disabled: item.disabled,
     }
-
-    updateBounds()
-    window.addEventListener('resize', updateBounds)
-    window.addEventListener('scroll', updateBounds, true)
-
-    return () => {
-      window.removeEventListener('resize', updateBounds)
-      window.removeEventListener('scroll', updateBounds, true)
-    }
-  }, [boundaryRef, visible])
-
-  if (!mounted) return null
-
-  return createPortal(
-    <div
-      aria-hidden='true'
-      className={cn(
-        'pointer-events-none fixed right-0 bottom-0 z-[calc(var(--z-popover)-1)] bg-[var(--bg)] transition-opacity duration-150 ease-out motion-reduce:transition-none',
-        visible ? 'opacity-60' : 'opacity-0'
-      )}
-      style={{ top: bounds.top, left: bounds.left }}
-    />,
-    document.body
+  }
+  const options = [
+    ...(actions ?? []).map((action, index) => ({
+      ...toOption(action, index),
+      value: `action:${action.id ?? index}`,
+    })),
+    ...items.map(toOption),
+  ]
+  return (
+    <div className='w-8 shrink-0'>
+      <ChipCombobox
+        aria-label={`Navigate within ${label}`}
+        options={options}
+        placeholder=''
+        searchable
+        searchPlaceholder='Find folder...'
+        emptyMessage='No folders'
+        dropdownWidth={260}
+      />
+    </div>
   )
 }
 

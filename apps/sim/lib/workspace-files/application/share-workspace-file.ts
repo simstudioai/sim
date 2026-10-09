@@ -1,14 +1,8 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, resolvePrincipalExecutionActorUserId } from '@sim/auth/principal'
+import { resolvePrincipalExecutionActorUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import {
-  type ShareAuthType,
-  type ShareRecord,
-  sharePasswordSchema,
-} from '@/lib/api/contracts/public-shares'
-import { resolveCopilotSecretReference } from '@/lib/core/application/environment-reference'
+import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { parseExactEnvironmentReference } from '@/lib/environment/reference'
 import {
   getShareForResource,
   getWorkspaceSharesForResources,
@@ -21,6 +15,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveSharePassword } from '@/lib/workspace-files/application/share-password'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 import { validatePublicFileSharing } from '@/ee/access-control/utils/permission-check'
@@ -97,30 +92,6 @@ export const getWorkspaceFileShares = defineAuthorizedWorkspaceFileUseCase({
     }
   },
 })
-
-/**
- * The password to store for a password-gated share.
- *
- * The v2 contract admits a whole-value `{{NAME}}` reference below the share
- * password minimum, because only here is it known whether the caller is Sim's
- * agent: the agent's reference resolves to the variable's value, anyone else's
- * stays literal, and either way the result is held to the share password rules.
- * Other passwords pass through unchanged, with the length rules of the surface
- * that admitted them.
- */
-async function resolveSharePassword(
-  principal: Principal,
-  workspaceId: string,
-  password: string | undefined
-): Promise<string | undefined> {
-  if (!parseExactEnvironmentReference(password)) return password
-  const resolved = await resolveCopilotSecretReference(principal, workspaceId, password, 'password')
-  const validated = sharePasswordSchema.safeParse(resolved)
-  if (!validated.success) {
-    throw new OrchestrationError('validation', validated.error.issues[0].message)
-  }
-  return validated.data
-}
 
 export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateShare,

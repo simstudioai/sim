@@ -42,6 +42,7 @@ export const publicSharesMockFns = {
     async (..._args: unknown[]): Promise<Map<string, unknown>> => new Map()
   ),
   mockUpsertFileShare: vi.fn(),
+  mockUpsertResourceShare: vi.fn(),
   mockResolveActiveShareByToken: vi.fn(),
 }
 
@@ -63,4 +64,9 @@ export const publicSharesMock = {
   getWorkspaceShares: publicSharesMockFns.mockGetWorkspaceShares,
   upsertFileShare: publicSharesMockFns.mockUpsertFileShare,
   resolveActiveShareByToken: publicSharesMockFns.mockResolveActiveShareByToken,
+  upsertResourceShare: publicSharesMockFns.mockUpsertResourceShare,
+  resolveActiveResourceShareByToken: async (token: string) => {
+    const resolved = await publicSharesMockFns.mockResolveActiveShareByToken(token)
+    return resolved ? { ...resolved, kind: 'file' as const } : null
+  },
 }

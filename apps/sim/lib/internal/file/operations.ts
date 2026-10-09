@@ -91,6 +91,7 @@ import {
   getWorkspaceFileShares,
   updateWorkspaceFileShare,
 } from '@/lib/workspace-files/application/share-workspace-file'
+import { updateWorkspaceFileFolderShare } from '@/lib/workspace-files/application/share-workspace-file-folder'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 import {
   createWorkspaceFileFolderOperation,
@@ -1528,6 +1529,19 @@ export async function executeFileManageOperation(
         return Response.json({
           success: true,
           data: { fileId, folderPath: targetFolderPath, targetFolder: targetFolder || '(root)' },
+        })
+      }
+
+      case 'manage_folder_sharing': {
+        const { path, isActive, authType, password, allowedEmails } = body
+        signal?.throwIfAborted()
+        const { share } = await updateWorkspaceFileFolderShare.execute({
+          principal,
+          input: { workspaceId, path, isActive, authType, password, allowedEmails },
+        })
+        return Response.json({
+          success: true,
+          data: { share: share.isActive ? share : { ...share, url: '' } },
         })
       }
 

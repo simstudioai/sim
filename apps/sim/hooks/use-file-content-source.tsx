@@ -92,7 +92,9 @@ function inlineImageSource(
     resolveImageSrc: (src) => {
       if (!src) return src
       const ref = extractEmbeddedFileRef(src)
-      return ref ? `${inlineBase}?${inlineRefQuery(ref)}` : src
+      return ref
+        ? `${inlineBase}${inlineBase.includes('?') ? '&' : '?'}${inlineRefQuery(ref)}`
+        : src
     },
   }
 }
@@ -123,12 +125,13 @@ export function createWorkspaceFileContentSource(
  */
 export function createPublicFileContentSource(
   token: string,
-  contentUrl: string
+  contentUrl: string,
+  documentId?: string
 ): FileContentSource {
   return inlineImageSource(
     (_key, opts) =>
       opts?.preview ? `${contentUrl}${contentUrl.includes('?') ? '&' : '?'}preview=1` : contentUrl,
-    `/api/files/public/${token}/inline`
+    `/api/files/public/${token}/inline${documentId ? `?documentId=${encodeURIComponent(documentId)}` : ''}`
   )
 }
 

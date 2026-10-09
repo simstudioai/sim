@@ -43,6 +43,7 @@ const FILE_MANAGE_TOOL_IDS = new Set([
   'file_get',
   'file_get_content',
   'file_manage_sharing',
+  'file_manage_folder_sharing',
   'file_edit',
   'file_fetch',
   'file_parser',

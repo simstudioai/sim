@@ -734,8 +734,7 @@ function EmbeddedFileActions({
               open
               onOpenChange={setIsShareOpen}
               workspaceId={workspaceId}
-              fileId={file.id}
-              fileName={file.name}
+              resource={{ type: 'file', id: file.id, name: file.name }}
               initialShare={file.share ?? null}
             />
           )}

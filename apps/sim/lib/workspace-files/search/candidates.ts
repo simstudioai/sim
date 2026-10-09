@@ -15,6 +15,7 @@ import { buildMatchExpression } from '@/lib/workspace-files/search/sql-pattern'
 export interface FileSearchCandidate {
   fileId: string
   fileName: string
+  folderId: string | null
   fileKey: string
   ownerUserId: string
   contentUpdatedAt: Date
@@ -64,6 +65,7 @@ export async function probeFileSearchCandidates(
     .select({
       fileId: workspaceFiles.id,
       fileName: workspaceFiles.originalName,
+      folderId: workspaceFiles.folderId,
       fileKey: workspaceFiles.key,
       ownerUserId: workspaceFiles.userId,
       contentUpdatedAt: workspaceFiles.contentUpdatedAt,
@@ -117,6 +119,7 @@ export async function readOrderedFileSearchCandidates(
     .select({
       fileId: workspaceFiles.id,
       fileName: workspaceFiles.originalName,
+      folderId: workspaceFiles.folderId,
       fileKey: workspaceFiles.key,
       ownerUserId: workspaceFiles.userId,
       contentUpdatedAt: workspaceFiles.contentUpdatedAt,
@@ -171,6 +174,7 @@ export async function readOrderedFileSearchCandidates(
     .select({
       fileId: files.fileId,
       fileName: files.fileName,
+      folderId: files.folderId,
       fileKey: files.fileKey,
       ownerUserId: files.ownerUserId,
       contentUpdatedAt: files.contentUpdatedAt,

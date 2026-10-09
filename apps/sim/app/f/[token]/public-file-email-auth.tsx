@@ -12,6 +12,7 @@ import { usePublicFileOtpRequest, usePublicFileOtpVerify } from '@/hooks/queries
 
 interface PublicFileEmailAuthProps {
   token: string
+  resourceType?: 'file' | 'folder'
 }
 
 /**
@@ -19,7 +20,7 @@ interface PublicFileEmailAuthProps {
  * send a 6-digit code, verify it. On success the server sets the
  * `file_auth_{shareId}` cookie and the page re-renders the viewer.
  */
-export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
+export function PublicFileEmailAuth({ token, resourceType = 'file' }: PublicFileEmailAuthProps) {
   const router = useRouter()
   const requestOtp = usePublicFileOtpRequest(token)
   const verifyOtp = usePublicFileOtpVerify(token)
@@ -78,7 +79,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
     return (
       <PublicFileAuthShell
         title='Email Verification'
-        subtitle='This file requires email verification'
+        subtitle={`This ${resourceType} requires email verification`}
       >
         <form
           onSubmit={(e) => {

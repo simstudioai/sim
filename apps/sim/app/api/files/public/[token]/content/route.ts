@@ -9,8 +9,8 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveServableDoc } from '@/lib/mothership/tools/server/files/doc-compile'
+import { PublicShareAccessError, readPublicSharedFile } from '@/lib/public-shares/access'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
@@ -54,21 +54,11 @@ export const GET = withRouteHandler(
       const { token } = parsed.data.params
       const preview = parsed.data.query.preview === '1'
 
-      const resolved = await resolveActiveShareByToken(token)
-      if (!resolved) {
-        throw new FileNotFoundError('Not found')
-      }
-
-      const auth = await validateDeploymentAuth(
-        requestId,
-        resolved.share,
-        request,
-        undefined,
-        'file'
-      )
-      if (!auth.authorized) {
-        return NextResponse.json({ error: auth.error ?? 'auth_required_password' }, { status: 401 })
-      }
+      const resolved = await readPublicSharedFile({
+        token,
+        fileId: parsed.data.query.fileId,
+        authorize: (share) => validateDeploymentAuth(requestId, share, request, undefined, 'file'),
+      })
 
       const { file } = resolved
       // The same ceiling the authenticated serve route reads this object under
@@ -161,6 +151,13 @@ export const GET = withRouteHandler(
         cacheControl: 'private, no-cache, must-revalidate',
       })
     } catch (error) {
+      if (error instanceof PublicShareAccessError) {
+        if (error.status === 404) return createErrorResponse(new FileNotFoundError('Not found'))
+        return NextResponse.json(
+          { error: error.message },
+          { status: error.status, headers: { 'Cache-Control': 'private, no-store' } }
+        )
+      }
       logger.error('Error serving public shared file:', error)
       if (error instanceof FileNotFoundError) {
         return createErrorResponse(error)

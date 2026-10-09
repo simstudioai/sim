@@ -220,6 +220,22 @@ export const fileOperations = {
     capability: 'files.use',
     ...HUMAN_FILE_TOOL_PRINCIPAL_POLICY,
   }),
+  readFolderShare: defineWorkspaceOperation({
+    id: 'files.folders.share.read',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
+  }),
+  updateFolderShare: defineWorkspaceOperation({
+    id: 'files.folders.share.update',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    capability: 'files.use',
+    ...HUMAN_FILE_TOOL_PRINCIPAL_POLICY,
+  }),
   listFolders: defineWorkspaceOperation({
     id: 'files.folders.list',
     oauthScope: 'api:read',
@@ -235,6 +251,13 @@ export const fileOperations = {
     workspaceApiKey: 'allow',
     capability: 'files.use',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
+  }),
+  prepareUploadFolders: defineWorkspaceOperation({
+    id: 'files.folders.prepare_upload',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    capability: 'files.use',
+    principalKinds: ['session'],
   }),
   updateFolder: defineWorkspaceOperation({
     id: 'files.folders.update',

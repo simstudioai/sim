@@ -606,6 +606,22 @@ describe('chunked workspace file search on PostgreSQL', () => {
     expect(scoped.indexStatus.readyFiles).toBe(1)
     expect((await search('needle')).results.map((row) => row.fileId)).toEqual(['file-2', 'file-1'])
   })
+  it('projects metadata only for returned matches inside the current folder scope', async () => {
+    await index('needle')
+    await index('needle\nneedle', await addFile('file-2', 'workspace-1', 'Report.md', 'folder-1'))
+    await index('needle', await addFile('file-3', 'workspace-2', 'Private.md', 'folder-1'))
+    const result = await searchWorkspaceFileIndex({
+      workspaceId: 'workspace-1',
+      pattern: compileFileSearchPattern('needle', 'exact'),
+      maxResults: 1,
+      folderScope: { folderIds: new Set(['folder-1']), includeRootItems: false },
+      includeFileMetadata: true,
+      signal,
+    })
+    expect(result.truncated).toBe(true)
+    expect(result.files).toEqual([{ id: 'file-2', name: 'Report.md', folderId: 'folder-1' }])
+    expect(await search('needle')).not.toHaveProperty('files')
+  })
   it('backfills preexisting files idempotently and does not reset ready builds', async () => {
     await index('needle')
     await connection`DELETE FROM workspace_file_search_backfill`

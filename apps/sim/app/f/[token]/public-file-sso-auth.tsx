@@ -13,6 +13,7 @@ import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
 
 interface PublicFileSSOAuthProps {
   token: string
+  resourceType?: 'file' | 'folder'
 }
 
 /**
@@ -20,7 +21,7 @@ interface PublicFileSSOAuthProps {
  * then hand off to the global `/sso` flow with this share as the callback. After
  * sign-in the page gate authorizes via the Sim session.
  */
-export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
+export function PublicFileSSOAuth({ token, resourceType = 'file' }: PublicFileSSOAuthProps) {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -40,16 +41,16 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
         body: { email: normalizedEmail },
       })
       if (!eligible) {
-        setError('Email not authorized for this file.')
+        setError(`Email not authorized for this ${resourceType}.`)
         setIsLoading(false)
         return
       }
-      const callbackUrl = `/f/${token}`
+      const callbackUrl = `/f/${token}${window.location.search}`
       router.push(
         `/sso?email=${encodeURIComponent(normalizedEmail)}&callbackUrl=${encodeURIComponent(callbackUrl)}`
       )
     } catch (err) {
-      setError(getErrorMessage(err, 'Email not authorized for this file.'))
+      setError(getErrorMessage(err, `Email not authorized for this ${resourceType}.`))
       setIsLoading(false)
     }
   }
@@ -57,7 +58,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
   return (
     <PublicFileAuthShell
       title='SSO Authentication'
-      subtitle='This file requires SSO authentication'
+      subtitle={`This ${resourceType} requires SSO authentication`}
     >
       <form
         onSubmit={(e) => {

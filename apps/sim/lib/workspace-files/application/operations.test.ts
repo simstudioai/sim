@@ -43,6 +43,8 @@ describe('file operation registry', () => {
       'files.move',
       'files.share.read',
       'files.share.update',
+      'files.folders.share.read',
+      'files.folders.share.update',
       'files.folders.list',
       'files.folders.create',
       'files.folders.update',

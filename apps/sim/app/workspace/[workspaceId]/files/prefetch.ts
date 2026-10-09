@@ -32,7 +32,8 @@ import {
 export async function prefetchFilesBrowser(
   queryClient: QueryClient,
   workspaceId: string,
-  userId: string | undefined
+  userId: string | undefined,
+  { includeFiles = true }: { includeFiles?: boolean } = {}
 ): Promise<void> {
   if (!userId) return
   const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
@@ -56,6 +57,6 @@ export async function prefetchFilesBrowser(
       staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
     }),
     prefetchResourceListChrome(queryClient, workspaceId, 'file', userId),
-    seedWorkspaceFiles(queryClient, workspaceId),
+    includeFiles ? seedWorkspaceFiles(queryClient, workspaceId) : undefined,
   ])
 }

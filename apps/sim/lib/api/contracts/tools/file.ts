@@ -163,6 +163,16 @@ export const fileManageSharingBodySchema = z
 
 export type FileManageSharingBody = z.input<typeof fileManageSharingBodySchema>
 
+const fileManageFolderSharingBodySchema = z.object({
+  operation: z.literal('manage_folder_sharing'),
+  workspaceId: z.string().min(1).optional(),
+  path: v2NonRootFolderPathInputSchema,
+  isActive: z.boolean({ error: 'isActive is required for manage_folder_sharing operation' }),
+  authType: shareAuthTypeSchema.optional(),
+  password: z.string().min(1).max(1024).optional(),
+  allowedEmails: z.array(z.string().min(1)).max(200).optional(),
+})
+
 export const fileManageReadBodySchema = z
   .object({
     operation: z.literal('read'),
@@ -410,6 +420,7 @@ export const fileManageBodySchema = z.union([
   fileManageGetBodySchema,
   fileManageMoveBodySchema,
   fileManageSharingBodySchema,
+  fileManageFolderSharingBodySchema,
   fileManageReadBodySchema,
   fileManageContentBodySchema,
   fileManageCompressBodySchema,

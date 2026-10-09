@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs one end-to-end suite group over real HTTP, each against its own `next dev` app.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|files>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -17,7 +17,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|files>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=300
 mkdir -p "$report_dir"
@@ -75,6 +75,20 @@ start_app() {
 }
 
 case "$group" in
+  files)
+    export NEXT_PUBLIC_FORCE_HOSTED=false STORAGE_PROVIDER=local
+    export NEXT_PUBLIC_CHAT_DISABLED=true
+    export INTERNAL_API_SECRET=files-http-ci-local-secret-at-least-32-characters
+    export CRON_SECRET=files-e2e-cron-secret-at-least-32-characters
+    start_app files 3027 Files record-http-status
+    FILES_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+    FILES_E2E_DATABASE_URL="$DATABASE_URL" \
+    FILES_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    FILES_E2E_CRON_SECRET="$CRON_SECRET" \
+    FILES_E2E_REPORT_PATH="$report_dir/files-e2e-report.json" \
+      bun --no-env-file scripts/test-files-e2e.ts
+    ;;
+
   scim)
     export NEXT_PUBLIC_FORCE_HOSTED=true
     export BILLING_ENABLED=true NEXT_PUBLIC_BILLING_ENABLED=true

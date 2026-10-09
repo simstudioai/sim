@@ -1,4 +1,5 @@
 import type { ElementType } from 'react'
+import { Folder } from '@sim/emcn'
 import { folderAncestorChain } from '@/lib/folders/tree'
 import type {
   BreadcrumbEditing,
@@ -44,6 +45,7 @@ interface FolderBreadcrumbItemsBase {
   breadcrumbs: BreadcrumbFolder[]
   /** Called with the folder to open, or `null` for the workspace root. */
   onNavigate: (folderId: string | null) => void
+  childFolders?: ReadonlyMap<string | null, readonly BreadcrumbFolder[]>
 }
 
 /** A list page: the deepest folder is where you are, so its crumb carries the rename and menu. */
@@ -90,15 +92,32 @@ export function folderBreadcrumbItems(options: FolderBreadcrumbItemsOptions): Br
   const { rootLabel, rootIcon, breadcrumbs, onNavigate } = options
   const trailing = options.trailing ?? NO_TRAILING_CRUMBS
 
+  const navigationItems = (folderId: string | null) =>
+    options.childFolders?.get(folderId)?.map((folder) => ({
+      id: folder.id,
+      label: folder.name,
+      icon: Folder,
+      onClick: () => onNavigate(folder.id),
+    })) ?? (options.childFolders ? [] : undefined)
+
   const items: BreadcrumbItem[] = [
-    { label: rootLabel, icon: rootIcon, folderId: null, onClick: () => onNavigate(null) },
+    {
+      id: 'root',
+      label: rootLabel,
+      icon: rootIcon,
+      folderId: null,
+      onClick: () => onNavigate(null),
+      navigationItems: navigationItems(null),
+    },
   ]
 
   breadcrumbs.forEach((folder, index) => {
     /** Where you already are — and on a detail page that is a trailing crumb, not a folder. */
     const isOpenFolder = trailing.length === 0 && index === breadcrumbs.length - 1
     items.push({
+      id: folder.id,
       label: folder.name,
+      navigationItems: navigationItems(folder.id),
       folderId: folder.id,
       onClick: isOpenFolder ? undefined : () => onNavigate(folder.id),
       dropdownItems:
