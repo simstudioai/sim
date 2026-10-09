@@ -8,3 +8,10 @@ export const simMcpContract = defineRouteContract({
   body: mcpJsonRpcMessageSchema,
   response: { mode: 'json', schema: mcpJsonRpcMessageSchema },
 })
+
+export const simOpenAiMcpContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mcp/openai',
+  body: mcpJsonRpcMessageSchema,
+  response: { mode: 'json', schema: mcpJsonRpcMessageSchema },
+})

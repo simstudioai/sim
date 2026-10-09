@@ -1,4 +1,4 @@
-import { getSimMcpUrl } from '@/lib/api/mcp/urls'
+import { getSimMcpUrl, type SimMcpProfile } from '@/lib/api/mcp/urls'
 import {
   type OAuthProtectedResource,
   protectedResourceMetadataResponse,
@@ -12,14 +12,17 @@ import { OAUTH_API_READ_SCOPE, OAUTH_API_WRITE_SCOPE } from '@/lib/auth/oauth-pr
  */
 const SIM_MCP_SCOPES = [OAUTH_API_READ_SCOPE, OAUTH_API_WRITE_SCOPE] as const
 
-function simMcpResource(): OAuthProtectedResource {
-  return { resource: getSimMcpUrl(), name: 'Sim', scopes: SIM_MCP_SCOPES }
+function simMcpResource(profile: SimMcpProfile): OAuthProtectedResource {
+  return { resource: getSimMcpUrl(profile), name: 'Sim', scopes: SIM_MCP_SCOPES }
 }
 
-export function simMcpResourceMetadata() {
-  return protectedResourceMetadataResponse(simMcpResource())
+export function simMcpResourceMetadata(profile: SimMcpProfile = 'standard') {
+  return protectedResourceMetadataResponse(simMcpResource(profile))
 }
 
-export function withSimMcpAuthChallenge<T extends Response>(response: T): T {
-  return withOAuthResourceChallenge(response, simMcpResource())
+export function withSimMcpAuthChallenge<T extends Response>(
+  response: T,
+  profile: SimMcpProfile = 'standard'
+): T {
+  return withOAuthResourceChallenge(response, simMcpResource(profile))
 }

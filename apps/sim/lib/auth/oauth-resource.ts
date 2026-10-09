@@ -41,7 +41,9 @@ export class InvalidOAuthResourceError extends Error {
  */
 export function parseOAuthResource(value: string | null): OAuthResource | null {
   if (value === null) return null
-  if (value === getSimMcpUrl()) return { kind: 'api', url: value }
+  if (value === getSimMcpUrl() || value === getSimMcpUrl('openai')) {
+    return { kind: 'api', url: value }
+  }
   if (!URL.canParse(value)) throw new InvalidOAuthResourceError()
   const url = new URL(value)
   if (

@@ -14,6 +14,7 @@ vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 import { createSimMcpHandlers } from '@/lib/api/mcp/route-handler'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { POST as openAiPost } from '@/app/api/mcp/openai/route'
 
 const BASE = getBaseUrl()
 
@@ -176,5 +177,64 @@ describe('Sim MCP tools', () => {
     const result = await callTool('call_read_operation', { operation: 'createTable' })
     expect(result.isError).toBe(true)
     expect(v2RouteMocks.authenticate).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('public plugin protocol boundary', () => {
+  it('does not expose generic executors or operation selectors to the public directory', async () => {
+    const response = await openAiPost(rpc({ method: 'tools/list' }), undefined)
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.result.tools.length).toBeGreaterThan(0)
+    for (const tool of body.result.tools) {
+      expect(tool.inputSchema.properties).not.toHaveProperty('operation')
+      expect(tool.annotations).toMatchObject({
+        readOnlyHint: expect.any(Boolean),
+        destructiveHint: expect.any(Boolean),
+        openWorldHint: expect.any(Boolean),
+      })
+    }
+    const names = body.result.tools.map((tool: { name: string }) => tool.name)
+    expect(names).not.toContain('search_operations')
+    expect(names).not.toContain('describe_operation')
+    expect(names).not.toContain('call_read_operation')
+    expect(names).not.toContain('call_write_operation')
+  })
+
+  it('refuses an unadvertised executor even when the caller knows its name', async () => {
+    const response = await openAiPost(
+      rpc({
+        method: 'tools/call',
+        params: { name: 'call_read_operation', arguments: { operation: 'getMeta' } },
+      }),
+      undefined
+    )
+    const body = await response.json()
+    expect(body.error ?? body.result).toMatchObject(
+      body.error ? { code: -32602 } : { isError: true }
+    )
+  })
+
+  it('requests write scope for a named mutation before executing it', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue({
+      ...auth,
+      principal: {
+        kind: 'oauth_access_token',
+        userId: 'user-1',
+        clientId: 'client-1',
+        tokenId: 'token-1',
+        scopes: ['api:read'],
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+      keyType: 'oauth_access_token',
+    })
+    const response = await openAiPost(
+      rpc({ method: 'tools/call', params: { name: 'create_table', arguments: {} } }),
+      undefined
+    )
+    expect(response.status).toBe(403)
+    expect(response.headers.get('WWW-Authenticate')).toBe(
+      `Bearer error="insufficient_scope", resource_metadata="${BASE}/.well-known/oauth-protected-resource/api/mcp/openai", scope="api:write"`
+    )
   })
 })
