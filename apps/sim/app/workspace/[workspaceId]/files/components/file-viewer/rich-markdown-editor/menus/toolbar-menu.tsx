@@ -45,7 +45,7 @@ export function ToolbarMenu({ editor, label, value, active, items }: ToolbarMenu
               <Chip
                 rightIcon={ChevronDown}
                 aria-label={label}
-                className='h-10 w-[76px] focus-visible:bg-[var(--surface-hover)] sm:h-[28px]'
+                className='h-10 w-[76px] sm:h-[28px]'
                 onPointerDown={(event) => event.currentTarget.focus()}
               >
                 {value}
