@@ -918,7 +918,7 @@ async function exerciseViewport(
           exact: true,
         })
         await expectContained(page, navigation)
-        await navigation.getByRole('button', { name: 'Settings section', exact: true }).tap()
+        await navigation.getByRole('button', { name: 'General', exact: true }).tap()
         await expectContained(page, page.getByRole('menu'))
         await page.getByRole('menuitem', { name: 'General', exact: true }).tap()
         await expect(page.getByRole('menu')).toHaveCount(0)

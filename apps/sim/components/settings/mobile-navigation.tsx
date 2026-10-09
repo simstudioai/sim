@@ -56,7 +56,6 @@ export function SettingsMobileNavigation<Section extends SettingsSection>({
         </Chip>
       )}
       <ChipSelect
-        aria-label='Settings section'
         value={selectedSection}
         options={items.map((item) => ({ value: item.id, label: item.label, icon: item.icon }))}
         onChange={(value) => {

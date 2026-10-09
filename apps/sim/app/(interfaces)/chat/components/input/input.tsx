@@ -198,9 +198,9 @@ export const ChatInput: React.FC<{
                           e.stopPropagation()
                           handleRemoveFile(file.id)
                         }}
-                        className='absolute top-[2px] right-[2px] size-11 items-start justify-end p-0 focus-visible:opacity-100 md:size-[16px] md:opacity-0 md:group-hover:opacity-100'
+                        className='absolute top-[2px] right-[2px] size-11 items-start justify-end p-0 focus-visible:opacity-100 md:pointer-fine:size-[16px] md:pointer-fine:opacity-0 md:pointer-fine:group-hover:opacity-100'
                       >
-                        <span className='flex size-7 items-center justify-center rounded-full bg-black/60 text-white md:size-4'>
+                        <span className='flex size-7 items-center justify-center rounded-full bg-black/60 text-white md:pointer-fine:size-4'>
                           <X className='size-[10px]' />
                         </span>
                       </Button>
