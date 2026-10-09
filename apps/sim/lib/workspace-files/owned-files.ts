@@ -27,7 +27,7 @@ interface OwnedFileWrite {
  */
 interface OwnedFileKind {
   /** The VFS namespace the file is read under, as `<namespace>/<fileName>`. */
-  namespace: string
+  namespace: 'tests' | 'changelog'
   /** The owner key in a reference under this namespace; null for any other reference. */
   parseReference(reference: string): string | null
   /** The body file of the live owner a key names; null when there is none. */
