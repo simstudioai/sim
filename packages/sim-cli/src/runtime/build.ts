@@ -92,13 +92,16 @@ function looksLikeAnId(token: string): boolean {
 }
 
 /**
- * Appends a worked example to the parse errors a positional argument causes.
+ * Appends a worked example to the parse errors a positional argument causes,
+ * and the command's own flags to an unknown option.
  *
  * Covers the argument being absent and the argument being swallowed as an
  * option because its id opens with a dash; the second needs the `--` escape,
- * which commander never mentions.
+ * which commander never mentions. A guessed flag gets the real list: commander
+ * suggests only a near spelling, so `--row-ids` for `--row` got a bare error
+ * and a caller had to look the command up before retrying.
  */
-function addArgumentExamples(command: Command): Command {
+function addParseErrorGuidance(command: Command): Command {
   const outputError = command.configureOutput().outputError
   if (!outputError) throw new Error('Commander output formatter is not configured')
 
@@ -113,10 +116,15 @@ function addArgumentExamples(command: Command): Command {
         return
       }
 
-      if (command.registeredArguments.length === 0) return
       const token = UNKNOWN_OPTION_TOKEN.exec(message)?.[1]
-      if (!token || !looksLikeAnId(token)) return
-      write(`Example: ${commandPath(command)} -- ${token}\n`)
+      if (!token) return
+      if (looksLikeAnId(token)) {
+        if (command.registeredArguments.length > 0)
+          write(`Example: ${commandPath(command)} -- ${token}\n`)
+        return
+      }
+      const flags = command.options.filter((option) => !option.hidden).map((option) => option.flags)
+      write(`Options for ${commandPath(command)}: ${flags.join(', ')}\n`)
     },
   })
   return command
@@ -339,7 +347,7 @@ function configureOperation(
 }
 
 function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: string): Command {
-  return addArgumentExamples(configureOperation(new Command(leafName), operation, spec))
+  return addParseErrorGuidance(configureOperation(new Command(leafName), operation, spec))
 }
 
 /**
