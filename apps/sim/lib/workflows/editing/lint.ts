@@ -758,13 +758,26 @@ export function collectDanglingBlockOutputReferences(
  * `block.path` bodies of the reference tokens in JSON text that sit outside
  * every string literal, tokenized with the runtime's own reference scanner.
  * Tokens inside a literal, escaped quotes included, are already strings in the
- * parsed document.
+ * parsed document. A field made only of references has no JSON around them:
+ * the block receives the referenced text itself (Response returns text it
+ * cannot parse as-is, API sends it as a raw body), and quoting would only turn
+ * JSON text into a JSON string, so none of its tokens are reported.
  */
 function unquotedJsonReferenceTokens(json: string): string[] {
+  const tokens = findWorkflowReferenceTokens(json)
+  let outsideTokens = ''
+  let previousEnd = 0
+  for (const token of tokens) {
+    outsideTokens += json.slice(previousEnd, token.start)
+    previousEnd = token.end
+  }
+  outsideTokens += json.slice(previousEnd)
+  if (outsideTokens.trim() === '') return []
+
   const unquoted: string[] = []
   let cursor = 0
   let inString = false
-  for (const token of findWorkflowReferenceTokens(json)) {
+  for (const token of tokens) {
     for (; cursor < token.start; cursor++) {
       const char = json[cursor]
       if (inString && char === '\\') cursor++
@@ -784,7 +797,9 @@ function unquotedJsonReferenceTokens(json: string): string[] {
  * Outside Function code a reference is replaced by its raw text, so
  * `{"id": <start.order_id>}` becomes `{"id": ord-1}` and the block fails to
  * parse it at run time, while lint, deploy, and every earlier run of a draft
- * that never reached the block stay clean. Only references whose declared
+ * that never reached the block stay clean. No JSON-aware escaping exists
+ * outside Function code, so quoting is only safe for text that can never hold a
+ * quote, backslash, or control character. Only references whose declared
  * output type is `string` are reported: numbers, booleans, and objects already
  * resolve to JSON values, and an undeclared type cannot be judged here.
  */
@@ -835,7 +850,7 @@ export function collectUnquotedJsonStringReferences(
         field,
         value,
         kind: 'block-output',
-        reason: `unquoted-json-string: these references resolve to text, which is inserted without quotes, so the field is not valid JSON at run time unless the text is itself JSON. Quote each one, e.g. "${value[0]}".`,
+        reason: `unquoted-json-string: these references resolve to text, which is inserted raw, so the field is not valid JSON at run time unless the text is itself JSON. Quoting, e.g. "${value[0]}", works only for text that never contains a double quote, backslash, line break, or other control character, such as an id. For free text such as a model reply, build the JSON in a Function block, which reads references as values, and set this field to only that block's result reference.`,
       })
     }
   }
