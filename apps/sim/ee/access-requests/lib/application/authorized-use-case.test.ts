@@ -110,7 +110,12 @@ describe('authorized access request execution', () => {
         projectAudit: () => audit,
       })
       await expect(useCase.execute({ principal: caller, input })).resolves.toBe('result')
-      expect(prepare).toHaveBeenCalledWith({ principal: caller, input, context })
+      expect(prepare).toHaveBeenCalledWith({
+        principal: caller,
+        actorUserId: 'requester',
+        input,
+        context,
+      })
       expect(mocks.authorize).toHaveBeenNthCalledWith(
         2,
         caller,
@@ -122,6 +127,7 @@ describe('authorized access request execution', () => {
       )
       expect(execute).toHaveBeenCalledWith({
         principal: caller,
+        actorUserId: 'requester',
         input,
         context,
         executor: transaction,
@@ -194,7 +200,12 @@ describe('authorized access request execution', () => {
       execute,
     })
     await expect(useCase.execute({ principal, input })).resolves.toEqual({ id: 'request' })
-    expect(prepare).toHaveBeenCalledExactlyOnceWith({ principal, input, context })
+    expect(prepare).toHaveBeenCalledExactlyOnceWith({
+      principal,
+      actorUserId: 'requester',
+      input,
+      context,
+    })
     expect(prepare.mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(db.transaction).mock.invocationCallOrder[0]
     )
@@ -213,6 +224,7 @@ describe('authorized access request execution', () => {
     )
     expect(execute).toHaveBeenCalledExactlyOnceWith({
       principal,
+      actorUserId: 'requester',
       input,
       context,
       executor: transaction,

@@ -37,6 +37,7 @@ import {
 import {
   hasWorkspaceFileDeliveryObserver,
   reportWorkspaceFileDelivery,
+  requireDelegatedWorkspaceFileDeliveryObserver,
 } from '@/lib/workspace-files/application/file-delivery-observer'
 import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
@@ -219,6 +220,7 @@ export const readWorkspaceFileVersionText = defineAuthorizedWorkspaceFileUseCase
     principal,
     request,
   }): Promise<ReadWorkspaceFileVersionTextResult> {
+    requireDelegatedWorkspaceFileDeliveryObserver(principal)
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
     const fileAtVersion = recordAtVersion(file, version)
