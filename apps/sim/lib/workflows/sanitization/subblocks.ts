@@ -3,9 +3,26 @@ import { isPlainRecord } from '@sim/utils/object'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import { getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
+import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowSubblockSanitization')
+
+let registeredSubBlockTypes: Set<string> | undefined
+
+/**
+ * Whether some registered block declares a sub-block of this type. A stored type that
+ * passes is config drift (a field whose declared type later changed, e.g. `dropdown` →
+ * `combobox`), not corruption. Deployed snapshots are immutable and re-sanitized on every
+ * load, so drift repairs would otherwise warn forever.
+ */
+function isRegisteredSubBlockType(type: unknown): boolean {
+  if (typeof type !== 'string') return false
+  registeredSubBlockTypes ??= new Set(
+    Object.values(BLOCK_REGISTRY).flatMap((config) => config.subBlocks.map((sb) => sb.type))
+  )
+  return registeredSubBlockTypes.has(type)
+}
 
 interface SanitizeMalformedSubBlocksOptions {
   convertEmptyStringToNull?: boolean
@@ -123,12 +140,17 @@ export function sanitizeMalformedSubBlocks(
     const normalizedValue = hasValue && value !== subBlock.value
 
     if (repairedMetadata) {
-      logger.warn('Repairing malformed subBlock metadata', {
+      const repair = {
         blockId: block.id,
         subBlockId,
         storedType: subBlock.type,
         repairedType: type,
-      })
+      }
+      if (id === subBlock.id && isRegisteredSubBlockType(subBlock.type)) {
+        logger.debug('Repairing drifted subBlock type', repair)
+      } else {
+        logger.warn('Repairing malformed subBlock metadata', repair)
+      }
       changed = true
     } else if (normalizedValue) {
       logger.warn('Normalizing malformed subBlock value', { blockId: block.id, subBlockId })
