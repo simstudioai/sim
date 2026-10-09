@@ -8,14 +8,21 @@ import {
   credentialMember,
   member,
   organization,
+  permissionGroup,
+  permissionGroupMember,
+  permissionGroupWorkspace,
   permissions,
   user,
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/config/env-flags', () => ({ ...envFlagsMock, isAccessControlEnabled: true }))
+
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
 import '@/app/api/v2/credentials/[credentialId]/members/route'
@@ -29,10 +36,13 @@ const adminId = generateId()
 const teammateId = generateId()
 const writerId = generateId()
 const outsiderId = generateId()
+const coAdminId = generateId()
+const restrictedAdminId = generateId()
 const credentialId = generateId()
-const userIds = [adminId, teammateId, writerId, outsiderId]
+const serviceAccountCredentialId = generateId()
+const userIds = [adminId, teammateId, writerId, outsiderId, coAdminId, restrictedAdminId]
 
-function chat(userId: string, chatWorkspaceId = workspaceId) {
+function chat(userId: string, chatWorkspaceId = workspaceId, targetCredentialId = credentialId) {
   const transport = createScopedCliTransport(ORIGIN, {
     userId,
     workspaceId: chatWorkspaceId,
@@ -40,7 +50,7 @@ function chat(userId: string, chatWorkspaceId = workspaceId) {
   })
   return (path: string, init?: { method: string; body?: unknown }) =>
     withWorkspaceInvocationScope({ workspaceId: chatWorkspaceId, organizationId }, () =>
-      transport(`${ORIGIN}/api/v2/credentials/${credentialId}/members${path}`, {
+      transport(`${ORIGIN}/api/v2/credentials/${targetCredentialId}/members${path}`, {
         method: init?.method ?? 'GET',
         ...(init?.body === undefined
           ? {}
@@ -112,6 +122,8 @@ describe('chat-delegated credential sharing', () => {
         [
           [adminId, workspaceId, 'admin'],
           [adminId, otherWorkspaceId, 'admin'],
+          [coAdminId, workspaceId, 'admin'],
+          [restrictedAdminId, workspaceId, 'admin'],
           [teammateId, workspaceId, 'write'],
           [writerId, workspaceId, 'write'],
           [outsiderId, otherWorkspaceId, 'write'],
@@ -142,6 +154,34 @@ describe('chat-delegated credential sharing', () => {
       providerId: 'slack',
       displayName: 'Slack fixture',
       createdBy: adminId,
+    })
+    await db.insert(credential).values({
+      id: serviceAccountCredentialId,
+      type: 'service_account',
+      workspaceId,
+      providerId: 'slack',
+      displayName: 'Service account fixture',
+      createdBy: adminId,
+    })
+    const groupId = generateId()
+    await db.insert(permissionGroup).values({
+      id: groupId,
+      organizationId,
+      name: 'No integrations',
+      createdBy: adminId,
+      config: { hideIntegrationsTab: true },
+    })
+    await db.insert(permissionGroupWorkspace).values({
+      id: generateId(),
+      permissionGroupId: groupId,
+      workspaceId,
+      organizationId,
+    })
+    await db.insert(permissionGroupMember).values({
+      id: generateId(),
+      permissionGroupId: groupId,
+      organizationId,
+      userId: restrictedAdminId,
     })
   })
 
@@ -227,6 +267,72 @@ describe('chat-delegated credential sharing', () => {
     expect(await response.json()).toMatchObject({
       error: { code: 'NOT_FOUND', message: 'Resource not found in the selected workspace' },
     })
+    expect(await activeGrantsFor(teammateId)).toEqual([])
+  })
+
+  it('confines Chat to OAuth credentials even for a workspace admin', async () => {
+    const asAdmin = chat(adminId, workspaceId, serviceAccountCredentialId)
+    const refusal = { error: { message: 'Only oauth credentials can be managed by this caller' } }
+
+    const listed = await asAdmin(query)
+    expect(listed.status).toBe(400)
+    expect(await listed.json()).toMatchObject(refusal)
+
+    const shared = await asAdmin(query, {
+      method: 'POST',
+      body: { userId: teammateId, role: 'member' },
+    })
+    expect(shared.status).toBe(400)
+    expect(await shared.json()).toMatchObject(refusal)
+  })
+
+  it("refuses demoting or removing a workspace admin's existing grant", async () => {
+    const asAdmin = chat(adminId)
+    const granted = await asAdmin(query, {
+      method: 'POST',
+      body: { userId: coAdminId, role: 'admin' },
+    })
+    expect(granted.status).toBe(201)
+    expect(await activeGrantsFor(coAdminId)).toEqual([{ role: 'admin' }])
+
+    const demoted = await asAdmin(query, {
+      method: 'POST',
+      body: { userId: coAdminId, role: 'member' },
+    })
+    expect(demoted.status).toBe(400)
+    expect(await demoted.json()).toMatchObject({
+      error: {
+        message: 'Workspace admins are automatically credential admins and cannot be demoted',
+      },
+    })
+    expect(await activeGrantsFor(coAdminId)).toEqual([{ role: 'admin' }])
+
+    const removed = await asAdmin(`/${coAdminId}${query}`, { method: 'DELETE' })
+    expect(removed.status).toBe(400)
+    expect(await removed.json()).toMatchObject({
+      error: {
+        message: 'Workspace admins are automatically credential admins and cannot be removed',
+      },
+    })
+    expect(await activeGrantsFor(coAdminId)).toEqual([{ role: 'admin' }])
+  })
+
+  it('refuses an admin whose permission group withholds integration management', async () => {
+    const asRestricted = chat(restrictedAdminId)
+    const blocked = {
+      error: { code: 'FORBIDDEN', details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' } },
+    }
+
+    const listed = await asRestricted(query)
+    expect(listed.status).toBe(403)
+    expect(await listed.json()).toMatchObject(blocked)
+
+    const shared = await asRestricted(query, {
+      method: 'POST',
+      body: { userId: teammateId, role: 'member' },
+    })
+    expect(shared.status).toBe(403)
+    expect(await shared.json()).toMatchObject(blocked)
     expect(await activeGrantsFor(teammateId)).toEqual([])
   })
 })
