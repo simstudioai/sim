@@ -34,28 +34,42 @@ export function isTransientDatabaseReadError(error: unknown): boolean {
 }
 
 /**
- * Retries an independent, read-only statement at most three times. The callback must
- * rebuild the query outside any transaction and must have no side effects or locks.
- * A failed connection cannot establish whether a write committed, so writes and
- * transactions must never use this helper.
+ * Retries independent reads, rebuilding each statement or fresh read-only transaction
+ * after the previous attempt has fully rolled back. Never retry writes, locking reads,
+ * or statements inside a caller-owned transaction.
  *
- * `label` names the read in the retry log line so callers that wrap several can tell which flapped.
+ * `maxElapsedMs` bounds retry admission, including backoff. The callback receives the
+ * remaining budget and must enforce it at the database to bound an in-flight statement.
  */
 export async function withDatabaseReadRetry<T>(
-  read: () => Promise<T>,
-  options: { label?: string } = {}
+  read: (remainingMs?: number) => Promise<T>,
+  options: { label?: string; maxAttempts?: number; maxElapsedMs?: number } = {}
 ): Promise<T> {
+  const maxAttempts = options.maxAttempts ?? 3
+  const deadline =
+    options.maxElapsedMs === undefined ? undefined : Date.now() + options.maxElapsedMs
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1)
+    throw new Error('Read attempts must be positive')
+  if (
+    options.maxElapsedMs !== undefined &&
+    (!Number.isFinite(options.maxElapsedMs) || options.maxElapsedMs <= 0)
+  ) {
+    throw new Error('Read budget must be positive')
+  }
   for (let attempt = 1; ; attempt++) {
     try {
-      return await read()
+      return await read(deadline === undefined ? undefined : Math.max(1, deadline - Date.now()))
     } catch (error) {
-      if (attempt >= 3 || !isTransientDatabaseReadError(error)) throw error
+      if (attempt >= maxAttempts || !isTransientDatabaseReadError(error)) throw error
+      const delay = backoffWithJitter(attempt, null, { baseMs: 100, maxMs: 500 })
+      if (deadline !== undefined && Date.now() + delay >= deadline) throw error
       logger.warn('Retrying transient database read', {
         label: options.label,
         attempt,
         code: getPostgresErrorCode(error),
       })
-      await sleep(backoffWithJitter(attempt, null, { baseMs: 100, maxMs: 500 }))
+      await sleep(delay)
+      if (deadline !== undefined && Date.now() >= deadline) throw error
     }
   }
 }

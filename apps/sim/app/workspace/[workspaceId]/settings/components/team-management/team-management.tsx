@@ -29,11 +29,11 @@ import {
   useCreateOrganization,
   useMemberRemovalImpact,
   useOrganization,
-  useOrganizationBilling,
   useOrganizationRoster,
   useRemoveMember,
   useTransferOwnership,
 } from '@/hooks/queries/organization'
+import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { useOpenBillingPortal, useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -92,7 +92,7 @@ export function TeamManagement({
     isFetchedAfterMount: isOrganizationBillingFetchedAfterMount,
     isFetching: isOrganizationBillingFetching,
     refetch: refetchOrganizationBilling,
-  } = useOrganizationBilling(organizationId, { enabled: billingEnabled && adminOrOwner })
+  } = useOrganizationPlanSeats(organizationId, { enabled: billingEnabled && adminOrOwner })
 
   const {
     data: roster,
@@ -175,7 +175,7 @@ export function TeamManagement({
    * subscriptions.
    */
   const orgBilling = billingEnabled ? (organizationBillingData?.data ?? null) : null
-  const orgSubscription = orgBilling
+  const orgSubscription = orgBilling?.subscriptionPlan
     ? {
         id: orgBilling.organizationId,
         plan: orgBilling.subscriptionPlan,

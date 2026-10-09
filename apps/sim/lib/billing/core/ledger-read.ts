@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
+import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import type { DbClient, DbTransaction } from '@/lib/db/types'
 
 /**
@@ -16,10 +17,23 @@ export function readLedgerBounded<T>(
   executor: DbClient,
   read: (tx: DbTransaction) => Promise<T>
 ): Promise<T> {
-  return executor.transaction(async (tx) => {
-    await tx.execute(
-      sql.raw(`SET LOCAL statement_timeout = '${USAGE_LEDGER_STATEMENT_TIMEOUT_MS}ms'`)
-    )
-    return read(tx)
-  })
+  return withDatabaseReadRetry(
+    (remainingMs) => {
+      const attemptStartedAt = Date.now()
+      return executor.transaction(
+        async (tx) => {
+          const timeoutMs = Math.max(
+            1,
+            Math.floor(
+              (remainingMs ?? USAGE_LEDGER_STATEMENT_TIMEOUT_MS) - (Date.now() - attemptStartedAt)
+            )
+          )
+          await tx.execute(sql.raw(`SET LOCAL statement_timeout = '${timeoutMs}ms'`))
+          return read(tx)
+        },
+        { accessMode: 'read only' }
+      )
+    },
+    { label: 'usage ledger', maxAttempts: 2, maxElapsedMs: USAGE_LEDGER_STATEMENT_TIMEOUT_MS }
+  )
 }

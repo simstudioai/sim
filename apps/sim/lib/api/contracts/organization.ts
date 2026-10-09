@@ -718,6 +718,28 @@ export const createOrganizationContract = defineRouteContract({
   },
 })
 
+const organizationPlanSeatsSchema = z.object({
+  organizationId: z.string().min(1),
+  subscriptionPlan: z.string().min(1).nullable(),
+  subscriptionStatus: z.string().nullable(),
+  totalSeats: z.number().int().nonnegative(),
+  usedSeats: z.number().int().nonnegative(),
+  membersTotal: z.number().int().nonnegative(),
+  hasEnterprisePlan: z.boolean(),
+})
+
+export type OrganizationPlanSeats = z.output<typeof organizationPlanSeatsSchema>
+
+export const getOrganizationPlanSeatsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/billing-plan',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true), data: organizationPlanSeatsSchema }),
+  },
+})
+
 export const organizationBillingSummarySchema = z.object({
   organizationId: z.string().min(1),
   subscriptionState: z.enum(['active', 'free', 'lapsed']),
