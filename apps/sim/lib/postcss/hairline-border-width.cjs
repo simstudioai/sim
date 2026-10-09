@@ -105,4 +105,4 @@ const plugin = () => ({
 })
 plugin.postcss = true
 
-export default plugin
+module.exports = plugin
