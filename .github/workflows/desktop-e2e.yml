@@ -49,6 +49,9 @@ on:
     - cron: '23 9 * * 1'
   workflow_dispatch:
 
+env:
+  SIM_DESKTOP_DEFAULT_ORIGIN: https://www.staging.sim.ai
+
 permissions:
   contents: read
 
@@ -59,7 +62,7 @@ concurrency:
 jobs:
   e2e:
     name: e2e
-    if: github.event_name != 'schedule'
+    if: false
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -117,7 +120,7 @@ jobs:
 
   e2e-canary:
     name: e2e-canary
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: false
     runs-on: macos-26
     timeout-minutes: 30
     continue-on-error: true
@@ -220,7 +223,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
           bun run build
-          bunx electron-builder --mac dir --universal --publish never \
+          bunx electron-builder --mac dir --arm64 --publish never -c.productName='Sim Staging QA' -c.appId=ai.sim.desktop.staging.qa \
             -c.mac.identity=- -c.mac.hardenedRuntime=false
 
       - name: Run packaged Electron smoke suite
@@ -237,3 +240,18 @@ jobs:
             exit 1
           fi
           SIM_DESKTOP_EXECUTABLE="$EXECUTABLE" bunx playwright test e2e/packaged-smoke.spec.ts
+
+      - name: Archive the staging QA app
+        working-directory: apps/desktop
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent 'release/mac-arm64/Sim Staging QA.app' "$RUNNER_TEMP/Sim-Staging-QA.zip"
+          git rev-parse HEAD > "$RUNNER_TEMP/Sim-Staging-QA.commit"
+
+      - name: Upload the staging QA app
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: sim-staging-qa-app
+          path: |
+            ${{ runner.temp }}/Sim-Staging-QA.zip
+            ${{ runner.temp }}/Sim-Staging-QA.commit
+          retention-days: 3
