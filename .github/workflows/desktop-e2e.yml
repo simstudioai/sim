@@ -38,7 +38,11 @@ jobs:
         run: |
           mkdir -p test-results
           set +e
-          bunx playwright test e2e/local-files.spec.ts e2e/browser-page-dialogs.spec.ts --retries=0 --reporter=json > acceptance-report.json
+          if [ "$CONTROL_MODE" = positive ]; then
+            bunx playwright test e2e/local-files.spec.ts e2e/browser-page-dialogs.spec.ts --repeat-each=3 --retries=0 --trace=on --reporter=json > acceptance-report.json
+          else
+            bunx playwright test e2e/local-files.spec.ts --retries=0 --reporter=json > acceptance-report.json
+          fi
           test_exit=$?
           set -e
           TEST_EXIT="$test_exit" python3 - <<'PYREPORT'
@@ -58,7 +62,7 @@ jobs:
               assert exit_code == 0, failures
           else:
               assert exit_code != 0, 'Negative control unexpectedly passed'
-              assert any('expect(toggle).not.toBeChecked()' in error.get('snippet', '') and 'toBeChecked' in error.get('message', '') for error in failures), failures
+              assert any('expect(toggle).not.toBeChecked()' in error.get('message', '') and 'toBeChecked' in error.get('message', '') for error in failures), failures
           print(json.dumps({'mode': os.environ['CONTROL_MODE'], 'testExit': exit_code, 'verified': True}))
           PYREPORT
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
