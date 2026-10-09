@@ -15,6 +15,7 @@ import {
   type InMemoryStripe,
   stripeClientMock,
 } from '@sim/testing/mocks/stripe.mock'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { type BetterAuthOptions, betterAuth } from 'better-auth'
 import { createAuthMiddleware } from 'better-auth/api'
@@ -372,7 +373,7 @@ type TestTransaction = Parameters<Parameters<typeof testDatabase.transaction>[0]
  * Starts a transaction that takes its locks in `holdLocks`, then parks until released and runs
  * `finish`. `untilBlocking` resolves once another backend is waiting on one of its locks.
  */
-function startParkedTransaction(
+async function startParkedTransaction(
   holdLocks: (tx: TestTransaction) => Promise<void>,
   finish: (tx: TestTransaction) => Promise<void> = async () => {}
 ) {
@@ -393,15 +394,17 @@ function startParkedTransaction(
   })
   async function untilBlocking() {
     const pid = await holderPid
-    for (let attempt = 0; attempt < 200; attempt++) {
+    const deadline = Date.now() + 5000
+    while (Date.now() < deadline) {
       const [row] = await connection<{ blocked: number }[]>`
         select count(*)::int as blocked from pg_stat_activity
         where ${pid}::int = any(pg_blocking_pids(pid))`
       if (row.blocked > 0) return
-      await new Promise<void>((resolve) => setImmediate(resolve))
+      await sleep(10)
     }
     throw new Error('No transaction ever waited on the parked one')
   }
+  await Promise.race([holderPid, done])
   return { done, release, untilBlocking }
 }
 
@@ -1019,7 +1022,7 @@ describe('Team activation', () => {
     })
     stripe.addSubscription({ id: stripeSubscriptionId, customer: `cus_${subscriptionId}` })
 
-    const cancelling = startParkedTransaction(async (tx) => {
+    const cancelling = await startParkedTransaction(async (tx) => {
       await tx
         .update(subscription)
         .set({ cancelAtPeriodEnd: true })
@@ -1039,8 +1042,12 @@ describe('Team activation', () => {
         workspaceIdsToAttach: [],
       })
     )
-    await cancelling.untilBlocking()
-    cancelling.release()
+    try {
+      await cancelling.untilBlocking()
+    } finally {
+      cancelling.release()
+      await Promise.allSettled([cancelling.done, activating])
+    }
     await cancelling.done
     await expect(activating).resolves.toMatchObject({ success: true })
     expect((await storedSubscription(subscriptionId)).cancelAtPeriodEnd).toBe(false)
@@ -1066,7 +1073,7 @@ describe('operator retry', () => {
     )
     await deadLetter(pauseSync)
 
-    const writing = startParkedTransaction(
+    const writing = await startParkedTransaction(
       async (tx) => {
         await tx
           .update(subscription)
@@ -1083,8 +1090,12 @@ describe('operator retry', () => {
       }
     )
     const requeuing = requeueFromAdminApi(pauseSync)
-    await writing.untilBlocking()
-    writing.release()
+    try {
+      await writing.untilBlocking()
+    } finally {
+      writing.release()
+      await Promise.allSettled([writing.done, requeuing])
+    }
 
     await expect(Promise.all([writing.done, requeuing])).resolves.toBeDefined()
     await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
@@ -1107,7 +1118,7 @@ describe('operator retry', () => {
     )
     await deadLetter(cancelSync)
 
-    const writing = startParkedTransaction(
+    const writing = await startParkedTransaction(
       async (tx) => {
         await tx
           .update(subscription)
@@ -1129,8 +1140,12 @@ describe('operator retry', () => {
       timing: 'period_end',
       actor,
     })
-    await writing.untilBlocking()
-    writing.release()
+    try {
+      await writing.untilBlocking()
+    } finally {
+      writing.release()
+      await Promise.allSettled([writing.done, retrying])
+    }
 
     await expect(Promise.all([writing.done, retrying])).resolves.toBeDefined()
     expect((await storedSubscription(org.subscriptionId)).cancelAtPeriodEnd).toBe(true)
