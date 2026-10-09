@@ -345,7 +345,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     ['plan', 'SIGINT'],
     ['verify', 'SIGTERM'],
   ] as const)(
-    'terminates a stalled %s scan on %s',
+    'coordinates a stalled %s scan with enforcement and terminates on %s',
     async (command, signal) => {
       await database(async (sql, url) => {
         const directory = await mkdtemp(join(tmpdir(), 'project-read-cancel-test-'))
@@ -403,6 +403,19 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
               { timeout: 5000, interval: 20 }
             )
             .toBe(1)
+          const competing = await sql.reserve()
+          try {
+            const [attempt] =
+              await competing`SELECT pg_try_advisory_lock(hashtextextended('sim:project-backfill-operator',0)) AS acquired`
+            try {
+              expect(attempt.acquired).toBe(false)
+            } finally {
+              if (attempt.acquired)
+                await competing`SELECT pg_advisory_unlock(hashtextextended('sim:project-backfill-operator',0))`
+            }
+          } finally {
+            competing.release()
+          }
           child.kill(signal)
           expect((await exited)[1]).toBe(signal)
           expect(await readdir(directory)).toEqual(files)
@@ -491,20 +504,60 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   }, 10000)
 
-  it('refuses SQL contraction while an operator holds the run lock', async () => {
-    await database(async (sql) => {
-      const connection = await sql.reserve()
+  it('excludes SQL contraction and database-backed commands while preserving offline status', async () => {
+    await database(async (sql, url) => {
+      const directory = await mkdtemp(join(tmpdir(), 'project-command-lock-test-'))
+      const manifest = join(directory, 'manifest.json')
+      const report = join(directory, 'report.json')
+      const concurrentPlan = join(directory, 'concurrent-plan.json')
+      const run = (command: string, plan = manifest) =>
+        promisify(execFile)(
+          'bun',
+          [
+            '--no-env-file',
+            'scripts/backfill-projects.ts',
+            command,
+            '--manifest',
+            plan,
+            '--report',
+            report,
+            '--ack-release-drained',
+          ],
+          {
+            cwd: new URL('../../../apps/sim/', import.meta.url),
+            env: { ...process.env, MIGRATION_DATABASE_URL: url },
+            timeout: 15000,
+          }
+        )
       try {
-        await connection`SELECT pg_advisory_lock(hashtextextended('sim:project-backfill-operator',0))`
-        await expect(applyMigration(sql, migration)).rejects.toThrow('preparation is still running')
-        expect(await sql`SELECT to_regclass('project_workspace')::text AS name`).toEqual([
-          { name: 'project_workspace' },
-        ])
+        await run('plan')
+        await run('apply')
+        const connection = await sql.reserve()
+        try {
+          await connection`SELECT pg_advisory_lock(hashtextextended('sim:project-backfill-operator',0))`
+          await expect(applyMigration(sql, migration)).rejects.toThrow(
+            'preparation is still running'
+          )
+          const attempts = await Promise.allSettled([run('plan', concurrentPlan), run('verify')])
+          expect(attempts).toMatchObject([
+            { status: 'rejected', reason: { code: 1 } },
+            { status: 'rejected', reason: { code: 1 } },
+          ])
+          await run('status')
+          expect(await readdir(directory)).not.toContain('concurrent-plan.json')
+          expect(await sql`SELECT to_regclass('project_workspace')::text AS name`).toEqual([
+            { name: 'project_workspace' },
+          ])
+        } finally {
+          await connection`SELECT pg_advisory_unlock(hashtextextended('sim:project-backfill-operator',0))`
+          connection.release()
+        }
+        await run('plan', concurrentPlan)
+        await run('verify')
+        await applyMigration(sql, migration)
       } finally {
-        await connection`SELECT pg_advisory_unlock(hashtextextended('sim:project-backfill-operator',0))`
-        connection.release()
+        await rm(directory, { recursive: true, force: true })
       }
-      await applyMigration(sql, migration)
     })
   })
 

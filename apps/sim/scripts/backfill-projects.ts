@@ -200,9 +200,14 @@ Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 
   }
   try {
     await assertProjectBackfillDatabase(sql, live)
+    const [lock] =
+      await sql`SELECT pg_try_advisory_lock(hashtextextended('sim:project-backfill-operator',0)) AS held, pg_backend_pid() AS pid`
+    if (!lock.held) throw new Error('Another Project preparation or enforcement runner is active')
+    lockPid = lock.pid
     if (command === 'plan') {
       if (!manifestPath) throw new Error('plan requires --manifest')
       const manifest = await discoverProjectBackfill(sql, databaseId)
+      await assertLock()
       await writeJson(manifestPath, manifest, false)
       logger.info('Reviewable Project plan written', {
         databaseId,
@@ -231,6 +236,7 @@ Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 
         (repair) => !report.repairsCompleted.includes(repair.workspaceId)
       ).length
       counts.conflicts = manifest.conflicts.length
+      await assertLock()
       logger.info('Project verification', { databaseId, ...counts })
       if (Object.values(counts).some((count) => count !== 0)) process.exitCode = 2
       return
@@ -278,10 +284,6 @@ Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 
       progress.deferred.some((index) => index >= manifest.families.length)
     )
       throw new Error('Invalid report cursor')
-    const [lock] =
-      await sql`SELECT pg_try_advisory_lock(hashtextextended('sim:project-backfill-operator',0)) AS held, pg_backend_pid() AS pid`
-    if (!lock.held) throw new Error('Another Project preparation or enforcement runner is active')
-    lockPid = lock.pid
     progress.runId = generateId()
     progress.codeHash = codeHash
     progress.status = 'running'
