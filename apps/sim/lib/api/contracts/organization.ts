@@ -718,18 +718,21 @@ export const createOrganizationContract = defineRouteContract({
   },
 })
 
-const organizationPlanSeatsSchema = z.object({
-  organizationId: z.string().min(1),
-  subscriptionPlan: z.string().min(1).nullable(),
-  subscriptionStatus: z.string().nullable(),
-  totalSeats: z.number().int().nonnegative(),
-  usedSeats: z.number().int().nonnegative(),
-  membersTotal: z.number().int().nonnegative(),
-  hasEnterprisePlan: z.boolean(),
+const organizationPlanSeatsResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    organizationId: z.string().min(1),
+    subscriptionPlan: z.string().min(1).nullable(),
+    subscriptionStatus: z.string().nullable(),
+    totalSeats: z.number().int().nonnegative(),
+    usedSeats: z.number().int().nonnegative(),
+    membersTotal: z.number().int().nonnegative(),
+    hasEnterprisePlan: z.boolean(),
+  }),
 })
 
 /** Primary-backed plan access and canonical member/invitation seat reservations. */
-export type OrganizationPlanSeats = z.output<typeof organizationPlanSeatsSchema>
+export type OrganizationPlanSeatsResponse = z.output<typeof organizationPlanSeatsResponseSchema>
 
 /** Lightweight settings read that excludes usage-ledger aggregates. */
 export const getOrganizationPlanSeatsContract = defineRouteContract({
@@ -738,7 +741,7 @@ export const getOrganizationPlanSeatsContract = defineRouteContract({
   params: organizationParamsSchema,
   response: {
     mode: 'json',
-    schema: z.object({ success: z.literal(true), data: organizationPlanSeatsSchema }),
+    schema: organizationPlanSeatsResponseSchema,
   },
 })
 

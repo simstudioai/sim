@@ -26,7 +26,7 @@ vi.mock('@/lib/auth/auth-client', () => authClientMock)
 import {
   getOrganizationPlanSeatsContract,
   getOrganizationRosterContract,
-  type OrganizationPlanSeats,
+  type OrganizationPlanSeatsResponse,
   type OrganizationRoster,
 } from '@/lib/api/contracts/organization'
 import {
@@ -67,7 +67,7 @@ const ROSTER_A: { success: true; data: OrganizationRoster } = {
   },
 }
 
-const BILLING_A: { success: true; data: OrganizationPlanSeats } = {
+const BILLING_A: OrganizationPlanSeatsResponse = {
   success: true,
   data: {
     organizationId: 'org-a',
@@ -155,7 +155,7 @@ describe('organization identity transitions', () => {
   it('clears organization detail, roster, billing, and actions while the next org loads', async () => {
     const organizationB = createDeferred<{ data: typeof ORGANIZATION_A }>()
     const rosterB = createDeferred<typeof ROSTER_A>()
-    const billingB = createDeferred<{ success: true; data: OrganizationPlanSeats }>()
+    const billingB = createDeferred<OrganizationPlanSeatsResponse>()
 
     mockGetFullOrganization.mockImplementation(
       ({ query }: { query: { organizationId: string } }) =>
