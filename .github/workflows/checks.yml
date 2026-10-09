@@ -127,7 +127,7 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/sim_test
         run: >-
-          bun run test --mode integration scripts/workspace-project-column.integration.ts
+          bun run test --mode integration scripts/workspace-project-column.integration.ts scripts/push.integration.ts
           --outputFile.json=test-results/integration-projects-pg16.json
 
       - name: Upload integration test reports
