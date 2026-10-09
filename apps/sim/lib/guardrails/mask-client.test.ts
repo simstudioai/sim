@@ -35,7 +35,7 @@ describe('maskPIIBatchViaHttp', () => {
   it('splits by count into multiple requests, preserving global order', async () => {
     const texts = Array.from({ length: 5000 }, (_, i) => `t${i}`)
 
-    const out = await maskPIIBatchViaHttp(texts, [])
+    const { masked: out } = await maskPIIBatchViaHttp(texts, [])
 
     expect(out).toHaveLength(5000)
     expect(out[0]).toBe('M(t0)')
@@ -54,9 +54,9 @@ describe('maskPIIBatchViaHttp', () => {
   it('retries a transient 5xx with backoff and then succeeds', async () => {
     fetchMock.mockResolvedValueOnce(new Response('deploying', { status: 503 }))
 
-    const out = await maskPIIBatchViaHttp(['a'], [])
+    const { masked } = await maskPIIBatchViaHttp(['a'], [])
 
-    expect(out).toEqual(['M(a)'])
+    expect(masked).toEqual(['M(a)'])
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(mockSleep).toHaveBeenCalledTimes(1)
   })
@@ -67,6 +67,36 @@ describe('maskPIIBatchViaHttp', () => {
     await expect(maskPIIBatchViaHttp(['a'], [])).rejects.toThrow(/mask-batch request failed/)
     expect(fetchMock).toHaveBeenCalledTimes(8)
     expect(mockSleep).toHaveBeenCalledTimes(7)
+  })
+
+  describe('with a failed-chunk placeholder', () => {
+    const PLACEHOLDER = '[FAILED]'
+    const CHUNK_SIZE = 2000
+    const CONCURRENCY = 64
+    const ATTEMPTS = 8
+    /** Two chunks more than are sent at once, so two wait in the queue. */
+    const queuedTexts = () => Array.from({ length: CHUNK_SIZE * (CONCURRENCY + 1) + 1 }, () => 'a')
+
+    it('stops sending queued chunks once one outlives its retries on an outage', async () => {
+      fetchMock.mockImplementation(async () => new Response('down', { status: 503 }))
+
+      const { masked } = await maskPIIBatchViaHttp(queuedTexts(), [], undefined, undefined, {
+        failedChunkPlaceholder: PLACEHOLDER,
+      })
+
+      expect(masked.every((value) => value === PLACEHOLDER)).toBe(true)
+      expect(fetchMock).toHaveBeenCalledTimes(CONCURRENCY * ATTEMPTS)
+    })
+
+    it('keeps sending queued chunks after a persistent 500, which is not an outage', async () => {
+      fetchMock.mockImplementation(async () => new Response('bad input', { status: 500 }))
+
+      await maskPIIBatchViaHttp(queuedTexts(), [], undefined, undefined, {
+        failedChunkPlaceholder: PLACEHOLDER,
+      })
+
+      expect(fetchMock).toHaveBeenCalledTimes((CONCURRENCY + 2) * ATTEMPTS)
+    })
   })
 
   it('does not retry a null 200 body (deterministic, not a transient TypeError)', async () => {

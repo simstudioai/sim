@@ -1,4 +1,5 @@
 import { loggerMock } from '@sim/testing'
+import { maskClientMock, maskClientMockFns } from '@sim/testing/mocks/mask-client.mock'
 import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
 import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
@@ -19,6 +20,7 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
+const mockMaskBatch = maskClientMockFns.mockMaskPIIBatchViaHttp
 const mockUploadFile = storageServiceMockFns.mockUploadFile
 const mockDownloadFile = storageServiceMockFns.mockDownloadFile
 
@@ -29,17 +31,11 @@ const blockExecutorBaseLogger =
   loggerMock.createLogger.mock.results[blockExecutorLoggerCallIndex]?.value
 if (!blockExecutorBaseLogger) throw new Error('BlockExecutor logger mock was not initialized')
 
-const { mockMaskBatch } = vi.hoisted(() => ({
-  mockMaskBatch: vi.fn(),
-}))
-
 vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/guardrails/mask-client', () => ({
-  maskPIIBatchViaHttp: mockMaskBatch,
-}))
+vi.mock('@/lib/guardrails/mask-client', () => maskClientMock)
 
 vi.mock('@/lib/logs/execution/pii-redaction', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/logs/execution/pii-redaction')>()
@@ -139,9 +135,10 @@ describe('BlockExecutor', () => {
     clearLargeValueCacheForTests()
     mockUploadFile.mockClear()
     mockDownloadFile.mockResolvedValue(Buffer.from(JSON.stringify(items)))
-    mockMaskBatch.mockImplementation(async (texts: string[]) =>
-      texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>'))
-    )
+    mockMaskBatch.mockImplementation(async (texts: string[]) => ({
+      masked: texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>')),
+      scrubbedCount: 0,
+    }))
     const block = createBlock()
     const workflow: SerializedWorkflow = {
       version: '1',

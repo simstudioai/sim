@@ -6,12 +6,15 @@ and one AnonymizerEngine at startup, exposing stock-compatible endpoints so a
 single PII_URL serves both.
 """
 
+import json
 import logging
 import time
 from typing import Any
 
 import regex as regex_module
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from presidio_analyzer import (
     AnalyzerEngine,
     BatchAnalyzerEngine,
@@ -46,7 +49,7 @@ from presidio_analyzer.predefined_recognizers import (
 )
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 # Languages served. Each needs its spaCy model installed in the image; the
 # es/it/pl/fi predefined recognizers (ES_NIF, IT_FISCAL_CODE, PL_PESEL, ...)
@@ -307,6 +310,45 @@ def _analyze_many(
 
 app = FastAPI(title="Sim Presidio", docs_url=None, redoc_url=None)
 
+
+def _json_safe(part: Any) -> Any:
+    return part.encode("utf-8", "backslashreplace").decode("utf-8") if isinstance(part, str) else part
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    """422 without FastAPI's echo of each offending input value, which would copy
+    request text (possibly PII) into the error and can itself fail to encode."""
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": [
+                {
+                    "loc": [_json_safe(part) for part in error.get("loc", ())],
+                    "msg": _json_safe(error.get("msg", "")),
+                    "type": error.get("type", ""),
+                }
+                for error in exc.errors()
+            ]
+        },
+    )
+
+
+class RequestModel(BaseModel):
+    """Base for every request body. JSON can carry an escaped unpaired UTF-16
+    surrogate that decodes into a str with no UTF-8 encoding; echoing it in the
+    response would fail as an opaque 500, so reject it up front as a 422."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _require_utf8_encodable(cls, data: Any) -> Any:
+        try:
+            json.dumps(data, ensure_ascii=False).encode("utf-8")
+        except UnicodeEncodeError:
+            raise ValueError("body contains an unpaired surrogate") from None
+        return data
+
+
 # Internal entity id assigned to the i-th user-supplied custom pattern. Never
 # surfaced: the anonymizer maps it back to the pattern's chosen `replacement`, and
 # callers relabel any leftover CUSTOM_<i> span to the pattern's display name.
@@ -387,7 +429,7 @@ def resolve_entities(
     return list(req_entities) + custom_entity_ids
 
 
-class AnalyzeRequest(BaseModel):
+class AnalyzeRequest(RequestModel):
     text: str
     language: str = "en"
     entities: list[str] | None = None
@@ -396,7 +438,7 @@ class AnalyzeRequest(BaseModel):
     patterns: list[CustomPattern] | None = None
 
 
-class AnalyzeBatchRequest(BaseModel):
+class AnalyzeBatchRequest(RequestModel):
     texts: list[str]
     language: str = "en"
     entities: list[str] | None = None
@@ -404,7 +446,7 @@ class AnalyzeBatchRequest(BaseModel):
     patterns: list[CustomPattern] | None = None
 
 
-class AnonymizeRequest(BaseModel):
+class AnonymizeRequest(RequestModel):
     text: str
     analyzer_results: list[dict[str, Any]] = []
     anonymizers: dict[str, dict[str, Any]] | None = None
@@ -417,14 +459,14 @@ class AnonymizeBatchItem(BaseModel):
     analyzer_results: list[dict[str, Any]] = []
 
 
-class AnonymizeBatchRequest(BaseModel):
+class AnonymizeBatchRequest(RequestModel):
     items: list[AnonymizeBatchItem] = []
     anonymizers: dict[str, dict[str, Any]] | None = None
     operators: dict[str, dict[str, Any]] | None = None
     patterns: list[CustomPattern] | None = None
 
 
-class RedactRequest(BaseModel):
+class RedactRequest(RequestModel):
     text: str
     language: str = "en"
     entities: list[str] | None = None
@@ -434,7 +476,7 @@ class RedactRequest(BaseModel):
     patterns: list[CustomPattern] | None = None
 
 
-class RedactBatchRequest(BaseModel):
+class RedactBatchRequest(RequestModel):
     texts: list[str]
     language: str = "en"
     entities: list[str] | None = None

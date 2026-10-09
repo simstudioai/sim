@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { truncate } from '@sim/utils/string'
+import { toWellFormed, truncate } from '@sim/utils/string'
 import { env } from '@/lib/core/config/env'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
@@ -56,6 +56,72 @@ const CHUNK_CONCURRENCY = env.PII_SERVICE_CHUNK_CONCURRENCY ?? 4
 
 /** Presidio service serving /analyze, /anonymize, and combined /redact (VIN is native there). */
 const PII_URL = env.PII_URL || 'http://localhost:5001'
+
+/**
+ * Presidio refused the request itself (a 4xx other than 408/429) — an invalid
+ * custom regex, or text it cannot process. The same input fails the same way on
+ * every attempt, so callers must not retry it.
+ */
+export class PiiServiceRejectedError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message)
+    this.name = 'PiiServiceRejectedError'
+  }
+}
+
+/**
+ * Presidio could not be reached, or its load balancer had no healthy target
+ * (502/503/504). Unlike a 500, which Presidio also returns for deterministic
+ * per-input failures, this never implicates the request.
+ */
+export class PiiServiceUnavailableError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'PiiServiceUnavailableError'
+  }
+}
+
+const UNAVAILABLE_STATUSES = new Set([502, 503, 504])
+
+function presidioFailure(operation: string, status: number, detail: string): Error {
+  const message = `Presidio ${operation} failed (${status}): ${detail.slice(0, 200)}`
+  if (UNAVAILABLE_STATUSES.has(status)) return new PiiServiceUnavailableError(message)
+  const rejected = status >= 400 && status < 500 && status !== 408 && status !== 429
+  return rejected ? new PiiServiceRejectedError(message, status) : new Error(message)
+}
+
+/**
+ * Every string sent to Presidio goes out with unpaired surrogates replaced by
+ * U+FFFD (see {@link toWellFormed}): Presidio would decode one, then fail to encode
+ * the response that echoes it. The replacement is length-preserving, so it moves
+ * no span offset.
+ */
+function wellFormedJson(_key: string, value: unknown): unknown {
+  return typeof value === 'string' ? toWellFormed(value) : value
+}
+
+/** POST a JSON body to Presidio; a connection-level failure becomes {@link PiiServiceUnavailableError}. */
+async function postToPresidio(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal
+): Promise<Response> {
+  try {
+    // boundary-raw-fetch: internal call to the Presidio service via PII_URL
+    return await fetch(`${PII_URL}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body, wellFormedJson),
+      signal,
+    })
+  } catch (error) {
+    if (isAbortError(error) || signal?.aborted) throw error
+    throw new PiiServiceUnavailableError(`Presidio ${path} unreachable: ${getErrorMessage(error)}`)
+  }
+}
 
 export interface PIIValidationInput {
   text: string
@@ -178,25 +244,23 @@ async function analyze(
   // silently replaces them.
   const entities = entityTypes.length > 0 ? entityTypes : undefined
 
-  // boundary-raw-fetch: internal call to the Presidio analyzer service via PII_URL
-  const response = await fetch(`${PII_URL}/analyze`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
+  const response = await postToPresidio(
+    '/analyze',
+    {
       text,
       language,
       ...(entities ? { entities } : {}),
       ...(patterns?.length ? { patterns } : {}),
-    }),
-    signal,
-  })
+    },
+    signal
+  )
   if (!response.ok) {
     const detail = await readResponseTextWithLimit(response, {
       maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
       label: 'PII analyzer error response',
       signal,
     }).catch(() => '')
-    throw new Error(`Presidio analyze failed (${response.status}): ${detail.slice(0, 200)}`)
+    throw presidioFailure('analyze', response.status, detail)
   }
   const result = await readResponseJsonWithLimit(response, {
     maxBytes: MAX_PII_VALIDATION_RESPONSE_BYTES,
@@ -219,20 +283,15 @@ async function analyzeBatch(
 ): Promise<AnalyzerSpan[][]> {
   const entities = resolveBatchEntities(entityTypes, patterns)
 
-  // boundary-raw-fetch: internal call to the Presidio analyzer service via PII_URL
-  const response = await fetch(`${PII_URL}/analyze_batch`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      texts,
-      language,
-      ...(entities ? { entities } : {}),
-      ...(patterns?.length ? { patterns } : {}),
-    }),
+  const response = await postToPresidio('/analyze_batch', {
+    texts,
+    language,
+    ...(entities ? { entities } : {}),
+    ...(patterns?.length ? { patterns } : {}),
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
-    throw new Error(`Presidio analyze failed (${response.status}): ${detail.slice(0, 200)}`)
+    throw presidioFailure('analyze', response.status, detail)
   }
   return (await response.json()) as AnalyzerSpan[][]
 }
@@ -254,15 +313,13 @@ async function anonymizeBatch(
 ): Promise<string[]> {
   if (items.length === 0) return []
 
-  // boundary-raw-fetch: internal call to the Presidio anonymizer service via PII_URL
-  const response = await fetch(`${PII_URL}/anonymize_batch`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ items, ...(patterns?.length ? { patterns } : {}) }),
+  const response = await postToPresidio('/anonymize_batch', {
+    items,
+    ...(patterns?.length ? { patterns } : {}),
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
-    throw new Error(`Presidio anonymize failed (${response.status}): ${detail.slice(0, 200)}`)
+    throw presidioFailure('anonymize', response.status, detail)
   }
   const data = (await response.json()) as { texts: string[] }
   return data.texts
@@ -293,21 +350,16 @@ async function redactBatch(
 ): Promise<string[] | null> {
   const entities = resolveBatchEntities(entityTypes, patterns)
 
-  // boundary-raw-fetch: internal call to the Presidio combined redact service via PII_URL
-  const response = await fetch(`${PII_URL}/redact_batch`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      texts,
-      language,
-      ...(entities ? { entities } : {}),
-      ...(patterns?.length ? { patterns } : {}),
-    }),
+  const response = await postToPresidio('/redact_batch', {
+    texts,
+    language,
+    ...(entities ? { entities } : {}),
+    ...(patterns?.length ? { patterns } : {}),
   })
   if (response.status === 404) return null
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
-    throw new Error(`Presidio redact_batch failed (${response.status}): ${detail.slice(0, 200)}`)
+    throw presidioFailure('redact_batch', response.status, detail)
   }
   const data = (await response.json()) as { texts: string[] }
   if (data.texts.length !== texts.length) {
@@ -330,24 +382,22 @@ async function anonymize(
 ): Promise<string> {
   if (spans.length === 0) return text
 
-  // boundary-raw-fetch: internal call to the Presidio anonymizer service via PII_URL
-  const response = await fetch(`${PII_URL}/anonymize`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
+  const response = await postToPresidio(
+    '/anonymize',
+    {
       text,
       analyzer_results: spans,
       ...(patterns?.length ? { patterns } : {}),
-    }),
-    signal,
-  })
+    },
+    signal
+  )
   if (!response.ok) {
     const detail = await readResponseTextWithLimit(response, {
       maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
       label: 'PII anonymizer error response',
       signal,
     }).catch(() => '')
-    throw new Error(`Presidio anonymize failed (${response.status}): ${detail.slice(0, 200)}`)
+    throw presidioFailure('anonymize', response.status, detail)
   }
   const data = await readResponseJsonWithLimit<unknown>(response, {
     maxBytes: MAX_PII_VALIDATION_RESPONSE_BYTES,
@@ -451,8 +501,11 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
  * anonymize round-trip). Against an older Presidio without that endpoint, it falls
  * back to the legacy `analyze_batch` + `anonymize_batch` pair — so the app is safe
  * to deploy before or after the service. Chunks run with bounded concurrency.
- * Strings with no detected PII pass through unchanged. Rejects on any service
- * failure (which fails the whole batch) so callers can apply their own fail-safe (scrub).
+ * Strings with no detected PII pass through unchanged, except that unpaired
+ * surrogates may come back as U+FFFD (see {@link postToPresidio}).
+ * Rejects on any service failure (which fails the whole batch) so callers can
+ * apply their own fail-safe (scrub); a {@link PiiServiceRejectedError} marks one
+ * that retrying cannot fix.
  */
 export async function maskPIIBatch(
   texts: string[],
