@@ -1,4 +1,3 @@
-// Shopify GraphQL API Types
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
@@ -6,6 +5,18 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Based on Shopify Admin GraphQL API documentation.
  * @see https://shopify.dev/docs/api/admin-graphql
  */
+
+/** Pagination info output properties */
+export const PAGE_INFO_OUTPUT_PROPERTIES = {
+  startCursor: { type: 'string', optional: true, description: 'Cursor at the start of this page' },
+  endCursor: {
+    type: 'string',
+    optional: true,
+    description: 'Cursor to pass as after for the next page',
+  },
+  hasNextPage: { type: 'boolean', description: 'Whether there are more results after this page' },
+  hasPreviousPage: { type: 'boolean', description: 'Whether there are results before this page' },
+} as const satisfies Record<string, OutputProperty>
 
 /** Money properties from Shopify MoneyV2 object */
 const MONEY_PROPERTIES = {
@@ -44,10 +55,39 @@ const ADDRESS_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Variant properties from Shopify ProductVariant object */
-const VARIANT_PROPERTIES = {
+export const VARIANT_PROPERTIES = {
   id: { type: 'string', description: 'Unique variant identifier (GID)' },
   title: { type: 'string', description: 'Variant title' },
   price: { type: 'string', description: 'Variant price' },
+  barcode: { type: 'string', optional: true, description: 'Variant barcode' },
+  taxable: { type: 'boolean', optional: true, description: 'Whether the variant is taxable' },
+  inventoryPolicy: {
+    type: 'string',
+    optional: true,
+    description: 'Inventory policy (DENY or CONTINUE)',
+  },
+  inventoryItem: {
+    optional: true,
+    type: 'object',
+    description: 'Inventory item for stock operations',
+    properties: {
+      id: { type: 'string', description: 'Inventory item GID' },
+      sku: { type: 'string', optional: true, description: 'SKU' },
+      tracked: { type: 'boolean', description: 'Whether stock is tracked' },
+    },
+  },
+  selectedOptions: {
+    optional: true,
+    type: 'array',
+    description: 'Selected product options',
+    items: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Option name' },
+        value: { type: 'string', description: 'Selected value' },
+      },
+    },
+  },
   compareAtPrice: { type: 'string', description: 'Compare at price', optional: true },
   sku: { type: 'string', description: 'Stock keeping unit', optional: true },
   inventoryQuantity: {
@@ -59,7 +99,7 @@ const VARIANT_PROPERTIES = {
 
 /** Image properties from Shopify Image object */
 const IMAGE_PROPERTIES = {
-  id: { type: 'string', description: 'Unique image identifier (GID)' },
+  id: { type: 'string', description: 'Unique image identifier (GID)', optional: true },
   url: { type: 'string', description: 'Image URL' },
   altText: { type: 'string', description: 'Alternative text for accessibility', optional: true },
 } as const satisfies Record<string, OutputProperty>
@@ -78,9 +118,52 @@ const TRACKING_INFO_PROPERTIES = {
 
 /** Product output properties based on Shopify Product GraphQL object */
 export const PRODUCT_OUTPUT_PROPERTIES = {
+  templateSuffix: { type: 'string', optional: true, description: 'Theme template suffix' },
+  requiresSellingPlan: {
+    type: 'boolean',
+    optional: true,
+    description: 'Whether purchasing requires a selling plan',
+  },
+  category: {
+    type: 'object',
+    optional: true,
+    description: 'Product taxonomy category',
+    properties: {
+      id: { type: 'string', description: 'Taxonomy category GID' },
+      fullName: { type: 'string', description: 'Category path' },
+    },
+  },
   id: { type: 'string', description: 'Unique product identifier (GID)' },
   title: { type: 'string', description: 'Product title' },
   handle: { type: 'string', description: 'URL-friendly product identifier' },
+  seo: {
+    optional: true,
+    type: 'object',
+    description: 'Search engine listing',
+    properties: {
+      title: { type: 'string', optional: true, description: 'SEO title' },
+      description: { type: 'string', optional: true, description: 'SEO description' },
+    },
+  },
+  onlineStoreUrl: {
+    type: 'string',
+    optional: true,
+    description: 'Online store URL, null when not published',
+  },
+  options: {
+    optional: true,
+    type: 'array',
+    description: 'Product options',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Option GID' },
+        name: { type: 'string', description: 'Option name' },
+        position: { type: 'number', description: 'Option position' },
+        values: { type: 'array', description: 'Option values', items: { type: 'string' } },
+      },
+    },
+  },
   descriptionHtml: { type: 'string', description: 'Product description in HTML format' },
   vendor: { type: 'string', description: 'Product vendor or manufacturer' },
   productType: { type: 'string', description: 'Product type classification' },
@@ -89,13 +172,18 @@ export const PRODUCT_OUTPUT_PROPERTIES = {
     description: 'Product tags for categorization',
     items: { type: 'string' },
   },
-  status: { type: 'string', description: 'Product status (ACTIVE, DRAFT, ARCHIVED)' },
+  status: { type: 'string', description: 'Product status (ACTIVE, DRAFT, ARCHIVED, UNLISTED)' },
   createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
   updatedAt: { type: 'string', description: 'Last modification timestamp (ISO 8601)' },
   variants: {
     type: 'object',
-    description: 'Product variants with edges/nodes structure',
+    description: 'Product variants page; use Get Product with variantsAfter for subsequent pages',
     properties: {
+      pageInfo: {
+        type: 'object',
+        description: 'Variant pagination',
+        properties: PAGE_INFO_OUTPUT_PROPERTIES,
+      },
       edges: {
         type: 'array',
         description: 'Array of variant edges',
@@ -114,8 +202,13 @@ export const PRODUCT_OUTPUT_PROPERTIES = {
   },
   images: {
     type: 'object',
-    description: 'Product images with edges/nodes structure',
+    description: 'Product images page; use Get Product with imagesAfter for subsequent pages',
     properties: {
+      pageInfo: {
+        type: 'object',
+        description: 'Image pagination',
+        properties: PAGE_INFO_OUTPUT_PROPERTIES,
+      },
       edges: {
         type: 'array',
         description: 'Array of image edges',
@@ -136,6 +229,26 @@ export const PRODUCT_OUTPUT_PROPERTIES = {
 
 /** Customer output properties based on Shopify Customer GraphQL object */
 export const CUSTOMER_OUTPUT_PROPERTIES = {
+  emailMarketingConsent: {
+    type: 'object',
+    optional: true,
+    description: 'Email marketing consent',
+    properties: {
+      marketingState: { type: 'string', description: 'Consent state' },
+      marketingOptInLevel: { type: 'string', optional: true, description: 'Opt-in level' },
+      consentUpdatedAt: { type: 'string', optional: true, description: 'Consent update timestamp' },
+    },
+  },
+  smsMarketingConsent: {
+    type: 'object',
+    optional: true,
+    description: 'SMS marketing consent',
+    properties: {
+      marketingState: { type: 'string', description: 'Consent state' },
+      marketingOptInLevel: { type: 'string', description: 'Opt-in level' },
+      consentUpdatedAt: { type: 'string', optional: true, description: 'Consent update timestamp' },
+    },
+  },
   id: { type: 'string', description: 'Unique customer identifier (GID)' },
   email: { type: 'string', description: 'Customer email address', optional: true },
   firstName: { type: 'string', description: 'Customer first name', optional: true },
@@ -149,6 +262,12 @@ export const CUSTOMER_OUTPUT_PROPERTIES = {
     description: 'Customer tags for categorization',
     items: { type: 'string' },
   },
+  numberOfOrders: {
+    type: 'string',
+    description: 'Lifetime order count as an unsigned integer string',
+  },
+  locale: { type: 'string', description: 'Customer locale' },
+  taxExempt: { type: 'boolean', description: 'Whether the customer is tax exempt' },
   amountSpent: {
     type: 'object',
     description: 'Total amount spent by customer',
@@ -171,6 +290,9 @@ export const CUSTOMER_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
+const { addresses, ...customerSummaryProperties } = CUSTOMER_OUTPUT_PROPERTIES
+export const CUSTOMER_SUMMARY_OUTPUT_PROPERTIES = customerSummaryProperties
+
 /** Line item properties from Shopify LineItem GraphQL object */
 const LINE_ITEM_PROPERTIES = {
   id: { type: 'string', description: 'Unique line item identifier (GID)' },
@@ -183,11 +305,13 @@ const LINE_ITEM_PROPERTIES = {
     optional: true,
   },
   originalTotalSet: {
+    optional: true,
     type: 'object',
     description: 'Original total price before discounts',
     properties: MONEY_BAG_PROPERTIES,
   },
   discountedTotalSet: {
+    optional: true,
     type: 'object',
     description: 'Total price after discounts',
     properties: MONEY_BAG_PROPERTIES,
@@ -224,6 +348,19 @@ const ORDER_CUSTOMER_PROPERTIES = {
 
 /** Order output properties based on Shopify Order GraphQL object */
 export const ORDER_OUTPUT_PROPERTIES = {
+  poNumber: { type: 'string', optional: true, description: 'Purchase order number' },
+  customAttributes: {
+    type: 'array',
+    optional: true,
+    description: 'Order attributes',
+    items: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Attribute key' },
+        value: { type: 'string', optional: true, description: 'Attribute value' },
+      },
+    },
+  },
   id: { type: 'string', description: 'Unique order identifier (GID)' },
   name: { type: 'string', description: 'Order name (e.g., #1001)' },
   email: { type: 'string', description: 'Customer email for the order', optional: true },
@@ -234,6 +371,7 @@ export const ORDER_OUTPUT_PROPERTIES = {
   closedAt: { type: 'string', description: 'Closure timestamp (ISO 8601)', optional: true },
   displayFinancialStatus: {
     type: 'string',
+    optional: true,
     description:
       'Financial status (PENDING, AUTHORIZED, PARTIALLY_PAID, PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED)',
   },
@@ -279,8 +417,13 @@ export const ORDER_OUTPUT_PROPERTIES = {
   },
   lineItems: {
     type: 'object',
-    description: 'Order line items with edges/nodes structure',
+    description: 'Order line items page; use Get Order with lineItemsAfter for subsequent pages',
     properties: {
+      pageInfo: {
+        type: 'object',
+        description: 'Line item pagination',
+        properties: PAGE_INFO_OUTPUT_PROPERTIES,
+      },
       edges: {
         type: 'array',
         description: 'Array of line item edges',
@@ -323,6 +466,11 @@ export const ORDER_OUTPUT_PROPERTIES = {
 
 /** Fulfillment output properties for create fulfillment response */
 export const FULFILLMENT_OUTPUT_PROPERTIES = {
+  lineItemsPageInfo: {
+    type: 'object',
+    description: 'Fulfillment item pagination; use Get Fulfillment for subsequent pages',
+    properties: PAGE_INFO_OUTPUT_PROPERTIES,
+  },
   id: { type: 'string', description: 'Unique fulfillment identifier (GID)' },
   status: {
     type: 'string',
@@ -345,7 +493,7 @@ export const FULFILLMENT_OUTPUT_PROPERTIES = {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Fulfillment line item identifier (GID)' },
-        quantity: { type: 'number', description: 'Quantity fulfilled' },
+        quantity: { type: 'number', optional: true, description: 'Quantity fulfilled' },
         lineItem: {
           type: 'object',
           description: 'Associated order line item',
@@ -370,7 +518,17 @@ export const LOCATION_OUTPUT_PROPERTIES = {
   address: {
     type: 'object',
     description: 'Location address',
-    properties: ADDRESS_PROPERTIES,
+    properties: {
+      address1: ADDRESS_PROPERTIES.address1,
+      address2: ADDRESS_PROPERTIES.address2,
+      city: ADDRESS_PROPERTIES.city,
+      province: ADDRESS_PROPERTIES.province,
+      provinceCode: ADDRESS_PROPERTIES.provinceCode,
+      country: ADDRESS_PROPERTIES.country,
+      countryCode: ADDRESS_PROPERTIES.countryCode,
+      zip: ADDRESS_PROPERTIES.zip,
+      phone: ADDRESS_PROPERTIES.phone,
+    },
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -396,6 +554,11 @@ export const COLLECTION_OUTPUT_PROPERTIES = {
 /** Collection with products output properties */
 export const COLLECTION_WITH_PRODUCTS_OUTPUT_PROPERTIES = {
   ...COLLECTION_OUTPUT_PROPERTIES,
+  productsPageInfo: {
+    type: 'object',
+    description: 'Pagination for collection products; use productsAfter',
+    properties: PAGE_INFO_OUTPUT_PROPERTIES,
+  },
   products: {
     type: 'array',
     description: 'Products in the collection',
@@ -405,7 +568,10 @@ export const COLLECTION_WITH_PRODUCTS_OUTPUT_PROPERTIES = {
         id: { type: 'string', description: 'Unique product identifier (GID)' },
         title: { type: 'string', description: 'Product title' },
         handle: { type: 'string', description: 'URL-friendly product identifier' },
-        status: { type: 'string', description: 'Product status (ACTIVE, DRAFT, ARCHIVED)' },
+        status: {
+          type: 'string',
+          description: 'Product status (ACTIVE, DRAFT, ARCHIVED, UNLISTED)',
+        },
         vendor: { type: 'string', description: 'Product vendor' },
         productType: { type: 'string', description: 'Product type classification' },
         totalInventory: { type: 'number', description: 'Total inventory across all variants' },
@@ -422,6 +588,12 @@ export const COLLECTION_WITH_PRODUCTS_OUTPUT_PROPERTIES = {
 
 /** Inventory level output properties based on Shopify InventoryLevel GraphQL object */
 export const INVENTORY_LEVEL_OUTPUT_PROPERTIES = {
+  pageInfo: {
+    type: 'object',
+    optional: true,
+    description: 'Location pagination when no locationId is supplied',
+    properties: PAGE_INFO_OUTPUT_PROPERTIES,
+  },
   id: { type: 'string', description: 'Inventory item identifier (GID)' },
   sku: { type: 'string', description: 'Stock keeping unit', optional: true },
   tracked: { type: 'boolean', description: 'Whether inventory is tracked' },
@@ -458,6 +630,7 @@ export const INVENTORY_ADJUSTMENT_OUTPUT_PROPERTIES = {
     properties: {
       createdAt: { type: 'string', description: 'Adjustment timestamp (ISO 8601)' },
       reason: { type: 'string', description: 'Adjustment reason' },
+      referenceDocumentUri: { type: 'string', optional: true, description: 'Source document URI' },
     },
   },
   changes: {
@@ -468,9 +641,14 @@ export const INVENTORY_ADJUSTMENT_OUTPUT_PROPERTIES = {
       properties: {
         name: { type: 'string', description: 'Quantity name (e.g., available)' },
         delta: { type: 'number', description: 'Quantity change amount' },
-        quantityAfterChange: { type: 'number', description: 'Quantity after adjustment' },
+        quantityAfterChange: {
+          type: 'number',
+          optional: true,
+          description: 'Quantity after adjustment, when available',
+        },
         item: {
           type: 'object',
+          optional: true,
           description: 'Inventory item',
           properties: {
             id: { type: 'string', description: 'Inventory item identifier (GID)' },
@@ -479,6 +657,7 @@ export const INVENTORY_ADJUSTMENT_OUTPUT_PROPERTIES = {
         },
         location: {
           type: 'object',
+          optional: true,
           description: 'Location of the adjustment',
           properties: {
             id: { type: 'string', description: 'Location identifier (GID)' },
@@ -515,6 +694,11 @@ export const INVENTORY_ITEM_OUTPUT_PROPERTIES = {
     },
     optional: true,
   },
+  inventoryLevelsPageInfo: {
+    type: 'object',
+    description: 'Pagination for location summary; use Get Inventory Level for subsequent pages',
+    properties: PAGE_INFO_OUTPUT_PROPERTIES,
+  },
   inventoryLevels: {
     type: 'array',
     description: 'Inventory levels at different locations',
@@ -523,6 +707,7 @@ export const INVENTORY_ITEM_OUTPUT_PROPERTIES = {
       properties: {
         id: { type: 'string', description: 'Inventory level identifier (GID)' },
         available: { type: 'number', description: 'Available quantity' },
+        onHand: { type: 'number', description: 'On-hand quantity' },
         location: {
           type: 'object',
           description: 'Location for this inventory level',
@@ -536,12 +721,6 @@ export const INVENTORY_ITEM_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-/** Pagination info output properties */
-export const PAGE_INFO_OUTPUT_PROPERTIES = {
-  hasNextPage: { type: 'boolean', description: 'Whether there are more results after this page' },
-  hasPreviousPage: { type: 'boolean', description: 'Whether there are results before this page' },
-} as const satisfies Record<string, OutputProperty>
-
 /** Cancel order output properties */
 export const CANCEL_ORDER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Job identifier for the cancellation' },
@@ -549,10 +728,61 @@ export const CANCEL_ORDER_OUTPUT_PROPERTIES = {
   message: { type: 'string', description: 'Status message' },
 } as const satisfies Record<string, OutputProperty>
 
-// Common GraphQL Response Types
+export const CANCELLATION_RESULT_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Cancellation result GID; pass to Get Job' },
+  done: {
+    type: 'boolean',
+    description:
+      'Whether the request has finished processing; inspect status and errors for the outcome',
+  },
+  status: { type: 'string', description: 'Current cancellation status' },
+  errors: {
+    type: 'array',
+    description: 'Asynchronous cancellation errors',
+    items: {
+      type: 'object',
+      properties: {
+        field: {
+          type: 'array',
+          optional: true,
+          description: 'Input field path',
+          items: { type: 'string' },
+        },
+        message: { type: 'string', description: 'Error message' },
+        code: { type: 'string', optional: true, description: 'Cancellation error code' },
+      },
+    },
+  },
+  order: {
+    type: 'object',
+    optional: true,
+    description: 'Associated order',
+    properties: {
+      id: { type: 'string', description: 'Order GID' },
+      cancelledAt: {
+        type: 'string',
+        optional: true,
+        description: 'Cancellation timestamp, null until cancelled',
+      },
+    },
+  },
+} as const satisfies Record<string, OutputProperty>
 
-// Product Types
+export interface ShopifyCancellationResult {
+  id: string
+  done: boolean
+  status: string
+  errors: Array<ShopifyUserError & { code: string | null }>
+  order: { id: string; cancelledAt: string | null } | null
+}
+
 interface ShopifyProduct {
+  templateSuffix?: string | null
+  requiresSellingPlan?: boolean
+  category?: { id: string; fullName: string } | null
+  seo?: { title: string | null; description: string | null }
+  onlineStoreUrl?: string | null
+  options?: Array<{ id: string; name: string; position: number; values: string[] }>
   id: string
   title: string
   handle: string
@@ -560,15 +790,17 @@ interface ShopifyProduct {
   vendor: string
   productType: string
   tags: string[]
-  status: 'ACTIVE' | 'DRAFT' | 'ARCHIVED'
+  status: 'ACTIVE' | 'DRAFT' | 'ARCHIVED' | 'UNLISTED'
   createdAt: string
   updatedAt: string
   variants: {
+    pageInfo: ShopifyPageInfo
     edges: Array<{
       node: ShopifyVariant
     }>
   }
   images: {
+    pageInfo: ShopifyPageInfo
     edges: Array<{
       node: ShopifyImage
     }>
@@ -576,47 +808,57 @@ interface ShopifyProduct {
 }
 
 interface ShopifyVariant {
+  barcode?: string | null
+  taxable?: boolean
+  inventoryPolicy?: string
+  inventoryItem?: { id: string; sku: string | null; tracked: boolean }
+  selectedOptions?: Array<{ name: string; value: string }>
   id: string
   title: string
   price: string
-  compareAtPrice: string | null
+  compareAtPrice?: string | null
   sku: string | null
-  inventoryQuantity: number
+  inventoryQuantity?: number | null
 }
 
 interface ShopifyImage {
-  id: string
+  id: string | null
   url: string
   altText: string | null
 }
 
-// Order Types
 interface ShopifyOrder {
+  poNumber?: string | null
+  customAttributes?: Array<{ key: string; value: string | null }>
   id: string
   name: string
   email: string | null
-  phone: string | null
+  phone?: string | null
   createdAt: string
   updatedAt: string
   cancelledAt: string | null
   closedAt: string | null
-  displayFinancialStatus: string
+  displayFinancialStatus: string | null
   displayFulfillmentStatus: string
   totalPriceSet: ShopifyMoneyBag
   subtotalPriceSet: ShopifyMoneyBag
-  totalTaxSet: ShopifyMoneyBag
-  totalShippingPriceSet: ShopifyMoneyBag
+  totalTaxSet?: ShopifyMoneyBag
+  totalShippingPriceSet?: ShopifyMoneyBag
   note: string | null
   tags: string[]
-  customer: ShopifyCustomer | null
+  customer:
+    | (Pick<ShopifyCustomer, 'id' | 'email' | 'firstName' | 'lastName'> &
+        Partial<Pick<ShopifyCustomer, 'phone'>>)
+    | null
   lineItems: {
+    pageInfo: ShopifyPageInfo
     edges: Array<{
       node: ShopifyLineItem
     }>
   }
   shippingAddress: ShopifyAddress | null
-  billingAddress: ShopifyAddress | null
-  fulfillments: ShopifyFulfillment[]
+  billingAddress?: ShopifyAddress | null
+  fulfillments?: ShopifyFulfillment[]
 }
 
 interface ShopifyMoneyBag {
@@ -624,7 +866,7 @@ interface ShopifyMoneyBag {
     amount: string
     currencyCode: string
   }
-  presentmentMoney: {
+  presentmentMoney?: {
     amount: string
     currencyCode: string
   }
@@ -635,26 +877,38 @@ interface ShopifyLineItem {
   title: string
   quantity: number
   variant: ShopifyVariant | null
-  originalTotalSet: ShopifyMoneyBag
-  discountedTotalSet: ShopifyMoneyBag
+  originalTotalSet?: ShopifyMoneyBag
+  discountedTotalSet?: ShopifyMoneyBag
 }
 
 interface ShopifyAddress {
   firstName: string | null
   lastName: string | null
-  address1: string | null
-  address2: string | null
+  address1?: string | null
+  address2?: string | null
   city: string | null
   province: string | null
-  provinceCode: string | null
+  provinceCode?: string | null
   country: string | null
-  countryCode: string | null
+  countryCode?: string | null
   zip: string | null
-  phone: string | null
+  phone?: string | null
 }
 
-// Customer Types
 interface ShopifyCustomer {
+  emailMarketingConsent: {
+    marketingState: string
+    marketingOptInLevel: string | null
+    consentUpdatedAt: string | null
+  } | null
+  smsMarketingConsent: {
+    marketingState: string
+    marketingOptInLevel: string
+    consentUpdatedAt: string | null
+  } | null
+  numberOfOrders: string
+  locale: string
+  taxExempt: boolean
   id: string
   email: string | null
   firstName: string | null
@@ -668,11 +922,10 @@ interface ShopifyCustomer {
     amount: string
     currencyCode: string
   }
-  addresses: ShopifyAddress[]
+  addresses?: ShopifyAddress[]
   defaultAddress: ShopifyAddress | null
 }
 
-// Fulfillment Types
 interface ShopifyFulfillment {
   id: string
   status: string
@@ -685,7 +938,6 @@ interface ShopifyFulfillment {
   }>
 }
 
-// Inventory Types
 interface ShopifyInventoryLevel {
   id: string
   available: number
@@ -699,61 +951,126 @@ interface ShopifyInventoryLevel {
   }
 }
 
-// Tool Parameter Types
 interface ShopifyBaseParams {
   accessToken: string
-  shopDomain: string
+  shopDomain?: string
   /** Store domain resolved from a service-account credential */
   domain?: string
-  /** Shop domain from OAuth, used as fallback */
+  /** Store domain resolved from the connected OAuth credential */
   idToken?: string
 }
 
-// Product Tool Params
 export interface ShopifyCreateProductParams extends ShopifyBaseParams {
+  handle?: string
+  seo?: Record<string, unknown> | string
+  category?: string
+  templateSuffix?: string
+  metafields?: Array<Record<string, unknown>> | string
+  collectionsToJoin?: string[] | string
+  requiresSellingPlan?: boolean
+  productOptions?: Array<Record<string, unknown>> | string
+  media?: Array<Record<string, unknown>> | string
+
   title: string
   descriptionHtml?: string
   vendor?: string
   productType?: string
   tags?: string[]
-  status?: 'ACTIVE' | 'DRAFT' | 'ARCHIVED'
+  status?: 'ACTIVE' | 'DRAFT' | 'ARCHIVED' | 'UNLISTED'
 }
 
 export interface ShopifyGetProductParams extends ShopifyBaseParams {
+  variantsFirst?: number
+  variantsAfter?: string
+  imagesFirst?: number
+  imagesAfter?: string
+
   productId: string
 }
 
 export interface ShopifyListProductsParams extends ShopifyBaseParams {
+  includeDetails?: boolean
+  reverse?: boolean
+  sortKey?:
+    | 'CREATED_AT'
+    | 'ID'
+    | 'INVENTORY_TOTAL'
+    | 'PRODUCT_TYPE'
+    | 'PUBLISHED_AT'
+    | 'RELEVANCE'
+    | 'TITLE'
+    | 'UPDATED_AT'
+    | 'VENDOR'
+
   first?: number
+  after?: string
   query?: string
 }
 
 export interface ShopifyUpdateProductParams extends ShopifyBaseParams {
+  handle?: string
+  seo?: Record<string, unknown> | string
+  category?: string
+  templateSuffix?: string
+  metafields?: Array<Record<string, unknown>> | string
+  collectionsToJoin?: string[] | string
+  requiresSellingPlan?: boolean
+  collectionsToLeave?: string[] | string
+  redirectNewHandle?: boolean
+  media?: Array<Record<string, unknown>> | string
+
   productId: string
   title?: string
   descriptionHtml?: string
   vendor?: string
   productType?: string
   tags?: string[]
-  status?: 'ACTIVE' | 'DRAFT' | 'ARCHIVED'
+  status?: 'ACTIVE' | 'DRAFT' | 'ARCHIVED' | 'UNLISTED'
 }
 
 export interface ShopifyDeleteProductParams extends ShopifyBaseParams {
   productId: string
 }
 
-// Order Tool Params
 export interface ShopifyGetOrderParams extends ShopifyBaseParams {
+  lineItemsFirst?: number
+  lineItemsAfter?: string
+
   orderId: string
 }
 
 export interface ShopifyListOrdersParams extends ShopifyBaseParams {
+  includeDetails?: boolean
+  reverse?: boolean
+  sortKey?:
+    | 'CREATED_AT'
+    | 'CURRENT_TOTAL_PRICE'
+    | 'CUSTOMER_NAME'
+    | 'DESTINATION'
+    | 'FINANCIAL_STATUS'
+    | 'FULFILLMENT_STATUS'
+    | 'ID'
+    | 'ORDER_NUMBER'
+    | 'PO_NUMBER'
+    | 'PROCESSED_AT'
+    | 'RELEVANCE'
+    | 'TOTAL_ITEMS_QUANTITY'
+    | 'TOTAL_PRICE'
+    | 'UPDATED_AT'
+
   first?: number
+  after?: string
   status?: string
   query?: string
 }
 
 export interface ShopifyUpdateOrderParams extends ShopifyBaseParams {
+  phone?: string
+  shippingAddress?: Record<string, unknown> | string
+  customAttributes?: Array<Record<string, unknown>> | string
+  metafields?: Array<Record<string, unknown>> | string
+  poNumber?: string
+
   orderId: string
   note?: string
   tags?: string[]
@@ -765,29 +1082,39 @@ export interface ShopifyCancelOrderParams extends ShopifyBaseParams {
   reason: 'CUSTOMER' | 'DECLINED' | 'FRAUD' | 'INVENTORY' | 'OTHER' | 'STAFF'
   restock: boolean
   notifyCustomer?: boolean
-  refundMethod?: {
-    originalPaymentMethodsRefund?: boolean
-  }
+  refundMethod?: Record<string, unknown> | string
   staffNote?: string
 }
 
-// Customer Tool Params
 export interface ShopifyCreateCustomerParams extends ShopifyBaseParams {
+  locale?: string
+  taxExempt?: boolean
+  metafields?: Array<Record<string, unknown>> | string
+  emailMarketingConsent?: Record<string, unknown> | string
+  smsMarketingConsent?: Record<string, unknown> | string
+
   email?: string
   firstName?: string
   lastName?: string
   phone?: string
   note?: string
   tags?: string[]
-  addresses?: Array<{
-    address1?: string
-    address2?: string
-    city?: string
-    province?: string
-    country?: string
-    zip?: string
-    phone?: string
-  }>
+  addresses?:
+    | string
+    | Array<{
+        firstName?: string
+        lastName?: string
+        company?: string
+        countryCode?: string
+        provinceCode?: string
+        address1?: string
+        address2?: string
+        city?: string
+        province?: string
+        country?: string
+        zip?: string
+        phone?: string
+      }>
 }
 
 export interface ShopifyGetCustomerParams extends ShopifyBaseParams {
@@ -795,11 +1122,22 @@ export interface ShopifyGetCustomerParams extends ShopifyBaseParams {
 }
 
 export interface ShopifyListCustomersParams extends ShopifyBaseParams {
+  reverse?: boolean
+  sortKey?: 'CREATED_AT' | 'ID' | 'LOCATION' | 'NAME' | 'RELEVANCE' | 'UPDATED_AT'
+
   first?: number
+  after?: string
   query?: string
 }
 
 export interface ShopifyUpdateCustomerParams extends ShopifyBaseParams {
+  addresses?: Array<Record<string, unknown>> | string
+  locale?: string
+  taxExempt?: boolean
+  metafields?: Array<Record<string, unknown>> | string
+  emailMarketingConsent?: Record<string, unknown> | string
+  smsMarketingConsent?: Record<string, unknown> | string
+
   customerId: string
   email?: string
   firstName?: string
@@ -813,20 +1151,33 @@ export interface ShopifyDeleteCustomerParams extends ShopifyBaseParams {
   customerId: string
 }
 
-// Inventory Tool Params
 export interface ShopifyGetInventoryLevelParams extends ShopifyBaseParams {
+  first?: number
+  after?: string
   inventoryItemId: string
   locationId?: string
 }
 
 export interface ShopifyAdjustInventoryParams extends ShopifyBaseParams {
+  idempotencyKey?: string
+  reason?: string
+  name?: string
+  referenceDocumentUri?: string
+  changeFromQuantity?: number | null
+  ledgerDocumentUri?: string
+
   inventoryItemId: string
   locationId: string
   delta: number
 }
 
-// Fulfillment Tool Params
 export interface ShopifyCreateFulfillmentParams extends ShopifyBaseParams {
+  fulfillmentOrderLineItems?: Array<Record<string, unknown>> | string
+  message?: string
+  originAddress?: Record<string, unknown> | string
+  trackingNumbers?: string[] | string
+  trackingUrls?: string[] | string
+
   fulfillmentOrderId: string
   trackingNumber?: string
   trackingCompany?: string
@@ -835,26 +1186,40 @@ export interface ShopifyCreateFulfillmentParams extends ShopifyBaseParams {
 }
 
 export interface ShopifyListInventoryItemsParams extends ShopifyBaseParams {
+  reverse?: boolean
+
   first?: number
+  after?: string
   query?: string
 }
 
 export interface ShopifyListLocationsParams extends ShopifyBaseParams {
+  reverse?: boolean
+  sortKey?: 'ID' | 'NAME' | 'RELEVANCE'
+  query?: string
+  includeLegacy?: boolean
+
   first?: number
+  after?: string
   includeInactive?: boolean
 }
 
 export interface ShopifyListCollectionsParams extends ShopifyBaseParams {
+  reverse?: boolean
+  sortKey?: 'ID' | 'RELEVANCE' | 'TITLE' | 'UPDATED_AT'
+
   first?: number
+  after?: string
   query?: string
 }
 
 export interface ShopifyGetCollectionParams extends ShopifyBaseParams {
+  productsAfter?: string
+
   collectionId: string
   productsFirst?: number
 }
 
-// Tool Response Types
 export interface ShopifyProductResponse extends ToolResponse {
   output: {
     product?: ShopifyProduct
@@ -867,6 +1232,8 @@ export interface ShopifyProductsResponse extends ToolResponse {
     pageInfo?: {
       hasNextPage: boolean
       hasPreviousPage: boolean
+      startCursor: string | null
+      endCursor: string | null
     }
   }
 }
@@ -879,6 +1246,8 @@ export interface ShopifyOrderResponse extends ToolResponse {
 
 export interface ShopifyCancelOrderResponse extends ToolResponse {
   output: {
+    jobResult?: ShopifyCancellationResult | null
+    job?: { id: string; done: boolean }
     order?: {
       id: string
       cancelled: boolean
@@ -893,6 +1262,8 @@ export interface ShopifyOrdersResponse extends ToolResponse {
     pageInfo?: {
       hasNextPage: boolean
       hasPreviousPage: boolean
+      startCursor: string | null
+      endCursor: string | null
     }
   }
 }
@@ -909,13 +1280,21 @@ export interface ShopifyCustomersResponse extends ToolResponse {
     pageInfo?: {
       hasNextPage: boolean
       hasPreviousPage: boolean
+      startCursor: string | null
+      endCursor: string | null
     }
   }
 }
 
 export interface ShopifyInventoryResponse extends ToolResponse {
   output: {
-    inventoryLevel?: ShopifyInventoryLevel | Record<string, unknown>
+    inventoryLevel?: {
+      id: string
+      sku: string | null
+      tracked: boolean
+      levels: ShopifyInventoryLevel[]
+      pageInfo: ShopifyPageInfo | null
+    }
   }
 }
 
@@ -925,19 +1304,20 @@ export interface ShopifyInventoryAdjustmentResponse extends ToolResponse {
       adjustmentGroup: {
         createdAt: string
         reason: string
+        referenceDocumentUri: string | null
       }
       changes: Array<{
         name: string
         delta: number
-        quantityAfterChange: number
+        quantityAfterChange: number | null
         item: {
           id: string
           sku: string | null
-        }
+        } | null
         location: {
           id: string
           name: string
-        }
+        } | null
       }>
     }
   }
@@ -946,9 +1326,10 @@ export interface ShopifyInventoryAdjustmentResponse extends ToolResponse {
 export interface ShopifyFulfillmentResponse extends ToolResponse {
   output: {
     fulfillment?: ShopifyFulfillment & {
+      lineItemsPageInfo: ShopifyPageInfo
       fulfillmentLineItems: Array<{
         id: string
-        quantity: number
+        quantity: number | null
         lineItem: {
           title: string
         }
@@ -973,9 +1354,11 @@ export interface ShopifyInventoryItemsResponse extends ToolResponse {
           title: string
         }
       }
+      inventoryLevelsPageInfo: ShopifyPageInfo
       inventoryLevels: Array<{
         id: string
         available: number
+        onHand: number
         location: {
           id: string
           name: string
@@ -985,6 +1368,8 @@ export interface ShopifyInventoryItemsResponse extends ToolResponse {
     pageInfo?: {
       hasNextPage: boolean
       hasPreviousPage: boolean
+      startCursor: string | null
+      endCursor: string | null
     }
   }
 }
@@ -1011,6 +1396,8 @@ export interface ShopifyLocationsResponse extends ToolResponse {
     pageInfo?: {
       hasNextPage: boolean
       hasPreviousPage: boolean
+      startCursor: string | null
+      endCursor: string | null
     }
   }
 }
@@ -1027,7 +1414,7 @@ export interface ShopifyCollectionsResponse extends ToolResponse {
       sortOrder: string
       updatedAt: string
       image: {
-        id: string
+        id: string | null
         url: string
         altText: string | null
       } | null
@@ -1035,6 +1422,8 @@ export interface ShopifyCollectionsResponse extends ToolResponse {
     pageInfo?: {
       hasNextPage: boolean
       hasPreviousPage: boolean
+      startCursor: string | null
+      endCursor: string | null
     }
   }
 }
@@ -1051,10 +1440,11 @@ export interface ShopifyCollectionResponse extends ToolResponse {
       sortOrder: string
       updatedAt: string
       image: {
-        id: string
+        id: string | null
         url: string
         altText: string | null
       } | null
+      productsPageInfo: ShopifyPageInfo
       products: Array<{
         id: string
         title: string
@@ -1077,3 +1467,178 @@ export interface ShopifyDeleteResponse extends ToolResponse {
     deletedId?: string
   }
 }
+
+export interface ShopifyPageInfo {
+  hasNextPage: boolean
+  hasPreviousPage: boolean
+  startCursor: string | null
+  endCursor: string | null
+}
+
+export interface ShopifyUserError {
+  field: string[] | null
+  message: string
+}
+export interface ShopifyGetJobParams extends ShopifyBaseParams {
+  jobId: string
+}
+export interface ShopifyJobResponse extends ToolResponse {
+  output: { job?: { id: string; done: boolean }; jobResult?: ShopifyCancellationResult }
+}
+export interface ShopifyListFulfillmentOrdersParams extends ShopifyBaseParams {
+  orderId: string
+  first?: number
+  after?: string
+}
+export interface ShopifyGetFulfillmentOrderParams extends ShopifyBaseParams {
+  fulfillmentOrderId: string
+  first?: number
+  after?: string
+}
+export interface ShopifyFulfillmentOrder {
+  id: string
+  orderId: string
+  status: string
+  requestStatus: string
+  createdAt: string
+  updatedAt: string
+  fulfillAt: string | null
+  fulfillBy: string | null
+  assignedLocation: { name: string; location: { id: string; name: string } | null }
+  supportedActions: Array<{ action: string; externalUrl: string | null }>
+  lineItems: {
+    edges: Array<{
+      node: {
+        id: string
+        totalQuantity: number
+        remainingQuantity: number
+        inventoryItemId: string | null
+        productTitle: string
+        variantTitle: string | null
+        sku: string | null
+        lineItem: { id: string }
+      }
+    }>
+    pageInfo: ShopifyPageInfo
+  }
+}
+export interface ShopifyFulfillmentOrdersResponse extends ToolResponse {
+  output: { fulfillmentOrders?: ShopifyFulfillmentOrder[]; pageInfo?: ShopifyPageInfo }
+}
+export interface ShopifyFulfillmentOrderResponse extends ToolResponse {
+  output: { fulfillmentOrder?: ShopifyFulfillmentOrder }
+}
+export interface ShopifyCreateProductVariantsParams extends ShopifyBaseParams {
+  productId: string
+  variants: Array<Record<string, unknown>> | string
+  strategy?: 'DEFAULT' | 'REMOVE_STANDALONE_VARIANT' | 'PRESERVE_STANDALONE_VARIANT'
+  media?: Array<Record<string, unknown>> | string
+}
+export interface ShopifyUpdateProductVariantsParams extends ShopifyBaseParams {
+  productId: string
+  variants: Array<Record<string, unknown>> | string
+  allowPartialUpdates?: boolean
+  media?: Array<Record<string, unknown>> | string
+}
+export interface ShopifyProductVariantsResponse extends ToolResponse {
+  output: { productVariants?: ShopifyVariant[]; userErrors?: ShopifyUserError[] }
+}
+export interface ShopifyGetFulfillmentParams extends ShopifyBaseParams {
+  fulfillmentId: string
+  first?: number
+  after?: string
+}
+export interface ShopifyUpdateFulfillmentTrackingParams extends ShopifyBaseParams {
+  fulfillmentId: string
+  trackingInfo:
+    | { company?: string; number?: string; url?: string; numbers?: string[]; urls?: string[] }
+    | string
+  notifyCustomer?: boolean
+}
+
+export const FULFILLMENT_ORDER_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Fulfillment order GID to pass to Create Fulfillment' },
+  orderId: { type: 'string', description: 'Associated order GID' },
+  status: { type: 'string', description: 'Fulfillment order status' },
+  requestStatus: { type: 'string', description: 'Fulfillment request status' },
+  createdAt: { type: 'string', description: 'Creation timestamp' },
+  updatedAt: { type: 'string', description: 'Last update timestamp' },
+  fulfillAt: { type: 'string', optional: true, description: 'Earliest fulfillment timestamp' },
+  fulfillBy: { type: 'string', optional: true, description: 'Fulfillment deadline' },
+  assignedLocation: {
+    type: 'object',
+    description: 'Assigned fulfillment location',
+    properties: {
+      name: { type: 'string', description: 'Assigned location name' },
+      location: {
+        type: 'object',
+        optional: true,
+        description: 'Current location',
+        properties: {
+          id: { type: 'string', description: 'Location GID' },
+          name: { type: 'string', description: 'Location name' },
+        },
+      },
+    },
+  },
+  supportedActions: {
+    type: 'array',
+    description: 'Actions permitted for this fulfillment order',
+    items: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: 'Permitted action' },
+        externalUrl: {
+          type: 'string',
+          optional: true,
+          description: 'External fulfillment URL when applicable',
+        },
+      },
+    },
+  },
+  lineItems: {
+    type: 'object',
+    description: 'Fulfillment order item page; use Get Fulfillment Order to continue',
+    properties: {
+      pageInfo: {
+        type: 'object',
+        description: 'Line item pagination',
+        properties: PAGE_INFO_OUTPUT_PROPERTIES,
+      },
+      edges: {
+        type: 'array',
+        description: 'Fulfillment order item edges',
+        items: {
+          type: 'object',
+          properties: {
+            node: {
+              type: 'object',
+              description: 'Fulfillment order line item',
+              properties: {
+                id: {
+                  type: 'string',
+                  description: 'Fulfillment order line item GID for partial fulfillment',
+                },
+                totalQuantity: { type: 'number', description: 'Total quantity assigned' },
+                remainingQuantity: { type: 'number', description: 'Quantity still to fulfill' },
+                inventoryItemId: {
+                  type: 'string',
+                  optional: true,
+                  description: 'Inventory item GID',
+                },
+                productTitle: { type: 'string', description: 'Product title' },
+                variantTitle: { type: 'string', optional: true, description: 'Variant title' },
+                sku: { type: 'string', optional: true, description: 'SKU' },
+                lineItem: {
+                  type: 'object',
+                  description: 'Original order line item',
+                  properties: { id: { type: 'string', description: 'Order line item GID' } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const satisfies Record<string, OutputProperty>

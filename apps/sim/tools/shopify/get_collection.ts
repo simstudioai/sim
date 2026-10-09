@@ -1,6 +1,6 @@
-import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import type { ShopifyCollectionResponse, ShopifyGetCollectionParams } from '@/tools/shopify/types'
 import { COLLECTION_WITH_PRODUCTS_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
+import { getShopifyHeaders, getShopifyPageSize, getShopifyUrl } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const shopifyGetCollectionTool: ToolConfig<
@@ -16,12 +16,26 @@ export const shopifyGetCollectionTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'shopify',
+    authoritativeParams: ['domain', 'idToken'],
   },
 
   params: {
-    shopDomain: {
+    accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
+      description: 'Shopify Admin API token supplied by the connected credential',
+    },
+    productsAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor from products.pageInfo.endCursor for the next page',
+    },
+
+    shopDomain: {
+      type: 'string',
+      required: false,
       visibility: 'user-only',
       description: 'Your Shopify store domain (e.g., mystore.myshopify.com)',
     },
@@ -40,24 +54,15 @@ export const shopifyGetCollectionTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+    url: getShopifyUrl,
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for Shopify API request')
-      }
-      return {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': params.accessToken,
-      }
-    },
+    headers: getShopifyHeaders,
     body: (params) => {
-      const productsFirst = Math.min(params.productsFirst || 50, 250)
+      const productsFirst = getShopifyPageSize(params.productsFirst)
 
       return {
         query: `
-          query getCollection($id: ID!, $productsFirst: Int!) {
+          query getCollection($id: ID!, $productsFirst: Int!, $productsAfter: String) {
             collection(id: $id) {
               id
               title
@@ -74,7 +79,13 @@ export const shopifyGetCollectionTool: ToolConfig<
                 url
                 altText
               }
-              products(first: $productsFirst) {
+              products(first: $productsFirst, after: $productsAfter) {
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
                 edges {
                   node {
                     id
@@ -97,10 +108,12 @@ export const shopifyGetCollectionTool: ToolConfig<
               }
             }
           }
+
         `,
         variables: {
           id: params.collectionId.trim(),
           productsFirst,
+          productsAfter: params.productsAfter?.trim() || null,
         },
       }
     },
@@ -109,10 +122,10 @@ export const shopifyGetCollectionTool: ToolConfig<
   transformResponse: async (response) => {
     const data = await response.json()
 
-    if (data.errors) {
+    if (!response.ok || data.errors?.length) {
       return {
         success: false,
-        error: data.errors[0]?.message || 'Failed to get collection',
+        error: data.errors?.[0]?.message || 'Failed to get collection',
         output: {},
       }
     }
@@ -126,7 +139,6 @@ export const shopifyGetCollectionTool: ToolConfig<
       }
     }
 
-    // Transform products from edges format and map featuredMedia to featuredImage
     const products =
       collection.products?.edges?.map(
         (edge: {
@@ -176,6 +188,7 @@ export const shopifyGetCollectionTool: ToolConfig<
           updatedAt: collection.updatedAt,
           image: collection.image,
           products,
+          productsPageInfo: collection.products.pageInfo,
         },
       },
     }

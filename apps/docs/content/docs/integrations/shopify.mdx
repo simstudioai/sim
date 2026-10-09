@@ -17,7 +17,7 @@ Use [Shopify](https://www.shopify.com/) to manage products, orders, customers, i
 
 ## Usage Instructions
 
-Integrate Shopify into your workflow. Manage products, orders, customers, and inventory. Create, read, update, and delete products. List and manage orders. Handle customer data and adjust inventory levels.
+Manage Shopify products and variants, orders, customers, inventory, collections, and merchant-managed fulfillment using Admin GraphQL API 2026-10. Discover fulfillment orders, ship selected items, update tracking, and check cancellation jobs. Continue list and nested results with the returned cursors. Product activation does not publish to sales channels. Orders normally cover the last 60 days; older orders and protected customer fields require Shopify approval and access. Expanded list details are optional and use smaller pages to stay within query-cost limits.
 
 
 
@@ -31,39 +31,82 @@ Create a new product in your Shopify store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `handle` | string | No | URL-friendly product handle |
+| `seo` | json | No | SEOInput object with title and description |
+| `category` | string | No | Product taxonomy category GID |
+| `templateSuffix` | string | No | Theme template suffix |
+| `metafields` | array | No | MetafieldInput array: namespace, key, type, value, or id |
+| `collectionsToJoin` | array | No | Collection GIDs to add the product to |
+| `requiresSellingPlan` | boolean | No | Whether a selling plan is required to purchase the product |
+| `productOptions` | array | No | OptionCreateInput array with name and values: \[\{name: "Size", values: \[\{name: "Small"\}\]\}\] |
+| `media` | array | No | CreateMediaInput array with originalSource, mediaContentType, and optional alt |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `title` | string | Yes | Product title |
 | `descriptionHtml` | string | No | Product description \(HTML\) |
 | `vendor` | string | No | Product vendor/brand |
 | `productType` | string | No | Product type/category |
 | `tags` | array | No | Product tags |
-| `status` | string | No | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+| `status` | string | No | Product status \(ACTIVE, DRAFT, ARCHIVED, UNLISTED\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `product` | object | The created product |
+|   ↳ `templateSuffix` | string | Theme template suffix |
+|   ↳ `requiresSellingPlan` | boolean | Whether purchasing requires a selling plan |
+|   ↳ `category` | object | Product taxonomy category |
+|     ↳ `id` | string | Taxonomy category GID |
+|     ↳ `fullName` | string | Category path |
 |   ↳ `id` | string | Unique product identifier \(GID\) |
 |   ↳ `title` | string | Product title |
 |   ↳ `handle` | string | URL-friendly product identifier |
+|   ↳ `seo` | object | Search engine listing |
+|     ↳ `title` | string | SEO title |
+|     ↳ `description` | string | SEO description |
+|   ↳ `onlineStoreUrl` | string | Online store URL, null when not published |
+|   ↳ `options` | array | Product options |
+|     ↳ `id` | string | Option GID |
+|     ↳ `name` | string | Option name |
+|     ↳ `position` | number | Option position |
+|     ↳ `values` | array | Option values |
 |   ↳ `descriptionHtml` | string | Product description in HTML format |
 |   ↳ `vendor` | string | Product vendor or manufacturer |
 |   ↳ `productType` | string | Product type classification |
 |   ↳ `tags` | array | Product tags for categorization |
-|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED, UNLISTED\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
-|   ↳ `variants` | object | Product variants with edges/nodes structure |
+|   ↳ `variants` | object | Product variants page; use Get Product with variantsAfter for subsequent pages |
+|     ↳ `pageInfo` | object | Variant pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |     ↳ `edges` | array | Array of variant edges |
 |       ↳ `node` | object | Variant node |
 |         ↳ `id` | string | Unique variant identifier \(GID\) |
 |         ↳ `title` | string | Variant title |
 |         ↳ `price` | string | Variant price |
+|         ↳ `barcode` | string | Variant barcode |
+|         ↳ `taxable` | boolean | Whether the variant is taxable |
+|         ↳ `inventoryPolicy` | string | Inventory policy \(DENY or CONTINUE\) |
+|         ↳ `inventoryItem` | object | Inventory item for stock operations |
+|           ↳ `id` | string | Inventory item GID |
+|           ↳ `sku` | string | SKU |
+|           ↳ `tracked` | boolean | Whether stock is tracked |
+|         ↳ `selectedOptions` | array | Selected product options |
+|           ↳ `name` | string | Option name |
+|           ↳ `value` | string | Selected value |
 |         ↳ `compareAtPrice` | string | Compare at price |
 |         ↳ `sku` | string | Stock keeping unit |
 |         ↳ `inventoryQuantity` | number | Available inventory quantity |
-|   ↳ `images` | object | Product images with edges/nodes structure |
+|   ↳ `images` | object | Product images page; use Get Product with imagesAfter for subsequent pages |
+|     ↳ `pageInfo` | object | Image pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |     ↳ `edges` | array | Array of image edges |
 |       ↳ `node` | object | Image node |
 |         ↳ `id` | string | Unique image identifier \(GID\) |
@@ -78,7 +121,11 @@ Get a single product by ID from your Shopify store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `variantsFirst` | number | No | Maximum variants in this page \(default 50, max 100\) |
+| `variantsAfter` | string | No | Cursor from variants.pageInfo.endCursor for the next page |
+| `imagesFirst` | number | No | Maximum images in this page \(default 20, max 100\) |
+| `imagesAfter` | string | No | Cursor from images.pageInfo.endCursor for the next page |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `productId` | string | Yes | Product ID \(gid://shopify/Product/123456789\) |
 
 #### Output
@@ -86,26 +133,60 @@ Get a single product by ID from your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `product` | object | The product details |
+|   ↳ `templateSuffix` | string | Theme template suffix |
+|   ↳ `requiresSellingPlan` | boolean | Whether purchasing requires a selling plan |
+|   ↳ `category` | object | Product taxonomy category |
+|     ↳ `id` | string | Taxonomy category GID |
+|     ↳ `fullName` | string | Category path |
 |   ↳ `id` | string | Unique product identifier \(GID\) |
 |   ↳ `title` | string | Product title |
 |   ↳ `handle` | string | URL-friendly product identifier |
+|   ↳ `seo` | object | Search engine listing |
+|     ↳ `title` | string | SEO title |
+|     ↳ `description` | string | SEO description |
+|   ↳ `onlineStoreUrl` | string | Online store URL, null when not published |
+|   ↳ `options` | array | Product options |
+|     ↳ `id` | string | Option GID |
+|     ↳ `name` | string | Option name |
+|     ↳ `position` | number | Option position |
+|     ↳ `values` | array | Option values |
 |   ↳ `descriptionHtml` | string | Product description in HTML format |
 |   ↳ `vendor` | string | Product vendor or manufacturer |
 |   ↳ `productType` | string | Product type classification |
 |   ↳ `tags` | array | Product tags for categorization |
-|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED, UNLISTED\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
-|   ↳ `variants` | object | Product variants with edges/nodes structure |
+|   ↳ `variants` | object | Product variants page; use Get Product with variantsAfter for subsequent pages |
+|     ↳ `pageInfo` | object | Variant pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |     ↳ `edges` | array | Array of variant edges |
 |       ↳ `node` | object | Variant node |
 |         ↳ `id` | string | Unique variant identifier \(GID\) |
 |         ↳ `title` | string | Variant title |
 |         ↳ `price` | string | Variant price |
+|         ↳ `barcode` | string | Variant barcode |
+|         ↳ `taxable` | boolean | Whether the variant is taxable |
+|         ↳ `inventoryPolicy` | string | Inventory policy \(DENY or CONTINUE\) |
+|         ↳ `inventoryItem` | object | Inventory item for stock operations |
+|           ↳ `id` | string | Inventory item GID |
+|           ↳ `sku` | string | SKU |
+|           ↳ `tracked` | boolean | Whether stock is tracked |
+|         ↳ `selectedOptions` | array | Selected product options |
+|           ↳ `name` | string | Option name |
+|           ↳ `value` | string | Selected value |
 |         ↳ `compareAtPrice` | string | Compare at price |
 |         ↳ `sku` | string | Stock keeping unit |
 |         ↳ `inventoryQuantity` | number | Available inventory quantity |
-|   ↳ `images` | object | Product images with edges/nodes structure |
+|   ↳ `images` | object | Product images page; use Get Product with imagesAfter for subsequent pages |
+|     ↳ `pageInfo` | object | Image pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |     ↳ `edges` | array | Array of image edges |
 |       ↳ `node` | object | Image node |
 |         ↳ `id` | string | Unique image identifier \(GID\) |
@@ -120,8 +201,12 @@ List products from your Shopify store with optional filtering
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
-| `first` | number | No | Number of products to return \(default: 50, max: 250\) |
+| `includeDetails` | boolean | No | Include expanded nested details; uses a smaller page limit to stay within Shopify query costs |
+| `reverse` | boolean | No | Reverse the result sort order \(default false\) |
+| `sortKey` | string | No | Sort results by CREATED_AT, ID, INVENTORY_TOTAL, PRODUCT_TYPE, PUBLISHED_AT, RELEVANCE, TITLE, UPDATED_AT, VENDOR \(default Shopify ordering\) |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `after` | string | No | Cursor from pageInfo.endCursor to retrieve the next page |
+| `first` | number | No | Number of products to return \(default: 50, max: 250; with includeDetails: default/max 20\) |
 | `query` | string | No | Search query to filter products \(e.g., "title:shirt" or "vendor:Nike" or "status:active"\) |
 
 #### Output
@@ -129,32 +214,68 @@ List products from your Shopify store with optional filtering
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `products` | array | List of products |
+|   ↳ `templateSuffix` | string | Theme template suffix |
+|   ↳ `requiresSellingPlan` | boolean | Whether purchasing requires a selling plan |
+|   ↳ `category` | object | Product taxonomy category |
+|     ↳ `id` | string | Taxonomy category GID |
+|     ↳ `fullName` | string | Category path |
 |   ↳ `id` | string | Unique product identifier \(GID\) |
 |   ↳ `title` | string | Product title |
 |   ↳ `handle` | string | URL-friendly product identifier |
+|   ↳ `seo` | object | Search engine listing |
+|     ↳ `title` | string | SEO title |
+|     ↳ `description` | string | SEO description |
+|   ↳ `onlineStoreUrl` | string | Online store URL, null when not published |
+|   ↳ `options` | array | Product options |
+|     ↳ `id` | string | Option GID |
+|     ↳ `name` | string | Option name |
+|     ↳ `position` | number | Option position |
+|     ↳ `values` | array | Option values |
 |   ↳ `descriptionHtml` | string | Product description in HTML format |
 |   ↳ `vendor` | string | Product vendor or manufacturer |
 |   ↳ `productType` | string | Product type classification |
 |   ↳ `tags` | array | Product tags for categorization |
-|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED, UNLISTED\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
-|   ↳ `variants` | object | Product variants with edges/nodes structure |
+|   ↳ `variants` | object | Product variants page; use Get Product with variantsAfter for subsequent pages |
+|     ↳ `pageInfo` | object | Variant pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |     ↳ `edges` | array | Array of variant edges |
 |       ↳ `node` | object | Variant node |
 |         ↳ `id` | string | Unique variant identifier \(GID\) |
 |         ↳ `title` | string | Variant title |
 |         ↳ `price` | string | Variant price |
+|         ↳ `barcode` | string | Variant barcode |
+|         ↳ `taxable` | boolean | Whether the variant is taxable |
+|         ↳ `inventoryPolicy` | string | Inventory policy \(DENY or CONTINUE\) |
+|         ↳ `inventoryItem` | object | Inventory item for stock operations |
+|           ↳ `id` | string | Inventory item GID |
+|           ↳ `sku` | string | SKU |
+|           ↳ `tracked` | boolean | Whether stock is tracked |
+|         ↳ `selectedOptions` | array | Selected product options |
+|           ↳ `name` | string | Option name |
+|           ↳ `value` | string | Selected value |
 |         ↳ `compareAtPrice` | string | Compare at price |
 |         ↳ `sku` | string | Stock keeping unit |
 |         ↳ `inventoryQuantity` | number | Available inventory quantity |
-|   ↳ `images` | object | Product images with edges/nodes structure |
+|   ↳ `images` | object | Product images page; use Get Product with imagesAfter for subsequent pages |
+|     ↳ `pageInfo` | object | Image pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |     ↳ `edges` | array | Array of image edges |
 |       ↳ `node` | object | Image node |
 |         ↳ `id` | string | Unique image identifier \(GID\) |
 |         ↳ `url` | string | Image URL |
 |         ↳ `altText` | string | Alternative text for accessibility |
 | `pageInfo` | object | Pagination information |
+|   ↳ `startCursor` | string | Cursor at the start of this page |
+|   ↳ `endCursor` | string | Cursor to pass as after for the next page |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
@@ -166,40 +287,84 @@ Update an existing product in your Shopify store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `handle` | string | No | URL-friendly product handle |
+| `seo` | json | No | SEOInput object with title and description |
+| `category` | string | No | Product taxonomy category GID |
+| `templateSuffix` | string | No | Theme template suffix |
+| `metafields` | array | No | MetafieldInput array: namespace, key, type, value, or id |
+| `collectionsToJoin` | array | No | Collection GIDs to add the product to |
+| `requiresSellingPlan` | boolean | No | Whether a selling plan is required to purchase the product |
+| `collectionsToLeave` | array | No | Collection GIDs to remove the product from |
+| `redirectNewHandle` | boolean | No | Create a redirect when changing the handle |
+| `media` | array | No | CreateMediaInput array with originalSource, mediaContentType, and optional alt |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `productId` | string | Yes | Product ID to update \(gid://shopify/Product/123456789\) |
 | `title` | string | No | New product title |
 | `descriptionHtml` | string | No | New product description \(HTML\) |
 | `vendor` | string | No | New product vendor/brand |
 | `productType` | string | No | New product type/category |
 | `tags` | array | No | New product tags |
-| `status` | string | No | New product status \(ACTIVE, DRAFT, ARCHIVED\) |
+| `status` | string | No | New product status \(ACTIVE, DRAFT, ARCHIVED, UNLISTED\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `product` | object | The updated product |
+|   ↳ `templateSuffix` | string | Theme template suffix |
+|   ↳ `requiresSellingPlan` | boolean | Whether purchasing requires a selling plan |
+|   ↳ `category` | object | Product taxonomy category |
+|     ↳ `id` | string | Taxonomy category GID |
+|     ↳ `fullName` | string | Category path |
 |   ↳ `id` | string | Unique product identifier \(GID\) |
 |   ↳ `title` | string | Product title |
 |   ↳ `handle` | string | URL-friendly product identifier |
+|   ↳ `seo` | object | Search engine listing |
+|     ↳ `title` | string | SEO title |
+|     ↳ `description` | string | SEO description |
+|   ↳ `onlineStoreUrl` | string | Online store URL, null when not published |
+|   ↳ `options` | array | Product options |
+|     ↳ `id` | string | Option GID |
+|     ↳ `name` | string | Option name |
+|     ↳ `position` | number | Option position |
+|     ↳ `values` | array | Option values |
 |   ↳ `descriptionHtml` | string | Product description in HTML format |
 |   ↳ `vendor` | string | Product vendor or manufacturer |
 |   ↳ `productType` | string | Product type classification |
 |   ↳ `tags` | array | Product tags for categorization |
-|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED, UNLISTED\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
-|   ↳ `variants` | object | Product variants with edges/nodes structure |
+|   ↳ `variants` | object | Product variants page; use Get Product with variantsAfter for subsequent pages |
+|     ↳ `pageInfo` | object | Variant pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |     ↳ `edges` | array | Array of variant edges |
 |       ↳ `node` | object | Variant node |
 |         ↳ `id` | string | Unique variant identifier \(GID\) |
 |         ↳ `title` | string | Variant title |
 |         ↳ `price` | string | Variant price |
+|         ↳ `barcode` | string | Variant barcode |
+|         ↳ `taxable` | boolean | Whether the variant is taxable |
+|         ↳ `inventoryPolicy` | string | Inventory policy \(DENY or CONTINUE\) |
+|         ↳ `inventoryItem` | object | Inventory item for stock operations |
+|           ↳ `id` | string | Inventory item GID |
+|           ↳ `sku` | string | SKU |
+|           ↳ `tracked` | boolean | Whether stock is tracked |
+|         ↳ `selectedOptions` | array | Selected product options |
+|           ↳ `name` | string | Option name |
+|           ↳ `value` | string | Selected value |
 |         ↳ `compareAtPrice` | string | Compare at price |
 |         ↳ `sku` | string | Stock keeping unit |
 |         ↳ `inventoryQuantity` | number | Available inventory quantity |
-|   ↳ `images` | object | Product images with edges/nodes structure |
+|   ↳ `images` | object | Product images page; use Get Product with imagesAfter for subsequent pages |
+|     ↳ `pageInfo` | object | Image pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |     ↳ `edges` | array | Array of image edges |
 |       ↳ `node` | object | Image node |
 |         ↳ `id` | string | Unique image identifier \(GID\) |
@@ -214,7 +379,7 @@ Delete a product from your Shopify store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `productId` | string | Yes | Product ID to delete \(gid://shopify/Product/123456789\) |
 
 #### Output
@@ -231,7 +396,9 @@ Get a single order by ID from your Shopify store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `lineItemsFirst` | number | No | Maximum lineItems in this page \(default 50, max 50\) |
+| `lineItemsAfter` | string | No | Cursor from lineItems.pageInfo.endCursor for the next page |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `orderId` | string | Yes | Order ID \(gid://shopify/Order/123456789\) |
 
 #### Output
@@ -239,6 +406,10 @@ Get a single order by ID from your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `order` | object | The order details |
+|   ↳ `poNumber` | string | Purchase order number |
+|   ↳ `customAttributes` | array | Order attributes |
+|     ↳ `key` | string | Attribute key |
+|     ↳ `value` | string | Attribute value |
 |   ↳ `id` | string | Unique order identifier \(GID\) |
 |   ↳ `name` | string | Order name \(e.g., #1001\) |
 |   ↳ `email` | string | Customer email for the order |
@@ -285,7 +456,12 @@ Get a single order by ID from your Shopify store
 |     ↳ `firstName` | string | Customer first name |
 |     ↳ `lastName` | string | Customer last name |
 |     ↳ `phone` | string | Customer phone number |
-|   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|   ↳ `lineItems` | object | Order line items page; use Get Order with lineItemsAfter for subsequent pages |
+|     ↳ `pageInfo` | object | Line item pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |     ↳ `edges` | array | Array of line item edges |
 |       ↳ `node` | object | Line item node |
 |         ↳ `id` | string | Unique line item identifier \(GID\) |
@@ -295,6 +471,16 @@ Get a single order by ID from your Shopify store
 |           ↳ `id` | string | Unique variant identifier \(GID\) |
 |           ↳ `title` | string | Variant title |
 |           ↳ `price` | string | Variant price |
+|           ↳ `barcode` | string | Variant barcode |
+|           ↳ `taxable` | boolean | Whether the variant is taxable |
+|           ↳ `inventoryPolicy` | string | Inventory policy \(DENY or CONTINUE\) |
+|           ↳ `inventoryItem` | object | Inventory item for stock operations |
+|             ↳ `id` | string | Inventory item GID |
+|             ↳ `sku` | string | SKU |
+|             ↳ `tracked` | boolean | Whether stock is tracked |
+|           ↳ `selectedOptions` | array | Selected product options |
+|             ↳ `name` | string | Option name |
+|             ↳ `value` | string | Selected value |
 |           ↳ `compareAtPrice` | string | Compare at price |
 |           ↳ `sku` | string | Stock keeping unit |
 |           ↳ `inventoryQuantity` | number | Available inventory quantity |
@@ -354,8 +540,12 @@ List orders from your Shopify store with optional filtering
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
-| `first` | number | No | Number of orders to return \(default: 50, max: 250\) |
+| `includeDetails` | boolean | No | Include expanded nested details; uses a smaller page limit to stay within Shopify query costs |
+| `reverse` | boolean | No | Reverse the result sort order \(default false\) |
+| `sortKey` | string | No | Sort results by CREATED_AT, CURRENT_TOTAL_PRICE, CUSTOMER_NAME, DESTINATION, FINANCIAL_STATUS, FULFILLMENT_STATUS, ID, ORDER_NUMBER, PO_NUMBER, PROCESSED_AT, RELEVANCE, TOTAL_ITEMS_QUANTITY, TOTAL_PRICE, UPDATED_AT \(default Shopify ordering\) |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `after` | string | No | Cursor from pageInfo.endCursor to retrieve the next page |
+| `first` | number | No | Number of orders to return \(default: 50, max: 250; with includeDetails: default/max 10\) |
 | `status` | string | No | Filter by order status \(open, closed, cancelled, any\) |
 | `query` | string | No | Search query to filter orders \(e.g., "financial_status:paid" or "fulfillment_status:unfulfilled" or "email:customer@example.com"\) |
 
@@ -364,6 +554,10 @@ List orders from your Shopify store with optional filtering
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `orders` | array | List of orders |
+|   ↳ `poNumber` | string | Purchase order number |
+|   ↳ `customAttributes` | array | Order attributes |
+|     ↳ `key` | string | Attribute key |
+|     ↳ `value` | string | Attribute value |
 |   ↳ `id` | string | Unique order identifier \(GID\) |
 |   ↳ `name` | string | Order name \(e.g., #1001\) |
 |   ↳ `email` | string | Customer email for the order |
@@ -410,7 +604,12 @@ List orders from your Shopify store with optional filtering
 |     ↳ `firstName` | string | Customer first name |
 |     ↳ `lastName` | string | Customer last name |
 |     ↳ `phone` | string | Customer phone number |
-|   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|   ↳ `lineItems` | object | Order line items page; use Get Order with lineItemsAfter for subsequent pages |
+|     ↳ `pageInfo` | object | Line item pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |     ↳ `edges` | array | Array of line item edges |
 |       ↳ `node` | object | Line item node |
 |         ↳ `id` | string | Unique line item identifier \(GID\) |
@@ -420,6 +619,16 @@ List orders from your Shopify store with optional filtering
 |           ↳ `id` | string | Unique variant identifier \(GID\) |
 |           ↳ `title` | string | Variant title |
 |           ↳ `price` | string | Variant price |
+|           ↳ `barcode` | string | Variant barcode |
+|           ↳ `taxable` | boolean | Whether the variant is taxable |
+|           ↳ `inventoryPolicy` | string | Inventory policy \(DENY or CONTINUE\) |
+|           ↳ `inventoryItem` | object | Inventory item for stock operations |
+|             ↳ `id` | string | Inventory item GID |
+|             ↳ `sku` | string | SKU |
+|             ↳ `tracked` | boolean | Whether stock is tracked |
+|           ↳ `selectedOptions` | array | Selected product options |
+|             ↳ `name` | string | Option name |
+|             ↳ `value` | string | Selected value |
 |           ↳ `compareAtPrice` | string | Compare at price |
 |           ↳ `sku` | string | Stock keeping unit |
 |           ↳ `inventoryQuantity` | number | Available inventory quantity |
@@ -471,6 +680,8 @@ List orders from your Shopify store with optional filtering
 |       ↳ `number` | string | Tracking number |
 |       ↳ `url` | string | Tracking URL |
 | `pageInfo` | object | Pagination information |
+|   ↳ `startCursor` | string | Cursor at the start of this page |
+|   ↳ `endCursor` | string | Cursor to pass as after for the next page |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
@@ -482,7 +693,12 @@ Update an existing order in your Shopify store (note, tags, email)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `phone` | string | No | Customer phone number for the order |
+| `shippingAddress` | json | No | MailingAddressInput object with firstName, lastName, address1, address2, city, provinceCode, countryCode, zip, and phone |
+| `customAttributes` | array | No | Order attributes as an array of \{key, value\} objects |
+| `metafields` | array | No | MetafieldInput array: namespace, key, type, value, or id |
+| `poNumber` | string | No | Purchase order number |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `orderId` | string | Yes | Order ID to update \(gid://shopify/Order/123456789\) |
 | `note` | string | No | New order note |
 | `tags` | array | No | New order tags |
@@ -493,6 +709,10 @@ Update an existing order in your Shopify store (note, tags, email)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `order` | object | The updated order |
+|   ↳ `poNumber` | string | Purchase order number |
+|   ↳ `customAttributes` | array | Order attributes |
+|     ↳ `key` | string | Attribute key |
+|     ↳ `value` | string | Attribute value |
 |   ↳ `id` | string | Unique order identifier \(GID\) |
 |   ↳ `name` | string | Order name \(e.g., #1001\) |
 |   ↳ `email` | string | Customer email for the order |
@@ -539,7 +759,12 @@ Update an existing order in your Shopify store (note, tags, email)
 |     ↳ `firstName` | string | Customer first name |
 |     ↳ `lastName` | string | Customer last name |
 |     ↳ `phone` | string | Customer phone number |
-|   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|   ↳ `lineItems` | object | Order line items page; use Get Order with lineItemsAfter for subsequent pages |
+|     ↳ `pageInfo` | object | Line item pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |     ↳ `edges` | array | Array of line item edges |
 |       ↳ `node` | object | Line item node |
 |         ↳ `id` | string | Unique line item identifier \(GID\) |
@@ -549,6 +774,16 @@ Update an existing order in your Shopify store (note, tags, email)
 |           ↳ `id` | string | Unique variant identifier \(GID\) |
 |           ↳ `title` | string | Variant title |
 |           ↳ `price` | string | Variant price |
+|           ↳ `barcode` | string | Variant barcode |
+|           ↳ `taxable` | boolean | Whether the variant is taxable |
+|           ↳ `inventoryPolicy` | string | Inventory policy \(DENY or CONTINUE\) |
+|           ↳ `inventoryItem` | object | Inventory item for stock operations |
+|             ↳ `id` | string | Inventory item GID |
+|             ↳ `sku` | string | SKU |
+|             ↳ `tracked` | boolean | Whether stock is tracked |
+|           ↳ `selectedOptions` | array | Selected product options |
+|             ↳ `name` | string | Option name |
+|             ↳ `value` | string | Selected value |
 |           ↳ `compareAtPrice` | string | Compare at price |
 |           ↳ `sku` | string | Stock keeping unit |
 |           ↳ `inventoryQuantity` | number | Available inventory quantity |
@@ -608,7 +843,7 @@ Cancel an order in your Shopify store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `orderId` | string | Yes | Order ID to cancel \(gid://shopify/Order/123456789\) |
 | `reason` | string | Yes | Cancellation reason \(CUSTOMER, DECLINED, FRAUD, INVENTORY, STAFF, OTHER\) |
 | `notifyCustomer` | boolean | No | Whether to notify the customer about the cancellation |
@@ -620,6 +855,20 @@ Cancel an order in your Shopify store
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `jobResult` | object | Cancellation outcome; pass its ID to Get Job until done, then inspect status and errors |
+|   ↳ `id` | string | Cancellation result GID; pass to Get Job |
+|   ↳ `done` | boolean | Whether the request has finished processing; inspect status and errors for the outcome |
+|   ↳ `status` | string | Current cancellation status |
+|   ↳ `errors` | array | Asynchronous cancellation errors |
+|     ↳ `field` | array | Input field path |
+|     ↳ `message` | string | Error message |
+|     ↳ `code` | string | Cancellation error code |
+|   ↳ `order` | object | Associated order |
+|     ↳ `id` | string | Order GID |
+|     ↳ `cancelledAt` | string | Cancellation timestamp, null until cancelled |
+| `job` | object | Legacy job progress; use jobResult to verify cancellation outcome |
+|   ↳ `id` | string | Job ID |
+|   ↳ `done` | boolean | Whether processing ran; this alone does not prove cancellation succeeded |
 | `order` | object | The cancellation result |
 |   ↳ `id` | string | Job identifier for the cancellation |
 |   ↳ `cancelled` | boolean | Whether the cancellation completed |
@@ -633,7 +882,12 @@ Create a new customer in your Shopify store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `locale` | string | No | Customer locale, such as en |
+| `taxExempt` | boolean | No | Whether the customer is exempt from taxes |
+| `metafields` | array | No | MetafieldInput array: namespace, key, type, value, or id |
+| `emailMarketingConsent` | json | No | CustomerEmailMarketingConsentInput with marketingState, marketingOptInLevel, consentUpdatedAt |
+| `smsMarketingConsent` | json | No | CustomerSmsMarketingConsentInput with marketingState, marketingOptInLevel, consentUpdatedAt |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `email` | string | No | Customer email address |
 | `firstName` | string | No | Customer first name |
 | `lastName` | string | No | Customer last name |
@@ -647,6 +901,14 @@ Create a new customer in your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customer` | object | The created customer |
+|   ↳ `emailMarketingConsent` | object | Email marketing consent |
+|     ↳ `marketingState` | string | Consent state |
+|     ↳ `marketingOptInLevel` | string | Opt-in level |
+|     ↳ `consentUpdatedAt` | string | Consent update timestamp |
+|   ↳ `smsMarketingConsent` | object | SMS marketing consent |
+|     ↳ `marketingState` | string | Consent state |
+|     ↳ `marketingOptInLevel` | string | Opt-in level |
+|     ↳ `consentUpdatedAt` | string | Consent update timestamp |
 |   ↳ `id` | string | Unique customer identifier \(GID\) |
 |   ↳ `email` | string | Customer email address |
 |   ↳ `firstName` | string | Customer first name |
@@ -656,6 +918,9 @@ Create a new customer in your Shopify store
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `note` | string | Internal notes about the customer |
 |   ↳ `tags` | array | Customer tags for categorization |
+|   ↳ `numberOfOrders` | string | Lifetime order count as an unsigned integer string |
+|   ↳ `locale` | string | Customer locale |
+|   ↳ `taxExempt` | boolean | Whether the customer is tax exempt |
 |   ↳ `amountSpent` | object | Total amount spent by customer |
 |     ↳ `amount` | string | Decimal money amount |
 |     ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
@@ -692,7 +957,7 @@ Get a single customer by ID from your Shopify store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `customerId` | string | Yes | Customer ID \(gid://shopify/Customer/123456789\) |
 
 #### Output
@@ -700,6 +965,14 @@ Get a single customer by ID from your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customer` | object | The customer details |
+|   ↳ `emailMarketingConsent` | object | Email marketing consent |
+|     ↳ `marketingState` | string | Consent state |
+|     ↳ `marketingOptInLevel` | string | Opt-in level |
+|     ↳ `consentUpdatedAt` | string | Consent update timestamp |
+|   ↳ `smsMarketingConsent` | object | SMS marketing consent |
+|     ↳ `marketingState` | string | Consent state |
+|     ↳ `marketingOptInLevel` | string | Opt-in level |
+|     ↳ `consentUpdatedAt` | string | Consent update timestamp |
 |   ↳ `id` | string | Unique customer identifier \(GID\) |
 |   ↳ `email` | string | Customer email address |
 |   ↳ `firstName` | string | Customer first name |
@@ -709,6 +982,9 @@ Get a single customer by ID from your Shopify store
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `note` | string | Internal notes about the customer |
 |   ↳ `tags` | array | Customer tags for categorization |
+|   ↳ `numberOfOrders` | string | Lifetime order count as an unsigned integer string |
+|   ↳ `locale` | string | Customer locale |
+|   ↳ `taxExempt` | boolean | Whether the customer is tax exempt |
 |   ↳ `amountSpent` | object | Total amount spent by customer |
 |     ↳ `amount` | string | Decimal money amount |
 |     ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
@@ -745,7 +1021,10 @@ List customers from your Shopify store with optional filtering
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `reverse` | boolean | No | Reverse the result sort order \(default false\) |
+| `sortKey` | string | No | Sort results by CREATED_AT, ID, LOCATION, NAME, RELEVANCE, UPDATED_AT \(default Shopify ordering\) |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `after` | string | No | Cursor from pageInfo.endCursor to retrieve the next page |
 | `first` | number | No | Number of customers to return \(default: 50, max: 250\) |
 | `query` | string | No | Search query to filter customers \(e.g., "first_name:John" or "last_name:Smith" or "email:*@gmail.com" or "tag:vip"\) |
 
@@ -754,43 +1033,9 @@ List customers from your Shopify store with optional filtering
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customers` | array | List of customers |
-|   ↳ `id` | string | Unique customer identifier \(GID\) |
-|   ↳ `email` | string | Customer email address |
-|   ↳ `firstName` | string | Customer first name |
-|   ↳ `lastName` | string | Customer last name |
-|   ↳ `phone` | string | Customer phone number |
-|   ↳ `createdAt` | string | Account creation timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
-|   ↳ `note` | string | Internal notes about the customer |
-|   ↳ `tags` | array | Customer tags for categorization |
-|   ↳ `amountSpent` | object | Total amount spent by customer |
-|     ↳ `amount` | string | Decimal money amount |
-|     ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|   ↳ `addresses` | array | Customer addresses |
-|     ↳ `firstName` | string | First name |
-|     ↳ `lastName` | string | Last name |
-|     ↳ `address1` | string | Street address line 1 |
-|     ↳ `address2` | string | Street address line 2 |
-|     ↳ `city` | string | City |
-|     ↳ `province` | string | Province or state name |
-|     ↳ `provinceCode` | string | Province or state code |
-|     ↳ `country` | string | Country name |
-|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
-|     ↳ `zip` | string | Postal or ZIP code |
-|     ↳ `phone` | string | Phone number |
-|   ↳ `defaultAddress` | object | Customer default address |
-|     ↳ `firstName` | string | First name |
-|     ↳ `lastName` | string | Last name |
-|     ↳ `address1` | string | Street address line 1 |
-|     ↳ `address2` | string | Street address line 2 |
-|     ↳ `city` | string | City |
-|     ↳ `province` | string | Province or state name |
-|     ↳ `provinceCode` | string | Province or state code |
-|     ↳ `country` | string | Country name |
-|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
-|     ↳ `zip` | string | Postal or ZIP code |
-|     ↳ `phone` | string | Phone number |
 | `pageInfo` | object | Pagination information |
+|   ↳ `startCursor` | string | Cursor at the start of this page |
+|   ↳ `endCursor` | string | Cursor to pass as after for the next page |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
@@ -802,7 +1047,13 @@ Update an existing customer in your Shopify store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `addresses` | array | No | MailingAddressInput array; replacing addresses is deprecated by Shopify |
+| `locale` | string | No | Customer locale, such as en |
+| `taxExempt` | boolean | No | Whether the customer is exempt from taxes |
+| `metafields` | array | No | MetafieldInput array: namespace, key, type, value, or id |
+| `emailMarketingConsent` | json | No | CustomerEmailMarketingConsentInput with marketingState, marketingOptInLevel, consentUpdatedAt |
+| `smsMarketingConsent` | json | No | CustomerSmsMarketingConsentInput with marketingState, marketingOptInLevel, consentUpdatedAt |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `customerId` | string | Yes | Customer ID to update \(gid://shopify/Customer/123456789\) |
 | `email` | string | No | New customer email address |
 | `firstName` | string | No | New customer first name |
@@ -816,6 +1067,14 @@ Update an existing customer in your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customer` | object | The updated customer |
+|   ↳ `emailMarketingConsent` | object | Email marketing consent |
+|     ↳ `marketingState` | string | Consent state |
+|     ↳ `marketingOptInLevel` | string | Opt-in level |
+|     ↳ `consentUpdatedAt` | string | Consent update timestamp |
+|   ↳ `smsMarketingConsent` | object | SMS marketing consent |
+|     ↳ `marketingState` | string | Consent state |
+|     ↳ `marketingOptInLevel` | string | Opt-in level |
+|     ↳ `consentUpdatedAt` | string | Consent update timestamp |
 |   ↳ `id` | string | Unique customer identifier \(GID\) |
 |   ↳ `email` | string | Customer email address |
 |   ↳ `firstName` | string | Customer first name |
@@ -825,6 +1084,9 @@ Update an existing customer in your Shopify store
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `note` | string | Internal notes about the customer |
 |   ↳ `tags` | array | Customer tags for categorization |
+|   ↳ `numberOfOrders` | string | Lifetime order count as an unsigned integer string |
+|   ↳ `locale` | string | Customer locale |
+|   ↳ `taxExempt` | boolean | Whether the customer is tax exempt |
 |   ↳ `amountSpent` | object | Total amount spent by customer |
 |     ↳ `amount` | string | Decimal money amount |
 |     ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
@@ -861,7 +1123,7 @@ Delete a customer from your Shopify store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `customerId` | string | Yes | Customer ID to delete \(gid://shopify/Customer/123456789\) |
 
 #### Output
@@ -878,7 +1140,9 @@ List inventory items from your Shopify store. Use this to find inventory item ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `reverse` | boolean | No | Reverse the result sort order \(default false\) |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `after` | string | No | Cursor from pageInfo.endCursor to retrieve the next page |
 | `first` | number | No | Number of inventory items to return \(default: 50, max: 250\) |
 | `query` | string | No | Search query to filter inventory items \(e.g., "sku:ABC123"\) |
 
@@ -898,13 +1162,21 @@ List inventory items from your Shopify store. Use this to find inventory item ID
 |     ↳ `product` | object | Associated product |
 |       ↳ `id` | string | Product identifier \(GID\) |
 |       ↳ `title` | string | Product title |
+|   ↳ `inventoryLevelsPageInfo` | object | Pagination for location summary; use Get Inventory Level for subsequent pages |
+|     ↳ `startCursor` | string | Cursor at the start of this page |
+|     ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|     ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|     ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |   ↳ `inventoryLevels` | array | Inventory levels at different locations |
 |     ↳ `id` | string | Inventory level identifier \(GID\) |
 |     ↳ `available` | number | Available quantity |
+|     ↳ `onHand` | number | On-hand quantity |
 |     ↳ `location` | object | Location for this inventory level |
 |       ↳ `id` | string | Location identifier \(GID\) |
 |       ↳ `name` | string | Location name |
 | `pageInfo` | object | Pagination information |
+|   ↳ `startCursor` | string | Cursor at the start of this page |
+|   ↳ `endCursor` | string | Cursor to pass as after for the next page |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
@@ -916,7 +1188,9 @@ Get inventory level for a product variant at a specific location
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `first` | number | No | Locations per page when locationId is omitted \(default 50, max 250\) |
+| `after` | string | No | Cursor from inventoryLevel.pageInfo.endCursor |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `inventoryItemId` | string | Yes | Inventory item ID \(gid://shopify/InventoryItem/123456789\) |
 | `locationId` | string | No | Location ID to filter by \(optional\) |
 
@@ -925,6 +1199,11 @@ Get inventory level for a product variant at a specific location
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `inventoryLevel` | object | The inventory level details |
+|   ↳ `pageInfo` | object | Location pagination when no locationId is supplied |
+|     ↳ `startCursor` | string | Cursor at the start of this page |
+|     ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|     ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|     ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |   ↳ `id` | string | Inventory item identifier \(GID\) |
 |   ↳ `sku` | string | Stock keeping unit |
 |   ↳ `tracked` | boolean | Whether inventory is tracked |
@@ -947,7 +1226,13 @@ Adjust inventory quantity for a product variant at a specific location
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `idempotencyKey` | string | No | Unique key for this adjustment; reuse the same key when retrying the same change |
+| `reason` | string | No | Inventory reason, e.g. correction, received, damaged, or promotion \(default correction\) |
+| `name` | string | No | Inventory quantity to adjust: available or on_hand \(default available\) |
+| `referenceDocumentUri` | string | No | URI identifying the source document for this adjustment |
+| `changeFromQuantity` | number | No | Expected current quantity; prevents applying an adjustment to stale stock |
+| `ledgerDocumentUri` | string | No | Ledger entry URI; required when adjusting on_hand |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `inventoryItemId` | string | Yes | Inventory item ID \(gid://shopify/InventoryItem/123456789\) |
 | `locationId` | string | Yes | Location ID \(gid://shopify/Location/123456789\) |
 | `delta` | number | Yes | Amount to adjust \(positive to increase, negative to decrease\) |
@@ -960,10 +1245,11 @@ Adjust inventory quantity for a product variant at a specific location
 |   ↳ `adjustmentGroup` | object | Inventory adjustment group details |
 |     ↳ `createdAt` | string | Adjustment timestamp \(ISO 8601\) |
 |     ↳ `reason` | string | Adjustment reason |
+|     ↳ `referenceDocumentUri` | string | Source document URI |
 |   ↳ `changes` | array | Inventory changes applied |
 |     ↳ `name` | string | Quantity name \(e.g., available\) |
 |     ↳ `delta` | number | Quantity change amount |
-|     ↳ `quantityAfterChange` | number | Quantity after adjustment |
+|     ↳ `quantityAfterChange` | number | Quantity after adjustment, when available |
 |     ↳ `item` | object | Inventory item |
 |       ↳ `id` | string | Inventory item identifier \(GID\) |
 |       ↳ `sku` | string | Stock keeping unit |
@@ -979,7 +1265,12 @@ List inventory locations from your Shopify store. Use this to find location IDs 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `reverse` | boolean | No | Reverse the result sort order \(default false\) |
+| `sortKey` | string | No | Sort results by ID, NAME, RELEVANCE \(default Shopify ordering\) |
+| `query` | string | No | Shopify location search query, e.g. name:Warehouse |
+| `includeLegacy` | boolean | No | Include legacy fulfillment-service locations \(default false\) |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `after` | string | No | Cursor from pageInfo.endCursor to retrieve the next page |
 | `first` | number | No | Number of locations to return \(default: 50, max: 250\) |
 | `includeInactive` | boolean | No | Whether to include deactivated locations \(default: false\) |
 
@@ -993,30 +1284,26 @@ List inventory locations from your Shopify store. Use this to find location IDs 
 |   ↳ `isActive` | boolean | Whether the location is active |
 |   ↳ `fulfillsOnlineOrders` | boolean | Whether the location fulfills online orders |
 |   ↳ `address` | object | Location address |
-|     ↳ `firstName` | string | First name |
-|     ↳ `lastName` | string | Last name |
-|     ↳ `address1` | string | Street address line 1 |
-|     ↳ `address2` | string | Street address line 2 |
-|     ↳ `city` | string | City |
-|     ↳ `province` | string | Province or state name |
-|     ↳ `provinceCode` | string | Province or state code |
-|     ↳ `country` | string | Country name |
-|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
-|     ↳ `zip` | string | Postal or ZIP code |
-|     ↳ `phone` | string | Phone number |
 | `pageInfo` | object | Pagination information |
+|   ↳ `startCursor` | string | Cursor at the start of this page |
+|   ↳ `endCursor` | string | Cursor to pass as after for the next page |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
 ### Shopify Create Fulfillment
 
-Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (get this from the order details).
+Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (use List Fulfillment Orders to find it).
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `fulfillmentOrderLineItems` | array | No | Partial fulfillment items as \[\{id: "gid://shopify/FulfillmentOrderLineItem/123", quantity: 1\}\]; omit to fulfill all remaining items |
+| `message` | string | No | Message associated with the fulfillment |
+| `originAddress` | json | No | FulfillmentOriginAddressInput with address1, address2, city, countryCode, provinceCode, zip |
+| `trackingNumbers` | array | No | Multiple tracking numbers as a JSON string array |
+| `trackingUrls` | array | No | Multiple tracking URLs as a JSON string array |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `fulfillmentOrderId` | string | Yes | The fulfillment order ID \(e.g., gid://shopify/FulfillmentOrder/123456789\) |
 | `trackingNumber` | string | No | Tracking number for the shipment |
 | `trackingCompany` | string | No | Shipping carrier name \(e.g., UPS, FedEx, USPS, DHL\) |
@@ -1028,6 +1315,11 @@ Create a fulfillment to mark order items as shipped. Requires a fulfillment orde
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `fulfillment` | object | The created fulfillment with tracking info and fulfilled items |
+|   ↳ `lineItemsPageInfo` | object | Fulfillment item pagination; use Get Fulfillment for subsequent pages |
+|     ↳ `startCursor` | string | Cursor at the start of this page |
+|     ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|     ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|     ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |   ↳ `id` | string | Unique fulfillment identifier \(GID\) |
 |   ↳ `status` | string | Fulfillment status \(pending, open, success, cancelled, error, failure\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
@@ -1050,7 +1342,10 @@ List product collections from your Shopify store. Filter by title, type (custom/
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `reverse` | boolean | No | Reverse the result sort order \(default false\) |
+| `sortKey` | string | No | Sort results by ID, RELEVANCE, TITLE, UPDATED_AT \(default Shopify ordering\) |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `after` | string | No | Cursor from pageInfo.endCursor to retrieve the next page |
 | `first` | number | No | Number of collections to return \(default: 50, max: 250\) |
 | `query` | string | No | Search query to filter collections \(e.g., "title:Summer" or "collection_type:smart"\) |
 
@@ -1072,8 +1367,301 @@ List product collections from your Shopify store. Filter by title, type (custom/
 |     ↳ `url` | string | Image URL |
 |     ↳ `altText` | string | Alternative text for accessibility |
 | `pageInfo` | object | Pagination information |
+|   ↳ `startCursor` | string | Cursor at the start of this page |
+|   ↳ `endCursor` | string | Cursor to pass as after for the next page |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
+
+### Shopify List Fulfillment Orders
+
+Find fulfillment order IDs and remaining items for an order at merchant-managed locations
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | No | Shop domain supplied by the connected credential \(store.myshopify.com\) |
+| `orderId` | string | Yes | Order GID to retrieve fulfillment orders for |
+| `first` | number | No | Results per page \(default 20, max 20\) |
+| `after` | string | No | Cursor from pageInfo.endCursor to continue |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fulfillmentOrders` | array | Fulfillment orders visible to the connected app |
+|   ↳ `id` | string | Fulfillment order GID to pass to Create Fulfillment |
+|   ↳ `orderId` | string | Associated order GID |
+|   ↳ `status` | string | Fulfillment order status |
+|   ↳ `requestStatus` | string | Fulfillment request status |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+|   ↳ `fulfillAt` | string | Earliest fulfillment timestamp |
+|   ↳ `fulfillBy` | string | Fulfillment deadline |
+|   ↳ `assignedLocation` | object | Assigned fulfillment location |
+|     ↳ `name` | string | Assigned location name |
+|     ↳ `location` | object | Current location |
+|       ↳ `id` | string | Location GID |
+|       ↳ `name` | string | Location name |
+|   ↳ `supportedActions` | array | Actions permitted for this fulfillment order |
+|     ↳ `action` | string | Permitted action |
+|     ↳ `externalUrl` | string | External fulfillment URL when applicable |
+|   ↳ `lineItems` | object | Fulfillment order item page; use Get Fulfillment Order to continue |
+|     ↳ `pageInfo` | object | Line item pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
+|     ↳ `edges` | array | Fulfillment order item edges |
+|       ↳ `node` | object | Fulfillment order line item |
+|         ↳ `id` | string | Fulfillment order line item GID for partial fulfillment |
+|         ↳ `totalQuantity` | number | Total quantity assigned |
+|         ↳ `remainingQuantity` | number | Quantity still to fulfill |
+|         ↳ `inventoryItemId` | string | Inventory item GID |
+|         ↳ `productTitle` | string | Product title |
+|         ↳ `variantTitle` | string | Variant title |
+|         ↳ `sku` | string | SKU |
+|         ↳ `lineItem` | object | Original order line item |
+|           ↳ `id` | string | Order line item GID |
+| `pageInfo` | object | Fulfillment order pagination |
+|   ↳ `startCursor` | string | Cursor at the start of this page |
+|   ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
+
+### Shopify Get Fulfillment Order
+
+Read a fulfillment order and one page of line items for partial fulfillment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | No | Shop domain supplied by the connected credential \(store.myshopify.com\) |
+| `fulfillmentOrderId` | string | Yes | Fulfillment order GID |
+| `first` | number | No | Results per page \(default 50, max 250\) |
+| `after` | string | No | Cursor from pageInfo.endCursor to continue |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fulfillmentOrder` | object | Fulfillment order with remaining quantities and item pagination |
+|   ↳ `id` | string | Fulfillment order GID to pass to Create Fulfillment |
+|   ↳ `orderId` | string | Associated order GID |
+|   ↳ `status` | string | Fulfillment order status |
+|   ↳ `requestStatus` | string | Fulfillment request status |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+|   ↳ `fulfillAt` | string | Earliest fulfillment timestamp |
+|   ↳ `fulfillBy` | string | Fulfillment deadline |
+|   ↳ `assignedLocation` | object | Assigned fulfillment location |
+|     ↳ `name` | string | Assigned location name |
+|     ↳ `location` | object | Current location |
+|       ↳ `id` | string | Location GID |
+|       ↳ `name` | string | Location name |
+|   ↳ `supportedActions` | array | Actions permitted for this fulfillment order |
+|     ↳ `action` | string | Permitted action |
+|     ↳ `externalUrl` | string | External fulfillment URL when applicable |
+|   ↳ `lineItems` | object | Fulfillment order item page; use Get Fulfillment Order to continue |
+|     ↳ `pageInfo` | object | Line item pagination |
+|       ↳ `startCursor` | string | Cursor at the start of this page |
+|       ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|       ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|       ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
+|     ↳ `edges` | array | Fulfillment order item edges |
+|       ↳ `node` | object | Fulfillment order line item |
+|         ↳ `id` | string | Fulfillment order line item GID for partial fulfillment |
+|         ↳ `totalQuantity` | number | Total quantity assigned |
+|         ↳ `remainingQuantity` | number | Quantity still to fulfill |
+|         ↳ `inventoryItemId` | string | Inventory item GID |
+|         ↳ `productTitle` | string | Product title |
+|         ↳ `variantTitle` | string | Variant title |
+|         ↳ `sku` | string | SKU |
+|         ↳ `lineItem` | object | Original order line item |
+|           ↳ `id` | string | Order line item GID |
+
+### Shopify Get Job
+
+Read Shopify job progress or the outcome and errors of an order cancellation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | No | Shop domain supplied by the connected credential \(store.myshopify.com\) |
+| `jobId` | string | Yes | jobResult.id \(OrderCancelJobResult GID\) for cancellation outcome, or a legacy Job GID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobResult` | object | Cancellation outcome when using an OrderCancelJobResult ID |
+|   ↳ `id` | string | Cancellation result GID; pass to Get Job |
+|   ↳ `done` | boolean | Whether the request has finished processing; inspect status and errors for the outcome |
+|   ↳ `status` | string | Current cancellation status |
+|   ↳ `errors` | array | Asynchronous cancellation errors |
+|     ↳ `field` | array | Input field path |
+|     ↳ `message` | string | Error message |
+|     ↳ `code` | string | Cancellation error code |
+|   ↳ `order` | object | Associated order |
+|     ↳ `id` | string | Order GID |
+|     ↳ `cancelledAt` | string | Cancellation timestamp, null until cancelled |
+| `job` | object | Asynchronous job status |
+|   ↳ `id` | string | Job GID |
+|   ↳ `done` | boolean | Whether processing ran; inspect cancellation result for success |
+
+### Shopify Create Product Variants
+
+Create product variants with pricing, options, inventory attributes, and metafields
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | No | Shop domain supplied by the connected credential \(store.myshopify.com\) |
+| `productId` | string | Yes | Product GID |
+| `variants` | array | Yes | ProductVariantsBulkInput array \(1-250\): optionValues for creation, price, compareAtPrice, inventoryItem, taxable, inventoryPolicy, metafields |
+| `strategy` | string | No | DEFAULT, REMOVE_STANDALONE_VARIANT, or PRESERVE_STANDALONE_VARIANT |
+| `media` | array | No | CreateMediaInput array with originalSource, mediaContentType, and alt |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `productVariants` | array | Variants successfully created or updated |
+|   ↳ `id` | string | Unique variant identifier \(GID\) |
+|   ↳ `title` | string | Variant title |
+|   ↳ `price` | string | Variant price |
+|   ↳ `barcode` | string | Variant barcode |
+|   ↳ `taxable` | boolean | Whether the variant is taxable |
+|   ↳ `inventoryPolicy` | string | Inventory policy \(DENY or CONTINUE\) |
+|   ↳ `inventoryItem` | object | Inventory item for stock operations |
+|     ↳ `id` | string | Inventory item GID |
+|     ↳ `sku` | string | SKU |
+|     ↳ `tracked` | boolean | Whether stock is tracked |
+|   ↳ `selectedOptions` | array | Selected product options |
+|     ↳ `name` | string | Option name |
+|     ↳ `value` | string | Selected value |
+|   ↳ `compareAtPrice` | string | Compare at price |
+|   ↳ `sku` | string | Stock keeping unit |
+|   ↳ `inventoryQuantity` | number | Available inventory quantity |
+| `userErrors` | array | Validation errors, including partial update failures |
+|   ↳ `field` | array | Input field path |
+|   ↳ `message` | string | Validation error |
+
+### Shopify Update Product Variants
+
+Update product variants with pricing, options, inventory attributes, and metafields
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | No | Shop domain supplied by the connected credential \(store.myshopify.com\) |
+| `productId` | string | Yes | Product GID |
+| `variants` | array | Yes | ProductVariantsBulkInput array \(1-250\): id for updates, price, compareAtPrice, inventoryItem, optionValues, taxable, inventoryPolicy, metafields |
+| `allowPartialUpdates` | boolean | No | Allow valid variants to update even if other variants fail |
+| `media` | array | No | CreateMediaInput array with originalSource, mediaContentType, and alt |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `productVariants` | array | Variants successfully created or updated |
+|   ↳ `id` | string | Unique variant identifier \(GID\) |
+|   ↳ `title` | string | Variant title |
+|   ↳ `price` | string | Variant price |
+|   ↳ `barcode` | string | Variant barcode |
+|   ↳ `taxable` | boolean | Whether the variant is taxable |
+|   ↳ `inventoryPolicy` | string | Inventory policy \(DENY or CONTINUE\) |
+|   ↳ `inventoryItem` | object | Inventory item for stock operations |
+|     ↳ `id` | string | Inventory item GID |
+|     ↳ `sku` | string | SKU |
+|     ↳ `tracked` | boolean | Whether stock is tracked |
+|   ↳ `selectedOptions` | array | Selected product options |
+|     ↳ `name` | string | Option name |
+|     ↳ `value` | string | Selected value |
+|   ↳ `compareAtPrice` | string | Compare at price |
+|   ↳ `sku` | string | Stock keeping unit |
+|   ↳ `inventoryQuantity` | number | Available inventory quantity |
+| `userErrors` | array | Validation errors, including partial update failures |
+|   ↳ `field` | array | Input field path |
+|   ↳ `message` | string | Validation error |
+
+### Shopify Get Fulfillment
+
+Read shipment tracking and one page of fulfilled line items
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | No | Shop domain supplied by the connected credential \(store.myshopify.com\) |
+| `fulfillmentId` | string | Yes | Fulfillment GID |
+| `first` | number | No | Results per page \(default 50, max 250\) |
+| `after` | string | No | Cursor from pageInfo.endCursor to continue |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fulfillment` | object | Shipment tracking and line item page |
+|   ↳ `lineItemsPageInfo` | object | Fulfillment item pagination; use Get Fulfillment for subsequent pages |
+|     ↳ `startCursor` | string | Cursor at the start of this page |
+|     ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|     ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|     ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
+|   ↳ `id` | string | Unique fulfillment identifier \(GID\) |
+|   ↳ `status` | string | Fulfillment status \(pending, open, success, cancelled, error, failure\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `trackingInfo` | array | Tracking information for shipments |
+|     ↳ `company` | string | Shipping carrier name |
+|     ↳ `number` | string | Tracking number |
+|     ↳ `url` | string | Tracking URL |
+|   ↳ `fulfillmentLineItems` | array | Fulfilled line items |
+|     ↳ `id` | string | Fulfillment line item identifier \(GID\) |
+|     ↳ `quantity` | number | Quantity fulfilled |
+|     ↳ `lineItem` | object | Associated order line item |
+|       ↳ `title` | string | Product title |
+
+### Shopify Update Fulfillment Tracking
+
+Update tracking numbers, URLs, or carrier for an existing fulfillment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | No | Shop domain supplied by the connected credential \(store.myshopify.com\) |
+| `fulfillmentId` | string | Yes | Fulfillment GID |
+| `trackingInfo` | json | Yes | FulfillmentTrackingInput object: company, number, url, or numbers and urls arrays |
+| `notifyCustomer` | boolean | No | Send the customer an updated shipment notification |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fulfillment` | object | Updated shipment tracking and line item page |
+|   ↳ `lineItemsPageInfo` | object | Fulfillment item pagination; use Get Fulfillment for subsequent pages |
+|     ↳ `startCursor` | string | Cursor at the start of this page |
+|     ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|     ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|     ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
+|   ↳ `id` | string | Unique fulfillment identifier \(GID\) |
+|   ↳ `status` | string | Fulfillment status \(pending, open, success, cancelled, error, failure\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `trackingInfo` | array | Tracking information for shipments |
+|     ↳ `company` | string | Shipping carrier name |
+|     ↳ `number` | string | Tracking number |
+|     ↳ `url` | string | Tracking URL |
+|   ↳ `fulfillmentLineItems` | array | Fulfilled line items |
+|     ↳ `id` | string | Fulfillment line item identifier \(GID\) |
+|     ↳ `quantity` | number | Quantity fulfilled |
+|     ↳ `lineItem` | object | Associated order line item |
+|       ↳ `title` | string | Product title |
 
 ### Shopify Get Collection
 
@@ -1083,7 +1671,8 @@ Get a specific collection by ID, including its products. Use this to retrieve pr
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `productsAfter` | string | No | Cursor from products.pageInfo.endCursor for the next page |
+| `shopDomain` | string | No | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
 | `collectionId` | string | Yes | The collection ID \(e.g., gid://shopify/Collection/123456789\) |
 | `productsFirst` | number | No | Number of products to return from this collection \(default: 50, max: 250\) |
 
@@ -1104,11 +1693,16 @@ Get a specific collection by ID, including its products. Use this to retrieve pr
 |     ↳ `id` | string | Unique image identifier \(GID\) |
 |     ↳ `url` | string | Image URL |
 |     ↳ `altText` | string | Alternative text for accessibility |
+|   ↳ `productsPageInfo` | object | Pagination for collection products; use productsAfter |
+|     ↳ `startCursor` | string | Cursor at the start of this page |
+|     ↳ `endCursor` | string | Cursor to pass as after for the next page |
+|     ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|     ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 |   ↳ `products` | array | Products in the collection |
 |     ↳ `id` | string | Unique product identifier \(GID\) |
 |     ↳ `title` | string | Product title |
 |     ↳ `handle` | string | URL-friendly product identifier |
-|     ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|     ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED, UNLISTED\) |
 |     ↳ `vendor` | string | Product vendor |
 |     ↳ `productType` | string | Product type classification |
 |     ↳ `totalInventory` | number | Total inventory across all variants |

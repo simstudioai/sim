@@ -1,10 +1,10 @@
-import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import {
   INVENTORY_ITEM_OUTPUT_PROPERTIES,
   PAGE_INFO_OUTPUT_PROPERTIES,
   type ShopifyInventoryItemsResponse,
   type ShopifyListInventoryItemsParams,
 } from '@/tools/shopify/types'
+import { getShopifyHeaders, getShopifyPageSize, getShopifyUrl } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const shopifyListInventoryItemsTool: ToolConfig<
@@ -20,14 +20,34 @@ export const shopifyListInventoryItemsTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'shopify',
+    authoritativeParams: ['domain', 'idToken'],
   },
 
   params: {
-    shopDomain: {
+    reverse: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Reverse the result sort order (default false)',
+    },
+
+    accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
+      description: 'Shopify Admin API token supplied by the connected credential',
+    },
+    shopDomain: {
+      type: 'string',
+      required: false,
       visibility: 'user-only',
       description: 'Your Shopify store domain (e.g., mystore.myshopify.com)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor from pageInfo.endCursor to retrieve the next page',
     },
     first: {
       type: 'number',
@@ -44,25 +64,16 @@ export const shopifyListInventoryItemsTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+    url: getShopifyUrl,
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for Shopify API request')
-      }
-      return {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': params.accessToken,
-      }
-    },
+    headers: getShopifyHeaders,
     body: (params) => {
-      const first = Math.min(params.first || 50, 250)
+      const first = getShopifyPageSize(params.first)
 
       return {
         query: `
-          query listInventoryItems($first: Int!, $query: String) {
-            inventoryItems(first: $first, query: $query) {
+          query listInventoryItems($first: Int!, $after: String, $query: String, $reverse: Boolean) {
+            inventoryItems(first: $first, after: $after, query: $query, reverse: $reverse) {
               edges {
                 node {
                   id
@@ -79,6 +90,12 @@ export const shopifyListInventoryItemsTool: ToolConfig<
                     }
                   }
                   inventoryLevels(first: 10) {
+                    pageInfo {
+                      hasNextPage
+                      hasPreviousPage
+                      startCursor
+                      endCursor
+                    }
                     edges {
                       node {
                         id
@@ -98,12 +115,18 @@ export const shopifyListInventoryItemsTool: ToolConfig<
               pageInfo {
                 hasNextPage
                 hasPreviousPage
+                startCursor
+                endCursor
               }
             }
           }
+
         `,
         variables: {
+          reverse: params.reverse ?? false,
+
           first,
+          after: params.after?.trim() || null,
           query: params.query || null,
         },
       }
@@ -113,10 +136,10 @@ export const shopifyListInventoryItemsTool: ToolConfig<
   transformResponse: async (response) => {
     const data = await response.json()
 
-    if (data.errors) {
+    if (!response.ok || data.errors?.length) {
       return {
         success: false,
-        error: data.errors[0]?.message || 'Failed to list inventory items',
+        error: data.errors?.[0]?.message || 'Failed to list inventory items',
         output: {},
       }
     }
@@ -147,6 +170,12 @@ export const shopifyListInventoryItemsTool: ToolConfig<
             }
           }
           inventoryLevels: {
+            pageInfo: {
+              hasNextPage: boolean
+              hasPreviousPage: boolean
+              startCursor: string | null
+              endCursor: string | null
+            }
             edges: Array<{
               node: {
                 id: string
@@ -158,7 +187,7 @@ export const shopifyListInventoryItemsTool: ToolConfig<
         }
       }) => {
         const node = edge.node
-        // Transform inventory levels to include available quantity
+
         const inventoryLevels = node.inventoryLevels.edges.map((levelEdge) => {
           const levelNode = levelEdge.node
           const availableQty =
@@ -166,6 +195,7 @@ export const shopifyListInventoryItemsTool: ToolConfig<
           return {
             id: levelNode.id,
             available: availableQty,
+            onHand: levelNode.quantities.find((q) => q.name === 'on_hand')?.quantity ?? 0,
             location: levelNode.location,
           }
         })
@@ -178,6 +208,7 @@ export const shopifyListInventoryItemsTool: ToolConfig<
           updatedAt: node.updatedAt,
           variant: node.variant,
           inventoryLevels,
+          inventoryLevelsPageInfo: node.inventoryLevels.pageInfo,
         }
       }
     )

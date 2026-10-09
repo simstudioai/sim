@@ -14,6 +14,7 @@ import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { completeShopifyOAuthConnection } from '@/lib/oauth/shopify'
+import { ShopifyOAuthError } from '@/lib/oauth/shopify-installation'
 import { parseShopifyOAuthState } from '@/lib/oauth/shopify-state'
 
 const logger = createLogger('ShopifyCallback')
@@ -75,7 +76,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     })
 
     const {
-      values: { SHOPIFY_CLIENT_ID: clientId, SHOPIFY_CLIENT_SECRET: clientSecret },
+      values: { SHOPIFY_CLIENT_SECRET: clientSecret },
     } = requireConfiguredOAuthClient('shopify')
 
     if (!validateHmac(searchParams, clientSecret)) {
@@ -111,64 +112,31 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       clientSecret,
     })
 
-    const tokenResponse = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code: code,
-      }),
-    })
-
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text()
-      logger.error('Failed to exchange code for token:', {
-        status: tokenResponse.status,
-        body: errorText,
-      })
-      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_token_error`)
-    }
-
-    const tokenData = await tokenResponse.json()
-    const accessToken = tokenData.access_token
-    const scope = tokenData.scope
-
-    logger.info('Shopify token exchange successful:', {
-      hasAccessToken: !!accessToken,
-      scope: scope,
-    })
-
-    if (!accessToken) {
-      logger.error('No access token in response')
-      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_no_token`)
+    if (returnUrl && !isSameOrigin(returnUrl)) {
+      throw new Error('Shopify OAuth state contains an invalid return URL')
     }
 
     await completeShopifyOAuthConnection({
-      accessToken,
+      code,
       shopDomain,
-      scope,
       userId: session.user.id,
       draftId,
       signal: request.signal,
     })
 
-    if (returnUrl && !isSameOrigin(returnUrl)) {
-      throw new Error('Shopify OAuth state contains an invalid return URL')
-    }
     const redirectUrl = returnUrl ?? `${baseUrl}${APP_ENTRY_PATH}`
     const finalUrl = new URL(redirectUrl)
     finalUrl.searchParams.set('shopify_connected', 'true')
 
     return clearShopifyOAuthCookies(NextResponse.redirect(finalUrl))
   } catch (error) {
-    logger.error('Error in Shopify OAuth callback:', error)
+    logger.error('Shopify OAuth callback failed')
     const errorCode =
       error instanceof EnvCapabilityConfigurationError && error.capabilityId === 'oauth'
         ? 'shopify_config_error'
-        : 'shopify_callback_error'
+        : error instanceof ShopifyOAuthError
+          ? error.callbackError
+          : 'shopify_callback_error'
     return clearShopifyOAuthCookies(
       NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=${errorCode}`)
     )

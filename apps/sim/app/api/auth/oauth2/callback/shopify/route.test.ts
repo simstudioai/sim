@@ -58,17 +58,6 @@ describe('Shopify OAuth callback', () => {
       },
     })
     mockCompleteShopifyOAuthConnection.mockResolvedValue(undefined)
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(() =>
-        Promise.resolve(
-          new Response(JSON.stringify({ access_token: 'shopify-token', scope: 'read_products' }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
-      )
-    )
   })
 
   it('completes the credential draft carried by signed state instead of a shared cookie', async () => {
@@ -83,9 +72,8 @@ describe('Shopify OAuth callback', () => {
     const response = await GET(callbackRequest(state))
 
     expect(mockCompleteShopifyOAuthConnection).toHaveBeenCalledWith({
-      accessToken: 'shopify-token',
+      code: 'authorization-code',
       shopDomain: SHOP_DOMAIN,
-      scope: 'read_products',
       userId: 'user-1',
       draftId: 'draft-from-state',
       signal: expect.any(AbortSignal),
