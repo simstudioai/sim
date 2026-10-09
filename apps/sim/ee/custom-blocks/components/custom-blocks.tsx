@@ -82,7 +82,7 @@ export function CustomBlocks() {
 
   if (entitlementError && canManage === undefined) {
     return (
-      <SettingsEmptyState tone='error'>
+      <SettingsEmptyState>
         {getErrorMessage(entitlementError, 'Failed to load custom block access')}
       </SettingsEmptyState>
     )

@@ -6,6 +6,7 @@ import { shouldRetrySettingsRead } from '@/hooks/queries/utils/settings-read-ret
 
 const ORGANIZATION_PLAN_SEATS_STALE_TIME = 30 * 1000
 
+/** Shared cache options for plan access and seat reservations without usage analytics. */
 export function organizationPlanSeatsOptions(organizationId: string) {
   return queryOptions({
     queryKey: organizationKeys.planSeats(organizationId),
@@ -17,6 +18,7 @@ export function organizationPlanSeatsOptions(organizationId: string) {
   })
 }
 
+/** Reads plan access and seat reservations for settings and invitation flows. */
 export function useOrganizationPlanSeats(organizationId: string, options?: { enabled?: boolean }) {
   return useQuery({
     ...organizationPlanSeatsOptions(organizationId),

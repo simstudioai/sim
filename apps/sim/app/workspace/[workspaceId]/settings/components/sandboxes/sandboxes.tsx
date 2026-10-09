@@ -239,7 +239,7 @@ export function Sandboxes() {
   if (error && data === undefined) {
     return (
       <SettingsPanel>
-        <SettingsEmptyState tone='error'>
+        <SettingsEmptyState>
           {getErrorMessage(error, 'Failed to load sandboxes')}
         </SettingsEmptyState>
       </SettingsPanel>

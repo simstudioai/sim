@@ -728,8 +728,10 @@ const organizationPlanSeatsSchema = z.object({
   hasEnterprisePlan: z.boolean(),
 })
 
+/** Primary-backed plan access and canonical member/invitation seat reservations. */
 export type OrganizationPlanSeats = z.output<typeof organizationPlanSeatsSchema>
 
+/** Lightweight settings read that excludes usage-ledger aggregates. */
 export const getOrganizationPlanSeatsContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/billing-plan',

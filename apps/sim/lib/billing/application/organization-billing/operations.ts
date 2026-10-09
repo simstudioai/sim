@@ -2,11 +2,13 @@ import type { Principal } from '@sim/auth/principal'
 import type { ApplicationOperation } from '@/lib/core/application'
 import { assertOperationCapability } from '@/lib/core/application/operation'
 
+/** Acting session or delegated organization identity; workspace keys cannot manage billing. */
 export type OrganizationBillingPrincipal = Extract<
   Principal,
   { kind: 'session' | 'organization_delegated' }
 >
 
+/** Organization billing policy requiring current administrator or owner membership. */
 export interface OrganizationBillingOperation<Id extends string = string>
   extends ApplicationOperation<Id> {
   readonly organizationRoles: readonly ['admin', 'owner']
@@ -23,6 +25,7 @@ function defineOrganizationBillingOperation<const Id extends string>(
   return Object.freeze(operation)
 }
 
+/** Shared authorization policies for billing summaries and lightweight plan/seat reads. */
 export const organizationBillingOperations = {
   // permission-group-exempt: plan and seat management requires current organization administrator authority.
   planSeats: defineOrganizationBillingOperation({
