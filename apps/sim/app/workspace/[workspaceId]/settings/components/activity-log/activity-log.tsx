@@ -168,41 +168,43 @@ export function ActivityLog({
   const hasTrailingColumn = entries.some((entry) => entry.trailing != null)
 
   return (
-    <div className='min-w-0 overflow-x-auto'>
-      <div
-        className={cn(
-          'flex flex-col md:min-w-0',
-          hasTrailingColumn ? 'min-w-[800px]' : 'min-w-[700px]'
-        )}
-      >
-        <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
-          <span className='w-[160px] shrink-0'>Timestamp</span>
-          <span className={cn(EVENT_COLUMN_WIDTH_CLASS[eventColumn], 'shrink-0')}>
-            {eventLabel}
-          </span>
-          <span className='min-w-0 flex-1'>{descriptionLabel}</span>
-          <span className='w-[160px] shrink-0 text-right'>Actor</span>
-          {/* Row actions carry no header, but the column must still be reserved
+    <div className='min-w-0'>
+      <div className='overflow-x-auto'>
+        <div
+          className={cn(
+            'flex flex-col md:min-w-0',
+            hasTrailingColumn ? 'min-w-[800px]' : 'min-w-[700px]'
+          )}
+        >
+          <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
+            <span className='w-[160px] shrink-0'>Timestamp</span>
+            <span className={cn(EVENT_COLUMN_WIDTH_CLASS[eventColumn], 'shrink-0')}>
+              {eventLabel}
+            </span>
+            <span className='min-w-0 flex-1'>{descriptionLabel}</span>
+            <span className='w-[160px] shrink-0 text-right'>Actor</span>
+            {/* Row actions carry no header, but the column must still be reserved
             here or every label above would sit left of the data below it. */}
-          {hasTrailingColumn && (
-            <span className={cn(TRAILING_COLUMN_WIDTH_CLASS, 'shrink-0')} aria-hidden />
+            {hasTrailingColumn && (
+              <span className={cn(TRAILING_COLUMN_WIDTH_CLASS, 'shrink-0')} aria-hidden />
+            )}
+          </div>
+
+          {entries.length > 0 && (
+            <div className='flex flex-col gap-0.5'>
+              {entries.map((entry) => (
+                <ActivityLogRow
+                  key={entry.id}
+                  entry={entry}
+                  eventColumn={eventColumn}
+                  hasTrailingColumn={hasTrailingColumn}
+                />
+              ))}
+            </div>
           )}
         </div>
-
-        {entries.length > 0 && (
-          <div className='flex flex-col gap-0.5'>
-            {entries.map((entry) => (
-              <ActivityLogRow
-                key={entry.id}
-                entry={entry}
-                eventColumn={eventColumn}
-                hasTrailingColumn={hasTrailingColumn}
-              />
-            ))}
-            {footer}
-          </div>
-        )}
       </div>
+      {entries.length > 0 && footer && <div className='mt-0.5'>{footer}</div>}
       {entries.length === 0 && emptyState}
     </div>
   )

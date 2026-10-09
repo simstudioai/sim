@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { getTerminalHeight } from '@/lib/workflows/layout'
 
 interface UseFloatBoundarySyncProps {
   isOpen: boolean
@@ -58,7 +59,7 @@ export function useFloatBoundarySync({
   const checkAndUpdatePosition = useCallback(() => {
     const sidebarWidth = readBoundaryDimension('.sidebar-shell-outer', '--sidebar-width')
     const panelWidth = readBoundaryDimension('.panel-container', '--panel-width')
-    const terminalHeight = readBoundaryDimension('.terminal-container', '--terminal-height')
+    const terminalHeight = getTerminalHeight()
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
 
@@ -125,11 +126,16 @@ export function useFloatBoundarySync({
       if (el) observer.observe(el, { attributes: true, attributeFilter: ['style'] })
     }
 
+    const terminal = document.querySelector('.terminal-container')
+    const resizeObserver = new ResizeObserver(handleResize)
+    if (terminal) resizeObserver.observe(terminal)
+
     checkAndUpdatePosition()
 
     return () => {
       window.removeEventListener('resize', handleResize)
       observer.disconnect()
+      resizeObserver.disconnect()
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current)
       }

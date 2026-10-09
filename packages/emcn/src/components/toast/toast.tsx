@@ -749,7 +749,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                       ? `clamp(${BOUNDARY_INSET_PX}px, ${viewportInsets.right + BOUNDARY_INSET_PX}px, max(${BOUNDARY_INSET_PX}px, calc(100vw - ${viewportInsets.left}px - ${TOAST_WIDTH} - ${BOUNDARY_INSET_PX}px)))`
                       : `${VIEWPORT_INSET_PX}px`,
                     bottom: viewportInsets
-                      ? `clamp(${BOUNDARY_INSET_PX}px, ${viewportInsets.bottom + BOUNDARY_INSET_PX}px, max(${BOUNDARY_INSET_PX}px, calc(100dvh - ${containerHeight}px - ${BOUNDARY_INSET_PX}px)))`
+                      ? `max(env(safe-area-inset-bottom), clamp(${BOUNDARY_INSET_PX}px, ${viewportInsets.bottom + BOUNDARY_INSET_PX}px, max(${BOUNDARY_INSET_PX}px, calc(100dvh - ${containerHeight}px - ${BOUNDARY_INSET_PX}px))))`
                       : `max(${VIEWPORT_INSET_PX}px, env(safe-area-inset-bottom))`,
                     width: TOAST_WIDTH,
                     height: containerHeight,

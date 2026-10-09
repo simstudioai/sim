@@ -49,6 +49,7 @@ import {
 import {
   useFloatBoundarySync,
   useFloatDrag,
+  useFloatLayout,
   useFloatResize,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/float'
 import {
@@ -391,32 +392,19 @@ export function Chat() {
   const shouldShowConfigureStartInputsButton =
     Boolean(startBlockId) && missingStartReservedFields.length > 0
 
-  const isFloatingLayout = useCallback(() => {
-    const element = preventZoomRef.current
-    return element !== null && getComputedStyle(element).position === 'fixed'
-  }, [preventZoomRef])
+  const { isFloatingLayout, updatePosition, updateDimensions } = useFloatLayout({
+    ref: preventZoomRef,
+    onPositionChange: setChatPosition,
+    onDimensionsChange: setChatDimensions,
+  })
 
-  const updateDesktopPosition = useCallback(
-    (position: { x: number; y: number }) => {
-      if (isFloatingLayout()) setChatPosition(position)
-    },
-    [isFloatingLayout, setChatPosition]
-  )
-
-  const updateDesktopDimensions = useCallback(
-    (dimensions: { width: number; height: number }) => {
-      if (isFloatingLayout()) setChatDimensions(dimensions)
-    },
-    [isFloatingLayout, setChatDimensions]
-  )
-
-  const actualPosition = chatPosition ?? getChatPosition(null, chatWidth, chatHeight)
+  const actualPosition = getChatPosition(chatPosition, chatWidth, chatHeight)
 
   const { handleMouseDown } = useFloatDrag({
     position: actualPosition,
     width: chatWidth,
     height: chatHeight,
-    onPositionChange: updateDesktopPosition,
+    onPositionChange: updatePosition,
   })
 
   useFloatBoundarySync({
@@ -424,7 +412,7 @@ export function Chat() {
     position: actualPosition,
     width: chatWidth,
     height: chatHeight,
-    onPositionChange: updateDesktopPosition,
+    onPositionChange: updatePosition,
   })
 
   const {
@@ -436,8 +424,8 @@ export function Chat() {
     position: actualPosition,
     width: chatWidth,
     height: chatHeight,
-    onPositionChange: updateDesktopPosition,
-    onDimensionsChange: updateDesktopDimensions,
+    onPositionChange: updatePosition,
+    onDimensionsChange: updateDimensions,
   })
 
   const workflowMessages = useMemo(() => {

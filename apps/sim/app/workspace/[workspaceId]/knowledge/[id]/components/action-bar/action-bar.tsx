@@ -52,7 +52,7 @@ export function ActionBar({
         exit={{ opacity: 0, y: 10 }}
         transition={{ duration: 0.2 }}
         className={cn(
-          '-translate-x-1/2 fixed bottom-6 left-1/2 z-[var(--z-dropdown)] max-md:max-w-[calc(100%-2rem)]',
+          '-translate-x-1/2 fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-[var(--z-dropdown)] max-md:max-w-[calc(100%-2rem)]',
           className
         )}
       >

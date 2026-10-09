@@ -22,11 +22,6 @@ vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components
   ChatMessage: () => null,
   OutputSelect: () => null,
 }))
-vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/hooks/float', () => ({
-  useFloatDrag: () => ({}),
-  useFloatBoundarySync: () => {},
-  useFloatResize: () => ({}),
-}))
 
 let root: Root
 let container: HTMLDivElement

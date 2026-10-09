@@ -5,6 +5,7 @@ import { Button, cn, Input, toast } from '@sim/emcn'
 import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
+import { getTerminalHeight } from '@/lib/workflows/layout'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
 import {
@@ -32,6 +33,7 @@ import {
 import {
   useFloatBoundarySync,
   useFloatDrag,
+  useFloatLayout,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/float'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getBlock } from '@/blocks'
@@ -73,9 +75,7 @@ function constrainSearchPanelPosition(position: { x: number; y: number }, height
   const panelWidth = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
   )
-  const terminalHeight = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
-  )
+  const terminalHeight = getTerminalHeight()
 
   return {
     x: Math.max(
@@ -160,6 +160,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
     collaborativeUpdateIterationCount,
   } = useCollaborativeWorkflow()
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const [isApplying, setIsApplying] = useState(false)
   const [isReplaceExpanded, setIsReplaceExpanded] = useState(false)
   const [resourceReplacementByContext, setResourceReplacementByContext] = useState<
@@ -288,16 +289,20 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
   const panelHeight = isReplaceExpanded
     ? SEARCH_PANEL_EXPANDED_HEIGHT
     : SEARCH_PANEL_COLLAPSED_HEIGHT
-  const actualPosition = useMemo(
-    () => constrainSearchPanelPosition(position ?? getDefaultSearchPanelPosition(), panelHeight),
-    [panelHeight, position]
+  const { isFloatingLayout, updatePosition } = useFloatLayout({
+    ref: panelRef,
+    onPositionChange: setPosition,
+  })
+  const actualPosition = constrainSearchPanelPosition(
+    position ?? getDefaultSearchPanelPosition(),
+    panelHeight
   )
 
   const { handleMouseDown } = useFloatDrag({
     position: actualPosition,
     width: SEARCH_PANEL_WIDTH,
     height: panelHeight,
-    onPositionChange: setPosition,
+    onPositionChange: updatePosition,
   })
 
   useFloatBoundarySync({
@@ -305,7 +310,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
     position: actualPosition,
     width: SEARCH_PANEL_WIDTH,
     height: panelHeight,
-    onPositionChange: setPosition,
+    onPositionChange: updatePosition,
   })
 
   const handleSelectMatch = useCallback(
@@ -553,7 +558,8 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
     <div
       role='dialog'
       aria-label='Search and replace'
-      className='fixed z-[var(--z-dropdown)] flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
+      ref={panelRef}
+      className='fixed @max-[960px]/workflow:absolute @max-[960px]/workflow:inset-x-0! @max-[960px]/workflow:top-0! z-[var(--z-dropdown)] flex @max-[960px]/workflow:max-h-full @max-[960px]/workflow:min-h-0! @max-[960px]/workflow:w-auto! flex-col overflow-hidden @max-[960px]/workflow:overflow-y-auto @max-[960px]/workflow:rounded-none rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -563,8 +569,10 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
     >
       <div
         role='presentation'
-        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
-        onMouseDown={handleMouseDown}
+        className='flex @max-[960px]/workflow:h-11 h-[32px] shrink-0 @max-[960px]/workflow:cursor-default cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
+        onMouseDown={(event) => {
+          if (isFloatingLayout()) handleMouseDown(event)
+        }}
       >
         <div className='flex min-w-0 items-center'>
           <span className='truncate text-[var(--text-primary)] text-small'>Search and replace</span>
@@ -578,7 +586,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
           <Button
             aria-label='Close search'
             variant='ghost'
-            className='size-[26px] p-0'
+            className='@max-[960px]/workflow:pointer-coarse:size-11 size-[26px] p-0'
             onClick={close}
           >
             <X className='size-[14px]' />
@@ -586,10 +594,10 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
         </div>
       </div>
 
-      <div className='grid grid-cols-[2rem_minmax(0,1fr)_2rem_2rem] items-start gap-1.5'>
+      <div className='grid @max-[960px]/workflow:pointer-coarse:grid-cols-[2.75rem_minmax(0,1fr)_2.75rem_2.75rem] grid-cols-[2rem_minmax(0,1fr)_2rem_2rem] items-start gap-1.5'>
         <Button
           variant='ghost'
-          className='size-8 p-0'
+          className='@max-[960px]/workflow:pointer-coarse:size-11 size-8 p-0'
           aria-label={isReplaceExpanded ? 'Hide replace controls' : 'Show replace controls'}
           onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
         >
@@ -614,7 +622,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
         <Button
           aria-label='Previous match'
           variant='ghost'
-          className='size-8 p-0'
+          className='@max-[960px]/workflow:pointer-coarse:size-11 size-8 p-0'
           disabled={hydratedMatches.length === 0}
           onClick={() => handleMoveActiveMatch(-1)}
         >
@@ -623,7 +631,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
         <Button
           aria-label='Next match'
           variant='ghost'
-          className='size-8 p-0'
+          className='@max-[960px]/workflow:pointer-coarse:size-11 size-8 p-0'
           disabled={hydratedMatches.length === 0}
           onClick={() => handleMoveActiveMatch(1)}
         >

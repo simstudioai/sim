@@ -91,6 +91,7 @@ import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { captureBaselineSnapshot } from '@/stores/workflow-diff/utils'
+import { useWorkflowSearchReplaceStore } from '@/stores/workflow-search-replace/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -305,6 +306,9 @@ export const Panel = memo(function Panel() {
       setIsOpen: state.setIsOpen,
     }))
   )
+
+  const isSearchOpen = useWorkflowSearchReplaceStore((state) => state.isOpen)
+  const hasCanvasOverlay = isChatOpen || isVariablesOpen || isSearchOpen
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
   const workflowLocked = isWorkflowEffectivelyLocked(currentWorkflow, folders)
@@ -736,7 +740,7 @@ export const Panel = memo(function Panel() {
       <div
         className={cn(
           'absolute top-3 right-3 z-[var(--z-dropdown)] @min-[960px]/workflow:hidden',
-          isChatOpen && 'hidden'
+          hasCanvasOverlay && 'hidden'
         )}
       >
         <Chip
@@ -761,7 +765,7 @@ export const Panel = memo(function Panel() {
         id='workflow-panel'
         className={cn(
           'panel-container @max-[960px]/workflow:absolute relative @max-[960px]/workflow:inset-0 @max-[960px]/workflow:z-[var(--z-dropdown)] @max-[960px]/workflow:w-full! shrink-0 overflow-hidden bg-[var(--bg)]',
-          !isMobilePanelOpen && '@max-[960px]/workflow:hidden'
+          (!isMobilePanelOpen || hasCanvasOverlay) && '@max-[960px]/workflow:hidden'
         )}
         aria-label='Workflow panel'
       >
@@ -802,7 +806,12 @@ export const Panel = memo(function Panel() {
                     <Layout animate={isAutoLayouting} variant='clockwise' />
                     Auto layout
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setVariablesOpen(!isVariablesOpen)}>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setVariablesOpen(!isVariablesOpen)
+                      setIsMobilePanelOpen(false)
+                    }}
+                  >
                     <VariableIcon />
                     Variables
                   </DropdownMenuItem>

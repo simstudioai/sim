@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
 import type { Node, ReactFlowInstance } from '@xyflow/react'
+import { getTerminalHeight } from '@/lib/workflows/layout'
 
 interface VisibleBounds {
   width: number
@@ -37,7 +38,7 @@ function getVisibleCanvasBounds(options?: CanvasViewportOptions): VisibleBounds 
   const style = getComputedStyle(document.documentElement)
 
   const sidebarWidth = Number.parseInt(style.getPropertyValue('--sidebar-width') || '0', 10)
-  const terminalHeight = Number.parseInt(style.getPropertyValue('--terminal-height') || '0', 10)
+  const terminalHeight = getTerminalHeight()
   const panelWidth = Number.parseInt(style.getPropertyValue('--panel-width') || '0', 10)
 
   if (!flowContainer) {
