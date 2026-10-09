@@ -70,7 +70,11 @@ export function ChatPanelLayout({
       )}
       {panel}
       <div
-        className={cn('z-30', RESOURCE_HEADER_CLASSES.overlay, RESOURCE_HEADER_CLASSES.endPosition)}
+        className={cn(
+          'z-30 max-md:w-[var(--resource-header-toggle-hit-size)] max-md:justify-center',
+          RESOURCE_HEADER_CLASSES.overlay,
+          RESOURCE_HEADER_CLASSES.endPosition
+        )}
       >
         <Button
           variant='ghost'

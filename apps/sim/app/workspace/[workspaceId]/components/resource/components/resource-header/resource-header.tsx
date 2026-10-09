@@ -178,8 +178,8 @@ export const ResourceHeader = memo(function ResourceHeader({
       <div className='flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2 md:flex-nowrap md:gap-3'>
         <div
           className={cn(
-            'flex flex-1 items-center gap-2 overflow-hidden md:min-w-0',
-            hasBreadcrumbs ? 'min-w-full' : 'min-w-[min(100%,9rem)]'
+            'flex min-w-0 flex-1 items-center gap-2 overflow-hidden max-md:min-w-min',
+            hasBreadcrumbs && 'max-md:min-w-full'
           )}
         >
           {hasBreadcrumbs ? (

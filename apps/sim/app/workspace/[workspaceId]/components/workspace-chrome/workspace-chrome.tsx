@@ -328,7 +328,6 @@ export function WorkspaceChrome({
             aria-expanded={mobileNavigationOpen}
             aria-controls={navigationId}
             onClick={handleSidebarToggle}
-            className='min-h-11'
           >
             {mobileNavigationOpen ? 'Close navigation' : 'Navigation'}
           </Chip>

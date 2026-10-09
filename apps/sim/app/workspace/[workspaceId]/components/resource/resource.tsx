@@ -156,8 +156,10 @@ function buildGridTemplateColumns(columns: ResourceColumn[], hasCheckbox: boolea
   const weights = columns.map(
     (col, colIdx) => (colIdx === 0 ? 2.5 : 1.0) * (col.widthMultiplier ?? 1)
   )
-  const total = weights.reduce((s, w) => s + w, 0)
-  const tracks = columns.map((_, colIdx) => `minmax(0, ${(weights[colIdx] / total).toFixed(6)}fr)`)
+  const tracks = columns.map((_, colIdx) => {
+    const track = `minmax(0, ${weights[colIdx]}fr)`
+    return colIdx === 0 ? `var(--resource-table-name-width, ${track})` : track
+  })
   return hasCheckbox ? `${CHECKBOX_COLUMN_WIDTH} ${tracks.join(' ')}` : tracks.join(' ')
 }
 
@@ -381,7 +383,7 @@ const ResourceTable = memo(function ResourceTable({
       <div
         ref={scrollRef}
         className={cn(
-          'min-h-0 flex-1 overflow-auto overscroll-none',
+          '@container/resource-table min-h-0 flex-1 overflow-auto overscroll-none',
           showEmptyState && 'flex flex-col'
         )}
         onDragOver={bodyDrop?.onDragOver}
@@ -390,10 +392,11 @@ const ResourceTable = memo(function ResourceTable({
       >
         <div
           role='table'
-          className='grid w-full min-w-[var(--resource-table-min-width)] text-small md:min-w-0'
+          className='grid w-full min-w-[var(--resource-table-min-width)] text-small md:min-w-0 max-md:[--resource-table-name-width:calc(100cqw_-_var(--resource-table-selection-width))]'
           style={
             {
-              '--resource-table-min-width': `${Math.max(360, columns.length * 136 + 120 + (hasCheckbox ? 52 : 0))}px`,
+              '--resource-table-min-width': `calc(100cqw + ${Math.max(0, columns.length - 1) * 136}px)`,
+              '--resource-table-selection-width': hasCheckbox ? CHECKBOX_COLUMN_WIDTH : '0px',
             } as CSSProperties
           }
         >
@@ -405,7 +408,7 @@ const ResourceTable = memo(function ResourceTable({
               {hasCheckbox && (
                 <div
                   role='columnheader'
-                  className='flex h-10 items-center py-1.5 pr-0 pl-5 text-left'
+                  className='flex h-10 items-center py-1.5 pr-0 pl-5 text-left max-md:h-11'
                 >
                   <Checkbox
                     size='sm'
@@ -413,6 +416,7 @@ const ResourceTable = memo(function ResourceTable({
                     onCheckedChange={handleSelectAll}
                     disabled={selectable.disabled}
                     aria-label='Select all'
+                    className='max-md:before:inset-[-15px]'
                   />
                 </div>
               )}
@@ -420,7 +424,7 @@ const ResourceTable = memo(function ResourceTable({
                 <div
                   key={col.id}
                   role='columnheader'
-                  className='flex h-10 min-w-0 items-center px-3 py-1.5 text-left font-normal text-[var(--text-muted)] text-small md:px-6'
+                  className='flex h-10 min-w-0 items-center px-3 py-1.5 text-left font-normal text-[var(--text-muted)] text-small max-md:h-11 md:px-6'
                 >
                   <span className='min-w-0 truncate'>{col.header}</span>
                 </div>
@@ -775,6 +779,7 @@ const DataRow = memo(function DataRow({
             onCheckedChange={handleSelectRow}
             disabled={selectable.disabled}
             aria-label='Select row'
+            className='max-md:before:inset-[-15px]'
             onClick={handleSelectRowClick}
           />
         </div>
@@ -787,17 +792,6 @@ const DataRow = memo(function DataRow({
             role='cell'
             className='flex min-h-11 min-w-0 items-center gap-1 px-3 pointer-coarse:py-0 py-0 md:min-h-0 md:px-6 md:py-2.5'
           >
-            {index === 0 && onRowContextMenu && (
-              <Chip
-                leftIcon={MoreHorizontal}
-                aria-label={cell?.label ? `Actions for ${cell.label}` : 'Row actions'}
-                className='pointer-coarse:flex hidden size-11 shrink-0 justify-center max-md:flex'
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onRowContextMenu(event, row.id)
-                }}
-              />
-            )}
             <CellContent
               icon={cell?.icon}
               label={cell?.label || EMPTY_CELL_PLACEHOLDER}
@@ -806,6 +800,20 @@ const DataRow = memo(function DataRow({
               pinned={cell?.pinned}
               highlight={cell?.highlight}
             />
+            {index === 0 && onRowContextMenu && (
+              <div className='ml-auto pointer-coarse:flex hidden shrink-0 max-md:flex'>
+                <Chip
+                  leftIcon={MoreHorizontal}
+                  mobileIconOnly
+                  aria-label={cell?.label ? `Actions for ${cell.label}` : 'Row actions'}
+                  className='size-11 justify-center'
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onRowContextMenu(event, row.id)
+                  }}
+                />
+              </div>
+            )}
           </div>
         )
       })}
