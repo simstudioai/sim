@@ -316,12 +316,12 @@ createRoot(document.getElementById('settings')).render(
       })
       const shown = app.waitForEvent('window')
       await permission.prompt
-        .getByRole('button', { name: 'Allow all files…', exact: true })
+        .getByRole('button', { name: 'Full file access', exact: true })
         .click({ noWaitAfter: true })
       const confirmation = await shown
       calls.expiringFullAccess = undefined
       await confirmation
-        .getByRole('button', { name: 'Allow all files', exact: true })
+        .getByRole('button', { name: 'Enable', exact: true })
         .click({ noWaitAfter: true })
       expect(await permission.result).toMatchObject({ ok: false })
       expect(
@@ -347,7 +347,7 @@ createRoot(document.getElementById('settings')).render(
       const permission = await requestPermission({ operation: 'read', toolCallId: 'fullAccess' })
       const confirmationShown = app.waitForEvent('window')
       await permission.prompt
-        .getByRole('button', { name: 'Allow all files…', exact: true })
+        .getByRole('button', { name: 'Full file access', exact: true })
         .click({ noWaitAfter: true })
       const confirmation = await confirmationShown
       await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused()
@@ -365,14 +365,14 @@ createRoot(document.getElementById('settings')).render(
       ).toMatchObject({ fullFileAccess: false })
       const acceptedConfirmation = app.waitForEvent('window')
       await folderPrompt
-        .getByRole('button', { name: 'Allow all files…', exact: true })
+        .getByRole('button', { name: 'Full file access', exact: true })
         .click({ noWaitAfter: true })
       const allowAll = await acceptedConfirmation
       await allowAll.screenshot({
         path: test.info().outputPath('full-file-access-confirmation.png'),
       })
       await allowAll
-        .getByRole('button', { name: 'Allow all files', exact: true })
+        .getByRole('button', { name: 'Enable', exact: true })
         .click({ noWaitAfter: true })
       expect(await permission.result).toMatchObject({
         ok: true,
@@ -939,7 +939,10 @@ createRoot(document.getElementById('settings')).render(
         try {
           await toggle.click()
           await expect(
-            window.getByText('Could not update file access', { exact: true })
+            window.getByText(
+              'Could not save file access settings. Your previous setting may return after restarting Sim.',
+              { exact: true }
+            )
           ).toBeVisible()
           await expect(toggle).not.toBeChecked()
           expect(
