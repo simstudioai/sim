@@ -1,0 +1,14 @@
+name: desktop-consent-signed-qa
+on:
+  push:
+    branches: [codex/desktop-consent-signed-qa]
+permissions:
+  contents: write
+jobs:
+  package:
+    uses: ./.github/workflows/desktop-release.yml
+    with:
+      version: v0.9.17-staging.qa8835.2
+      publish: false
+      sign: true
+    secrets: inherit
