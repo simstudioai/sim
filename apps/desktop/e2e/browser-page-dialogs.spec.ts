@@ -364,6 +364,48 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
     await panelAction({ action: 'reload' })
     await expect.poll(() => pageTitle()).toBe('form')
 
+    await check('clean reloads and navigation never ask to discard changes', async () => {
+      await inPage("document.documentElement.dataset.reloadProbe = 'before'")
+      await panelAction({ action: 'reload' })
+      await expect
+        .poll(() => inPage<string | undefined>('document.documentElement.dataset.reloadProbe'))
+        .toBeUndefined()
+      await expect.poll(() => pageTitle()).toBe('form')
+      expect(await pageDialog()).toBeNull()
+      await panelAction({ action: 'navigate', url: `${site}/next` })
+      await expect.poll(pageUrl).toBe(`${site}/next`)
+      expect(await pageDialog()).toBeNull()
+      await panelAction({ action: 'back' })
+      await expect.poll(pageUrl).toBe(`${site}/form`)
+      expect(await pageDialog()).toBeNull()
+    })
+
+    await check('clearing a draft removes the leave warning', async () => {
+      await userInput('#draft', 'temporary draft')
+      await inPage("document.getElementById('draft').value = ''")
+      await panelAction({ action: 'navigate', url: `${site}/next` })
+      await expect.poll(pageUrl).toBe(`${site}/next`)
+      expect(await pageDialog()).toBeNull()
+      await panelAction({ action: 'navigate', url: `${site}/form` })
+      await expect.poll(pageUrl).toBe(`${site}/form`)
+    })
+
+    await check('same-page navigation preserves a draft without a leave warning', async () => {
+      await userInput('#draft', 'same-page draft')
+      await panelAction({ action: 'navigate', url: `${site}/form#section` })
+      await expect.poll(pageUrl).toBe(`${site}/form#section`)
+      expect(await pageDialog()).toBeNull()
+      expect(await inPage<string>("document.getElementById('draft').value")).toBe('same-page draft')
+      await panelAction({ action: 'back' })
+      await expect.poll(pageUrl).toBe(`${site}/form`)
+      expect(await pageDialog()).toBeNull()
+      await inPage(`setTimeout(() => { location.href = ${JSON.stringify(`${site}/next`)} })`)
+      await expect.poll(pageUrl).toBe(`${site}/next`)
+      expect(await pageDialog()).toBeNull()
+      await panelAction({ action: 'navigate', url: `${site}/form` })
+      await expect.poll(pageUrl).toBe(`${site}/form`)
+    })
+
     await check('leaving a draft from the URL bar asks, and Stay keeps it', async () => {
       await userInput('#draft', 'draft')
       await expect
@@ -390,6 +432,12 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
     await check('Escape keeps the draft and returns typing to the page', async () => {
       await userInput('#draft')
       await panelAction({ action: 'reload' })
+      await expect(shell.getByRole('button', { name: 'Stay', exact: true })).toBeFocused()
+      await shell.getByRole('dialog').screenshot({
+        path: test.info().outputPath('leave-page-modal.png'),
+        animations: 'allow',
+        caret: 'initial',
+      })
       await expect(shell.getByRole('button', { name: 'Stay', exact: true })).toBeFocused()
       await shell.keyboard.press('Escape')
       await expect.poll(pageDialog).toBeNull()

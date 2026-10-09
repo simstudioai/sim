@@ -304,7 +304,36 @@ createRoot(document.getElementById('settings')).render(
         .click({ noWaitAfter: true })
       expect(await survivor).toMatchObject({ ok: true, data: { text: 'shared contents' } })
     })
+    await test.step('expired requests cannot enable Full file access from a confirmation', async () => {
+      if (!app) throw new Error('Desktop app is not running')
+      calls.expiringFullAccess = {
+        toolName: 'read_local_file',
+        args: { path: join(outside, 'private.txt') },
+      }
+      const permission = await requestPermission({
+        operation: 'read',
+        toolCallId: 'expiringFullAccess',
+      })
+      const shown = app.waitForEvent('window')
+      await permission.prompt
+        .getByRole('button', { name: 'Full file access', exact: true })
+        .click({ noWaitAfter: true })
+      const confirmation = await shown
+      calls.expiringFullAccess = undefined
+      await confirmation
+        .getByRole('button', { name: 'Enable', exact: true })
+        .click({ noWaitAfter: true })
+      expect(await permission.result).toMatchObject({ ok: false })
+      expect(
+        await window.evaluate(async () =>
+          (
+            globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
+          ).simDesktop.settings.getPreferences()
+        )
+      ).toMatchObject({ fullFileAccess: false })
+    })
     await test.step('Full file access is opt-in, survives restart, and stops granting access when disabled', async () => {
+      if (!app) throw new Error('Desktop app is not running')
       const fullFolder = join(root, 'Full access')
       mkdirSync(fullFolder)
       writeFileSync(join(fullFolder, 'file.txt'), 'full access contents')
@@ -315,7 +344,40 @@ createRoot(document.getElementById('settings')).render(
       await expect(
         window.getByRole('switch', { name: 'Full file access', exact: true })
       ).not.toBeChecked()
-      await window.getByRole('switch', { name: 'Full file access', exact: true }).click()
+      const permission = await requestPermission({ operation: 'read', toolCallId: 'fullAccess' })
+      const confirmationShown = app.waitForEvent('window')
+      await permission.prompt
+        .getByRole('button', { name: 'Full file access', exact: true })
+        .click({ noWaitAfter: true })
+      const confirmation = await confirmationShown
+      await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused()
+      const returnedPrompt = app.waitForEvent('window')
+      await confirmation
+        .getByRole('button', { name: 'Cancel', exact: true })
+        .click({ noWaitAfter: true })
+      const folderPrompt = await returnedPrompt
+      expect(
+        await window.evaluate(async () =>
+          (
+            globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
+          ).simDesktop.settings.getPreferences()
+        )
+      ).toMatchObject({ fullFileAccess: false })
+      const acceptedConfirmation = app.waitForEvent('window')
+      await folderPrompt
+        .getByRole('button', { name: 'Full file access', exact: true })
+        .click({ noWaitAfter: true })
+      const allowAll = await acceptedConfirmation
+      await allowAll.screenshot({
+        path: test.info().outputPath('full-file-access-confirmation.png'),
+      })
+      await allowAll
+        .getByRole('button', { name: 'Enable', exact: true })
+        .click({ noWaitAfter: true })
+      expect(await permission.result).toMatchObject({
+        ok: true,
+        data: { text: 'full access contents' },
+      })
       await expect(
         window.getByRole('switch', { name: 'Full file access', exact: true })
       ).toBeChecked()
@@ -383,11 +445,11 @@ createRoot(document.getElementById('settings')).render(
       await expect(
         window.getByRole('switch', { name: 'Full file access', exact: true })
       ).not.toBeChecked()
-      const permission = await requestPermission({ operation: 'read', toolCallId: 'fullAccess' })
-      await permission.prompt
+      const revoked = await requestPermission({ operation: 'read', toolCallId: 'fullAccess' })
+      await revoked.prompt
         .getByRole('button', { name: "Don't allow", exact: true })
         .click({ noWaitAfter: true })
-      expect(await permission.result).toMatchObject({ ok: false })
+      expect(await revoked.result).toMatchObject({ ok: false })
     })
     await test.step('a folder grant works in another chat but does not permit symlink escapes', async () => {
       expect(await invoke({ operation: 'read', toolCallId: 'otherChat' })).toMatchObject({
@@ -877,8 +939,12 @@ createRoot(document.getElementById('settings')).render(
         try {
           await toggle.click()
           await expect(
-            window.getByText('Could not update file access', { exact: true })
+            window.getByText(
+              'Could not save file access settings. Your previous setting may return after restarting Sim.',
+              { exact: true }
+            )
           ).toBeVisible()
+          await expect(toggle).not.toBeChecked()
           expect(
             await window.evaluate(async () =>
               (

@@ -172,7 +172,10 @@ function main(): void {
   })
   const localFilePermissions = new LocalFilePermissions(
     localFilesystem,
-    () => config.get('fullFileAccess') === true
+    () => config.get('fullFileAccess') === true,
+    () => {
+      desktopSettings.setFullFileAccess(true)
+    }
   )
   const clearLocalFileAccess = async () => {
     config.set('fullFileAccess', false)
@@ -546,6 +549,9 @@ function main(): void {
 
   const desktopSettings = createDesktopSettingsService({
     config,
+    onFullFileAccessChanged: (preferences) => {
+      broadcast('desktop:settings:full-file-access-changed', preferences)
+    },
     getMainWindow,
     openMainWindowAt: (route) => void openMainWindowAt(route),
     setAutoDownloadUpdates: (enabled) => updater?.setAutoDownload(enabled),
