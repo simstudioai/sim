@@ -142,9 +142,9 @@ Semantic similarity alone should not authorize an update. Two tasks can describe
 
 An Asana task agent should prevent duplicates with idempotency keys, exact identifier matching, constrained searches, and a record of completed writes.
 
-A practical idempotency key can combine the source system, immutable request ID, and intended operation. Before creating a task, the workflow checks whether that key has already produced an Asana task. If it has, the workflow returns the existing result rather than repeating the write.
+A practical idempotency key can combine the source system, immutable request ID, and intended operation. Before creating a task, the workflow should reserve that key in a durable store with one indivisible operation, allowing only the run that created the reservation to proceed. If the key already has a completed Asana task, the workflow returns the existing result rather than repeating the write.
 
-Duplicate prevention should also cover retries. Network timeouts can occur after Asana accepts a request but before the workflow receives the response, so blindly retrying a create operation can produce two tasks. The workflow should search for the idempotency key before retrying.
+Duplicate prevention should also cover retries. The original task creation should store the request key in a searchable Asana field because a network timeout can occur after Asana accepts the request but before the workflow records the response locally. After a timeout, the workflow should search Asana for that key and route an uncertain result for human review rather than blindly issuing another create operation.
 
 ## When should a person approve an Asana task change?
 
