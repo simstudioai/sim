@@ -142,77 +142,52 @@ export interface RanAgainstEntry {
   deploymentVersionId: string | null
   /** A `runWorkflow()` execution of it, whose snapshot is the workflow as it ran; null for a child. */
   executionId: string | null
-  /** For a draft, the workflow's `updatedAt` when the run ended; a later edit makes the run stale. */
+  /** For a draft, the workflow's `updatedAt` when the run loaded it; a later edit makes the run stale. */
   draftUpdatedAt: string | null
 }
 
+/** A workflow version a test run loaded, recorded as the executor entered it. */
+export type EnteredWorkflow = Omit<RanAgainstEntry, 'executionId'>
+
 type ExecutedWorkflow = Omit<RanAgainstEntry, 'draftUpdatedAt'>
 
+/** When a draft last changed; a test run reads it as it loads the draft. */
+export async function readDraftUpdatedAt(workflowId: string): Promise<string> {
+  const [row] = await db
+    .select({ updatedAt: workflow.updatedAt })
+    .from(workflow)
+    .where(eq(workflow.id, workflowId))
+    .limit(1)
+  if (!row) throw new Error(`Workflow ${workflowId} not found`)
+  return row.updatedAt.toISOString()
+}
+
+const enteredKey = (entry: { workflowId: string; deploymentVersionId: string | null }) =>
+  `${entry.workflowId}:${entry.deploymentVersionId ?? 'draft'}`
+
 /**
- * Every workflow a run executed: the ones `runWorkflow()` started, from their execution logs, and
- * the children they called, which run inside their parent's execution and so log nothing of their
- * own. A child ran the same version as its run: its live deployment, or its draft.
+ * Every workflow version a run executed, as each was loaded: the ones `runWorkflow()` started,
+ * with the execution whose log holds their snapshot, and the children they called, which run
+ * inside their parent's execution and so log nothing of their own.
  */
 export async function readRanAgainst(params: {
   executionIds: string[]
-  enteredWorkflowIds: string[]
+  entered: EnteredWorkflow[]
   workspaceId: string
-  version: WorkflowTestVersion
 }): Promise<RanAgainstEntry[]> {
   const started = await readExecutedDeployments(params.executionIds, params.workspaceId)
-  const startedIds = new Set(started.map((entry) => entry.workflowId))
-  const childIds = params.enteredWorkflowIds.filter((id) => !startedIds.has(id))
-  const children = await readChildVersions(childIds, params.version)
-  const executed = [...started, ...children]
-  const drafts = executed.filter((entry) => entry.deploymentVersionId === null)
-  const updatedAt = new Map(
-    drafts.length === 0
-      ? []
-      : (
-          await db
-            .select({ id: workflow.id, updatedAt: workflow.updatedAt })
-            .from(workflow)
-            .where(
-              inArray(
-                workflow.id,
-                drafts.map((entry) => entry.workflowId)
-              )
-            )
-        ).map((row) => [row.id, row.updatedAt.toISOString()])
-  )
-  return executed.map((entry) => ({
-    ...entry,
-    draftUpdatedAt:
-      entry.deploymentVersionId === null ? (updatedAt.get(entry.workflowId) ?? null) : null,
-  }))
-}
-
-async function readChildVersions(
-  workflowIds: string[],
-  version: WorkflowTestVersion
-): Promise<ExecutedWorkflow[]> {
-  if (workflowIds.length === 0) return []
-  if (version === 'draft') {
-    return workflowIds.map((workflowId) => ({
-      workflowId,
-      deploymentVersionId: null,
-      executionId: null,
-    }))
-  }
-  const active = await db
-    .select({ workflowId: workflowDeploymentVersion.workflowId, id: workflowDeploymentVersion.id })
-    .from(workflowDeploymentVersion)
-    .where(
-      and(
-        inArray(workflowDeploymentVersion.workflowId, workflowIds),
-        eq(workflowDeploymentVersion.isActive, true)
-      )
-    )
-  return active.map((row) => ({
-    workflowId: row.workflowId,
-    deploymentVersionId: row.id,
-    executionId: null,
-  }))
+  const entered = new Map(params.entered.map((entry) => [enteredKey(entry), entry]))
+  const startedKeys = new Set(started.map(enteredKey))
+  return [
+    // A run that failed before its executor started logged an execution but loaded nothing.
+    ...started.map((entry) => ({
+      ...entry,
+      draftUpdatedAt: entered.get(enteredKey(entry))?.draftUpdatedAt ?? null,
+    })),
+    ...params.entered
+      .filter((entry) => !startedKeys.has(enteredKey(entry)))
+      .map((entry) => ({ ...entry, executionId: null })),
+  ]
 }
 
 /** The workflows and deployments these executions ran, from their execution logs. */

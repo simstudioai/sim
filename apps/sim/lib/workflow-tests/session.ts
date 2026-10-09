@@ -15,6 +15,7 @@ import {
   type ParkedMockCall,
 } from '@/lib/workflow-tests/mock-channel'
 import type { TestCaseStatus, TestEvent, TestTarget } from '@/lib/workflow-tests/protocol'
+import { type EnteredWorkflow, readDraftUpdatedAt } from '@/lib/workflow-tests/repository'
 import {
   runWorkflowForTest,
   type WorkflowTestRunResult,
@@ -250,7 +251,10 @@ class RunMatcher implements MockMatcher {
   constructor(
     targets: TestTarget[],
     private readonly loadChildBlocks: (workflowId: string) => Promise<Record<string, BlockState>>,
-    private readonly onEnter: (workflowId: string) => void
+    private readonly onEnter: (
+      workflowId: string,
+      deploymentVersionId: string | null
+    ) => Promise<void>
   ) {
     this.targets = [...targets].sort(
       (a, b) => Number(a.workflow === null) - Number(b.workflow === null)
@@ -259,10 +263,12 @@ class RunMatcher implements MockMatcher {
 
   async enterWorkflow({
     workflowId,
+    deploymentVersionId,
     blocks,
     resolvedSecretTraceRegistry,
   }: {
     workflowId: string
+    deploymentVersionId: string | null
     blocks: TestWorkflowBlock[]
     resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
   }): Promise<void> {
@@ -270,7 +276,7 @@ class RunMatcher implements MockMatcher {
       this.entered = true
       this.outputRegistry = resolvedSecretTraceRegistry
     }
-    this.onEnter(workflowId)
+    await this.onEnter(workflowId, deploymentVersionId)
     const workflowName = await this.workflowName(workflowId)
     for (const block of blocks) this.blocks.set(block.id, block)
     await this.learnWorkflow(
@@ -520,8 +526,8 @@ class TestWorkflowRun {
  */
 export class WorkflowTestSession {
   private readonly runs = new Map<string, TestWorkflowRun>()
-  /** Every workflow this file's runs executed, children included. */
-  readonly enteredWorkflowIds = new Set<string>()
+  /** Every workflow version this file's runs executed, children included, as each loaded it. */
+  private readonly enteredVersions = new Map<string, Promise<EnteredWorkflow>>()
   /** Set when the sandbox run ends; a start still awaiting its lookups then starts nothing. */
   private closed = false
   /** Stops `toMatchRubric` model calls still in flight when the sandbox run ends. */
@@ -541,8 +547,8 @@ export class WorkflowTestSession {
     const triggerBlockId = chooseTrigger(args.workflow, blocks, args.trigger)
     const targets = await resolveToolTargets(workspaceId, args.targets)
     if (this.closed) throw new Error('This workflow test run has ended')
-    const matcher = new RunMatcher(targets, loadChildBlockNames, (id) =>
-      this.enteredWorkflowIds.add(id)
+    const matcher = new RunMatcher(targets, loadChildBlockNames, (id, deploymentVersionId) =>
+      this.recordEntered(id, deploymentVersionId)
     )
     const channel = createMockChannel(matcher)
     const abort = new AbortController()
@@ -584,6 +590,25 @@ export class WorkflowTestSession {
       this.runs.get(runId)?.cancel()
       this.runs.delete(runId)
     }
+  }
+
+  /** The first entry of a draft keeps its timestamp, so an edit between runs leaves the file stale. */
+  private async recordEntered(workflowId: string, deploymentVersionId: string | null) {
+    const key = `${workflowId}:${deploymentVersionId ?? 'draft'}`
+    let entry = this.enteredVersions.get(key)
+    if (!entry) {
+      entry = (async () => ({
+        workflowId,
+        deploymentVersionId,
+        draftUpdatedAt: deploymentVersionId === null ? await readDraftUpdatedAt(workflowId) : null,
+      }))()
+      this.enteredVersions.set(key, entry)
+    }
+    await entry
+  }
+
+  enteredWorkflows(): Promise<EnteredWorkflow[]> {
+    return Promise.all(this.enteredVersions.values())
   }
 
   close(): void {
