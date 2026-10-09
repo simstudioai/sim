@@ -308,6 +308,33 @@ test('browser focus and shortcuts stay with the surface the user is using', asyn
       await clickMenu('New Tab')
       await expect.poll(tabCount).toBe(before + 1)
     })
+    await check(
+      'a revealed page resumes throttling in its own chat after switching chats',
+      async () => {
+        await panelAction({ action: 'switch-tab', tabId: '1' })
+        await shell.evaluate(async (scope) => {
+          const api = (globalThis as Bridge).simDesktop.browserAgent
+          api.setPanelBounds(
+            { x: 0, y: 120, width: innerWidth, height: innerHeight - 120 },
+            null,
+            scope
+          )
+          await api.activateScope('browser-focus-other-chat')
+        }, SCOPE)
+        await expect
+          .poll(() =>
+            shellApp.evaluate(
+              ({ webContents }, url) =>
+                webContents
+                  .getAllWebContents()
+                  .find((contents) => contents.getURL() === url)
+                  ?.getBackgroundThrottling(),
+              `${site}/five`
+            )
+          )
+          .toBe(true)
+      }
+    )
     passed = true
   } finally {
     mkdirSync(dirname(reportPath), { recursive: true })

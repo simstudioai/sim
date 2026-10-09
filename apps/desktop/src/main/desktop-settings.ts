@@ -37,6 +37,7 @@ export interface DesktopSettingsService {
   getPreferences(): DesktopPreferences
   setPreference(key: DesktopPreferenceKey, value: boolean): DesktopPreferences
   setBrowserSearchSuggestionsEnabled(enabled: boolean): DesktopPreferences
+  setFullFileAccess(enabled: boolean): DesktopPreferences
   setPreventSleepWhileRunning(enabled: boolean): DesktopPreferences
   setAppearancePreference(
     key: DesktopAppearanceSettingKey,
@@ -96,6 +97,7 @@ function readPreferences(
     browserEnabled: config.get('browserEnabled') ?? true,
     browserSearchSuggestionsEnabled: config.get('browserSearchSuggestionsEnabled') ?? true,
     terminalEnabled: config.get('terminalEnabled') ?? true,
+    fullFileAccess: config.get('fullFileAccess') === true,
     preventSleepWhileRunning: config.get('preventSleepWhileRunning') ?? true,
     browserTheme: isDesktopAppearanceTheme(browserTheme) ? browserTheme : 'app',
     browserDefaultZoom: isDesktopZoomPercent(browserDefaultZoom) ? browserDefaultZoom : 100,
@@ -177,6 +179,14 @@ export function createDesktopSettingsService(
     setBrowserSearchSuggestionsEnabled(enabled) {
       deps.config.set('browserSearchSuggestionsEnabled', enabled)
       deps.config.flush()
+      return read()
+    },
+    setFullFileAccess(enabled) {
+      deps.config.set('fullFileAccess', enabled)
+      if (!deps.config.flush()) {
+        deps.config.set('fullFileAccess', false)
+        throw new Error('Could not save file access settings')
+      }
       return read()
     },
     setPreventSleepWhileRunning(enabled) {
