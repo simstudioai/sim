@@ -428,6 +428,21 @@ describe('CredentialDisplay link tag', () => {
     act(() => persistedView.root.unmount())
   })
 
+  it('renders a saved key masked in workspace chat even when its tag names another workspace', () => {
+    const persisted = redactSensitiveContent(
+      `<credential>${JSON.stringify({ type: 'sim_key', workspaceId: 'other-workspace', value: 'sk-sim-saved' })}</credential>`
+    )
+    const { container, root } = renderCredentialLink(
+      JSON.parse(
+        persisted.slice('<credential>'.length, -'</credential>'.length)
+      ) as CredentialItemData
+    )
+    expect(container.querySelector('[role="status"]')).toBeNull()
+    expect(container.querySelector('code')).not.toBeNull()
+    expect(container.querySelector('button')).toBeNull()
+    act(() => root.unmount())
+  })
+
   it('does not mount credential inputs when the target host denies access', () => {
     mockParams.mockReturnValue({ organizationId: 'org' } as never)
     mockCredentialHost.mockReturnValue(null)

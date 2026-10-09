@@ -46,7 +46,7 @@ export interface RevealedSimKey {
  */
 function simKeyItem(item: CredentialTagBody, revealed?: RevealedSimKey): Record<string, string> {
   const workspaceId =
-    revealed?.workspaceId ?? (typeof item.workspaceId === 'string' ? item.workspaceId : undefined)
+    revealed?.workspaceId ?? (isWorkspaceTarget(item.workspaceId) ? item.workspaceId : undefined)
   return {
     ...(revealed ? { value: revealed.value } : {}),
     type: SIM_KEY_TYPE,
@@ -54,8 +54,14 @@ function simKeyItem(item: CredentialTagBody, revealed?: RevealedSimKey): Record<
   }
 }
 
+function isWorkspaceTarget(value: unknown): value is string {
+  return (
+    typeof value === 'string' && value.length > 0 && value.length <= 256 && value === value.trim()
+  )
+}
+
 function optionalWorkspaceId(value: unknown): { workspaceId?: string } {
-  return typeof value === 'string' && value.length > 0 ? { workspaceId: value } : {}
+  return isWorkspaceTarget(value) ? { workspaceId: value } : {}
 }
 
 function parseCredentialBody(body: string): unknown | null {

@@ -67,6 +67,14 @@ describe('sim-key-redaction', () => {
         credentialBatch([{ type: 'sim_key', workspaceId: 'ws-1' }])
       )
     })
+
+    it.each([' ws-1', 'w'.repeat(257)])(
+      'saves no workspace target the renderer would reject: %j',
+      (workspaceId) => {
+        const tag = `<credential>${JSON.stringify({ type: 'sim_key', workspaceId, value: 'sk-sim-secret' })}</credential>`
+        expect(redactSensitiveContent(tag)).toBe(placeholder)
+      }
+    )
   })
 
   describe('toolResultForModel', () => {
@@ -237,6 +245,17 @@ describe('sim-key-redaction', () => {
 
       expect(restoreRevealedSimKeysForMessage(msg, cache).content).toBe(
         `<credential>${JSON.stringify({ value: 'sk-sim-A', type: 'sim_key', workspaceId: 'ws-1' })}</credential>`
+      )
+    })
+
+    it('keeps the tag workspace when the creation result carries none', () => {
+      const cache: RevealedSimKeysByMessage = new Map()
+      const tag = `<credential>${JSON.stringify({ type: 'sim_key', workspaceId: 'ws-tag' })}</credential>`
+      captureRevealedSimKeys(cache, ['msg-1'], tag, [apiKeyBlock('sk-sim-A')])
+      const msg: ChatMessage = { id: 'msg-1', role: 'assistant', content: tag }
+
+      expect(restoreRevealedSimKeysForMessage(msg, cache).content).toBe(
+        `<credential>${JSON.stringify({ value: 'sk-sim-A', type: 'sim_key', workspaceId: 'ws-tag' })}</credential>`
       )
     })
 
