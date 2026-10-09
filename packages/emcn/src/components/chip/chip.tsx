@@ -59,7 +59,7 @@ import {
  * {@link chipHoverSurfaceClass}.
  */
 const chipVariants = cva(
-  `group cursor-pointer ${chipGeometryUnroundedClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
+  `group cursor-pointer ${chipGeometryUnroundedClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60 max-md:pointer-coarse:min-h-11 max-md:pointer-coarse:min-w-11`,
   {
     variants: {
       variant: {
@@ -88,6 +88,25 @@ const chipVariants = cva(
 
 type ChipIcon = ComponentType<{ className?: string }>
 
+const CHIP_MOBILE_ICON_ONLY_CLASS =
+  "max-md:relative max-md:size-[30px] max-md:shrink-0 max-md:justify-center max-md:gap-0 max-md:px-0 max-md:pointer-coarse:min-h-0 max-md:pointer-coarse:min-w-0 max-md:after:absolute max-md:after:top-1/2 max-md:after:left-1/2 max-md:after:size-11 max-md:after:-translate-x-1/2 max-md:after:-translate-y-1/2 max-md:after:content-['']"
+
+interface ChipTouchTargetProps {
+  compact: boolean
+  children: ReactNode
+}
+
+/** Reserves the expanded target without enlarging the chip's visible surface. */
+function ChipTouchTarget({ compact, children }: ChipTouchTargetProps) {
+  return compact ? (
+    <span className='contents max-md:inline-flex max-md:size-11 max-md:shrink-0 max-md:items-center max-md:justify-center'>
+      {children}
+    </span>
+  ) : (
+    children
+  )
+}
+
 /**
  * Variants a `Chip`/`ChipLink` may render. The `default` (bare) chip is implicit
  * — omit `variant` to get it — and `filled` is excluded by design: it is reserved
@@ -106,6 +125,8 @@ interface ChipBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant
   rightIcon?: ChipIcon
   /** Custom content rendered after the label, such as a spinning loader. Takes precedence over `rightIcon`. */
   rightAdornment?: ReactNode
+  /** Below the desktop breakpoint, show a 30px icon face with a reserved 44px hit target. Requires a glyph and a visible or accessible label. */
+  mobileIconOnly?: boolean
   children?: ReactNode
 }
 
@@ -120,11 +141,17 @@ function ChipContent({
   leftAdornment,
   rightIcon: RightIcon,
   rightAdornment,
+  mobileIconOnly,
   children,
 }: ChipBaseProps) {
   const isInverse = variant === 'primary' || variant === 'destructive'
   const iconClass = cn(chipContentIconClass, isInverse && 'text-current')
-  const labelClass = cn(chipContentLabelClass, 'flex-1', isInverse && 'text-current')
+  const labelClass = cn(
+    chipContentLabelClass,
+    'flex-1',
+    isInverse && 'text-current',
+    mobileIconOnly && 'max-md:sr-only'
+  )
   const textLabel =
     typeof children === 'string' || typeof children === 'number' ? String(children) : null
   return (
@@ -146,6 +173,7 @@ interface ChipProps
 
 /**
  * @example <Chip leftIcon={Credit} onClick={openBilling}>{balance}</Chip>
+ * @example <Chip leftIcon={Download} mobileIconOnly onClick={download}>Download</Chip>
  */
 const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
   {
@@ -158,29 +186,42 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
     leftAdornment,
     rightIcon,
     rightAdornment,
+    mobileIconOnly,
     children,
     type,
     ...props
   },
   ref
 ) {
+  const compactOnMobile = Boolean(
+    mobileIconOnly &&
+      (leftIcon || rightIcon || leftAdornment || rightAdornment) &&
+      ((children != null && children !== false) || props['aria-label'] || props['aria-labelledby'])
+  )
   return (
-    <button
-      ref={ref}
-      type={type ?? 'button'}
-      className={cn(chipVariants({ variant, shape, active, fullWidth }), className)}
-      {...props}
-    >
-      <ChipContent
-        variant={variant}
-        leftIcon={leftIcon}
-        leftAdornment={leftAdornment}
-        rightIcon={rightIcon}
-        rightAdornment={rightAdornment}
+    <ChipTouchTarget compact={compactOnMobile}>
+      <button
+        ref={ref}
+        type={type ?? 'button'}
+        className={cn(
+          chipVariants({ variant, shape, active, fullWidth }),
+          compactOnMobile && CHIP_MOBILE_ICON_ONLY_CLASS,
+          className
+        )}
+        {...props}
       >
-        {children}
-      </ChipContent>
-    </button>
+        <ChipContent
+          variant={variant}
+          leftIcon={leftIcon}
+          leftAdornment={leftAdornment}
+          rightIcon={rightIcon}
+          rightAdornment={rightAdornment}
+          mobileIconOnly={compactOnMobile}
+        >
+          {children}
+        </ChipContent>
+      </button>
+    </ChipTouchTarget>
   )
 })
 
@@ -203,27 +244,40 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
     leftAdornment,
     rightIcon,
     rightAdornment,
+    mobileIconOnly,
     children,
     ...props
   },
   ref
 ) {
+  const compactOnMobile = Boolean(
+    mobileIconOnly &&
+      (leftIcon || rightIcon || leftAdornment || rightAdornment) &&
+      ((children != null && children !== false) || props['aria-label'] || props['aria-labelledby'])
+  )
   return (
-    <Link
-      ref={ref}
-      className={cn(chipVariants({ variant, shape, active, fullWidth }), className)}
-      {...props}
-    >
-      <ChipContent
-        variant={variant}
-        leftIcon={leftIcon}
-        leftAdornment={leftAdornment}
-        rightIcon={rightIcon}
-        rightAdornment={rightAdornment}
+    <ChipTouchTarget compact={compactOnMobile}>
+      <Link
+        ref={ref}
+        className={cn(
+          chipVariants({ variant, shape, active, fullWidth }),
+          compactOnMobile && CHIP_MOBILE_ICON_ONLY_CLASS,
+          className
+        )}
+        {...props}
       >
-        {children}
-      </ChipContent>
-    </Link>
+        <ChipContent
+          variant={variant}
+          leftIcon={leftIcon}
+          leftAdornment={leftAdornment}
+          rightIcon={rightIcon}
+          rightAdornment={rightAdornment}
+          mobileIconOnly={compactOnMobile}
+        >
+          {children}
+        </ChipContent>
+      </Link>
+    </ChipTouchTarget>
   )
 })
 

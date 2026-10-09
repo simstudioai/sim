@@ -16,7 +16,10 @@ import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
 import { WorkspaceAccessDenied } from '@/app/workspace/[workspaceId]/components/workspace-access-denied'
-import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
+import {
+  WorkspaceChrome,
+  WorkspaceViewport,
+} from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import {
   prefetchWorkspaceForkAvailability,
   prefetchWorkspaceHostContext,
@@ -117,7 +120,7 @@ export default async function WorkspaceLayout({
             <CustomBlocksLoader />
             <BlockVisibilityLoader />
             <GlobalCommandsProvider>
-              <div className='flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
+              <WorkspaceViewport>
                 <ImpersonationBanner />
                 <SessionExpired />
                 <WorkspacePermissionsProvider>
@@ -139,7 +142,7 @@ export default async function WorkspaceLayout({
                     </WorkspaceChrome>
                   </SettingsNavigationProvider>
                 </WorkspacePermissionsProvider>
-              </div>
+              </WorkspaceViewport>
             </GlobalCommandsProvider>
           </BrandingProvider>
         </WorkspaceHostProvider>

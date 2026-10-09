@@ -133,13 +133,15 @@ const clampTabLength = (length: number) =>
  */
 const getInvisibleHandleClasses = (side: 'left' | 'right' | 'top' | 'bottom') => {
   const offsetClasses = {
-    right: 'right-[-7px]!',
-    left: 'left-[-7px]!',
-    top: 'top-[-7px]!',
-    bottom: 'bottom-[-7px]!',
+    right:
+      'right-[-7px]! pointer-coarse:before:inset-y-0 pointer-coarse:before:right-[-30px] pointer-coarse:before:left-0',
+    left: 'left-[-7px]! pointer-coarse:before:inset-y-0 pointer-coarse:before:right-0 pointer-coarse:before:left-[-30px]',
+    top: 'top-[-7px]! pointer-coarse:before:inset-x-0 pointer-coarse:before:top-[-30px] pointer-coarse:before:bottom-0',
+    bottom:
+      'bottom-[-7px]! pointer-coarse:before:inset-x-0 pointer-coarse:before:top-0 pointer-coarse:before:bottom-[-30px]',
   } as const
   return cn(
-    'z-20! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0!',
+    "z-20! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0! pointer-coarse:before:absolute pointer-coarse:before:content-['']",
     offsetClasses[side]
   )
 }
@@ -1075,7 +1077,7 @@ export function WorkflowBlockView({
             type='source'
             position={ERROR_SOURCE_HANDLE_POSITION}
             id='error'
-            className='z-20! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0!'
+            className={getInvisibleHandleClasses('bottom')}
             style={getErrorSourceHandleStyle()}
             data-nodeid={id}
             data-handleid='error'

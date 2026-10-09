@@ -32,7 +32,7 @@ const MERMAID = 'mermaid'
 
 /** Languages the Prism highlighter has registered (see {@link CodeBlockHighlight}). Every non-plain
  * value MUST have a grammar registered in {@link CodeBlockHighlight} — enforced by a unit test. */
-export const LANGUAGE_OPTIONS = [
+const LANGUAGE_OPTIONS = [
   { value: PLAIN, label: 'Plain text' },
   { value: 'bash', label: 'Bash' },
   { value: 'c', label: 'C' },

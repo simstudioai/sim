@@ -34,6 +34,7 @@ import { season } from '@/app/_styles/fonts/season/season'
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  interactiveWidget: 'resizes-content',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
     { media: '(prefers-color-scheme: dark)', color: '#0c0c0c' },

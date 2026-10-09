@@ -17,7 +17,10 @@ import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
-import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
+import {
+  WorkspaceChrome,
+  WorkspaceViewport,
+} from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 
@@ -83,7 +86,7 @@ export default async function OrganizationLayout({
       >
         <OrganizationProvider context={context}>
           <GlobalCommandsProvider>
-            <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
+            <WorkspaceViewport className='workspace-root'>
               <ImpersonationBanner />
               <SessionExpired />
               <SettingsNavigationProvider>
@@ -94,7 +97,7 @@ export default async function OrganizationLayout({
                   {children}
                 </WorkspaceChrome>
               </SettingsNavigationProvider>
-            </div>
+            </WorkspaceViewport>
           </GlobalCommandsProvider>
         </OrganizationProvider>
       </FeatureFlagsProvider>

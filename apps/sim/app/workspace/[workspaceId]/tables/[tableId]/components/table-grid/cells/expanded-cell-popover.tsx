@@ -135,16 +135,20 @@ export function ExpandedCellPopover({
 
   if (!expandedCell || !target || !rect) return null
 
-  const width = Math.max(rect.width, EXPANDED_CELL_MIN_WIDTH)
+  const VIEWPORT_PAD = 8
+  const width = Math.min(
+    Math.max(rect.width, EXPANDED_CELL_MIN_WIDTH),
+    window.innerWidth - VIEWPORT_PAD * 2
+  )
   // Clamp to viewport. Prefer anchoring at the cell's left edge; if the popover
   // would overflow right, align its right edge with the cell's right edge
   // (mirroring Radix/menu flip behavior). Same idea for bottom-of-viewport.
-  const VIEWPORT_PAD = 8
   const cellRight = rect.left + rect.width
   const overflowsRight = rect.left + width > window.innerWidth - VIEWPORT_PAD
-  const left = overflowsRight
-    ? Math.max(VIEWPORT_PAD, cellRight - width)
-    : Math.max(VIEWPORT_PAD, rect.left)
+  const left = Math.min(
+    window.innerWidth - width - VIEWPORT_PAD,
+    Math.max(VIEWPORT_PAD, overflowsRight ? cellRight - width : rect.left)
+  )
   const overflowsBottom = rect.top + EXPANDED_CELL_HEIGHT > window.innerHeight - VIEWPORT_PAD
   const top = overflowsBottom
     ? Math.max(VIEWPORT_PAD, window.innerHeight - EXPANDED_CELL_HEIGHT - VIEWPORT_PAD)
@@ -271,7 +275,7 @@ function ExpandedCellEditor({
         }}
         onKeyDown={handleTextareaKeyDown}
         readOnly={Boolean(saveBlockedReason)}
-        className='min-h-0 flex-1 resize-none bg-transparent px-2.5 py-2 font-sans text-[var(--text-primary)] text-small outline-hidden placeholder:text-[var(--text-muted)]'
+        className='min-h-0 flex-1 resize-none bg-transparent px-2.5 py-2 font-sans text-[var(--text-primary)] text-small outline-hidden placeholder:text-[var(--text-muted)] max-md:pointer-coarse:text-md'
         spellCheck={false}
         autoCorrect='off'
       />

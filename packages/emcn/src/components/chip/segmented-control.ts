@@ -8,7 +8,7 @@ export const segmentedControlVariants = cva(
   cn(
     chipGeometryClass,
     chipFilledFillTokens,
-    'inline-flex w-fit max-w-full gap-0 overflow-x-auto p-[2px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+    'inline-flex w-fit max-w-full gap-0 overflow-x-auto p-[2px] [scrollbar-width:none] max-md:pointer-coarse:min-h-12 [&::-webkit-scrollbar]:hidden'
   ),
   {
     variants: {

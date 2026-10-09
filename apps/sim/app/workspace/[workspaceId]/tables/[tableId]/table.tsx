@@ -1573,6 +1573,7 @@ export function Table({
                 <Chip
                   key={action.label}
                   leftIcon={action.icon}
+                  mobileIconOnly
                   onClick={action.onClick}
                   disabled={action.disabled}
                 >

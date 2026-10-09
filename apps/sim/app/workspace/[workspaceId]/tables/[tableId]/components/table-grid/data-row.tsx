@@ -198,6 +198,7 @@ export const DataRow = React.memo(function DataRow({
   lastPinnedColKey,
   findMatchColumns,
 }: DataRowProps) {
+  const touchedCellRef = React.useRef<{ columnKey: string; selected: boolean } | null>(null)
   const sel = normalizedSelection
   /**
    * Per-row "Waiting on …" labels keyed by group id. A group has labels iff
@@ -349,18 +350,36 @@ export const DataRow = React.memo(function DataRow({
               isPinnedSeparator && '[box-shadow:2px_0_0_0_var(--border)]'
             )}
             style={isPinnedCell ? { position: 'sticky', left: pinnedLeft } : undefined}
+            onPointerDown={(event) => {
+              touchedCellRef.current =
+                event.pointerType === 'touch'
+                  ? { columnKey: column.key, selected: isAnchor && !isMultiCell }
+                  : null
+            }}
+            onPointerCancel={() => {
+              touchedCellRef.current = null
+            }}
             onMouseDown={(e) => {
               if (e.button !== 0 || isEditing) return
               onCellMouseDown(rowIndex, colIndex, e.shiftKey)
             }}
             onMouseEnter={() => onCellMouseEnter(rowIndex, colIndex)}
-            onClick={(e) =>
-              onClick(row.id, column.key, {
-                toggleBoolean:
-                  !e.shiftKey &&
-                  Boolean((e.target as HTMLElement).closest('[data-boolean-cell-toggle]')),
-              })
-            }
+            onClick={(e) => {
+              const touchedCell = touchedCellRef.current
+              touchedCellRef.current = null
+              const toggleBoolean =
+                !e.shiftKey &&
+                Boolean((e.target as HTMLElement).closest('[data-boolean-cell-toggle]'))
+              onClick(row.id, column.key, { toggleBoolean })
+              if (
+                touchedCell?.columnKey === column.key &&
+                touchedCell.selected &&
+                !isEditing &&
+                !toggleBoolean
+              ) {
+                onDoubleClick(row.id, column.key, column.key)
+              }
+            }}
             onDoubleClick={() => onDoubleClick(row.id, column.key, column.key)}
           >
             {/* No z-index on purpose: with `auto` it paints in DOM order, so it

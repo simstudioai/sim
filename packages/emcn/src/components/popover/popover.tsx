@@ -610,7 +610,7 @@ const PopoverContent = React.forwardRef<
         {...restProps}
         data-native-surface-overlay=''
         className={cn(
-          'z-[var(--z-popover)] flex flex-col outline-hidden',
+          'z-[var(--z-popover)] flex flex-col outline-hidden max-md:max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-1rem))]! max-md:max-w-[calc(100vw-1rem)]!',
           showArrow ? 'overflow-visible' : 'overflow-auto',
           STYLES.content,
           STYLES.colorScheme[colorScheme].content,

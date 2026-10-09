@@ -13,6 +13,8 @@ export type PanelTab = 'copilot' | 'editor' | 'toolbar'
 export interface PanelState {
   panelWidth: number
   setPanelWidth: (width: number) => void
+  isMobilePanelOpen: boolean
+  setIsMobilePanelOpen: (open: boolean) => void
   activeTab: PanelTab
   setActiveTab: (tab: PanelTab) => void
   _hasHydrated: boolean

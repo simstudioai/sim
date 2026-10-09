@@ -190,7 +190,7 @@ export function ColumnOptionsMenu({
         align='start'
         side='bottom'
         sideOffset={4}
-        className='max-h-none'
+        className='md:max-h-none'
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {showRunActions && (

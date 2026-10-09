@@ -1071,7 +1071,6 @@
   "apps/sim/hooks/queries/inbox.ts#INBOX_TASK_LIST_STALE_TIME",
   "apps/sim/hooks/queries/inbox.ts#InboxTasksResponse",
   "apps/sim/hooks/queries/inbox.ts#inboxKeys",
-  "apps/sim/hooks/queries/integration-availability.ts#INTEGRATION_AVAILABILITY_STALE_TIME",
   "apps/sim/hooks/queries/invitations.ts#INVITATION_DETAILS_STALE_TIME",
   "apps/sim/hooks/queries/invitations.ts#MY_INVITATIONS_STALE_TIME",
   "apps/sim/hooks/queries/invitations.ts#WORKSPACE_INVITATION_LIST_STALE_TIME",

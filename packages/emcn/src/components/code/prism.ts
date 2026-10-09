@@ -1,4 +1,9 @@
-import { type Grammar, languages, highlight as prismHighlight } from 'prismjs'
+/// <reference path="./prism-core.d.ts" />
+import type { Grammar } from 'prismjs'
+import { languages, highlight as prismHighlight } from 'prismjs/components/prism-core'
+import 'prismjs/components/prism-markup'
+import 'prismjs/components/prism-css'
+import 'prismjs/components/prism-clike'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-json'
@@ -6,17 +11,9 @@ import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-toml'
 
 /**
- * Prism.js highlighting utilities isolated in a dedicated module.
- *
- * The grammar imports above are side-effectful (they register languages on the
- * shared `Prism.languages` registry), which marks any module that statically
- * imports them as having side effects and therefore non-tree-shakeable. Keeping
- * them here — rather than in `code.tsx` — ensures Prism only enters bundles that
- * actually import these utilities, instead of every consumer of the shared
- * `@sim/emcn` barrel (which re-exports `Code`).
- *
- * `code.tsx` itself never imports this module statically; it loads it lazily via
- * dynamic `import()` on first highlight.
+ * Uses Prism's core build so server-side highlighting never loads DOM plugins,
+ * including when a document converter has installed partial browser globals.
+ * Explicit grammar prerequisites preserve the default Prism language set.
  *
  * `highlight` is a local wrapper rather than a re-export of Prism's `highlight`.
  * A bare re-export lets bundlers resolve the binding straight from `prismjs` and

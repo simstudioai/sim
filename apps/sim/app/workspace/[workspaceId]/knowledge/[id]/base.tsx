@@ -1353,7 +1353,9 @@ export function KnowledgeBase({
           }}
           overlay={
             <ActionBar
-              className={totalPages > 1 ? 'bottom-[72px]' : undefined}
+              className={
+                totalPages > 1 ? 'bottom-[max(72px,env(safe-area-inset-bottom))]' : undefined
+              }
               selectedCount={selectedDocuments.size}
               onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
               onDisable={enabledCount > 0 ? handleBulkDisable : undefined}

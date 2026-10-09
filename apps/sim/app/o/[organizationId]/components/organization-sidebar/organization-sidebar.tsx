@@ -40,7 +40,6 @@ import { useSidebarResize } from '@/app/workspace/[workspaceId]/w/components/sid
 import { isSidebarBackgroundClick } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useFolderStore } from '@/stores/folders/store'
-import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('OrganizationSidebar')
 
@@ -71,7 +70,7 @@ function OrganizationChats({ organizationId, ...props }: OrganizationChatsProps)
  * the chrome through {@link useSidebarChrome}.
  */
 export const OrganizationSidebar = memo(function OrganizationSidebar() {
-  const { isCollapsed: railCollapsed, isPeeking } = useSidebarChrome()
+  const { isCollapsed: railCollapsed, isPeeking, onToggle: toggleCollapsed } = useSidebarChrome()
   /** The peek card always renders the expanded layout, whatever the rail's state. */
   const isCollapsed = railCollapsed && !isPeeking
 
@@ -82,7 +81,6 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
   const posthog = usePostHog()
   const { organization, viewer, searchAccess, mothershipAvailable, canBuild } =
     useOrganizationContext()
-  const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const { handlePointerDown } = useSidebarResize()
   const showCollapsedTooltips = isCollapsed
   const scrollEdges = useScrollEdges(scrollContainerRef, {
@@ -195,7 +193,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
             <div
               inert={isCollapsed}
               className={cn(
-                'flex h-[30px] items-center gap-[1px] overflow-hidden',
+                'flex h-[30px] items-center gap-[1px] overflow-hidden max-md:hidden',
                 isCollapsed
                   ? 'w-0 opacity-0'
                   : 'w-[32px] [[data-sim-desktop-title-bar=inset]_&]:w-0'
@@ -212,7 +210,10 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
                   aria-label='Collapse sidebar'
                   onClick={toggleCollapsed}
                   tabIndex={isCollapsed ? -1 : undefined}
-                  className={cn(DRAG_EXEMPT_CLASS, '[[data-sim-desktop-title-bar=inset]_&]:hidden')}
+                  className={cn(
+                    DRAG_EXEMPT_CLASS,
+                    'max-md:hidden [[data-sim-desktop-title-bar=inset]_&]:hidden'
+                  )}
                 />
               </SidebarTooltip>
             </div>
@@ -310,7 +311,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
       {!isPeeking && (
         <div
           className={cn(
-            'absolute top-0 right-0 bottom-0 z-20 w-[8px] translate-x-1/2',
+            'absolute top-0 right-0 bottom-0 z-20 hidden w-[8px] translate-x-1/2 md:block',
             isCollapsed ? 'cursor-e-resize' : 'cursor-ew-resize'
           )}
           onPointerDown={isCollapsed ? undefined : handlePointerDown}

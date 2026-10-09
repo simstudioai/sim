@@ -22,6 +22,7 @@
     "start": "next start",
     "test": "vitest run",
     "test:scim:e2e": "bun run scripts/test-scim-e2e.ts",
+    "test:mobile:e2e": "bun --no-env-file scripts/test-mobile-e2e.ts",
     "test:workflow-version-compare:e2e": "bun --no-env-file scripts/test-workflow-version-compare-e2e.ts",
     "test:workflow-stop-after:e2e": "bun --no-env-file scripts/test-workflow-stop-after-e2e.ts",
     "test:desktop-inbox:e2e": "bun --no-env-file scripts/test-desktop-inbox-e2e.ts",
@@ -272,6 +273,7 @@
   "devDependencies": {
     "@next/env": "16.4.0",
     "@opentelemetry/context-async-hooks": "2.10.0",
+    "@playwright/test": "1.61.1",
     "@sim/testing": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
