@@ -168,6 +168,31 @@ describe('native computer model projection', () => {
     }
   )
 
+  it('retains a focused editor without dangling references when its ancestry exceeds the budget', () => {
+    const state = snapshot()
+    state.nodes = Array.from({ length: 100 }, (_, index) => ({
+      elementId: `deep-${index}`,
+      parentId: index > 0 ? `deep-${index - 1}` : undefined,
+      role: index === 99 ? 'AXTextArea' : 'AXGroup',
+      label: 'Container '.repeat(50),
+      value: 'State '.repeat(80),
+      actions: [],
+      focused: index === 99,
+      editable: index === 99,
+    }))
+    const result = computerToolResultForModel(sequence(state))
+    if (!('observation' in result) || !result.observation) throw new Error('Missing observation')
+    const tree = result.observation.accessibilityTree
+    const ids = new Set(tree.split('\n').map((row) => row.split(' ')[0]))
+    expect(ids.has('deep-99')).toBe(true)
+    expect(ids.size).toBeLessThan(state.nodes.length)
+    for (const match of tree.matchAll(/\bparent=(\S+)/g)) expect(ids.has(match[1])).toBe(true)
+    expect(Buffer.byteLength(JSON.stringify({ ...result, observations: undefined }))).toBeLessThan(
+      44 * 1024
+    )
+    expect(result).toMatchObject({ dispatched: true, sequence: { completedSteps: 1 } })
+  })
+
   it('does not split an emoji when bounding text for the model', () => {
     const state = snapshot()
     state.nodes[0] = {

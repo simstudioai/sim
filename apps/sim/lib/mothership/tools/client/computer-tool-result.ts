@@ -22,9 +22,13 @@ function jsonBytes(value: unknown): number {
   return encoder.encode(JSON.stringify(value)).length
 }
 
-function nodeRow(node: ComputerUseSnapshot['nodes'][number]): string {
+function nodeRow(
+  node: ComputerUseSnapshot['nodes'][number],
+  selected?: ReadonlySet<string>
+): string {
   const fields = [node.elementId, node.role]
-  if (node.parentId) fields.push(`parent=${node.parentId}`)
+  if (node.parentId && (!selected || selected.has(node.parentId)))
+    fields.push(`parent=${node.parentId}`)
   if (node.label) fields.push(`label=${JSON.stringify(truncateAtCodePoint(node.label, 512, ''))}`)
   if (node.value) fields.push(`value=${JSON.stringify(truncateAtCodePoint(node.value, 512, ''))}`)
   if (node.placeholder)
@@ -149,7 +153,7 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
     ...model,
     accessibilityTree: nodes
       .filter((node) => selected.has(node.elementId))
-      .map((node) => rows.get(node.elementId))
+      .map((node) => nodeRow(node, selected))
       .join('\n'),
     omittedNodeCount: nodes.length - selected.size,
     truncated:
