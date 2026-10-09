@@ -107,6 +107,10 @@ vi.mock('@/lib/browser-agent/transport', () => ({
 
 import { toast } from '@sim/emcn'
 import type { GenericSecretSource } from '@/lib/api/contracts/organization-secrets'
+import {
+  redactSensitiveContent,
+  restoreRevealedSimKeysForMessage,
+} from '@/lib/mothership/chat/sim-key-redaction'
 import type { CredentialItemData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 import { SpecialTags } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 import { organizationSecretKeys } from '@/hooks/queries/organization-secrets'
@@ -377,6 +381,30 @@ describe('CredentialDisplay link tag', () => {
     expect(mockCredentialHost).not.toHaveBeenCalled()
     expect(mockUpsertWorkspaceEnvironment).not.toHaveBeenCalled()
     act(() => root.unmount())
+  })
+
+  it('reveals a created key in organization chat after the live fill and after persistence', () => {
+    mockParams.mockReturnValue({ organizationId: 'org' } as never)
+    const modelTag = `<credential>${JSON.stringify({ type: 'sim_key', workspaceId: 'ws-1' })}</credential>`
+    const live = restoreRevealedSimKeysForMessage(
+      { id: 'msg-1', role: 'assistant', content: modelTag },
+      new Map([['msg-1', ['sk-sim-live']]])
+    ).content
+    const persisted = redactSensitiveContent(live)
+    const tagData = (content: string) =>
+      JSON.parse(
+        content.slice('<credential>'.length, -'</credential>'.length)
+      ) as CredentialItemData
+
+    const liveView = renderCredentialLink(tagData(live))
+    expect(liveView.container.textContent).not.toContain('explicit workspace target')
+    expect(liveView.container.textContent).toContain('sk-sim-live')
+    act(() => liveView.root.unmount())
+
+    const persistedView = renderCredentialLink(tagData(persisted))
+    expect(persistedView.container.textContent).not.toContain('explicit workspace target')
+    expect(persistedView.container.textContent).not.toContain('sk-sim-live')
+    act(() => persistedView.root.unmount())
   })
 
   it('does not mount credential inputs when the target host denies access', () => {

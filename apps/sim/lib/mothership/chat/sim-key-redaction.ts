@@ -25,14 +25,24 @@ import type { ChatMessage, ContentBlock } from '@/app/workspace/[workspaceId]/ho
 
 const CREDENTIAL_TAG_PATTERN = /<credential>([\s\S]*?)<\/credential>/g
 const SIM_KEY_TYPE = 'sim_key'
-// The persisted / secret-stripped form of a sim_key tag: value-less, which is
-// exactly how the UI renders the masked state. No `redacted` flag needed — a
-// sim_key chip is masked iff it has no value.
-const VALUELESS_SIM_KEY_TAG = `<credential>${JSON.stringify({ type: SIM_KEY_TYPE })}</credential>`
 
 interface CredentialTagBody {
   type?: unknown
   value?: unknown
+  workspaceId?: unknown
+}
+
+/**
+ * Rebuilds a sim_key row from its known fields. Organization chat requires the
+ * row's `workspaceId` to render it, so redaction and the live fill keep it.
+ * Without a value the row is the persisted, masked form.
+ */
+function simKeyItem(item: CredentialTagBody, value?: string): Record<string, string> {
+  return {
+    ...(value === undefined ? {} : { value }),
+    type: SIM_KEY_TYPE,
+    ...(typeof item.workspaceId === 'string' ? { workspaceId: item.workspaceId } : {}),
+  }
 }
 
 function parseCredentialBody(body: string): unknown | null {
@@ -80,14 +90,15 @@ export function redactSensitiveContent<T extends string | undefined>(content: T)
   if (typeof content !== 'string' || !content.includes('<credential>')) return content
   return content.replace(CREDENTIAL_TAG_PATTERN, (match, body: string) => {
     const parsed = parseCredentialBody(body)
-    if (isSimKeyBody(parsed)) return VALUELESS_SIM_KEY_TAG
+    if (isSimKeyBody(parsed))
+      return `<credential>${JSON.stringify(simKeyItem(parsed))}</credential>`
     if (!Array.isArray(parsed)) return match
 
     let changed = false
     const next = parsed.map((item) => {
       if (!isSimKeyBody(item)) return item
       changed = true
-      return { type: SIM_KEY_TYPE }
+      return simKeyItem(item)
     })
     return changed ? `<credential>${JSON.stringify(next)}</credential>` : match
   }) as T
@@ -320,7 +331,7 @@ function restoreInString(
       if (typeof value === 'string') {
         changed = true
         tagChanged = true
-        return { value, type: SIM_KEY_TYPE }
+        return simKeyItem(item, value)
       }
       return item
     }

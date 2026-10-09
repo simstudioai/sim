@@ -50,6 +50,19 @@ describe('sim-key-redaction', () => {
       const batch = credentialBatch([link, { type: 'sim_key', value: 'sk-sim-secret' }])
       expect(redactSensitiveContent(batch)).toBe(credentialBatch([link, { type: 'sim_key' }]))
     })
+
+    it('keeps the workspace target an organization chat needs and strips only the value', () => {
+      const single = `<credential>${JSON.stringify({ type: 'sim_key', workspaceId: 'ws-1', value: 'sk-sim-secret' })}</credential>`
+      expect(redactSensitiveContent(single)).toBe(
+        `<credential>${JSON.stringify({ type: 'sim_key', workspaceId: 'ws-1' })}</credential>`
+      )
+      const batch = credentialBatch([
+        { type: 'sim_key', workspaceId: 'ws-1', value: 'sk-sim-secret', extra: 'dropped' },
+      ])
+      expect(redactSensitiveContent(batch)).toBe(
+        credentialBatch([{ type: 'sim_key', workspaceId: 'ws-1' }])
+      )
+    })
   })
 
   describe('toolResultForModel', () => {
