@@ -2917,7 +2917,7 @@ const v2WorkflowLintSchema = z
         })
       )
       .describe(
-        'Credential, resource, tool, and skill references that do not resolve, and `block-output` references that will not work as written: a block that does not exist, an output field the block does not have (reason `unknown-field`), or a text output written unquoted in a JSON field (reason `unquoted-json-string`). These values are still persisted; they are reported, not dropped.'
+        'Credential, resource, tool, and skill references that do not resolve; `block-output` references that will not work as written: a block that does not exist, or an output field the block does not have (reason `unknown-field`); and text outputs written unquoted in a JSON field (reason `unquoted-json-string`), which leave the field invalid JSON at run time unless the text is itself JSON. These values are still persisted; they are reported, not dropped.'
       ),
     tableFieldIssues: z
       .array(
