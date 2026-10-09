@@ -11,30 +11,43 @@
  */
 
 import { createLogger } from '@sim/logger'
-import { encodingForModel, type Tiktoken } from 'js-tiktoken'
+import {
+  getEncoding as createEncoding,
+  getEncodingNameForModel,
+  type Tiktoken,
+  type TiktokenEncoding,
+  type TiktokenModel,
+} from 'js-tiktoken'
 
 const logger = createLogger('TokenizationAccurate')
 
-const encodingCache = new Map<string, Tiktoken>()
+/** Keyed by encoding, not model: each instance holds a full rank table, so models share one. */
+const encodingCache = new Map<TiktokenEncoding, Tiktoken>()
+
+/** OpenAI families tokenized with `o200k_base` that `js-tiktoken`'s exact-name table may not list yet. */
+const O200K_MODEL_FAMILY = /^(?:gpt-(?:4o|4\.1|4\.5|5|6|oss)|chatgpt-4o|o\d)/
 
 /**
- * Get or create a cached encoding for a model
+ * The encoding for a model id. Exact OpenAI names resolve through `js-tiktoken`; newer
+ * OpenAI ids resolve by family; every other model (Claude, Gemini, …) has no public
+ * tiktoken encoding and is approximated with `cl100k_base`.
  */
-function getEncoding(modelName: string): Tiktoken {
-  if (encodingCache.has(modelName)) {
-    return encodingCache.get(modelName)!
-  }
-
+function resolveEncodingName(modelName: string): TiktokenEncoding {
   try {
-    const encoding = encodingForModel(modelName as Parameters<typeof encodingForModel>[0])
-    encodingCache.set(modelName, encoding)
-    return encoding
+    return getEncodingNameForModel(modelName as TiktokenModel)
   } catch {
-    logger.warn(`Failed to get encoding for model ${modelName}, falling back to cl100k_base`)
-    const encoding = encodingForModel('gpt-4')
-    encodingCache.set(modelName, encoding)
-    return encoding
+    const baseModel = modelName.slice(modelName.lastIndexOf('/') + 1).toLowerCase()
+    return O200K_MODEL_FAMILY.test(baseModel) ? 'o200k_base' : 'cl100k_base'
   }
+}
+
+function getEncoding(modelName: string): Tiktoken {
+  const encodingName = resolveEncodingName(modelName)
+  const cached = encodingCache.get(encodingName)
+  if (cached) return cached
+  const encoding = createEncoding(encodingName)
+  encodingCache.set(encodingName, encoding)
+  return encoding
 }
 
 if (typeof process !== 'undefined') {
