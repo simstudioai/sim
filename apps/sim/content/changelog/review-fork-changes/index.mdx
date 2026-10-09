@@ -1,0 +1,27 @@
+---
+slug: review-fork-changes
+title: 'Review fork changes before syncing'
+description: 'See what changed in a source workflow before syncing a workspace fork in Sim. Review prompts, settings, and steps against the last successful sync.'
+date: '2026-10-03T04:32:55Z'
+authors: [waleed]
+tags: [Workspaces, Enterprise]
+ogImage: /changelog/review-fork-changes-v1.jpg
+ogAlt: 'Last Sync to Now comparison showing a changed renewal-reminder setting in Sim'
+technical: false
+draft: false
+release:
+  versions: [v0.9.12]
+  url: https://github.com/simstudioai/sim/releases/tag/v0.9.12
+---
+
+<ChangelogVideo
+  src="/changelog/review-fork-changes-v1.mp4"
+  poster="/changelog/review-fork-changes-v1.jpg"
+  caption="Inspect a renewal-reminder change before pulling it into a fork. Edited walkthrough from real Sim captures with sample data."
+/>
+
+Open **Workspace forks → Edit mappings**, select **Push** or **Pull**, then choose **Compare** from a deployed workflow's menu. **Last Sync → Now** shows the source changes since that fork's last successful sync.
+
+Each fork and direction keeps its own comparison history. If no earlier snapshot is available, Sim explains why it cannot show a comparison.
+
+Included in **v0.9.12**. Requires workspace admin access and Forks enabled: Sim Cloud Enterprise with organization access, or a self-hosted deployment. Follow the [workspace forks guide](https://docs.sim.ai/platform/enterprise/forks) to set up mappings and sync workflows.

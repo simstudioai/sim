@@ -13,6 +13,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import type { NativeImage, WebContents, WebFrameMain } from 'electron'
 
 const logger = createLogger('BrowserAgentCdp')
@@ -38,8 +39,14 @@ export interface DialogResponse {
 export interface CdpCallbacks {
   /** A JS dialog was handled; the driver surfaces it to the model. */
   onDialog: (dialog: PageDialog) => void
-  /** The running action's requested answer; dialogs are dismissed when it has none. */
+  /** The running action's requested answer; defaults to declining the dialog. */
   dialogResponse: () => DialogResponse | null
+  /** Leaves a visible user-owned alert or confirm to Electron's native dialog. */
+  claimUserDialog: () => boolean
+  /** The dialog ended through a user answer, a CDP answer, or page teardown. */
+  onDialogClosed: () => void
+  /** True when the user, not the shell, decides this beforeunload. */
+  claimUserLeave: () => boolean
 }
 
 /** Per-tab callbacks, so a background tab's events reach ITS driver, not the
@@ -189,34 +196,52 @@ function handleDebuggerEvent(
     return
   }
   const callbacks = callbacksByContents.get(contents)
+  if (method === 'Page.javascriptDialogClosed') {
+    callbacks?.onDialogClosed()
+    return
+  }
   if (method === 'Page.javascriptDialogOpening') {
     const type = String(params.type ?? 'dialog')
-    const message = String(params.message ?? '').slice(0, 500)
-    // Dialogs never stay open: beforeunload is accepted (navigation proceeds),
-    // and alert/confirm follow the running action's requested answer, defaulting
-    // to dismissal so an unexpected dialog can never block the page.
-    const accept = type === 'beforeunload' || callbacks?.dialogResponse()?.accept === true
-    const answer = { accept }
-    void (async () => {
-      let handled = false
-      try {
-        await send(contents, 'Page.handleJavaScriptDialog', answer, parentSessionId)
-        handled = true
-      } catch {
-        // Some Chromium builds surface an OOPIF's tab-modal dialog on its
-        // flattened session but accept the answer only on the root target.
-        if (parentSessionId) {
-          try {
-            await send(contents, 'Page.handleJavaScriptDialog', answer)
-            handled = true
-          } catch {}
-        }
-      }
+    const rawMessage = String(params.message ?? '')
+    const message = truncateAtCodePoint(rawMessage, 500, '')
+    const requested = callbacks?.dialogResponse() ?? null
+    if (!requested && (type === 'alert' || type === 'confirm') && callbacks?.claimUserDialog()) {
+      return
+    }
+    if (type === 'beforeunload' && callbacks?.claimUserLeave()) {
+      // The user's Leave replays the navigation; this unload stays cancelled.
+      void answerDialog(contents, { accept: false }, parentSessionId)
+      return
+    }
+    // CDP unblocks JavaScript, but Electron may retain the native dialog until navigation.
+    const accept = type === 'beforeunload' || requested?.accept === true
+    void answerDialog(contents, { accept }, parentSessionId).then((handled) => {
       if (handled) logger.info('Handled page dialog', { type, accept })
       else logger.warn('Could not handle page dialog', { type })
       callbacks?.onDialog({ type, message, handled, accepted: handled && accept })
-    })()
+    })
     return
+  }
+}
+
+async function answerDialog(
+  contents: WebContents,
+  answer: { accept: boolean },
+  parentSessionId: string | undefined
+): Promise<boolean> {
+  try {
+    await send(contents, 'Page.handleJavaScriptDialog', answer, parentSessionId)
+    return true
+  } catch {
+    // Some Chromium builds surface an OOPIF's tab-modal dialog on its
+    // flattened session but accept the answer only on the root target.
+    if (!parentSessionId) return false
+    try {
+      await send(contents, 'Page.handleJavaScriptDialog', answer)
+      return true
+    } catch {
+      return false
+    }
   }
 }
 
