@@ -4,8 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import journal from '@sim/db/migrations/meta/_journal.json'
-import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
+import { readTestDatabaseUrl, readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
+import Redis from 'ioredis'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -17,10 +18,19 @@ const client = postgres(url.toString(), { max: 1, onnotice: () => {} })
 const directory = await mkdtemp(join(tmpdir(), 'project-repair-test-'))
 const manifest = join(directory, 'manifest.json')
 const report = join(directory, 'report.json')
+const redisUrl = readTestRedisUrl()
+if (!redisUrl) throw new Error('Archive repair integration requires TEST_REDIS_URL')
+const cache = new Redis(redisUrl)
+const subscriber = new Redis(redisUrl)
+const mcpServerId = generateId()
+const cacheKey = `mcp:tools:workspace:env:server:${mcpServerId}`
+const published: unknown[] = []
+subscriber.on('message', (_channel, message) => published.push(JSON.parse(message)))
 const environment = {
   ...process.env,
   DATABASE_URL: url.toString(),
   MIGRATION_DATABASE_URL: url.toString(),
+  REDIS_URL: redisUrl,
 }
 const execute = promisify(execFile)
 const run = (command: string) =>
@@ -42,6 +52,7 @@ const run = (command: string) =>
   )
 
 beforeAll(async () => {
+  await subscriber.subscribe('mcp:workflow_tools_changed')
   await admin.unsafe(`CREATE DATABASE "${name}"`)
   await client.unsafe(
     'CREATE EXTENSION vector; CREATE EXTENSION btree_gin; CREATE EXTENSION pg_trgm'
@@ -79,6 +90,8 @@ beforeAll(async () => {
 }, 120000)
 
 afterAll(async () => {
+  await cache.del(cacheKey)
+  await Promise.all([cache.quit(), subscriber.quit()])
   await client.end({ timeout: 2 })
   await admin.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`)
   await admin.end()
@@ -95,10 +108,16 @@ describe('Operator archive repair against the full compatible schema', () => {
     await client`INSERT INTO webhook (id,workflow_id,provider,path,provider_config) VALUES ('hook','flow','gitlab','fixture-hook','{}')`
     await client`INSERT INTO chat (id,workflow_id,user_id,identifier,title) VALUES ('chat','flow','owner','repair-chat','Chat')`
     await client`INSERT INTO workflow_deployment_version (id,workflow_id,version,state,is_active) VALUES ('deployment','flow',1,'{}',true)`
-    await client`INSERT INTO workflow_mcp_server (id,workspace_id,created_by,name,is_public) VALUES ('server','env','owner','Server',true)`
-    await client`INSERT INTO workflow_mcp_tool (id,server_id,workflow_id,tool_name) VALUES ('tool','server','flow','fixture')`
+    await client`INSERT INTO workflow_mcp_server (id,workspace_id,created_by,name,is_public) VALUES (${mcpServerId},'env','owner','Server',true)`
+    await client`INSERT INTO workflow_mcp_tool (id,server_id,workflow_id,tool_name) VALUES ('tool',${mcpServerId},'flow','fixture')`
+    await client`INSERT INTO mcp_servers (id,workspace_id,created_by,name,transport) VALUES (${mcpServerId},'env','owner','Cached server','streamable-http')`
+    await cache.set(cacheKey, JSON.stringify({ tools: [], expiry: Date.now() + 60000 }), 'EX', 60)
     await run('plan')
     await expect(run('repair')).rejects.toMatchObject({ code: 1 })
+    expect(await cache.get(cacheKey)).toBeNull()
+    await expect
+      .poll(() => published, { timeout: 2000 })
+      .toContainEqual({ serverId: mcpServerId, workspaceId: 'env' })
     expect(JSON.parse(await readFile(report, 'utf8'))).toMatchObject({
       status: 'failed',
       repairsCompleted: [],

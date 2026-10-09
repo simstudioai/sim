@@ -149,7 +149,10 @@ DECLARE
   target_id text;
 BEGIN
   FOR target_id IN SELECT DISTINCT id FROM unnest(target_ids) AS ids(id) WHERE id IS NOT NULL ORDER BY id LOOP
-    PERFORM pg_advisory_xact_lock(hashtextextended('project:' || target_id, 0));
+    -- BEFORE row triggers already hold row locks; waiting here could invert the application lock order.
+    IF NOT pg_try_advisory_xact_lock(hashtextextended('project:' || target_id, 0)) THEN
+      RAISE EXCEPTION 'Project is changing; retry the operation' USING ERRCODE = '55P03';
+    END IF;
   END LOOP;
 END;
 $$;
@@ -163,12 +166,11 @@ BEGIN
   IF TG_TABLE_NAME = 'project' THEN
     IF TG_OP <> 'INSERT' THEN previous_id := OLD.id; END IF;
     IF TG_OP <> 'DELETE' THEN next_id := NEW.id; END IF;
-    PERFORM pg_advisory_xact_lock(hashtextextended('project:' || coalesce(next_id, previous_id), 0));
   ELSE
     IF TG_OP <> 'INSERT' THEN previous_id := OLD.project_id; END IF;
     IF TG_OP <> 'DELETE' THEN next_id := NEW.project_id; END IF;
-    PERFORM project_contract_lock_projects(ARRAY[previous_id, next_id]);
   END IF;
+  PERFORM project_contract_lock_projects(ARRAY[previous_id, next_id]);
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END;

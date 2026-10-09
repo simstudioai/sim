@@ -124,7 +124,11 @@ export async function discoverProjectBackfill(
     else groups.set(root, [row])
   }
   for (const [rootId, members] of groups) {
-    if (members.every((row) => row.projectId !== null)) continue
+    if (
+      members.every((row) => row.projectId !== null) &&
+      new Set(members.map((row) => row.projectId)).size === 1
+    )
+      continue
     const family = { rootId, members }
     try {
       validateFamily(family)

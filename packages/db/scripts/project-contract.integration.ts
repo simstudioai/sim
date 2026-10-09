@@ -260,6 +260,19 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         ).toEqual(first)
         expect(await sql`SELECT id FROM project`).toHaveLength(101)
         await run('verify')
+        for (const artifacts of [[], ['--manifest', manifestPath], ['--report', reportPath]]) {
+          await expect(
+            promisify(execFile)(
+              'bun',
+              ['--no-env-file', 'scripts/backfill-projects.ts', 'verify', ...artifacts],
+              {
+                cwd: new URL('../../../apps/sim/', import.meta.url),
+                env: { ...process.env, MIGRATION_DATABASE_URL: url, DATABASE_URL: url },
+                timeout: 30000,
+              }
+            )
+          ).rejects.toMatchObject({ code: 1 })
+        }
         const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
         manifest.databaseId = projectBackfillDatabaseId('postgres://localhost/wrong_test')
         await writeFile(manifestPath, JSON.stringify(manifest))
@@ -692,6 +705,44 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   })
 
+  it.each([
+    ['Project update', "UPDATE project SET name = 'Contending update'"],
+    ['Project delete', 'DELETE FROM project'],
+    ['environment update', "UPDATE workspace SET archived_at = now() WHERE id = 'child'"],
+    ['environment delete', "DELETE FROM workspace WHERE id = 'child'"],
+  ])('rejects a direct %s promptly when its Project is changing', async (_operation, statement) => {
+    await database(async (sql) => {
+      await seed(sql)
+      const held = createDeferred<void>()
+      const release = createDeferred<void>()
+      const writer = sql.begin(async (tx) => {
+        await tx`UPDATE workflow SET archived_at = now() WHERE workspace_id = 'root'`
+        await tx`UPDATE workspace SET archived_at = now() WHERE id = 'root'`
+        held.resolve()
+        await release.promise
+      })
+      await held.promise
+      try {
+        await expect(
+          sql.begin(async (tx) => {
+            await tx`SET LOCAL statement_timeout = '500ms'`
+            await tx.unsafe(statement)
+          })
+        ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '55P03')
+      } finally {
+        release.resolve()
+        await writer
+      }
+      expect(
+        await sql`SELECT 1 FROM workspace WHERE id = 'child' AND archived_at IS NULL`
+      ).toHaveLength(1)
+      expect(await sql`SELECT 1 FROM project WHERE name = 'Contending update'`).toHaveLength(0)
+      expect(Object.values(await verifyProjectBackfill(sql)).every((count) => count === 0)).toBe(
+        true
+      )
+    })
+  })
+
   it.each(['read committed', 'repeatable read'] as const)(
     'prevents concurrent last-environment removal under %s',
     async (isolation) => {
@@ -712,6 +763,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
             const [connection] =
               await tx`SELECT pg_backend_pid() AS pid, count(*) FROM workspace WHERE archived_at IS NULL`
             started.resolve(connection.pid)
+            await tx`SELECT pg_advisory_xact_lock(hashtextextended('project:' || project_id, 0)) FROM workspace WHERE id = 'child'`
             await tx`UPDATE workspace SET archived_at = now() WHERE id = 'child'`
           })
           .then(
@@ -736,7 +788,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           await first
         }
         const failure = await second
-        expect(['23514', '40001', '40P01']).toContain(getPostgresErrorCode(failure))
+        expect(['23514', '40001']).toContain(getPostgresErrorCode(failure))
         expect(await sql`SELECT 1 FROM workspace WHERE archived_at IS NULL`).toHaveLength(1)
       })
     }
@@ -745,14 +797,17 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
   it('refuses enforcement when an archived Project retains an active workflow', async () => {
     await database(async (sql) => {
       await sql`INSERT INTO workspace (id, name, owner_id) VALUES ('root', 'Root', 'owner')`
+      await sql`INSERT INTO project (id, name, owner_id, archived_at) VALUES ('existing', 'Existing', 'owner', now())`
+      await sql`UPDATE workspace SET project_id = 'existing', archived_at = now()`
       await sql`INSERT INTO workflow VALUES ('flow', 'root', NULL)`
-      await sql`UPDATE workspace SET archived_at = now()`
-      await sql`UPDATE project SET archived_at = now()`
-      await expect(prepareAndEnforce(sql)).rejects.toSatisfy(
+      await expect(applyMigration(sql, migration)).rejects.toSatisfy(
         (error: unknown) => getPostgresErrorCode(error) === '55000'
       )
+      expect(await sql`SELECT to_regclass('project_workspace')::text AS name`).toEqual([
+        { name: 'project_workspace' },
+      ])
       await sql`UPDATE workflow SET archived_at = now()`
-      await prepareAndEnforce(sql)
+      await applyMigration(sql, migration)
     })
   })
   it('groups fork families, preserves partial assignments, and retains archived and detached Projects on replay', async () => {
@@ -893,6 +948,11 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           }
         }
         const before = await sql`SELECT id, project_id FROM workspace ORDER BY id`
+        if (scenario === 'split') {
+          expect(await discoverProjectBackfill(sql, 'fixture')).toMatchObject({
+            conflicts: [{ id: 'root', reason: 'Fork family spans Projects' }],
+          })
+        }
         await expect(prepareAndEnforce(sql)).rejects.toSatisfy(
           (error: unknown) =>
             getPostgresErrorCode(error) === (scenario === 'oversized' ? '54000' : '55000')

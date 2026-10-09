@@ -125,7 +125,7 @@ async function main() {
   if (values.help || !positionals.length) {
     process.stdout.write(`Operator-controlled Project preparation; never runs automatically on deployment.\n
 From apps/sim: bun --no-env-file scripts/backfill-projects.ts <command> [options]\n
-plan    Read-only discovery; atomically writes a new --manifest PATH (never overwrites).\nrepair  Repair only archived environments listed in --manifest; requires --report PATH.\napply   Assign reviewed families from --manifest; requires --report PATH.\nverify  Fresh database validation; include --manifest and --report to verify repair completion.\nstatus  Read --report; does not connect or resume.\n
+plan    Read-only discovery; atomically writes a new --manifest PATH (never overwrites).\nrepair  Repair only archived environments listed in --manifest; requires --report PATH.\napply   Assign reviewed families from --manifest; requires --report PATH.\nverify  Validate the database and repair completion; requires --manifest and --report.\nstatus  Read --report; does not connect or resume.\n
 Writes require MIGRATION_DATABASE_URL pointing directly to the primary and --ack-release-drained.\nDeploy #8830 and verify old servers/workers drained first. Keep the reviewed manifest and report\nin durable private job storage. Review conflicts and repairs before repair/apply. Repair requires\nthe app runtime environment (DATABASE_URL must target the same database) for provider cleanup.\n
 Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 (1–3600), --pause-ms 100 (1–60000).\nA budget limits scheduling. Transactions use 3s statement limits and a 5s total limit on PG17+,\notherwise a 5s idle-transaction limit on PG16. Reuse the same report\nto resume; lost reports can be recreated safely from the same manifest. Changed families need a\nnew plan/report. Complete verify plus deployment evidence is required before #8590 enforcement.\nExit: 0 complete, 2 paused/incomplete, 1 failure. Never run db:migrate to launch this tool.\n`)
     return
@@ -207,23 +207,21 @@ Defaults: --batch-size 50 (1–50), --max-batches 100 (1–10000), --seconds 60 
       return
     }
     if (command === 'verify') {
+      if (!manifestPath || !reportPath)
+        throw new Error('Verification requires both --manifest and --report')
       const counts = await verifyProjectBackfill(sql)
-      if (manifestPath || reportPath) {
-        if (!manifestPath || !reportPath)
-          throw new Error('Repair verification needs both --manifest and --report')
-        const manifest = manifestSchema.parse(await readJson(manifestPath))
-        const report = progressSchema.parse(await readJson(reportPath))
-        const hash = createHash('sha256').update(JSON.stringify(manifest)).digest('hex')
-        if (
-          manifest.databaseId !== databaseId ||
-          report.databaseId !== databaseId ||
-          report.manifestHash !== hash
-        )
-          throw new Error('Verification artifacts do not match this database and manifest')
-        counts.pendingCleanup = manifest.repairs.filter(
-          (repair) => !report.repairsCompleted.includes(repair.workspaceId)
-        ).length
-      }
+      const manifest = manifestSchema.parse(await readJson(manifestPath))
+      const report = progressSchema.parse(await readJson(reportPath))
+      const hash = createHash('sha256').update(JSON.stringify(manifest)).digest('hex')
+      if (
+        manifest.databaseId !== databaseId ||
+        report.databaseId !== databaseId ||
+        report.manifestHash !== hash
+      )
+        throw new Error('Verification artifacts do not match this database and manifest')
+      counts.pendingCleanup = manifest.repairs.filter(
+        (repair) => !report.repairsCompleted.includes(repair.workspaceId)
+      ).length
       logger.info('Project verification', { databaseId, ...counts })
       if (Object.values(counts).some((count) => count !== 0)) process.exitCode = 2
       return
