@@ -21,8 +21,78 @@ import loadPostcssConfig from 'postcss-load-config'
 const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 const SCOPE = 'browser-page-dialogs-e2e'
 const SIM_DIR = fileURLToPath(new URL('../../sim/', import.meta.url))
+interface EscapeDiagnosticEntry {
+  atMs: number
+  process: 'renderer' | 'main'
+  kind: string
+  details: Record<string, unknown>
+}
+
+const ESCAPE_OBSERVERS = `<script>
+(() => {
+  const entries = [];
+  const observedEvents = [];
+  globalThis.escapeDiagnostics = entries;
+  globalThis.escapeDiagnosticCompletedEvents = () => observedEvents.map(({ event, ...details }) => ({
+    ...details, defaultPreventedAfterDispatch: event.defaultPrevented,
+  }));
+  const snapshot = () => {
+    const active = document.activeElement;
+    return {
+      requestId: globalThis.pageDialog?.requestId ?? null,
+      dialogKind: globalThis.pageDialog?.kind ?? null,
+      documentHasFocus: document.hasFocus(),
+      visibility: document.visibilityState,
+      activeTag: active?.tagName ?? null,
+      activeId: active?.id ?? null,
+      activeLabel: active?.getAttribute('aria-label') ?? active?.textContent?.slice(0, 80) ?? null,
+      modalStates: Array.from(document.querySelectorAll('[role="dialog"]'), element => ({
+        state: element.getAttribute('data-state'),
+        hidden: element.getAttribute('aria-hidden'),
+      })),
+    };
+  };
+  const record = (kind, details = {}) => {
+    if (entries.length >= 3000) return;
+    entries.push({ atMs: Date.now(), process: 'renderer', kind, details });
+  };
+  globalThis.escapeDiagnosticRecord = record;
+  globalThis.escapeDiagnosticSnapshot = snapshot;
+  for (const capture of [true, false]) {
+    for (const type of ['keydown', 'keyup']) {
+      document.addEventListener(type, event => {
+        if (event.key !== 'Escape') return;
+        if (capture) observedEvents.push({
+          event, atMs: Date.now(), type: event.type,
+          requestIdAtCapture: globalThis.pageDialog?.requestId ?? null,
+        });
+        record('dom-' + type + (capture ? '-capture' : '-bubble'), {
+          ...snapshot(),
+          key: event.key,
+          isTrusted: event.isTrusted,
+          defaultPrevented: event.defaultPrevented,
+          eventPhase: event.eventPhase,
+        });
+        if (capture) queueMicrotask(() => record('dom-' + type + '-post-capture-microtask', {
+          ...snapshot(),
+          defaultPrevented: event.defaultPrevented,
+        }));
+      }, { capture, passive: true });
+    }
+  }
+  document.addEventListener('focusin', () => record('dom-focusin', snapshot()), {
+    capture: true, passive: true,
+  });
+  window.addEventListener('focus', () => record('window-focus', snapshot()), { passive: true });
+  window.addEventListener('blur', () => record('window-blur', snapshot()), { passive: true });
+  record('observers-installed');
+})();
+</script>`
+
 const SHELL_FIXTURE =
-  '<!doctype html><title>Sim fixture</title><link rel="stylesheet" href="/fixture.css"><h1>Browser dialogs fixture</h1><div id="root"></div><div id="native-panel" style="position:absolute;top:80px;bottom:0;left:0;right:0"></div><script src="/fixture.js"></script>'
+  '<!doctype html><title>Sim fixture</title><link rel="stylesheet" href="/fixture.css"><h1>Browser dialogs fixture</h1><div id="root"></div><div id="native-panel" style="position:absolute;top:80px;bottom:0;left:0;right:0"></div>' +
+  ESCAPE_OBSERVERS +
+  '<script src="/fixture.js"></script>'
 const FORM_FIXTURE = `<!doctype html><title>form</title>
 <input id="draft" aria-label="Draft">
 <button id="long-message" onclick="alert('Details '.repeat(150) + 'Final decision detail')">Long message</button>
@@ -47,6 +117,8 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
   const reportPath =
     process.env.DESKTOP_BROWSER_DIALOGS_REPORT_PATH ??
     test.info().outputPath('browser-page-dialogs.json')
+  let diagnosticShell: Page | undefined
+  let failedCheck: string | undefined
   const checks: {
     name: string
     status: 'passed' | 'failed'
@@ -59,6 +131,7 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
       await test.step(name, run)
       checks.push({ name, status: 'passed', durationMs: Date.now() - started })
     } catch (error) {
+      failedCheck = name
       checks.push({
         name,
         status: 'failed',
@@ -84,6 +157,10 @@ const api = globalThis.simDesktop.browserAgent;
 api.onPageState(state => store.getState().setPageState(state));
 store.subscribe(state => {
   globalThis.pageDialog = state.sessions[scope]?.pageState?.dialog ?? null;
+  globalThis.escapeDiagnosticRecord('page-state', {
+    requestId: globalThis.pageDialog?.requestId ?? null,
+    dialogKind: globalThis.pageDialog?.kind ?? null,
+  });
   globalThis.pageIssue = state.sessions[scope]?.pageState?.issue?.kind ?? null;
 });
 function Fixture() {
@@ -167,6 +244,56 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
       env: { ...process.env, SIM_DESKTOP_ORIGIN: origin, SIM_DESKTOP_USER_DATA: userData },
     })
     app = shellApp
+    await shellApp.evaluate(({ app, webContents }) => {
+      const entries: EscapeDiagnosticEntry[] = []
+      ;(
+        globalThis as typeof globalThis & { escapeDiagnostics?: EscapeDiagnosticEntry[] }
+      ).escapeDiagnostics = entries
+      const record = (kind: string, details: Record<string, unknown>) => {
+        if (entries.length >= 3000) return
+        entries.push({ atMs: Date.now(), process: 'main', kind, details })
+      }
+      const focus = () => {
+        const focused = webContents.getFocusedWebContents()
+        return { focusedId: focused?.id ?? null, focusedUrl: focused?.getURL() ?? null }
+      }
+      const observed = new Set<number>()
+      const observe = (contents: Electron.WebContents) => {
+        if (observed.has(contents.id)) return
+        observed.add(contents.id)
+        contents.on('before-input-event', (event, input) => {
+          if (input.key !== 'Escape') return
+          record('native-before-input-event', {
+            contentsId: contents.id,
+            url: contents.getURL(),
+            ...focus(),
+            key: input.key,
+            type: input.type,
+            isAutoRepeat: input.isAutoRepeat,
+            defaultPrevented: event.defaultPrevented,
+          })
+        })
+        contents.on('focus', () => {
+          record('native-focus', { contentsId: contents.id, url: contents.getURL(), ...focus() })
+        })
+        contents.on('blur', () => {
+          record('native-blur', { contentsId: contents.id, url: contents.getURL(), ...focus() })
+        })
+        contents.on('ipc-message', (_event, channel, ...args) => {
+          if (channel !== 'browser-agent:panel-action') return
+          record('panel-action', {
+            contentsId: contents.id,
+            url: contents.getURL(),
+            ...focus(),
+            action: args[0],
+            scope: args[1],
+          })
+        })
+      }
+      webContents.getAllWebContents().forEach(observe)
+      app.on('web-contents-created', (_event, contents) => observe(contents))
+      record('observers-installed', focus())
+    })
     // A dialog listener stops Playwright auto-dismissing page dialogs, so the desktop's own
     // handling decides their outcome exactly as it does in production.
     const nativeDialogs: Dialog[] = []
@@ -181,6 +308,7 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
     shellApp.context().pages().forEach(leaveDialogsToDesktop)
     shellApp.context().on('page', leaveDialogsToDesktop)
     const shell = await shellApp.firstWindow()
+    diagnosticShell = shell
     await shellApp.evaluate(({ app, BrowserWindow }) => {
       const host = BrowserWindow.getAllWindows()[0]
       if (!host) throw new Error('Missing host window')
@@ -433,6 +561,12 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
       await userInput('#draft')
       await panelAction({ action: 'reload' })
       await expect(shell.getByRole('button', { name: 'Stay', exact: true })).toBeFocused()
+      await shell.getByRole('dialog').screenshot({
+        path: test.info().outputPath('leave-page-modal.png'),
+        animations: 'allow',
+        caret: 'initial',
+      })
+      await expect(shell.getByRole('button', { name: 'Stay', exact: true })).toBeFocused()
       await shell.keyboard.press('Escape')
       await expect.poll(pageDialog).toBeNull()
       await expect
@@ -548,6 +682,75 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
     })
     passed = true
   } finally {
+    const diagnosticErrors: string[] = []
+    let renderer:
+      | { entries: EscapeDiagnosticEntry[]; completedDispatches: unknown; finalState: unknown }
+      | undefined
+    let main:
+      | { entries: EscapeDiagnosticEntry[]; focusedId: number | null; focusedUrl: string | null }
+      | undefined
+    if (diagnosticShell) {
+      try {
+        renderer = await diagnosticShell.evaluate(() => {
+          const runtime = globalThis as typeof globalThis & {
+            escapeDiagnostics?: EscapeDiagnosticEntry[]
+            escapeDiagnosticCompletedEvents?: () => unknown
+            escapeDiagnosticSnapshot?: () => unknown
+          }
+          return {
+            entries: runtime.escapeDiagnostics ?? [],
+            completedDispatches: runtime.escapeDiagnosticCompletedEvents?.() ?? [],
+            finalState: runtime.escapeDiagnosticSnapshot?.() ?? null,
+          }
+        })
+      } catch (error) {
+        diagnosticErrors.push(`Renderer diagnostics: ${getErrorMessage(error)}`)
+      }
+    }
+    if (app) {
+      try {
+        main = await app.evaluate(({ webContents }) => {
+          const focused = webContents.getFocusedWebContents()
+          return {
+            entries:
+              (
+                globalThis as typeof globalThis & {
+                  escapeDiagnostics?: EscapeDiagnosticEntry[]
+                }
+              ).escapeDiagnostics ?? [],
+            focusedId: focused?.id ?? null,
+            focusedUrl: focused?.getURL() ?? null,
+          }
+        })
+      } catch (error) {
+        diagnosticErrors.push(`Main diagnostics: ${getErrorMessage(error)}`)
+      }
+    }
+    if (!passed && diagnosticShell) {
+      try {
+        await diagnosticShell.screenshot({
+          path: test.info().outputPath('escape-failure.png'),
+          timeout: 5000,
+        })
+      } catch (error) {
+        diagnosticErrors.push(`Failure screenshot: ${getErrorMessage(error)}`)
+      }
+    }
+    writeFileSync(
+      test.info().outputPath('escape-diagnostic.json'),
+      JSON.stringify(
+        {
+          passed,
+          failedCheck: failedCheck ?? null,
+          repeatEachIndex: test.info().repeatEachIndex,
+          renderer,
+          main,
+          diagnosticErrors,
+        },
+        null,
+        2
+      )
+    )
     mkdirSync(dirname(reportPath), { recursive: true })
     writeFileSync(reportPath, JSON.stringify({ passed, checks }, null, 2))
     await app?.close()
