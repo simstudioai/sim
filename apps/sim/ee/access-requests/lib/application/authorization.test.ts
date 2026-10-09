@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { member, permissions, user, workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import {
+  createDelegatedPrincipal,
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
@@ -182,6 +183,18 @@ describe('access request scope authorization', () => {
     await expect(
       authorizeAccessRequestScope(principal, accessRequestOperations.resolve, workspaceScope)
     ).rejects.toThrow('Organization administrator access is required')
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it("refuses Chat on a member's organization-scoped request before any lookup", async () => {
+    const chat = createDelegatedPrincipal({
+      subjectUserId: 'person',
+      workspaceId: 'workspace',
+      audience: 'sim:settings',
+    })
+    await expect(
+      authorizeAccessRequestScope(chat, accessRequestOperations.create, organizationScope)
+    ).rejects.toMatchObject({ detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED' })
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 

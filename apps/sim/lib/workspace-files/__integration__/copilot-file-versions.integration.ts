@@ -4,10 +4,23 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { db } from '@sim/db'
-import { auditLog, organization, user, workspace, workspaceFileVersion } from '@sim/db/schema'
+import {
+  auditLog,
+  organization,
+  permissionGroup,
+  permissionGroupMember,
+  permissionGroupWorkspace,
+  permissions,
+  user,
+  workspace,
+  workspaceFileVersion,
+} from '@sim/db/schema'
+import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/config/env-flags', () => ({ ...envFlagsMock, isAccessControlEnabled: true }))
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
@@ -28,6 +41,7 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import '@/app/api/v2/files/[fileId]/versions/route'
@@ -49,7 +63,11 @@ describe('chat-delegated file version history', () => {
     fixtureStorage.root = mkdtempSync(path.join(tmpdir(), 'sim-chat-file-versions-'))
   })
 
+  const extraWorkspaceIds: string[] = []
+
   afterAll(async () => {
+    if (extraWorkspaceIds.length > 0)
+      await db.delete(workspace).where(inArray(workspace.id, extraWorkspaceIds))
     for (const ids of fixtures) {
       await db.delete(auditLog).where(eq(auditLog.workspaceId, ids.workspaceId))
       await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
@@ -60,7 +78,7 @@ describe('chat-delegated file version history', () => {
   })
 
   /** Version 2 holds a named secret; version 3 replaced it with public text. */
-  async function seedVersionedFile() {
+  async function seedVersionedFile(historicalProvenance?: WorkspaceFileSecretProvenance) {
     const ids = createKnowledgeAclFixtureIds()
     fixtures.push(ids)
     await seedKnowledgeAclFixture(ids)
@@ -84,7 +102,7 @@ describe('chat-delegated file version history', () => {
       ],
     } as const
     for (const [content, provenance] of [
-      [`token=${SECRET}`, secretProvenance],
+      [`token=${SECRET}`, historicalProvenance ?? secretProvenance],
       ['public replacement', { status: 'exact', entries: [] }],
     ] as const) {
       await updateWorkspaceFileContent(
@@ -102,25 +120,39 @@ describe('chat-delegated file version history', () => {
     return { ...ids, fileId: file.id }
   }
 
-  /** Chat's composed CLI transport: the provenance-observing read layer over in-process admission. */
+  /**
+   * Chat's composed CLI transport: the provenance-observing read layer over in-process admission.
+   * `layers` drops the outer layers to prove the inner ones hold on their own.
+   */
   function chatTransport(
     fixture: { workspaceId: string; organizationId: string },
     userId: string,
-    registry?: ResolvedSecretTraceRegistry
+    registry?: ResolvedSecretTraceRegistry,
+    layers: { observer?: boolean; invocationScope?: boolean } = {}
   ) {
     const invocation = { userId, workspaceId: fixture.workspaceId, chatId: generateId() }
-    const transport = createFileReadTransport({
-      endpoint: ORIGIN,
-      transport: createScopedCliTransport(ORIGIN, invocation),
-      userId,
-      invocation,
-      ...(registry ? { registry } : {}),
-    })
+    const scoped = createScopedCliTransport(ORIGIN, invocation)
+    const transport =
+      layers.observer === false
+        ? scoped
+        : createFileReadTransport({
+            endpoint: ORIGIN,
+            transport: scoped,
+            userId,
+            invocation,
+            ...(registry ? { registry } : {}),
+          })
     return (url: string, init?: RequestInit) =>
-      withWorkspaceInvocationScope(
-        { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
-        () => transport(`${ORIGIN}${url}`, init)
-      )
+      layers.invocationScope === false
+        ? transport(`${ORIGIN}${url}`, init)
+        : withWorkspaceInvocationScope(
+            { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
+            () => transport(`${ORIGIN}${url}`, init)
+          )
+  }
+
+  function registryFor(fixture: { workspaceId: string }, userId: string) {
+    return new ResolvedSecretTraceRegistry([], { userId, workspaceId: fixture.workspaceId })
   }
 
   function versionRows(fileId: string) {
@@ -242,5 +274,132 @@ describe('chat-delegated file version history', () => {
     expect(await download.json()).toMatchObject(UNAVAILABLE)
 
     expect((await versionRows(fixture.fileId)).map((row) => row.version)).toEqual([1, 2, 3])
+  })
+
+  it('refuses a delegated version read that no delivery observer records', async () => {
+    const fixture = await seedVersionedFile()
+
+    const response = await chatTransport(fixture, fixture.bobId, undefined, { observer: false })(
+      `/api/v2/files/${fixture.fileId}/versions/2/text?workspaceId=${fixture.workspaceId}`
+    )
+
+    expect(response.status).toBe(503)
+    const body = await response.text()
+    expect(body).not.toContain(SECRET)
+    expect(JSON.parse(body)).toMatchObject({ error: { code: 'SERVICE_UNAVAILABLE' } })
+  })
+
+  it("refuses a file in another of the user's workspaces without the invocation scope", async () => {
+    const fixture = await seedVersionedFile()
+    const otherWorkspaceId = generateId()
+    extraWorkspaceIds.push(otherWorkspaceId)
+    await db.insert(workspace).values({
+      id: otherWorkspaceId,
+      organizationId: fixture.organizationId,
+      name: 'Second workspace',
+      ownerId: fixture.aliceId,
+      billedAccountUserId: fixture.aliceId,
+    })
+    await db.insert(permissions).values({
+      id: generateId(),
+      userId: fixture.aliceId,
+      entityType: 'workspace',
+      entityId: otherWorkspaceId,
+      permissionType: 'admin',
+    })
+    const chat = chatTransport(
+      { workspaceId: otherWorkspaceId, organizationId: fixture.organizationId },
+      fixture.aliceId,
+      undefined,
+      { invocationScope: false }
+    )
+
+    for (const assertedWorkspaceId of [fixture.workspaceId, otherWorkspaceId]) {
+      const list = await chat(
+        `/api/v2/files/${fixture.fileId}/versions?workspaceId=${assertedWorkspaceId}`
+      )
+      expect(list.status).toBe(404)
+      expect(await list.json()).toMatchObject({ error: { code: 'NOT_FOUND' } })
+    }
+    const revert = await chat(`/api/v2/files/${fixture.fileId}/versions/1/revert`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workspaceId: fixture.workspaceId }),
+    })
+    expect(revert.status).toBe(404)
+    expect((await versionRows(fixture.fileId)).map((row) => row.version)).toEqual([1, 2, 3])
+  })
+
+  it('refuses a member whose permission group withholds the Files module', async () => {
+    const fixture = await seedVersionedFile()
+    const groupId = generateId()
+    await db.insert(permissionGroup).values({
+      id: groupId,
+      organizationId: fixture.organizationId,
+      name: 'No files',
+      createdBy: fixture.aliceId,
+      config: { hideFilesTab: true },
+    })
+    await db.insert(permissionGroupWorkspace).values({
+      id: generateId(),
+      permissionGroupId: groupId,
+      workspaceId: fixture.workspaceId,
+      organizationId: fixture.organizationId,
+    })
+    await db.insert(permissionGroupMember).values({
+      id: generateId(),
+      permissionGroupId: groupId,
+      organizationId: fixture.organizationId,
+      userId: fixture.bobId,
+    })
+
+    const response = await chatTransport(
+      fixture,
+      fixture.bobId
+    )(`/api/v2/files/${fixture.fileId}/versions?workspaceId=${fixture.workspaceId}`)
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'FORBIDDEN', details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' } },
+    })
+  })
+
+  it('withholds a historical version whose secret provenance is unknown', async () => {
+    const fixture = await seedVersionedFile({ status: 'unknown' })
+
+    const response = await chatTransport(
+      fixture,
+      fixture.bobId,
+      registryFor(fixture, fixture.bobId)
+    )(`/api/v2/files/${fixture.fileId}/versions/2/text?workspaceId=${fixture.workspaceId}`)
+
+    expect(response.status).toBe(503)
+    expect(await response.text()).not.toContain(SECRET)
+  })
+
+  it('keeps a secret redacted after Chat reverts the file to the version holding it', async () => {
+    const fixture = await seedVersionedFile()
+    const reverted = await chatTransport(fixture, fixture.aliceId)(
+      `/api/v2/files/${fixture.fileId}/versions/2/revert`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ workspaceId: fixture.workspaceId }),
+      }
+    )
+    expect(reverted.status).toBe(200)
+    const url = `/api/v2/files/${fixture.fileId}/text?workspaceId=${fixture.workspaceId}`
+    const registry = registryFor(fixture, fixture.bobId)
+
+    const response = await chatTransport(fixture, fixture.bobId, registry)(url)
+    expect(response.status).toBe(200)
+    const projected = projectResolvedSecretModelContent(await response.text(), registry)
+    if (!projected.safe) throw new Error('Reverted file text was withheld')
+    expect(projected.value).not.toContain(SECRET)
+    expect(projected.value).toContain('token=[REDACTED_SECRET]')
+
+    const untracked = await chatTransport(fixture, fixture.bobId)(url)
+    expect(untracked.status).toBe(503)
+    expect(await untracked.text()).not.toContain(SECRET)
   })
 })
