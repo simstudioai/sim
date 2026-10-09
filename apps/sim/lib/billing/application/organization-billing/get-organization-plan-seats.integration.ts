@@ -122,6 +122,8 @@ describe('organization plan and seats without a usage ledger', () => {
   it.each([
     { code: '40001', message: 'fixture recovery conflict', status: 503 },
     { code: '57014', message: 'canceling statement due to statement timeout', status: 503 },
+    { code: '25P04', message: 'terminating connection due to transaction timeout', status: 503 },
+    { code: '57014', message: 'canceling statement due to user request', status: 500 },
     { code: '42P01', message: 'fixture permanent database error', status: 500 },
   ])(
     'projects $code over HTTP without leaking database details',

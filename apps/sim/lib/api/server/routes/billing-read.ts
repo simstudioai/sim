@@ -4,14 +4,17 @@ import {
   internalErrorResponse,
   internalOrchestrationErrorPolicy,
 } from '@/lib/api/server/routes/internal-json-route'
-import { isTransientDatabaseReadError } from '@/lib/db/read-retry'
+import { DatabaseReadDeadlineError, isTransientDatabaseReadError } from '@/lib/db/read-retry'
 
 export const internalBillingReadErrorPolicy = extendInternalErrorPolicy(
   internalOrchestrationErrorPolicy,
   (error) => {
+    const cancellationReason = getPostgresCancellationReason(error)
     if (
+      !(error instanceof DatabaseReadDeadlineError) &&
       !isTransientDatabaseReadError(error) &&
-      getPostgresCancellationReason(error) !== 'statement_timeout'
+      cancellationReason !== 'statement_timeout' &&
+      cancellationReason !== 'transaction_timeout'
     )
       return null
     return internalErrorResponse(

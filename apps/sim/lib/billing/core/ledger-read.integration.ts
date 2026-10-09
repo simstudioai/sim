@@ -7,9 +7,14 @@ import { generateId } from '@sim/utils/id'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
+
+vi.mock('@/lib/billing/constants', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/billing/constants')>()),
+  USAGE_LEDGER_STATEMENT_TIMEOUT_MS: 1000,
+}))
 
 const schemaName = `ledger_read_${generateId().replaceAll('-', '')}`
 const connection = postgres(readTestDatabaseUrl(), {
@@ -77,6 +82,25 @@ describe('bounded ledger reads with PostgreSQL', () => {
     })
     if (!observeRead) throw new Error('Ledger read was not started')
     expect(await observeRead).toBeLessThanOrEqual(USAGE_LEDGER_STATEMENT_TIMEOUT_MS - 80)
+  })
+
+  it('rejects a ledger read whose connection wait exhausted the budget', async () => {
+    let outcome: Promise<number> | undefined
+    await connection.begin(async () => {
+      outcome = readLedgerBounded(database, async (tx) => {
+        const rows = await tx.execute<{ total: string }>(
+          sql`select sum(cost) as total from ledger_probe`
+        )
+        return Number(rows[0].total)
+      })
+      void outcome.catch(() => undefined)
+      await sleep(USAGE_LEDGER_STATEMENT_TIMEOUT_MS + 100)
+    })
+    if (!outcome) throw new Error('Ledger read was not started')
+    await expect(outcome).rejects.toThrow('Database read deadline exceeded')
+    expect(await connection`select sum(cost)::text as total from ledger_probe`).toEqual([
+      { total: '1.00' },
+    ])
   })
 
   it('cannot replay a write under the read-retry policy', async () => {

@@ -27,6 +27,14 @@ const TRANSIENT_READ_CODES = new Set([
   'ETIMEDOUT',
 ])
 
+/** A read exhausted its budget before its query could begin. */
+export class DatabaseReadDeadlineError extends Error {
+  constructor() {
+    super('Database read deadline exceeded')
+    this.name = 'DatabaseReadDeadlineError'
+  }
+}
+
 /** Only driver codes identify retryable reads; query cancellation and application errors propagate. */
 export function isTransientDatabaseReadError(error: unknown): boolean {
   const code = getPostgresErrorCode(error)
