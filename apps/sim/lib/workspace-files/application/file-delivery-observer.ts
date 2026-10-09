@@ -22,7 +22,7 @@ export async function reportWorkspaceFileDelivery(
   await observer.getStore()?.(provenance)
 }
 
-/** A delegated read reached stored bytes with no observer to record their secret provenance. */
+/** A Chat read reached stored bytes with no observer to record their secret provenance. */
 export class WorkspaceFileDeliveryUnobservedError extends Error {
   constructor() {
     super('File read provenance is unavailable. Retry the read.')
@@ -31,12 +31,17 @@ export class WorkspaceFileDeliveryUnobservedError extends Error {
 }
 
 /**
- * Refuses a delegated caller before any bytes load unless a delivery observer is installed, so a
- * secret in the content cannot reach a model without its provenance being recorded, whatever
- * transport composed the call.
+ * Refuses a Chat caller before any bytes load unless a delivery observer is installed, so a secret
+ * in the content cannot reach a model without its provenance being recorded, whatever transport
+ * composed the call. Keyed on the Copilot service, not on delegation: a workflow run is delegated
+ * too, but its reads feed blocks rather than Chat's model, and nothing observes them.
  */
-export function requireDelegatedWorkspaceFileDeliveryObserver(principal: Principal): void {
-  if (principal.kind === 'delegated' && !hasWorkspaceFileDeliveryObserver()) {
+export function requireCopilotWorkspaceFileDeliveryObserver(principal: Principal): void {
+  if (
+    principal.kind === 'delegated' &&
+    principal.serviceId === 'copilot' &&
+    !hasWorkspaceFileDeliveryObserver()
+  ) {
     throw new WorkspaceFileDeliveryUnobservedError()
   }
 }
