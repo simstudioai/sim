@@ -58,7 +58,7 @@ describe('patched Drizzle push against PostgreSQL', () => {
   async function schema(source: string) {
     await writeFile(
       join(directory, 'schema.ts'),
-      `import { pgTable, pgSchema, pgEnum, text, integer, bigint, boolean, check } from ${JSON.stringify(import.meta.resolve('drizzle-orm/pg-core'))}
+      `import { pgTable, pgSchema, pgEnum, text, integer, bigint, boolean, check, index } from ${JSON.stringify(import.meta.resolve('drizzle-orm/pg-core'))}
 import { sql } from ${JSON.stringify(import.meta.resolve('drizzle-orm'))}
 ${source}`
     )
@@ -195,7 +195,7 @@ export const knowledgeBases = pgTable('knowledge_base', {
     await schema(`export const projects = pgTable('project', { id: text('id').primaryKey() })
 export const workspaces = pgTable('workspace', {
   id: text('id').primaryKey(), forkedFromWorkspaceId: text('forked_from_workspace_id'), projectId: text('project_id'),
-})
+}, (table) => [index('workspace_project_id_id_idx').on(table.projectId, table.id)])
 export const memberships = pgTable('project_workspace', {
   projectId: text('project_id').notNull(), workspaceId: text('workspace_id').notNull().unique(),
 })`)
@@ -212,8 +212,15 @@ export const memberships = pgTable('project_workspace', {
     ])
     await sql`UPDATE project_workspace SET project_id = 'singleton' WHERE workspace_id = 'fork'`
     await sql`UPDATE workspace SET project_id = 'family' WHERE id = 'standalone'`
+    const indexBeforeReplay = await sql`SELECT indexrelid, indisvalid FROM pg_index
+      WHERE indexrelid = 'workspace_project_id_id_idx'::regclass`
+    expect(indexBeforeReplay).toEqual([{ indexrelid: expect.any(Number), indisvalid: true }])
     const repeated = runPush(['--force'])
     expect(repeated.error, repeated.stderr).toBeUndefined()
+    expect(
+      await sql`SELECT indexrelid, indisvalid FROM pg_index
+        WHERE indexrelid = 'workspace_project_id_id_idx'::regclass`
+    ).toEqual(indexBeforeReplay)
     expect(
       await sql`SELECT w.id, w.project_id, pw.project_id AS legacy FROM workspace w
       JOIN project_workspace pw ON pw.workspace_id = w.id ORDER BY w.id`
@@ -223,6 +230,42 @@ export const memberships = pgTable('project_workspace', {
       { id: 'standalone', project_id: 'family', legacy: 'singleton' },
     ])
   }, 60_000)
+
+  it('repairs an interrupted Project index build during schema-push reconciliation', async () => {
+    await sql`CREATE TABLE project (id text PRIMARY KEY)`
+    await sql`CREATE TABLE workspace (id text PRIMARY KEY, project_id text)`
+    await sql`CREATE TABLE project_workspace (project_id text NOT NULL, workspace_id text NOT NULL UNIQUE)`
+    await sql`INSERT INTO project VALUES ('family')`
+    await sql`INSERT INTO workspace VALUES ('root', 'family'), ('fork', 'family')`
+    await expect(
+      sql`CREATE UNIQUE INDEX CONCURRENTLY workspace_project_id_id_idx ON workspace(project_id)`
+    ).rejects.toMatchObject({ code: '23505' })
+    expect(
+      await sql`SELECT indisvalid FROM pg_index WHERE indexrelid = 'workspace_project_id_id_idx'::regclass`
+    ).toEqual([{ indisvalid: false }])
+    const result = spawnSync(
+      'bun',
+      [
+        '--no-env-file',
+        fileURLToPath(new URL('./reconcile-project-membership.ts', import.meta.url)),
+      ],
+      {
+        env: { ...process.env, DATABASE_URL: fixtureUrl, MIGRATION_DATABASE_URL: fixtureUrl },
+        encoding: 'utf8',
+        timeout: 15_000,
+      }
+    )
+    expect(result.error).toBeUndefined()
+    expect(result.status, result.stdout + result.stderr).toBe(0)
+    expect(
+      await sql`SELECT indisvalid, indisunique FROM pg_index
+        WHERE indexrelid = 'workspace_project_id_id_idx'::regclass`
+    ).toEqual([{ indisvalid: true, indisunique: false }])
+    expect(await sql`SELECT id, project_id FROM workspace ORDER BY id`).toEqual([
+      { id: 'fork', project_id: 'family' },
+      { id: 'root', project_id: 'family' },
+    ])
+  })
 
   it('refuses a schema downgrade before recreating the retired Project connector', async () => {
     await sql`CREATE TABLE project (id text PRIMARY KEY)`

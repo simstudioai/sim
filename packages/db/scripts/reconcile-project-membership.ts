@@ -31,6 +31,14 @@ try {
     const connection = await sql.reserve()
     try {
       for (const statement of source.split('--> statement-breakpoint')) {
+        if (statement.includes('DROP INDEX CONCURRENTLY IF EXISTS "workspace_project_id_id_idx"')) {
+          // Migration retries rebuild interrupted indexes; routine push keeps healthy indexes intact.
+          const [index] = await connection<{ healthy: boolean }[]>`
+            SELECT indisvalid AND indisready AS healthy FROM pg_index
+            WHERE indexrelid = to_regclass('public.workspace_project_id_id_idx')
+          `
+          if (index?.healthy) continue
+        }
         if (statement.trim()) await connection.unsafe(statement)
       }
     } finally {
