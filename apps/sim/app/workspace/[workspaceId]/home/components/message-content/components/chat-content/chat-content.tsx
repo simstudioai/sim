@@ -59,6 +59,7 @@ import {
 import {
   type ContentSegment,
   type CredentialSubmissionPayload,
+  type InteractionAnswerHandler,
   parseSpecialTags,
   type SourceTagData,
   SpecialTags,
@@ -520,7 +521,7 @@ interface ChatContentProps {
   credentialSubmission?: CredentialSubmissionPayload
   /** The user moved on without submitting this message's credential card. */
   credentialAbandoned?: boolean
-  onOptionSelect?: (id: string) => void
+  onOptionSelect?: InteractionAnswerHandler
   onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   onRevealStateChange?: (isRevealing: boolean) => void
