@@ -63,6 +63,20 @@ const MOCK_BLOCKS = vi.hoisted(
         ],
         outputs: {},
       },
+      response: {
+        type: 'response',
+        category: 'blocks',
+        subBlocks: [
+          { id: 'dataMode', type: 'dropdown' },
+          {
+            id: 'data',
+            type: 'code',
+            language: 'json',
+            condition: { field: 'dataMode', value: 'json' },
+          },
+        ],
+        outputs: {},
+      },
       function: {
         type: 'function',
         category: 'blocks',
@@ -135,7 +149,72 @@ describe('collectUnquotedJsonStringReferences', () => {
       value: ['<start.order_id>'],
     })
     expect(findings[0]?.reason).toMatch(/^unquoted-json-string: /)
-    expect(findings[0]?.reason).toContain('"<start.order_id>"')
+  })
+
+  /**
+   * Quoting is only safe for text without a double quote, backslash, or line
+   * break, since the text is inserted raw; free text such as a model reply has
+   * to be built into JSON by a Function block instead.
+   */
+  it('advises quoting only for plain text and a Function block for free text', () => {
+    const [finding] = collectUnquotedJsonStringReferences(
+      graph({
+        start: START,
+        insert: insertRow('{"order_id": <start.order_id>}'),
+      })
+    )
+    expect(finding?.reason).toContain('"<start.order_id>"')
+    expect(finding?.reason).toMatch(/double quote, backslash, or line break/)
+    expect(finding?.reason).toMatch(/Function block/)
+    expect(finding?.reason).not.toMatch(/Quote each one/)
+  })
+
+  /**
+   * A field that is exactly one reference is the referenced value itself: the
+   * Response block returns text it cannot parse as-is and the API block sends a
+   * text body raw, while quoting it would turn JSON text into a JSON string.
+   */
+  it('accepts a field made only of string references, with no JSON around them', () => {
+    const findings = collectUnquotedJsonStringReferences(
+      graph({
+        writer: { type: 'agent', name: 'Writer' },
+        reply: {
+          type: 'response',
+          name: 'Reply',
+          subBlocks: { dataMode: { value: 'json' }, data: { value: '<writer.content>' } },
+        },
+        call: {
+          type: 'api',
+          name: 'Post',
+          subBlocks: { body: { value: '  <writer.content>\n' } },
+        },
+        signed: {
+          type: 'api',
+          name: 'Post Signed',
+          subBlocks: { body: { value: '<writer.content>\n\n<writer.content>' } },
+        },
+      })
+    )
+    expect(findings).toHaveLength(0)
+  })
+
+  it('still flags a string reference that sits inside JSON text around it', () => {
+    const findings = collectUnquotedJsonStringReferences(
+      graph({
+        writer: { type: 'agent', name: 'Writer' },
+        reply: {
+          type: 'response',
+          name: 'Reply',
+          subBlocks: { dataMode: { value: 'json' }, data: { value: '[<writer.content>]' } },
+        },
+        call: {
+          type: 'api',
+          name: 'Post',
+          subBlocks: { body: { value: '{"note": <writer.content>}' } },
+        },
+      })
+    )
+    expect(findings.map((finding) => finding.blockId)).toEqual(['reply', 'call'])
   })
 
   it('flags every unquoted string reference in the field once, including agent text', () => {
