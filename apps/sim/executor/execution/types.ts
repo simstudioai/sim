@@ -288,12 +288,15 @@ export interface TestWorkflowBlock {
  * and spies against those blocks by name. A mocked block awaits `resolveMock` in place of its
  * handler; everything after the handler (normalization, redaction, logging, edges) runs as
  * usual. A mocked tool call awaits `resolveToolMock` in place of the tool. Child workflow
- * executions inherit the hooks.
+ * executions inherit the hooks, except a custom block's source workflow, which a test mocks as a
+ * whole, and a workflow an Agent calls as a tool, which runs without them.
  */
 export interface ExecutionTestHooks {
   /** `resolvedSecretTraceRegistry` redacts what this run sends back to the test. */
   enterWorkflow(workflow: {
     workflowId: string
+    /** The deployment this execution loaded; null when it loaded the draft. */
+    deploymentVersionId: string | null
     blocks: TestWorkflowBlock[]
     resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
   }): Promise<void>

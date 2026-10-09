@@ -55,7 +55,7 @@ async function executeTestRun(params: {
     const buffer = await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_TEST_SOURCE_BYTES })
     const source = buffer.toString('utf-8')
     sourceHash = testSourceHash(source)
-    const { report, enteredWorkflowIds } = await runWorkflowTestFile({
+    const { report, entered } = await runWorkflowTestFile({
       principal,
       workspaceId: test.workspaceId,
       source,
@@ -69,9 +69,8 @@ async function executeTestRun(params: {
     )
     const ranAgainst = await readRanAgainst({
       executionIds,
-      enteredWorkflowIds,
+      entered,
       workspaceId: test.workspaceId,
-      version,
     })
     await completeWorkflowTestRun(runId, report, sourceHash, ranAgainst)
   } catch (error) {
