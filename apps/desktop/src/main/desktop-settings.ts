@@ -187,7 +187,9 @@ export function createDesktopSettingsService(
       if (!deps.config.flush()) {
         deps.config.set('fullFileAccess', false)
         deps.onFullFileAccessChanged?.(read())
-        throw new Error('Could not save file access settings')
+        throw new Error(
+          'Could not save file access settings. Your previous setting may return after restarting Sim.'
+        )
       }
       const preferences = read()
       deps.onFullFileAccessChanged?.(preferences)

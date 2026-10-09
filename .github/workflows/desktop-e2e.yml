@@ -102,13 +102,13 @@ jobs:
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
-        run: bunx playwright test
+        run: bunx playwright test --retries=0
         env:
           BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
           TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
 
       - name: Upload test results
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: desktop-e2e-results-pinned
@@ -165,13 +165,13 @@ jobs:
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
-        run: bunx playwright test
+        run: bunx playwright test --retries=0
         env:
           BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
           TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
 
       - name: Upload test results
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: desktop-e2e-results-latest
