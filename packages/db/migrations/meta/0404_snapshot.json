@@ -1,5 +1,5 @@
 {
-  "id": "6211de13-ca02-42a1-8299-655e5879e54c",
+  "id": "dadb8a1a-de3c-4a7a-9dc2-04318a1872b6",
   "prevId": "44e8985f-7e13-4c8f-84d7-be85dc491ba6",
   "version": "7",
   "dialect": "postgresql",
@@ -20116,37 +20116,9 @@
           "method": "btree",
           "with": {}
         },
-        "shopify_privacy_request_active_payload_unique": {
-          "name": "shopify_privacy_request_active_payload_unique",
-          "columns": [
-            {
-              "expression": "client_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "payload_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"shopify_privacy_request\".\"completed_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "shopify_privacy_request_deadline_idx": {
           "name": "shopify_privacy_request_deadline_idx",
           "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "due_at",
               "isExpression": false,
@@ -20161,6 +20133,7 @@
             }
           ],
           "isUnique": false,
+          "where": "\"shopify_privacy_request\".\"completed_at\" IS NULL AND \"shopify_privacy_request\".\"escalated_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

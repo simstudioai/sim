@@ -54,7 +54,47 @@ export async function rememberShopifyInstallationScope(
     })
 }
 
-/** Captures existing OAuth associations after the legacy credential draft has completed. */
+/** Persists ownership alongside a newly created or reconnected Shopify credential. */
+export async function rememberShopifyCredentialScope(
+  accountId: string,
+  credentialId: string,
+  executor: DbOrTx
+): Promise<void> {
+  const [association] = await executor
+    .select({
+      shopId: account.accountId,
+      shopDomain: account.idToken,
+      workspaceId: credential.workspaceId,
+      organizationId: credential.organizationId,
+    })
+    .from(credential)
+    .innerJoin(account, eq(account.id, credential.accountId))
+    .where(
+      and(
+        eq(credential.id, credentialId),
+        eq(credential.type, 'oauth'),
+        eq(credential.providerId, 'shopify'),
+        eq(account.id, accountId),
+        eq(account.providerId, 'shopify')
+      )
+    )
+    .limit(1)
+  if (!association?.shopDomain)
+    throw new Error('Shopify credential requires a verified installation')
+  const { values } = requireConfiguredOAuthClient('shopify')
+  await rememberShopifyInstallationScope(
+    {
+      ...association,
+      appClientId: values.SHOPIFY_CLIENT_ID,
+      shopDomain: association.shopDomain.toLowerCase(),
+      accountId,
+      credentialId,
+    },
+    executor
+  )
+}
+
+/** Captures existing OAuth associations before completing a legacy credential draft. */
 export async function rememberShopifyAccountScopes(accountId: string): Promise<void> {
   const [installation] = await db
     .select({

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Chip, ChipInput, ChipSelect, pageHeadingClassName } from '@sim/emcn'
+import { permissionSatisfies } from '@sim/platform-authz/predicates'
 import { useCompleteShopifyInstall } from '@/hooks/queries/shopify-install'
 import { useCreateWorkspace, useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
 
@@ -17,7 +18,12 @@ export function ConnectionForm({ attemptId, shopDomain }: ConnectionFormProps) {
   const [workspaceId, setWorkspaceId] = useState('')
   const [displayName, setDisplayName] = useState(shopDomain)
   const [workspaceName, setWorkspaceName] = useState('')
-  const available = workspaces.data?.workspaces ?? []
+  const available = (workspaces.data?.workspaces ?? []).filter((workspace) =>
+    permissionSatisfies(workspace.permissions, 'write')
+  )
+  const selectedWorkspaceId = available.some((workspace) => workspace.id === workspaceId)
+    ? workspaceId
+    : ''
   const error = complete.error ?? createWorkspace.error ?? workspaces.error
   const busy = complete.isPending || createWorkspace.isPending
 
@@ -26,9 +32,9 @@ export function ConnectionForm({ attemptId, shopDomain }: ConnectionFormProps) {
       className='flex w-full max-w-sm flex-col gap-5'
       onSubmit={(event) => {
         event.preventDefault()
-        if (!workspaceId) return
+        if (busy || !selectedWorkspaceId || !displayName.trim()) return
         complete.mutate(
-          { attemptId, workspaceId, displayName },
+          { attemptId, workspaceId: selectedWorkspaceId, displayName },
           {
             onSuccess: (result) =>
               window.location.assign(
@@ -56,7 +62,7 @@ export function ConnectionForm({ attemptId, shopDomain }: ConnectionFormProps) {
         <span className='text-[var(--text-muted)] text-small'>Workspace</span>
         <ChipSelect
           aria-label='Workspace'
-          value={workspaceId}
+          value={selectedWorkspaceId}
           onChange={setWorkspaceId}
           options={available.map((workspace) => ({ value: workspace.id, label: workspace.name }))}
           placeholder={workspaces.isPending ? 'Loading workspaces…' : 'Choose a workspace'}
@@ -99,7 +105,11 @@ export function ConnectionForm({ attemptId, shopDomain }: ConnectionFormProps) {
           {error.message}
         </p>
       )}
-      <Chip type='submit' variant='primary' disabled={busy || !workspaceId || !displayName.trim()}>
+      <Chip
+        type='submit'
+        variant='primary'
+        disabled={busy || !selectedWorkspaceId || !displayName.trim()}
+      >
         {complete.isPending ? 'Connecting…' : 'Connect Shopify'}
       </Chip>
     </form>

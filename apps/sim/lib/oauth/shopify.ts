@@ -15,11 +15,11 @@ export async function completeShopifyOAuthConnection(
   params: CompleteShopifyOAuthConnectionParams
 ): Promise<void> {
   const accountId = await connectShopifyInstallation(params)
+  await rememberShopifyAccountScopes(accountId)
   await processCredentialDraft({
     draftId: params.draftId,
     userId: params.userId,
     providerId: 'shopify',
     accountId,
   })
-  await rememberShopifyAccountScopes(accountId)
 }

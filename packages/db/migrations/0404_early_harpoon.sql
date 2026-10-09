@@ -60,6 +60,5 @@ CREATE INDEX "shopify_installation_attempt_browser_expiry_idx" ON "shopify_insta
 CREATE UNIQUE INDEX "shopify_installation_scope_association_unique" ON "shopify_installation_scope" USING btree ("client_id","shop_id","owner_type","owner_id","credential_id");--> statement-breakpoint
 CREATE INDEX "shopify_installation_scope_shop_idx" ON "shopify_installation_scope" USING btree ("client_id","shop_id","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "shopify_privacy_request_delivery_unique" ON "shopify_privacy_request" USING btree ("client_id","webhook_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "shopify_privacy_request_active_payload_unique" ON "shopify_privacy_request" USING btree ("client_id","payload_hash") WHERE "shopify_privacy_request"."completed_at" IS NULL;--> statement-breakpoint
-CREATE INDEX "shopify_privacy_request_deadline_idx" ON "shopify_privacy_request" USING btree ("status","due_at","id");--> statement-breakpoint
+CREATE INDEX "shopify_privacy_request_deadline_idx" ON "shopify_privacy_request" USING btree ("due_at","id") WHERE "shopify_privacy_request"."completed_at" IS NULL AND "shopify_privacy_request"."escalated_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "shopify_privacy_request_shop_idx" ON "shopify_privacy_request" USING btree ("client_id","shop_id","received_at");

@@ -7,25 +7,37 @@ import {
   account,
   credential,
   credentialMember,
+  member,
+  organization,
   pendingCredentialDraft,
   permissions,
   shopifyInstallationAttempt,
+  shopifyInstallationScope,
   user,
   workspace,
 } from '@sim/db/schema'
+import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createDeferred, type Deferred } from '@sim/testing/helpers/deferred'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { env } from '@/lib/core/config/env'
+import { closeRedisConnection } from '@/lib/core/config/redis'
+import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { refreshTokenIfNeeded } from '@/lib/oauth/credential-service'
 import * as refreshCoordination from '@/lib/oauth/refresh-coordination'
 import { completeShopifyOAuthConnection } from '@/lib/oauth/shopify'
-import { ShopifyOAuthError } from '@/lib/oauth/shopify-installation'
+import { getShopifyRefreshScope, ShopifyOAuthError } from '@/lib/oauth/shopify-installation'
+import {
+  clearDeadFlag,
+  getRecentTerminalError,
+  markCredentialDead,
+} from '@/lib/oauth/terminal-errors'
 import { GET as shopifyCallback } from '@/app/api/auth/oauth2/callback/shopify/route'
 
 vi.mock('@/lib/auth', () => authMock)
@@ -36,8 +48,10 @@ vi.hoisted(() => {
 })
 
 const originalFetch = globalThis.fetch
+const redisUrl = readTestRedisUrl()
 const userIds = [generateId(), generateId()]
 const workspaceId = generateId()
+const organizationId = generateId()
 const credentialId = generateId()
 const shopDomain = `fixture-${generateId()}.myshopify.com`
 const shopId = '123456789012345'
@@ -79,6 +93,7 @@ async function resolve(rowId = rowIds[0]) {
 }
 
 beforeAll(async () => {
+  Object.assign(env, { REDIS_URL: redisUrl })
   await db.insert(user).values(
     userIds.map((id) => ({
       id,
@@ -94,6 +109,19 @@ beforeAll(async () => {
     name: 'Shopify fixture',
     ownerId: userIds[0],
     billedAccountUserId: userIds[0],
+  })
+  await db.insert(organization).values({
+    id: organizationId,
+    name: 'Shopify fixture',
+    slug: generateId(),
+    createdAt: new Date(),
+  })
+  await db.insert(member).values({
+    id: generateId(),
+    organizationId,
+    userId: userIds[0],
+    role: 'owner',
+    createdAt: new Date(),
   })
   await db.insert(permissions).values({
     id: generateId(),
@@ -199,9 +227,17 @@ beforeEach(async () => {
   identityRejectionStatus = undefined
   pausedTokenResponse = undefined
   await db
+    .delete(shopifyInstallationScope)
+    .where(eq(shopifyInstallationScope.shopDomain, shopDomain))
+  await db.delete(pendingCredentialDraft).where(inArray(pendingCredentialDraft.userId, userIds))
+  await clearDeadFlag(
+    refreshCoordination.getOAuthRefreshCoordinationIdentity(getShopifyRefreshScope(shopDomain))
+  )
+  await db
     .delete(shopifyInstallationAttempt)
     .where(eq(shopifyInstallationAttempt.shopDomain, shopDomain))
   await db.delete(credential).where(eq(credential.workspaceId, workspaceId))
+  await db.delete(credential).where(eq(credential.organizationId, organizationId))
   await db.delete(account).where(inArray(account.userId, userIds))
   await db.insert(account).values(
     rowIds.map((id, index) => ({
@@ -250,10 +286,18 @@ afterEach((context) => {
 
 afterAll(async () => {
   globalThis.fetch = originalFetch
+  await clearDeadFlag(
+    refreshCoordination.getOAuthRefreshCoordinationIdentity(getShopifyRefreshScope(shopDomain))
+  )
+  await closeRedisConnection()
+  await db
+    .delete(shopifyInstallationScope)
+    .where(eq(shopifyInstallationScope.shopDomain, shopDomain))
   await db
     .delete(shopifyInstallationAttempt)
     .where(eq(shopifyInstallationAttempt.shopDomain, shopDomain))
   await db.delete(workspace).where(eq(workspace.id, workspaceId))
+  await db.delete(organization).where(eq(organization.id, organizationId))
   await db.delete(user).where(inArray(user.id, userIds))
   if (provider) {
     provider.closeAllConnections()
@@ -383,6 +427,30 @@ describe('Shopify offline installation tokens against PostgreSQL and HTTP', () =
     expect((await rows()).find((row) => row.id === rowIds[0])?.accessToken).toBe('fixture-access-2')
     expect(tokenRequests).toBe(2)
   })
+
+  it.runIf(Boolean(redisUrl))(
+    'restores refresh after claiming an installation with a stale terminal error',
+    async () => {
+      const { completeShopifyInstall } = await import(
+        '@/lib/credentials/application/complete-shopify-install'
+      )
+      const { attemptId, browserProof } = await installationCallback()
+      const identity = refreshCoordination.getOAuthRefreshCoordinationIdentity(
+        getShopifyRefreshScope(shopDomain)
+      )
+      await markCredentialDead(identity, 'invalid_grant')
+      expect(await getRecentTerminalError(identity)).toBe('invalid_grant')
+      await completeShopifyInstall.execute({
+        principal: createSessionPrincipal({ userId: userIds[0] }),
+        input: { attemptId, browserProof, workspaceId },
+      })
+      await db
+        .update(account)
+        .set({ accessTokenExpiresAt: new Date(0) })
+        .where(eq(account.accountId, shopId))
+      expect(await resolve()).toMatchObject({ accessToken: 'fixture-access-2', refreshed: true })
+    }
+  )
 
   it.each(['other browser', 'workspace outsider', 'expired attempt'] as const)(
     'rejects installation claims from %s without creating a credential',
@@ -691,6 +759,89 @@ describe('Shopify offline installation tokens against PostgreSQL and HTTP', () =
         .every((row) => row.refreshToken === currentRefresh)
     ).toBe(true)
   })
+
+  it.each(['new', 'existing', 'reconnect', 'organization-new', 'organization-reconnect'] as const)(
+    'preserves the %s credential and its draft when ownership-history persistence fails',
+    async (mode) => {
+      const organizationOwned = mode.startsWith('organization-')
+      if (mode === 'new' || mode === 'organization-new')
+        await db.delete(credential).where(eq(credential.id, credentialId))
+      if (mode === 'organization-reconnect')
+        await db
+          .update(credential)
+          .set({ workspaceId: null, organizationId })
+          .where(eq(credential.id, credentialId))
+      const ownerCondition = organizationOwned
+        ? eq(credential.organizationId, organizationId)
+        : eq(credential.workspaceId, workspaceId)
+      const draftId = generateId()
+      await db.insert(pendingCredentialDraft).values({
+        id: draftId,
+        userId: userIds[0],
+        workspaceId: organizationOwned ? null : workspaceId,
+        organizationId: organizationOwned ? organizationId : null,
+        providerId: 'shopify',
+        displayName: 'History fixture',
+        credentialId: mode.endsWith('reconnect') ? credentialId : null,
+        expiresAt: new Date(Date.now() + 60_000),
+      })
+      const before = await db.select().from(credential).where(ownerCondition)
+      await db.execute(sql`CREATE FUNCTION shopify_fixture_reject_scope() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'fixture ownership history unavailable'; END $$`)
+      await db.execute(sql`CREATE TRIGGER shopify_fixture_reject_scope BEFORE INSERT ON shopify_installation_scope
+        FOR EACH ROW EXECUTE FUNCTION shopify_fixture_reject_scope()`)
+      try {
+        await expect(
+          completeShopifyOAuthConnection({
+            code: 'fixture-authorization-code',
+            shopDomain,
+            userId: userIds[0],
+            draftId,
+          })
+        ).rejects.toThrow()
+        expect(
+          await db
+            .select()
+            .from(pendingCredentialDraft)
+            .where(eq(pendingCredentialDraft.id, draftId))
+        ).toHaveLength(1)
+        await expect(
+          processCredentialDraft({
+            draftId,
+            userId: userIds[0],
+            providerId: 'shopify',
+            accountId: rowIds[0],
+          })
+        ).rejects.toThrow()
+        expect(await db.select().from(credential).where(ownerCondition)).toEqual(before)
+        expect((await rows()).find((row) => row.id === rowIds[0])?.refreshToken).toBe(
+          currentRefresh
+        )
+      } finally {
+        await db.execute(
+          sql`DROP TRIGGER shopify_fixture_reject_scope ON shopify_installation_scope`
+        )
+        await db.execute(sql`DROP FUNCTION shopify_fixture_reject_scope()`)
+      }
+      await processCredentialDraft({
+        draftId,
+        userId: userIds[0],
+        providerId: 'shopify',
+        accountId: rowIds[0],
+      })
+      const saved = await db.select().from(credential).where(ownerCondition)
+      expect(saved).toHaveLength(1)
+      expect(
+        await db
+          .select()
+          .from(shopifyInstallationScope)
+          .where(eq(shopifyInstallationScope.credentialId, saved[0].id))
+      ).toHaveLength(1)
+      expect(
+        await db.select().from(pendingCredentialDraft).where(eq(pendingCredentialDraft.id, draftId))
+      ).toHaveLength(0)
+    }
+  )
 
   it('serializes a new code acquisition with refresh and leaves the next workflow able to refresh', async () => {
     await Promise.all([resolve(), connect(userIds[1]), resolve(rowIds[1])])

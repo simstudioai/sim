@@ -4854,14 +4854,9 @@ export const shopifyPrivacyRequest = pgTable(
       table.clientId,
       table.webhookId
     ),
-    activePayloadUnique: uniqueIndex('shopify_privacy_request_active_payload_unique')
-      .on(table.clientId, table.payloadHash)
-      .where(sql`${table.completedAt} IS NULL`),
-    deadlineIdx: index('shopify_privacy_request_deadline_idx').on(
-      table.status,
-      table.dueAt,
-      table.id
-    ),
+    deadlineIdx: index('shopify_privacy_request_deadline_idx')
+      .on(table.dueAt, table.id)
+      .where(sql`${table.completedAt} IS NULL AND ${table.escalatedAt} IS NULL`),
     shopIdx: index('shopify_privacy_request_shop_idx').on(
       table.clientId,
       table.shopId,

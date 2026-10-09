@@ -9,6 +9,7 @@ import { deleteOrphanedOAuthAccount } from '@/lib/credentials/deletion'
 import { resumeConnectorsAfterCredentialReconnect } from '@/lib/knowledge/connectors/credential-recovery'
 import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { rememberShopifyCredentialScope } from '@/lib/shopify/privacy/installation-scopes'
 
 const logger = createLogger('CredentialDraftHooks')
 
@@ -26,17 +27,32 @@ export async function handleCreateCredentialFromDraft(params: {
   const credentialId = generateId()
 
   try {
-    await db.insert(schema.credential).values({
-      id: credentialId,
-      workspaceId: draft.workspaceId,
-      type: 'oauth',
-      displayName: draft.displayName,
-      description: draft.description ?? null,
-      providerId,
-      accountId,
-      createdBy: userId,
-      createdAt: now,
-      updatedAt: now,
+    await db.transaction(async (tx) => {
+      await tx.insert(schema.credential).values({
+        id: credentialId,
+        workspaceId: draft.workspaceId,
+        type: 'oauth',
+        displayName: draft.displayName,
+        description: draft.description ?? null,
+        providerId,
+        accountId,
+        createdBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await tx.insert(schema.credentialMember).values({
+        id: generateId(),
+        credentialId,
+        userId,
+        role: 'admin',
+        status: 'active',
+        joinedAt: now,
+        invitedBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      if (providerId === 'shopify')
+        await rememberShopifyCredentialScope(accountId, credentialId, tx)
     })
   } catch (insertError: unknown) {
     if (
@@ -70,10 +86,14 @@ export async function handleCreateCredentialFromDraft(params: {
       accountId,
     })
 
-    await db
-      .update(schema.credential)
-      .set({ updatedAt: now })
-      .where(eq(schema.credential.id, existingCredential.id))
+    await db.transaction(async (tx) => {
+      await tx
+        .update(schema.credential)
+        .set({ updatedAt: now })
+        .where(eq(schema.credential.id, existingCredential.id))
+      if (providerId === 'shopify')
+        await rememberShopifyCredentialScope(accountId, existingCredential.id, tx)
+    })
 
     await clearOAuthRefreshDeadFlag(accountId)
     await resumeConnectorsAfterCredentialReconnect(accountId, now)
@@ -90,18 +110,6 @@ export async function handleCreateCredentialFromDraft(params: {
     })
     return
   }
-
-  await db.insert(schema.credentialMember).values({
-    id: generateId(),
-    credentialId,
-    userId,
-    role: 'admin',
-    status: 'active',
-    joinedAt: now,
-    invitedBy: userId,
-    createdAt: now,
-    updatedAt: now,
-  })
 
   logger.info('Created credential from draft', {
     credentialId,
@@ -161,6 +169,7 @@ export async function handleReconnectCredential(params: {
       id: schema.credential.id,
       accountId: schema.credential.accountId,
       displayName: schema.credential.displayName,
+      providerId: schema.credential.providerId,
     })
     .from(schema.credential)
     .where(eq(schema.credential.id, draft.credentialId))
@@ -194,10 +203,14 @@ export async function handleReconnectCredential(params: {
     }
   }
 
-  await db
-    .update(schema.credential)
-    .set({ accountId: newAccountId, updatedAt: now })
-    .where(eq(schema.credential.id, draft.credentialId))
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.credential)
+      .set({ accountId: newAccountId, updatedAt: now })
+      .where(eq(schema.credential.id, existingCredential.id))
+    if (existingCredential.providerId === 'shopify')
+      await rememberShopifyCredentialScope(newAccountId, existingCredential.id, tx)
+  })
 
   logger.info(
     accountChanged

@@ -170,6 +170,42 @@ describe('Privacy fulfillment authorization and completion evidence', () => {
     expect(unchanged.assignedToUserId).toBeNull()
   })
 
+  it.each(['expired ban', 'active ban', 'permanent ban', 'suspended'] as const)(
+    'applies current account status to an administrator with an %s',
+    async (condition) => {
+      const row = await requestCase()
+      await db
+        .update(user)
+        .set({
+          banned: condition !== 'suspended',
+          banExpires:
+            condition === 'expired ban'
+              ? new Date(0)
+              : condition === 'active ban'
+                ? new Date(Date.now() + 60_000)
+                : null,
+          suspendedAt: condition === 'suspended' ? new Date() : null,
+        })
+        .where(eq(user.id, adminId))
+      try {
+        const result = review(row.id, { action: 'assign', revision: 0 })
+        if (condition === 'expired ban')
+          await expect(result).resolves.toMatchObject({ status: 'processing' })
+        else await expect(result).rejects.toMatchObject({ code: 'forbidden' })
+        const [stored] = await db
+          .select()
+          .from(shopifyPrivacyRequest)
+          .where(eq(shopifyPrivacyRequest.id, row.id))
+        expect(stored.assignedToUserId).toBe(condition === 'expired ban' ? adminId : null)
+      } finally {
+        await db
+          .update(user)
+          .set({ banned: false, banExpires: null, suspendedAt: null })
+          .where(eq(user.id, adminId))
+      }
+    }
+  )
+
   it('requires store evidence and reviewed scope before completion', async () => {
     const row = await requestCase()
     await review(row.id, { action: 'assign', revision: 0 })
@@ -479,7 +515,7 @@ describe('Shopify privacy delivery over HTTP and PostgreSQL', () => {
     expect((await deliver('customers/data_request', { body })).status).toBe(200)
   })
 
-  it('deduplicates authenticated content when the unsigned delivery header changes', async () => {
+  it('preserves distinct shop deletion obligations with identical bodies', async () => {
     const body = payload('shop/redact').replace(shopId, '706405506930370088')
     const first = await deliver('shop/redact', { body })
     const second = await deliver('shop/redact', { body })
@@ -493,7 +529,17 @@ describe('Shopify privacy delivery over HTTP and PostgreSQL', () => {
           eq(shopifyPrivacyRequest.shopId, '706405506930370088')
         )
       )
-    expect(rows).toHaveLength(1)
+    expect(rows).toHaveLength(2)
+    const events = await db
+      .select()
+      .from(outboxEvent)
+      .where(
+        inArray(
+          sql<string>`${outboxEvent.payload}->>'requestId'`,
+          rows.map((row) => row.id)
+        )
+      )
+    expect(events).toHaveLength(2)
   })
 
   it('rejects a valid customer payload relabeled as a shop deletion', async () => {

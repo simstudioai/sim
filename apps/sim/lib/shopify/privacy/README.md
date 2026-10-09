@@ -4,6 +4,11 @@ The webhook receiver records requests for all three mandatory compliance topics.
 Receipt is separate from fulfillment. The outbox marks a case ready for review;
 it never deletes customer data or completes a case automatically.
 
+Retries deduplicate by app and `X-Shopify-Webhook-Id`. Separate delivery IDs retain
+separate cases even when their payloads match, because a later deletion request
+can have the same body as an earlier obligation. A reused delivery ID with a
+different payload or topic is rejected.
+
 The privacy policy's designated owner is responsible for the queue. No external
 notification is sent by this implementation. The existing outbox maintenance
 marks requests with seven days or less remaining for escalation and logs their

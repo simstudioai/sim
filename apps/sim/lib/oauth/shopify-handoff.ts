@@ -181,6 +181,7 @@ export async function claimShopifyInstall(params: {
         workspaceId: params.workspaceId,
         created: false,
         changed: false,
+        shopDomain: attempt.shopDomain,
       }
     }
     if (
@@ -305,6 +306,7 @@ export async function claimShopifyInstall(params: {
       workspaceId: params.workspaceId,
       created: !existingCredential,
       changed: true,
+      shopDomain: attempt.shopDomain,
     }
   })
 }

@@ -64,6 +64,12 @@ export async function runOutboxProcessor(): Promise<OutboxProcessorResult> {
     logger.error('Completed outbox pruning failed', { error: toError(error).message })
   }
 
+  try {
+    await maintainShopifyPrivacy()
+  } catch {
+    logger.error('Shopify privacy maintenance failed')
+  }
+
   const summary = {
     ...result,
     reapedBackgroundWork,
@@ -71,7 +77,6 @@ export async function runOutboxProcessor(): Promise<OutboxProcessorResult> {
     prunedEvents,
     durationMs: Date.now() - startedAt,
   }
-  await maintainShopifyPrivacy()
   /** Fail the run so a broken handler module stays as visible as the crash its static import caused. */
   if (result.unloadedEventTypes.length > 0) {
     const message = `Outbox handler modules failed to load; left pending: ${result.unloadedEventTypes.join(', ')}`

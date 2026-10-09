@@ -6,6 +6,7 @@ import { credentialOperations } from '@/lib/credentials/application/operations'
 import { resumeConnectorsAfterCredentialReconnect } from '@/lib/knowledge/connectors/credential-recovery'
 import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
 import { claimShopifyInstall } from '@/lib/oauth/shopify-handoff'
+import { getShopifyRefreshScope } from '@/lib/oauth/shopify-installation'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const logger = createLogger('CompleteShopifyInstall')
@@ -48,7 +49,7 @@ export const completeShopifyInstall = defineAuthorizedWorkspaceUseCase({
   afterSuccess: async ({ result }) => {
     if (!result.changed) return
     try {
-      await clearOAuthRefreshDeadFlag(result.accountId)
+      await clearOAuthRefreshDeadFlag(getShopifyRefreshScope(result.shopDomain))
       if (!result.created)
         await resumeConnectorsAfterCredentialReconnect(result.accountId, new Date())
     } catch {
