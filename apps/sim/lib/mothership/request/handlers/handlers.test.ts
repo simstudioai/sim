@@ -1,3 +1,4 @@
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import {
   mothershipAsyncRunsMock,
   mothershipAsyncRunsMockFns,
@@ -1529,13 +1530,12 @@ describe('sse-handlers tool lifecycle', () => {
   it('marks an in-flight tool as cancelled when aborted mid-execution', async () => {
     const abortController = new AbortController()
     execContext.abortSignal = abortController.signal
-
-    executeTool.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => resolve({ success: true, output: { ok: true } }), 0)
-        })
-    )
+    const started = createDeferred<void>()
+    const result = createDeferred<{ success: boolean; output: { ok: boolean } }>()
+    executeTool.mockImplementationOnce(() => {
+      started.resolve()
+      return result.promise
+    })
 
     await sseHandlers.tool(
       {
@@ -1558,8 +1558,12 @@ describe('sse-handlers tool lifecycle', () => {
       }
     )
 
+    await started.promise
+    const pending = context.pendingToolPromises.get('tool-cancel')
+    expect(pending).toBeDefined()
     abortController.abort()
-    await sleep(10)
+    result.resolve({ success: true, output: { ok: true } })
+    await pending
 
     const updated = context.toolCalls.get('tool-cancel')
     expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.cancelled)
