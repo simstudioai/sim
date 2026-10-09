@@ -61,6 +61,13 @@ const changelogReleaseSchema = z.object({
   fileId: z.string(),
   path: z.string(),
   changes: z.array(changelogChangeSchema),
+  workflows: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      deploymentVersion: z.number().int().nullable(),
+    })
+  ),
 })
 
 const workspaceParams = z.object({ id: workspaceIdSchema })
@@ -99,5 +106,5 @@ export const updateChangelogReleaseContract = defineRouteContract({
 })
 
 export type ChangelogRelease = z.output<typeof changelogReleaseSchema>
-export type ChangelogChange = z.output<typeof changelogChangeSchema>
+export type ChangelogReleaseWorkflow = ChangelogRelease['workflows'][number]
 export type UpdateChangelogReleaseBody = z.input<typeof updateChangelogReleaseBodySchema>

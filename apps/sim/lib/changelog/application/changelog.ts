@@ -43,6 +43,13 @@ const RELEASES_PER_PAGE = 20
 /** Revisions are PostgreSQL integers; anything else cannot be a revision from a read. */
 const MAX_REVISION = 2_147_483_647
 
+/** A workflow a release changed, with the newest deployment it shipped in. */
+interface ChangelogReleaseWorkflow {
+  id: string
+  name: string
+  deploymentVersion: number | null
+}
+
 export interface ChangelogReleaseView {
   id: string
   version: string
@@ -54,6 +61,23 @@ export interface ChangelogReleaseView {
   fileId: string
   path: string
   changes: ChangelogChangeView[]
+  workflows: ChangelogReleaseWorkflow[]
+}
+
+function releaseWorkflows(changes: ChangelogChangeView[]): ChangelogReleaseWorkflow[] {
+  const byWorkflow = new Map<string, ChangelogReleaseWorkflow>()
+  for (const change of changes) {
+    if (!change.workflowId || !change.workflowName) continue
+    const previous = byWorkflow.get(change.workflowId)?.deploymentVersion ?? null
+    const shipped = change.deploymentVersion
+    byWorkflow.set(change.workflowId, {
+      id: change.workflowId,
+      name: change.workflowName,
+      deploymentVersion:
+        previous === null ? shipped : shipped === null ? previous : Math.max(previous, shipped),
+    })
+  }
+  return [...byWorkflow.values()]
 }
 
 function presentRelease(
@@ -75,6 +99,7 @@ function presentRelease(
     fileId: row.bodyFileId,
     path: changelogFilePath(row.id),
     changes,
+    workflows: releaseWorkflows(changes),
   }
 }
 

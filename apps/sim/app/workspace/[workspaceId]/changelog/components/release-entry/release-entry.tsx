@@ -12,7 +12,8 @@ import {
 } from '@sim/emcn'
 import { MoreHorizontal } from '@sim/emcn/icons'
 import Link from 'next/link'
-import type { ChangelogChange, ChangelogRelease } from '@/lib/api/contracts/changelog'
+import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
+import { ReleaseWorkflows } from '@/app/workspace/[workspaceId]/changelog/components/release-workflows/release-workflows'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useAddressedWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 
@@ -25,28 +26,11 @@ interface ReleaseEntryProps {
 
 const DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
 
-/** Each workflow the release changed, with the newest deployment it shipped in. */
-function shippedWorkflows(
-  changes: ChangelogChange[]
-): { id: string; name: string; version: number | null }[] {
-  const byWorkflow = new Map<string, { name: string; version: number | null }>()
-  for (const change of changes) {
-    if (!change.workflowId || !change.workflowName) continue
-    const previous = byWorkflow.get(change.workflowId)?.version ?? null
-    const shipped = change.deploymentVersion
-    const version =
-      previous === null ? shipped : shipped === null ? previous : Math.max(previous, shipped)
-    byWorkflow.set(change.workflowId, { name: change.workflowName, version })
-  }
-  return [...byWorkflow.entries()].map(([id, shipped]) => ({ id, ...shipped }))
-}
-
 /** One shipped release: the date and version rail, then its title, body, and change lines. */
 export function ReleaseEntry({ workspaceId, release, canEdit, onEditDetails }: ReleaseEntryProps) {
   const saveRef = useRef<(() => Promise<void>) | null>(null)
   const [editingBody, setEditingBody] = useState(false)
   const file = useAddressedWorkspaceFileRecord(workspaceId, release.fileId)
-  const workflows = shippedWorkflows(release.changes)
 
   return (
     <article className='grid @min-[760px]/changelog:grid-cols-[132px_minmax(0,1fr)] grid-cols-1 gap-x-10 gap-y-3 border-[var(--border)] border-t pt-12'>
@@ -57,14 +41,7 @@ export function ReleaseEntry({ workspaceId, release, canEdit, onEditDetails }: R
         <div>
           <ChipTag variant='gray'>{`v${release.version}`}</ChipTag>
         </div>
-        {workflows.map((workflow) => (
-          <div key={workflow.id} className='flex flex-col text-small'>
-            <span className='break-words text-[var(--text-body)]'>{workflow.name}</span>
-            {workflow.version !== null && (
-              <span className='text-[var(--text-muted)]'>{`Deploy ${workflow.version}`}</span>
-            )}
-          </div>
-        ))}
+        <ReleaseWorkflows workspaceId={workspaceId} workflows={release.workflows} />
       </aside>
 
       <div className='flex min-w-0 flex-col gap-6'>
