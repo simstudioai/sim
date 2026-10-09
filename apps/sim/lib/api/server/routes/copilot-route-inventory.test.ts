@@ -103,7 +103,10 @@ it('inventories private operation admission without executing use cases', async 
   expect(inventory.length).toBeGreaterThan(200)
   expect(inventory.find((route) => route.path === '/api/v2/chat')?.operation.id).toBe('chat.send')
   const audiences = inventory.map((route) => copilotRouteAudience(route.operation, route.useCase))
-  /** Public organization and version-history operations require a direct caller. */
+  /**
+   * Operations that require a direct caller. Chat reaches organization administration through
+   * `settings organization`; version delete and download stay direct-only on purpose.
+   */
   const refused = inventory
     .filter((_, index) => !audiences[index])
     .map(({ method, path, operation }) => ({ method, path, operation: operation.id }))
