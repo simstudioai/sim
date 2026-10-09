@@ -227,6 +227,29 @@ describe('workspace Project column compatibility migration', () => {
     })
   })
 
+  it('allows several short copy batches to exceed one transaction timeout in total', async () => {
+    await fixture(async (sql) => {
+      await sql`ALTER TABLE workspace ADD COLUMN project_id text`
+      await sql`INSERT INTO workspace (id)
+        SELECT 'batch-' || lpad(n::text, 4, '0') FROM generate_series(1, 251) n`
+      await sql`INSERT INTO project_workspace (project_id, workspace_id)
+        SELECT 'family', id FROM workspace WHERE id LIKE 'batch-%'`
+      await sql.unsafe(`CREATE FUNCTION delay_copy_batch() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.id IN ('batch-0001', 'batch-0101', 'batch-0201') THEN PERFORM pg_sleep(2); END IF;
+          RETURN NEW;
+        END;
+        $$`)
+      await sql`CREATE TRIGGER delay_copy_batch BEFORE UPDATE OF project_id ON workspace
+        FOR EACH ROW EXECUTE FUNCTION delay_copy_batch()`
+      await applyMigration(sql, migration)
+      expect(
+        await sql`SELECT count(*)::int AS count FROM workspace w
+        JOIN project_workspace pw ON pw.workspace_id = w.id AND pw.project_id = w.project_id`
+      ).toEqual([{ count: 254 }])
+    })
+  }, 20000)
+
   it('commits bounded copy batches, retains completed work on failure and safely resumes', async () => {
     await fixture(async (sql) => {
       await sql`ALTER TABLE workspace ADD COLUMN project_id text`

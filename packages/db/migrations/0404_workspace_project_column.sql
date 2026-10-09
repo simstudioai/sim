@@ -47,6 +47,7 @@ CREATE OR REPLACE TRIGGER project_workspace_sync_column
   FOR EACH ROW EXECUTE FUNCTION project_workspace_sync_column_fn();
 COMMIT;
 --> statement-breakpoint
+-- This covers index construction and the whole copy CALL; bounded copy batches commit independently.
 SET statement_timeout = '15min';
 --> statement-breakpoint
 SET lock_timeout = 0;
@@ -110,10 +111,6 @@ BEGIN
   RAISE NOTICE 'Project column copy complete: % environments copied', copied;
 END;
 $$;
---> statement-breakpoint
--- Older servers need a whole-CALL bound; committed batches survive a timeout and replay.
-SELECT set_config('statement_timeout', CASE WHEN current_setting('transaction_timeout', true) IS NULL
-  THEN '5s' ELSE '15min' END, false);
 --> statement-breakpoint
 CALL pg_temp.copy_workspace_projects();
 --> statement-breakpoint
