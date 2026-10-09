@@ -94,7 +94,7 @@ export function useResourcePanelController() {
     isResourceCollapsedRef.current = collapsed
     setIsResourceCollapsedState(collapsed)
   }, [])
-  const resourceCollapseOwnedByUserRef = useRef(false)
+  const [resourceCollapseOwnedByUser, setResourceCollapseOwnedByUser] = useState(false)
   const resourceSelectionOwnedByUserRef = useRef(false)
 
   function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
@@ -102,7 +102,7 @@ export function useResourcePanelController() {
     const presentation = resolveResourceEventPresentation({
       activeResourceId,
       activationRequested: shouldActivateResourceEvent(activeResourceId, resourceId, options),
-      panelCollapseOwnedByUser: resourceCollapseOwnedByUserRef.current,
+      panelCollapseOwnedByUser: resourceCollapseOwnedByUser,
       panelCollapsed: isResourceCollapsedRef.current,
       resourceId,
       selectionOwnedByUser: resourceSelectionOwnedByUserRef.current,
@@ -156,7 +156,8 @@ export function useResourcePanelController() {
     resourceActivityIds,
     setResourceActivityIds,
     isResourceCollapsedRef,
-    resourceCollapseOwnedByUserRef,
+    resourceCollapseOwnedByUser,
+    setResourceCollapseOwnedByUser,
     resourceSelectionOwnedByUserRef,
     effectiveActiveResourceIdRef,
     onResourceEvent: handleResourceEvent,
@@ -196,7 +197,8 @@ export function useChatResourcePanel(
     setSkipResourceTransition,
     setResourceActivityIds,
     isResourceCollapsedRef,
-    resourceCollapseOwnedByUserRef,
+    resourceCollapseOwnedByUser,
+    setResourceCollapseOwnedByUser,
     resourceSelectionOwnedByUserRef,
     effectiveActiveResourceIdRef,
     onResourceEvent: handleResourceEvent,
@@ -207,10 +209,10 @@ export function useChatResourcePanel(
   const resourceAttentionChatIdRef = useRef(resolvedChatId)
 
   const collapseResource = useCallback(() => {
-    resourceCollapseOwnedByUserRef.current = true
+    setResourceCollapseOwnedByUser(true)
     resourceSelectionOwnedByUserRef.current = true
     setResourceCollapsed(true)
-  }, [setResourceCollapsed])
+  }, [setResourceCollapsed, setResourceCollapseOwnedByUser])
 
   const clearResourceActivity = useCallback((resourceId: string) => {
     setResourceActivityIds((current) => {
@@ -222,7 +224,7 @@ export function useChatResourcePanel(
   }, [])
 
   const expandResource = () => {
-    resourceCollapseOwnedByUserRef.current = false
+    setResourceCollapseOwnedByUser(false)
     resourceSelectionOwnedByUserRef.current = true
     const activeResourceId = effectiveActiveResourceIdRef.current
     if (activeResourceId) clearResourceActivity(activeResourceId)
@@ -254,13 +256,13 @@ export function useChatResourcePanel(
 
   const addResourceFromUser = useCallback(
     (resource: MothershipResource) => {
-      resourceCollapseOwnedByUserRef.current = false
+      setResourceCollapseOwnedByUser(false)
       resourceSelectionOwnedByUserRef.current = true
       addResource(resource)
       selectResourceFromUser(getChatResourceSelectionId(resource))
       setResourceCollapsed(false)
     },
-    [addResource, selectResourceFromUser, setResourceCollapsed]
+    [addResource, selectResourceFromUser, setResourceCollapsed, setResourceCollapseOwnedByUser]
   )
 
   const handleResourceResizePointerDown = useCallback(
@@ -295,17 +297,17 @@ export function useChatResourcePanel(
       setResourceCollapsed(true)
     }
     if (!resolvedChatId || (previousChatId && previousChatId !== resolvedChatId)) {
-      resourceCollapseOwnedByUserRef.current = false
+      setResourceCollapseOwnedByUser(false)
       resourceSelectionOwnedByUserRef.current = false
       setResourceActivityIds(new Set())
     }
-  }, [resolvedChatId, setResourceCollapsed])
+  }, [resolvedChatId, setResourceCollapsed, setResourceCollapseOwnedByUser])
 
   useEffect(() => {
     if (
       isCompactLayout !== false ||
       !(resources.length > 0 && isResourceCollapsedRef.current) ||
-      resourceCollapseOwnedByUserRef.current
+      resourceCollapseOwnedByUser
     ) {
       return
     }
@@ -313,7 +315,7 @@ export function useChatResourcePanel(
     setSkipResourceTransition(true)
     const id = requestAnimationFrame(() => setSkipResourceTransition(false))
     return () => cancelAnimationFrame(id)
-  }, [isCompactLayout, resources, setResourceCollapsed])
+  }, [isCompactLayout, resources, resourceCollapseOwnedByUser, setResourceCollapsed])
 
   useEffect(() => {
     if (resources.length === 0 && !isResourceCollapsedRef.current) {
@@ -333,6 +335,7 @@ export function useChatResourcePanel(
     ...controller,
     initialScrollBlocked:
       resources.length > 0 &&
+      !resourceCollapseOwnedByUser &&
       (isCompactLayout === null || (isCompactLayout === false && isResourceCollapsed)),
     desktopTabResourceOptions,
     mothershipRef,

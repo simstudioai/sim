@@ -36,20 +36,8 @@ const TOAST_WIDTH = 'min(100vw - 2rem, 280px)'
 
 /** Gap from the viewport edge on an ordinary page. */
 const VIEWPORT_INSET_PX = 16
-/**
- * Gap the stack keeps from the workflow panel and terminal it sits against —
- * the same one the canvas controls keep, so the two floating surfaces read as
- * one row.
- *
- * `--panel-width` / `--terminal-height` measure the element, not its distance
- * from the viewport, and the stack is portalled to `<body>` so it anchors from
- * the viewport. `--workspace-content-gap` adds back whatever padding the
- * workspace shell insets those elements by — normally 8px, but 0 on the desktop
- * shell with a collapsed sidebar. Hardcoding the sum would silently hold the
- * stack 8px further out in that configuration while the controls, which are laid
- * out inside the shell, stayed put.
- */
-const WORKFLOW_INSET_PX = 12
+/** Gap between notifications and a registered content boundary. */
+const BOUNDARY_INSET_PX = 12
 
 /** Most toasts kept alive at once; older arrivals are evicted. */
 const STACK_LIMIT = 3
@@ -203,6 +191,14 @@ interface ToastContextValue {
   toast: ToastFn
   dismiss: (id: string) => void
   dismissAll: () => void
+  /** Anchors notifications within the active content surface; clear on unmount. */
+  setViewportBoundary: (element: HTMLElement | null) => void
+}
+
+interface ToastViewportInsets {
+  right: number
+  bottom: number
+  left: number
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null)
@@ -239,7 +235,7 @@ export const toast: ToastFn = createToastFn((input) => {
   return globalToast(input)
 })
 
-/** Hook to access the toast function and dismiss helpers from context. */
+/** Accesses notifications, dismissal, and optional content-boundary placement. */
 export function useToast() {
   const ctx = useContext(ToastContext)
   if (!ctx) throw new Error('useToast must be used within <ToastProvider>')
@@ -484,13 +480,53 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
 export function ToastProvider({ children }: { children?: ReactNode }) {
   const pathname = usePathname()
   const reduceMotion = useReducedMotion() ?? false
-  /** On the workflow editor (`/w/[id]` and the `/w` index) the stack insets by `--panel-width` / `--terminal-height` to clear the panel and terminal. */
-  const isWorkflowPage = pathname ? /\/w(\/|$)/.test(pathname) : false
 
   const [{ toasts, removals }, dispatch] = useReducer(toastStateReducer, INITIAL_TOAST_STATE)
   const [heights, setHeights] = useState<Record<string, number>>({})
   const [expanded, setExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [viewportBoundary, setViewportBoundary] = useState<HTMLElement | null>(null)
+  const [viewportInsets, setViewportInsets] = useState<ToastViewportInsets | null>(null)
+  const hasToasts = toasts.length > 0
+
+  useLayoutEffect(() => {
+    if (!viewportBoundary || !hasToasts) {
+      setViewportInsets(null)
+      return
+    }
+
+    let frame: number | null = null
+    const measure = () => {
+      const bounds = viewportBoundary.getBoundingClientRect()
+      const next = {
+        right: window.innerWidth - bounds.right,
+        bottom: window.innerHeight - bounds.bottom,
+        left: bounds.left,
+      }
+      setViewportInsets((previous) =>
+        previous?.right === next.right &&
+        previous.bottom === next.bottom &&
+        previous.left === next.left
+          ? previous
+          : next
+      )
+    }
+    const scheduleMeasure = () => {
+      frame ??= requestAnimationFrame(() => {
+        frame = null
+        measure()
+      })
+    }
+    measure()
+    const observer = new ResizeObserver(scheduleMeasure)
+    observer.observe(viewportBoundary)
+    window.addEventListener('resize', scheduleMeasure)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', scheduleMeasure)
+      if (frame !== null) cancelAnimationFrame(frame)
+    }
+  }, [viewportBoundary, hasToasts])
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>> | null>(null)
   const timers = (timersRef.current ??= new Map())
   const processedRemovalIdsRef = useRef<Set<string> | null>(null)
@@ -665,6 +701,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       toast: toastFn.current,
       dismiss: dismissToast,
       dismissAll: dismissAllToasts,
+      setViewportBoundary,
     }),
     [dismissToast, dismissAllToasts]
   )
@@ -702,27 +739,18 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                   aria-live='polite'
                   aria-label='Notifications'
                   data-native-surface-overlay='passive'
-                  /*
-                   * The stack is portalled to `<body>`, so it shares no ancestor
-                   * with the panel or terminal it insets by. A resize drag writes
-                   * `--panel-width` / `--terminal-height` to each consuming
-                   * subtree rather than to `:root`; this attribute is how it
-                   * finds this one, and without it the stack would hold the
-                   * pre-drag position until the drag commits.
-                   */
-                  data-toast-viewport=''
-                  className='fixed z-[var(--z-toast)] m-0 list-none p-0 max-md:right-4! max-md:bottom-[max(16px,env(safe-area-inset-bottom))]!'
+                  className='fixed z-[var(--z-toast)] m-0 list-none p-0'
                   exit={{
                     opacity: 0,
                     transition: reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeIn' },
                   }}
                   style={{
-                    right: isWorkflowPage
-                      ? `clamp(${WORKFLOW_INSET_PX}px, calc(var(--panel-width) + var(--workspace-content-gap, 0px) + ${WORKFLOW_INSET_PX}px), max(${WORKFLOW_INSET_PX}px, calc(100vw - var(--sidebar-width, 0px) - ${TOAST_WIDTH} - ${WORKFLOW_INSET_PX}px)))`
+                    right: viewportInsets
+                      ? `clamp(${BOUNDARY_INSET_PX}px, ${viewportInsets.right + BOUNDARY_INSET_PX}px, max(${BOUNDARY_INSET_PX}px, calc(100vw - ${viewportInsets.left}px - ${TOAST_WIDTH} - ${BOUNDARY_INSET_PX}px)))`
                       : `${VIEWPORT_INSET_PX}px`,
-                    bottom: isWorkflowPage
-                      ? `clamp(${WORKFLOW_INSET_PX}px, calc(var(--terminal-height) + var(--workspace-content-gap, 0px) + ${WORKFLOW_INSET_PX}px), max(${WORKFLOW_INSET_PX}px, calc(100dvh - ${containerHeight}px - ${WORKFLOW_INSET_PX}px)))`
-                      : `${VIEWPORT_INSET_PX}px`,
+                    bottom: viewportInsets
+                      ? `clamp(${BOUNDARY_INSET_PX}px, ${viewportInsets.bottom + BOUNDARY_INSET_PX}px, max(${BOUNDARY_INSET_PX}px, calc(100dvh - ${containerHeight}px - ${BOUNDARY_INSET_PX}px)))`
+                      : `max(${VIEWPORT_INSET_PX}px, env(safe-area-inset-bottom))`,
                     width: TOAST_WIDTH,
                     height: containerHeight,
                   }}

@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react'
 import { useParams, useRouter } from 'next/navigation'
 import '@xyflow/react/dist/style.css'
-import { cn, toast } from '@sim/emcn'
+import { cn, toast, useToast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
@@ -334,6 +334,14 @@ const WorkflowContent = React.memo(
       setPendingConnect(null)
     }, [])
     const canvasContainerRef = useRef<HTMLDivElement>(null)
+    const { setViewportBoundary } = useToast()
+    const setCanvasContainer = useCallback(
+      (element: HTMLDivElement | null) => {
+        canvasContainerRef.current = element
+        if (!embedded) setViewportBoundary(element)
+      },
+      [embedded, setViewportBoundary]
+    )
     const embeddedFitFrameRef = useRef<number | null>(null)
     const hasCompletedInitialEmbeddedFitRef = useRef(false)
     const initializedViewportWorkflowIdRef = useRef<string | null>(null)
@@ -1506,6 +1514,7 @@ const WorkflowContent = React.memo(
 
     const handleContextOpenEditor = useCallback(() => {
       if (contextMenuBlocks.length === 1) {
+        usePanelStore.getState().setIsMobilePanelOpen(true)
         usePanelEditorStore.getState().setCurrentBlockId(contextMenuBlocks[0].id)
       }
     }, [contextMenuBlocks])
@@ -5047,7 +5056,7 @@ const WorkflowContent = React.memo(
       <div className='@container/workflow relative flex size-full overflow-hidden'>
         <div className='flex min-w-0 flex-1 flex-col'>
           <div
-            ref={canvasContainerRef}
+            ref={setCanvasContainer}
             onPointerDownCapture={handleCanvasPointerDownCapture}
             /* The in-flight line reads `--text-secondary`, not the `--workflow-edge`
                grey a resting edge uses: it has to stay legible over a subflow body

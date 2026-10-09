@@ -39,7 +39,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { type McpServer, useMcpToolServers } from '@/hooks/queries/mcp'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
-import { isMobileViewport } from '@/hooks/use-is-mobile'
+import { isTouchMobileViewport } from '@/hooks/use-is-mobile'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -961,7 +961,7 @@ export function usePromptEditor({
         e.key === 'Enter' &&
         !e.shiftKey &&
         !e.nativeEvent.isComposing &&
-        !isMobileViewport() &&
+        !isTouchMobileViewport() &&
         policy?.onSubmit
       ) {
         e.preventDefault()

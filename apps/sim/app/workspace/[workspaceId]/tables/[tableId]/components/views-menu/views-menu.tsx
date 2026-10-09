@@ -116,8 +116,12 @@ export const ViewsMenu = memo(function ViewsMenu({
           onClick={openPopover}
           onFocus={openPopover}
           onBlur={scheduleClose}
-          onMouseEnter={openPopover}
-          onMouseLeave={scheduleClose}
+          onPointerEnter={(event) => {
+            if (event.pointerType === 'mouse') openPopover()
+          }}
+          onPointerLeave={(event) => {
+            if (event.pointerType === 'mouse') scheduleClose()
+          }}
           className={cn(chipVariants(), 'max-w-[220px]')}
         >
           <OverflowText
@@ -137,8 +141,12 @@ export const ViewsMenu = memo(function ViewsMenu({
         maxHeight={420}
         border
         className={POPOVER_ANIMATION_CLASSES}
-        onMouseEnter={openPopover}
-        onMouseLeave={scheduleClose}
+        onPointerEnter={(event) => {
+          if (event.pointerType === 'mouse') openPopover()
+        }}
+        onPointerLeave={(event) => {
+          if (event.pointerType === 'mouse') scheduleClose()
+        }}
         onFocusCapture={cancelScheduledClose}
       >
         <PopoverSection>Views</PopoverSection>

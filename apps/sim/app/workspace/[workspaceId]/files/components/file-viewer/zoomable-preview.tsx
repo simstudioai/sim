@@ -276,7 +276,8 @@ export function ZoomablePreview({
           <div
             ref={contentRef}
             className={cn(
-              'flex items-center justify-center will-change-transform',
+              'flex items-center justify-center',
+              (zoom !== 1 || offset.x !== 0 || offset.y !== 0) && 'will-change-transform',
               contentClassName
             )}
             style={{

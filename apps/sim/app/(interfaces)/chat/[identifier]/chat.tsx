@@ -1,6 +1,7 @@
 'use client'
 
 import { type ReactNode, type RefObject, useCallback, useMemo, useRef, useState } from 'react'
+import { usePrefersReducedMotion } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import {
@@ -70,6 +71,7 @@ function ChatViewport({ children }: ChatViewportProps) {
 }
 
 export default function ChatClient({ identifier }: { identifier: string }) {
+  const prefersReducedMotion = usePrefersReducedMotion()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -113,7 +115,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
    * With `force` (jump button), re-pins to bottom.
    */
   const scrollToBottom = (options?: { behavior?: ScrollBehavior; force?: boolean }) => {
-    const behavior = options?.behavior ?? 'smooth'
+    const behavior = prefersReducedMotion ? 'auto' : (options?.behavior ?? 'smooth')
     const force = options?.force === true
     if (!force && !stickToBottomRef.current) return
     if (!messagesEndRef.current) return
@@ -143,7 +145,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
 
     container.scrollTo({
       top: container.scrollTop + messageRect.top - containerRect.top,
-      behavior: 'smooth',
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
     })
   }
 

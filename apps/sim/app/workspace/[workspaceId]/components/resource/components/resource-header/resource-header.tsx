@@ -547,8 +547,12 @@ function BreadcrumbLocationPopover({
             }}
             onFocus={openPopover}
             onBlur={scheduleClose}
-            onMouseEnter={openPopover}
-            onMouseLeave={scheduleClose}
+            onPointerEnter={(event) => {
+              if (event.pointerType === 'mouse') openPopover()
+            }}
+            onPointerLeave={(event) => {
+              if (event.pointerType === 'mouse') scheduleClose()
+            }}
             onDragOver={drag?.onDragOver}
             onDragLeave={drag?.onDragLeave}
             onDrop={drag?.onDrop}
@@ -577,8 +581,12 @@ function BreadcrumbLocationPopover({
           maxHeight={420}
           border
           className={POPOVER_ANIMATION_CLASSES}
-          onMouseEnter={openPopover}
-          onMouseLeave={scheduleClose}
+          onPointerEnter={(event) => {
+            if (event.pointerType === 'mouse') openPopover()
+          }}
+          onPointerLeave={(event) => {
+            if (event.pointerType === 'mouse') scheduleClose()
+          }}
         >
           <PopoverSection>
             <span className='inline-flex items-center gap-1'>

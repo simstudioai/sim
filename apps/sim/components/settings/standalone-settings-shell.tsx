@@ -125,12 +125,14 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
           {plane === 'account' ? (
             <SettingsMobileNavigation
               activeSection={accountSection}
+              plane={plane}
               items={accountItems}
               hrefForSection={getAccountSettingsHref}
             />
           ) : (
             <SettingsMobileNavigation
               activeSection={selfHostSection}
+              plane={plane}
               items={selfHostItems}
               hrefForSection={getSelfHostSettingsHref}
             />

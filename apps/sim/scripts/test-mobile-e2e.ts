@@ -105,6 +105,44 @@ interface CheckResult {
   screenshot?: string
 }
 
+interface ViewportMeasurement {
+  layoutHeight: number
+  height: number
+  top: number
+  scale: number
+}
+
+interface ViewportRecovery {
+  surface: string
+  before: ViewportMeasurement
+  zoomed: ViewportMeasurement | null
+  restored: ViewportMeasurement | null
+}
+
+const viewportMeasurements: ViewportRecovery[] = []
+
+interface DocumentNavigation {
+  from: string
+  to: string
+}
+
+const documentNavigations = new WeakMap<Page, DocumentNavigation>()
+
+/** Marks the outgoing document before Playwright starts navigation and releases it on completion. */
+async function withDocumentNavigation<T>(
+  page: Page,
+  destination: string,
+  run: () => Promise<T>
+): Promise<T> {
+  const navigation = { from: page.url(), to: new URL(destination, baseUrl).href }
+  documentNavigations.set(page, navigation)
+  try {
+    return await run()
+  } finally {
+    if (documentNavigations.get(page) === navigation) documentNavigations.delete(page)
+  }
+}
+
 /** WebKit reports handled same-origin fetch failures during document teardown as page errors. */
 function getNavigationCancellationPath(
   error: Error,
@@ -212,7 +250,9 @@ async function visit(page: Page, route: string) {
         response.request().isNavigationRequest() && new URL(response.url()).pathname === path,
       { timeout: 360_000 }
     ),
-    page.goto(path, { waitUntil: 'load', timeout: 360_000 }),
+    withDocumentNavigation(page, path, () =>
+      page.goto(path, { waitUntil: 'load', timeout: 360_000 })
+    ),
   ])
   assert(response.status() < 400, `Could not load ${route}: ${response.status()}`)
   assert(
@@ -282,6 +322,71 @@ async function expectNoOverflow(page: Page) {
     shell.x + shell.width <= (page.viewportSize()?.width ?? 0) + 1,
     'Content extends offscreen'
   )
+}
+
+/** Exercises native visual-viewport recovery without another layout resize. */
+async function expectVisualViewportRecovery(page: Page, surface: string, targets: Locator[]) {
+  const original = page.viewportSize()
+  assert(original)
+  const session = await page.context().newCDPSession(page)
+  const measure = () =>
+    page.evaluate(() => {
+      const viewport = window.visualViewport
+      if (!viewport) throw new Error('Visual viewport is unavailable')
+      return {
+        layoutHeight: window.innerHeight,
+        height: viewport.height,
+        top: viewport.offsetTop,
+        scale: viewport.scale,
+      }
+    })
+  const settle = () =>
+    page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        )
+    )
+  const measurements: ViewportRecovery = {
+    surface,
+    before: await measure(),
+    zoomed: null,
+    restored: null,
+  }
+  try {
+    await session.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 })
+    await page.setViewportSize({ width: original.width, height: 400 })
+    await settle()
+    const zoomed = await measure()
+    measurements.zoomed = zoomed
+    assert.equal(zoomed.scale, 2)
+    assert.equal(zoomed.layoutHeight, 400)
+    await session.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 })
+    await settle()
+    const restored = await measure()
+    measurements.restored = restored
+    assert.equal(
+      restored.layoutHeight,
+      zoomed.layoutHeight,
+      'Recovery must not resize the layout viewport'
+    )
+    assert.equal(restored.scale, 1)
+    assert(
+      restored.height > zoomed.height + 100,
+      'Native visual viewport must resize independently'
+    )
+    try {
+      for (const target of targets) await expectContained(page, target)
+    } finally {
+      await capture(page, `chromium-phone-visual-viewport-${surface}`)
+    }
+  } finally {
+    viewportMeasurements.push(measurements)
+    await session.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 })
+    await page.setViewportSize(original)
+    await settle()
+    await session.detach()
+  }
 }
 
 async function expectDesktopPreference(context: BrowserContext, page: Page) {
@@ -373,16 +478,11 @@ async function exerciseViewport(
   await context.tracing.start({ screenshots: true, snapshots: true })
   const page = await context.newPage()
   const pageErrors: string[] = []
-  let pendingNavigation: { from: string; to: string } | null = null
-  page.on('request', (request) => {
-    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
-      pendingNavigation = { from: page.url(), to: request.url() }
-    }
-  })
   page.on('framenavigated', (frame) => {
-    if (frame === page.mainFrame()) pendingNavigation = null
+    if (frame === page.mainFrame()) documentNavigations.delete(page)
   })
   page.on('pageerror', (error) => {
+    const pendingNavigation = documentNavigations.get(page) ?? null
     const path = getNavigationCancellationPath(error, browserName, pendingNavigation)
     if (path && pendingNavigation) {
       if (navigationDiagnostics.length < 100) {
@@ -406,9 +506,6 @@ async function exerciseViewport(
     }
   })
   page.on('requestfailed', (request) => {
-    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
-      pendingNavigation = null
-    }
     const url = new URL(request.url())
     if (url.origin === baseUrl.origin && requestFailures.length < 100) {
       requestFailures.push({
@@ -456,10 +553,13 @@ async function exerciseViewport(
           const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
           const openNavigation = page.getByRole('button', { name: 'Open navigation', exact: true })
           await openNavigation.focus()
-          await page.keyboard.press('ControlOrMeta+b')
+          const modifier = await page.evaluate(() =>
+            /Mac|iPhone|iPod|iPad/i.test(navigator.userAgent) ? 'Meta' : 'Control'
+          )
+          await page.keyboard.press(`${modifier}+b`)
           await expectContained(page, sidebar)
           await expectDesktopPreference(context, page)
-          await page.keyboard.press('ControlOrMeta+b')
+          await page.keyboard.press(`${modifier}+b`)
           await expect(sidebar).toBeHidden()
           await expectDesktopPreference(context, page)
           await openNavigation.tap()
@@ -517,6 +617,12 @@ async function exerciseViewport(
             await field.evaluate((element) => getComputedStyle(element).fontSize),
             '16px'
           )
+        }
+        if (browserName === 'chromium' && viewport.name === 'phone') {
+          await expectVisualViewportRecovery(page, 'modal', [
+            dialog,
+            dialog.getByRole('button', { name: 'Close', exact: true }),
+          ])
         }
         if (viewport.name === 'phone' || viewport.name === 'desktop') {
           await capture(page, `${browserName}-${viewport.name}-knowledge-modal`)
@@ -610,6 +716,12 @@ async function exerciseViewport(
         ) {
           await capture(page, `${browserName}-${viewport.name}-chat`)
         }
+        if (browserName === 'chromium' && viewport.name === 'phone') {
+          await expectVisualViewportRecovery(page, 'composer', [
+            composer,
+            page.getByRole('button', { name: 'Send message', exact: true }),
+          ])
+        }
         if (viewport.width < 768) {
           await page.setViewportSize({
             width: viewport.width,
@@ -642,10 +754,10 @@ async function exerciseViewport(
         `${prefix}/public chat attachments leave the composer reachable`,
         page,
         async () => {
-          const response = await page.goto(`/chat/${publicChatIdentifier}`, {
-            waitUntil: 'load',
-            timeout: 360_000,
-          })
+          const chatPath = `/chat/${publicChatIdentifier}`
+          const response = await withDocumentNavigation(page, chatPath, () =>
+            page.goto(chatPath, { waitUntil: 'load', timeout: 360_000 })
+          )
           assert(response && response.status() < 400)
           await expect(page.getByText('Public mobile welcome', { exact: true })).toBeVisible({
             timeout: 120_000,
@@ -742,7 +854,9 @@ async function exerciseViewport(
               return rows[0]?.note
             })
             .toBe(value)
-          await page.reload({ waitUntil: 'load', timeout: 360_000 })
+          await withDocumentNavigation(page, page.url(), () =>
+            page.reload({ waitUntil: 'load', timeout: 360_000 })
+          )
           await expect(cell).toHaveText(value)
           await page.getByRole('button', { name: 'Column options', exact: true }).first().tap()
           await expectContained(page, page.getByRole('menu'))
@@ -792,10 +906,9 @@ async function exerciseViewport(
       })
 
       await check(`${prefix}/standalone settings sections remain accessible`, page, async () => {
-        const response = await page.goto('/selfhost/settings/general', {
-          waitUntil: 'load',
-          timeout: 360_000,
-        })
+        const response = await withDocumentNavigation(page, '/selfhost/settings/general', () =>
+          page.goto('/selfhost/settings/general', { waitUntil: 'load', timeout: 360_000 })
+        )
         assert(response && response.status() < 400)
         await expect(page.getByRole('button', { name: 'Theme', exact: true })).toBeVisible({
           timeout: 120_000,
@@ -812,8 +925,8 @@ async function exerciseViewport(
         await expect(page).toHaveURL(/\/selfhost\/settings\/general/)
         await expect(navigation).toBeVisible()
         await capture(page, `${browserName}-phone-standalone-settings`)
-        await navigation.getByRole('button', { name: 'Back', exact: true }).tap()
-        await page.waitForURL(new RegExp(`/workspace/${workspaceId}/`), {
+        await navigation.getByRole('button', { name: 'Sim home', exact: true }).tap()
+        await page.waitForURL((url) => url.pathname === '/' && url.searchParams.has('home'), {
           waitUntil: 'load',
           timeout: 120_000,
         })
@@ -864,7 +977,9 @@ async function exerciseViewport(
           .toBeGreaterThan(0.95)
         if (viewport.name === 'phone') {
           await sql`update workflow set locked = true where id = ${workflowId}`
-          await page.reload({ waitUntil: 'load', timeout: 360_000 })
+          await withDocumentNavigation(page, page.url(), () =>
+            page.reload({ waitUntil: 'load', timeout: 360_000 })
+          )
           const notifications = page.getByLabel('Notifications', { exact: true })
           await expect(notifications).toContainText('This workflow is locked', {
             timeout: 120_000,
@@ -897,7 +1012,7 @@ async function exerciseViewport(
       })
     }
   } finally {
-    pendingNavigation = null
+    documentNavigations.delete(page)
     await check(`${prefix}/no uncaught browser errors`, page, async () => {
       assert.deepEqual(pageErrors, [])
       assert.deepEqual(nativeErrors, [])
@@ -967,6 +1082,7 @@ try {
         httpErrors,
         requestFailures,
         navigationDiagnostics,
+        viewportMeasurements,
       },
       null,
       2

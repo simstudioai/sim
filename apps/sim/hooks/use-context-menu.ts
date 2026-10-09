@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { getContextMenuPosition } from '@/lib/core/utils/context-menu'
 
 interface UseContextMenuProps {
   /**
@@ -39,7 +40,7 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
       e.preventDefault()
       e.stopPropagation()
 
-      openMenuAt({ x: e.clientX, y: e.clientY })
+      openMenuAt(getContextMenuPosition(e))
 
       onContextMenu?.(e)
     },

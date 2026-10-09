@@ -97,12 +97,8 @@ export const WorkflowControls = memo(function WorkflowControls() {
         /*
          * 12px off both edges, the same clearance the toast stack keeps from the
          * terminal and the panel, so the two floating surfaces read as one row.
-         * The toast reaches it as `--terminal-height + 20px` because it anchors
-         * from the viewport and the terminal is itself inset by
-         * CONTENT_WINDOW_GAP; these controls measure from the canvas floor and
-         * wall, so they take the 12 directly.
          */
-        className='absolute bottom-3 left-3 z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1 max-md:pointer-coarse:h-auto'
+        className='absolute bottom-3 left-3 z-10 flex h-[36px] pointer-coarse:h-auto items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1'
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}
@@ -114,7 +110,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
                   <Tooltip.Trigger asChild>
                     <Button
                       aria-label={mode === 'hand' ? 'Mover' : 'Pointer'}
-                      className='size-[28px] rounded-sm p-0'
+                      className='pointer-coarse:size-11 size-[28px] rounded-sm p-0'
                       variant='active'
                     >
                       {mode === 'hand' ? (
@@ -127,7 +123,10 @@ export const WorkflowControls = memo(function WorkflowControls() {
                   <Button
                     aria-label='Change canvas mode'
                     variant='ghost'
-                    className={cn('size-[20px] rounded-sm p-0', chipHoverSurfaceClass)}
+                    className={cn(
+                      'pointer-coarse:size-11 size-[20px] rounded-sm p-0',
+                      chipHoverSurfaceClass
+                    )}
                   >
                     <ChevronDown
                       className={cn(disclosureChevronClass, isCanvasModeOpen && 'rotate-180')}
@@ -168,7 +167,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
               aria-label='Undo'
               variant='ghost'
               className={cn(
-                'size-[28px] rounded-sm p-0 max-md:pointer-coarse:size-11',
+                'pointer-coarse:size-11 size-[28px] rounded-sm p-0',
                 chipHoverSurfaceClass
               )}
               onClick={undo}
@@ -188,7 +187,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
               aria-label='Redo'
               variant='ghost'
               className={cn(
-                'size-[28px] rounded-sm p-0 max-md:pointer-coarse:size-11',
+                'pointer-coarse:size-11 size-[28px] rounded-sm p-0',
                 chipHoverSurfaceClass
               )}
               onClick={redo}
@@ -210,7 +209,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
               aria-label='Fit to View'
               variant='ghost'
               className={cn(
-                'size-[28px] rounded-sm p-0 max-md:pointer-coarse:size-11',
+                'pointer-coarse:size-11 size-[28px] rounded-sm p-0',
                 chipHoverSurfaceClass
               )}
               onClick={handleFitToView}

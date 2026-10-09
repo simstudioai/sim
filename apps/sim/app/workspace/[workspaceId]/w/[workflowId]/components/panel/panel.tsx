@@ -143,12 +143,16 @@ export const Panel = memo(function Panel() {
 
   const panelRef = useRef<HTMLElement>(null)
   const {
+    isMobilePanelOpen,
+    setIsMobilePanelOpen,
     activeTab: storedActiveTab,
     setActiveTab,
     _hasHydrated,
     setHasHydrated,
   } = usePanelStore(
     useShallow((state) => ({
+      isMobilePanelOpen: state.isMobilePanelOpen,
+      setIsMobilePanelOpen: state.setIsMobilePanelOpen,
       activeTab: state.activeTab,
       setActiveTab: state.setActiveTab,
       _hasHydrated: state._hasHydrated,
@@ -167,7 +171,8 @@ export const Panel = memo(function Panel() {
   const [isExporting, setIsExporting] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false)
+
+  useEffect(() => () => setIsMobilePanelOpen(false), [setIsMobilePanelOpen])
 
   // Hooks
   const userPermissions = useUserPermissionsContext()
@@ -715,6 +720,7 @@ export const Panel = memo(function Panel() {
       {
         id: 'focus-toolbar-search',
         handler: () => {
+          setIsMobilePanelOpen(true)
           setActiveTab('toolbar')
           toolbarRef.current?.focusSearch()
         },

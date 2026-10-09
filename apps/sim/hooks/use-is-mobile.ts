@@ -15,6 +15,11 @@ export function isMobileViewport() {
   return typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches
 }
 
+/** Distinguishes phone touch input from a narrow desktop window in event handlers. */
+export function isTouchMobileViewport() {
+  return isMobileViewport() && window.matchMedia('(pointer: coarse)').matches
+}
+
 function getServerSnapshot() {
   return false
 }

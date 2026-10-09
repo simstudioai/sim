@@ -80,6 +80,7 @@ export const useSidebarStore = create<SidebarState>()(
     (set, get) => ({
       workspaceDropdownOpen: false,
       sidebarWidth: SIDEBAR_WIDTH.DEFAULT,
+      renderedSidebarWidth: SIDEBAR_WIDTH.DEFAULT,
       isCollapsed: readCollapsedCookie(),
       _hasHydrated: false,
       setWorkspaceDropdownOpen: (isOpen) => set({ workspaceDropdownOpen: isOpen }),
@@ -87,19 +88,23 @@ export const useSidebarStore = create<SidebarState>()(
         if (get().isCollapsed) return
         const clampedWidth = clampSidebarWidth(width)
         set({ sidebarWidth: clampedWidth })
-        applySidebarWidths(clampedWidth, false)
+        get().syncWidth()
       },
       toggleCollapsed: () => {
-        const { isCollapsed, sidebarWidth } = get()
-        const nextCollapsed = !isCollapsed
-        const expandedWidth = clampSidebarWidth(sidebarWidth)
+        const nextCollapsed = !get().isCollapsed
         set({ isCollapsed: nextCollapsed })
         applyCollapsedCookie(nextCollapsed)
-        applySidebarWidths(expandedWidth, nextCollapsed)
+        get().syncWidth()
       },
       syncWidth: () => {
         const { isCollapsed, sidebarWidth } = get()
         const clampedWidth = clampSidebarWidth(sidebarWidth)
+        set({
+          renderedSidebarWidth:
+            typeof window !== 'undefined' && window.innerWidth < 768
+              ? window.innerWidth
+              : clampedWidth,
+        })
         applySidebarWidths(clampedWidth, isCollapsed)
       },
       setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),

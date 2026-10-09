@@ -8,7 +8,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { PublicChatActionButton } from '@/app/(interfaces)/chat/components/input/public-chat-action-button'
-import { isMobileViewport } from '@/hooks/use-is-mobile'
+import { isTouchMobileViewport } from '@/hooks/use-is-mobile'
 
 const logger = createLogger('ChatInput')
 
@@ -110,7 +110,12 @@ export const ChatInput: React.FC<{
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !isMobileViewport()) {
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      !e.nativeEvent.isComposing &&
+      !isTouchMobileViewport()
+    ) {
       e.preventDefault()
       handleSubmit()
     }
