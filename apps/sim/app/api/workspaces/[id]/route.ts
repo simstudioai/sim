@@ -1,7 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { omit } from '@sim/utils/object'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteWorkspaceBodySchema, updateWorkspaceContract } from '@/lib/api/contracts'
@@ -11,6 +10,7 @@ import { getSession } from '@/lib/auth'
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
+import { presentWorkspace } from '@/lib/workspaces/response'
 
 const logger = createLogger('WorkspaceByIdAPI')
 
@@ -52,7 +52,7 @@ export const GET = withRouteHandler(
 
     return NextResponse.json({
       workspace: {
-        ...omit(workspaceDetails, ['projectId']),
+        ...presentWorkspace(workspaceDetails),
         permissions: userPermission,
       },
     })
@@ -217,7 +217,7 @@ export const PATCH = withRouteHandler(
 
       return NextResponse.json({
         workspace: {
-          ...omit(updatedWorkspace, ['projectId']),
+          ...(updatedWorkspace ? presentWorkspace(updatedWorkspace) : {}),
           permissions: userPermission,
         },
       })
