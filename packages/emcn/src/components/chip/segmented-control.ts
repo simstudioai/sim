@@ -19,12 +19,8 @@ export const segmentedControlVariants = cva(
   }
 )
 
-/** The selected segment keeps its raised surface through hover. */
-export const segmentedControlItemVariants = cva(
-  cn(
-    chipVariants(),
-    'h-full shrink-0 justify-center whitespace-nowrap rounded-[calc(var(--radius-lg)-2px)] outline-hidden focus:outline-hidden focus-visible:outline-hidden'
-  ),
+const itemVariants = cva(
+  'h-full shrink-0 justify-center whitespace-nowrap rounded-[calc(var(--radius-lg)-2px)] outline-hidden focus:outline-hidden focus-visible:outline-hidden',
   {
     variants: {
       size: { default: '', compact: 'px-1.5 text-xs' },
@@ -37,3 +33,10 @@ export const segmentedControlItemVariants = cva(
     defaultVariants: { active: false, size: 'default' },
   }
 )
+
+/** The selected segment keeps its raised surface through hover and keyboard focus. */
+export const segmentedControlItemVariants = ({
+  active = false,
+  ...props
+}: Parameters<typeof itemVariants>[0] = {}) =>
+  cn(chipVariants({ active }), itemVariants({ active, ...props }))
