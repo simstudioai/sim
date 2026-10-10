@@ -42,7 +42,7 @@ const {
   mockReadLocalFileWithinLimit,
   mockCreateFileResponse,
   mockCreateConditionalFileResponse,
-  mockCreateErrorResponse,
+  mockFileErrorResponse,
   FileNotFoundError,
   mockReadOrganizationAssistantImage,
 } = vi.hoisted(() => {
@@ -63,7 +63,7 @@ const {
     mockReadLocalFileWithinLimit: vi.fn(),
     mockCreateFileResponse: vi.fn(),
     mockCreateConditionalFileResponse: vi.fn(),
-    mockCreateErrorResponse: vi.fn(),
+    mockFileErrorResponse: vi.fn(),
     FileNotFoundError: FileNotFoundErrorClass,
   }
 })
@@ -116,7 +116,7 @@ vi.mock('@/app/api/files/utils', () => ({
   FileNotFoundError,
   createFileResponse: mockCreateFileResponse,
   createConditionalFileResponse: mockCreateConditionalFileResponse,
-  createErrorResponse: mockCreateErrorResponse,
+  createFileErrorResponse: mockFileErrorResponse,
   getContentType: mockGetContentType,
   extractStorageKey: vi.fn().mockImplementation((path: string) => path.split('/').pop()),
   extractFilename: vi.fn().mockImplementation((path: string) => path.split('/').pop()),
@@ -188,7 +188,7 @@ describe('File Serve API Route', () => {
     mockCreateConditionalFileResponse.mockImplementation((file: unknown) =>
       mockCreateFileResponse(file)
     )
-    mockCreateErrorResponse.mockImplementation((error: Error) => {
+    mockFileErrorResponse.mockImplementation((error: Error) => {
       return new Response(JSON.stringify({ error: error.name, message: error.message }), {
         status: error.name === 'FileNotFoundError' ? 404 : 500,
         headers: { 'Content-Type': 'application/json' },
@@ -281,9 +281,9 @@ describe('File Serve API Route', () => {
         observedBytes: MAX_BUFFERED_TRANSFER_BYTES + 1,
       })
     )
-    // The real createErrorResponse owns the status mapping; mirror it here so the
+    // The real createFileErrorResponse owns the status mapping; mirror it here so the
     // route's own error path is what decides, not the mock's default 500.
-    mockCreateErrorResponse.mockImplementation(
+    mockFileErrorResponse.mockImplementation(
       (error: Error) =>
         new Response(JSON.stringify({ error: error.name }), {
           status: error.name === 'PayloadSizeLimitError' ? 413 : 500,

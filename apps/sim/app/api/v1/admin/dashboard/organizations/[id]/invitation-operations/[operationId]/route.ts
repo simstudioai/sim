@@ -5,8 +5,8 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -29,7 +29,7 @@ export const GET = withRouteHandler(
         await getAdminInvitationOperation(parsed.data.params.id, parsed.data.params.operationId)
       )
     } catch (error) {
-      return badRequestResponse(getErrorMessage(error, 'Failed to load invitation operation'))
+      return adminBadRequestResponse(getErrorMessage(error, 'Failed to load invitation operation'))
     }
   })
 )

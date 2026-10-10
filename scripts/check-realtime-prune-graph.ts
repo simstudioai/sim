@@ -1,4 +1,19 @@
 #!/usr/bin/env bun
+/**
+ * Fails when the workspace graph `@sim/realtime` depends on grows past its budget.
+ *
+ * The realtime server image is built from `turbo prune @sim/realtime --docker`, and the server
+ * deliberately avoids Next.js, React, the block and tool registries, provider SDKs, and the
+ * executor. This check runs the same prune and fails when it pulls in any app other than
+ * `realtime`, or more than {@link MAX_PRUNED_PACKAGE_COUNT} workspaces in total, which is how a
+ * new dependency on a heavy package first shows up.
+ *
+ * Fix a finding by removing the new dependency from the package realtime consumes, or by
+ * splitting the part realtime needs into its own pure, single-purpose package. Raise
+ * {@link MAX_PRUNED_PACKAGE_COUNT} only for a package added to that graph on purpose.
+ *
+ * Run: `bun run check:realtime-prune`
+ */
 import { mkdtemp, readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'

@@ -2,18 +2,25 @@
 /**
  * Import boundaries no type-check can see.
  *
- * 1. Packages never import from `apps/*`, including type-only imports.
- * 2. Application code (every non-test file under an `application/` folder in
- *    `apps/sim`) stays surface-neutral, so internal routes, v2, Copilot and jobs
- *    can all call the same use case:
+ * 1. Packages never import from `apps/*`. Dependencies point toward shared code: a package that
+ *    reaches into an app drags that app's module graph (Next.js, the block and tool registries,
+ *    the executor) into every other consumer, including `apps/realtime`. Flagged, including
+ *    type-only imports, re-exports, `import()` and `require()`: an `@/…` or `apps/…` specifier,
+ *    an app's package name (or a subpath of it), and a relative path that resolves into
+ *    `apps/`. Fix by moving the shared code into a package both sides import, or by keeping the
+ *    code that needs it in the app.
+ * 2. Application code (every non-test file under an `application/` folder in `apps/sim`) stays
+ *    surface-neutral, so internal routes, v2, Copilot and jobs can all call the same use case:
  *    - never `next/server` or `@/app/api/**`, not even for a type;
  *    - never, at runtime, a route contract object (a `*Contract` binding from
- *      `@/lib/api/contracts`), a presenter module (`*-presenter(s)`) or a Copilot
- *      handler (`@/lib/mothership/tools/{handlers,server}/**`). Contract types,
- *      schemas and constants are shared domain vocabulary and stay allowed, as
- *      does `import type` of a Copilot context type.
- *    A use case that needs a surface fact (a cursor's route identity, a wire
- *    shape) takes it as input from the adapter.
+ *      `@/lib/api/contracts`), a presenter module (`*-presenter(s)`) or a Copilot handler
+ *      (`@/lib/mothership/tools/{handlers,server}/**`). Contract types, schemas and constants
+ *      are shared domain vocabulary and stay allowed, as does `import type` of a Copilot
+ *      context type.
+ *    Fix by taking the surface fact (a cursor's route identity, a wire shape) as input from
+ *    the adapter.
+ *
+ * There is no allowlist. Run: `bun run check:boundaries`
  */
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
