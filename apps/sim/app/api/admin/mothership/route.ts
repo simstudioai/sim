@@ -67,13 +67,21 @@ function missingAdminKeyResponse(method: string) {
   return NextResponse.json({ error: 'MOTHERSHIP_API_ADMIN_KEY not configured' }, { status: 500 })
 }
 
+/** `undefined` when the body is not JSON. Only called on a non-empty body. */
 function parseJsonText(text: string): unknown {
-  if (!text) return null
   try {
     return JSON.parse(text)
   } catch {
     return undefined
   }
+}
+
+/** The upstream's own explanation, from either error envelope the admin API uses. */
+function upstreamErrorMessage(data: unknown): string | undefined {
+  if (!isRecordLike(data)) return undefined
+  if (typeof data.error === 'string') return data.error
+  if (typeof data.message === 'string') return data.message
+  return undefined
 }
 
 /**
@@ -100,7 +108,10 @@ async function forwardToMothership(params: {
       ...(body ? { body } : {}),
     })
     const text = await upstream.text()
-    const data = parseJsonText(text)
+    if (!text && upstream.status < 500) {
+      return new NextResponse(null, { status: upstream.status })
+    }
+    const data = text ? parseJsonText(text) : null
 
     if (upstream.status >= 500 || data === undefined) {
       logger.error('Mothership admin API request failed', {
@@ -110,12 +121,10 @@ async function forwardToMothership(params: {
         status: upstream.status,
         body: truncate(text, UPSTREAM_BODY_LOG_LIMIT),
       })
-      const upstreamError =
-        isRecordLike(data) && typeof data.error === 'string' ? data.error : undefined
       return NextResponse.json(
         {
           error:
-            upstreamError ??
+            upstreamErrorMessage(data) ??
             `Mothership (${environment}) returned HTTP ${upstream.status}${data === undefined ? ' with a non-JSON body' : ''}`,
         },
         { status: 502 }
