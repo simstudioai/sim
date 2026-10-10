@@ -3,7 +3,6 @@ import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { compareStrings, truncateAtCodePoint } from '@sim/utils/string'
 import { and, asc, eq, inArray, isNull, notInArray, type SQL, sql } from 'drizzle-orm'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   acquireAdvisoryXactLock,
   acquireAdvisoryXactLocks,
@@ -12,16 +11,9 @@ import {
 import { textArrayLiteral } from '@/lib/db/arrays'
 import type { DbTransaction } from '@/lib/db/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
+import { ProjectConflictError } from '@/lib/projects/errors'
 
 const PROJECT_LOCK_TIMEOUT_MS = 5_000
-
-/** A Project lifecycle rule or lock refused the change; callers may map it to their own error. */
-export class ProjectConflictError extends OrchestrationError {
-  constructor(message: string) {
-    super('conflict', message)
-    this.name = 'ProjectConflictError'
-  }
-}
 
 /**
  * Waits in `acquire` are bounded by {@link PROJECT_LOCK_TIMEOUT_MS} and a timeout or

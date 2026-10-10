@@ -3,11 +3,8 @@ import { member, permissions, project, workspace } from '@sim/db/schema'
 import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import {
-  lockProjectBackfillWrites,
-  lockProjects,
-  ProjectConflictError,
-} from '@/lib/projects/membership'
+import { ProjectConflictError } from '@/lib/projects/errors'
+import { lockProjectBackfillWrites, lockProjects } from '@/lib/projects/membership'
 
 /** Two indexed lookups; an `OR` around a membership subquery would scan every Project. */
 async function loadRelatedProjects(executor: DbOrTx, userId: string, doomedWorkspaceIds: string[]) {
