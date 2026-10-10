@@ -148,7 +148,7 @@ import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
-import { clearOAuthRefreshFailure } from '@/lib/oauth/credential-service'
+import { clearRecordedRevocation } from '@/lib/oauth/credential-service'
 import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
@@ -711,9 +711,9 @@ export const auth = betterAuth({
         after: async (account, context) => {
           const path = context?.path
           if (!path?.startsWith('/oauth2/callback/') && !path?.startsWith('/callback/')) return
-          // Fails the callback like the draft hooks do, so a reconnect never reports success
-          // while the old revocation still blocks the credential.
-          await clearOAuthRefreshFailure(account.id)
+          // Fails the callback only if this statement fails, so a reconnect never reports
+          // success while the old revocation still blocks the credential.
+          await clearRecordedRevocation(account.id)
         },
       },
     },

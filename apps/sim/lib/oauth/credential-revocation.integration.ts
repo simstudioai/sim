@@ -26,6 +26,7 @@ import {
   OAUTH_CREDENTIAL_REVOKED,
 } from '@/lib/oauth/credential-revoked'
 import {
+  clearRecordedRevocation,
   getCredentialTerminalRefreshError,
   refreshTokenIfNeeded,
 } from '@/lib/oauth/credential-service'
@@ -307,7 +308,20 @@ describe('OAuth refresh-token revocation against PostgreSQL and Redis', () => {
     }
   })
 
-  it('resumes refreshing after a reconnect that kept the old refresh token', async () => {
+  it.each([
+    {
+      path: 'a credential draft reconnect',
+      reconnect: () =>
+        handleReconnectCredential({
+          draft: { credentialId },
+          newAccountId: accountId,
+          workspaceId,
+          userId,
+          now: new Date(),
+        }),
+    },
+    { path: 'an in-place relink', reconnect: () => clearRecordedRevocation(accountId) },
+  ])('resumes refreshing after $path that kept the old refresh token', async ({ reconnect }) => {
     await expect(resolveToken()).rejects.toBeInstanceOf(CredentialRevokedError)
 
     // A relink with no new refresh token from the provider rewrites only the access token.
@@ -319,13 +333,7 @@ describe('OAuth refresh-token revocation against PostgreSQL and Redis', () => {
         updatedAt: new Date(),
       })
       .where(eq(account.id, accountId))
-    await handleReconnectCredential({
-      draft: { credentialId },
-      newAccountId: accountId,
-      workspaceId,
-      userId,
-      now: new Date(),
-    })
+    await reconnect()
     await db
       .update(account)
       .set({ accessTokenExpiresAt: new Date(Date.now() - 60_000) })

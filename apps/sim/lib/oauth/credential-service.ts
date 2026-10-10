@@ -1076,10 +1076,22 @@ export async function getCredentialTerminalRefreshError(
 }
 
 /**
+ * Clears the revocation recorded on an account's own row after its owner reauthorized it. A
+ * reauthorization can keep the old refresh token when the provider issues none, which the
+ * revocation's token fingerprint cannot tell from no reauthorization at all. One conditional
+ * statement with no Redis, so the sign-in path gains no dependency and most logins write nothing.
+ */
+export async function clearRecordedRevocation(accountId: string): Promise<void> {
+  await db
+    .update(account)
+    .set(CLEARED_REFRESH_REVOCATION)
+    .where(and(eq(account.id, accountId), isNotNull(account.refreshRevokedTokenHash)))
+}
+
+/**
  * Clears every refresh failure recorded against an account after its owner reauthorized it: the
- * revocation on its chain's rows and the Redis terminal-error flag. A reauthorization can keep
- * the old refresh token when the provider issues none, which the revocation's token fingerprint
- * cannot tell from no reauthorization at all.
+ * revocation on its chain's rows (every row of a Slack installation) and the Redis terminal-error
+ * flag.
  */
 export async function clearOAuthRefreshFailure(accountId: string): Promise<void> {
   const [row] = await db
@@ -1096,12 +1108,12 @@ export async function clearOAuthRefreshFailure(accountId: string): Promise<void>
     ? extractSlackTeamId(row.providerAccountId)
     : null
   await Promise.all([
-    db
-      .update(account)
-      .set(CLEARED_REFRESH_REVOCATION)
-      .where(
-        and(chainRowsFilter(accountId, slackTeamId), isNotNull(account.refreshRevokedTokenHash))
-      ),
+    slackTeamId
+      ? db
+          .update(account)
+          .set(CLEARED_REFRESH_REVOCATION)
+          .where(and(installationFilter(slackTeamId), isNotNull(account.refreshRevokedTokenHash)))
+      : clearRecordedRevocation(accountId),
     clearOAuthRefreshDeadFlag(
       refreshCoordinationScope(accountId, row.providerId, row.providerAccountId, row.idToken)
     ),
