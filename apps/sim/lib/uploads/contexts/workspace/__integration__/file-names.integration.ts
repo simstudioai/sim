@@ -28,6 +28,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
 
 import { fileParseBodySchema } from '@/lib/api/contracts/storage-transfer'
 import * as inputValidation from '@/lib/core/security/input-validation.server'
+import { textArrayLiteral } from '@/lib/db/arrays'
 import { executeFileParserOperation } from '@/lib/internal/file/parser'
 import {
   createKnowledgeAclFixtureIds,
@@ -204,6 +205,25 @@ describe('workspace file names in PostgreSQL', () => {
     }
   })
 
+  // Names stored before upload normalization: U+202F before AM/PM, doubled and edge whitespace,
+  // a decomposed accent, a control character, and a BOM.
+  const unnormalizedNames = [
+    'Screenshot 2026-01-15 at 9.41.07\u202fAM.png',
+    'Quarterly  Report.pdf',
+    ' padded.txt\t',
+    'Cafe\u0301 menu.png',
+    'ring\u0007ing.png',
+    '\ufeffbom.md',
+  ]
+
+  it('normalizes a display name in SQL exactly as normalizeDisplaySegment does', async () => {
+    const rows = await db.execute<{ name: string; key: string }>(
+      sql`SELECT name, ${displaySegmentKey(sql`name`)} AS key FROM unnest(${textArrayLiteral(unnormalizedNames)}) AS name`
+    )
+    expect(rows).toHaveLength(unnormalizedNames.length)
+    for (const row of rows) expect(row.key).toBe(normalizeDisplaySegment(row.name))
+  })
+
   it('resolves a stored name that differs from its VFS path through the display-name index', async () => {
     const fixture = await seedWorkspace()
     const folder = await createWorkspaceFileFolder({
@@ -211,22 +231,8 @@ describe('workspace file names in PostgreSQL', () => {
       userId: fixture.aliceId,
       name: 'Reports',
     })
-    // Names stored before upload normalization: U+202F before AM/PM, doubled and edge
-    // whitespace, a decomposed accent, a control character, and a BOM.
-    const storedNames = [
-      'Screenshot 2026-01-15 at 9.41.07 AM.png',
-      'Quarterly  Report.pdf',
-      ' padded.txt\t',
-      'Café menu.png',
-      'ring\u0007ing.png',
-      '﻿bom.md',
-    ]
-    for (const name of storedNames) {
-      const [row] = await db.execute(sql`SELECT ${displaySegmentKey(sql`${name}::text`)} AS key`)
-      expect(row.key).toBe(normalizeDisplaySegment(name))
-    }
 
-    const files = storedNames.map((name, n) => ({
+    const files = unnormalizedNames.map((name, n) => ({
       name,
       id: `wf_legacy_${n}_${fixture.workspaceId}`,
       folderId: n === 0 ? folder.id : null,

@@ -1,3 +1,4 @@
+import { WHITESPACE_CHARACTER_CLASS } from '@sim/utils/string'
 import { type SQL, sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
@@ -69,10 +70,6 @@ export function foldedEmail(column: AnyPgColumn | SQL): SQL<string> {
   return sql<string>`lower(btrim(${column}))`
 }
 
-/** The characters JavaScript's `trim()` and `\s` treat as whitespace, as a PostgreSQL class. */
-const DISPLAY_WHITESPACE =
-  '[ \\t\\n\\v\\f\\r\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]'
-
 /**
  * A file name reduced to the VFS path segment it displays as, in SQL: NFC-composed, trimmed,
  * control characters removed, whitespace runs collapsed to one space. It is the exact
@@ -82,7 +79,7 @@ const DISPLAY_WHITESPACE =
  * are inlined with `sql.raw` because a bound parameter would not match the index expression.
  */
 export function displaySegmentKey(column: AnyPgColumn | SQL): SQL<string> {
-  const ws = sql.raw(DISPLAY_WHITESPACE)
+  const ws = sql.raw(WHITESPACE_CHARACTER_CLASS)
   return sql<string>`regexp_replace(regexp_replace(regexp_replace(normalize(${column}, NFC), '^${ws}+|${ws}+$', '', 'g'), '[\\x01-\\x1f\\x7f]', '', 'g'), '${ws}+', ' ', 'g')`
 }
 
@@ -2822,12 +2819,7 @@ export const workspaceFiles = pgTable(
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
-    /**
-     * Serves name references that miss the exact-name lookup (a stored name whose whitespace,
-     * composition, or control characters differ from its VFS path, or a bare name in a folder).
-     * Without it each miss reads every live file in the workspace — one per new file a workflow
-     * writes, since the existence check misses by definition.
-     */
+    /** Serves name references that miss the exact-name lookup; see `displaySegmentKey`. */
     workspaceDisplayNameIdx: index('workspace_files_workspace_display_name_idx')
       .on(table.workspaceId, displaySegmentKey(table.originalName))
       .concurrently()

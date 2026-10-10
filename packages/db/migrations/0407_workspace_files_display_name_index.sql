@@ -1,7 +1,5 @@
--- A name reference that misses the exact-name lookup read every live file in its workspace, and
--- a workflow's new-file existence check always misses, so a large workspace paid a full read per
--- file written. This index serves that fallback by displayed name. It is partial on live
--- workspace files, a small slice of the table, so the build writes little WAL.
+-- Serves name references that miss the exact-name lookup (see displaySegmentKey in schema.ts).
+-- Partial on live workspace files, so the concurrent build is small.
 COMMIT;--> statement-breakpoint
 SET lock_timeout = 0;--> statement-breakpoint
 -- migration-safe: replay replaces only this new index to recover an interrupted concurrent build; existing indexes remain available.
