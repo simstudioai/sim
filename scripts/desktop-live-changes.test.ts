@@ -19,7 +19,7 @@ function write(repo: string, file: string, content: string) {
   writeFileSync(join(repo, file), content)
 }
 
-/** Builds a clone whose base commit holds `apps/desktop/x.ts` and whose origin is a local bare repo. */
+/** Builds a clone whose base commit holds `apps/sim/x.ts` and whose origin is a local bare repo. */
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'desktop-live-changes-'))
   fixtures.push(root)
@@ -31,7 +31,7 @@ function fixture() {
   git(repo, 'config', 'user.name', 'Test')
   git(repo, 'config', 'commit.gpgsign', 'false')
   git(repo, 'remote', 'add', 'origin', origin)
-  write(repo, 'apps/desktop/x.ts', 'export const x = 1\n'.repeat(20))
+  write(repo, 'apps/sim/x.ts', 'export const x = 1\n'.repeat(20))
   git(repo, 'add', '-A')
   git(repo, 'commit', '--quiet', '-m', 'base')
   const base = git(repo, 'rev-parse', 'HEAD')
@@ -51,7 +51,7 @@ describe('desktop live change gate', () => {
   it('runs the suite when a live file moves into a skipped path', () => {
     const { repo, base } = fixture()
     mkdirSync(join(repo, 'apps/docs'), { recursive: true })
-    git(repo, 'mv', 'apps/desktop/x.ts', 'apps/docs/x.ts')
+    git(repo, 'mv', 'apps/sim/x.ts', 'apps/docs/x.ts')
     git(repo, 'commit', '--quiet', '-m', 'move')
 
     const result = detect(repo, base)
@@ -68,28 +68,6 @@ describe('desktop live change gate', () => {
     const result = detect(repo, base)
     expect(result.status, result.stderr).toBe(0)
     expect(result.stdout.trim()).toBe('changed=false')
-  })
-
-  it('skips the suite when an app change is outside every path it exercises', () => {
-    const { repo, base } = fixture()
-    write(repo, 'apps/sim/app/api/schedules/execute/route.ts', 'export const GET = () => null\n')
-    git(repo, 'add', '-A')
-    git(repo, 'commit', '--quiet', '-m', 'schedules')
-
-    const result = detect(repo, base)
-    expect(result.status, result.stderr).toBe(0)
-    expect(result.stdout.trim()).toBe('changed=false')
-  })
-
-  it('runs the suite when a change touches the chat page', () => {
-    const { repo, base } = fixture()
-    write(repo, 'apps/sim/app/workspace/[workspaceId]/home/page.tsx', 'export default null\n')
-    git(repo, 'add', '-A')
-    git(repo, 'commit', '--quiet', '-m', 'chat page')
-
-    const result = detect(repo, base)
-    expect(result.status, result.stderr).toBe(0)
-    expect(result.stdout.trim()).toBe('changed=true')
   })
 
   it('runs the suite when the base commit cannot be fetched', () => {

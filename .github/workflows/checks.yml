@@ -224,9 +224,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Pull requests run the live desktop suite only when they touch a path it exercises (listed in
-  # desktop-live-changes.sh), or when the diff cannot be worked out. Pushes always run it, so a
-  # pull request that skipped it wrongly would first fail on staging, before anything deploys.
+  # Pull requests skip the live desktop suite only when every change is clearly unrelated to the
+  # app it drives (docs, other apps, published content). Anything else, and any failure to work
+  # out the diff, runs it: a pull request that skipped it wrongly would first fail on staging.
   desktop-changes:
     name: desktop-changes
     runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
