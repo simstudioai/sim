@@ -29,6 +29,9 @@ export const AuditAction = {
   CHAT_DELETED: 'chat.deleted',
   CHAT_PASSWORD_VIEWED: 'chat.password_viewed',
 
+  CHANGELOG_RELEASE_PUBLISHED: 'changelog_release.published',
+  CHANGELOG_RELEASE_UPDATED: 'changelog_release.updated',
+
   // Custom Blocks (deploy-as-block)
   CUSTOM_BLOCK_PUBLISHED: 'custom_block.published',
   CUSTOM_BLOCK_UPDATED: 'custom_block.updated',
@@ -52,6 +55,7 @@ export const AuditAction = {
   INVOICE_PAYMENT_SUCCEEDED: 'invoice.payment_succeeded',
   INVOICE_PAYMENT_FAILED: 'invoice.payment_failed',
   OVERAGE_BILLED: 'billing.overage_billed',
+  BILLING_SYNC_RESOLVED: 'billing.sync_resolved',
   CHARGE_DISPUTE_OPENED: 'charge.dispute_opened',
   CHARGE_DISPUTE_CLOSED: 'charge.dispute_closed',
 
@@ -273,6 +277,7 @@ export const AuditResourceType = {
   API_KEY: 'api_key',
   BILLING: 'billing',
   BYOK_KEY: 'byok_key',
+  CHANGELOG_RELEASE: 'changelog_release',
   CHAT: 'chat',
   CONNECTOR: 'connector',
   CREDENTIAL: 'credential',

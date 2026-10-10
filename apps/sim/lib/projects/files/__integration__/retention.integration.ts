@@ -7,7 +7,6 @@ import {
   organization,
   outboxEvent,
   permissions,
-  projectWorkspace,
   subscription,
   user,
   userStats,
@@ -132,9 +131,9 @@ async function fixture(plan: 'free' | 'pro' | 'enterprise' = 'free') {
     workspaceMode: organizationId ? 'organization' : 'personal',
   })
   const [binding] = await db
-    .select({ projectId: projectWorkspace.projectId })
-    .from(projectWorkspace)
-    .where(eq(projectWorkspace.workspaceId, workspaceId))
+    .select({ projectId: workspace.projectId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
   if (!binding) throw new Error('Retention fixture Project missing')
   await db.insert(permissions).values({
     id: generateId(),

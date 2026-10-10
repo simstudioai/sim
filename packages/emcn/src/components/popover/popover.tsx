@@ -53,11 +53,12 @@ import * as React from 'react'
 import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { createPortal } from 'react-dom'
+import { MENU_STYLES } from '#menu-styles'
 import { Check, ChevronLeft, ChevronRight, Search } from '../../icons'
 import { cn } from '../../lib/cn'
-import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
+import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chrome'
 import { InsideModalContext } from '../modal/modal'
-import { TOOLTIP_MAX_WIDTH_PX, TOOLTIP_SURFACE_CLASS } from '../tooltip/tooltip-styles'
+import { TOOLTIP_MAX_WIDTH_PX, TOOLTIP_SURFACE_CLASS } from '../tooltip/styles'
 
 type PopoverSize = 'sm' | 'md'
 type PopoverColorScheme = 'default' | 'inverted'
@@ -68,19 +69,18 @@ type PopoverColorScheme = 'default' | 'inverted'
  */
 const STYLES = {
   /** Base classes shared by all interactive items */
-  itemBase:
-    'flex min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
+  itemBase: `${MENU_STYLES.rowLayout} cursor-pointer disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed`,
 
   /** Content container */
-  content: 'px-1.5 py-1.5 rounded-xl',
+  content: `${MENU_STYLES.surface} ${MENU_STYLES.padding}`,
 
   /** Size variants */
   size: {
-    sm: { item: 'h-[22px] text-xs', icon: 'size-3', section: 'px-1.5 py-1 text-xs' },
+    sm: { item: MENU_STYLES.sizes.sm.className, icon: 'size-3', section: MENU_STYLES.heading },
     md: {
-      item: 'h-[30px] text-sm',
+      item: MENU_STYLES.sizes.md.className,
       icon: 'size-[14px]',
-      section: 'px-1.5 py-1 text-xs',
+      section: MENU_STYLES.heading,
     },
   } satisfies Record<PopoverSize, { item: string; icon: string; section: string }>,
 
@@ -88,11 +88,11 @@ const STYLES = {
   colorScheme: {
     default: {
       text: 'text-[var(--text-body)] [&_svg]:text-[var(--text-icon)]',
-      section: 'text-[var(--text-tertiary)]',
+      section: 'text-[var(--text-muted)]',
       search: 'text-[var(--text-muted)]',
-      searchInput: 'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
-      content: 'bg-[var(--surface-5)] text-foreground dark:bg-[var(--surface-3)]',
-      divider: 'border-[var(--border-1)]',
+      searchInput: 'text-[var(--text-body)] placeholder:text-[var(--text-muted)]',
+      content: '',
+      divider: 'border-[var(--border)]',
     },
     inverted: {
       text: 'text-white dark:text-[var(--text-primary)]',
@@ -100,7 +100,8 @@ const STYLES = {
       search: 'text-[var(--text-muted-inverse)] dark:text-[var(--text-muted)]',
       searchInput:
         'text-white placeholder:text-[var(--text-muted-inverse)] dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-muted)]',
-      content: 'bg-[var(--surface-inverted)] text-white dark:text-foreground',
+      content:
+        'border-[var(--border-inverted)] bg-[var(--surface-inverted)] text-white dark:text-foreground',
       divider: 'border-[var(--border-inverted)]',
     },
   } satisfies Record<
@@ -187,7 +188,7 @@ const usePopoverContext = () => {
 interface PopoverProps extends PopoverPrimitive.PopoverProps {
   /**
    * Size variant of the popover
-   * - sm: 11px text, compact spacing (for logs, notifications, context menus)
+   * - sm: 12px text, compact spacing (for logs, notifications, context menus)
    * - md: 13px text, default spacing
    * @default 'md'
    */
@@ -394,7 +395,7 @@ interface PopoverContentProps
   collisionPadding?: number
   /**
    * Adds border to content
-   * @default false
+   * @default true
    */
   border?: boolean
   /**
@@ -441,7 +442,7 @@ const PopoverContent = React.forwardRef<
       align = 'start',
       sideOffset,
       collisionPadding = 8,
-      border = false,
+      border = true,
       appearance = 'default',
       avoidCollisions = true,
       showArrow = false,
@@ -609,14 +610,14 @@ const PopoverContent = React.forwardRef<
         {...restProps}
         data-native-surface-overlay=''
         className={cn(
-          'z-[var(--z-popover)] flex flex-col outline-hidden',
+          'z-[var(--z-popover)] flex flex-col outline-hidden max-md:max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-1rem))]! max-md:max-w-[calc(100vw-1rem)]!',
           showArrow ? 'overflow-visible' : 'overflow-auto',
-          STYLES.colorScheme[colorScheme].content,
           STYLES.content,
-          appearance === 'tooltip' && TOOLTIP_SURFACE_CLASS,
+          STYLES.colorScheme[colorScheme].content,
+          appearance === 'tooltip' && cn(TOOLTIP_SURFACE_CLASS, 'p-1.5'),
           hasUserWidthConstraint &&
             '[&_.flex-1:not([data-popover-scroll])]:truncate [&_[data-popover-section]]:truncate',
-          border && 'border border-[var(--border-1)]',
+          !border && appearance !== 'tooltip' && 'border-0',
           className
         )}
         style={{
@@ -655,7 +656,7 @@ const PopoverContent = React.forwardRef<
                 cn(
                   colorScheme === 'inverted'
                     ? 'fill-[var(--surface-inverted)] stroke-[var(--border-inverted)]'
-                    : 'fill-[var(--surface-3)] stroke-[var(--border-1)] dark:fill-[var(--surface-3)]'
+                    : 'fill-[var(--bg)] stroke-[var(--border)]'
                 )
               }
             >
@@ -840,8 +841,8 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
       <div
         className={cn(
           'mt-1.5 min-w-0 first:mt-0 first:pt-0',
-          STYLES.colorScheme[colorScheme].section,
           STYLES.size[size].section,
+          STYLES.colorScheme[colorScheme].section,
           className
         )}
         data-popover-section=''
@@ -1021,8 +1022,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
               className={cn(
                 'fixed z-[calc(var(--z-popover)+1)] min-w-[120px]',
                 STYLES.content,
-                STYLES.colorScheme[colorScheme].content,
-                'shadow-lg'
+                STYLES.colorScheme[colorScheme].content
               )}
               style={{
                 top: submenuPosition.top,
@@ -1115,7 +1115,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
           </div>
         )}
         {folderTitle && !onFolderSelect && (
-          <div className={cn(STYLES.colorScheme[colorScheme].section, STYLES.size[size].section)}>
+          <div className={cn(STYLES.size[size].section, STYLES.colorScheme[colorScheme].section)}>
             {folderTitle}
           </div>
         )}
@@ -1157,21 +1157,22 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
     }, [setSearchQuery, onValueChange])
 
     return (
-      <div ref={ref} className={cn('flex items-center px-2 py-1.5', className)} {...props}>
+      <div
+        ref={ref}
+        className={cn(
+          MENU_STYLES.search,
+          colorScheme === 'inverted' &&
+            'border-[var(--border-inverted)] bg-transparent dark:bg-transparent',
+          className
+        )}
+        {...props}
+      >
         <Search
-          className={cn(
-            'mr-2 shrink-0',
-            STYLES.colorScheme[colorScheme].search,
-            STYLES.size[size].icon
-          )}
+          className={cn('shrink-0', STYLES.colorScheme[colorScheme].search, STYLES.size[size].icon)}
         />
         <input
           ref={inputRef}
-          className={cn(
-            'w-full bg-transparent focus:outline-hidden',
-            STYLES.colorScheme[colorScheme].searchInput,
-            size === 'sm' ? 'text-xs' : 'text-caption'
-          )}
+          className={cn(MENU_STYLES.searchInput, STYLES.colorScheme[colorScheme].searchInput)}
           placeholder={placeholder}
           value={searchQuery}
           onChange={handleChange}
@@ -1201,7 +1202,7 @@ const PopoverDivider = React.forwardRef<HTMLDivElement, PopoverDividerProps>(
     return (
       <div
         ref={ref}
-        className={cn('my-1.5 border-t', STYLES.colorScheme[colorScheme].divider, className)}
+        className={cn(MENU_STYLES.separator, STYLES.colorScheme[colorScheme].divider, className)}
         role='separator'
         {...props}
       />

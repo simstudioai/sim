@@ -63,12 +63,12 @@ import { enqueueOrganizationResourceCleanup } from '@/lib/organizations/resource
 import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-workspaces'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminConflictResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  conflictResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import {
@@ -100,7 +100,7 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!orgData) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       const [memberCountResult, subscriptionData] = await Promise.all([
@@ -128,7 +128,7 @@ export const GET = withRouteHandler(
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to get organization', { error, organizationId })
-      return internalErrorResponse('Failed to get organization')
+      return adminInternalErrorResponse('Failed to get organization')
     }
   })
 )
@@ -151,7 +151,7 @@ export const PATCH = withRouteHandler(
         .limit(1)
 
       if (!existing) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       const updateData: Record<string, unknown> = {
@@ -175,7 +175,7 @@ export const PATCH = withRouteHandler(
       }
 
       if (Object.keys(updateData).length === 1) {
-        return badRequestResponse(
+        return adminBadRequestResponse(
           'No valid fields to update. Use /billing endpoint for orgUsageLimit.'
         )
       }
@@ -204,17 +204,17 @@ export const PATCH = withRouteHandler(
       return singleResponse(toAdminOrganization(updated))
     } catch (error) {
       if (error instanceof OrganizationSlugInvalidError) {
-        return badRequestResponse(
+        return adminBadRequestResponse(
           'Organization slug can only contain lowercase letters, numbers, hyphens, and underscores.'
         )
       }
 
       if (error instanceof OrganizationSlugTakenError) {
-        return badRequestResponse('This slug is already taken')
+        return adminBadRequestResponse('This slug is already taken')
       }
 
       logger.error('Admin API: Failed to update organization', { error, organizationId })
-      return internalErrorResponse('Failed to update organization')
+      return adminInternalErrorResponse('Failed to update organization')
     }
   })
 )
@@ -237,11 +237,11 @@ export const DELETE = withRouteHandler(
         .limit(1)
 
       if (!existing) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       if (confirmSlug !== existing.slug) {
-        return badRequestResponse(
+        return adminBadRequestResponse(
           `confirmSlug does not match this organization's slug. Pass confirmSlug=${existing.slug} to confirm deletion.`
         )
       }
@@ -275,7 +275,7 @@ export const DELETE = withRouteHandler(
         .limit(1)
 
       if (existingSubscription) {
-        return conflictResponse(
+        return adminConflictResponse(
           `Organization still has a "${existingSubscription.plan}" subscription. Cancel it before deleting the organization.`
         )
       }
@@ -340,9 +340,9 @@ export const DELETE = withRouteHandler(
     } catch (error) {
       logger.error('Admin API: Failed to delete organization', { error, organizationId })
       if (error instanceof OrchestrationError && error.code === 'conflict') {
-        return conflictResponse(error.message)
+        return adminConflictResponse(error.message)
       }
-      return internalErrorResponse('Failed to delete organization')
+      return adminInternalErrorResponse('Failed to delete organization')
     }
   })
 )

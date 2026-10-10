@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   SettingsEmptyState,
@@ -18,7 +17,7 @@ import { SsoProviderSettings } from '@/ee/sso/components/sso-provider-settings'
 import { VerifiedDomainsSection } from '@/ee/sso/components/verified-domains-section'
 import { useDeleteSSOProvider, useSetPrimarySSOProvider, useSSOProviders } from '@/ee/sso/hooks/sso'
 import { ssoSettingsParsers, ssoSettingsUrlKeys } from '@/ee/sso/search-params'
-import { useOrganizationBilling } from '@/hooks/queries/organization'
+import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 
 const SETTINGS_TABS = [
   { value: 'sign-in', label: 'Sign-in' },
@@ -44,7 +43,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const [{ tab: requestedTab, provider: requestedProvider, createProvider }, setParams] =
     useQueryStates(ssoSettingsParsers, ssoSettingsUrlKeys)
   const { billingEnabled, features } = useDeploymentShape()
-  const billing = useOrganizationBilling(organizationId)
+  const billing = useOrganizationPlanSeats(organizationId, { enabled: billingEnabled })
   const providers = useSSOProviders({ organizationId })
   const provisioningAvailable = features.scim
   const tab = requestedTab === 'provisioning' && !provisioningAvailable ? 'sign-in' : requestedTab
@@ -118,14 +117,14 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     return (
       <SettingsQueryErrorState
         error={billing.error}
-        fallback='Failed to load organization billing'
+        fallback='Failed to load organization access'
         isRetrying={billing.isFetching}
         onRetry={() => void billing.refetch()}
       />
     )
   }
 
-  if (billingEnabled && !isEnterprise(billing.data?.data?.subscriptionPlan)) {
+  if (billingEnabled && !billing.data?.data.hasEnterprisePlan) {
     return (
       <SettingsEmptyState>Single Sign-On is available on Enterprise plans only.</SettingsEmptyState>
     )
@@ -133,6 +132,15 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   return (
     <div className='flex flex-col gap-7'>
+      {billing.error != null && (
+        <SettingsQueryErrorState
+          error={billing.error}
+          fallback='Failed to refresh organization access'
+          isRetrying={billing.isFetching}
+          onRetry={() => void billing.refetch()}
+          variant='inline'
+        />
+      )}
       <ChipModalTabs
         tabs={SETTINGS_TABS.filter(
           (entry) => entry.value !== 'provisioning' || provisioningAvailable

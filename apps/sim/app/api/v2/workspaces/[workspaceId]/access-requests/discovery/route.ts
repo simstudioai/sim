@@ -4,7 +4,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2AccessRequestErrorPolicy } from '@/lib/api/server/routes/access-requests'
 import { cursorSortKey, decodeOffsetCursor, encodeOffsetCursor } from '@/app/api/v2/lib/response'
 import { accessRequestOperations } from '@/ee/access-requests/lib/application/operations'
-import { discoverAccessRequests } from '@/ee/access-requests/lib/application/requests'
+import { workspaceAccessRequestUseCases } from '@/ee/access-requests/lib/application/requests'
 
 function cursorFilters(
   params: { workspaceId: string },
@@ -33,7 +33,7 @@ export const GET = defineV2JsonRoute({
       cursorFilters(params, query)
     ),
   }),
-  useCase: discoverAccessRequests,
+  useCase: workspaceAccessRequestUseCases.discover,
   present: ({ entries, hasMore }, { params, query }) => ({
     data: entries,
     nextCursor: hasMore

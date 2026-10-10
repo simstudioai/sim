@@ -1,50 +1,41 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { ChangelogActions, ChangelogTimeline } from '@/app/(landing)/changelog/components'
-import type { ChangelogEntry, GitHubRelease } from '@/app/(landing)/changelog/types'
-import { mapReleases, releasesEndpoint } from '@/app/(landing)/changelog/utils'
-import { ProseHero, ProseShell } from '@/app/(landing)/components/prose-page'
-
-const logger = createLogger('Changelog')
-
-/**
- * Changelog page - reuses the shared prose primitives ({@link ProseShell} +
- * {@link ProseHero}) so its headline and column match Terms and Privacy, then
- * renders the GitHub-release timeline. The first page of releases is
- * fetched here on the server at build/revalidate time; the {@link ChangelogTimeline}
- * client leaf paginates the rest. Re-authored from the prior dark changelog onto
- * the platform light tokens.
- */
-
-const LEAD =
-  'Every new feature, improvement, and fix in Sim, the open-source AI workspace, with release notes straight from GitHub.'
-
-async function getInitialEntries(): Promise<ChangelogEntry[]> {
-  try {
-    // boundary-raw-fetch: external GitHub Releases API (cross-origin), not a same-origin contract
-    const res = await fetch(releasesEndpoint(1), {
-      headers: { Accept: 'application/vnd.github+json' },
-      next: { revalidate: 3600 },
-    })
-    const releases = (await res.json()) as GitHubRelease[]
-    return mapReleases(releases ?? [])
-  } catch (error) {
-    logger.warn('Failed to load initial changelog releases from GitHub', {
-      error: getErrorMessage(error),
-    })
-    return []
-  }
-}
+import Link from 'next/link'
+import { CHANGELOG_SECTION, getAllEntryMeta, LATEST_ENTRY_LIMIT } from '@/lib/changelog'
+import { buildCollectionPageJsonLd } from '@/lib/content/seo'
+import {
+  ChangelogActions,
+  ChangelogHeader,
+  ChangelogLayout,
+  ChangelogList,
+} from '@/app/(landing)/changelog/components'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
 
 export default async function Changelog() {
-  const entries = await getInitialEntries()
-
+  const metadata = await getAllEntryMeta()
+  const visible = metadata.slice(0, LATEST_ENTRY_LIMIT)
+  const firstOlderEntry = metadata[LATEST_ENTRY_LIMIT]
   return (
-    <ProseShell>
-      <ProseHero title='Changelog' lead={LEAD} actions={<ChangelogActions />} />
-      <section id='releases' aria-label='Release history'>
-        <ChangelogTimeline initialEntries={entries} />
-      </section>
-    </ProseShell>
+    <ChangelogLayout>
+      <JsonLd data={buildCollectionPageJsonLd(CHANGELOG_SECTION, visible)} />
+      <ChangelogHeader title='Changelog' actions={<ChangelogActions />} />
+      <ChangelogList entries={visible} />
+      <div className='flex flex-wrap gap-6 text-[var(--text-secondary)] text-sm'>
+        {firstOlderEntry ? (
+          <Link
+            href={`/changelog/archive#${firstOlderEntry.slug}`}
+            className='underline underline-offset-4'
+          >
+            Older updates
+          </Link>
+        ) : null}
+        <a
+          href='https://github.com/simstudioai/sim/releases'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='underline underline-offset-4'
+        >
+          Earlier releases on GitHub
+        </a>
+      </div>
+    </ChangelogLayout>
   )
 }

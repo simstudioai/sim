@@ -9,20 +9,18 @@ import { GithubOutlineIcon } from '@/components/icons'
  * beneath the changelog headline. A small client leaf because `ChipLink` is a
  * Client Component and its `leftIcon` is a component reference that cannot cross
  * the server→client boundary as a prop (same pattern as the platform pill CTA).
- * GitHub is the primary filled chip; Docs and RSS are the default pills.
  */
 export function ChangelogActions() {
   return (
     <div className='flex flex-wrap items-center gap-1'>
       <ChipLink
-        variant='primary'
         shape='round'
         href='https://github.com/simstudioai/sim/releases'
         target='_blank'
         rel='noopener noreferrer'
         leftIcon={GithubOutlineIcon}
       >
-        View on GitHub
+        Technical releases
       </ChipLink>
       <ChipLink
         shape='round'

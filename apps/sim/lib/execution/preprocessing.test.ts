@@ -15,8 +15,12 @@ import {
   billingUsageReservationMockFns,
 } from '@sim/testing/mocks/billing-usage-reservation.mock'
 import { executionLimitsMock } from '@sim/testing/mocks/execution-limits.mock'
+import { loggingSessionMockFns } from '@sim/testing/mocks/logging-session.mock'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
+import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing/mocks/redis-config.mock'
 import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 
@@ -974,5 +978,124 @@ describe('preprocessExecution webhook correlation logging', () => {
       variables: {},
       triggerData: { correlation },
     })
+  })
+})
+
+describe('preprocessExecution admission rejection codes and blocked-run log throttling', () => {
+  const refuse = (workflowId: string, options: Record<string, unknown> = {}) =>
+    preprocessExecution({
+      workflowId,
+      userId: 'owner-1',
+      userIdIsStoredReference: true,
+      triggerType: 'webhook',
+      executionId: `execution-${workflowId}`,
+      requestId: 'request-1',
+      checkRateLimit: false,
+      ...options,
+    })
+
+  beforeEach(() => {
+    const claimedKeys = new Set<string>()
+    const redis = createMockRedis()
+    redis.set.mockImplementation(async (key: string) => {
+      if (claimedKeys.has(key)) return null
+      claimedKeys.add(key)
+      return 'OK'
+    })
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
+    mockGetActivelyBannedUserIds.mockResolvedValue([])
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      message: 'Usage limit exceeded',
+      payerUsage: { currentUsage: 12, limit: 10 },
+    })
+  })
+
+  afterEach(resetRedisConfigMock)
+
+  it.each([
+    {
+      gate: 'usage',
+      arrange: () => {},
+      expected: { statusCode: 402, code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED },
+    },
+    {
+      gate: 'ban',
+      arrange: () => mockGetActivelyBannedUserIds.mockResolvedValue(['billed-account-1']),
+      expected: { statusCode: 403, code: ADMISSION_REJECTION_CODE.ACCOUNT_SUSPENDED },
+    },
+  ])('tags a $gate refusal with its stable code', async ({ arrange, expected }) => {
+    arrange()
+    const result = await refuse('workflow-1')
+    expect(result).toMatchObject({ success: false, error: expected })
+  })
+
+  it('leaves an unreadable usage ledger untagged so unattended senders retry', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      reason: 'usage_unavailable',
+      message: 'Usage is temporarily unavailable',
+      payerUsage: { currentUsage: 0, limit: 0 },
+    })
+
+    const result = await refuse('workflow-1')
+
+    expect(result).toMatchObject({ success: false, error: { statusCode: 402 } })
+    expect(result.success === false && result.error.code).toBeUndefined()
+  })
+
+  it('writes one error row for repeated refusals of a workflow by the same gate', async () => {
+    const workflowId = 'workflow-1'
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      expect(await refuse(workflowId, { throttleErrorLogs: true })).toMatchObject({
+        success: false,
+        error: { statusCode: 402 },
+      })
+    }
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(1)
+  })
+
+  it('writes a row for a different gate refusing the same workflow inside the window', async () => {
+    const workflowId = 'workflow-1'
+    await refuse(workflowId, { throttleErrorLogs: true })
+    mockGetActivelyBannedUserIds.mockResolvedValue(['billed-account-1'])
+    await refuse(workflowId, { throttleErrorLogs: true })
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(2)
+  })
+
+  it('writes a row for each gate whose check fails without a code', async () => {
+    const workflowId = 'workflow-1'
+    mockGetActivelyBannedUserIds.mockRejectedValueOnce(new Error('ban lookup failed'))
+    await refuse(workflowId, { throttleErrorLogs: true })
+    mockCheckAttributedUsageLimits.mockRejectedValueOnce(new Error('usage lookup failed'))
+    await refuse(workflowId, { throttleErrorLogs: true })
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(2)
+  })
+
+  it('writes every row when the caller does not ask for throttling', async () => {
+    const workflowId = 'workflow-1'
+    await refuse(workflowId)
+    await refuse(workflowId)
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(2)
+  })
+
+  it('always completes a logging session the caller supplied', async () => {
+    const workflowId = 'workflow-1'
+    const loggingSession = {
+      safeStart: vi.fn().mockResolvedValue(true),
+      safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
+    }
+    await refuse(workflowId, { throttleErrorLogs: true })
+    await refuse(workflowId, {
+      throttleErrorLogs: true,
+      loggingSession: loggingSession as unknown as LoggingSession,
+    })
+
+    expect(loggingSession.safeCompleteWithError).toHaveBeenCalledOnce()
   })
 })

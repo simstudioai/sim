@@ -10,8 +10,6 @@ interface SettingsEmptyStateProps {
    * matched nothing. Defaults to `fill`.
    */
   variant?: 'fill' | 'inline'
-  /** Renders the message in the error tone, for a failed load. */
-  tone?: 'muted' | 'error'
 }
 
 interface SettingsQueryErrorStateProps {
@@ -27,16 +25,11 @@ interface SettingsQueryErrorStateProps {
  * "no results", and entitlement/loading gates. Centralizes the text token and
  * spacing so every settings page reads identically.
  */
-export function SettingsEmptyState({
-  children,
-  variant = 'fill',
-  tone = 'muted',
-}: SettingsEmptyStateProps) {
+export function SettingsEmptyState({ children, variant = 'fill' }: SettingsEmptyStateProps) {
   return (
     <div
       className={cn(
-        'text-center text-sm',
-        tone === 'error' ? 'text-[var(--text-error)]' : 'text-[var(--text-muted)]',
+        'text-center text-[var(--text-muted)] text-sm',
         variant === 'fill' ? 'flex h-full items-center justify-center' : 'py-4'
       )}
     >
@@ -53,7 +46,7 @@ export function SettingsQueryErrorState({
   variant,
 }: SettingsQueryErrorStateProps) {
   return (
-    <SettingsEmptyState variant={variant} tone='error'>
+    <SettingsEmptyState variant={variant}>
       <div className='flex flex-col items-center gap-2'>
         <span role='alert'>{getErrorMessage(error, fallback)}</span>
         <Chip variant='border' disabled={isRetrying} onClick={onRetry}>

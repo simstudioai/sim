@@ -38,6 +38,9 @@ describe('handleCreateCredentialFromDraft', () => {
     queueTableRows(schemaMock.credential, [
       { id: 'credential-existing', displayName: 'Existing Gmail' },
     ])
+    queueTableRows(schemaMock.account, [
+      { providerId: 'google-email', providerAccountId: 'subject' },
+    ])
 
     await handleCreateCredentialFromDraft({
       draft: {
@@ -99,6 +102,7 @@ describe('handleReconnectCredential', () => {
       { id: 'credential-1', accountId: null, displayName: 'Renamed Gmail' },
     ])
     queueTableRows(schemaMock.credential, [])
+    queueTableRows(schemaMock.account, [{ providerId: 'gmail', providerAccountId: 'subject-new' }])
     queueTableRows(schemaMock.account, [{ providerId: 'gmail', accountId: 'subject-new' }])
 
     await handleReconnectCredential({

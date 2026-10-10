@@ -234,26 +234,16 @@ function handleRootPathRedirects(
 ): NextResponse | null {
   const url = request.nextUrl
 
-  if (url.pathname !== '/') {
+  if (url.pathname !== '/' || url.searchParams.has('home')) {
     return null
   }
 
-  if (!isHosted && !isDev) {
-    // Self-hosted production: Always redirect based on session.
-    if (hasActiveSession) {
-      return NextResponse.redirect(new URL(APP_ENTRY_PATH, request.url))
-    }
-    return NextResponse.redirect(new URL('/login', request.url))
+  if (hasActiveSession) {
+    return NextResponse.redirect(new URL(APP_ENTRY_PATH, request.url))
   }
 
-  // For root path, redirect authenticated users into the app
-  // Unless they have a 'home' query parameter (e.g., ?home)
-  // This allows intentional navigation to the homepage from anywhere in the app
-  if (hasActiveSession) {
-    const isBrowsingHome = url.searchParams.has('home')
-    if (!isBrowsingHome) {
-      return NextResponse.redirect(new URL(APP_ENTRY_PATH, request.url))
-    }
+  if (!isHosted && !isDev) {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   return null
@@ -301,15 +291,17 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
     pathname.startsWith('/api/webhooks/tiktok') ||
     pathname.startsWith('/api/webhooks/agentmail')
   const isMcpEndpoint = pathname.startsWith('/api/mcp/')
-  const isMcpOauthDiscoveryEndpoint =
+  const isMcpDiscoveryEndpoint =
     pathname.startsWith('/.well-known/oauth-authorization-server') ||
-    pathname.startsWith('/.well-known/oauth-protected-resource')
+    pathname.startsWith('/.well-known/oauth-protected-resource') ||
+    pathname === '/.well-known/openai-apps-challenge'
   const isSuspicious = SUSPICIOUS_UA_PATTERNS.some((pattern) => pattern.test(userAgent))
 
   // Block suspicious requests, but exempt machine-to-machine endpoints that may
   // legitimately omit User-Agent headers (webhooks and MCP protocol discovery/calls).
-  if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpOauthDiscoveryEndpoint) {
-    logger.warn('Blocked suspicious request', {
+  if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpDiscoveryEndpoint) {
+    // Scanner traffic (empty or tool user agents probing /admin.php etc.); the 403 is the response.
+    logger.debug('Blocked suspicious request', {
       userAgent,
       ip: getClientIp(request),
       url: request.url,
@@ -460,7 +452,7 @@ export const config = {
     // Runtime CORS. The desktop's raw upload routes are left out: running the proxy makes Next
     // buffer the body, cutting it off at its 10 MB proxy limit, and those bodies are whole files.
     '/api/((?!desktop/tool/(?:import|file)$).*)',
-    // Catch-all for other pages, excluding static assets and public directories
-    '/((?!api/|api$|_next/static|_next/image|ingest|favicon.ico|logo/|landing/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
+    // Next's image optimizer fetches public editorial images without a User-Agent.
+    '/((?!api/|api$|_next/static|_next/image|(?:blog|changelog)/.*\\.(?:avif|gif|jpe?g|png|svg|webp)$|ingest|favicon.ico|logo/|landing/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
   ],
 }

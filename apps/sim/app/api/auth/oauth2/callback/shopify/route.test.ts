@@ -2,6 +2,7 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { createMockRequest } from '@sim/testing'
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCompleteShopifyOAuthConnection, mockRequireConfiguredOAuthClient } = vi.hoisted(() => ({
@@ -58,18 +59,38 @@ describe('Shopify OAuth callback', () => {
       },
     })
     mockCompleteShopifyOAuthConnection.mockResolvedValue(undefined)
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(() =>
-        Promise.resolve(
-          new Response(JSON.stringify({ access_token: 'shopify-token', scope: 'read_products' }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
-      )
-    )
   })
+
+  it.each(['caller', 'provider deadline'] as const)(
+    'distinguishes %s cancellation at the HTTP boundary',
+    async (source) => {
+      const controller = new AbortController()
+      const reason = new DOMException(
+        'Connection interrupted',
+        source === 'caller' ? 'AbortError' : 'TimeoutError'
+      )
+      const state = createShopifyOAuthState({
+        userId: 'user-1',
+        shopDomain: SHOP_DOMAIN,
+        clientSecret: CLIENT_SECRET,
+      })
+      const request = new NextRequest(callbackRequest(state), { signal: controller.signal })
+      mockCompleteShopifyOAuthConnection.mockImplementationOnce(async () => {
+        if (source === 'caller') controller.abort(reason)
+        throw reason
+      })
+
+      const response = await GET(request)
+
+      if (source === 'caller') {
+        expect(response.status).toBe(499)
+        expect(response.headers.get('location')).toBeNull()
+      } else {
+        expect(response.status).toBe(307)
+        expect(response.headers.get('location')).toContain('error=shopify_callback_error')
+      }
+    }
+  )
 
   it('completes the credential draft carried by signed state instead of a shared cookie', async () => {
     const state = createShopifyOAuthState({
@@ -83,9 +104,8 @@ describe('Shopify OAuth callback', () => {
     const response = await GET(callbackRequest(state))
 
     expect(mockCompleteShopifyOAuthConnection).toHaveBeenCalledWith({
-      accessToken: 'shopify-token',
+      code: 'authorization-code',
       shopDomain: SHOP_DOMAIN,
-      scope: 'read_products',
       userId: 'user-1',
       draftId: 'draft-from-state',
       signal: expect.any(AbortSignal),

@@ -3,6 +3,7 @@ import { describeError, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { logFailureOnce, markFailureKind, markFailureLogged } from '@/lib/core/errors/failure-log'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
@@ -35,6 +36,7 @@ import { isRetryableBlockError, resolveBlockRetryPolicy } from '@/executor/execu
 import type {
   BlockStateWriter,
   ContextExtensions,
+  ExecutionTestHooks,
   WorkflowNodeMetadata,
 } from '@/executor/execution/types'
 import {
@@ -272,6 +274,9 @@ export class BlockExecutor {
      * for the same reason `streamingPartialOutput` above is.
      */
     let completedHandlerCost: TrustedExecutionCost | undefined
+    const testHooks = this.contextExtensions.testHooks
+    const mockedBlockId = node.metadata.originalBlockId ?? block.id
+    const isMocked = !isSentinel && testHooks?.mocksBlock(mockedBlockId) === true
     try {
       /**
        * Only the handler call is retried. A streaming handler returns before any
@@ -279,6 +284,17 @@ export class BlockExecutor {
        * already seen.
        */
       const output = await this.runHandlerWithRetry(blockCtx, block, blockLog, (retry) => {
+        if (isMocked && testHooks) {
+          return this.resolveMockedBlock(
+            blockCtx,
+            node,
+            block,
+            mockedBlockId,
+            testHooks,
+            inputsForLog,
+            inputDisplayRegistry
+          )
+        }
         const invocationMetadata = retry ? { ...nodeMetadata, retry } : nodeMetadata
         return handler.executeWithNode
           ? handler.executeWithNode(blockCtx, block, resolvedInputs, invocationMetadata)
@@ -433,6 +449,13 @@ export class BlockExecutor {
           output: displayOutput,
         })
         this.setBlockLogDisplayProvenance(blockLog, displayProvenance)
+        if (!isMocked && testHooks?.spiesBlock(mockedBlockId)) {
+          testHooks.recordSpy({
+            blockId: mockedBlockId,
+            input: displayInput,
+            output: displayOutput,
+          })
+        }
         this.fireBlockCompleteCallback(
           blockStartPromise,
           blockCtx,
@@ -766,30 +789,46 @@ export class BlockExecutor {
       }
     }
 
-    const diagnosticRegistry = ctx.errorResolvedSecretTraceRegistry
-      ? ctx.errorResolvedSecretTraceRegistry
-      : inputDisplayRegistry?.forkForToolCall()
-    if (
-      !ctx.errorResolvedSecretTraceRegistry &&
-      diagnosticRegistry &&
-      ctx.resolvedSecretTraceRegistry &&
-      ctx.resolvedSecretTraceRegistry !== inputDisplayRegistry
-    ) {
-      diagnosticRegistry.mergeToolCallRegistry(ctx.resolvedSecretTraceRegistry)
+    /** Lazy, so a failure a tool already logged skips the secret projection. */
+    let errorDiagnostic: Record<string, unknown> | undefined
+    const getErrorDiagnostic = () => {
+      if (errorDiagnostic) return errorDiagnostic
+      if (isDatabaseError) {
+        errorDiagnostic = { cause: describeError(error) }
+        return errorDiagnostic
+      }
+      const diagnosticRegistry = ctx.errorResolvedSecretTraceRegistry
+        ? ctx.errorResolvedSecretTraceRegistry
+        : inputDisplayRegistry?.forkForToolCall()
+      if (
+        !ctx.errorResolvedSecretTraceRegistry &&
+        diagnosticRegistry &&
+        ctx.resolvedSecretTraceRegistry &&
+        ctx.resolvedSecretTraceRegistry !== inputDisplayRegistry
+      ) {
+        diagnosticRegistry.mergeToolCallRegistry(ctx.resolvedSecretTraceRegistry)
+      }
+      errorDiagnostic = projectResolvedSecretDiagnosticError(
+        error,
+        diagnosticRegistry ?? ctx.resolvedSecretTraceRegistry
+      )
+      return errorDiagnostic
     }
-    const errorDiagnostic = isDatabaseError
-      ? { cause: describeError(error) }
-      : projectResolvedSecretDiagnosticError(
-          error,
-          diagnosticRegistry ?? ctx.resolvedSecretTraceRegistry
-        )
 
-    this.execLogger.error(
+    /** A user Stop or the run's own time limit aborted this block; neither is a Sim fault. */
+    if (isAbort && ctx.abortSignal?.aborted) markFailureKind(error, 'user')
+    logFailureOnce(
+      this.execLogger,
       phase === 'input_resolution' ? 'Failed to resolve block inputs' : 'Block execution failed',
+      error,
       {
-        blockId: node.id,
-        blockType: block.metadata?.id,
-        ...errorDiagnostic,
+        metadata: () => ({
+          blockId: node.id,
+          blockType: block.metadata?.id,
+          executionId: ctx.executionId,
+          workflowId: ctx.workflowId,
+          ...getErrorDiagnostic(),
+        }),
       }
     )
 
@@ -828,7 +867,7 @@ export class BlockExecutor {
       }
       this.execLogger.info('Block has error port - returning error output instead of throwing', {
         blockId: node.id,
-        ...errorDiagnostic,
+        ...getErrorDiagnostic(),
       })
       return errorOutput
     }
@@ -839,7 +878,7 @@ export class BlockExecutor {
         ? error
         : new Error(errorMessage)
 
-    throw buildBlockExecutionError({
+    const blockError = buildBlockExecutionError({
       block,
       error: errorToThrow,
       context: ctx,
@@ -848,6 +887,9 @@ export class BlockExecutor {
         executionTime: duration,
       },
     })
+    /** The raw thrown value is never marked logged, so the fresh block error carries the mark. */
+    markFailureLogged(blockError)
+    throw blockError
   }
 
   private hasErrorPortEdge(node: DAGNode): boolean {
@@ -927,6 +969,35 @@ export class BlockExecutor {
     }
 
     return { result: output }
+  }
+
+  /** A test mock sees exactly what the block's execution log shows, never raw resolved secrets. */
+  private resolveMockedBlock(
+    ctx: ExecutionContext,
+    node: DAGNode,
+    block: SerializedBlock,
+    blockId: string,
+    testHooks: ExecutionTestHooks,
+    inputs: Record<string, unknown>,
+    registry: ResolvedSecretTraceRegistry | undefined
+  ): Promise<NormalizedBlockOutput> {
+    const blockName = block.metadata?.name ?? blockId
+    const projection = registry?.projectResolvedInputSelection(inputs)
+    if (projection && !projection.complete) {
+      throw new Error(`Mocked block "${blockName}" has inputs whose secrets cannot be redacted`)
+    }
+    return testHooks.resolveMock(
+      {
+        blockId,
+        blockName,
+        blockType: block.metadata?.id ?? '',
+        input: this.sanitizeInputsForLog(projection?.value ?? inputs, block),
+        ...(node.metadata.branchIndex !== undefined
+          ? { branchIndex: node.metadata.branchIndex }
+          : {}),
+      },
+      ctx.abortSignal
+    )
   }
 
   /** Builds the log-facing input copy from resolver-recorded projections only. */

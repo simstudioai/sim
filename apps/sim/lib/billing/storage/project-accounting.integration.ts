@@ -98,13 +98,12 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
         ended_at timestamp, seats integer, trial_start timestamp, trial_end timestamp,
         billing_interval text, stripe_schedule_id text, metadata json, last_closed_period_start timestamp);
       CREATE TABLE project (id text PRIMARY KEY, owner_id text NOT NULL, organization_id text,
+        organization_scope_key text GENERATED ALWAYS AS (CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END) STORED,
         name text NOT NULL DEFAULT 'Project', created_at timestamp NOT NULL DEFAULT now(),
         archived_at timestamp, updated_at timestamp NOT NULL DEFAULT now());
       CREATE TABLE workspace (id text PRIMARY KEY, billed_account_user_id text NOT NULL,
         owner_id text NOT NULL DEFAULT 'user-a', archived_at timestamp, updated_at timestamp DEFAULT now(),
-        organization_id text, storage_used_bytes bigint NOT NULL DEFAULT 0);
-      CREATE TABLE project_workspace (project_id text NOT NULL, workspace_id text UNIQUE NOT NULL,
-        created_at timestamp NOT NULL DEFAULT now());
+        project_id text NOT NULL REFERENCES project(id), organization_id text, storage_used_bytes bigint NOT NULL DEFAULT 0);
       CREATE TABLE permissions (id text PRIMARY KEY, user_id text NOT NULL, entity_type text NOT NULL,
         entity_id text NOT NULL, permission_type text NOT NULL);
       CREATE TABLE permission_group (id text PRIMARY KEY, organization_id text,
@@ -135,14 +134,14 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
 
   beforeEach(async () => {
     vi.stubEnv('FREE_STORAGE_LIMIT_GB', '1')
-    await sql`TRUNCATE "user", folder, workspace_file_version, workspace_files, project, workspace, organization, user_stats, member, subscription, project_workspace, permissions, permission_group`
+    await sql`TRUNCATE "user", folder, workspace_file_version, workspace_files, project, workspace, organization, user_stats, member, subscription, permissions, permission_group`
     await sql`INSERT INTO "user" (id) VALUES ('user-a'), ('user-b')`
     await sql`INSERT INTO organization (id) VALUES ('organization-a'), ('organization-b')`
     await sql`INSERT INTO user_stats (id, user_id) VALUES ('stats-a', 'user-a'), ('stats-b', 'user-b')`
     await sql`INSERT INTO project (id, owner_id, organization_id)
       VALUES ('project-a', 'user-a', 'organization-a'), ('project-b', 'user-a', 'organization-a')`
-    await sql`INSERT INTO workspace (id, billed_account_user_id, organization_id)
-      VALUES ('workspace-a', 'user-a', 'organization-a')`
+    await sql`INSERT INTO workspace (id, billed_account_user_id, project_id, organization_id)
+      VALUES ('workspace-a', 'user-a', 'project-a', 'organization-a')`
   })
 
   afterAll(async () => {
@@ -253,7 +252,6 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
       await sql`UPDATE project SET organization_id = NULL WHERE id = 'project-a'`
       await sql`UPDATE workspace SET organization_id = NULL, billed_account_user_id = 'user-b',
       storage_used_bytes = 20 WHERE id = 'workspace-a'`
-      await sql`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('project-a', 'workspace-a')`
       await sql`UPDATE user_stats SET storage_used_bytes = CASE user_id WHEN 'user-a' THEN 40 ELSE 20 END`
       await sql`INSERT INTO workspace_files (id, project_id, workspace_id, context, size_bytes)
       VALUES ('project-file', 'project-a', NULL, 'project', 40),
@@ -292,7 +290,6 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
       await sql`DELETE FROM project WHERE id = 'project-b'`
       await sql`UPDATE project SET organization_id = NULL WHERE id = 'project-a'`
       await sql`UPDATE workspace SET organization_id = NULL, storage_used_bytes = 20 WHERE id = 'workspace-a'`
-      await sql`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('project-a', 'workspace-a')`
       await sql`INSERT INTO permissions (id, user_id, entity_type, entity_id, permission_type)
       VALUES ('admin', 'user-b', 'workspace', 'workspace-a', 'admin')`
       await sql`UPDATE user_stats SET storage_used_bytes = 20 WHERE user_id = 'user-a'`

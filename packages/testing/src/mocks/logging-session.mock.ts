@@ -12,7 +12,7 @@ import { vi } from 'vitest'
  *
  * @example
  * ```ts
- * import { loggingSessionMockFns } from '@sim/testing'
+ * import { loggingSessionMockFns } from '@sim/testing/mocks/logging-session.mock'
  *
  * loggingSessionMockFns.mockSafeStart.mockResolvedValueOnce(false)
  * expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalled()

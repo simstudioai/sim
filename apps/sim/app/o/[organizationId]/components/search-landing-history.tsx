@@ -31,7 +31,7 @@ export function SearchLandingHistory({
   return (
     <div className={cn('relative w-full min-w-0', inter.className)}>
       {children}
-      <div className='absolute inset-x-0 top-full'>
+      <div className='relative md:absolute md:inset-x-0 md:top-full'>
         {(sources.length > 0 || queries.length > 0) && (
           <section aria-label='Recent activity' className='mt-6 px-2'>
             <div className='mb-2 flex flex-wrap items-center justify-between gap-2'>

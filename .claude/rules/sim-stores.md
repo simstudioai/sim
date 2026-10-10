@@ -56,13 +56,13 @@ export const useFeatureStore = create<FeatureState>()(
 
 ## Rules
 
-1. Use `devtools` middleware (named stores)
+1. Wrap new stores in `devtools` with a `name`
 2. Use `persist` only when data should survive reload
 3. `persist` MUST use `partialize` with an explicit whitelist of the durable fields. Exclude transient flags (`isResizing`, drag/hover state) and `_hasHydrated` from the whitelist, and never spread the whole state (`{ ...state }`) — it leaks actions and transient state into storage
 4. `_hasHydrated` pattern for persisted stores needing hydration tracking
 5. Immutable updates only
 6. `set((state) => ...)` when depending on previous state
-7. Provide `reset()` action
+7. A store holding user- or session-scoped data defines `reset()` and registers it at module scope with `registerUserDataReset('<store-id>', () => useFeatureStore.getState().reset())` from `@/stores/user-data-reset-registry`, so `clearUserData()` (sign-out and other identity changes) resets it
 
 ## Outside React
 

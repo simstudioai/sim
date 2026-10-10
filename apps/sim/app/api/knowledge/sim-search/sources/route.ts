@@ -1,4 +1,5 @@
 import { listSearchSourcesContract } from '@/lib/api/contracts/knowledge'
+import { cursorRoute } from '@/lib/api/cursor-binding'
 import {
   defineInternalJsonRoute,
   internalRateLimits,
@@ -16,7 +17,7 @@ export const GET = defineInternalJsonRoute({
     reason: 'Workspace source summaries for the Search page and indexing status polling',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
-  mapInput: ({ query }) => query,
+  mapInput: ({ query }) => ({ ...query, cursorRoute: cursorRoute(listSearchSourcesContract) }),
   useCase: listSearchSources,
   present: (page) => ({ success: true as const, data: page }),
   staticResponseHeaders: { 'Cache-Control': 'private, no-store' },

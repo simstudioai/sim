@@ -30,12 +30,12 @@ export function ChatMessageContainer({
   chatConfig,
 }: ChatMessageContainerProps) {
   return (
-    <div className='relative flex flex-1 flex-col overflow-hidden'>
+    <div className='relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
       <div
         ref={messagesContainerRef}
-        className='absolute inset-0 touch-pan-y overflow-y-auto overscroll-auto scroll-smooth'
+        className='absolute inset-0 touch-pan-y overflow-y-auto overscroll-contain scroll-smooth motion-reduce:scroll-auto'
       >
-        <div className='mx-auto max-w-3xl px-4 pt-10 pb-20'>
+        <div className='mx-auto max-w-3xl px-3 pt-4 pb-4 md:px-4 md:pt-10 md:pb-20'>
           {messages.length === 0 ? (
             <div className='flex flex-col items-center justify-center py-10'>
               <div className='space-y-2 text-center'>
@@ -68,7 +68,7 @@ export function ChatMessageContainer({
       </div>
 
       {showScrollButton && (
-        <div className='-translate-x-1/2 absolute bottom-16 left-1/2 z-20'>
+        <div className='-translate-x-1/2 absolute bottom-4 left-1/2 z-20 md:bottom-16'>
           <Button
             onClick={scrollToBottom}
             size='sm'

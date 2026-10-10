@@ -143,6 +143,7 @@ export interface OAuthConfig {
     | 'cloudId'
     | 'credentialType'
     | 'domain'
+    | 'idToken'
     | 'instanceUrl'
     | 'realmId'
     | 'quickBooksEnvironment'
@@ -320,6 +321,16 @@ export interface ToolConfig<P = any, R = any> {
    * Usage is billed according to the pricing config.
    */
   hosting?: ToolHostingConfig<P>
+
+  /**
+   * Makes this tool's declared `timeout` param the execution deadline, in milliseconds.
+   *
+   * A caller may pass `params.timeout` to bound any tool that does not declare one. A tool that
+   * declares its own `timeout` param owns that value instead — usually a provider field in
+   * seconds or a duration string, which as a millisecond deadline would abort the request almost
+   * immediately — so the executor treats it as the deadline only when this is set.
+   */
+  timeoutParamIsDeadline?: true
 }
 
 export interface TableRow {

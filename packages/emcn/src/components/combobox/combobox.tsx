@@ -16,16 +16,17 @@ import {
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { cva, type VariantProps } from 'class-variance-authority'
+import { MENU_STYLES } from '#menu-styles'
 import { Check, ChevronDown, Loader, Search } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
-import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
+import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chrome'
 import { Input } from '../input/input'
 import { OverflowText } from '../overflow-text/overflow-text'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
 const comboboxVariants = cva(
-  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-hidden disabled:cursor-not-allowed disabled:opacity-50',
+  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-hidden disabled:cursor-not-allowed disabled:opacity-50 max-md:pointer-coarse:min-h-11',
   {
     variants: {
       variant: {
@@ -436,7 +437,7 @@ const Combobox = memo(
       const optionVirtualizer = useVirtualizer({
         count: virtualizeOptions ? filteredOptions.length : 0,
         getScrollElement: () => scrollArea,
-        estimateSize: () => (size === 'sm' ? 28 : 34),
+        estimateSize: () => MENU_STYLES.sizes[size ?? 'md'].height + 2,
         overscan: 8,
       })
       const hasActiveSearch = searchActive || (searchable && searchQuery.trim().length > 0)
@@ -763,20 +764,21 @@ const Combobox = memo(
             }}
             onMouseEnter={() => !option.disabled && setHighlightedIndex(index)}
             className={cn(
-              'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
-              size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-              (isHighlighted || isSelected) && chipActiveSurfaceClass,
+              MENU_STYLES.rowLayout,
+              'relative cursor-pointer select-none text-[var(--text-body)]',
+              MENU_STYLES.sizes[size ?? 'md'].className,
+              isSelected ? chipActiveSurfaceClass : isHighlighted && 'bg-[var(--surface-hover)]',
               option.disabled && 'cursor-not-allowed opacity-50'
             )}
           >
             {option.iconElement
               ? option.iconElement
-              : OptionIcon && <OptionIcon className='size-[14px] shrink-0' />}
-            <OverflowText label={option.label} className='flex-1 text-[var(--text-primary)]' />
+              : OptionIcon && (
+                  <OptionIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                )}
+            <OverflowText label={option.label} className='flex-1 text-[var(--text-body)]' />
             {option.suffixElement}
-            {multiSelect && isSelected && (
-              <Check className='ml-2 size-[12px] shrink-0 text-[var(--text-primary)]' />
-            )}
+            {isSelected && <Check aria-hidden className={MENU_STYLES.selectionIcon} />}
           </div>
         )
       }
@@ -820,7 +822,7 @@ const Combobox = memo(
                     {(overlayContent || SelectedIcon) && (
                       <div
                         className={cn(
-                          'pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-2 py-1.5 font-sans text-sm',
+                          'pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-2 py-1.5 font-sans text-sm max-md:pointer-coarse:text-md',
                           disabled && 'opacity-50'
                         )}
                       >
@@ -906,7 +908,7 @@ const Combobox = memo(
               align={align}
               sideOffset={4}
               className={cn(
-                'rounded-md border border-[var(--border-1)] p-0',
+                'p-0',
                 dropdownWidth === 'trigger' && 'w-[var(--radix-popover-trigger-width)]'
               )}
               style={
@@ -933,11 +935,11 @@ const Combobox = memo(
               }}
             >
               {searchable && (
-                <div className='flex items-center px-2.5 pt-2 pb-1'>
-                  <Search className='mr-[7px] ml-[1px] size-[13px] shrink-0 text-[var(--text-muted)]' />
+                <div className={cn(MENU_STYLES.search, 'mx-1 mt-1.5')}>
+                  <Search className='size-[14px] shrink-0 text-[var(--text-muted)]' />
                   <input
                     ref={searchInputRef}
-                    className='w-full bg-transparent text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-hidden'
+                    className={MENU_STYLES.searchInput}
                     placeholder={searchPlaceholder}
                     value={searchQuery}
                     onChange={(e) => updateSearchQuery(e.target.value)}
@@ -1009,9 +1011,7 @@ const Combobox = memo(
                           {group.sectionElement
                             ? group.sectionElement
                             : group.section && (
-                                <div className='px-1.5 py-1 text-[var(--text-tertiary)] text-xs first:pt-1'>
-                                  {group.section}
-                                </div>
+                                <div className={MENU_STYLES.heading}>{group.section}</div>
                               )}
                           {group.items.map((option) => {
                             const isSelected =
@@ -1043,8 +1043,9 @@ const Combobox = memo(
                                   !option.disabled && setHighlightedIndex(globalIndex)
                                 }
                                 className={cn(
-                                  'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
-                                  size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
+                                  MENU_STYLES.rowLayout,
+                                  'relative cursor-pointer select-none text-[var(--text-body)]',
+                                  MENU_STYLES.sizes[size ?? 'md'].className,
                                   /*
                                      No CSS `:hover` here — `isHighlighted` is the
                                      single source of truth for the cursor, because
@@ -1055,20 +1056,24 @@ const Combobox = memo(
                                      pointer the two disagree and the row that looks
                                      selected is not the one Enter would choose.
                                   */
-                                  (isHighlighted || isSelected) && chipActiveSurfaceClass,
+                                  isSelected
+                                    ? chipActiveSurfaceClass
+                                    : isHighlighted && 'bg-[var(--surface-hover)]',
                                   option.disabled && 'cursor-not-allowed opacity-50'
                                 )}
                               >
                                 {option.iconElement
                                   ? option.iconElement
-                                  : OptionIcon && <OptionIcon className='size-[14px] shrink-0' />}
+                                  : OptionIcon && (
+                                      <OptionIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                                    )}
                                 <OverflowText
                                   label={option.label}
-                                  className='flex-1 text-[var(--text-primary)]'
+                                  className='flex-1 text-[var(--text-body)]'
                                 />
                                 {option.suffixElement}
-                                {multiSelect && isSelected && (
-                                  <Check className='ml-2 size-[12px] shrink-0 text-[var(--text-primary)]' />
+                                {isSelected && (
+                                  <Check aria-hidden className={MENU_STYLES.selectionIcon} />
                                 )}
                               </div>
                             )
@@ -1091,8 +1096,9 @@ const Combobox = memo(
                           }}
                           onMouseEnter={() => setHighlightedIndex(-1)}
                           className={cn(
-                            'relative flex cursor-pointer select-none items-center rounded-sm px-1.5 font-sans',
-                            size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
+                            MENU_STYLES.rowLayout,
+                            'relative cursor-pointer select-none text-[var(--text-body)]',
+                            MENU_STYLES.sizes[size ?? 'md'].className,
                             // Clears the highlight rather than taking it, so unlike option rows it hovers.
                             !multiSelectValues?.length
                               ? chipActiveSurfaceClass
@@ -1101,8 +1107,11 @@ const Combobox = memo(
                         >
                           <OverflowText
                             label={allOptionLabel}
-                            className='flex-1 text-[var(--text-primary)]'
+                            className='flex-1 text-[var(--text-body)]'
                           />
+                          {!multiSelectValues?.length && (
+                            <Check aria-hidden className={MENU_STYLES.selectionIcon} />
+                          )}
                         </div>
                       )}
                       {virtualizeOptions ? (

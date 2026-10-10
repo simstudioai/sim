@@ -7,9 +7,9 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getWorkspaceMovePreflight, WorkspaceMoveError } from '@/lib/workspaces/admin-move'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
 } from '@/app/api/v1/admin/responses'
 
 const logger = createLogger('AdminDashboardWorkspacePreflightAPI')
@@ -32,17 +32,17 @@ export const GET = withRouteHandler(
     } catch (error) {
       if (error instanceof WorkspaceMoveError) {
         if (error.code === 'workspace-not-found' || error.code === 'organization-not-found') {
-          return notFoundResponse(
+          return adminNotFoundResponse(
             error.code === 'workspace-not-found' ? 'Workspace' : 'Organization'
           )
         }
-        return badRequestResponse(error.message)
+        return adminBadRequestResponse(error.message)
       }
       logger.error('Failed to build workspace move preflight', {
         error: getErrorMessage(error),
         workspaceId: parsed.data.params.id,
       })
-      return internalErrorResponse('Failed to build workspace move preflight')
+      return adminInternalErrorResponse('Failed to build workspace move preflight')
     }
   })
 )

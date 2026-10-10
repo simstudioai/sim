@@ -107,6 +107,12 @@ vi.mock('@/lib/browser-agent/transport', () => ({
 
 import { toast } from '@sim/emcn'
 import type { GenericSecretSource } from '@/lib/api/contracts/organization-secrets'
+import {
+  captureRevealedSimKeys,
+  type RevealedSimKeysByMessage,
+  redactSensitiveContent,
+  restoreRevealedSimKeysForMessage,
+} from '@/lib/mothership/chat/sim-key-redaction'
 import type { CredentialItemData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 import { SpecialTags } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 import { organizationSecretKeys } from '@/hooks/queries/organization-secrets'
@@ -376,6 +382,64 @@ describe('CredentialDisplay link tag', () => {
     expect(container.querySelector('input')).toBeNull()
     expect(mockCredentialHost).not.toHaveBeenCalled()
     expect(mockUpsertWorkspaceEnvironment).not.toHaveBeenCalled()
+    act(() => root.unmount())
+  })
+
+  it('reveals a created key in organization chat after the live fill and after persistence', async () => {
+    mockParams.mockReturnValue({ organizationId: 'org' } as never)
+    const tag = (item: Record<string, string>) => `<credential>${JSON.stringify(item)}</credential>`
+    const tagData = (content: string) =>
+      JSON.parse(
+        content.slice('<credential>'.length, -'</credential>'.length)
+      ) as CredentialItemData
+    const cache: RevealedSimKeysByMessage = new Map()
+    captureRevealedSimKeys(cache, ['msg-1'], tag({ type: 'sim_key' }), [
+      {
+        toolCall: {
+          name: 'generate_api_key',
+          result: { success: true, output: { key: 'sk-sim-live', workspaceId: 'ws-1' } },
+        },
+      },
+    ])
+    const live = restoreRevealedSimKeysForMessage(
+      { id: 'msg-1', role: 'assistant', content: tag({ type: 'sim_key' }) },
+      cache
+    ).content
+
+    const writeText = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const copyButton = (container: HTMLElement) =>
+      Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Copy to clipboard'
+      )
+
+    const liveView = renderCredentialLink(tagData(live))
+    await act(async () => copyButton(liveView.container)?.click())
+    expect(writeText).toHaveBeenCalledWith('sk-sim-live')
+    act(() => liveView.root.unmount())
+
+    const persisted = redactSensitiveContent(
+      tag({ type: 'sim_key', workspaceId: 'ws-1', value: 'sk-sim-live' })
+    )
+    const persistedView = renderCredentialLink(tagData(persisted))
+    expect(persistedView.container.querySelector('code')).not.toBeNull()
+    expect(copyButton(persistedView.container)).toBeUndefined()
+    expect(persistedView.container.textContent).not.toContain('sk-sim-live')
+    act(() => persistedView.root.unmount())
+  })
+
+  it('renders a saved key masked in workspace chat even when its tag names another workspace', () => {
+    const persisted = redactSensitiveContent(
+      `<credential>${JSON.stringify({ type: 'sim_key', workspaceId: 'other-workspace', value: 'sk-sim-saved' })}</credential>`
+    )
+    const { container, root } = renderCredentialLink(
+      JSON.parse(
+        persisted.slice('<credential>'.length, -'</credential>'.length)
+      ) as CredentialItemData
+    )
+    expect(container.querySelector('[role="status"]')).toBeNull()
+    expect(container.querySelector('code')).not.toBeNull()
+    expect(container.querySelector('button')).toBeNull()
     act(() => root.unmount())
   })
 

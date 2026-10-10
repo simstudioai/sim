@@ -1,20 +1,20 @@
 ---
 description: "Settings page layout and SettingsPanel design-system compliance"
-globs: ["apps/sim/app/workspace/*/settings/**","apps/sim/app/workspace/*/{integrations,skills,upgrade}/**","apps/sim/app/workspace/*/components/{resource-tile,credential-detail}/**","apps/sim/components/{settings,permissions}/**","apps/sim/ee/**/components/**"]
+globs: ["apps/sim/app/workspace/*/settings/**","apps/sim/app/o/*/settings/**","apps/sim/app/workspace/*/{integrations,skills,upgrade}/**","apps/sim/app/workspace/*/components/{resource-tile,credential-detail}/**","apps/sim/components/{settings,permissions}/**","apps/sim/ee/**/components/**"]
 ---
 
 <!-- Generated from .claude/rules/sim-settings-pages.md by `bun run skills:sync`. Edit the source, not this file. -->
 
 # Settings Pages
 
-The Next.js `settings/[section]/layout.tsx` owns all settings page chrome via
+Workspace and organization `settings/[section]/layout.tsx` own page chrome via
 `SettingsHeaderShell` — a fixed header bar (a left back chip + right-aligned
 action chips), a scroll region, and a centered `max-w-[48rem]` content column led
 by a **title + description from navigation metadata**. The chrome stays mounted
 across section navigation. Its routed title and description are available before
 the section body resolves. Each section renders through the **`SettingsPanel`**
 registrar
-(`@/app/workspace/[workspaceId]/settings/components/settings-panel`), which feeds
+(`@/components/settings/settings-panel`), which feeds
 the shell its header data and renders only the section body. Sections supply
 **data**, never chrome.
 
@@ -31,7 +31,7 @@ shell (fed through `SettingsPanel`):
 ## Canonical page shape
 
 ```tsx
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsPanel } from '@/components/settings/settings-panel'
 
 return (
   <SettingsPanel
@@ -225,11 +225,14 @@ and — on activatable rows only — the hover band. Never hand-roll any of it, 
   renders the value paragraph itself; pass a node when the value needs its own
   presentation (a control, an icon beside the value, status styling).
 - **`SettingsEmptyState`** (`…/components/settings-empty-state`) — the canonical
-  muted status message, for empty lists, "no results", loading gates, **and
-  failed loads** (`tone='error'`). `variant='fill'` (default) centers in the
-  available height; `variant='inline'` sits in flow. Never hand-roll
-  `<div className='flex h-full items-center justify-center …'>` or
-  `<div className='py-4 text-center …'>`.
+  muted status message for empty lists, "no results", loading gates, and failed
+  reads. `variant='fill'` (default) centers in the available height;
+  `variant='inline'` sits in flow. Never hand-roll its layout.
+- **`SettingsQueryErrorState`** (same module) — the muted read-failure message
+  with an accessible alert and retry control. Show an initial failure when data
+  is unavailable; preserve cached content, mounted editors, and unsaved drafts
+  during background failures, using an inline status. Validation and mutation
+  failures retain their error styling.
 - **`RowActionsMenu`** (`…/components/row-actions-menu`) — the trailing `...`
   actions menu for a list row. Pass `label` (aria-label) and
   `actions: RowAction[]` (`{ label, onSelect, destructive?, disabled? }`); the
@@ -392,6 +395,6 @@ A settings page is design-system-clean when:
 - [ ] Every **resource** list row (a thing with an identity — a tool, a server, a key, a credential) is a `SettingsResourceRow` in a `RESOURCE_LIST_STACK`/`RESOURCE_LIST_GRID` — no wrapper `<button>`/`<Link>`, no hand-passed arrow, no re-derived title/subtitle spans. Rows with a genuinely different shape stay bespoke, and draw their own arrow with `RESOURCE_ROW_ARROW_CLASSES`: multi-line bodies (inbox tasks), tabular columns (billing invoices, credit usage), grids (secrets), and the member rows (see the avatar note above).
 - [ ] Rows that open a detail page use `navigable` + `clickLabel`; flat records use `RowActionsMenu`. Not both.
 - [ ] Decorative trailing content is in `badge`, not `trailing`.
-- [ ] Labeled sections use `SettingsSection`; read-only fields use `SettingsField`; empty/loading/error use `SettingsEmptyState`.
+- [ ] Labeled sections use `SettingsSection`; read-only fields use `SettingsField`; empty/loading/read-failure messages use `SettingsEmptyState`, with `SettingsQueryErrorState` when offering retry.
 - [ ] Delete is a plain `id:'delete'` header action behind a `ChipConfirmModal`; `destructive` is reserved for bulk actions.
 - [ ] The local gate in the root `CLAUDE.md` ("How your work is checked") passes.

@@ -70,7 +70,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     })
   )
   const migration = readFileSync(
-    resolve(process.cwd(), '../../packages/db/migrations/0409_file_search_owner_scope.sql'),
+    resolve(process.cwd(), '../../packages/db/migrations/0413_file_search_owner_scope.sql'),
     'utf8'
   ).replaceAll('"public".', `"${schemaName}".`)
   const ownerIndexes = [

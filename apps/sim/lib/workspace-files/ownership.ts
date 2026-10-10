@@ -37,6 +37,8 @@ export function resolveFileOwner(file: PersistedFileOwnership): FileOwner | null
   }
   if (file.workspaceId) {
     switch (file.context) {
+      case 'test':
+      case 'changelog':
       case 'workspace':
       case 'chat':
       case 'mothership':

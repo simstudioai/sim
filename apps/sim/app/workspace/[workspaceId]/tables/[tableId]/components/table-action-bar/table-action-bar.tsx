@@ -85,7 +85,7 @@ export function TableActionBar({
             exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.2 }}
             className={cn(
-              '-translate-x-1/2 pointer-events-none absolute bottom-6 left-1/2 z-50',
+              '-translate-x-1/2 pointer-events-none absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-50 max-md:max-w-[calc(100%-2rem)]',
               className
             )}
           >
@@ -96,7 +96,7 @@ export function TableActionBar({
                   : `Selected ${selectedCellCount} workflow cells`}
               </span>
 
-              <div className='flex items-center gap-[5px]'>
+              <div className='flex shrink-0 items-center gap-[5px]'>
                 {showPlay && (
                   <ActionIconButton label={playLabel} onClick={onPlay} disabled={isLoading}>
                     <PlayOutline className='size-[12px]' />

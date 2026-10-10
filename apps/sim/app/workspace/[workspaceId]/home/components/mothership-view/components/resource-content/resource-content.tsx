@@ -58,6 +58,11 @@ import {
   useWorkspacePermissionsContext,
 } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
+import {
+  TestsFeatureGate,
+  TestView,
+  useTestRunAction,
+} from '@/app/workspace/[workspaceId]/tests/components'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
@@ -66,6 +71,7 @@ import { exportTable } from '@/hooks/queries/tables'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow } from '@/hooks/queries/utils/workflow-list-query'
+import { useWorkflowTest } from '@/hooks/queries/workflow-tests'
 import { useWorkflows, WORKFLOW_STATE_STALE_TIME } from '@/hooks/queries/workflows'
 import { useAddressedWorkspaceFileRecord, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { createWorkspaceFileContentSource } from '@/hooks/use-file-content-source'
@@ -306,6 +312,19 @@ export const ResourceContent = memo(function ResourceContent({
 
     case 'dashboard':
       return <DashboardResource key={resource.id} workspaceId={workspaceId} />
+    case 'test':
+      return (
+        <TestsFeatureGate>
+          <div className='flex h-full flex-col overflow-hidden'>
+            <TestView
+              key={resource.id}
+              workspaceId={workspaceId}
+              name={resource.id}
+              previewMode={previewMode ?? 'preview'}
+            />
+          </div>
+        </TestsFeatureGate>
+      )
     case 'file':
       return (
         <EmbeddedFile
@@ -411,6 +430,8 @@ export function ResourceActions({
       )
     case 'dashboard':
       return <EmbeddedDashboardActions workspaceId={workspaceId} />
+    case 'test':
+      return <EmbeddedTestActions workspaceId={workspaceId} name={resource.id} />
     case 'table':
       return <EmbeddedTableActions workspaceId={workspaceId} tableId={resource.id} />
     case 'log':
@@ -551,6 +572,57 @@ function EmbeddedDashboardActions({ workspaceId }: EmbeddedDashboardActionsProps
         <p>Open dashboard</p>
       </Tooltip.Content>
     </Tooltip.Root>
+  )
+}
+
+interface EmbeddedTestActionsProps {
+  workspaceId: string
+  name: string
+}
+
+/** Runs the test the tab shows, and opens its page. */
+function EmbeddedTestActions({ workspaceId, name }: EmbeddedTestActionsProps) {
+  const openInternalLink = useOpenInternalLink()
+  const testsEnabled = useFeatureFlag('workflow-tests')
+  const detail = useWorkflowTest(workspaceId, name)
+  const run = useTestRunAction({
+    workspaceId,
+    name,
+    running: detail.data?.latestRun?.status === 'running',
+  })
+  if (!testsEnabled) return null
+  return (
+    <>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <TabStripAction
+            variant='subtle'
+            onClick={run.onSelect}
+            disabled={run.disabled}
+            aria-label={run.text}
+          >
+            <PlayOutline className={RESOURCE_TAB_ICON_CLASS} />
+          </TabStripAction>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>{run.text}</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <TabStripAction
+            variant='subtle'
+            onClick={() => openInternalLink(`/workspace/${workspaceId}/tests/${name}`)}
+            aria-label='Open test'
+          >
+            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+          </TabStripAction>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Open test</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </>
   )
 }
 

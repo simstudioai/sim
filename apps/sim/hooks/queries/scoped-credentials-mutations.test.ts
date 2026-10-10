@@ -3,7 +3,7 @@ import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-quer
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@tanstack/react-query', () => reactQueryMock)
-vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
+vi.mock('@/hooks/queries/oauth/credentials', () => ({
   oauthCredentialKeys: { lists: () => ['oauth-credentials', 'list'] },
 }))
 

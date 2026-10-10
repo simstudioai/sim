@@ -71,6 +71,7 @@ export function ChatResourcePanel({
   )
   return (
     <ChatPanelLayout
+      ref={panel.resourceLayoutRef}
       collapsed={isResourceCollapsed}
       label='resource view'
       activityCount={resourceActivityIds.size}

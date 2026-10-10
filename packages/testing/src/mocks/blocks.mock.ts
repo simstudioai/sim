@@ -3,7 +3,7 @@
  *
  * @example
  * ```ts
- * import { blocksMock, mockBlockConfigs } from '@sim/testing/mocks'
+ * import { blocksMock, mockBlockConfigs } from '@sim/testing/mocks/blocks.mock'
  *
  * vi.mock('@/blocks', () => blocksMock)
  *
@@ -11,8 +11,6 @@
  * const starterConfig = mockBlockConfigs.starter
  * ```
  */
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { vi } from 'vitest'
 

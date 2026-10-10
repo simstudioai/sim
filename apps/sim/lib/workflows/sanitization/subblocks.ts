@@ -123,12 +123,20 @@ export function sanitizeMalformedSubBlocks(
     const normalizedValue = hasValue && value !== subBlock.value
 
     if (repairedMetadata) {
-      logger.warn('Repairing malformed subBlock metadata', {
+      const repair = {
         blockId: block.id,
         subBlockId,
         storedType: subBlock.type,
         repairedType: type,
-      })
+      }
+      // An intact entry whose stored type differs from the registry's is config drift (a
+      // field whose declared type later changed, e.g. `dropdown` → `combobox`). Deployed
+      // snapshots are immutable and re-sanitized on every load, so it would warn forever.
+      if (id === subBlock.id && storedType !== null && typeFromConfig !== undefined) {
+        logger.debug('Repairing drifted subBlock type', repair)
+      } else {
+        logger.warn('Repairing malformed subBlock metadata', repair)
+      }
       changed = true
     } else if (normalizedValue) {
       logger.warn('Normalizing malformed subBlock value', { blockId: block.id, subBlockId })

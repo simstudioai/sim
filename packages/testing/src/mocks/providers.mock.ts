@@ -20,9 +20,10 @@ export const providersMockFns = {
 /**
  * Static mock module for `@/providers`.
  *
- * `MAX_TOOL_ITERATIONS` carries the real default (`20`, used when the `MAX_TOOL_ITERATIONS` env var
- * is unset). It is a plain data property, so a suite that needs a different cap either spreads the
- * mock in its factory — `vi.mock('@/providers', () => ({ ...providersMock, MAX_TOOL_ITERATIONS: 5 }))`,
+ * `MAX_TOOL_ITERATIONS` is a finite test cap (`20`) so a mocked model that never stops calling tools
+ * ends the loop; production is unbounded unless the env var is set. It is a plain data property, so
+ * a suite that needs a different cap either spreads the mock in its factory —
+ * `vi.mock('@/providers', () => ({ ...providersMock, MAX_TOOL_ITERATIONS: 5 }))`,
  * which works even for code that reads the value at import time — or assigns
  * `providersMock.MAX_TOOL_ITERATIONS = 5` at module scope / in `beforeEach` (provider tool loops read
  * the binding at call time, so the new value is seen; the object is fresh per test file, but a

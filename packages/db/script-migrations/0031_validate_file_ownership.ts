@@ -26,7 +26,7 @@ export async function validateFileOwnership(sql: Sql) {
     const rows = await sql<{ id: string; compatible: boolean }[]>`
       SELECT version.id,
         coalesce(
-          (file.workspace_id IS NOT NULL AND file.project_id IS NULL AND file.organization_id IS NULL AND file.context = 'workspace'
+          (file.workspace_id IS NOT NULL AND file.project_id IS NULL AND file.organization_id IS NULL AND file.context IN ('workspace', 'test', 'changelog')
             AND version.workspace_id IS NOT DISTINCT FROM file.workspace_id)
           OR (file.project_id IS NOT NULL AND file.context = 'project' AND version.workspace_id IS NULL),
           false

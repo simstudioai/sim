@@ -1,5 +1,6 @@
 import { db, dbFor } from '@sim/db'
 import {
+  changelogRelease,
   copilotChats,
   document,
   folder as folderTable,
@@ -9,6 +10,7 @@ import {
   userTableDefinitions,
   workflow,
   workflowMcpServer,
+  workflowTest,
   workspaceFile,
   workspaceFiles,
 } from '@sim/db/schema'
@@ -262,6 +264,9 @@ async function deleteExpiredLegacyWorkspaceFileRows(
   return result
 }
 
+/** Contexts whose bytes count toward the workspace's billed storage: owned bodies are billed too. */
+const BILLED_FILE_CONTEXTS: readonly StorageContext[] = ['workspace', 'test', 'changelog']
+
 async function deleteExpiredUnbilledWorkspaceFileRows(
   rows: WorkspaceFileScope['multiContextRows'],
   retentionDate: Date,
@@ -270,7 +275,7 @@ async function deleteExpiredUnbilledWorkspaceFileRows(
   const result = { deleted: 0, failed: 0 }
   const rowsByContext = new Map<StorageContext, WorkspaceFileScope['multiContextRows']>()
   for (const row of rows) {
-    if (row.context === 'workspace') continue
+    if (BILLED_FILE_CONTEXTS.includes(row.context)) continue
     const bucket = rowsByContext.get(row.context)
     if (bucket) bucket.push(row)
     else rowsByContext.set(row.context, [row])
@@ -312,7 +317,7 @@ async function deleteExpiredBillableWorkspaceFileRows(
   const result = { deleted: 0, failed: 0 }
   const rowsByWorkspace = new Map<string, WorkspaceFileScope['multiContextRows']>()
   for (const row of rows) {
-    if (row.context !== 'workspace') continue
+    if (!BILLED_FILE_CONTEXTS.includes(row.context)) continue
     if (!row.workspaceId) {
       result.failed++
       logger.error(`[${label}/workspaceFiles] Billable row has no workspace attribution`, {
@@ -332,21 +337,39 @@ async function deleteExpiredBillableWorkspaceFileRows(
           await lockWorkspaceProject(tx, workspaceId)
           await lockWorkspaceStorageForMutationInTx(tx, workspaceId)
           const billingContext = await resolveStorageBillingContext(workspaceId, tx)
-          await releaseWorkspaceFileVersionsForPurgeInTx(
-            tx,
-            batch.map(({ id }) => id),
-            retentionDate
+          const fileIds = batch.map(({ id }) => id)
+          await tx
+            .delete(workflowTest)
+            .where(
+              and(
+                inArray(workflowTest.bodyFileId, fileIds),
+                isNotNull(workflowTest.deletedAt),
+                lt(workflowTest.deletedAt, retentionDate)
+              )
+            )
+          await tx.delete(changelogRelease).where(
+            inArray(
+              changelogRelease.bodyFileId,
+              tx
+                .select({ id: workspaceFiles.id })
+                .from(workspaceFiles)
+                .where(
+                  and(
+                    inArray(workspaceFiles.id, fileIds),
+                    isNotNull(workspaceFiles.deletedAt),
+                    lt(workspaceFiles.deletedAt, retentionDate)
+                  )
+                )
+            )
           )
+          await releaseWorkspaceFileVersionsForPurgeInTx(tx, fileIds, retentionDate)
           const deletedRows = await tx
             .delete(workspaceFiles)
             .where(
               and(
-                inArray(
-                  workspaceFiles.id,
-                  batch.map(({ id }) => id)
-                ),
+                inArray(workspaceFiles.id, fileIds),
                 eq(workspaceFiles.workspaceId, workspaceId),
-                eq(workspaceFiles.context, 'workspace'),
+                inArray(workspaceFiles.context, BILLED_FILE_CONTEXTS),
                 isNotNull(workspaceFiles.deletedAt),
                 lt(workspaceFiles.deletedAt, retentionDate)
               )

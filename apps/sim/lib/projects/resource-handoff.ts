@@ -3,7 +3,6 @@ import {
   member,
   permissions,
   project,
-  projectWorkspace,
   user,
   workspace,
   workspaceFiles,
@@ -12,12 +11,8 @@ import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { changeProjectStoragePayersInTx } from '@/lib/billing/storage/payer-transfer'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import {
-  lockProjectBackfillWrites,
-  lockProjects,
-  ProjectConflictError,
-  tryLockProjects,
-} from '@/lib/projects/membership'
+import { ProjectConflictError } from '@/lib/projects/errors'
+import { lockProjectBackfillWrites, lockProjects, tryLockProjects } from '@/lib/projects/membership'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 
 /**
@@ -170,9 +165,8 @@ export async function handoffProjectsForWorkspaceDepartureTx(
   for (const record of records) {
     const environments = await tx
       .select({ id: workspace.id, archivedAt: workspace.archivedAt })
-      .from(projectWorkspace)
-      .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
-      .where(eq(projectWorkspace.projectId, record.id))
+      .from(workspace)
+      .where(eq(workspace.projectId, record.id))
     const [admin] = record.organizationId
       ? await tx
           .select({ id: member.id })
@@ -237,9 +231,9 @@ export async function lockProjectsForResourceDepartureTx(
 ) {
   await lockProjectBackfillWrites(tx, workspaceIds)
   const bindings = await tx
-    .select({ projectId: projectWorkspace.projectId })
-    .from(projectWorkspace)
-    .where(inArray(projectWorkspace.workspaceId, workspaceIds))
+    .select({ projectId: workspace.projectId })
+    .from(workspace)
+    .where(inArray(workspace.id, workspaceIds))
   const ids = [...new Set(bindings.map((row) => row.projectId))]
   await lockProjects(tx, ids)
   return ids
@@ -264,9 +258,9 @@ export async function handoffProjectsForOrganizationDepartureTx(
   )
   for (const record of records) {
     const environments = await tx
-      .select({ id: projectWorkspace.workspaceId })
-      .from(projectWorkspace)
-      .where(eq(projectWorkspace.projectId, record.id))
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(eq(workspace.projectId, record.id))
     const [current] = await tx.select().from(project).where(eq(project.id, record.id))
     if (!current) throw new ProjectConflictError('Project changed during departure')
     await handoffProjectCreatorReferencesTx(

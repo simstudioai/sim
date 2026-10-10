@@ -9,6 +9,7 @@ import {
   knowledgeBase,
   outboxEvent,
   permissions,
+  project,
   user,
   userTableDefinitions,
   workflow,
@@ -21,7 +22,7 @@ import {
   workspaceOperationReceipt,
   workspaceSandbox,
 } from '@sim/db/schema'
-import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -184,11 +185,13 @@ describe('authorized fork and sync against PostgreSQL', () => {
     })
   })
   afterAll(async () => {
-    await deleteWorkspaceFixture(
-      db,
-      inArray(workspace.id, [sourceWorkspaceId, ...createdWorkspaceIds])
-    )
-    await db.delete(user).where(eq(user.id, userId))
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(workspace)
+        .where(inArray(workspace.id, [sourceWorkspaceId, ...createdWorkspaceIds]))
+      await tx.delete(project).where(eq(project.ownerId, userId))
+      await tx.delete(user).where(eq(user.id, userId))
+    })
     await db.$client.end()
   })
 

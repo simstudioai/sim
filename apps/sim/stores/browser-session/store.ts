@@ -186,6 +186,7 @@ function pageStateEqual(a: BrowserPageState | null, b: BrowserPageState | null):
     a.loading === b.loading &&
     a.canGoBack === b.canGoBack &&
     a.canGoForward === b.canGoForward &&
+    a.dialog?.requestId === b.dialog?.requestId &&
     pageIssueEqual(a.issue, b.issue) &&
     mediaPermissionRequestEqual(a.mediaPermissionRequest, b.mediaPermissionRequest) &&
     sitePermissionRequestEqual(a.sitePermissionRequest, b.sitePermissionRequest)

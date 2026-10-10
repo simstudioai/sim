@@ -1,3 +1,4 @@
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, permissions, user, workspace } from '@sim/db/schema'
 import {
@@ -10,13 +11,15 @@ import { isAccountBlocked } from '@/lib/auth/ban'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import {
   authorizeWorkspaceOperation,
+  PrincipalKindAuthorizationError,
   requireAllowedWorkspacePrincipal,
 } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
-import type {
-  AccessRequestOperation,
-  AccessRequestPrincipal,
+import {
+  ACCESS_REQUEST_DELEGATION_AUDIENCE,
+  type AccessRequestOperation,
+  type AccessRequestPrincipal,
 } from '@/ee/access-requests/lib/application/operations'
 import type { AccessRequestScope } from '@/ee/access-requests/lib/targets'
 
@@ -95,6 +98,10 @@ export async function authorizeAccessRequestScope(
   if (operation.admin && scope.kind !== 'organization') {
     throw new OrchestrationError('forbidden', 'Organization administrator access is required')
   }
+  if (principal.kind === 'delegated' && scope.kind !== 'workspace') {
+    throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
+  }
+  const actorUserId = requirePrincipalSubjectUserId(principal)
   let canonicalWorkspace:
     | Pick<typeof workspace.$inferSelect, 'id' | 'organizationId' | 'allowPersonalApiKeys'>
     | undefined
@@ -119,7 +126,7 @@ export async function authorizeAccessRequestScope(
   }
   const membership = await loadAccessRequestMembership(
     executor,
-    principal.userId,
+    actorUserId,
     scope,
     organizationId,
     forUpdate
@@ -136,7 +143,11 @@ export async function authorizeAccessRequestScope(
         workspaceOrganizationId: canonicalWorkspace.organizationId,
         allowPersonalApiKeys: canonicalWorkspace.allowPersonalApiKeys,
       },
-      { executor, forUpdate }
+      {
+        executor,
+        forUpdate,
+        delegation: { audience: ACCESS_REQUEST_DELEGATION_AUDIENCE, isWithinScope: () => true },
+      }
     )
   } else if (scope.kind === 'organization') {
     await authorizeOrganizationOperation(

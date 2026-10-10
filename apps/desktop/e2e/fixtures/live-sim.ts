@@ -676,12 +676,10 @@ export class SimDatabase {
       await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
         values (${userId}, ${name}, ${email}, ${email}, true, now(), now())`
       await tx`insert into user_stats (id, user_id) values (${generateId()}, ${userId})`
-      await tx`insert into workspace (id, name, owner_id, billed_account_user_id)
-        values (${workspaceId}, 'Desktop tools E2E', ${userId}, ${userId})`
       await tx`insert into project (id, name, owner_id)
         values (${workspaceId}, 'E2E fixture project', ${userId})`
-      await tx`insert into project_workspace (project_id, workspace_id)
-        values (${workspaceId}, ${workspaceId})`
+      await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id)
+        values (${workspaceId}, ${workspaceId}, 'Desktop tools E2E', ${userId}, ${userId})`
       await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
         values (${generateId()}, ${userId}, 'workspace', ${workspaceId}, 'admin')`
       await tx`insert into session (id, token, user_id, user_agent, expires_at, created_at, updated_at)

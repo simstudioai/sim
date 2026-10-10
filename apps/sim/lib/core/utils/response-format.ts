@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { materializeLargeValueRefSyncOrThrow } from '@/lib/execution/payloads/cache'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
@@ -77,7 +78,9 @@ export function parseResponseFormatSafely(
     }
     return responseFormatValue
   } catch (error) {
-    logger.warn(`Failed to parse response format for block ${blockId}:`, error)
+    // User configuration that falls back to the block's default outputs (the editor's lint
+    // reports it); every output-schema derivation re-reads it, so it is not warning-worthy.
+    logger.debug('Failed to parse response format', { blockId, message: getErrorMessage(error) })
     return null
   }
 }

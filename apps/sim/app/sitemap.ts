@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { getAllPostMeta as getAllBlogPostMeta } from '@/lib/blog/registry'
+import { getAllEntryMeta } from '@/lib/changelog'
 import type { ContentMeta } from '@/lib/content/schema'
 import { latestModified } from '@/lib/content/utils'
 import { SITE_URL } from '@/lib/core/utils/urls'
@@ -42,10 +43,11 @@ function buildAuthorPages(posts: ContentMeta[], basePath: string): MetadataRoute
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = SITE_URL
-  const [posts, libraryPosts, customerStories] = await Promise.all([
+  const [posts, libraryPosts, customerStories, changelogEntries] = await Promise.all([
     getAllBlogPostMeta(),
     getAllLibraryPostMeta(),
     getAllCustomerStoryMeta(),
+    getAllEntryMeta(),
   ])
 
   const latestPostDateValue = latestModified(posts)
@@ -131,6 +133,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/changelog`,
+      lastModified: latestModified(changelogEntries),
+    },
+    {
+      url: `${baseUrl}/changelog/archive`,
+      lastModified: latestModified(changelogEntries),
     },
     {
       url: `${baseUrl}/integrations`,
@@ -222,6 +229,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const pages: MetadataRoute.Sitemap = [
     ...staticPages,
+    ...changelogEntries.map((entry) => ({
+      url: entry.canonical,
+      lastModified: new Date(entry.updated ?? entry.date),
+    })),
     ...blogPages,
     ...authorPages,
     ...libraryPages,

@@ -33,7 +33,9 @@ import {
   PanelLeft,
   Pin,
   Plus,
+  Rss,
   Search,
+  ShieldCheck,
   Table,
   Task,
   Workflow,
@@ -151,7 +153,6 @@ import { useFilterStore } from '@/stores/logs/filters/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useProvidersStore } from '@/stores/providers'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
-import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
 
@@ -396,7 +397,7 @@ interface SidebarProps {
  * @returns Sidebar with workflows panel
  */
 export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor }: SidebarProps) {
-  const { isCollapsed: isCollapsedProp, isPeeking } = useSidebarChrome()
+  const { isCollapsed: isCollapsedProp, isPeeking, onToggle: toggleCollapsed } = useSidebarChrome()
   const isCollapsed = isCollapsedProp && !isPeeking
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -445,8 +446,6 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
     providerModelSignature,
     customBlockOverlayVersion,
   ])
-
-  const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
 
   const isMac = isMacPlatform()
   const showCollapsedTooltips = isCollapsed
@@ -753,6 +752,8 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
   )
 
   const dashboardsEnabled = useFeatureFlag('dashboards')
+  const testsEnabled = useFeatureFlag('workflow-tests')
+  const changelogEnabled = useFeatureFlag('changelog')
   const topNavItems = useMemo(
     () =>
       [
@@ -778,6 +779,14 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
           restricted: permissionConfig.hideFilesTab,
         },
         {
+          id: 'changelog',
+          label: 'Changelog',
+          icon: Rss,
+          href: `/workspace/${workspaceId}/changelog`,
+          hidden: !changelogEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          restricted: permissionConfig.hideFilesTab,
+        },
+        {
           id: 'integrations',
           label: 'Integrations',
           icon: Integration,
@@ -798,6 +807,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
       accessRequestsEnabled,
       chatEnabled,
       dashboardsEnabled,
+      changelogEnabled,
     ]
   )
 
@@ -829,6 +839,14 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
           restricted: permissionConfig.hideKnowledgeBaseTab,
         },
         {
+          id: 'tests',
+          label: 'Tests',
+          icon: ShieldCheck,
+          href: `/workspace/${workspaceId}/tests`,
+          hidden: !testsEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          restricted: permissionConfig.hideFilesTab,
+        },
+        {
           id: 'logs',
           label: 'Logs',
           icon: Library,
@@ -842,6 +860,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
       permissionConfig.hideKnowledgeBaseTab,
       permissionConfig.hideTablesTab,
       accessRequestsEnabled,
+      testsEnabled,
     ]
   )
 
@@ -1424,7 +1443,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
               <div
                 inert={isCollapsed}
                 className={cn(
-                  'flex h-[30px] items-center gap-[1px] overflow-hidden',
+                  'flex h-[30px] items-center gap-[1px] overflow-hidden max-md:min-h-11 max-md:w-11',
                   isCollapsed
                     ? 'w-0 opacity-0'
                     : 'w-[65px] [[data-sim-desktop-title-bar=inset]_&]:w-[32px]'
@@ -1459,7 +1478,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
                     tabIndex={isCollapsed ? -1 : undefined}
                     className={cn(
                       DRAG_EXEMPT_CLASS,
-                      '[[data-sim-desktop-title-bar=inset]_&]:hidden'
+                      'max-md:hidden [[data-sim-desktop-title-bar=inset]_&]:hidden'
                     )}
                   />
                 </SidebarTooltip>
@@ -1897,7 +1916,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
         {!isPeeking && (
           <div
             className={cn(
-              'absolute top-0 right-0 bottom-0 z-20 w-[8px] translate-x-1/2',
+              'absolute top-0 right-0 bottom-0 z-20 hidden w-[8px] translate-x-1/2 md:block',
               isCollapsed ? 'cursor-e-resize' : 'cursor-ew-resize'
             )}
             onPointerDown={isCollapsed ? undefined : handlePointerDown}

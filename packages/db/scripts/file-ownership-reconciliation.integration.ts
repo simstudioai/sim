@@ -39,7 +39,7 @@ describe('file ownership provisioning and interrupted migration recovery', () =>
       await writeFile(
         join(directory, '0001_upload_purpose.sql'),
         await readFile(
-          new URL('../migrations/0407_project_file_upload_sessions.sql', import.meta.url)
+          new URL('../migrations/0411_project_file_upload_sessions.sql', import.meta.url)
         )
       )
       await writeFile(

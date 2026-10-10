@@ -36,6 +36,7 @@ import type {
   WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { getContextMenuPosition } from '@/lib/core/utils/context-menu'
 import { formatDateShort } from '@/lib/core/utils/date-display'
 import {
   getEndDateFromTimeRange,
@@ -537,7 +538,7 @@ export default function Logs() {
     (e: React.MouseEvent, rowId: string) => {
       e.preventDefault()
       const log = logs.find((l) => l.id === rowId) ?? null
-      setContextMenuPosition({ x: e.clientX, y: e.clientY })
+      setContextMenuPosition(getContextMenuPosition(e))
       setContextMenuLog(log)
       setContextMenuOpen(true)
     },
@@ -603,25 +604,20 @@ export default function Logs() {
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to stop run'))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextMenuLog, userPermissions.canEdit])
 
-  const retryLog = useCallback(
-    async (log: WorkflowLogRow | null) => {
-      const workflowId = log?.workflow?.id || log?.workflowId
-      const executionId = log?.executionId
-      if (!workflowId || !executionId) return
+  const retryLog = useCallback(async (log: WorkflowLogRow | null) => {
+    const workflowId = log?.workflow?.id || log?.workflowId
+    const executionId = log?.executionId
+    if (!workflowId || !executionId) return
 
-      try {
-        await retryExecution.mutateAsync({ workflowId, executionId })
-        toast.success('Retry started')
-      } catch {
-        toast.error('Failed to retry execution')
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  )
+    try {
+      await retryExecution.mutateAsync({ workflowId, executionId })
+      toast.success('Retry started')
+    } catch {
+      toast.error('Failed to retry execution')
+    }
+  }, [])
 
   const handleRetryExecution = useCallback(() => {
     retryLog(contextMenuLog)

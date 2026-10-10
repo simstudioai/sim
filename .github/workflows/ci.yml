@@ -577,7 +577,8 @@ jobs:
       needs.promote.result == 'success' &&
       needs.trigger-upload.result == 'success' &&
       needs.promote.outputs.promoted == 'true'
-    runs-on: *runner-4vcpu
+    # Mostly waiting on the ECS cutover after a dependency install: the smallest runner is enough.
+    runs-on: *runner-2vcpu
     # Leave setup/promotion headroom above the 70-minute cutover poll.
     timeout-minutes: 90
     permissions:
@@ -1005,6 +1006,8 @@ jobs:
       # Sigstore signs against the runner's OIDC identity; no key material is stored.
       id-token: write
       attestations: write
+      # Records each attestation against the image as an artifact storage record.
+      artifact-metadata: write
     strategy:
       fail-fast: false
       matrix:
@@ -1044,7 +1047,7 @@ jobs:
 
       - name: Attest SBOM
         if: matrix.platform != 'index'
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ matrix.image }}
           subject-digest: ${{ matrix.digest }}
@@ -1054,7 +1057,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ matrix.image }}
           subject-digest: ${{ matrix.digest }}

@@ -108,7 +108,7 @@ export function DataDrainsSettings({ organizationId }: DataDrainsSettingsProps) 
       }}
     >
       {error ? (
-        <SettingsEmptyState tone='error'>
+        <SettingsEmptyState>
           {getErrorMessage(error, "Couldn't load data drains")}
         </SettingsEmptyState>
       ) : isPending ? null : drains && drains.length > 0 ? (

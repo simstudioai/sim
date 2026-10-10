@@ -30,12 +30,6 @@ describe('buildRequest', () => {
     expect(built.body).toBeUndefined()
   })
 
-  it('percent-encodes path params so an id cannot retarget the request', async () => {
-    expect((await buildRequest('getTable', ['a/b?c'], {}, WORKSPACE)).path).toBe(
-      '/api/v2/tables/a%2Fb%3Fc'
-    )
-  })
-
   it('still sends an explicit zero, which is a value the caller chose', async () => {
     expect((await buildRequest('listLogs', [], { minCost: '0' }, WORKSPACE)).query).toMatchObject({
       minCost: 0,

@@ -212,11 +212,7 @@ export function UsageConsumers({
   onExpandOther,
 }: UsageConsumersProps) {
   if (isError) {
-    return (
-      <SettingsEmptyState variant='inline' tone='error'>
-        Couldn't load this view.
-      </SettingsEmptyState>
-    )
+    return <SettingsEmptyState variant='inline'>Couldn't load this view.</SettingsEmptyState>
   }
   if (isLoading || !breakdown) {
     return <SettingsEmptyState variant='inline'>Loading…</SettingsEmptyState>

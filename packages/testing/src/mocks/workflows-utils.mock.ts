@@ -6,7 +6,7 @@ import { vi } from 'vitest'
  *
  * @example
  * ```ts
- * import { workflowsUtilsMockFns } from '@sim/testing'
+ * import { workflowsUtilsMockFns } from '@sim/testing/mocks/workflows-utils.mock'
  *
  * workflowsUtilsMockFns.mockGetWorkflowById.mockResolvedValue({ id: 'wf-1', name: 'Test' })
  * ```

@@ -171,8 +171,11 @@ describe('cleanup soft deletes', () => {
     expect(dbChainMockFns.transaction.mock.invocationCallOrder[0]).toBeLessThan(
       mockReleaseWorkspaceFileVersionsForPurgeInTx.mock.invocationCallOrder[0]
     )
+    const fileDelete = dbChainMockFns.delete.mock.calls.findIndex(
+      ([table]) => table === schemaMock.workspaceFiles
+    )
     expect(mockReleaseWorkspaceFileVersionsForPurgeInTx.mock.invocationCallOrder[0]).toBeLessThan(
-      dbChainMockFns.delete.mock.invocationCallOrder[0]
+      dbChainMockFns.delete.mock.invocationCallOrder[fileDelete]
     )
   })
 
