@@ -11,6 +11,7 @@ import {
   organization,
   outboxEvent,
   permissions,
+  projectMembershipRollout,
   subscription as subscriptionTable,
   user,
   userStats,
@@ -182,6 +183,7 @@ describe('workspace payer-change transaction lock ordering', () => {
     const ops: Array<{ op: 'lock' | 'payer-transfer' | 'update'; table: unknown }> = []
     let memberSelectCount = 0
     const rowsForTable = (table: unknown, fields?: Record<string, unknown>): unknown[] => {
+      if (table === projectMembershipRollout) return [{ phase: 'column' }]
       if (table === workspace) {
         if (fields?.id === workspace.projectId) return [{ id: null }]
         return [
