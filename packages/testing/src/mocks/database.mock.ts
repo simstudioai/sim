@@ -151,6 +151,10 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
     const queue = tableRowQueues.get(table)
     if (queue && queue.length > 0) return queue.shift() ?? null
   }
+  /** Default unit fixtures represent a migrated database after authority cutover. */
+  if (tables.includes(schemaMock.projectMembershipRollout)) {
+    return [{ id: 'membership', phase: 'column' }]
+  }
   return null
 }
 

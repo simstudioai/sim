@@ -1,4 +1,4 @@
-import { permissionGroup, project, workspace } from '@sim/db/schema'
+import { permissionGroup, project, projectWorkspace, workspace } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { compareStrings, truncateAtCodePoint } from '@sim/utils/string'
@@ -12,7 +12,11 @@ import {
 import { textArrayLiteral } from '@/lib/db/arrays'
 import type { DbTransaction } from '@/lib/db/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
-import { getProjectEnvironmentSource } from '@/lib/projects/environment-source'
+import {
+  getProjectEnvironmentSource,
+  getProjectMembershipPhase,
+  lockProjectMembershipBarrier,
+} from '@/lib/projects/environment-source'
 
 const PROJECT_LOCK_TIMEOUT_MS = 5_000
 
@@ -34,6 +38,7 @@ async function withProjectLockTimeout<T>(
   message: string,
   acquire: () => Promise<T>
 ): Promise<T> {
+  await lockProjectMembershipBarrier(tx)
   const [setting] = await tx.execute<{ previous: string }>(
     sql`SELECT current_setting('lock_timeout') AS previous`
   )
@@ -130,6 +135,7 @@ export async function createProjectRecord(
     projectName?: string
   }
 ): Promise<string> {
+  await getProjectMembershipPhase(tx)
   const id = generateId()
   await tx.insert(project).values({
     id,
@@ -286,7 +292,14 @@ export async function splitForkProject(
       .where(inArray(workspace.id, ids))
       .orderBy(asc(workspace.id))
       .for('no key update')
-    await tx.update(workspace).set({ projectId: id }).where(inArray(workspace.id, ids))
+    if ((await getProjectMembershipPhase(tx)) === 'connector') {
+      await tx
+        .update(projectWorkspace)
+        .set({ projectId: id })
+        .where(inArray(projectWorkspace.workspaceId, ids))
+    } else {
+      await tx.update(workspace).set({ projectId: id }).where(inArray(workspace.id, ids))
+    }
   })
   if (owner.organizationId) {
     await acquirePermissionGroupOrgLock(tx, owner.organizationId)

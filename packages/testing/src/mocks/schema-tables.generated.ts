@@ -504,6 +504,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'updatedAt',
   ],
   project: ['id', 'name', 'organizationId', 'ownerId', 'archivedAt', 'createdAt', 'updatedAt'],
+  projectMembershipRollout: ['id', 'phase'],
   projectWorkspace: ['projectId', 'workspaceId', 'createdAt'],
   workspaceForkResourceMap: [
     'id',

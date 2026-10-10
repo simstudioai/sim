@@ -11,7 +11,10 @@ import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capa
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import { resolveVerifiedUserAccessControlContext } from '@/lib/permission-groups/resolve.server'
 import { type ProjectOperation, projectOperations } from '@/lib/projects/application/operations'
-import { getProjectEnvironmentSource } from '@/lib/projects/environment-source'
+import {
+  getProjectEnvironmentSource,
+  lockProjectMembershipBarrier,
+} from '@/lib/projects/environment-source'
 import { lockProject } from '@/lib/projects/membership'
 
 const logger = createLogger('ProjectAuthorization')
@@ -220,6 +223,7 @@ export async function authorizeProject(
   input: ProjectAuthorizationInput & { projectId: string },
   mode: ProjectAccessMode
 ): Promise<AuthorizedProject> {
+  await lockProjectMembershipBarrier(tx)
   if (mode === 'hold') await lockProject(tx, input.projectId)
   const [record] = await tx.select().from(project).where(eq(project.id, input.projectId)).limit(1)
   if (
@@ -238,6 +242,7 @@ export async function authorizeProjectsForRead(
   principal: SessionPrincipal,
   projectIds: string[]
 ): Promise<AuthorizedProject[]> {
+  await lockProjectMembershipBarrier(tx)
   if (!projectIds.length) return []
   const records = await tx
     .select()

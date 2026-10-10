@@ -10,6 +10,7 @@ import {
   outboxEvent,
   permissions,
   project,
+  projectWorkspace,
   user,
   userTableDefinitions,
   workflow,
@@ -29,6 +30,7 @@ import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-i
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import * as workflowMcpSync from '@/lib/mcp/workflow-mcp-sync'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
+import { getProjectMembershipPhase } from '@/lib/projects/environment-source'
 import { createProjectRecord } from '@/lib/projects/membership'
 import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
@@ -147,6 +149,7 @@ describe('authorized fork and sync against PostgreSQL', () => {
       updatedAt: now,
     })
     await db.transaction(async (tx) => {
+      const phase = await getProjectMembershipPhase(tx)
       const projectId = await createProjectRecord(tx, {
         name: 'Fork source fixture',
         ownerId: userId,
@@ -154,12 +157,15 @@ describe('authorized fork and sync against PostgreSQL', () => {
       })
       await tx.insert(workspace).values({
         id: sourceWorkspaceId,
-        projectId,
+        projectId: phase === 'column' ? projectId : null,
         name: 'Fork source fixture',
         ownerId: userId,
         billedAccountUserId: userId,
         allowPersonalApiKeys: true,
       })
+      if (phase === 'connector') {
+        await tx.insert(projectWorkspace).values({ projectId, workspaceId: sourceWorkspaceId })
+      }
     })
     await db.insert(permissions).values({
       id: generateId(),

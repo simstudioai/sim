@@ -2113,12 +2113,30 @@ export const project = pgTable(
   })
 )
 
+/** Durable authority selection; retained after connector retirement for expansion rollback. */
+export const projectMembershipRollout = pgTable(
+  'project_membership_rollout',
+  {
+    id: text('id').primaryKey(),
+    phase: text('phase', { enum: ['connector', 'column'] })
+      .notNull()
+      .default('connector'),
+  },
+  (table) => ({
+    singleton: check('project_membership_rollout_singleton', sql`${table.id} = 'membership'`),
+    phase: check(
+      'project_membership_rollout_phase',
+      sql`${table.phase} IN ('connector', 'column')`
+    ),
+  })
+)
+
 // contract-pending(after project writers are fully deployed and backfill validates): enforce exactly-one membership and active Project environment minimums at commit.
 export const projectWorkspace = pgTable(
   'project_workspace',
   {
-    // contract-pending(after #8830 is fully deployed and pre-8830 servers/workers drain): retire this table in #8590 — new writes use workspace.projectId and compatibility readers tolerate its absence.
-    /** @deprecated Use workspace.projectId; retained for pre-8830 binaries during rollout. */
+    // contract-pending(after #8830 is fully deployed and pre-8830 servers/workers drain): retire this table in #8590 — the durable authority marker has switched to column and compatibility readers tolerate its absence.
+    /** @deprecated Use the phase-aware membership helpers; retained for pre-8830 binaries during rollout. */
     projectId: text('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'restrict' }),

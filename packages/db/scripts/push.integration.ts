@@ -196,6 +196,9 @@ export const knowledgeBases = pgTable('knowledge_base', {
 export const workspaces = pgTable('workspace', {
   id: text('id').primaryKey(), forkedFromWorkspaceId: text('forked_from_workspace_id'), projectId: text('project_id'),
 }, (table) => [index('workspace_project_id_id_idx').on(table.projectId, table.id).concurrently()])
+export const rollout = pgTable('project_membership_rollout', {
+  id: text('id').primaryKey(), phase: text('phase').notNull().default('connector'),
+}, (table) => [check('project_membership_rollout_singleton', sql\`\${table.id} = 'membership'\`), check('project_membership_rollout_phase', sql\`\${table.phase} IN ('connector', 'column')\`)])
 export const memberships = pgTable('project_workspace', {
   projectId: text('project_id').notNull(), workspaceId: text('workspace_id').notNull().unique(),
 })`)
@@ -210,6 +213,10 @@ export const memberships = pgTable('project_workspace', {
       { id: 'root', project_id: null },
       { id: 'standalone', project_id: null },
     ])
+    expect(await sql`SELECT phase FROM project_membership_rollout`).toEqual([
+      { phase: 'connector' },
+    ])
+    await sql`UPDATE project_membership_rollout SET phase = 'column' WHERE id = 'membership'`
     await sql`UPDATE project_workspace SET project_id = 'singleton' WHERE workspace_id = 'fork'`
     await sql`UPDATE workspace SET project_id = 'family' WHERE id = 'standalone'`
     const indexBeforeReplay = await sql`SELECT indexrelid, indisvalid FROM pg_index
@@ -217,6 +224,7 @@ export const memberships = pgTable('project_workspace', {
     expect(indexBeforeReplay).toEqual([{ indexrelid: expect.any(Number), indisvalid: true }])
     const repeated = runPush(['--force'])
     expect(repeated.error, repeated.stderr).toBeUndefined()
+    expect(await sql`SELECT phase FROM project_membership_rollout`).toEqual([{ phase: 'column' }])
     expect(
       await sql`SELECT indexrelid, indisvalid FROM pg_index
         WHERE indexrelid = 'workspace_project_id_id_idx'::regclass`
@@ -236,6 +244,8 @@ export const memberships = pgTable('project_workspace', {
     await sql`CREATE TABLE workspace (id text PRIMARY KEY, project_id text)`
     await sql`CREATE TABLE project_workspace (project_id text NOT NULL, workspace_id text NOT NULL UNIQUE)`
     await sql`INSERT INTO project VALUES ('family')`
+    await sql`CREATE TABLE project_membership_rollout (id text PRIMARY KEY, phase text NOT NULL)`
+    await sql`INSERT INTO project_membership_rollout VALUES ('membership', 'column')`
     await sql`INSERT INTO workspace VALUES ('root', 'family'), ('fork', 'family')`
     await expect(
       sql`CREATE UNIQUE INDEX CONCURRENTLY workspace_project_id_id_idx ON workspace(project_id)`

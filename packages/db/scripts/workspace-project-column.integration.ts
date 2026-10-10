@@ -34,6 +34,9 @@ describe('workspace Project column compatibility migration', () => {
   it('leaves legacy rows unassigned and accepts old workspace-before-Project creation', async () => {
     await fixture(async (sql) => {
       await applyMigration(sql, migration)
+      expect(await sql`SELECT id, phase FROM project_membership_rollout`).toEqual([
+        { id: 'membership', phase: 'connector' },
+      ])
       await sql.begin(async (tx) => {
         await tx`INSERT INTO workspace (id) VALUES ('old-writer')`
         await tx`INSERT INTO project VALUES ('new-project')`
@@ -54,6 +57,7 @@ describe('workspace Project column compatibility migration', () => {
   it('new column writes do not create or overwrite legacy connector assignments', async () => {
     await fixture(async (sql) => {
       await applyMigration(sql, migration)
+      await sql`UPDATE project_membership_rollout SET phase = 'column' WHERE id = 'membership'`
       await sql`INSERT INTO workspace (id, project_id) VALUES ('new-writer', 'private')`
       await sql`UPDATE workspace SET project_id = 'private', forked_from_workspace_id = NULL
         WHERE id = 'staging'`
@@ -71,9 +75,10 @@ describe('workspace Project column compatibility migration', () => {
     })
   })
 
-  it('rejects dangling new assignments and protects column-only Projects from old teardown', async () => {
+  it('rejects dangling assignments and deletion of Projects with surviving column memberships', async () => {
     await fixture(async (sql) => {
       await applyMigration(sql, migration)
+      await sql`UPDATE project_membership_rollout SET phase = 'column' WHERE id = 'membership'`
       await expect(
         sql`INSERT INTO workspace (id, project_id) VALUES ('invalid', 'missing')`
       ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '23503')
@@ -112,10 +117,12 @@ describe('workspace Project column compatibility migration', () => {
   it('replays without copying stale legacy assignments over columns or detached forks', async () => {
     await fixture(async (sql) => {
       await applyMigration(sql, migration)
+      await sql`UPDATE project_membership_rollout SET phase = 'column' WHERE id = 'membership'`
       await sql`UPDATE workspace SET project_id = 'private', forked_from_workspace_id = NULL
         WHERE id = 'staging'`
       await applyMigration(sql, migration)
       await applyMigration(sql, migration)
+      expect(await sql`SELECT phase FROM project_membership_rollout`).toEqual([{ phase: 'column' }])
       expect(
         await sql`SELECT w.id, w.project_id, pw.project_id AS legacy,
         w.forked_from_workspace_id AS parent FROM workspace w
@@ -124,6 +131,23 @@ describe('workspace Project column compatibility migration', () => {
         { id: 'personal', project_id: null, legacy: 'private', parent: null },
         { id: 'production', project_id: null, legacy: 'family', parent: null },
         { id: 'staging', project_id: 'private', legacy: 'family', parent: null },
+      ])
+    })
+  })
+
+  it('refuses to initialize missing authority over populated columns', async () => {
+    await fixture(async (sql) => {
+      await sql`ALTER TABLE workspace ADD COLUMN project_id text`
+      await sql`UPDATE workspace SET project_id = 'family' WHERE id = 'production'`
+      await expect(applyMigration(sql, migration)).rejects.toSatisfy(
+        (error: unknown) => getPostgresErrorCode(error) === '55000'
+      )
+      await sql.unsafe('ROLLBACK')
+      expect(await sql`SELECT project_id FROM workspace WHERE id = 'production'`).toEqual([
+        { project_id: 'family' },
+      ])
+      expect(await sql`SELECT to_regclass('project_membership_rollout') AS marker`).toEqual([
+        { marker: null },
       ])
     })
   })
@@ -155,6 +179,7 @@ describe('workspace Project column compatibility migration', () => {
   it('repairs an interrupted index build without changing assignments', async () => {
     await fixture(async (sql) => {
       await applyMigration(sql, migration)
+      await sql`UPDATE project_membership_rollout SET phase = 'column' WHERE id = 'membership'`
       await sql`UPDATE workspace SET project_id = 'family' WHERE id IN ('production', 'staging')`
       await sql`DROP INDEX CONCURRENTLY workspace_project_id_id_idx`
       await expect(

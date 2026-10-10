@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
-import { permissions, type WorkspaceMode, workspace } from '@sim/db/schema'
+import { permissions, projectWorkspace, type WorkspaceMode, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbTransaction } from '@/lib/db/types'
+import { getProjectMembershipPhase } from '@/lib/projects/environment-source'
 import { createProjectRecord } from '@/lib/projects/membership'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
@@ -106,6 +107,7 @@ export async function createWorkspaceWithProjectInTransaction(
     governingPermissionGroupOrganizationId,
   }: TransactionalCreateWorkspaceParams & { projectName?: string }
 ): Promise<{ projectId: string; workspace: CreatedWorkspace }> {
+  const phase = await getProjectMembershipPhase(tx)
   const workspaceId = generateId()
   const workflowId = generateId()
   const now = new Date()
@@ -131,7 +133,7 @@ export async function createWorkspaceWithProjectInTransaction(
 
   await tx.insert(workspace).values({
     id: workspaceId,
-    projectId,
+    projectId: phase === 'column' ? projectId : null,
     name,
     ownerId: userId,
     organizationId,
@@ -141,6 +143,10 @@ export async function createWorkspaceWithProjectInTransaction(
     createdAt: now,
     updatedAt: now,
   })
+
+  if (phase === 'connector') {
+    await tx.insert(projectWorkspace).values({ projectId, workspaceId })
+  }
 
   const permissionRows = [
     {
