@@ -262,6 +262,17 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
     expect(mockEnqueueOrStartResume).not.toHaveBeenCalled()
   })
 
+  it('answers an unexpected run-context failure with a generic 500', async () => {
+    mockResolveRunContext.mockRejectedValueOnce(new Error('connection terminated: db-internal'))
+    const { request, context } = makeRequest()
+
+    const response = await POST(request, context)
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toMatchObject({ error: 'Internal server error' })
+    expect(mockEnqueueOrStartResume).not.toHaveBeenCalled()
+  })
+
   it('reuses the persisted actor and payer snapshot for route preflight', async () => {
     const { request, context } = makeRequest()
 

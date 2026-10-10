@@ -1,6 +1,5 @@
 import { describePrincipalAuth } from '@sim/auth/principal'
-import { createLogger, setRequestAuth } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import {
@@ -25,9 +24,6 @@ import {
 } from '@/lib/workflows/executor/resume-execution'
 import { agentStreamProtocolResponseHeaders } from '@/lib/workflows/streaming/streaming'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
-import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
-
-const logger = createLogger('WorkflowResumeAPI')
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -147,18 +143,7 @@ export const POST = withRouteHandler(
       if (error instanceof ResumeWorkflowExecutionError) {
         return NextResponse.json({ error: error.message }, { status: error.statusCode })
       }
-      logger.error(
-        'Resume request failed',
-        projectResolvedSecretDiagnosticError(error, undefined, {
-          workflowId,
-          executionId,
-          contextId,
-        })
-      )
-      return NextResponse.json(
-        { error: toError(error).message || 'Failed to queue resume request' },
-        { status: 400 }
-      )
+      throw error
     }
   }
 )
