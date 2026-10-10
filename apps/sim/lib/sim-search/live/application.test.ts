@@ -804,7 +804,7 @@ describe('authorized live retrieval', () => {
         principal,
         input: {
           workspaceId: 'workspace',
-          documentId: search.results[0]!.documentId,
+          documentId: search.results[0]?.documentId ?? '',
           limit: 1,
           resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
         },
