@@ -445,14 +445,17 @@ function unknownWithin(selector: string): string {
 }
 
 /**
- * Heads a model reaches for when it wants to grep a knowledge base. Knowledge is not a
- * grep world — chunks are retrieved semantically — so the refusal has to redirect rather
- * than just list the worlds, or the next attempt is the same selector spelled differently.
+ * Names a model reaches for when it wants to grep a knowledge base, as a `--scope` or an
+ * `--in` head. Knowledge is not a grep world — chunks are retrieved semantically — so the
+ * refusal has to redirect rather than just list the worlds, or the next attempt is the
+ * same selector spelled differently.
  */
 const KNOWLEDGE_SELECTOR_HEADS = new Set(['knowledge', 'kb'])
 
+const KNOWLEDGE_REDIRECT = `Knowledge bases are searched semantically — use knowledge search --kb <id> --query "…"; grep covers ${SCOPES.join(', ')}.`
+
 function knowledgeWithin(selector: string): string {
-  return `${unknownWithin(selector)} Knowledge bases are searched semantically — use knowledge search --kb <id> --query "…"; grep covers ${SCOPES.join(', ')}.`
+  return `${unknownWithin(selector)} ${KNOWLEDGE_REDIRECT}`
 }
 
 function parseScopes(flags: AgentCliFlags): Scope[] | string {
@@ -463,6 +466,9 @@ function parseScopes(flags: AgentCliFlags): Scope[] | string {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)) {
+    if (KNOWLEDGE_SELECTOR_HEADS.has(part.toLowerCase())) {
+      return `Unknown scope "${part}". ${KNOWLEDGE_REDIRECT}`
+    }
     if (!(SCOPES as readonly string[]).includes(part)) {
       return `Unknown scope "${part}".${didYouMean(part)} Scopes: ${SCOPES.join(', ')}.`
     }

@@ -161,6 +161,22 @@ describe('GET /api/v2/workflows/[workflowId]/versions/[version]', () => {
     )
   })
 
+  it.each(['latest', 'v2'])(
+    'names the version path segment when %s is not a version number',
+    async (version) => {
+      const request = createMockRequest({
+        url: `http://localhost/api/v2/workflows/workflow-1/versions/${version}`,
+      })
+      const response = await GET(request, createRouteContext({ workflowId: 'workflow-1', version }))
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error.message).toBe('version must be a positive integer')
+      expect(
+        workflowsPersistenceUtilsMockFns.mockGetWorkflowDeploymentVersion
+      ).not.toHaveBeenCalled()
+    }
+  )
+
   it('never serves credential values in the pinned graph', async () => {
     const response = await get()
 
