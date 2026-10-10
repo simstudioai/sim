@@ -1331,12 +1331,10 @@ function buildBarChartOption(
       cfg?.showVal
         ? {
             show: true,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             position: mapBarLabelPosition(cfg.position, isStacked) as any,
             fontSize: cfg.fontSize ?? 9,
             ...(cfg.color ? { color: cfg.color } : {}),
             ...(cfg.bold === true ? { fontWeight: 'bold' } : {}),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             formatter: (params: any) => {
               const rawVal = params?.value
               const val =
@@ -1368,7 +1366,6 @@ function buildBarChartOption(
       return {
         value: v,
         label: buildLabel(merged),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any
     })
 
@@ -1617,7 +1614,6 @@ function buildPieChartOption(
   const explosions = firstSer ? parseExplosion(firstSer, firstSeries.categories.length) : undefined
 
   const pieData = firstSeries.categories.map((cat, i) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const item: any = {
       name: cat || `Item ${i + 1}`,
       value: firstSeries.values[i] ?? 0,
@@ -1635,11 +1631,9 @@ function buildPieChartOption(
 
   // Build label formatter based on data label config; show value and percent when requested
   const fc = firstSeries.formatCode
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let labelFormatter: string | ((params: any) => string) = '{b}: {c} ({d}%)'
   if (sharedLabels) {
     if (sharedLabels.showVal && fc && fc.includes('%')) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       labelFormatter = (params: any) => {
         const parts: string[] = []
         if (sharedLabels!.showCatName) parts.push(params.name)
@@ -2164,7 +2158,6 @@ function buildStockChartOption(
             seriesArr[1].values[i] ?? 0,
             seriesArr[2].values[i] ?? 0,
           ]),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           renderItem: (_params: any, api: any) => {
             const xValue = api.value(0)
             const high = api.value(1)
@@ -2488,7 +2481,6 @@ function buildChartPalette(chartXml: SafeXmlNode, ctx: RenderContext): string[] 
  * font size was set on that element (i.e., value matches our hardcoded defaults).
  */
 function applyDefaultFontSizes(option: echarts.EChartsOption, defaultFs: number): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const opt = option as any
 
   // Title: our defaults are 12 or 14 — replace with the chart-space default
@@ -2537,7 +2529,6 @@ function applyDefaultFontSizes(option: echarts.EChartsOption, defaultFs: number)
 }
 
 function applyDefaultFontFamily(option: echarts.EChartsOption, fontFamily: string): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const opt = option as any
 
   if (opt.title?.textStyle && !opt.title.textStyle.fontFamily) {
@@ -2574,7 +2565,6 @@ function applyLegendGridMargins(
   chartNode: SafeXmlNode,
   defaultFs: number | undefined
 ): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const opt = option as any
   if (!opt.grid || !opt.legend) return
   if (opt.legend.show === false) return
@@ -2628,7 +2618,6 @@ function applyLegendGridMargins(
  * This post-processes the ECharts option to set axis max when not explicitly provided.
  */
 function applyNiceAxisRange(option: echarts.EChartsOption): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const opt = option as any
 
   // Only applies to cartesian charts with axes
@@ -3152,9 +3141,7 @@ export function parseChartXml(chartXml: SafeXmlNode, ctx: RenderContext): ParseC
     }
     if (plotAreaBg && option.grid) {
       // Apply plot area background via grid (for cartesian charts)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(option.grid as any).backgroundColor = plotAreaBg
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(option.grid as any).show = true
     }
 

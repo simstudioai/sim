@@ -298,7 +298,6 @@ async function listWorkspaceProjects(
   const projects: AsanaProject[] = []
   let offset: string | undefined
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const result = await asanaGet<{ data: AsanaProject[]; next_page: { offset: string } | null }>(
       accessToken,

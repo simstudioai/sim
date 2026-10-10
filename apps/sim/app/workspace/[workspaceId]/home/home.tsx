@@ -298,7 +298,6 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     // listing it would re-run this drain on every render. Omitted deliberately to
     // keep it one-shot — and harmless either way, since `consume` clears the entry
     // atomically and any re-run would find nothing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [chatId, workspaceId, prepareResourceViewForAgentTurn, sendMessage])
 
   function resolveResourceFromContext(

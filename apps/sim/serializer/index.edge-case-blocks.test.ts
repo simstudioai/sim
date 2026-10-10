@@ -14,7 +14,6 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
  * Hoisted mock setup - vi.mock is hoisted, so we need to hoist the config too.
  */
 const { mockBlockConfigs, createMockGetBlock } = vi.hoisted(() => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mockBlockConfigs: Record<string, any> = {
     starter: {
       name: 'Starter',
@@ -39,7 +38,6 @@ const { mockBlockConfigs, createMockGetBlock } = vi.hoisted(() => {
       tools: {
         access: ['anthropic_chat', 'openai_chat'],
         config: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           tool: (params: Record<string, any>) => {
             const model = params.model || 'gpt-4o'
             if (model.includes('claude')) return 'anthropic'
@@ -214,7 +212,6 @@ const { mockBlockConfigs, createMockGetBlock } = vi.hoisted(() => {
     },
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const createMockGetBlock = (extraConfigs: Record<string, any> = {}) => {
     const configs = { ...mockBlockConfigs, ...extraConfigs }
     return (type: string) => configs[type] || null
