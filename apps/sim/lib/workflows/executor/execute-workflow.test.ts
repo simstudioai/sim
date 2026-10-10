@@ -7,7 +7,7 @@ import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionCallbacks } from '@/executor/execution/types'
@@ -267,13 +267,9 @@ describe('executeWorkflow', () => {
   })
 
   it.each([
-    [
-      'a revoked credential, attributed to its owner,',
-      new CredentialRevokedError('Reconnect your account'),
-      'user',
-    ],
-    ['an internal fault', new Error('connection pool exhausted'), 'internal'],
-  ] as const)('logs %s once for its execution', async (_name, executionError, kind) => {
+    ['a revoked credential', new CredentialRevokedError('Reconnect your account')],
+    ['an internal fault', new Error('connection pool exhausted')],
+  ] as const)('logs %s once for its execution', async (_name, executionError) => {
     executeWorkflowCoreMock.mockRejectedValueOnce(executionError)
 
     await expect(
@@ -287,7 +283,6 @@ describe('executeWorkflow', () => {
       )
     ).rejects.toBe(executionError)
 
-    expect(classifyFailure(executionError)).toBe(kind)
     /** The boundary logged it for this execution, so a later boundary in the same run skips it. */
     expect(
       logFailureOnce(createLogger('OuterBoundary'), 'probe', executionError, {

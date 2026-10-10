@@ -489,7 +489,7 @@ export interface ExecutionContext {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   /** Exact candidates that may be carried by this block's terminal error, never its normal output. */
   errorResolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
-  /** The provider call behind this block's terminal error, for its failure line; set per block. */
+  /** Provider and model behind this block's terminal error, added to its failure line. */
   errorDiagnosticDetails?: { provider?: string; model?: string }
   workflowVariables?: Record<string, any>
   workflowVariableResolvedSecretTraceProvenance?: Record<string, ResolvedSecretTraceProvenanceV1>
