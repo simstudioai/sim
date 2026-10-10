@@ -10,6 +10,7 @@ import {
 import {
   markWebhookFailed,
   markWebhookSuccess,
+  recordPollSourceFailure,
   resolveOAuthCredential,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
@@ -82,9 +83,10 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
   provider: 'google-drive',
   label: 'Google Drive',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext) {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
+    const pollStartedAt = Date.now()
 
     try {
       const accessToken = await resolveOAuthCredential(webhookData, 'google-drive', requestId)
@@ -184,8 +186,13 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
         )
         return 'success'
       }
-      logger.error(`[${requestId}] Error processing Google Drive webhook ${webhookId}:`, error)
-      await markWebhookFailed(webhookId, logger)
+      await recordPollSourceFailure(
+        webhookData,
+        pollStartedAt,
+        error,
+        `[${requestId}] Error polling Google Drive webhook ${webhookId}`,
+        logger
+      )
       return 'failure'
     }
   },

@@ -14,16 +14,15 @@ export const ADMISSION_REJECTION_CODE = {
   BILLING_ACCOUNT_REQUIRED: 'BILLING_ACCOUNT_REQUIRED',
 } as const
 
-const DETERMINISTIC_ADMISSION_REJECTION_CODES: ReadonlySet<unknown> = new Set(
+const DETERMINISTIC_ADMISSION_REJECTION_CODES: ReadonlySet<string> = new Set(
   Object.values(ADMISSION_REJECTION_CODE)
 )
 
 /** The failure's code when it is a deterministic admission rejection, else `undefined`. */
 export function getDeterministicAdmissionRejectionCode(failure: {
-  code?: unknown
+  code?: string
 }): string | undefined {
-  return typeof failure.code === 'string' &&
-    DETERMINISTIC_ADMISSION_REJECTION_CODES.has(failure.code)
+  return failure.code && DETERMINISTIC_ADMISSION_REJECTION_CODES.has(failure.code)
     ? failure.code
     : undefined
 }

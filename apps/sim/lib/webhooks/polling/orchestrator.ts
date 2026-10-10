@@ -6,7 +6,7 @@ import { getPollingHandler } from '@/lib/webhooks/polling/registry'
 import type { PollSummary } from '@/lib/webhooks/polling/types'
 import {
   fetchActiveWebhooks,
-  getPollBackoffUntil,
+  isPollBackedOff,
   runWithConcurrency,
 } from '@/lib/webhooks/polling/utils'
 
@@ -39,7 +39,7 @@ export async function pollProvider(providerName: string): Promise<PollSummary> {
   const { successCount, failureCount, skippedCount } = await runWithConcurrency(
     activeWebhooks,
     async (entry) => {
-      if (getPollBackoffUntil(entry.webhook.providerConfig, tickStartedAt) !== null) {
+      if (isPollBackedOff(entry.webhook.providerConfig, tickStartedAt)) {
         logger.debug(`Backing off webhook ${entry.webhook.id} after source fetch failures`)
         return 'skipped'
       }

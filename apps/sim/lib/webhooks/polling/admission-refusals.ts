@@ -11,7 +11,7 @@ const logger = createLogger('PollAdmissionRefusals')
  * suspended account, missing billing account). Polling resumes on its own after
  * this window, so a raised limit takes effect within it.
  */
-export const POLL_ADMISSION_REFUSAL_TTL_SECONDS = 5 * 60
+const POLL_ADMISSION_REFUSAL_TTL_SECONDS = 5 * 60
 
 const refusalKey = (workspaceId: string) => `poll-admission-refused:v1:${workspaceId}`
 

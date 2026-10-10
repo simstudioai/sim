@@ -11,6 +11,7 @@ import { parseRequest } from '@/lib/api/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isDroppedDispatch } from '@/lib/webhooks/dispatch-result'
 import {
   dispatchResolvedWebhookTarget,
   findAllWebhooksForPath,
@@ -264,20 +265,13 @@ async function handleWebhookDelivery(
    */
   const responses: NextResponse[] = []
   const failures: NextResponse[] = []
-  /**
-   * A target that dropped the delivery for good (block missing, admission refusal acknowledged)
-   * answers 200 only when no other target needs the sender to retry.
-   */
   let hasDroppedTarget = false
   for (const dispatchResult of legacySlackDispatchResults) {
     if (dispatchResult.outcome === 'failed') {
       failures.push(getSlackDispatchFailureResponse(dispatchResult))
       continue
     }
-    if (
-      dispatchResult.reason === 'block-missing' ||
-      dispatchResult.reason === 'admission-rejected'
-    ) {
+    if (isDroppedDispatch(dispatchResult)) {
       hasDroppedTarget = true
       continue
     }

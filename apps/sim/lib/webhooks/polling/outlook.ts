@@ -11,6 +11,7 @@ import {
 import {
   markWebhookFailed,
   markWebhookSuccess,
+  recordPollSourceFailure,
   resolveOAuthCredential,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
@@ -110,9 +111,10 @@ export const outlookPollingHandler: PollingProviderHandler = {
   provider: 'outlook',
   label: 'Outlook',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext) {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
+    const pollStartedAt = Date.now()
 
     try {
       logger.info(`[${requestId}] Processing Outlook webhook: ${webhookId}`)
@@ -166,8 +168,13 @@ export const outlookPollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
-      logger.error(`[${requestId}] Error processing Outlook webhook ${webhookId}:`, error)
-      await markWebhookFailed(webhookId, logger)
+      await recordPollSourceFailure(
+        webhookData,
+        pollStartedAt,
+        error,
+        `[${requestId}] Error polling Outlook webhook ${webhookId}`,
+        logger
+      )
       return 'failure'
     }
   },

@@ -4,7 +4,7 @@ import type { Logger } from '@sim/logger'
 import { toNumberOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
-import { parseRetryAfter } from '@sim/utils/retry'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm'
 import {
   getOAuthToken,
@@ -13,14 +13,11 @@ import {
   resolveServiceAccountToken,
 } from '@/lib/oauth/credential-service'
 import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
-import type { WebhookRecord, WorkflowRecord } from '@/lib/webhooks/polling/types'
+import type { PollOutcome, WebhookRecord, WorkflowRecord } from '@/lib/webhooks/polling/types'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 /** Concurrency limit for parallel webhook processing. Standardized across all providers. */
 export const CONCURRENCY = 10
-
-/** Outcome of one webhook's poll; `skipped` polls fetched nothing and changed no state. */
-export type PollOutcome = 'success' | 'failure' | 'skipped'
 
 /** Wait after one failed source fetch; doubles with each further consecutive one. */
 const POLL_BACKOFF_BASE_MS = 60_000
@@ -30,31 +27,17 @@ const POLL_TICK_TOLERANCE_MS = 10_000
 /** Ceiling on a source's own `Retry-After`, so a hostile feed cannot park a trigger for days. */
 const POLL_RETRY_AFTER_MAX_MS = 24 * 60 * 60_000
 
-/** `providerConfig` keys holding a source's fetch backoff; written only by {@link recordPollSourceFailure}. */
-export const POLL_BACKOFF_UNTIL_KEY = 'pollBackoffUntil'
-export const POLL_SOURCE_FAILURES_KEY = 'pollSourceFailures'
+const POLL_BACKOFF_UNTIL_KEY = 'pollBackoffUntil'
+const POLL_SOURCE_FAILURES_KEY = 'pollSourceFailures'
 
 /**
- * When a webhook whose source keeps failing may next be polled, or null when it
- * may poll now.
- *
- * Only source fetch failures drive this — a non-2xx, an unreachable or
- * unparseable feed, a source's own `Retry-After` or `FLOOD_WAIT_<n>`. Failures
- * processing fetched items (a transient concurrency refusal, a queue error)
- * never back a webhook off. After n consecutive source failures the wait is
- * 2^(n-1) minutes, capped at an hour, or longer when the source asked for it.
- * {@link recordPollSourceFailure} stamps the window from when the failed poll
- * started, so a slow failing poll does not also cost the next tick.
- *
- * Polls skipped here do not count toward `MAX_CONSECUTIVE_FAILURES`; only polls
- * that run and fail do. A source failing nonstop therefore reaches the
- * auto-disable after roughly 95 hours of backed-off polling rather than about
- * 100 minutes of polling every minute.
+ * Whether a webhook is inside the backoff window {@link recordPollSourceFailure}
+ * set after its source fetch failed. Item-processing failures never set one.
  */
-export function getPollBackoffUntil(providerConfig: unknown, now: number): number | null {
+export function isPollBackedOff(providerConfig: unknown, now: number): boolean {
   const value = toRecord(providerConfig)[POLL_BACKOFF_UNTIL_KEY]
   const until = typeof value === 'string' ? Date.parse(value) : Number.NaN
-  return Number.isNaN(until) || until - POLL_TICK_TOLERANCE_MS <= now ? null : until
+  return !Number.isNaN(until) && until - POLL_TICK_TOLERANCE_MS > now
 }
 
 /**
@@ -83,9 +66,12 @@ export function readPollRetryAfterMs(retryAfterHeader: string | null, body: stri
 
 /**
  * Records a poll whose source fetch failed: logs it once (a source's own 4xx at
- * `warn`, since it is the source's answer rather than a fault here; anything
- * else at `error`), persists the backoff window read by
- * {@link getPollBackoffUntil}, and counts the failure.
+ * `warn`, anything else at `error`) and counts the failure. The next fetch waits
+ * about 2^(n-1) minutes after n consecutive source failures, capped at an hour,
+ * or longer when the source asked for it, measured from the failed poll's start
+ * so a slow poll does not also cost the next tick. Skipped polls do not count
+ * toward `MAX_CONSECUTIVE_FAILURES`, so a source failing nonstop reaches the
+ * auto-disable after roughly four days instead of about 100 minutes.
  */
 export async function recordPollSourceFailure(
   webhookData: Pick<WebhookRecord, 'id' | 'providerConfig'>,
@@ -107,7 +93,10 @@ export async function recordPollSourceFailure(
 
   const failures =
     (toNumberOrNull(toRecord(webhookData.providerConfig)[POLL_SOURCE_FAILURES_KEY]) ?? 0) + 1
-  const backoffMs = Math.min(POLL_BACKOFF_BASE_MS * 2 ** (failures - 1), POLL_BACKOFF_MAX_MS)
+  const backoffMs = backoffWithJitter(failures, null, {
+    baseMs: POLL_BACKOFF_BASE_MS,
+    maxMs: POLL_BACKOFF_MAX_MS,
+  })
   await updateWebhookProviderConfig(
     webhookData.id,
     {
@@ -119,14 +108,6 @@ export async function recordPollSourceFailure(
     logger
   )
   await markWebhookFailed(webhookData.id, logger)
-}
-
-/** Config updates that clear a recorded source backoff after a successful fetch. */
-export function clearPollBackoff(providerConfig: unknown): Record<string, undefined> {
-  const config = toRecord(providerConfig)
-  return POLL_SOURCE_FAILURES_KEY in config || POLL_BACKOFF_UNTIL_KEY in config
-    ? { [POLL_SOURCE_FAILURES_KEY]: undefined, [POLL_BACKOFF_UNTIL_KEY]: undefined }
-    : {}
 }
 
 /** Increment the webhook's failure count. Auto-disables after MAX_CONSECUTIVE_FAILURES. */
@@ -161,13 +142,14 @@ export async function markWebhookFailed(webhookId: string, logger: Logger): Prom
   }
 }
 
-/** Reset the webhook's failure count on successful poll. */
+/** Reset the webhook's failure count and any source backoff on a successful poll. */
 export async function markWebhookSuccess(webhookId: string, logger: Logger): Promise<void> {
   try {
     await db
       .update(webhook)
       .set({
         failedCount: 0,
+        providerConfig: sql`(COALESCE(${webhook.providerConfig}::jsonb, '{}'::jsonb) - ${POLL_BACKOFF_UNTIL_KEY}::text - ${POLL_SOURCE_FAILURES_KEY}::text)::json`,
         updatedAt: new Date(),
       })
       .where(

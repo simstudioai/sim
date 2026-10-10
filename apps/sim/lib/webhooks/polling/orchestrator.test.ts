@@ -15,7 +15,6 @@ vi.mock('@/lib/webhooks/polling/registry', () => ({
 import { recordPollAdmissionRefusal } from '@/lib/webhooks/polling/admission-refusals'
 import { pollProvider } from '@/lib/webhooks/polling/orchestrator'
 import type { WebhookRecord } from '@/lib/webhooks/polling/types'
-import { POLL_BACKOFF_UNTIL_KEY } from '@/lib/webhooks/polling/utils'
 
 function activeEntry(
   id: string,
@@ -89,10 +88,10 @@ describe('pollProvider skips', () => {
   it('does not poll a webhook still inside its source backoff window', async () => {
     queueTableRows(webhook, [
       activeEntry('backing-off', 'workspace-1', {
-        [POLL_BACKOFF_UNTIL_KEY]: new Date(Date.now() + 10 * 60_000).toISOString(),
+        pollBackoffUntil: new Date(Date.now() + 10 * 60_000).toISOString(),
       }),
       activeEntry('due', 'workspace-1', {
-        [POLL_BACKOFF_UNTIL_KEY]: new Date(Date.now() - 1000).toISOString(),
+        pollBackoffUntil: new Date(Date.now() - 1000).toISOString(),
       }),
     ])
 

@@ -168,16 +168,12 @@ export interface WebhookProviderHandler {
   formatErrorResponse?(error: string, status: number): NextResponse
 
   /**
-   * Answer a deterministic admission rejection (usage limit, suspended account,
-   * missing billing account — see `lib/core/admission/rejection`) with an empty
-   * `200` instead of the error status, dropping the delivery.
-   *
-   * Opt in only for senders that resend non-2xx deliveries aggressively and whose
-   * events lose their value by the time a person could lift the block: the
-   * resends cannot succeed, so they only loop and count against the sender's
-   * failure budget. Senders that pace their retries over days (Stripe, Meta) or
-   * whose callers act on the status (generic) keep the error. Polling never sees
-   * the acknowledgment; it always receives the raw rejection.
+   * Answer a deterministic admission rejection (`lib/core/admission/rejection`)
+   * with an empty `200`, dropping the delivery. Only for senders that resend
+   * non-2xx deliveries aggressively and whose events go stale before a person
+   * could lift the block; senders that retry over days (Stripe, Meta) or whose
+   * callers read the status (generic) keep the error. Polling always gets the
+   * raw rejection.
    */
   acknowledgeAdmissionRejections?: boolean
 

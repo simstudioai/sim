@@ -2,6 +2,9 @@ import type { webhook, workflow } from '@sim/db/schema'
 import type { Logger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
 
+/** Outcome of one webhook's poll; `skipped` polls fetched nothing and changed no state. */
+export type PollOutcome = 'success' | 'failure' | 'skipped'
+
 /** Summary returned after polling all webhooks for a provider. */
 export interface PollSummary {
   total: number
@@ -54,5 +57,5 @@ export interface PollingProviderHandler {
    * Return 'success' (even if 0 new items), 'failure', or 'skipped' when the
    * poll stopped without consuming anything (an admission rejection mid-poll).
    */
-  pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure' | 'skipped'>
+  pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome>
 }

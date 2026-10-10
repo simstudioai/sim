@@ -7,7 +7,7 @@ vi.mock('@/triggers/constants', () => ({ MAX_CONSECUTIVE_FAILURES: 5 }))
 
 import { sql } from 'drizzle-orm'
 import {
-  getPollBackoffUntil,
+  isPollBackedOff,
   PollFetchError,
   readPollRetryAfterMs,
   recordPollSourceFailure,
@@ -84,16 +84,24 @@ describe('poll source backoff', () => {
     { previousFailures: 4, waitMinutes: 16 },
     { previousFailures: 40, waitMinutes: 60 },
   ])(
-    'after $previousFailures earlier source failures, waits $waitMinutes minutes from the poll start',
+    'after $previousFailures earlier source failures, waits about $waitMinutes minutes from the poll start',
     async ({ previousFailures, waitMinutes }) => {
       const stored = await failOnce(previousFailures)
-      const until = Date.parse(String(stored.pollBackoffUntil))
+      const waitMs = Date.parse(String(stored.pollBackoffUntil)) - pollStartedAt
 
-      expect(until).toBe(pollStartedAt + minutes(waitMinutes))
-      expect(getPollBackoffUntil(stored, until - minutes(1))).toBe(until)
-      expect(getPollBackoffUntil(stored, until)).toBeNull()
+      expect(stored.pollSourceFailures).toBe(previousFailures + 1)
+      expect(waitMs).toBeGreaterThanOrEqual(minutes(waitMinutes) * 0.8)
+      expect(waitMs).toBeLessThanOrEqual(minutes(waitMinutes) * 1.2)
     }
   )
+
+  it('keeps a webhook backed off until its window ends', async () => {
+    const stored = await failOnce(4)
+    const until = Date.parse(String(stored.pollBackoffUntil))
+
+    expect(isPollBackedOff(stored, until - minutes(1))).toBe(true)
+    expect(isPollBackedOff(stored, until)).toBe(false)
+  })
 
   it('waits out a Retry-After longer than the failure backoff', async () => {
     const stored = await failOnce(0, new PollFetchError('rate limited', 429, minutes(10)))
@@ -102,12 +110,12 @@ describe('poll source backoff', () => {
 
   it('lets the next tick poll after one failure even when the failing poll ran long', async () => {
     const stored = await failOnce(0)
-    expect(getPollBackoffUntil(stored, pollStartedAt + minutes(1) - 5_000)).toBeNull()
+    expect(isPollBackedOff(stored, pollStartedAt + minutes(1.2))).toBe(false)
   })
 
   it('ignores a missing or malformed window', () => {
     for (const config of [{}, { pollBackoffUntil: 'not-a-date' }, { pollBackoffUntil: 42 }, null]) {
-      expect(getPollBackoffUntil(config, pollStartedAt)).toBeNull()
+      expect(isPollBackedOff(config, pollStartedAt)).toBe(false)
     }
   })
 })

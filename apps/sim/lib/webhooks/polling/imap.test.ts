@@ -7,12 +7,14 @@ const {
   mockHasImapEnvironmentReferences,
   mockLogger,
   mockMarkWebhookFailed,
+  mockRecordPollSourceFailure,
   mockResolveImapConnectionForActor,
 } = vi.hoisted(() => ({
   mockCreateSecureImapClient: vi.fn(),
   mockHasImapEnvironmentReferences: vi.fn(),
   mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   mockMarkWebhookFailed: vi.fn(),
+  mockRecordPollSourceFailure: vi.fn(),
   mockResolveImapConnectionForActor: vi.fn(),
 }))
 
@@ -30,6 +32,7 @@ vi.mock('@/lib/imap/connection.server', () => ({
 vi.mock('@/lib/webhooks/polling/utils', () => ({
   markWebhookFailed: mockMarkWebhookFailed,
   markWebhookSuccess: vi.fn(),
+  recordPollSourceFailure: mockRecordPollSourceFailure,
   updateWebhookProviderConfig: vi.fn(),
 }))
 
@@ -62,7 +65,9 @@ describe('IMAP runtime polling policy', () => {
     })
 
     expect(result).toBe('failure')
-    expect(mockMarkWebhookFailed).toHaveBeenCalledWith('webhook-1', mockLogger)
+    const [failedWebhook, , failure, failureMessage] = mockRecordPollSourceFailure.mock.calls[0]
+    expect(failedWebhook).toMatchObject({ id: 'webhook-1' })
+    expect(JSON.stringify([String(failure), failureMessage])).not.toContain('literal-')
     expect(mockDbSelect).not.toHaveBeenCalled()
     expect(mockResolveImapConnectionForActor).not.toHaveBeenCalled()
     expect(mockCreateSecureImapClient).not.toHaveBeenCalled()
@@ -111,6 +116,6 @@ describe('IMAP runtime polling policy', () => {
     expect(mockCreateSecureImapClient).toHaveBeenCalledWith(
       expect.objectContaining({ username: 'resolved-user', password: 'resolved-password' })
     )
-    expect(mockMarkWebhookFailed).toHaveBeenCalledWith('webhook-1', mockLogger)
+    expect(mockRecordPollSourceFailure.mock.calls[0][0]).toMatchObject({ id: 'webhook-1' })
   })
 })

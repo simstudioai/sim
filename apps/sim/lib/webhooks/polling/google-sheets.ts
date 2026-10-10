@@ -10,6 +10,7 @@ import {
 import {
   markWebhookFailed,
   markWebhookSuccess,
+  recordPollSourceFailure,
   resolveOAuthCredential,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
@@ -51,9 +52,10 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
   provider: 'google-sheets',
   label: 'Google Sheets',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext) {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
+    const pollStartedAt = Date.now()
 
     try {
       const accessToken = await resolveOAuthCredential(webhookData, 'google-sheets', requestId)
@@ -227,8 +229,13 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
-      logger.error(`[${requestId}] Error processing Google Sheets webhook ${webhookId}:`, error)
-      await markWebhookFailed(webhookId, logger)
+      await recordPollSourceFailure(
+        webhookData,
+        pollStartedAt,
+        error,
+        `[${requestId}] Error polling Google Sheets webhook ${webhookId}`,
+        logger
+      )
       return 'failure'
     }
   },

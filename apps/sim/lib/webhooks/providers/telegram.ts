@@ -4,10 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import {
-  resolveBackgroundWebhookEnv,
-  resolveWebhookProviderConfig,
-} from '@/lib/webhooks/env-resolver'
+import { resolveBackgroundWebhookEnv } from '@/lib/webhooks/env-resolver'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -19,6 +16,7 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
+import { createEnvVarPattern, resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('WebhookProvider:Telegram')
 
@@ -324,21 +322,18 @@ async function findActiveTelegramConfigsForBot(
   const activeConfigs = activeWebhooks.map((activeWebhook) =>
     getProviderConfig({ providerConfig: activeWebhook.providerConfig })
   )
-  if (!activeConfigs.some((config) => String(config.botToken ?? '').includes('{{'))) {
-    return activeConfigs.filter((config) => config.botToken === botToken)
-  }
-
+  const referencesEnv = activeConfigs.some((config) =>
+    createEnvVarPattern().test(String(config.botToken ?? ''))
+  )
   const ownerUserId = workflowRecord.userId
-  if (typeof ownerUserId !== 'string') return []
-  const workspaceId =
-    typeof workflowRecord.workspaceId === 'string' ? workflowRecord.workspaceId : undefined
-  const envVars = await resolveBackgroundWebhookEnv(ownerUserId, workspaceId)
-  const matches: Record<string, unknown>[] = []
-  for (const config of activeConfigs) {
-    const resolved = await resolveWebhookProviderConfig(config, ownerUserId, workspaceId, {
-      envVars,
-    })
-    if (resolved.botToken === botToken) matches.push(config)
-  }
-  return matches
+  const envVars =
+    referencesEnv && typeof ownerUserId === 'string'
+      ? await resolveBackgroundWebhookEnv(
+          ownerUserId,
+          typeof workflowRecord.workspaceId === 'string' ? workflowRecord.workspaceId : undefined
+        )
+      : {}
+  return activeConfigs.filter(
+    (config) => resolveEnvVarReferences(config.botToken, envVars) === botToken
+  )
 }

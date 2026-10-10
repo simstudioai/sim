@@ -13,7 +13,6 @@ import {
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
-  clearPollBackoff,
   markWebhookFailed,
   markWebhookSuccess,
   PollFetchError,
@@ -95,7 +94,7 @@ export const rssPollingHandler: PollingProviderHandler = {
   provider: 'rss',
   label: 'RSS',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure' | 'skipped'> {
+  async pollWebhook(ctx: PollWebhookContext) {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
     const pollStartedAt = Date.now()
@@ -210,7 +209,6 @@ async function updateRssState(
     {
       lastCheckedTimestamp: timestamp,
       lastSeenGuids: allGuids,
-      ...clearPollBackoff(config),
       ...(etag !== undefined ? { etag } : {}),
       ...(lastModified !== undefined ? { lastModified } : {}),
     },
@@ -321,6 +319,14 @@ async function fetchNewRssItems(
   }
 }
 
+/** Thrown out of the idempotency wrapper so a refused item is not recorded as processed. */
+class AdmissionRefusedError extends Error {
+  constructor(statusCode: number | undefined, message: string | undefined) {
+    super(`Execution admission refused (${statusCode}): ${message}`)
+    this.name = 'AdmissionRefusedError'
+  }
+}
+
 async function processRssItems(
   items: RssItem[],
   feed: RssFeed,
@@ -333,7 +339,6 @@ async function processRssItems(
   let failedCount = 0
 
   for (const [index, item] of items.entries()) {
-    let admissionRejected = false
     try {
       const itemGuid = getRssItemGuid(item)
 
@@ -382,8 +387,7 @@ async function processRssItems(
 
           if (!result.success) {
             if (getDeterministicAdmissionRejectionCode(result)) {
-              admissionRejected = true
-              throw new Error(`Execution admission refused (${result.statusCode}): ${result.error}`)
+              throw new AdmissionRefusedError(result.statusCode, result.error)
             }
             logger.error(
               `[${requestId}] Failed to process webhook for item ${itemGuid}:`,
@@ -402,7 +406,7 @@ async function processRssItems(
       )
       processedCount++
     } catch (error) {
-      if (admissionRejected) {
+      if (error instanceof AdmissionRefusedError) {
         return { processedCount, failedCount, admissionRejectedAt: index }
       }
       const errorMessage = getErrorMessage(error, 'Unknown error')

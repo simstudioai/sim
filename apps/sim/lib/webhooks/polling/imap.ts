@@ -18,6 +18,7 @@ import {
 import {
   markWebhookFailed,
   markWebhookSuccess,
+  recordPollSourceFailure,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -113,9 +114,10 @@ export const imapPollingHandler: PollingProviderHandler = {
   provider: 'imap',
   label: 'IMAP',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext) {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
+    const pollStartedAt = Date.now()
 
     try {
       const config = getProviderConfig<ImapWebhookConfig>(webhookData.providerConfig)
@@ -201,8 +203,14 @@ export const imapPollingHandler: PollingProviderHandler = {
         throw innerError
       }
     } catch {
-      logger.error(`[${requestId}] Error processing IMAP webhook ${webhookId}`)
-      await markWebhookFailed(webhookId, logger)
+      // The IMAP client's errors can echo server responses, so the cause is not logged.
+      await recordPollSourceFailure(
+        webhookData,
+        pollStartedAt,
+        new Error('IMAP poll failed'),
+        `[${requestId}] Error polling IMAP webhook ${webhookId}`,
+        logger
+      )
       return 'failure'
     }
   },

@@ -9,6 +9,7 @@ import {
 import {
   markWebhookFailed,
   markWebhookSuccess,
+  recordPollSourceFailure,
   resolveOAuthCredential,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
@@ -192,9 +193,10 @@ export const hubspotPollingHandler: PollingProviderHandler = {
   provider: 'hubspot',
   label: 'HubSpot',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext) {
     const { webhookData, requestId, logger } = ctx
     const webhookId = webhookData.id
+    const pollStartedAt = Date.now()
 
     try {
       const accessToken = await resolveOAuthCredential(webhookData, 'hubspot', requestId)
@@ -205,8 +207,13 @@ export const hubspotPollingHandler: PollingProviderHandler = {
       }
       return await pollSearchBased(ctx, config, accessToken)
     } catch (error) {
-      logger.error(`[${requestId}] Error processing HubSpot webhook ${webhookId}:`, error)
-      await markWebhookFailed(webhookId, logger)
+      await recordPollSourceFailure(
+        webhookData,
+        pollStartedAt,
+        error,
+        `[${requestId}] Error polling HubSpot webhook ${webhookId}`,
+        logger
+      )
       return 'failure'
     }
   },
