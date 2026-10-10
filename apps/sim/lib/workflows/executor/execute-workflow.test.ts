@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
@@ -6,6 +7,8 @@ import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
+import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionCallbacks } from '@/executor/execution/types'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -261,6 +264,36 @@ describe('executeWorkflow', () => {
     await executionPromise
 
     expect(executionSettled).toBe(true)
+  })
+
+  it.each([
+    [
+      'a revoked credential, attributed to its owner,',
+      new CredentialRevokedError('Reconnect your account'),
+      'user',
+    ],
+    ['an internal fault', new Error('connection pool exhausted'), 'internal'],
+  ] as const)('logs %s once for its execution', async (_name, executionError, kind) => {
+    executeWorkflowCoreMock.mockRejectedValueOnce(executionError)
+
+    await expect(
+      executeWorkflow(
+        workflow,
+        'request-1',
+        undefined,
+        'actor-1',
+        { enabled: true, principal, billingAttribution },
+        'execution-boundary'
+      )
+    ).rejects.toBe(executionError)
+
+    expect(classifyFailure(executionError)).toBe(kind)
+    /** The boundary logged it for this execution, so a later boundary in the same run skips it. */
+    expect(
+      logFailureOnce(createLogger('OuterBoundary'), 'probe', executionError, {
+        executionId: 'execution-boundary',
+      })
+    ).toBeUndefined()
   })
 
   it('waits for post-execution persistence before rejecting', async () => {

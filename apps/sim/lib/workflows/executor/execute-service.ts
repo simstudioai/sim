@@ -6,6 +6,7 @@ import { generateId, isValidUuid } from '@sim/utils/id'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { getDeterministicAdmissionRejectionCode } from '@/lib/core/admission/rejection'
 import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
@@ -411,7 +412,14 @@ export async function executeWorkflowService(
         kind: 'precheck',
         message: preprocessError.message,
         statusCode: preprocessError.statusCode,
-        code: preprocessError.code,
+        /**
+         * Admission rejection codes steer Sim's own retry decisions (webhook acknowledgement,
+         * polling back-off) and are not part of the public error contract: a 403 names only
+         * `FORBIDDEN_DETAIL_CODES`, and a 402 already says `USAGE_LIMIT_EXCEEDED`.
+         */
+        code: getDeterministicAdmissionRejectionCode(preprocessError)
+          ? undefined
+          : preprocessError.code,
         retryAfterMs: preprocessError.retryAfterMs,
       })
     }

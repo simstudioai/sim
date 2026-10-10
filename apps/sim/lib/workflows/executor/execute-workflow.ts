@@ -7,6 +7,7 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -294,7 +295,10 @@ export async function executeWorkflow(
       attachExecutionResult(error, executionResult)
     }
     const errorDiagnostic = loggingSession.projectDiagnosticError(error)
-    logger.error(`[${requestId}] Workflow execution failed`, errorDiagnostic)
+    logFailureOnce(logger, `[${requestId}] Workflow execution failed`, error, {
+      metadata: errorDiagnostic,
+      executionId,
+    })
 
     captureServerEvent(
       actorUserId,

@@ -7,6 +7,7 @@ import {
   type BillingAttributionSnapshot,
   billingAttributionsEqual,
 } from '@/lib/billing/core/billing-attribution'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
   capExecutionTimeoutMs,
   createTimeoutAbortController,
@@ -248,13 +249,10 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
       executedAt: new Date().toISOString(),
     }
   } catch (error) {
-    logger.error(
-      'Background resume execution failed',
-      projectResolvedSecretDiagnosticError(error, undefined, {
-        resumeExecutionId,
-        workflowId,
-      })
-    )
+    logFailureOnce(logger, 'Background resume execution failed', error, {
+      metadata: () => projectResolvedSecretDiagnosticError(error, undefined, { workflowId }),
+      executionId: resumeExecutionId,
+    })
     throw error
   } finally {
     timeoutController?.cleanup()

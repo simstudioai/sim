@@ -91,7 +91,6 @@ import {
   recordServiceCost,
   recordServiceMeteringFailure,
 } from '@/lib/mothership/billing/service-observer'
-import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -1888,168 +1887,158 @@ async function executeToolImplementation(
     let refreshCredential: ((signal: AbortSignal) => Promise<void>) | undefined
     if (contextParams.credential) {
       logger.info(`[${requestId}] Resolving tool access token`, { toolId: normalizedToolId })
-      try {
-        const workflowId = scope.workflowId
-        const userId = scope.userId
-        const credentialId = contextParams.credential as string
-        const toolLabel = tool?.name || toolId
-        const impersonateEmail = contextParams.impersonateUserEmail as string | undefined
+      const workflowId = scope.workflowId
+      const userId = scope.userId
+      const credentialId = contextParams.credential as string
+      const toolLabel = tool?.name || toolId
+      const impersonateEmail = contextParams.impersonateUserEmail as string | undefined
 
-        let providerScopes: string[] | undefined
-        if (tool?.oauth?.provider) {
-          const scopesForProvider =
-            tool.oauth.requiredScopes ??
-            (await import('@/lib/oauth/utils')).getCanonicalScopesForProvider(tool.oauth.provider)
-          if (scopesForProvider.length > 0) {
-            providerScopes = scopesForProvider
-          }
+      let providerScopes: string[] | undefined
+      if (tool?.oauth?.provider) {
+        const scopesForProvider =
+          tool.oauth.requiredScopes ??
+          (await import('@/lib/oauth/utils')).getCanonicalScopesForProvider(tool.oauth.provider)
+        if (scopesForProvider.length > 0) {
+          providerScopes = scopesForProvider
         }
-
-        /**
-         * The acting user asserted alongside the credential. Only asserted when the
-         * run enforces credential access — it never widens access, it only pins the
-         * assertion to the authenticated subject.
-         */
-        const enforceCredentialAccess = Boolean(contextParams._context?.enforceCredentialAccess)
-
-        const credentialTool = tool
-        const resolveCredential = async (signal?: AbortSignal): Promise<void> => {
-          signal?.throwIfAborted()
-          let data: CredentialTokenPayload
-          if (typeof window === 'undefined') {
-            /**
-             * Dynamic import for the same client-bundle reason as the workflow_executor
-             * runner below: the resolver pulls the db/audit dependency graph, which must
-             * never enter the client-bundled tool registry.
-             */
-            const { resolveExecutorCredentialToken } = await import(
-              '@/executor/utils/credential-token'
-            )
-            data = await waitWithAbort(
-              resolveExecutorCredentialToken({
-                requestId,
-                credentialId,
-                userId,
-                workflowId,
-                toolId,
-                toolLabel,
-                scopes: providerScopes,
-                impersonateEmail,
-                enforceCredentialAccess,
-                executorDelegationOrigin: executionContext?.executorDelegationOrigin,
-                ...(operationContext?.copilotToolExecution
-                  ? { copilotExecutionContext: operationContext }
-                  : {}),
-              }),
-              signal
-            )
-          } else {
-            data = await waitWithAbort(
-              fetchCredentialTokenFromRoute({
-                requestId,
-                toolId,
-                toolLabel,
-                credentialId,
-                workflowId,
-                impersonateEmail,
-                scopes: providerScopes,
-                callerUserId: userId && enforceCredentialAccess ? userId : undefined,
-              }),
-              signal
-            )
-          }
-
-          signal?.throwIfAborted()
-
-          if (credentialTool.oauth?.credentialKind) {
-            const actualCredentialKind =
-              data.credentialType === 'service_account'
-                ? 'service-account'
-                : data.credentialType === 'oauth' || data.credentialType === 'managed_oauth'
-                  ? 'oauth'
-                  : null
-            if (actualCredentialKind !== credentialTool.oauth.credentialKind) {
-              throw new Error(
-                `${credentialTool.name} requires a ${credentialTool.oauth.credentialKind} credential`
-              )
-            }
-          }
-
-          if (operationContext?.requestMode === 'assistant') {
-            await registerAssistantCredentialSecrets(resolvedSecretTraceRegistry, [
-              data.accessToken,
-              data.idToken,
-            ])
-          }
-          for (const paramId of credentialTool.oauth?.authoritativeParams ?? []) {
-            contextParams[paramId] = undefined
-          }
-          contextParams.accessToken = data.accessToken
-          if (operationContext?.requestMode === 'assistant') {
-            const tokenParam = assistantConnectedAccountTokenParam(credentialTool)
-            if (tokenParam) contextParams[tokenParam] = data.accessToken
-          }
-          if (
-            data.credentialType &&
-            credentialTool.oauth?.authoritativeParams?.includes('credentialType')
-          ) {
-            contextParams.credentialType = data.credentialType
-          }
-          if (data.idToken) {
-            contextParams.idToken = data.idToken
-          }
-          if (data.instanceUrl) {
-            contextParams.instanceUrl = data.instanceUrl
-          }
-          if (data.apiDomain && !contextParams.apiDomain) {
-            contextParams.apiDomain = data.apiDomain
-          }
-          if (data.cloudId && !contextParams.cloudId) {
-            contextParams.cloudId = data.cloudId
-          }
-          if (data.domain && !contextParams.domain) {
-            contextParams.domain = data.domain
-          }
-          if (data.realmId && credentialTool.oauth?.authoritativeParams?.includes('realmId')) {
-            contextParams.realmId = data.realmId
-          }
-          if (
-            data.quickBooksEnvironment &&
-            credentialTool.oauth?.authoritativeParams?.includes('quickBooksEnvironment')
-          ) {
-            contextParams.quickBooksEnvironment = data.quickBooksEnvironment
-          }
-          if (data.authStyle && !contextParams.authStyle) {
-            contextParams.authStyle = data.authStyle
-          }
-        }
-        await resolveCredential(effectiveSignal)
-        if (tool.oauth?.retryOnUnauthorized && tool.operation) {
-          refreshCredential = resolveCredential
-        }
-
-        logger.info(`[${requestId}] Successfully got access token for ${toolId}`)
-
-        // Preserve credential for downstream transforms while removing it from request payload
-        // so we don't leak it to external services.
-        if (contextParams.credential) {
-          ;(contextParams as any)._credentialId = contextParams.credential
-        }
-        if (workflowId) {
-          ;(contextParams as any)._workflowId = workflowId
-        }
-        contextParams.credential = undefined
-        contextParams.impersonateUserEmail = undefined
-        if (contextParams.workflowId) contextParams.workflowId = undefined
-      } catch (error: any) {
-        // A revoked credential is the user's to reconnect; the resolver already logged it.
-        if (!(error instanceof CredentialRevokedError)) {
-          logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {
-            error: toError(error).message,
-          })
-        }
-        throw error
       }
+
+      /**
+       * The acting user asserted alongside the credential. Only asserted when the
+       * run enforces credential access — it never widens access, it only pins the
+       * assertion to the authenticated subject.
+       */
+      const enforceCredentialAccess = Boolean(contextParams._context?.enforceCredentialAccess)
+
+      const credentialTool = tool
+      const resolveCredential = async (signal?: AbortSignal): Promise<void> => {
+        signal?.throwIfAborted()
+        let data: CredentialTokenPayload
+        if (typeof window === 'undefined') {
+          /**
+           * Dynamic import for the same client-bundle reason as the workflow_executor
+           * runner below: the resolver pulls the db/audit dependency graph, which must
+           * never enter the client-bundled tool registry.
+           */
+          const { resolveExecutorCredentialToken } = await import(
+            '@/executor/utils/credential-token'
+          )
+          data = await waitWithAbort(
+            resolveExecutorCredentialToken({
+              requestId,
+              credentialId,
+              userId,
+              workflowId,
+              toolId,
+              toolLabel,
+              scopes: providerScopes,
+              impersonateEmail,
+              enforceCredentialAccess,
+              executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+              ...(operationContext?.copilotToolExecution
+                ? { copilotExecutionContext: operationContext }
+                : {}),
+            }),
+            signal
+          )
+        } else {
+          data = await waitWithAbort(
+            fetchCredentialTokenFromRoute({
+              requestId,
+              toolId,
+              toolLabel,
+              credentialId,
+              workflowId,
+              impersonateEmail,
+              scopes: providerScopes,
+              callerUserId: userId && enforceCredentialAccess ? userId : undefined,
+            }),
+            signal
+          )
+        }
+
+        signal?.throwIfAborted()
+
+        if (credentialTool.oauth?.credentialKind) {
+          const actualCredentialKind =
+            data.credentialType === 'service_account'
+              ? 'service-account'
+              : data.credentialType === 'oauth' || data.credentialType === 'managed_oauth'
+                ? 'oauth'
+                : null
+          if (actualCredentialKind !== credentialTool.oauth.credentialKind) {
+            throw new Error(
+              `${credentialTool.name} requires a ${credentialTool.oauth.credentialKind} credential`
+            )
+          }
+        }
+
+        if (operationContext?.requestMode === 'assistant') {
+          await registerAssistantCredentialSecrets(resolvedSecretTraceRegistry, [
+            data.accessToken,
+            data.idToken,
+          ])
+        }
+        for (const paramId of credentialTool.oauth?.authoritativeParams ?? []) {
+          contextParams[paramId] = undefined
+        }
+        contextParams.accessToken = data.accessToken
+        if (operationContext?.requestMode === 'assistant') {
+          const tokenParam = assistantConnectedAccountTokenParam(credentialTool)
+          if (tokenParam) contextParams[tokenParam] = data.accessToken
+        }
+        if (
+          data.credentialType &&
+          credentialTool.oauth?.authoritativeParams?.includes('credentialType')
+        ) {
+          contextParams.credentialType = data.credentialType
+        }
+        if (data.idToken) {
+          contextParams.idToken = data.idToken
+        }
+        if (data.instanceUrl) {
+          contextParams.instanceUrl = data.instanceUrl
+        }
+        if (data.apiDomain && !contextParams.apiDomain) {
+          contextParams.apiDomain = data.apiDomain
+        }
+        if (data.cloudId && !contextParams.cloudId) {
+          contextParams.cloudId = data.cloudId
+        }
+        if (data.domain && !contextParams.domain) {
+          contextParams.domain = data.domain
+        }
+        if (data.realmId && credentialTool.oauth?.authoritativeParams?.includes('realmId')) {
+          contextParams.realmId = data.realmId
+        }
+        if (
+          data.quickBooksEnvironment &&
+          credentialTool.oauth?.authoritativeParams?.includes('quickBooksEnvironment')
+        ) {
+          contextParams.quickBooksEnvironment = data.quickBooksEnvironment
+        }
+        if (data.authStyle && !contextParams.authStyle) {
+          contextParams.authStyle = data.authStyle
+        }
+      }
+      await resolveCredential(effectiveSignal)
+      if (tool.oauth?.retryOnUnauthorized && tool.operation) {
+        refreshCredential = resolveCredential
+      }
+
+      logger.info(`[${requestId}] Successfully got access token for ${toolId}`)
+
+      // Preserve credential for downstream transforms while removing it from request payload
+      // so we don't leak it to external services.
+      if (contextParams.credential) {
+        ;(contextParams as any)._credentialId = contextParams.credential
+      }
+      if (workflowId) {
+        ;(contextParams as any)._workflowId = workflowId
+      }
+      contextParams.credential = undefined
+      contextParams.impersonateUserEmail = undefined
+      if (contextParams.workflowId) contextParams.workflowId = undefined
     }
 
     // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.
@@ -2332,6 +2321,7 @@ async function executeToolImplementation(
         workflowId: executionContext?.workflowId ?? undefined,
         executionId: executionContext?.executionId,
         blockId: typeof toolContext.blockId === 'string' ? toolContext.blockId : undefined,
+        credentialId: typeof params.credential === 'string' ? params.credential : undefined,
         ...(typeof upstreamStatus === 'number' ? { status: upstreamStatus } : {}),
         ...projectToolLogMetadata(
           {

@@ -21,6 +21,7 @@ import {
 } from '@sim/testing/factories/principal.factory'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
+import { classifyFailure } from '@/lib/core/errors/failure-log'
 
 const {
   mockExecuteWorkflowCore,
@@ -498,6 +499,34 @@ describe('async preprocessing correlation threading', () => {
     expect(loggerPayload).not.toContain('__var_')
     expect(loggerPayload).not.toContain('__sim_')
     expect(rawError.message).toContain(secret)
+  })
+
+  it.each([
+    ['a usage limit, attributed to its owner,', 'USAGE_LIMIT_EXCEEDED', 402, 'user'],
+    ['a suspended account, attributed to its owner,', 'ACCOUNT_SUSPENDED', 403, 'user'],
+    ['an unclassified refusal', undefined, 500, 'internal'],
+  ] as const)('surfaces %s from a legacy workflow job', async (_name, code, statusCode, kind) => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: { message: 'Execution refused', statusCode, ...(code ? { code } : {}) },
+    })
+
+    const refusal = await executeWorkflowJob({
+      principal,
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      triggerType: 'api',
+      executionId: 'execution-refused',
+      requestId: 'request-refused',
+      billingAttribution,
+    }).then(
+      () => undefined,
+      (error: unknown) => error
+    )
+
+    expect(refusal).toMatchObject({ message: 'Execution refused' })
+    expect(classifyFailure(refusal)).toBe(kind)
   })
 
   it('does not repeat admission gates for route-admitted workflow jobs', async () => {

@@ -72,7 +72,11 @@ import { hasExecutionResult } from '@/executor/utils/errors'
 import { getIterationContext } from '@/executor/utils/iteration-context'
 import { parseJSON } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
-import { createResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
+import {
+  createResolvedSecretTraceRegistry,
+  type ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { isRunMetadataEnabled, resolveExecutorStartBlock } from '@/executor/utils/start-block'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
@@ -973,7 +977,12 @@ export class WorkflowBlockHandler implements BlockHandler {
         instanceId,
         childTraceSpans,
         childWorkflowSnapshotId,
-        { executionId: ctx.executionId, blockId: block.id }
+        {
+          executionId: ctx.executionId,
+          blockId: block.id,
+          childExecutionId: childExecutionId ?? ctx.executionId,
+          registry: childResolvedSecretTraceRegistry,
+        }
       )
 
       // Custom blocks expose only curated outputs — never the child workflow id,
@@ -1554,17 +1563,26 @@ export class WorkflowBlockHandler implements BlockHandler {
     instanceId: string,
     childTraceSpans?: WorkflowTraceSpan[],
     childWorkflowSnapshotId?: string,
-    parent?: { executionId?: string; blockId: string }
+    parent?: {
+      executionId?: string
+      blockId: string
+      childExecutionId?: string
+      registry?: ResolvedSecretTraceRegistry
+    }
   ): BlockOutput {
     const success = childResult.success !== false
     const result = childResult.output || {}
 
     if (!success) {
-      logger.warn(`Child workflow ${childWorkflowName} failed`, {
-        executionId: parent?.executionId,
-        blockId: parent?.blockId,
-      })
       const rootErrorMessage = childResult.error || 'Child workflow execution failed'
+      logger.warn(
+        `Child workflow ${childWorkflowName} failed`,
+        projectResolvedSecretDiagnosticError(rootErrorMessage, parent?.registry, {
+          executionId: parent?.executionId,
+          blockId: parent?.blockId,
+          childExecutionId: parent?.childExecutionId,
+        })
+      )
       const chain = [childWorkflowName]
       const childFailure = new ChildWorkflowError({
         message: formatWorkflowChainMessage(chain, rootErrorMessage),

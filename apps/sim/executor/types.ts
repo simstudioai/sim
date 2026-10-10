@@ -489,6 +489,8 @@ export interface ExecutionContext {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   /** Exact candidates that may be carried by this block's terminal error, never its normal output. */
   errorResolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  /** Fields a handler adds to this block's failure line, projected with the error (e.g. provider, model). */
+  errorDiagnosticDetails?: Record<string, unknown>
   workflowVariables?: Record<string, any>
   workflowVariableResolvedSecretTraceProvenance?: Record<string, ResolvedSecretTraceProvenanceV1>
   workflowInputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1

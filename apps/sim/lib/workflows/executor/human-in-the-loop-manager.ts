@@ -8,6 +8,7 @@ import type { Edge } from '@xyflow/react'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
   createTimeoutAbortController,
   getAsyncExecutionTimeoutForBillingAttribution,
@@ -1054,14 +1055,14 @@ export class PauseResumeManager {
           )
         })
       }
-      logger.error(
-        'Resume execution failed',
-        projectResolvedSecretDiagnosticError(error, undefined, {
-          parentExecutionId: pausedExecution.executionId,
-          resumeExecutionId,
-          contextId,
-        })
-      )
+      logFailureOnce(logger, 'Resume execution failed', error, {
+        metadata: () =>
+          projectResolvedSecretDiagnosticError(error, undefined, {
+            parentExecutionId: pausedExecution.executionId,
+            contextId,
+          }),
+        executionId: resumeExecutionId,
+      })
       if (!(error instanceof ResumeAdmissionError)) {
         await PauseResumeManager.processQueuedResumes(
           pausedExecution.executionId,
