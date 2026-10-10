@@ -366,16 +366,26 @@ describe('workflow deployment application use cases', () => {
       expect(result.lint).toEqual(unquotedRowJson)
     })
 
-    it('skips the lint when the surface does not ask for it', async () => {
-      mocks.buildWorkflowLintReport.mockResolvedValue(unquotedRowJson)
+    it('neither runs nor waits on a lint the surface does not ask for', async () => {
+      vi.useFakeTimers()
+      try {
+        mocks.buildWorkflowLintReport.mockReturnValue(new Promise(() => {}))
+        let settled: unknown
+        void deployWorkflow
+          .execute({
+            principal: createSessionPrincipal(),
+            input: { workflowId: 'workflow-1', requestId: 'request-11' },
+          })
+          .then((result) => {
+            settled = result
+          })
 
-      const result = await deployWorkflow.execute({
-        principal: createSessionPrincipal(),
-        input: { workflowId: 'workflow-1', requestId: 'request-11' },
-      })
+        await vi.advanceTimersByTimeAsync(0)
 
-      expect(result).toMatchObject({ success: true, warnings: [], lint: null })
-      expect(mocks.buildWorkflowLintReport).not.toHaveBeenCalled()
+        expect(settled).toMatchObject({ success: true, warnings: [], lint: null })
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('never fails or blocks a deploy when lint cannot run', async () => {
