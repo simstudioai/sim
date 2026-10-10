@@ -73,6 +73,27 @@ export { handler as PUT }`
   })
 })
 
+describe('aliased parseRequest imports', () => {
+  it('finds the contract parsed through an aliased parseRequest, so a wrong verb is compared', async () => {
+    const source = `import { parseRequest as parse } from '@/lib/api/server'
+import { updateContract } from '@/lib/api/contracts/things'
+export const PUT = withRouteHandler((request) => parse(updateContract, request, {}))`
+    const route = {
+      relative: 'route.ts',
+      bindings: importedNames(source),
+      expectedPath: '/api/things',
+    }
+    const loadModule = () =>
+      Promise.resolve({ updateContract: { method: 'PATCH', path: '/api/things' } })
+    const failures: string[] = []
+    for (const { verb, identifier } of rawRouteContractSites(source)) {
+      await checkSite(route, 'raw', verb, identifier, failures, false, loadModule)
+    }
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('which declares PATCH /api/things')
+  })
+})
+
 describe('aliased contract imports', () => {
   const source = `import { updateContract as contract } from '@/lib/api/contracts/things'`
   const route = {

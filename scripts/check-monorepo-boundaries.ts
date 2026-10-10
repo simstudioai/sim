@@ -37,6 +37,19 @@ function matchesModule(specifier: string, module: string): boolean {
 }
 
 /**
+ * A relative specifier rewritten into its `@/…` form against the importing file
+ * (the `apps/sim` root is `@/`), so the application rules see one spelling.
+ * Bare and already-aliased specifiers, and relative ones leaving `apps/sim`,
+ * come back unchanged.
+ */
+function aliasedSpecifier(file: string, specifier: string): string {
+  if (!specifier.startsWith('.')) return specifier
+  const target = path.relative(SIM_DIR, path.resolve(path.dirname(file), specifier))
+  if (target.startsWith('..') || path.isAbsolute(target)) return specifier
+  return target ? `@/${target.split(path.sep).join('/')}` : '@'
+}
+
+/**
  * Why an application file may not take this import edge, or `null` when it may.
  * An empty `bindings` list is an edge the compiler erases.
  */
@@ -228,7 +241,7 @@ async function main() {
       continue
     offenders.push(
       ...(await scanImports(file, ({ module, bindings }) =>
-        applicationViolation(module.text, bindings)
+        applicationViolation(aliasedSpecifier(file, module.text), bindings)
       ))
     )
   }

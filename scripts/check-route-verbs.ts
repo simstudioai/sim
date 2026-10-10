@@ -189,6 +189,30 @@ export function wrappedRouteSites(source: string): Array<{ verb: string; options
   return sites
 }
 
+/** Modules that export the server-side `parseRequest`. */
+const PARSE_REQUEST_MODULES = new Set(['@/lib/api/server', '@/lib/api/server/validation'])
+
+/**
+ * Local names a module binds to `parseRequest`: `parseRequest` itself, plus
+ * each alias of an `import { parseRequest as … }` from its real module.
+ */
+function parseRequestNames(statements: Statements): Set<string> {
+  const names = new Set(['parseRequest'])
+  for (const statement of statements) {
+    if (statement.type !== 'ImportDeclaration') continue
+    if (!PARSE_REQUEST_MODULES.has(statement.source.value)) continue
+    for (const specifier of statement.specifiers) {
+      if (specifier.type !== 'ImportSpecifier') continue
+      const imported =
+        specifier.imported.type === 'Identifier'
+          ? specifier.imported.name
+          : specifier.imported.value
+      if (imported === 'parseRequest') names.add(specifier.local.name)
+    }
+  }
+  return names
+}
+
 /**
  * The `parseRequest(<identifier>, …)` contract arguments reachable from each
  * exported verb of a raw route, following same-file functions and consts the
@@ -199,6 +223,7 @@ export function wrappedRouteSites(source: string): Array<{ verb: string; options
 export function rawRouteContractSites(source: string): Array<{ verb: string; identifier: string }> {
   const statements = parse(source, { sourceType: 'module', plugins: ['typescript'] }).program.body
   const { locals, exports } = topLevelBindings(statements)
+  const parsers = parseRequestNames(statements)
   const exportedLocals = new Set(exports.map(({ local }) => local))
   const sites: Array<{ verb: string; identifier: string }> = []
   for (const { exported: verb, local } of exports) {
@@ -217,7 +242,8 @@ export function rawRouteContractSites(source: string): Array<{ verb: string; ide
         const [first] = node.arguments as Array<{ type?: string; name?: string }>
         if (
           callee.type === 'Identifier' &&
-          callee.name === 'parseRequest' &&
+          callee.name !== undefined &&
+          parsers.has(callee.name) &&
           first?.type === 'Identifier' &&
           first.name
         ) {
