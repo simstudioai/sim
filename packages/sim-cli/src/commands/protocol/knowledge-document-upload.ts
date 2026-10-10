@@ -1,11 +1,11 @@
 import { type Command, Option } from 'commander'
-import { clientFrom } from '../../context'
 import type {
   CompleteKnowledgeDocumentUploadResponse,
   CreateKnowledgeDocumentUploadBody,
   CreateKnowledgeDocumentUploadResponse,
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
+import { apiCommand } from '../../runtime/called-operations'
 import { contentTypeFor, localFile } from '../../transfer/local-file'
 import { finishUploadSession } from '../../transfer/upload-session'
 import { printProtocolResult } from './result'
@@ -60,8 +60,13 @@ const LANGUAGE_TAG_HELP =
   'Document language tag: hyphen-separated letter and digit subtags, for example en or en-US'
 
 export function attachKnowledgeDocumentUpload(documents: Command): void {
-  documents
-    .command('upload')
+  const [upload, connectUpload] = apiCommand(documents, 'upload', [
+    'createKnowledgeDocumentUpload',
+    'createKnowledgeDocumentUploadPartUrls',
+    'completeKnowledgeDocumentUpload',
+    'abortKnowledgeDocumentUpload',
+  ])
+  upload
     .argument('<knowledgeBaseId>', 'Knowledge base to upload into')
     .argument('<path>', 'Local file to upload')
     .allowExcessArguments(false)
@@ -71,19 +76,14 @@ export function attachKnowledgeDocumentUpload(documents: Command): void {
     .addOption(new Option('--recipe <name>', 'Document processing recipe').choices(UPLOAD_RECIPES))
     .option('--lang <code>', LANGUAGE_TAG_HELP)
     .action(
-      async (
-        knowledgeBaseId: string,
-        path: string,
-        options: KnowledgeDocumentUploadOptions,
-        command: Command
-      ) => {
-        const { client, profile } = clientFrom(command)
+      async (knowledgeBaseId: string, path: string, options: KnowledgeDocumentUploadOptions) => {
+        const { client, profile } = connectUpload()
         const workspaceId = client.requireWorkspace()
         const { name, size } = await localFile(path, options.name)
         const created = await client.request<CreateKnowledgeDocumentUploadResponse>(
-          `/api/v2/knowledge/${encodeURIComponent(knowledgeBaseId)}/documents/uploads`,
+          'createKnowledgeDocumentUpload',
           {
-            method: 'POST',
+            params: { knowledgeBaseId },
             body: {
               workspaceId,
               name,
@@ -94,21 +94,23 @@ export function attachKnowledgeDocumentUpload(documents: Command): void {
           }
         )
         const { session, uploadToken, transfer } = created.data
-        const completed = await finishUploadSession<
-          CompleteKnowledgeDocumentUploadResponse['data']
-        >(
-          client,
-          workspaceId,
-          {
-            basePath: `/api/v2/knowledge/${encodeURIComponent(
-              knowledgeBaseId
-            )}/documents/uploads/${encodeURIComponent(session.id)}`,
-            uploadToken,
-            transfer,
-            size,
-          },
-          path
-        )
+        const completed: CompleteKnowledgeDocumentUploadResponse['data'] =
+          await finishUploadSession(
+            client,
+            workspaceId,
+            {
+              operations: {
+                parts: 'createKnowledgeDocumentUploadPartUrls',
+                complete: 'completeKnowledgeDocumentUpload',
+                abort: 'abortKnowledgeDocumentUpload',
+              },
+              params: { knowledgeBaseId, uploadId: session.id },
+              uploadToken,
+              transfer,
+              size,
+            },
+            path
+          )
 
         if (!completed.document) {
           throw new Error(`Knowledge upload ${session.id} completed without a document`)

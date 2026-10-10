@@ -6,8 +6,10 @@ import {
   type CreateWorkspaceInvitationsResponse,
   type GetWorkspaceOperationResponse,
   V2_OPERATIONS,
+  type V2OperationName,
 } from '../generated/v2-api'
 import { SimApiError } from '../http/client'
+import { callsOperations } from './called-operations'
 import { BULK_OUTCOME_CHECKS, executeOperation } from './execute'
 import type { OperationSpec } from './types'
 
@@ -25,6 +27,13 @@ vi.mock('../context', () => ({
     },
   }),
 }))
+
+/** A leaf that declares what it calls, as `configureOperation` declares every generated one. */
+function leaf(...operations: V2OperationName[]): Command {
+  const host = new Command('leaf')
+  callsOperations(host, operations)
+  return host
+}
 
 const EXECUTE_WORKFLOW: OperationSpec = {
   method: 'POST',
@@ -84,7 +93,7 @@ const DELETE_TABLE_ROWS: OperationSpec = {
 
 /** Invokes a generated command that takes both a path positional and flags. */
 function _invokeRowDelete(flags: Record<string, unknown>) {
-  const host = new Command('leaf')
+  const host = leaf('deleteTableRows')
   return executeOperation('deleteTableRows', {}, DELETE_TABLE_ROWS, ['tbl_1', flags, host])
 }
 
@@ -94,7 +103,7 @@ function invokeWithFlags(
   spec: OperationSpec,
   flags: Record<string, unknown>
 ) {
-  const host = new Command('leaf')
+  const host = leaf(operation)
   return executeOperation(operation, {}, spec, [flags, host])
 }
 
@@ -104,7 +113,7 @@ function invoke(
   spec: OperationSpec,
   ...positional: string[]
 ) {
-  const host = new Command('leaf')
+  const host = leaf(operation)
   return executeOperation(operation, {}, spec, [...positional, {}, host])
 }
 
@@ -124,7 +133,7 @@ const PUBLIC_NOTE =
 
 /** Publishes a chat past its `--yes` gate with the required fields and the given extras. */
 function publishChat(flags: Record<string, unknown>) {
-  const host = new Command('leaf')
+  const host = leaf('replaceWorkflowChatDeployment')
   return executeOperation(
     'replaceWorkflowChatDeployment',
     CLI_CONTRACT.replaceWorkflowChatDeployment ?? {},
@@ -194,7 +203,7 @@ describe('workspace mutation receipt identity', () => {
       'pushWorkspace',
       CLI_CONTRACT.pushWorkspace!,
       V2_OPERATIONS.pushWorkspace,
-      [{ ...flags, wait }, new Command('leaf')]
+      [{ ...flags, wait }, leaf('pushWorkspace', 'getWorkspaceOperation')]
     )
   }
 
@@ -249,7 +258,7 @@ describe('selector pagination metadata', () => {
 
     await executeOperation('listSelector', CLI_CONTRACT.listSelector!, V2_OPERATIONS.listSelector, [
       { selectorKey: 'gmail.labels', context: '{"oauthCredential":"connection-1"}', limit: '0' },
-      new Command('leaf'),
+      leaf('listSelector'),
     ])
 
     expect(request).toHaveBeenCalledTimes(2)
@@ -373,7 +382,7 @@ describe('workspace invitation batch outcomes', () => {
       'createWorkspaceInvitations',
       CLI_CONTRACT.createWorkspaceInvitations!,
       V2_OPERATIONS.createWorkspaceInvitations,
-      [{ emails: ['first@example.com', 'second@example.com'] }, new Command('leaf')]
+      [{ emails: ['first@example.com', 'second@example.com'] }, leaf('createWorkspaceInvitations')]
     )
   }
 
@@ -411,7 +420,7 @@ describe('workspace invitation batch outcomes', () => {
 
 describe('a bulk call that touched nothing', () => {
   function updateChunks(flags: Record<string, unknown>) {
-    const host = new Command('leaf')
+    const host = leaf('bulkUpdateKnowledgeChunks')
     return executeOperation('bulkUpdateKnowledgeChunks', {}, BULK_UPDATE_CHUNKS, [
       'kb_1',
       'doc_1',
@@ -421,7 +430,7 @@ describe('a bulk call that touched nothing', () => {
   }
 
   function _indexFiles(flags: Record<string, unknown>) {
-    const host = new Command('leaf')
+    const host = leaf('addWorkspaceFilesToKnowledgeBase')
     return executeOperation('addWorkspaceFilesToKnowledgeBase', {}, ADD_WORKSPACE_FILES, [
       'kb_1',
       flags,

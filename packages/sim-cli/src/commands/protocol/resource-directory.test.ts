@@ -49,6 +49,7 @@ describe('resource directory', () => {
 
     await program().parseAsync(['node', 'sim', 'table', 'ls', '/Q1 (draft)'])
     expect(mockRequest).toHaveBeenCalledWith('/api/v2/tables/folders', {
+      method: 'GET',
       query: expect.objectContaining({ parentPath: '/Q1%20%28draft%29' }),
     })
 

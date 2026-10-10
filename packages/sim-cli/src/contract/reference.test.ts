@@ -94,6 +94,7 @@ describe('CLI reference producer', () => {
       commands.find((entry) => entry.path.join(' ') === path)?.mothershipUnavailable
     expect(flag('meta status')).toBe(true)
     expect(flag('whoami')).toBe(true)
+    expect(flag('profiles add')).toBe(true)
     expect(flag('files versions download')).toBe(true)
     expect(flag('chat')).toBe(true)
     expect(flag('workflows run')).toBeUndefined()

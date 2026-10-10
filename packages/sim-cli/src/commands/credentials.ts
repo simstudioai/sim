@@ -1,5 +1,4 @@
 import { type Command, Option } from 'commander'
-import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
 import {
   type CreateCredentialConnectionResponse,
@@ -9,7 +8,7 @@ import {
 } from '../generated/v2-api'
 import { SimApiError } from '../http/client'
 import { describeOperation } from '../runtime/build'
-import { callsOperations, runsOperation } from '../runtime/called-operations'
+import { apiCommand, type Connection } from '../runtime/called-operations'
 import { coerce } from '../runtime/request'
 import { renderResult } from '../runtime/result'
 
@@ -108,15 +107,12 @@ async function credentialValues(
 }
 
 async function createServiceAccount(
-  command: Command,
+  { client, profile }: Connection<'listCredentialProviders' | 'createServiceAccountCredential'>,
   providerId: string,
   options: CreateServiceAccountOptions
 ): Promise<void> {
-  const { client, profile } = clientFrom(command)
   const workspaceId = client.requireWorkspace()
-  const discovery = V2_OPERATIONS.listCredentialProviders
-  const catalog = await client.request<ListCredentialProvidersResponse>(discovery.path, {
-    method: discovery.method,
+  const catalog = await client.request<ListCredentialProvidersResponse>('listCredentialProviders', {
     query: { workspaceId },
   })
   const provider = serviceAccountProvider(catalog.data, providerId)
@@ -125,19 +121,20 @@ async function createServiceAccount(
   }
 
   const credentialFields = await credentialValues(provider, options.credentials)
-  const operation = V2_OPERATIONS.createServiceAccountCredential
-  const response = await client.request<CreateServiceAccountCredentialResponse>(operation.path, {
-    method: operation.method,
-    body: {
-      workspaceId,
-      type: 'service_account',
-      providerId,
-      displayName: options.name,
-      ...(options.description ? { description: options.description } : {}),
-      ...(options.id ? { id: options.id } : {}),
-      credentials: JSON.stringify(credentialFields),
-    },
-  })
+  const response = await client.request<CreateServiceAccountCredentialResponse>(
+    'createServiceAccountCredential',
+    {
+      body: {
+        workspaceId,
+        type: 'service_account',
+        providerId,
+        displayName: options.name,
+        ...(options.description ? { description: options.description } : {}),
+        ...(options.id ? { id: options.id } : {}),
+        credentials: JSON.stringify(credentialFields),
+      },
+    }
+  )
 
   renderResult(
     'createServiceAccountCredential',
@@ -147,16 +144,19 @@ async function createServiceAccount(
   )
 }
 
-async function createConnectionLink(command: Command, body: ConnectionBody): Promise<void> {
-  const { client, profile } = clientFrom(command)
-  const operation = V2_OPERATIONS.createCredentialConnection
-  const response = await client.request<CreateCredentialConnectionResponse>(operation.path, {
-    method: operation.method,
-    body: {
-      workspaceId: client.requireWorkspace(),
-      ...body,
-    },
-  })
+async function createConnectionLink(
+  { client, profile }: Connection<'createCredentialConnection'>,
+  body: ConnectionBody
+): Promise<void> {
+  const response = await client.request<CreateCredentialConnectionResponse>(
+    'createCredentialConnection',
+    {
+      body: {
+        workspaceId: client.requireWorkspace(),
+        ...body,
+      },
+    }
+  )
 
   renderResult('createCredentialConnection', profile.output, response.data, CONNECTION_RESULT)
 }
@@ -194,8 +194,13 @@ export function attachCredentialCommands(program: Command): void {
 
   acceptNameOnUpdate(credentials)
 
-  const create = credentials
-    .command('create')
+  const [create, connectCreate] = apiCommand(
+    credentials,
+    'create',
+    ['listCredentialProviders', 'createServiceAccountCredential'],
+    { runs: 'createServiceAccountCredential' }
+  )
+  create
     .argument('<providerId>', 'Service-account provider to create a credential for')
     .description(
       describeOperation(
@@ -217,14 +222,12 @@ export function attachCredentialCommands(program: Command): void {
       '--id <credentialId>',
       'Client-generated credential ID when provider discovery requires it'
     )
-    .action((providerId: string, options: CreateServiceAccountOptions, command: Command) =>
-      createServiceAccount(command, providerId, options)
+    .action((providerId: string, options: CreateServiceAccountOptions) =>
+      createServiceAccount(connectCreate(), providerId, options)
     )
-  callsOperations(create, ['listCredentialProviders', 'createServiceAccountCredential'])
-  runsOperation(create, 'createServiceAccountCredential')
 
-  credentials
-    .command('connect')
+  const [connect, connectLink] = apiCommand(credentials, 'connect', ['createCredentialConnection'])
+  connect
     .argument('<providerId>', 'OAuth provider to connect')
     .description(
       describeOperation(
@@ -233,12 +236,14 @@ export function attachCredentialCommands(program: Command): void {
       )
     )
     .requiredOption('--name <displayName>', 'Name shown for the new credential in Sim (required)')
-    .action(async (providerId: string, options: { name: string }, command: Command) =>
-      createConnectionLink(command, { providerId, displayName: options.name })
+    .action(async (providerId: string, options: { name: string }) =>
+      createConnectionLink(connectLink(), { providerId, displayName: options.name })
     )
 
-  credentials
-    .command('reconnect')
+  const [reconnect, reconnectLink] = apiCommand(credentials, 'reconnect', [
+    'createCredentialConnection',
+  ])
+  reconnect
     .argument('<credentialId>', 'Existing OAuth credential to re-authorize')
     .description(
       describeOperation(
@@ -246,7 +251,5 @@ export function attachCredentialCommands(program: Command): void {
         'Create a short-lived link for reconnecting an OAuth credential'
       )
     )
-    .action((credentialId: string, _options: unknown, command: Command) =>
-      createConnectionLink(command, { credentialId })
-    )
+    .action((credentialId: string) => createConnectionLink(reconnectLink(), { credentialId }))
 }
