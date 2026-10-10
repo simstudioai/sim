@@ -1,4 +1,5 @@
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
 import { billingUsageLogMock } from '@sim/testing/mocks/billing-usage-log.mock'
@@ -5832,20 +5833,13 @@ describe('Centralized Error Handling', () => {
       return buildBlockExecutionError({ block: apiBlock, error: thrown as Error })
     }
 
-    function jsonResponse(status: number, body: unknown): Response {
-      return new Response(JSON.stringify(body), {
-        status,
-        headers: { 'content-type': 'application/json' },
-      })
-    }
-
     it.each([
       [404, 'third_party_client'],
       [503, 'third_party_server'],
     ] as const)(
       'attributes an upstream %i to the third party, logged once by the tool layer',
       async (status, kind) => {
-        const blockError = await failApiBlock(jsonResponse(status, { error: 'rejected' }))
+        const blockError = await failApiBlock(jsonResponse({ error: 'rejected' }, status))
         expect(classifyFailure(blockError)).toBe(kind)
         expect(wasFailureLogged(blockError)).toBe(true)
       }
@@ -5864,7 +5858,7 @@ describe('Centralized Error Handling', () => {
         throw transformError
       }
       try {
-        const blockError = await failApiBlock(jsonResponse(200, { ok: false }))
+        const blockError = await failApiBlock(jsonResponse({ ok: false }))
         expect(classifyFailure(blockError)).toBe(kind)
         expect(wasFailureLogged(blockError)).toBe(true)
       } finally {
