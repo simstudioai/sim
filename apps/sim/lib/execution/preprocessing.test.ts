@@ -1,4 +1,4 @@
-import { loggingSessionMock, workflowAuthzMockFns } from '@sim/testing'
+import { loggingSessionMock, loggingSessionMockFns, workflowAuthzMockFns } from '@sim/testing'
 import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
 import {
   billingAttributionMock,
@@ -17,6 +17,7 @@ import {
 import { executionLimitsMock } from '@sim/testing/mocks/execution-limits.mock'
 import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 
@@ -974,5 +975,104 @@ describe('preprocessExecution webhook correlation logging', () => {
       variables: {},
       triggerData: { correlation },
     })
+  })
+})
+
+describe('preprocessExecution admission rejection codes and blocked-run log throttling', () => {
+  let workflowSequence = 0
+  /** The throttle window outlives a test, so each test refuses a workflow no other test used. */
+  const nextWorkflowId = () => `throttled-workflow-${++workflowSequence}`
+
+  const refuse = (workflowId: string, options: Record<string, unknown> = {}) =>
+    preprocessExecution({
+      workflowId,
+      userId: 'owner-1',
+      userIdIsStoredReference: true,
+      triggerType: 'webhook',
+      executionId: `execution-${workflowId}`,
+      requestId: 'request-1',
+      checkRateLimit: false,
+      ...options,
+    })
+
+  beforeEach(() => {
+    mockGetActivelyBannedUserIds.mockResolvedValue([])
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      message: 'Usage limit exceeded',
+      payerUsage: { currentUsage: 12, limit: 10 },
+    })
+  })
+
+  it.each([
+    {
+      gate: 'usage',
+      arrange: () => {},
+      expected: { statusCode: 402, code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED },
+    },
+    {
+      gate: 'ban',
+      arrange: () => mockGetActivelyBannedUserIds.mockResolvedValue(['billed-account-1']),
+      expected: { statusCode: 403, code: ADMISSION_REJECTION_CODE.ACCOUNT_SUSPENDED },
+    },
+    {
+      gate: 'billing account',
+      arrange: () =>
+        mockResolveSystemBillingAttribution.mockImplementation((workspaceId: string) => ({
+          ...ORGANIZATION_ATTRIBUTION,
+          actorUserId: '',
+          workspaceId,
+        })),
+      expected: { statusCode: 500, code: ADMISSION_REJECTION_CODE.BILLING_ACCOUNT_REQUIRED },
+    },
+  ])('tags a $gate refusal with its stable code', async ({ arrange, expected }) => {
+    arrange()
+    const result = await refuse(nextWorkflowId())
+    expect(result).toMatchObject({ success: false, error: expected })
+  })
+
+  it('writes one error row for repeated refusals of a workflow by the same gate', async () => {
+    const workflowId = nextWorkflowId()
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      expect(await refuse(workflowId, { throttleErrorLogs: true })).toMatchObject({
+        success: false,
+        error: { statusCode: 402 },
+      })
+    }
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(1)
+  })
+
+  it('writes a row for a different gate refusing the same workflow inside the window', async () => {
+    const workflowId = nextWorkflowId()
+    await refuse(workflowId, { throttleErrorLogs: true })
+    mockGetActivelyBannedUserIds.mockResolvedValue(['billed-account-1'])
+    await refuse(workflowId, { throttleErrorLogs: true })
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(2)
+  })
+
+  it('writes every row when the caller does not ask for throttling', async () => {
+    const workflowId = nextWorkflowId()
+    await refuse(workflowId)
+    await refuse(workflowId)
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(2)
+  })
+
+  it('always completes a logging session the caller supplied', async () => {
+    const workflowId = nextWorkflowId()
+    const loggingSession = {
+      safeStart: vi.fn().mockResolvedValue(true),
+      safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
+    }
+    await refuse(workflowId, { throttleErrorLogs: true })
+    await refuse(workflowId, {
+      throttleErrorLogs: true,
+      loggingSession: loggingSession as unknown as LoggingSession,
+    })
+
+    expect(loggingSession.safeCompleteWithError).toHaveBeenCalledOnce()
   })
 })
