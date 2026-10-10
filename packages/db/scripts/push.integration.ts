@@ -222,8 +222,16 @@ export const memberships = pgTable('project_workspace', {
     const indexBeforeReplay = await sql`SELECT indexrelid, indisvalid FROM pg_index
       WHERE indexrelid = 'workspace_project_id_id_idx'::regclass`
     expect(indexBeforeReplay).toEqual([{ indexrelid: expect.any(Number), indisvalid: true }])
+    /** Replay must restore real DDL, not pass from unchanged state after an early child failure. */
+    await sql`ALTER TABLE workspace DROP CONSTRAINT workspace_project_id_project_id_fk`
     const repeated = runPush(['--force'])
     expect(repeated.error, repeated.stderr).toBeUndefined()
+    /** This partial fixture reaches Project reconciliation, then lacks the next reconciler's tables. */
+    expect(repeated.status, repeated.stdout + repeated.stderr).toBe(1)
+    expect(
+      await sql`SELECT confdeltype, convalidated FROM pg_constraint
+      WHERE conrelid = 'workspace'::regclass AND conname = 'workspace_project_id_project_id_fk'`
+    ).toEqual([{ confdeltype: 'r', convalidated: false }])
     expect(await sql`SELECT phase FROM project_membership_rollout`).toEqual([{ phase: 'column' }])
     expect(
       await sql`SELECT indexrelid, indisvalid FROM pg_index

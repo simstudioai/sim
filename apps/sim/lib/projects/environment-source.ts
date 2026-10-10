@@ -1,7 +1,9 @@
 import { projectMembershipRollout, projectWorkspace, workspace } from '@sim/db/schema'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, exists, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import type { SubqueryWithSelection } from 'drizzle-orm/pg-core'
 import type { DbTransaction } from '@/lib/db/types'
+import { ProjectConflictError } from '@/lib/projects/errors'
 
 const fields = {
   id: workspace.id,
@@ -13,9 +15,23 @@ const fields = {
   parentId: workspace.forkedFromWorkspaceId,
 }
 
-/** Must precede the first snapshot-producing statement in repeatable-read transactions. */
+/**
+ * Bound every authority wait without establishing a repeatable-read snapshot before the lock.
+ * SHOW and SET are utility statements; restore the caller's setting only after acquiring it.
+ */
 export async function lockProjectMembershipBarrier(tx: DbTransaction): Promise<void> {
-  await tx.execute(sql`LOCK TABLE ${workspace} IN ACCESS SHARE MODE`)
+  const [setting] = await tx.execute<{ lock_timeout: string }>(sql`SHOW lock_timeout`)
+  await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
+  try {
+    await tx.execute(sql`LOCK TABLE ${workspace} IN ACCESS SHARE MODE`)
+  } catch (error) {
+    const code = getPostgresErrorCode(error)
+    if (code === '55P03' || code === '40P01') {
+      throw new ProjectConflictError('Project membership is changing; retry the operation')
+    }
+    throw error
+  }
+  await tx.execute(sql`SELECT set_config('lock_timeout', ${setting?.lock_timeout ?? '0'}, true)`)
 }
 
 /** The barrier pins database authority through commit; never cache the phase between transactions. */

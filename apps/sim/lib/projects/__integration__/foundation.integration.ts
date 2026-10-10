@@ -51,6 +51,7 @@ import {
   getProjectEnvironmentSource,
   getProjectMembershipPhase,
 } from '@/lib/projects/environment-source'
+import { ProjectConflictError } from '@/lib/projects/errors'
 import { archiveProjectInTransaction } from '@/lib/projects/lifecycle'
 import {
   createProjectRecord,
@@ -385,6 +386,47 @@ describe('Project foundation at the database and application boundary', () => {
       }
     })
   }
+
+  check(
+    'authority contention is bounded and maps to a Project conflict for reads and writers',
+    async () => {
+      const f = await fixture(false, 1)
+      const entered = createDeferred<void>()
+      const release = createDeferred<void>()
+      const holder = db.transaction(async (tx) => {
+        await tx.execute(sql`LOCK TABLE workspace IN ACCESS EXCLUSIVE MODE NOWAIT`)
+        entered.resolve()
+        await release.promise
+      })
+      try {
+        await entered.promise
+        await Promise.all(
+          [
+            db.transaction(
+              async (tx) => {
+                await tx.execute(sql`SET LOCAL statement_timeout = '7s'`)
+                await getProjectMembershipPhase(tx)
+              },
+              { isolationLevel: 'repeatable read', accessMode: 'read only' }
+            ),
+            db.transaction(async (tx) => {
+              await tx.execute(sql`SET LOCAL statement_timeout = '7s'`)
+              await lockProject(tx, f.projectId)
+            }),
+          ].map((operation) => expect(operation).rejects.toBeInstanceOf(ProjectConflictError))
+        )
+      } finally {
+        release.resolve()
+        await holder
+      }
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL lock_timeout = '1234ms'`)
+        expect(await getProjectMembershipPhase(tx)).toBe('column')
+        const [setting] = await tx.execute<{ lock_timeout: string }>(sql`SHOW lock_timeout`)
+        expect(setting.lock_timeout).toBe('1234ms')
+      })
+    }
+  )
 
   check('authority barrier excludes cutover until a connector transaction commits', async () => {
     await db

@@ -7,11 +7,8 @@ import {
   deleteObsoleteProjectMemberships,
   getProjectEnvironmentSource,
 } from '@/lib/projects/environment-source'
-import {
-  lockProjectBackfillWrites,
-  lockProjects,
-  ProjectConflictError,
-} from '@/lib/projects/membership'
+import { ProjectConflictError } from '@/lib/projects/errors'
+import { lockProjectBackfillWrites, lockProjects } from '@/lib/projects/membership'
 
 /** Two indexed lookups; an `OR` around a membership subquery would scan every Project. */
 async function loadRelatedProjects(
