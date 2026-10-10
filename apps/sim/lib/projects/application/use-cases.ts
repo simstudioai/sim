@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, permissions, project, workspace } from '@sim/db/schema'
 import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
@@ -13,6 +14,7 @@ import {
   type ProjectAuthorizationInput,
   requireProjectPrincipal,
 } from '@/lib/projects/application/authorization'
+import { resolveCopilotProjectScope } from '@/lib/projects/application/discovery'
 import { projectOperations } from '@/lib/projects/application/operations'
 import { archiveProjectInTransaction, finishProjectArchive } from '@/lib/projects/lifecycle'
 import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
@@ -90,17 +92,24 @@ export const listProjects: OperationUseCase<
   async execute({ principal, input }) {
     requireProjectPrincipal(principal, projectOperations.list)
     await requireProjectApiEnabled()
+    if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 100)
+      throw new OrchestrationError('validation', 'Limit must be between 1 and 100')
+    const userId = requirePrincipalSubjectUserId(principal)
+    const scope =
+      principal.kind === 'resource_delegated'
+        ? await resolveCopilotProjectScope(principal, input.organizationId)
+        : { organizationId: input.organizationId }
     return db.transaction(async (tx) => {
       /** Driven from the caller's grants and admin organization, so cost tracks their reach. */
       const candidates = await tx.execute<{ id: string }>(sql`
         WITH accessible AS (
           SELECT ${permissions.entityId} AS workspace_id FROM ${permissions}
-          WHERE ${permissions.userId} = ${principal.userId}
+          WHERE ${permissions.userId} = ${userId}
             AND ${permissions.entityType} = 'workspace'
           UNION
           SELECT ${workspace.id} FROM ${member}
           JOIN ${workspace} ON ${workspace.organizationId} = ${member.organizationId}
-          WHERE ${member.userId} = ${principal.userId} AND ${inArray(member.role, ORG_ADMIN_ROLES)}
+          WHERE ${member.userId} = ${userId} AND ${inArray(member.role, ORG_ADMIN_ROLES)}
         )
         SELECT DISTINCT ${workspace.projectId} AS id
         FROM accessible
@@ -109,7 +118,7 @@ export const listProjects: OperationUseCase<
         JOIN ${project}
           ON ${project.id} = ${workspace.projectId} AND ${project.archivedAt} IS NULL
         WHERE TRUE
-          ${input.organizationId ? sql`AND ${project.organizationId} = ${input.organizationId}` : sql``}
+          ${scope.organizationId !== undefined ? sql`AND ${project.organizationId} IS NOT DISTINCT FROM ${scope.organizationId}` : sql``}
           ${input.cursor ? sql`AND ${workspace.projectId} > ${input.cursor}` : sql``}
         ORDER BY 1
         LIMIT ${input.limit + 1}

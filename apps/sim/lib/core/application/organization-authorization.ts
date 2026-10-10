@@ -63,7 +63,8 @@ export async function requireOrganizationMembership(
   )
 }
 
-async function requireOrganizationSubjectMembership(
+/** Rechecks membership for a subject whose principal and delegation were already validated. */
+export async function requireOrganizationSubjectMembership(
   userId: string,
   organizationId: string,
   minimumRole: 'member' | 'admin',

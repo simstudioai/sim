@@ -103,13 +103,8 @@ describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
     expect(mocks.updateContent).not.toHaveBeenCalled()
   })
 
-  /**
-   * The route declares a 70 MB inline cap, but Next's proxy truncates a client
-   * body past 10 MiB, so the parser clamps to that ceiling and answers 413
-   * rather than letting a truncated prefix surface as malformed JSON.
-   */
   it('rejects a JSON body above the proxy ceiling after admission', async () => {
-    const response = await PUT(createRequest({ content: '' }, 10 * 1024 * 1024 + 1), routeContext)
+    const response = await PUT(createRequest({ content: '' }, 17 * 1024 * 1024 + 1), routeContext)
 
     expect(response.status).toBe(413)
     expect(mocks.admit).toHaveBeenCalled()

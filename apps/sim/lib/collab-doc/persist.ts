@@ -132,7 +132,7 @@ export async function persistFileDoc(
  * never sent to that relay, so they cannot be merged into saved state. For stale content writes,
  * use a throwaway merge only to prove the candidate does not omit durable content.
  */
-function preparePersistedState(
+export function preparePersistedState(
   docState: Uint8Array,
   cached: CachedCollabDocState | null,
   markdown: Buffer,

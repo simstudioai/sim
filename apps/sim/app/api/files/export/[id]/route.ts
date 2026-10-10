@@ -13,6 +13,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { encodeFilenameForHeader } from '@/lib/uploads/server/delivery'
 import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
 import {
   createMarkdownExport,
@@ -27,7 +28,6 @@ import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
 
 const logger = createLogger('FilesExportAPI')
 

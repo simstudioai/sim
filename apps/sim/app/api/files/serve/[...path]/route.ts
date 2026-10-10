@@ -1,4 +1,4 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
@@ -10,7 +10,7 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
@@ -20,12 +20,18 @@ import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspac
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableDocBytes } from '@/lib/uploads/documents/compile'
 import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
+import { FILE_CACHE_CONTROL, workspaceFileCacheControl } from '@/lib/uploads/server/delivery'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
-import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
+import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
+import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
+import {
+  readWorkspaceFileContentByKey,
+  readWorkspaceFileRecordByKey,
+} from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import { type KnowledgeFileAccess, verifyFileAccess } from '@/app/api/files/authorization'
@@ -212,11 +218,11 @@ function getWorkspaceIdForCompile(key: string): string | undefined {
   return parseWorkspaceFileKey(key) ?? undefined
 }
 
-const IMMUTABLE_CACHE_CONTROL = 'private, max-age=31536000, immutable'
-const WORKSPACE_REVALIDATE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
+const IMMUTABLE_CACHE_CONTROL = FILE_CACHE_CONTROL.immutable
+const WORKSPACE_REVALIDATE_CACHE_CONTROL = FILE_CACHE_CONTROL.revalidate
 /** For the genuinely-public, pre-auth asset routes (avatars, OG images, workspace logos) — these are
  *  intentionally shared-cacheable. Passed EXPLICITLY so the default response cache stays `private`. */
-const PUBLIC_ASSET_CACHE_CONTROL = 'public, max-age=31536000'
+const PUBLIC_ASSET_CACHE_CONTROL = FILE_CACHE_CONTROL.publicAsset
 
 /**
  * Cache-Control for a served file.
@@ -238,6 +244,7 @@ function resolveServeCacheControl(
   context: string | undefined,
   dependsOnReferencedFiles: boolean
 ): string | undefined {
+  if (context === 'workspace') return workspaceFileCacheControl(versioned, dependsOnReferencedFiles)
   if (versioned && !dependsOnReferencedFiles) return IMMUTABLE_CACHE_CONTROL
   return context === 'workspace' || dependsOnReferencedFiles
     ? WORKSPACE_REVALIDATE_CACHE_CONTROL
@@ -268,6 +275,8 @@ export const GET = withRouteHandler(
       if (!path || path.length === 0) {
         throw new FileNotFoundError('No file path provided')
       }
+
+      if (path[0] === 'project') throw new FileNotFoundError('File not found')
 
       logger.info('File serve request:', { path })
 
@@ -331,7 +340,16 @@ export const GET = withRouteHandler(
           path,
           error: legacyAuthResult.error || 'Missing userId',
         })
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          {
+            status: 401,
+            headers: {
+              'Cache-Control': FILE_CACHE_CONTROL.noStore,
+              'X-Content-Type-Options': 'nosniff',
+            },
+          }
+        )
       }
 
       const query = fileServeQuerySchema.parse({
@@ -363,7 +381,8 @@ export const GET = withRouteHandler(
           options,
           request.signal,
           storageContext,
-          knowledgeAccess
+          knowledgeAccess,
+          request.method === 'HEAD'
         )
       }
 
@@ -373,12 +392,22 @@ export const GET = withRouteHandler(
         options,
         request.signal,
         storageContext,
-        knowledgeAccess
+        knowledgeAccess,
+        request.method === 'HEAD'
       )
     } catch (error) {
       if (error instanceof InternalUnauthenticatedError) {
         logger.warn('Unauthorized file access attempt', { error: error.message })
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          {
+            status: 401,
+            headers: {
+              'Cache-Control': FILE_CACHE_CONTROL.noStore,
+              'X-Content-Type-Options': 'nosniff',
+            },
+          }
+        )
       }
 
       // An in-progress/incomplete doc source fails to compile — this is expected
@@ -400,6 +429,12 @@ export const GET = withRouteHandler(
         logServeFailure('Error serving file:', notFound)
         return createFileErrorResponse(notFound)
       }
+
+      if (orchestrationError)
+        return createFileErrorResponse(
+          orchestrationError,
+          statusForOrchestrationError(orchestrationError.code)
+        )
 
       logServeFailure('Error serving file:', error)
 
@@ -423,23 +458,42 @@ async function handleWorkspaceFile(
   const workspaceId = getWorkspaceIdForCompile(key)
   if (!workspaceId) throw new FileNotFoundError(`File not found: ${key}`)
 
-  const { file, content } = await readWorkspaceFileContentByKey.execute({
-    principal,
-    input: { key, assertedWorkspaceId: workspaceId },
-    request,
-  })
-  const ownerKey = `user:${requirePrincipalSubjectUserId(principal)}`
-  const resolved = await resolveServableBytes({
-    buffer: content,
-    filename: file.name,
-    storageKey: key,
-    workspaceId,
-    options,
-    ownerKey,
-    filePrincipal: principal,
-    fileType: file.type,
-    signal: request.signal,
-  })
+  const input = { key, assertedWorkspaceId: workspaceId }
+  const { file } = await readWorkspaceFileRecordByKey.execute({ principal, input, request })
+  if (request.method === 'HEAD') {
+    return new NextResponse(null, {
+      headers: { 'Cache-Control': FILE_CACHE_CONTROL.noStore, 'X-Content-Type-Options': 'nosniff' },
+    })
+  }
+  let resolved: ServableBytes
+  if (options.raw) {
+    const { content } = await readWorkspaceFileContentByKey.execute({ principal, input, request })
+    resolved = {
+      buffer: content,
+      contentType: getContentType(file.name),
+      dependsOnReferencedFiles: false,
+    }
+  } else {
+    const rendered = await fetchAuthorizedServableWorkspaceFileBuffer(file, principal, {
+      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+      signal: request.signal,
+    })
+    const preview = options.preview ? await resolveServableImageBytes(rendered.buffer, key) : null
+    resolved = {
+      buffer: preview?.buffer ?? rendered.buffer,
+      contentType: preview?.contentType ?? rendered.contentType,
+      dependsOnReferencedFiles: rendered.dependsOnReferencedFiles,
+    }
+    assertKnownSizeWithinLimit(
+      resolved.buffer.length,
+      MAX_BUFFERED_TRANSFER_BYTES,
+      'served file response'
+    )
+    await finishFileDelivery({
+      authorize: () => readWorkspaceFileRecordByKey.authorize({ principal, input, request }),
+      receipt: rendered.receipt,
+    })
+  }
 
   logger.info('Workspace file served', {
     fileId: file.id,
@@ -467,7 +521,8 @@ async function handleLocalFile(
   options: ServeOptions,
   signal: AbortSignal | undefined,
   context: StorageContext,
-  knowledgeAccess: KnowledgeFileAccess | undefined
+  knowledgeAccess: KnowledgeFileAccess | undefined,
+  head: boolean
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
@@ -484,6 +539,13 @@ async function handleLocalFile(
       throw new FileNotFoundError(`File not found: ${filename}`)
     }
 
+    if (head)
+      return new NextResponse(null, {
+        headers: {
+          'Cache-Control': FILE_CACHE_CONTROL.noStore,
+          'X-Content-Type-Options': 'nosniff',
+        },
+      })
     const filePath = await findLocalFile(filename)
 
     if (!filePath) {
@@ -539,7 +601,8 @@ async function handleCloudProxy(
   options: ServeOptions,
   signal: AbortSignal | undefined,
   context: StorageContext,
-  knowledgeAccess: KnowledgeFileAccess | undefined
+  knowledgeAccess: KnowledgeFileAccess | undefined,
+  head: boolean
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
@@ -558,6 +621,13 @@ async function handleCloudProxy(
       throw new FileNotFoundError(`File not found: ${cloudKey}`)
     }
 
+    if (head)
+      return new NextResponse(null, {
+        headers: {
+          'Cache-Control': FILE_CACHE_CONTROL.noStore,
+          'X-Content-Type-Options': 'nosniff',
+        },
+      })
     let rawBuffer: Buffer
 
     if (context === 'copilot') {

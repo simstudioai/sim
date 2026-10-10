@@ -659,6 +659,7 @@ export const env = createEnv({
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
+    PROJECT_FILES_ENABLED:                z.boolean().optional(),                 // Enable Project files after entity-aware workers and storage consumers are deployed
     /** Trust administrator domain claims without DNS proof on self-hosted deployments only. */
     SSO_SKIP_DOMAIN_VERIFICATION:          z.boolean().optional(),
     SCIM_ENABLED:                          z.boolean().optional(),                 // Enable SCIM directory provisioning

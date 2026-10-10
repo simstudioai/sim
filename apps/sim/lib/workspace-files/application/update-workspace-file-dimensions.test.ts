@@ -43,7 +43,11 @@ describe('updateWorkspaceFileDimensionsOperation', () => {
     })
 
     expect(result).toEqual({ success: false })
-    expect(mocks.loadContext).toHaveBeenCalledWith('file-1', { includeDeleted: undefined })
+    expect(mocks.loadContext).toHaveBeenCalledWith('file-1', {
+      includeDeleted: undefined,
+      includeChatUploads: undefined,
+      includeOwnedFiles: false,
+    })
     expect(mocks.updateDimensions).toHaveBeenCalledWith('workspace-1', 'file-1', {
       key: 'workspace/workspace-1/current-key',
       width: 800,

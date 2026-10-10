@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import {
@@ -7,54 +6,39 @@ import {
   getPublicFileContract,
 } from '@/lib/api/contracts/public-shares'
 import { parseRequest } from '@/lib/api/server'
-import { setDeploymentAuthCookie } from '@/lib/core/security/deployment'
-import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
-import { generateRequestId } from '@/lib/core/utils/request'
+import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  publicFileAuthDenied,
+  publicFileErrorResponse,
+  publicFileShareCredential,
+} from '@/lib/public-shares/api'
+import {
+  authenticatePublicFileSharePassword,
+  authorizePublicFileShare,
+  readPublicFileShare,
+} from '@/lib/public-shares/application'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 
 export const dynamic = 'force-dynamic'
-
 const logger = createLogger('PublicFileMetadataAPI')
 
-/**
- * GET /api/files/public/[token]
- * Public, unauthenticated metadata for a shared file. Returns 404 for unknown,
- * inactive, or deleted shares — the existence of a file is never leaked. A
- * password-protected share returns 401 `auth_required_password` until a valid
- * `file_auth_{shareId}` cookie is present.
- */
+/** Public bearer authentication and cookie exchange retain their protocol-specific response shape. */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ token: string }> }) => {
-    const requestId = generateRequestId()
-
     try {
       const limited = await enforcePublicFileRateLimit(request, 'metadata')
       if (limited) return limited
-
       const parsed = await parseRequest(getPublicFileContract, request, context)
       if (!parsed.success) return parsed.response
       const { token } = parsed.data.params
-
-      const resolved = await resolveActiveShareByToken(token)
-      if (!resolved) {
-        return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      }
-
-      const auth = await validateDeploymentAuth(
-        requestId,
-        resolved.share,
-        request,
-        undefined,
-        'file'
-      )
-      if (!auth.authorized) {
-        return NextResponse.json({ error: auth.error ?? 'auth_required_password' }, { status: 401 })
-      }
-
-      const { file, workspaceName, ownerName } = resolved
+      const auth = await authorizePublicFileShare({
+        token,
+        credential: await publicFileShareCredential(request.cookies.getAll(), getClientIp(request)),
+      })
+      if (!auth.authorized) return publicFileAuthDenied(auth)
+      const { file, workspaceName, ownerName } = await readPublicFileShare({ grant: auth.grant })
       return NextResponse.json({
         token,
         name: file.originalName,
@@ -65,78 +49,29 @@ export const GET = withRouteHandler(
       })
     } catch (error) {
       logger.error('Error fetching public file metadata:', error)
-      return NextResponse.json(
-        { error: getErrorMessage(error, 'Failed to fetch file') },
-        { status: 500 }
-      )
+      return publicFileErrorResponse(error, 'Failed to fetch file')
     }
   }
 )
 
-/**
- * POST /api/files/public/[token]
- * Exchanges a share password for a `file_auth_{shareId}` cookie. IP rate-limited
- * via the shared deployment-auth gate; returns 401 (`Invalid password`) on
- * mismatch and 429 (with `Retry-After`) when throttled.
- */
+/** Exchanges a current password policy for its resource-bound HttpOnly cookie. */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ token: string }> }) => {
-    const requestId = generateRequestId()
-
     try {
       const parsed = await parseRequest(authenticatePublicFileContract, request, context)
       if (!parsed.success) return parsed.response
-      const { token } = parsed.data.params
-      const { password } = parsed.data.body
-
-      const resolved = await resolveActiveShareByToken(token)
-      if (!resolved) {
-        return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      }
-
-      // This endpoint authenticates password shares only. Refusing other modes
-      // here prevents minting a `file_auth` cookie for a `public` share (which
-      // `validateDeploymentAuth` would otherwise authorize), which could later
-      // satisfy the gate if the share is switched to `email`/`sso`.
-      if (resolved.share.authType !== 'password') {
-        return NextResponse.json(
-          { error: 'This file does not use password authentication' },
-          { status: 400 }
-        )
-      }
-
-      const auth = await validateDeploymentAuth(
-        requestId,
-        resolved.share,
-        request,
-        { password },
-        'file'
-      )
-      if (!auth.authorized) {
-        const response = NextResponse.json(
-          { error: auth.error ?? 'Invalid password' },
-          { status: auth.status ?? 401 }
-        )
-        if (auth.status === 429 && auth.retryAfterMs !== undefined) {
-          response.headers.set('Retry-After', String(Math.ceil(auth.retryAfterMs / 1000)))
-        }
-        return response
-      }
-
-      const response = NextResponse.json({ authType: resolved.share.authType })
-      await setDeploymentAuthCookie({
-        response,
-        cookiePrefix: 'file',
-        resource: resolved.share,
+      const auth = await authenticatePublicFileSharePassword({
+        token: parsed.data.params.token,
+        password: parsed.data.body.password,
+        clientIp: getClientIp(request),
       })
-      logger.info('Public file share password accepted', { token, shareId: resolved.share.id })
+      if (!auth.authorized) return publicFileAuthDenied(auth)
+      const response = NextResponse.json({ authType: auth.authType })
+      response.cookies.set(auth.cookie)
       return response
     } catch (error) {
       logger.error('Error authenticating public file share:', error)
-      return NextResponse.json(
-        { error: getErrorMessage(error, 'Failed to authenticate') },
-        { status: 500 }
-      )
+      return publicFileErrorResponse(error, 'Failed to authenticate')
     }
   }
 )

@@ -3,6 +3,7 @@ import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-
 import type { AccessRevokedBroadcast } from '@sim/realtime-protocol/events'
 import { FILE_DOC_EVENTS, type FileDocPermission } from '@sim/realtime-protocol/file-doc'
 import {
+  isProjectRoom,
   parseRoomName,
   projectFileDocTarget,
   ROOM_TYPES,
@@ -329,7 +330,7 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
         // resolution keeps running in the background and is re-raced when the
         // rotation returns to this socket, so it is acted on once it settles.
         const role = await Promise.race([
-          room.type === ROOM_TYPES.PROJECT_FILE_DOC
+          isProjectRoom(room)
             ? resolveCurrentRoomPermission(userId, room, fallbackRoleFor(room.type), socket.id)
             : resolveCurrentRoomPermission(userId, room, fallbackRoleFor(room.type)),
           sleep(Math.min(SCAN_SOCKET_TIMEOUT_MS, remainingBudget)).then(() => SCAN_TIMED_OUT),

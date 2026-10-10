@@ -608,11 +608,8 @@ export class FileDocStore {
     expectedGeneration = this.rooms.get(name)?.generation ?? '',
     editor?: FileDocEditor
   ): Promise<void> {
-    if (
-      name.startsWith('project-file-doc:') &&
-      (!editor?.userId.trim() || !editor.connectionId.trim())
-    ) {
-      throw new Error('Project document updates require an authenticated editor')
+    if (!editor?.userId.trim() || !editor.connectionId.trim()) {
+      throw new Error('Document updates require an authenticated editor')
     }
     if (!this.enabled) return
     if (!this.write) throw new Error('FileDocStore is not initialized')

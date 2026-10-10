@@ -866,6 +866,25 @@ sim files batch-delete [options]
 
 </CommandTable>
 
+### sim files copy
+
+Copy File Items (OAuth login or personal API key required)
+
+```bash
+sim files copy [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--source <json\|@file>` | Yes | Source owner and selected fileIds or folderIds (JSON, or @path / @- to read a file or stdin). |
+| `--destination <json\|@file>` | Yes | Destination owner and optional folderId (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
 ### sim files create
 
 Create File
@@ -4291,6 +4310,720 @@ sim permission-groups update <groupId> [options]
 | `--default` | No | Whether the group is the organization default. Only one group can be the default. |
 | `--no-default` | No | Send --default as false. |
 | `--workspace-ids <json\|@file>` | No | Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## sim projects
+
+### sim projects files archive
+
+Archive Project File Items (OAuth login or personal API key required)
+
+```bash
+sim projects files archive <projectId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <value...>` | No | Identifiers of the files to archive. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder-ids <value...>` | No | Identifiers of folders to archive recursively, including their files and descendants. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim projects files create
+
+Create Project File (OAuth login or personal API key required)
+
+```bash
+sim projects files create <projectId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | File name, including its extension. Path separators and dot segments are rejected. |
+| `--content-type <value>` | No | MIME type. When omitted, it is inferred from the file extension. |
+| `--content <value>` | No | Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger. |
+| `--encoding <value>` | No | Encoding of the content field. Accepted values: `utf-8`, `base64`. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+
+</CommandTable>
+
+### sim projects files folders create
+
+Create Project File Folder (OAuth login or personal API key required)
+
+```bash
+sim projects files folders create <projectId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Name for the new folder. |
+| `--parent-id <value>` | No | Parent folder identifier; omit or use null for the root. (--parent-id null sends the word, not JSON null). |
+
+</CommandTable>
+
+### sim projects files folders list
+
+List Project File Folders (OAuth login or personal API key required)
+
+```bash
+sim projects files folders list <projectId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | No | Folder lifecycle scope. Accepted values: `active`, `archived`, `all`. |
+
+</CommandTable>
+
+### sim projects files folders restore
+
+Restore Project File Folder (OAuth login or personal API key required)
+
+```bash
+sim projects files folders restore <projectId> <folderId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `folderId` | Yes | Folder identifier within the Project. |
+
+</CommandTable>
+
+### sim projects files folders update
+
+Update Project File Folder (OAuth login or personal API key required)
+
+```bash
+sim projects files folders update <projectId> <folderId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `folderId` | Yes | Folder identifier within the Project. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New folder name; omit to leave unchanged. |
+| `--parent-id <value>` | No | New parent folder identifier; null moves to the root, omission leaves the parent unchanged. (--parent-id null sends the word, not JSON null). |
+| `--sort-order <value>` | No | New manual position; omit to leave unchanged. |
+
+</CommandTable>
+
+### sim projects files versions delete
+
+Permanently delete a previous version of a shared Project file (OAuth login or personal API key required)
+
+```bash
+sim projects files versions delete <projectId> <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim projects files versions describe
+
+Show the metadata of one version of a shared Project file (OAuth login or personal API key required)
+
+```bash
+sim projects files versions describe <projectId> <fileId> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+### sim projects files versions list
+
+List the recorded versions of a shared Project file (OAuth login or personal API key required)
+
+```bash
+sim projects files versions list <projectId> <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `version`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim projects files versions revert
+
+Make a previous version of a shared Project file current again (OAuth login or personal API key required)
+
+```bash
+sim projects files versions revert <projectId> <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content. |
+| `--expected-revision <value>` | No | Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version. |
+
+</CommandTable>
+
+### sim projects files versions source
+
+Download a Project file version’s stored source to stdout or a local file (OAuth login or personal API key required)
+
+```bash
+sim projects files versions source <projectId> <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project that owns the file |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+
+</CommandTable>
+
+### sim projects files describe
+
+Show Project file metadata and ownership (OAuth login or personal API key required)
+
+```bash
+sim projects files describe <projectId> <fileId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+
+</CommandTable>
+
+### sim projects files share get
+
+Show a Project file’s share settings (OAuth login or personal API key required)
+
+```bash
+sim projects files share get <projectId> <fileId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+
+</CommandTable>
+
+### sim projects files share set
+
+Enable or disable sharing for a Project file (OAuth login or personal API key required)
+
+```bash
+sim projects files share set <projectId> <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--is-active <true\|false>` | Yes | Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use. Accepted values: `true`, `false`. |
+| `--auth-type <value>` | No | How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password. Accepted values: `public`, `password`, `email`, `sso`. |
+| `--password <value>` | No | Literal password of 15 to 1024 characters. Kept when omitted; enabling password access without a supplied or stored password is rejected. |
+| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+
+</CommandTable>
+
+### sim projects files list
+
+List Project Files (OAuth login or personal API key required)
+
+```bash
+sim projects files list <projectId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--recursive` | No | Include subfolders in the folder filter. Defaults to true when searching and false otherwise. Ignored without a folder filter. |
+| `--no-recursive` | No | Send --recursive as false. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--search <value>` | No | Case-insensitive substring match against the file name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim projects files move
+
+Move Project File Items (OAuth login or personal API key required)
+
+```bash
+sim projects files move <projectId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <value...>` | No | Identifiers of the files to move. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder-ids <value...>` | No | Identifiers of folders to move with their contents. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--to <value>` | No | Destination folder path; omit for root. |
+
+</CommandTable>
+
+### sim projects files rename
+
+Rename Project File (OAuth login or personal API key required)
+
+```bash
+sim projects files rename <projectId> <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | New file name, including its extension. |
+
+</CommandTable>
+
+### sim projects files restore
+
+Restore Project File (OAuth login or personal API key required)
+
+```bash
+sim projects files restore <projectId> <fileId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+
+</CommandTable>
+
+### sim projects files search
+
+Search Project File Content (OAuth login or personal API key required)
+
+```bash
+sim projects files search <projectId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--query <value>` | Yes | Regular expression, or exact text when `mode` is `exact`. |
+| `--mode <value>` | No | How `query` is read. Accepted values: `exact`, `regex`. |
+| `--max-results <value>` | No | Maximum matching lines to return. |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--include-subfolders` | No | Whether the scope descends into nested folders. Absent means yes. |
+| `--no-include-subfolders` | No | Send --include-subfolders as false. |
+
+</CommandTable>
+
+### sim projects files unzip
+
+Unzip an archive into a new folder beside it in the Project (OAuth login or personal API key required)
+
+```bash
+sim projects files unzip <projectId> <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim projects files set-content
+
+Replace a shared Project file’s contents (OAuth login or personal API key required)
+
+```bash
+sim projects files set-content <projectId> <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | Yes | Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. |
+| `--encoding <value>` | No | Content encoding. Accepted values: `utf-8`, `base64`. |
+| `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
+
+</CommandTable>
+
+### sim projects files upload
+
+Upload a shared Project file
+
+```bash
+sim projects files upload <projectId> <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project that will own the file |
+| `path` | Yes | Local file to upload |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--folder <path>` | No | Folder path as shown in the app; defaults to the Project root. |
+| `--name <name>` | No | Store it under a different name. |
+
+</CommandTable>
+
+### sim projects files source
+
+Download a Project file’s stored source to stdout or a local file (OAuth login or personal API key required)
+
+```bash
+sim projects files source <projectId> <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project that owns the file |
+| `fileId` | Yes | File whose stored source to read |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+
+</CommandTable>
+
+### sim projects files bulk-download
+
+Download Project files and recursive folder contents as a zip archive (OAuth login or personal API key required)
+
+```bash
+sim projects files bulk-download <projectId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project that owns the files |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <id...>` | No | File identifiers to include. |
+| `--folder-ids <id...>` | No | Folder identifiers to include recursively. |
+| `-o, --output-file <path>` | No | Write the archive to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+
+</CommandTable>
+
+### sim projects files export
+
+Export a visible Project Markdown snapshot with its embedded assets (OAuth login or personal API key required)
+
+```bash
+sim projects files export <projectId> <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project that owns the file |
+| `fileId` | Yes | Markdown file whose visible snapshot to export |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <text\|@file\|@->` | Yes | Visible Markdown content or a file to read. |
+| `-o, --output-file <path>` | No | Write the export to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
 
 </CommandTable>
 

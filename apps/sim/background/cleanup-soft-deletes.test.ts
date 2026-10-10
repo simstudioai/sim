@@ -1,5 +1,4 @@
 import {
-  dbChainMock,
   dbChainMockFns,
   hasMockCondition,
   queueTableRows,
@@ -18,10 +17,6 @@ import {
   uploadsMetadataMockFns,
 } from '@sim/testing/mocks/uploads-metadata.mock'
 import { workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing/mocks/workflows-utils.mock'
-import {
-  workspaceFileManagerMock,
-  workspaceFileManagerMockFns,
-} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -77,18 +72,13 @@ vi.mock('@/lib/uploads', () => uploadsMock)
 
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-const { mockReleaseWorkspaceFileVersionsForPurgeInTx } = vi.hoisted(() => ({
-  mockReleaseWorkspaceFileVersionsForPurgeInTx: vi.fn(),
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
-  releaseWorkspaceFileVersionsForPurgeInTx: mockReleaseWorkspaceFileVersionsForPurgeInTx,
+vi.mock('@/lib/file-retention/folders', () => ({
+  cleanupArchivedWorkspaceFileFolders: vi.fn(async () => 0),
 }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/folders/naming', () => ({ deduplicateFolderName: mockDeduplicateFolderName }))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 import { runCleanupSoftDeletes } from '@/background/cleanup-soft-deletes'
 
@@ -102,10 +92,8 @@ const { mockDeleteFiles } = storageServiceMockFns
 const { mockDeleteFileMetadata } = uploadsMetadataMockFns
 const { mockIsUsingCloudStorage } = uploadsMockFns
 const { mockDeduplicateWorkflowName } = workflowsUtilsMockFns
-const { mockAllocateUniqueWorkspaceFileName } = workspaceFileManagerMockFns
 mockDeleteFileMetadata.mockImplementation(async () => true)
 mockDeduplicateWorkflowName.mockImplementation(async (name: string) => name)
-mockAllocateUniqueWorkspaceFileName.mockImplementation(async (_ws: string, name: string) => name)
 
 const basePayload = {
   label: 'free/1',
@@ -134,67 +122,22 @@ describe('cleanup soft deletes', () => {
     })
   })
 
-  it('releases version history inside the transaction that purges the file rows', async () => {
-    mockSelectRowsByIdChunks
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: 'file-purged',
-          key: 'workspace/ws-1/file-purged',
-          workspaceId: 'ws-1',
-          context: 'workspace',
-          sizeBytes: 5,
-        },
-        {
-          id: 'file-failed',
-          key: 'workspace/ws-1/file-failed',
-          workspaceId: 'ws-1',
-          context: 'workspace',
-          sizeBytes: 4,
-        },
-      ])
-    mockDeleteFiles.mockResolvedValueOnce({
-      deleted: 1,
-      failed: [{ key: 'workspace/ws-1/file-failed', error: 'storage unavailable' }],
-    })
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'file-purged', sizeBytes: 5 }])
-
-    await runCleanupSoftDeletes(basePayload)
-
-    expect(mockReleaseWorkspaceFileVersionsForPurgeInTx).toHaveBeenCalledOnce()
-    expect(mockReleaseWorkspaceFileVersionsForPurgeInTx).toHaveBeenCalledWith(
-      dbChainMock.db,
-      ['file-purged'],
-      expect.any(Date)
-    )
-    expect(dbChainMockFns.transaction.mock.invocationCallOrder[0]).toBeLessThan(
-      mockReleaseWorkspaceFileVersionsForPurgeInTx.mock.invocationCallOrder[0]
-    )
-    const fileDelete = dbChainMockFns.delete.mock.calls.findIndex(
-      ([table]) => table === schemaMock.workspaceFiles
-    )
-    expect(mockReleaseWorkspaceFileVersionsForPurgeInTx.mock.invocationCallOrder[0]).toBeLessThan(
-      dbChainMockFns.delete.mock.invocationCallOrder[fileDelete]
-    )
-  })
-
-  it('keeps metadata rows whose object deletion failed', async () => {
+  it('keeps unbilled metadata rows whose object deletion failed', async () => {
     mockSelectRowsByIdChunks
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
           id: 'file-failed',
-          key: 'workspace/ws-1/file-failed',
+          key: 'knowledge-base/file-failed',
           workspaceId: 'ws-1',
-          context: 'workspace',
+          context: 'knowledge-base',
           sizeBytes: 11,
         },
       ])
     mockDeleteFiles.mockResolvedValueOnce({
       deleted: 0,
-      failed: [{ key: 'workspace/ws-1/file-failed', error: 'storage unavailable' }],
+      failed: [{ key: 'knowledge-base/file-failed', error: 'storage unavailable' }],
     })
 
     await runCleanupSoftDeletes(basePayload)
@@ -204,42 +147,6 @@ describe('cleanup soft deletes', () => {
     expect(
       mockDeleteRowsById.mock.calls.some(([, , ids]) => (ids as string[]).includes('file-failed'))
     ).toBe(false)
-  })
-
-  it('decrements the current workspace payer only for rows conditionally deleted', async () => {
-    mockSelectRowsByIdChunks
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: 'file-deleted',
-          key: 'workspace/ws-1/file-deleted',
-          workspaceId: 'ws-1',
-          context: 'workspace',
-          sizeBytes: 7,
-        },
-        {
-          id: 'file-restored',
-          key: 'workspace/ws-1/file-restored',
-          workspaceId: 'ws-1',
-          context: 'workspace',
-          sizeBytes: 13,
-        },
-      ])
-    mockDeleteFiles.mockResolvedValueOnce({ deleted: 2, failed: [] })
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'file-deleted', sizeBytes: 7 }])
-
-    await runCleanupSoftDeletes(basePayload)
-
-    expect(mockResolveStorageBillingContext).toHaveBeenCalledOnce()
-    expect(mockDecrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
-      dbChainMock.db,
-      expect.objectContaining({ workspaceId: 'ws-1' }),
-      7
-    )
-    expect(mockDeleteFiles.mock.invocationCallOrder[0]).toBeLessThan(
-      dbChainMockFns.transaction.mock.invocationCallOrder[0]
-    )
   })
 
   it('hard-deletes mothership metadata without touching stored-byte counters', async () => {
@@ -423,12 +330,7 @@ describe('folder cleanup target', () => {
     expect(target?.additionalPredicate).toBeDefined()
     expect(target?.additionalPredicate?.type).toBe('inArray')
     expect(target?.additionalPredicate?.column).toBe(schemaMock.folder.resourceType)
-    expect(target?.additionalPredicate?.values).toEqual([
-      'workflow',
-      'file',
-      'knowledge_base',
-      'table',
-    ])
+    expect(target?.additionalPredicate?.values).toEqual(['workflow', 'knowledge_base', 'table'])
   })
 
   /**
@@ -463,24 +365,6 @@ describe('folder cleanup target', () => {
         expect.anything()
       )
       expect(dbChainMockFns.set).toHaveBeenCalledWith({ folderId: null, name: 'Report (2)' })
-    })
-
-    it('falls back to an id-suffixed name when the copy-suffix range is exhausted', async () => {
-      // Letting the allocator throw would abort the sweep — the exact stall this guards against.
-      const onBatch = await getFolderOnBatch()
-      queueTableRows(schemaMock.folder, [{ id: 'folder-1' }])
-      queueTableRows(schemaMock.workflow, [])
-      queueTableRows(schemaMock.workspaceFiles, [
-        { id: 'f1', originalName: 'report.pdf', workspaceId: 'ws-1' },
-      ])
-      mockAllocateUniqueWorkspaceFileName.mockRejectedValueOnce(new Error('conflict'))
-
-      await expect(onBatch([{ id: 'folder-1' }])).resolves.toBeUndefined()
-
-      expect(dbChainMockFns.set).toHaveBeenCalledWith({
-        folderId: null,
-        originalName: 'report.pdf (f1)',
-      })
     })
 
     it('re-roots an active SUBFOLDER, which hits the same unique index', async () => {
@@ -518,32 +402,6 @@ describe('folder cleanup target', () => {
       expect(dbChainMockFns.set).toHaveBeenCalledWith({ parentId: null, name: 'Reports (1)' })
     })
 
-    it('recovers when the allocator RETURNS a colliding name and the update raises', async () => {
-      /**
-       * `allocateUniqueWorkspaceFileName` fails open — `fileExistsInWorkspace` swallows query
-       * errors and returns false — so it can hand back a name already taken at the root. Only
-       * the UPDATE discovers that, and an uncaught 23505 aborts the batch: the exact stall this
-       * hook prevents. Guarding the name lookup alone is not enough.
-       */
-      const onBatch = await getFolderOnBatch()
-      queueTableRows(schemaMock.folder, [{ id: 'folder-1' }])
-      queueTableRows(schemaMock.workflow, [])
-      queueTableRows(schemaMock.workspaceFiles, [
-        { id: 'f1', originalName: 'report.pdf', workspaceId: 'ws-1' },
-      ])
-      mockAllocateUniqueWorkspaceFileName.mockResolvedValueOnce('taken.pdf')
-      dbChainMockFns.update.mockImplementationOnce(() => ({
-        set: () => ({ where: () => Promise.reject(new Error('duplicate key value (23505)')) }),
-      }))
-
-      await expect(onBatch([{ id: 'folder-1' }])).resolves.toBeUndefined()
-
-      expect(dbChainMockFns.set).toHaveBeenCalledWith({
-        folderId: null,
-        originalName: 'report.pdf (f1)',
-      })
-    })
-
     it('leaves children alone when the folder was restored between select and onBatch', async () => {
       /**
        * The DELETE re-asserts eligibility and so correctly skips a restored folder. Without the
@@ -564,7 +422,6 @@ describe('folder cleanup target', () => {
       await onBatch([{ id: 'folder-1' }])
 
       expect(mockDeduplicateWorkflowName).not.toHaveBeenCalled()
-      expect(mockAllocateUniqueWorkspaceFileName).not.toHaveBeenCalled()
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
     })
   })

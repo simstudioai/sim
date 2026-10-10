@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { encodeFilenameForHeader } from '@/lib/uploads/server/delivery'
 import {
   createConditionalFileResponse,
   createFileResponse,
-  encodeFilenameForHeader,
   extractFilename,
   findLocalFile,
 } from '@/app/api/files/utils'

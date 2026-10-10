@@ -15,6 +15,7 @@ import { createMockRequest } from '@sim/testing'
 import { createRouteContext } from '@sim/testing/helpers/http'
 import { auditMock } from '@sim/testing/mocks/audit.mock'
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
@@ -29,6 +30,7 @@ const run = promisify(execFile)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 

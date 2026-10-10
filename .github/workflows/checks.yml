@@ -160,6 +160,8 @@ jobs:
             runner: blacksmith-4vcpu-ubuntu-2404
           - group: stop-after
             runner: blacksmith-4vcpu-ubuntu-2404
+          - group: project-files
+            runner: blacksmith-8vcpu-ubuntu-2404
           - group: desktop-inbox
             runner: blacksmith-4vcpu-ubuntu-2404
           - group: mobile
@@ -178,7 +180,7 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # Only the desktop executor's app is given REDIS_URL: its doorbell and presence live there.
+      # Project file subscriptions and the desktop executor use Redis.
       redis:
         image: redis:8.2-alpine
         ports:
@@ -206,6 +208,14 @@ jobs:
       - name: Provision the database through migrations
         working-directory: packages/db
         run: bun run db:migrate
+
+      - name: Build native isolate addon for Project file rendering
+        if: matrix.group == 'project-files'
+        working-directory: apps/sim
+        run: |
+          addon_dir="$(node -p 'require("node:path").dirname(require.resolve("isolated-vm/package.json", { paths: ["./apps/sim"] }))')"
+          cd "$addon_dir"
+          bun run install
 
       # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
       # short of writing its report.

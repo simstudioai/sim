@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import {
   uploadsMetadataMock,
@@ -11,6 +12,8 @@ import {
   workspaceFileManagerMockFns,
 } from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)

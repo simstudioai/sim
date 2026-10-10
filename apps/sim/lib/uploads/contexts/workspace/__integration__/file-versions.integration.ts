@@ -210,7 +210,7 @@ describe('workspace file version history in PostgreSQL', () => {
         phase === 'storage'
           ? null
           : vi
-              .spyOn(storageBilling, 'incrementStorageUsageForBillingContextInTx')
+              .spyOn(storageBilling, 'prepareFileAccountingInTx')
               .mockRejectedValueOnce(operationError)
       try {
         const operation =

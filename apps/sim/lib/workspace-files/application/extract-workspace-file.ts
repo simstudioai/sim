@@ -6,7 +6,11 @@ import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { IdempotencyService } from '@/lib/core/idempotency/service'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
-import { decompressArchiveBufferToWorkspaceFiles, MAX_ARCHIVE_BYTES } from '@/lib/uploads/archive'
+import {
+  archiveFolderName,
+  decompressArchiveBufferToWorkspaceFiles,
+  MAX_ARCHIVE_BYTES,
+} from '@/lib/uploads/archive'
 import {
   archiveWorkspaceFileFolderIfEmpty,
   createWorkspaceFileFolder,
@@ -72,16 +76,6 @@ type ExtractWorkspaceFileUseCaseContext = AuthorizedWorkspaceUseCaseContext<
   ExtractWorkspaceFileInput,
   ActiveWorkspaceFileContext
 >
-
-function archiveFolderName(fileName: string): string {
-  const stripped = fileName
-    .replace(/\.zip$/i, '')
-    .normalize('NFC')
-    .replace(/[\x00-\x1f\x7f]/g, '')
-    .replace(/[/\\]/g, '-')
-    .trim()
-  return stripped && stripped !== '.' && stripped !== '..' ? stripped : 'archive'
-}
 
 async function withExtractionLease<T>(
   workspaceId: string,

@@ -100,6 +100,9 @@ export function defineWorkspaceOperation<
   if (operation.principalKinds.includes('organization_delegated')) {
     throw new Error(`Workspace operation ${operation.id} cannot accept organization delegation`)
   }
+  if (operation.principalKinds.includes('resource_delegated')) {
+    throw new Error(`Workspace operation ${operation.id} cannot accept resource delegation`)
+  }
 
   const allowsWorkspaceApiKey = operation.principalKinds.includes('workspace_api_key')
   if (allowsWorkspaceApiKey !== (operation.workspaceApiKey === 'allow')) {

@@ -55,6 +55,7 @@ export function capabilityGovernedPrincipalUserId(principal: Principal): string 
     case 'slack_installation':
     case 'slack_app':
       return null
+    case 'resource_delegated':
     case 'organization_delegated':
       return principal.subjectUserId
     case 'delegated': {
@@ -425,6 +426,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
         throw new WorkspaceApiKeyAuthorizationError()
       }
       return
+    case 'resource_delegated':
     case 'organization_delegated':
       throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
     case 'delegated': {

@@ -1,3 +1,5 @@
+import type { FileDocOwner } from '@sim/realtime-protocol/file-doc-target'
+
 /**
  * Wire protocol for the collaborative file-document room
  * ({@link ROOM_TYPES.WORKSPACE_FILE_DOC}). Live carets and text selection ride
@@ -148,6 +150,7 @@ export const FILE_DOC_LIMITS = {
 
 /** Client → server join request. `fileId` is the `workspace_files.id`. */
 export interface JoinFileDocPayload {
+  owner?: FileDocOwner
   projectId?: string
   fileId: string
   /**
@@ -163,6 +166,7 @@ export interface JoinFileDocPayload {
 /** Server → client acceptance of a {@link FILE_DOC_EVENTS.JOIN}. */
 export interface JoinFileDocSuccess {
   canWrite?: boolean
+  owner?: FileDocOwner
   projectId?: string
   fileId: string
   /** The provider whose join was accepted. Optional while older relays are still deployed. */
@@ -194,6 +198,7 @@ export interface JoinFileDocError {
 
 /** Client → server leave request. */
 export interface LeaveFileDocPayload {
+  owner?: FileDocOwner
   projectId?: string
   fileId: string
 }
@@ -210,6 +215,7 @@ export interface FileDocInvalidated {
 
 /** A bounded, retry-safe batch of user-authored changes. */
 export interface FileDocUpdatePayload {
+  owner?: FileDocOwner
   projectId?: string
   fileId: string
   docId: string
@@ -270,7 +276,8 @@ export const FILE_DOC_INTERNAL_HEADERS = {
 
 /** Current write capability for a subscribed Project document. */
 export interface FileDocPermission {
-  projectId: string
+  owner?: FileDocOwner
+  projectId?: string
   fileId: string
   canWrite: boolean
 }

@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { createServer, type Server as HttpServer } from 'node:http'
 import { dirname, resolve } from 'node:path'
+import { createLogger } from '@sim/logger'
 import {
   ROOM_ACCESS_REVOKED_EVENT,
   type RoomAccessRevokedBroadcast,
@@ -38,6 +39,7 @@ import {
   ROLE_REVALIDATION_TTL_MS,
 } from '@/middleware/permissions'
 import { MemoryRoomManager } from '@/rooms'
+import { createHttpHandler } from '@/routes/http'
 
 const projectId = generateId()
 const fileId = generateId()
@@ -57,6 +59,7 @@ let http: HttpServer
 let io: Server
 let socketUrl: string
 const capturedActors: string[] = []
+const seedFailures = new Map<string, number>()
 const accessGates = new Map<
   string,
   {
@@ -114,6 +117,11 @@ beforeAll(async () => {
       return
     }
     if (request.url.endsWith('/seed')) {
+      const failure = seedFailures.get(actor)
+      if (failure) {
+        response.writeHead(failure).end('{}')
+        return
+      }
       response.end(JSON.stringify({ update: seed, version: 1 }))
       return
     }
@@ -132,6 +140,7 @@ beforeAll(async () => {
   http = createServer()
   io = new Server(http)
   const manager = new MemoryRoomManager(io)
+  http.on('request', createHttpHandler(manager, createLogger('OwnerProtocolFixture')))
   io.on('connection', (socket) => {
     const authed = socket as AuthenticatedSocket
     authed.userId = socket.handshake.auth.actor
@@ -143,7 +152,7 @@ beforeAll(async () => {
   socketUrl = await listen(http)
 })
 
-async function startJoin(actor: string, assertedProject = projectId) {
+async function startJoin(actor: string, assertedProject = projectId, owner?: unknown) {
   const socket = connect(socketUrl, { transports: ['websocket'], auth: { actor } })
   clients.push(socket)
   await new Promise<void>((resolve) => socket.once('connect', resolve))
@@ -156,15 +165,15 @@ async function startJoin(actor: string, assertedProject = projectId) {
   client.destroy()
   socket.emit(FILE_DOC_EVENTS.JOIN, {
     fileId,
-    projectId: assertedProject,
+    ...(owner === undefined ? { projectId: assertedProject } : { owner }),
     clientId,
     schemaVersion: FILE_DOC_SCHEMA_VERSION,
   })
   return { socket, joined }
 }
 
-async function join(actor: string, assertedProject = projectId) {
-  const pending = await startJoin(actor, assertedProject)
+async function join(actor: string, assertedProject = projectId, owner?: unknown) {
+  const pending = await startJoin(actor, assertedProject, owner)
   return { socket: pending.socket, joined: await pending.joined }
 }
 
@@ -187,6 +196,29 @@ function check(name: string, run: () => Promise<void>) {
 }
 
 describe('Project documents across the Socket.IO and internal HTTP boundary', () => {
+  for (const status of [404, 503]) {
+    check(
+      `a seed response of ${status} distinguishes a missing file from a failed join`,
+      async () => {
+        const actor = `seed-reader-${generateId()}`
+        actors.set(actor, 'read')
+        seedFailures.set(actor, status)
+        const pending = await startJoin(actor)
+        try {
+          await expect(pending.joined).rejects.toThrow(status === 404 ? 'NOT_FOUND' : 'JOIN_FAILED')
+          expect(
+            io.sockets.sockets
+              .get(pending.socket.id ?? '')
+              ?.rooms.has(`project-file-doc:${projectId}/${fileId}`)
+          ).toBe(false)
+        } finally {
+          seedFailures.delete(actor)
+          pending.socket.disconnect()
+        }
+      }
+    )
+  }
+
   check('readers subscribe but cannot submit edits or become the persistence actor', async () => {
     const reader = await join('reader')
     expect(reader.joined.canWrite).toBe(false)
@@ -350,12 +382,15 @@ describe('Project documents across the Socket.IO and internal HTTP boundary', ()
         try {
           socket.emit(FILE_DOC_EVENTS.JOIN, {
             fileId,
-            projectId,
+            owner: { entityType: 'project', entityId: projectId },
             clientId: provider.clientID,
             schemaVersion: FILE_DOC_SCHEMA_VERSION,
           })
           await gate.entered.promise
-          const otherOwner = { fileId, projectId: generateId() }
+          const otherOwner = {
+            fileId,
+            owner: { entityType: 'project' as const, entityId: generateId() },
+          }
           if (action === 'join')
             socket.emit(FILE_DOC_EVENTS.JOIN, {
               ...otherOwner,
@@ -498,6 +533,44 @@ describe('Project documents across the Socket.IO and internal HTTP boundary', ()
       await flushAllFileDocRooms()
       expect(capturedActors.at(-1)).toBe('writer')
       edit.destroy()
+    }
+  )
+
+  check(
+    'owner-shaped clients share the existing room and preserve editor attribution',
+    async () => {
+      const owner = { entityType: 'project', entityId: projectId }
+      const writer = await join('writer', projectId, owner)
+      expect(writer.joined.docId).toBe(docId)
+      const edit = new Y.Doc()
+      Y.applyUpdate(edit, Buffer.from(seed, 'base64'))
+      edit.getText('body').insert(0, 'owner-shaped edit')
+      const reply = await writer.socket.timeout(1500).emitWithAck(FILE_DOC_EVENTS.UPDATE, {
+        fileId,
+        owner,
+        docId,
+        updateId: generateId(),
+        update: Y.encodeStateAsUpdate(edit),
+      })
+      expect(reply).toMatchObject({ status: 'accepted' })
+      await flushAllFileDocRooms()
+      expect(capturedActors.at(-1)).toBe('writer')
+      edit.destroy()
+      await expect(join('reader', projectId, { ...owner, entityId: generateId() })).rejects.toThrow(
+        'NOT_FOUND'
+      )
+      await expect(
+        join('reader', projectId, { entityType: 'organization', entityId: projectId })
+      ).rejects.toThrow('INVALID_PAYLOAD')
+      const mismatched = await writer.socket.timeout(1500).emitWithAck(FILE_DOC_EVENTS.UPDATE, {
+        fileId,
+        owner,
+        projectId: generateId(),
+        docId,
+        updateId: generateId(),
+        update: Y.encodeStateAsUpdate(document),
+      })
+      expect(mismatched).toMatchObject({ status: 'rejected', code: 'INVALID_UPDATE' })
     }
   )
 
@@ -675,6 +748,52 @@ describe('Project documents across the Socket.IO and internal HTTP boundary', ()
       expect(old.joined.docId).not.toBe(docId)
       const restored = await join('reader')
       expect(restored.joined.docId).toBe(docId)
+    }
+  )
+
+  check(
+    'HTTP owner targeting fences the same generation and refuses unsupported or conflicting owners',
+    async () => {
+      const owner = { entityType: 'project', entityId: projectId }
+      async function post(action: string, body: object) {
+        return fetch(`${socketUrl}/api/file-doc/${action}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
+          body: JSON.stringify(body),
+        })
+      }
+      for (const action of ['apply-edit', 'invalidate', 'retire']) {
+        const body = {
+          fileId,
+          owner,
+          markdown: '',
+          version: 100,
+          retiredDocId: docId,
+          replacementDocId: generateId(),
+        }
+        expect((await post(action, { ...body, projectId: generateId() })).status).toBe(400)
+        expect(
+          (
+            await post(action, {
+              ...body,
+              owner: { entityType: 'organization', entityId: projectId },
+            })
+          ).status
+        ).toBe(400)
+      }
+      const joined = await join('reader', projectId, owner)
+      const invalidation = new Promise<{ docId: string }>((resolve) =>
+        joined.socket.once(FILE_DOC_EVENTS.INVALIDATED, resolve)
+      )
+      const response = await post('retire', {
+        fileId,
+        owner,
+        retiredDocId: docId,
+        replacementDocId: generateId(),
+      })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ status: 'applied' })
+      expect((await invalidation).docId).toBe(docId)
     }
   )
 })

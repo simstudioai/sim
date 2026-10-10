@@ -1,76 +1,20 @@
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@sim/security/compare'
-import { normalizeEmail } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
-import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
-import { RateLimiter } from '@/lib/core/rate-limiter'
 import {
   type DeploymentAuthKind,
   type DeploymentAuthResource,
   deploymentAuthCookieName,
-  isEmailAllowed,
-  readDeploymentAuthToken,
 } from '@/lib/core/security/deployment'
-import { decryptSecret } from '@/lib/core/security/encryption'
+import {
+  type DeploymentAuthBody,
+  type DeploymentAuthResult,
+  validateDeploymentCredentials,
+} from '@/lib/core/security/deployment-credentials'
 import { getClientIp } from '@/lib/core/utils/request'
 
 const logger = createLogger('DeploymentAuth')
 
-const rateLimiter = new RateLimiter()
-
-/**
- * Throttles unauthenticated password guesses per client IP against a single
- * deployment, mirroring the OTP/SSO IP limits.
- */
-const PASSWORD_IP_RATE_LIMIT: TokenBucketConfig = {
-  maxTokens: 10,
-  refillRate: 10,
-  refillIntervalMs: 15 * 60_000,
-}
-
-/**
- * Caps guesses against one resource independently of client identity. This is
- * the backstop for distributed attempts and for requests whose proxy chain
- * cannot be resolved safely.
- */
-const PASSWORD_RESOURCE_RATE_LIMIT: TokenBucketConfig = {
-  maxTokens: 100,
-  refillRate: 100,
-  refillIntervalMs: 15 * 60_000,
-}
-
-function passwordRateLimitResult(
-  retryAfterMs: number | undefined,
-  fallbackMs: number
-): DeploymentAuthResult {
-  return {
-    authorized: false,
-    error: 'Too many attempts. Please try again later.',
-    status: 429,
-    retryAfterMs: retryAfterMs ?? fallbackMs,
-  }
-}
-
-export interface DeploymentAuthBody {
-  password?: string
-  email?: string
-  input?: unknown
-}
-
-export interface DeploymentAuthResult {
-  authorized: boolean
-  authenticatedEmail?: string
-  error?: string
-  status?: number
-  retryAfterMs?: number
-}
-
-/**
- * Shared password/email/SSO gate for deployed resources. The `cookiePrefix`
- * selects the auth cookie (`${cookiePrefix}_auth_${id}`) and the rate-limit
- * namespace so chat deployments and public file shares share one code path. Both
- * support all four modes: `'public'`, `'password'`, `'email'`, and `'sso'`.
- */
+/** Adapts authenticated session identity and HTTP credentials to the common deployment gate. */
 export async function validateDeploymentAuth(
   requestId: string,
   resource: DeploymentAuthResource,
@@ -78,153 +22,30 @@ export async function validateDeploymentAuth(
   parsedBody: DeploymentAuthBody | null | undefined,
   cookiePrefix: DeploymentAuthKind
 ): Promise<DeploymentAuthResult> {
-  const authType = resource.authType || 'public'
-
-  if (authType === 'public') {
-    return { authorized: true }
-  }
-
-  if (authType === 'password' || authType === 'email') {
-    const authCookie = request.cookies.get(deploymentAuthCookieName(cookiePrefix, resource.id))
-
-    if (authCookie) {
-      const claims = await readDeploymentAuthToken({ token: authCookie.value, resource })
-      if (claims) return { authorized: true, ...claims }
-    }
-  }
-
-  if (authType === 'password') {
-    if (request.method === 'GET') {
-      return { authorized: false, error: 'auth_required_password' }
-    }
-
+  let sessionEmail: string | null | undefined
+  let sessionPresent = false
+  if (resource.authType === 'sso' && (request.method === 'GET' || parsedBody)) {
     try {
-      if (!parsedBody) {
-        return { authorized: false, error: 'Password is required' }
-      }
-
-      const { password, input } = parsedBody
-
-      if (input && !password) {
-        return { authorized: false, error: 'auth_required_password' }
-      }
-
-      if (!password) {
-        return { authorized: false, error: 'Password is required' }
-      }
-
-      if (!resource.password) {
-        logger.error(`[${requestId}] No password set for password-protected ${resource.id}`)
-        return { authorized: false, error: 'Authentication configuration error' }
-      }
-
-      const ip = getClientIp(request)
-      if (ip) {
-        const ipRateLimit = await rateLimiter.checkRateLimitDirect(
-          `${cookiePrefix}-password:ip:${resource.id}:${ip}`,
-          PASSWORD_IP_RATE_LIMIT,
-          { failClosed: true }
-        )
-        if (!ipRateLimit.allowed) {
-          logger.warn(`[${requestId}] Password attempt IP rate limit exceeded`, {
-            resourceId: resource.id,
-            cookiePrefix,
-            ip,
-          })
-          return passwordRateLimitResult(
-            ipRateLimit.retryAfterMs,
-            PASSWORD_IP_RATE_LIMIT.refillIntervalMs
-          )
-        }
-      }
-
-      const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
-        `${cookiePrefix}-password:resource:${resource.id}`,
-        PASSWORD_RESOURCE_RATE_LIMIT,
-        { failClosed: true }
-      )
-      if (!resourceRateLimit.allowed) {
-        logger.warn(`[${requestId}] Password attempt resource rate limit exceeded`, {
-          resourceId: resource.id,
-          cookiePrefix,
-        })
-        return passwordRateLimitResult(
-          resourceRateLimit.retryAfterMs,
-          PASSWORD_RESOURCE_RATE_LIMIT.refillIntervalMs
-        )
-      }
-
-      const { decrypted } = await decryptSecret(resource.password)
-      if (!safeCompare(password, decrypted)) {
-        return { authorized: false, error: 'Invalid password' }
-      }
-
-      return { authorized: true }
-    } catch (error) {
-      logger.error(`[${requestId}] Error validating password:`, error)
-      return { authorized: false, error: 'Authentication error' }
-    }
-  }
-
-  if (authType === 'email') {
-    if (request.method === 'GET') {
-      return { authorized: false, error: 'auth_required_email' }
-    }
-
-    try {
-      if (!parsedBody) {
-        return { authorized: false, error: 'Email is required' }
-      }
-
-      const { email, input } = parsedBody
-
-      if (input && !email) {
-        return { authorized: false, error: 'auth_required_email' }
-      }
-
-      if (!email) {
-        return { authorized: false, error: 'Email is required' }
-      }
-
-      if (isEmailAllowed(email, resource.allowedEmails)) {
-        return { authorized: false, error: 'otp_required' }
-      }
-
-      return { authorized: false, error: 'Email not authorized' }
-    } catch (error) {
-      logger.error(`[${requestId}] Error validating email:`, error)
-      return { authorized: false, error: 'Authentication error' }
-    }
-  }
-
-  if (authType === 'sso') {
-    try {
-      if (request.method !== 'GET' && !parsedBody) {
-        return { authorized: false, error: 'SSO authentication is required' }
-      }
-
       const { getSession } = await import('@/lib/auth')
       const session = await getSession()
-
-      if (!session || !session.user) {
-        return { authorized: false, error: 'auth_required_sso' }
-      }
-
-      const userEmail = session.user.email
-      if (!userEmail) {
-        return { authorized: false, error: 'SSO session does not contain email' }
-      }
-
-      if (isEmailAllowed(userEmail, resource.allowedEmails)) {
-        return { authorized: true, authenticatedEmail: normalizeEmail(userEmail) }
-      }
-
-      return { authorized: false, error: 'Your email is not authorized to access this resource' }
+      sessionPresent = Boolean(session?.user)
+      sessionEmail = session?.user?.email
     } catch (error) {
       logger.error(`[${requestId}] Error validating SSO:`, error)
       return { authorized: false, error: 'SSO authentication error' }
     }
   }
-
-  return { authorized: false, error: 'Unsupported authentication type' }
+  return validateDeploymentCredentials(
+    requestId,
+    resource,
+    {
+      method: request.method,
+      authToken: request.cookies.get(deploymentAuthCookieName(cookiePrefix, resource.id))?.value,
+      clientIp: getClientIp(request),
+      sessionPresent,
+      sessionEmail,
+    },
+    parsedBody,
+    cookiePrefix
+  )
 }

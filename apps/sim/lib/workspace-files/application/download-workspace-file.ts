@@ -9,6 +9,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
+  mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
@@ -19,9 +20,11 @@ import {
   reportWorkspaceFileDelivery,
   requireCopilotWorkspaceFileDeliveryObserver,
 } from '@/lib/workspace-files/application/file-delivery-observer'
+import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
+import { createFileReadReceipt, type FileReadReceipt } from '@/lib/workspace-files/read-receipt'
 
 export interface DownloadWorkspaceFileInput {
   fileId: string
@@ -43,6 +46,7 @@ export interface DownloadWorkspaceFileStreamResult extends DownloadWorkspaceFile
    */
   contentLength: number
   contentType: string
+  receipt?: FileReadReceipt
   secretProvenance?: WorkspaceFileSecretProvenance
 }
 
@@ -116,11 +120,28 @@ async function executeDownloadWorkspaceFileStream({
         })
       : undefined
   await reportWorkspaceFileDelivery(secretProvenance)
-  return streamWorkspaceFileRecord(
+  const result = await streamWorkspaceFileRecord(
     file,
     principal,
     input.includeSecretProvenance ? secretProvenance : undefined
   )
+  const currentProvenance = await finishFileDelivery({
+    authorize: () => downloadWorkspaceFileStream.authorize({ principal, input }),
+    receipt:
+      result.receipt ??
+      createFileReadReceipt({ entityType: 'workspace', entityId: context.workspaceId }, [
+        { ...file, contentUpdatedAt: file.contentUpdatedAt ?? file.updatedAt },
+      ]),
+    stream: result.stream,
+  })
+  const deliveredProvenance = secretProvenance
+    ? mergeWorkspaceFileSecretProvenance(secretProvenance, currentProvenance)
+    : currentProvenance
+  await reportWorkspaceFileDelivery(deliveredProvenance)
+  return {
+    ...result,
+    ...(input.includeSecretProvenance ? { secretProvenance: deliveredProvenance } : {}),
+  }
 }
 
 /**
@@ -142,7 +163,7 @@ export async function streamWorkspaceFileRecord(
    * double peak memory.
    */
   if (needsRenderedArtifact(file.type, file.name)) {
-    const { buffer, contentType } = await resolveRenderedArtifact(file, principal)
+    const { buffer, contentType, receipt } = await resolveRenderedArtifact(file, principal)
     return {
       file,
       stream: new ReadableStream<Uint8Array>({
@@ -155,6 +176,7 @@ export async function streamWorkspaceFileRecord(
       }),
       contentLength: buffer.length,
       contentType,
+      receipt,
       ...(secretProvenance ? { secretProvenance } : {}),
     }
   }

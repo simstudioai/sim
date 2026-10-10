@@ -5,6 +5,7 @@ import { generateId } from '@sim/utils/id'
 import * as Y from 'yjs'
 import {
   assertCollabDocStateSize,
+  type CachedCollabDocState,
   CollabDocStateConflictError,
   commitCollabDocState,
   hashMarkdown,
@@ -86,23 +87,7 @@ export async function buildFileDocSeed(
     /** An unavailable cache is not an absent document: retry without minting a new history. */
     const stored = await loadCollabDocState(fileId)
     seedSignal.throwIfAborted()
-    let update: Uint8Array
-    if (stored?.sourceHash === sourceHash) {
-      update = prepareCachedSeed(stored.docState)
-    } else {
-      const { frontmatter, body } = splitFrontmatter(buffer.toString('utf-8'))
-      const ydoc = resumeDocument(fileId, stored?.docState, body)
-      try {
-        const config = ydoc.getMap(FILE_DOC_SEED.configMap)
-        config.set(FILE_DOC_SEED.flag, true)
-        config.set(FILE_DOC_SEED.frontmatterKey, frontmatter)
-        ensureDocumentIdentity(ydoc)
-        update = Y.encodeStateAsUpdate(ydoc)
-      } finally {
-        ydoc.destroy()
-      }
-    }
-    assertCollabDocStateSize(update)
+    const update = prepareFileDocSeed(fileId, buffer, stored)
     seedSignal.throwIfAborted()
 
     const result = await commitCollabDocState(workspaceId, fileId, version, {
@@ -115,6 +100,33 @@ export async function buildFileDocSeed(
     if (result.status === 'missing') return null
   }
   throw new CollabDocStateConflictError(fileId)
+}
+
+/** Build a bounded seed while preserving the cached document identity across durable edits. */
+export function prepareFileDocSeed(
+  fileId: string,
+  buffer: Buffer,
+  stored: CachedCollabDocState | null
+): Uint8Array {
+  const sourceHash = hashMarkdown(buffer)
+  let update: Uint8Array
+  if (stored?.sourceHash === sourceHash) {
+    update = prepareCachedSeed(stored.docState)
+  } else {
+    const { frontmatter, body } = splitFrontmatter(buffer.toString('utf-8'))
+    const ydoc = resumeDocument(fileId, stored?.docState, body)
+    try {
+      const config = ydoc.getMap(FILE_DOC_SEED.configMap)
+      config.set(FILE_DOC_SEED.flag, true)
+      config.set(FILE_DOC_SEED.frontmatterKey, frontmatter)
+      ensureDocumentIdentity(ydoc)
+      update = Y.encodeStateAsUpdate(ydoc)
+    } finally {
+      ydoc.destroy()
+    }
+  }
+  assertCollabDocStateSize(update)
+  return update
 }
 
 /**

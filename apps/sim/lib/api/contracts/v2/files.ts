@@ -168,7 +168,7 @@ export const v2FileShareSchema = shareRecordSchema
   .meta({
     id: 'V2FileShare',
     title: 'File share',
-    description: 'Public-safe share configuration for a workspace file.',
+    description: 'Public-safe share configuration for a file.',
   })
 
 export type V2FileShare = z.output<typeof v2FileShareSchema>
@@ -345,7 +345,7 @@ export const v2CreateFileBodySchema = z
 export type V2CreateFileBody = z.input<typeof v2CreateFileBodySchema>
 
 /** Sortable file fields. `name` is the uploaded file name, not the storage key. */
-export const v2FileSortFields = ['name', 'size', 'uploadedAt', 'updatedAt'] as const
+const v2FileSortFields = ['name', 'size', 'uploadedAt', 'updatedAt'] as const
 
 export type V2FileSortBy = (typeof v2FileSortFields)[number]
 
@@ -1071,7 +1071,7 @@ export const v2MoveFileItemsContract = defineRouteContract({
  * Comma-separated only: v2 rejects a query parameter sent more than once, so a
  * repeated-parameter form would never reach this schema.
  */
-function v2QuerySelectionListSchema(field: string) {
+export function v2QuerySelectionListSchema(field: string) {
   return z
     .string()
     .optional()

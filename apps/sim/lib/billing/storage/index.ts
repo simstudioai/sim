@@ -1,3 +1,4 @@
+export { prepareFileAccountingInTx } from './accounting'
 export {
   resolveStorageBillingContext,
   type StorageBillingContext,
@@ -18,7 +19,6 @@ export {
   incrementAdmittedStorageUsageForBillingContextInTx,
   incrementStorageUsageForBillingContextInTx,
   type LegacyStorageUsageDelta,
-  lockWorkspaceStorageForMutationInTx,
   maybeNotifyStorageLimitForBillingContext,
   type WorkspaceStorageUsageDelta,
 } from './tracking'

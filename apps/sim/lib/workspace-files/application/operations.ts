@@ -1,4 +1,8 @@
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
+import { fileCopyOperation } from '@/lib/workspace-files/application/copy-operation'
+
+/** Compound copy admission remains separate from workspace-only file operations. */
+export const fileCopyOperations = Object.freeze({ copy: fileCopyOperation })
 
 const ALL_COPILOT_PRINCIPAL_POLICY = {
   principalKinds: [

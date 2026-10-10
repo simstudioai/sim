@@ -7,11 +7,12 @@ import {
   FILE_DOC_TIMEOUTS,
   type FileDocUpdateAck,
 } from '@sim/realtime-protocol/file-doc'
+import { flushMicrotasks } from '@sim/testing/helpers/async'
 import { update as updateJournalStorage } from 'idb-keyval'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
 import type { Socket } from 'socket.io-client'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
@@ -29,6 +30,13 @@ vi.mock('idb-keyval', () => ({
     journalStorage.delete(key)
   }),
 }))
+
+const workspaceScope = {
+  owner: { entityType: 'workspace', entityId: 'workspace-1' },
+  userId: 'provider-user',
+} as const
+
+beforeEach(() => journalStorage.clear())
 
 const UPDATE_BATCH_TEST_WINDOW_MS = 100
 
@@ -77,7 +85,7 @@ function createProvider(connected = true) {
   const { socket, emit, fire, timeout } = createSocket(connected)
   const doc = new Y.Doc()
   const awareness = new awarenessProtocol.Awareness(doc)
-  const provider = new FileDocProvider(socket, 'file-1', doc, awareness)
+  const provider = new FileDocProvider(socket, 'file-1', doc, awareness, workspaceScope)
   return { provider, doc, awareness, emit, fire, timeout }
 }
 
@@ -113,6 +121,74 @@ function syncStep1Frame(doc: Y.Doc): Uint8Array {
 }
 
 describe('FileDocProvider', () => {
+  it('sends the workspace owner while accepting deployed ownerless join replies', async () => {
+    vi.useFakeTimers()
+    const { socket, emit, fire } = createSocket(true)
+    const doc = new Y.Doc()
+    const awareness = new awarenessProtocol.Awareness(doc)
+    const owner = { entityType: 'workspace', entityId: 'workspace-1' } as const
+    const provider = new FileDocProvider(socket, 'file-1', doc, awareness, {
+      owner,
+      userId: 'user-1',
+    })
+    try {
+      const join = emit.mock.calls.find(([event]) => event === FILE_DOC_EVENTS.JOIN)?.[1]
+      expect(join).toMatchObject({ fileId: 'file-1', owner })
+      acceptJoin(fire, doc.clientID, 'doc-1')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(provider.joinError).toBeNull()
+      expect(emittedMessages(emit).length).toBeGreaterThan(0)
+    } finally {
+      provider.destroy()
+      awareness.destroy()
+      doc.destroy()
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(['legacy', 'owner'] as const)(
+    'accepts %s Project responses only for its owner',
+    async (wire) => {
+      vi.useFakeTimers()
+      const { socket, fire } = createSocket(true)
+      const doc = new Y.Doc()
+      const awareness = new awarenessProtocol.Awareness(doc)
+      const owner = { entityType: 'project', entityId: 'project-1' } as const
+      const provider = new FileDocProvider(socket, 'file-1', doc, awareness, {
+        owner,
+        userId: 'user-1',
+      })
+      try {
+        expect(provider.canWrite).toBe(false)
+        const scope = wire === 'legacy' ? { projectId: 'project-1' } : { owner }
+        fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+          fileId: 'file-1',
+          ...scope,
+          clientId: doc.clientID,
+          docId: 'doc-1',
+          canWrite: false,
+          acknowledgedUpdates: true,
+        })
+        await vi.advanceTimersByTimeAsync(0)
+        fire(FILE_DOC_EVENTS.PERMISSION, {
+          fileId: 'file-1',
+          owner: { ...owner, entityId: 'other' },
+          canWrite: true,
+        })
+        expect(provider.canWrite).toBe(false)
+        fire(FILE_DOC_EVENTS.PERMISSION, { fileId: 'file-1', ...scope, canWrite: true })
+        expect(provider.canWrite).toBe(true)
+        fire(FILE_DOC_EVENTS.PERMISSION, { fileId: 'file-1', ...scope, canWrite: false })
+        expect(provider.canWrite).toBe(false)
+      } finally {
+        provider.destroy()
+        awareness.destroy()
+        doc.destroy()
+        vi.useRealTimers()
+      }
+    }
+  )
+
   it.each([undefined, 1, FILE_DOC_SCHEMA_VERSION + 1])(
     'rejects incompatible server schema %s before exchanging document state',
     (schemaVersion) => {
@@ -168,13 +244,15 @@ describe('FileDocProvider', () => {
       socket,
       'file-1',
       firstDoc,
-      new awarenessProtocol.Awareness(firstDoc)
+      new awarenessProtocol.Awareness(firstDoc),
+      workspaceScope
     )
     const second = new FileDocProvider(
       socket,
       'file-1',
       secondDoc,
-      new awarenessProtocol.Awareness(secondDoc)
+      new awarenessProtocol.Awareness(secondDoc),
+      workspaceScope
     )
     const serverDoc = new Y.Doc()
     const encoder = encoding.createEncoder()
@@ -202,7 +280,7 @@ describe('FileDocProvider', () => {
    * the sync must not happen at all; the fatal path leaves the editor read-only on what it already
    * shows, and a reload binds a fresh document.
    */
-  it('refuses to sync into a document it does not recognize', () => {
+  it('refuses to sync into a document it does not recognize', async () => {
     const { provider, doc, emit, fire } = createProvider(true)
     doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-original')
     const joinError = vi.fn()
@@ -210,6 +288,7 @@ describe('FileDocProvider', () => {
     emit.mockClear()
 
     acceptJoin(fire, doc.clientID, 'doc-rebuilt')
+    await flushMicrotasks(20)
 
     expect(emittedMessages(emit)).toHaveLength(0)
     expect(provider.synced).toBe(false)
@@ -217,12 +296,13 @@ describe('FileDocProvider', () => {
     expect(joinError).toHaveBeenCalledTimes(1)
   })
 
-  it('fails closed when a seeded legacy tab has no identity but the server does', () => {
+  it('fails closed when a seeded legacy tab has no identity but the server does', async () => {
     const { provider, doc, emit, fire } = createProvider(true)
     doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
     emit.mockClear()
 
     acceptJoin(fire, doc.clientID, 'doc-current')
+    await flushMicrotasks(20)
 
     expect(emittedMessages(emit)).toHaveLength(0)
     expect(provider.joinError).toMatchObject({ code: 'DOCUMENT_REPLACED', retryable: false })
@@ -237,7 +317,8 @@ describe('FileDocProvider', () => {
       socket,
       'file-1',
       doc,
-      new awarenessProtocol.Awareness(doc)
+      new awarenessProtocol.Awareness(doc),
+      workspaceScope
     )
     acceptJoin(fire, doc.clientID, 'doc-1')
     emit.mockClear()
@@ -313,7 +394,10 @@ describe('FileDocProvider', () => {
     'recovers an unacknowledged %s edit after restart and clears it only after acceptance',
     async (mode) => {
       journalStorage.clear()
-      const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+      const scope = {
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+        userId: 'user-1',
+      }
       const serverDoc = new Y.Doc()
       const serverConfig = serverDoc.getMap(FILE_DOC_SEED.configMap)
       serverConfig.set(FILE_DOC_SEED.docIdKey, 'doc-1')
@@ -427,7 +511,7 @@ describe('FileDocProvider', () => {
         'file-1',
         doc,
         new awarenessProtocol.Awareness(doc),
-        { workspaceId: 'workspace-1', userId: 'user-1' }
+        { owner: { entityType: 'workspace' as const, entityId: 'workspace-1' }, userId: 'user-1' }
       )
       acceptJoin(fire, doc.clientID, 'doc-1')
       await vi.advanceTimersByTimeAsync(0)
@@ -518,6 +602,7 @@ describe('FileDocProvider', () => {
 
       emit.mockClear()
       acceptJoin(fire, doc.clientID, 'doc-1')
+      await flushMicrotasks(20)
       expect(emit.mock.calls.some(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toBe(true)
       provider.destroy()
     } finally {
@@ -552,7 +637,10 @@ describe('FileDocProvider', () => {
     journalStorage.clear()
     const browserWindow = new EventTarget()
     vi.stubGlobal('window', browserWindow)
-    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const scope = {
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      userId: 'user-1',
+    }
     const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
     const clear = vi.spyOn(PendingFileDocUpdateJournal.prototype, 'clear')
     const { socket, emit, fire } = createSocket(true)
@@ -628,7 +716,10 @@ describe('FileDocProvider', () => {
     journalStorage.clear()
     const browserWindow = new EventTarget()
     vi.stubGlobal('window', browserWindow)
-    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const scope = {
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      userId: 'user-1',
+    }
     const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
     const recoveredDoc = new Y.Doc()
     recoveredDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
@@ -659,7 +750,10 @@ describe('FileDocProvider', () => {
 
   it('journals an edit made while disconnected before page teardown', async () => {
     journalStorage.clear()
-    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const scope = {
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      userId: 'user-1',
+    }
     const { socket, emit, fire } = createSocket(true)
     const doc = new Y.Doc()
     doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
@@ -686,7 +780,10 @@ describe('FileDocProvider', () => {
 
   it('preserves pending recovery through page teardown and destroy', async () => {
     journalStorage.clear()
-    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const scope = {
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      userId: 'user-1',
+    }
     const { socket, fire } = createSocket(true)
     const doc = new Y.Doc()
     doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
@@ -723,7 +820,10 @@ describe('FileDocProvider', () => {
       journalStorage.clear()
       const browserWindow = new EventTarget()
       vi.stubGlobal('window', browserWindow)
-      const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+      const scope = {
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+        userId: 'user-1',
+      }
       const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
       const { socket, emit } = createSocket(false)
       const doc = new Y.Doc()
@@ -772,7 +872,10 @@ describe('FileDocProvider', () => {
 
   it('reopens the current generation without installing an incompatible recovery draft', async () => {
     journalStorage.clear()
-    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const scope = {
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      userId: 'user-1',
+    }
     const oldDoc = new Y.Doc()
     oldDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'old-doc')
     oldDoc.getText('default').insert(0, 'complete draft')
@@ -812,7 +915,10 @@ describe('FileDocProvider', () => {
     'does not install disk recovery without a negotiated identity (local identity: %s)',
     async (hasLocalIdentity) => {
       journalStorage.clear()
-      const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+      const scope = {
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+        userId: 'user-1',
+      }
       const draft = new Y.Doc()
       draft.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'old-doc')
       draft.getText('default').insert(0, 'retained draft')
@@ -837,15 +943,16 @@ describe('FileDocProvider', () => {
     }
   )
 
-  it('admits the final online batch before leaving while its relay publication is still pending', () => {
+  it('admits the final online batch before leaving while its relay publication is still pending', async () => {
     const { socket, emit, fire } = createSocket(true)
     const serverDoc = new Y.Doc()
     serverDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
     const doc = new Y.Doc()
     Y.applyUpdate(doc, Y.encodeStateAsUpdate(serverDoc))
     const awareness = new awarenessProtocol.Awareness(doc)
-    const provider = new FileDocProvider(socket, 'file-1', doc, awareness)
+    const provider = new FileDocProvider(socket, 'file-1', doc, awareness, workspaceScope)
     acceptJoin(fire, doc.clientID, 'doc-1')
+    await flushMicrotasks(20)
     let joined = true
     const publications: Array<() => void> = []
     emit.mockImplementation((event, payload, acknowledge) => {
@@ -882,7 +989,10 @@ describe('FileDocProvider', () => {
         journalStorage.set(String(key), updater(journalStorage.get(String(key))))
       })
       const clear = vi.spyOn(PendingFileDocUpdateJournal.prototype, 'clear')
-      const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+      const scope = {
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+        userId: 'user-1',
+      }
       const { socket, emit, fire } = createSocket(true)
       const serverDoc = new Y.Doc()
       serverDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
@@ -947,7 +1057,10 @@ describe('FileDocProvider', () => {
     async (outcome) => {
       vi.useFakeTimers()
       journalStorage.clear()
-      const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+      const scope = {
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+        userId: 'user-1',
+      }
       const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
       const { socket, emit, fire } = createSocket(true)
       const serverDoc = new Y.Doc()
@@ -1006,7 +1119,10 @@ describe('FileDocProvider', () => {
     async (state) => {
       vi.useFakeTimers()
       journalStorage.clear()
-      const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+      const scope = {
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+        userId: 'user-1',
+      }
       const { socket, emit, fire } = createSocket(true)
       const doc = new Y.Doc()
       doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
@@ -1042,7 +1158,10 @@ describe('FileDocProvider', () => {
   it('delivers a rejoined legacy batch before leaving without treating it as acknowledged', async () => {
     vi.useFakeTimers()
     journalStorage.clear()
-    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const scope = {
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      userId: 'user-1',
+    }
     const { socket, emit, fire } = createSocket(true)
     const serverDoc = new Y.Doc()
     serverDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
@@ -1084,7 +1203,10 @@ describe('FileDocProvider', () => {
 
   it('never falls back to a different document identity when loading local recovery', async () => {
     journalStorage.clear()
-    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const scope = {
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      userId: 'user-1',
+    }
     const oldDoc = new Y.Doc()
     oldDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-old')
     oldDoc.getText('default').insert(0, 'old draft')
@@ -1121,7 +1243,10 @@ describe('FileDocProvider', () => {
   it('recovers the negotiated generation even when an incompatible draft is newer', async () => {
     vi.useFakeTimers()
     journalStorage.clear()
-    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const scope = {
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      userId: 'user-1',
+    }
     const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
     const currentDraft = new Y.Doc()
     currentDraft.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'current-doc')
@@ -1161,7 +1286,10 @@ describe('FileDocProvider', () => {
 
   it('rejects an in-memory generation mismatch before applying a matching server draft', async () => {
     journalStorage.clear()
-    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const scope = {
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      userId: 'user-1',
+    }
     const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
     const serverDraft = new Y.Doc()
     serverDraft.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'server-doc')
@@ -1186,7 +1314,10 @@ describe('FileDocProvider', () => {
 
   it('syncs after malformed recovery without replaying it on subsequent mounts', async () => {
     journalStorage.clear()
-    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const scope = {
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      userId: 'user-1',
+    }
     const oldDoc = new Y.Doc()
     oldDoc.getText('default').insert(0, 'quarantined snapshot')
     await new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' }).save(
@@ -1236,7 +1367,7 @@ describe('FileDocProvider', () => {
     const doc = new Y.Doc()
     const awareness = new awarenessProtocol.Awareness(doc)
     const provider = new FileDocProvider(socket, 'file-1', doc, awareness, {
-      workspaceId: 'workspace-1',
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
       userId: 'user-1',
     })
     try {
@@ -1266,7 +1397,10 @@ describe('FileDocProvider', () => {
     const load = vi
       .spyOn(PendingFileDocUpdateJournal.prototype, 'load')
       .mockReturnValue(new Promise(() => {}))
-    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const scope = {
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      userId: 'user-1',
+    }
     const { socket, fire } = createSocket(true)
     const doc = new Y.Doc()
     const provider = new FileDocProvider(
@@ -1292,7 +1426,10 @@ describe('FileDocProvider', () => {
     const load = vi
       .spyOn(PendingFileDocUpdateJournal.prototype, 'load')
       .mockReturnValue(new Promise(() => {}))
-    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const scope = {
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+      userId: 'user-1',
+    }
     const { socket, fire } = createSocket(true)
     const doc = new Y.Doc()
     const provider = new FileDocProvider(
@@ -1319,7 +1456,8 @@ describe('FileDocProvider', () => {
       socket,
       'file-1',
       firstDoc,
-      new awarenessProtocol.Awareness(firstDoc)
+      new awarenessProtocol.Awareness(firstDoc),
+      workspaceScope
     )
     acceptJoin(fire, firstDoc.clientID)
 
@@ -1328,7 +1466,8 @@ describe('FileDocProvider', () => {
       socket,
       'file-2',
       secondDoc,
-      new awarenessProtocol.Awareness(secondDoc)
+      new awarenessProtocol.Awareness(secondDoc),
+      workspaceScope
     )
     expect(firstProvider.joinError).toMatchObject({ code: 'DOCUMENT_REPLACED' })
     fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
@@ -1374,7 +1513,7 @@ describe('FileDocProvider', () => {
           'file-1',
           doc,
           new awarenessProtocol.Awareness(doc),
-          { workspaceId: 'workspace-1', userId: 'user-1' }
+          { owner: { entityType: 'workspace' as const, entityId: 'workspace-1' }, userId: 'user-1' }
         )
         acceptJoin(fire, doc.clientID, 'doc-1', mode === 'acknowledged')
         await vi.advanceTimersByTimeAsync(0)
@@ -1417,7 +1556,7 @@ describe('FileDocProvider', () => {
         doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
         const awareness = new awarenessProtocol.Awareness(doc)
         const provider = new FileDocProvider(socket, 'file-1', doc, awareness, {
-          workspaceId: 'workspace-1',
+          owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
           userId: 'user-1',
         })
         acceptJoin(fire, doc.clientID, 'doc-1')
@@ -1455,6 +1594,7 @@ describe('FileDocProvider', () => {
     try {
       const { provider, doc, emit, fire } = createProvider(true)
       acceptJoin(fire, doc.clientID, 'doc-1')
+      await flushMicrotasks(20)
       const serverDoc = new Y.Doc()
       const config = serverDoc.getMap(FILE_DOC_SEED.configMap)
       config.set(FILE_DOC_SEED.docIdKey, 'doc-1')
@@ -1636,13 +1776,15 @@ describe('FileDocProvider', () => {
       socket,
       'shared-file',
       docA,
-      new awarenessProtocol.Awareness(docA)
+      new awarenessProtocol.Awareness(docA),
+      workspaceScope
     )
     const second = new FileDocProvider(
       socket,
       'shared-file',
       docB,
-      new awarenessProtocol.Awareness(docB)
+      new awarenessProtocol.Awareness(docB),
+      workspaceScope
     )
     fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
       schemaVersion: FILE_DOC_SCHEMA_VERSION,
@@ -1663,7 +1805,10 @@ describe('FileDocProvider', () => {
     expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.LEAVE, expect.anything())
 
     second.destroy()
-    expect(emit).toHaveBeenCalledWith(FILE_DOC_EVENTS.LEAVE, { fileId: 'shared-file' })
+    expect(emit).toHaveBeenCalledWith(FILE_DOC_EVENTS.LEAVE, {
+      fileId: 'shared-file',
+      owner: workspaceScope.owner,
+    })
   })
 
   it('keeps an unseeded document retryable after the readiness deadline and accepts late server content', () => {

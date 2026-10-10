@@ -1589,7 +1589,6 @@
     "apps/sim/lib/mothership/chat/payload.test.ts": 1,
     "apps/sim/lib/mothership/chat/persisted-message.ts": 4,
     "apps/sim/lib/mothership/chat/post.test.ts": 2,
-    "apps/sim/lib/mothership/chat/post.ts": 1,
     "apps/sim/lib/mothership/chat/process-contents.test.ts": 17,
     "apps/sim/lib/mothership/chat/stream-liveness.ts": 1,
     "apps/sim/lib/mothership/chat/title-context.test.ts": 4,

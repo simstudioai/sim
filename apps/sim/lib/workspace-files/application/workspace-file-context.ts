@@ -7,6 +7,7 @@ import {
   type WorkspaceFileLifecycleContext,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { ownedFileKind } from '@/lib/workspace-files/owned-files'
+import { matchesFileOwner } from '@/lib/workspace-files/ownership'
 
 export interface WorkspaceFileContextInput {
   fileId: string
@@ -54,20 +55,34 @@ export async function assertOwnedFileAccess(
   await kind.assertOwnerAccess(context.fileId, context.workspaceOrganizationId)
 }
 
-export async function resolveActiveWorkspaceFileContext(
-  input: WorkspaceFileContextInput
-): Promise<ActiveWorkspaceFileContext> {
-  const canonical = await loadActiveWorkspaceFileContext(input.fileId, {
-    includeDeleted: input.includeDeleted,
-    includeChatUploads: input.includeChatUploads,
-    ...(input.ownedFilePrincipal ? { includeOwnedFiles: true } : {}),
-  })
+function requireWorkspaceFileContext<C extends ActiveWorkspaceFileContext>(
+  canonical: C | null,
+  assertedWorkspaceId: string | undefined
+): C {
   if (
     !canonical ||
-    (input.assertedWorkspaceId !== undefined && input.assertedWorkspaceId !== canonical.workspaceId)
+    (assertedWorkspaceId !== undefined &&
+      !matchesFileOwner(
+        { entityType: 'workspace', entityId: canonical.workspaceId },
+        { entityType: 'workspace', entityId: assertedWorkspaceId }
+      ))
   ) {
     throw new OrchestrationError('not_found', 'File not found')
   }
+  return canonical
+}
+
+export async function resolveActiveWorkspaceFileContext(
+  input: WorkspaceFileContextInput
+): Promise<ActiveWorkspaceFileContext> {
+  const canonical = requireWorkspaceFileContext(
+    await loadActiveWorkspaceFileContext(input.fileId, {
+      includeDeleted: input.includeDeleted,
+      includeChatUploads: input.includeChatUploads,
+      includeOwnedFiles: Boolean(input.ownedFilePrincipal),
+    }),
+    input.assertedWorkspaceId
+  )
   if (input.ownedFilePrincipal) await assertOwnedFileAccess(input.ownedFilePrincipal, canonical)
   return canonical
 }
@@ -75,12 +90,8 @@ export async function resolveActiveWorkspaceFileContext(
 export async function resolveWorkspaceFileLifecycleContext(
   input: WorkspaceFileContextInput
 ): Promise<WorkspaceFileLifecycleContext> {
-  const canonical = await loadWorkspaceFileLifecycleContext(input.fileId)
-  if (
-    !canonical ||
-    (input.assertedWorkspaceId !== undefined && input.assertedWorkspaceId !== canonical.workspaceId)
-  ) {
-    throw new OrchestrationError('not_found', 'File not found')
-  }
-  return canonical
+  return requireWorkspaceFileContext(
+    await loadWorkspaceFileLifecycleContext(input.fileId),
+    input.assertedWorkspaceId
+  )
 }

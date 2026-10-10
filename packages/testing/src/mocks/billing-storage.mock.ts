@@ -1,5 +1,7 @@
 import { vi } from 'vitest'
 
+const mockApplyFileStorageDelta = vi.fn<(deltaBytes: number) => Promise<number>>(async () => 0)
+
 /**
  * Stand-in for `StorageLimitExceededError` with the real `name`, constructor, and
  * `code: 'payload_too_large'`. It is NOT a subclass of the real `OrchestrationError`; a test
@@ -17,9 +19,8 @@ export class MockStorageLimitExceededError extends Error {
 /**
  * Controllable mock functions for `@/lib/billing/storage`.
  *
- * Every export is a bare `vi.fn()` (the async ones resolve `undefined`, which covers the
- * fire-and-forget `maybeNotifyStorageLimitForBillingContext` and the `*InTx` counters); set the
- * billing context, quota result, or limit a test needs per case.
+ * The file preparer returns a controllable signed mutation; other exports are bare `vi.fn()`
+ * functions. Set the billing context, quota result, or limit a test needs per case.
  *
  * @example
  * ```ts
@@ -30,6 +31,11 @@ export class MockStorageLimitExceededError extends Error {
  * ```
  */
 export const billingStorageMockFns = {
+  mockApplyFileStorageDelta,
+  mockPrepareFileAccountingInTx: vi.fn(async () => ({
+    billing: {},
+    mutation: { applyDelta: mockApplyFileStorageDelta },
+  })),
   mockResolveStorageBillingContext: vi.fn(),
   mockCheckStorageQuota: vi.fn(),
   mockCheckStorageQuotaForBillingContext: vi.fn(),
@@ -38,7 +44,6 @@ export const billingStorageMockFns = {
   mockGetUserStorageLimit: vi.fn(),
   mockGetUserStorageUsage: vi.fn(),
   mockApplyStorageUsageDeltasInTx: vi.fn(),
-  mockLockWorkspaceStorageForMutationInTx: vi.fn(),
   mockCheckAndIncrementStorageUsageInTx: vi.fn(),
   mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
   mockIncrementAdmittedStorageUsageForBillingContextInTx: vi.fn(),
@@ -56,6 +61,7 @@ export const billingStorageMockFns = {
  * ```
  */
 export const billingStorageMock = {
+  prepareFileAccountingInTx: billingStorageMockFns.mockPrepareFileAccountingInTx,
   StorageLimitExceededError: MockStorageLimitExceededError,
   resolveStorageBillingContext: billingStorageMockFns.mockResolveStorageBillingContext,
   checkStorageQuota: billingStorageMockFns.mockCheckStorageQuota,
@@ -65,8 +71,6 @@ export const billingStorageMock = {
   getUserStorageLimit: billingStorageMockFns.mockGetUserStorageLimit,
   getUserStorageUsage: billingStorageMockFns.mockGetUserStorageUsage,
   applyStorageUsageDeltasInTx: billingStorageMockFns.mockApplyStorageUsageDeltasInTx,
-  lockWorkspaceStorageForMutationInTx:
-    billingStorageMockFns.mockLockWorkspaceStorageForMutationInTx,
   checkAndIncrementStorageUsageInTx: billingStorageMockFns.mockCheckAndIncrementStorageUsageInTx,
   decrementStorageUsageForBillingContextInTx:
     billingStorageMockFns.mockDecrementStorageUsageForBillingContextInTx,

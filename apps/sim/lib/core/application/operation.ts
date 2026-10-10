@@ -115,12 +115,12 @@ export type PrincipalKind = Exclude<
  * A principal kind a non-workspace operation may name. `delegated` is excluded
  * on purpose: a delegated principal is only meaningful alongside a
  * `delegatedServices` policy and the workspace, audience, and expiry re-checks
- * that {@link defineWorkspaceOperation} exists to carry. An operation that needs
- * delegation is a workspace operation.
+ * that {@link defineWorkspaceOperation} exists to carry. Organization and resource
+ * delegation likewise require their own domain authorization policies.
  */
 export type UndelegatedPrincipalKind = Exclude<
   PrincipalKind,
-  'delegated' | 'organization_delegated'
+  'delegated' | 'organization_delegated' | 'resource_delegated'
 >
 
 /**

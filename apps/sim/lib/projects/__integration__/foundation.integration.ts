@@ -1,7 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
+  copilotChats,
   member,
   organization,
   permissionGroup,
@@ -147,6 +149,24 @@ function check(name: string, run: () => Promise<void>) {
       throw error
     }
   })
+}
+
+/** Failure modes: foreign workspace discovery, expired/wrong-audience authority, and CRUD escalation. */
+function discoveryPrincipal(
+  userId: string,
+  workspaceId: string
+): Extract<ResourceDelegatedPrincipal, { serviceId: 'copilot' }> {
+  return {
+    kind: 'resource_delegated',
+    serviceId: 'copilot',
+    subjectUserId: userId,
+    delegationId: generateId(),
+    audience: 'sim:projects:discovery',
+    issuedAt: new Date(),
+    expiresAt: new Date(Date.now() + 30_000),
+    invocation: { kind: 'workspace', workspaceId },
+    scope: { kind: 'project_discovery' },
+  }
 }
 
 async function fixture(org = true, count = 2) {
@@ -1335,6 +1355,127 @@ describe('Project foundation at the database and application boundary', () => {
       expect(
         await db.select().from(project).where(eq(project.id, privateProject.projectId))
       ).toEqual([])
+    }
+  )
+})
+
+describe('Project discovery delegation', () => {
+  beforeEach(() => {
+    vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
+  })
+  check(
+    'binds organization discovery to the current owned chat and rechecks membership',
+    async () => {
+      const first = await fixture()
+      const second = await fixture()
+      const chatId = generateId()
+      await db.insert(copilotChats).values({
+        id: chatId,
+        userId: first.ownerId,
+        organizationId: first.organizationId,
+        type: 'mothership',
+        config: { conversationMode: 'agent' },
+      })
+      await db.insert(permissions).values({
+        id: generateId(),
+        entityType: 'workspace',
+        entityId: second.ids[0],
+        userId: first.ownerId,
+        permissionType: 'admin',
+      })
+      const principal: ResourceDelegatedPrincipal = {
+        ...discoveryPrincipal(first.ownerId, first.ids[0]),
+        serviceId: 'copilot',
+        invocation: { kind: 'chat', chatId },
+      }
+      const result = await listProjects.execute({ principal, input: { limit: 100 } })
+      expect(result.projects.map((entry) => entry.id)).toEqual([first.projectId])
+      await expect(
+        listProjects.execute({
+          principal,
+          input: { limit: 100, organizationId: second.organizationId ?? undefined },
+        })
+      ).rejects.toThrow()
+      await expect(
+        listProjects.execute({
+          principal: { ...principal, subjectUserId: first.outsiderId },
+          input: { limit: 100 },
+        })
+      ).rejects.toThrow()
+      await db
+        .update(copilotChats)
+        .set({ config: { conversationMode: 'assistant' } })
+        .where(eq(copilotChats.id, chatId))
+      await expect(listProjects.execute({ principal, input: { limit: 100 } })).rejects.toThrow()
+      await db
+        .update(copilotChats)
+        .set({ config: { conversationMode: 'agent' } })
+        .where(eq(copilotChats.id, chatId))
+      if (first.organizationId)
+        await db
+          .delete(member)
+          .where(
+            and(eq(member.organizationId, first.organizationId), eq(member.userId, first.ownerId))
+          )
+      await expect(listProjects.execute({ principal, input: { limit: 100 } })).rejects.toThrow()
+    }
+  )
+
+  check(
+    'keeps discovery inside the origin organization without granting lifecycle access',
+    async () => {
+      const first = await fixture()
+      const second = await fixture()
+      await db.insert(permissions).values({
+        id: generateId(),
+        entityType: 'workspace',
+        entityId: second.ids[0],
+        userId: first.ownerId,
+        permissionType: 'admin',
+      })
+      const principal = discoveryPrincipal(first.ownerId, first.ids[0])
+      const result = await listProjects.execute({ principal, input: { limit: 100 } })
+      expect(result.projects.map((entry) => entry.id)).toEqual([first.projectId])
+      await expect(
+        renameProject.execute({ principal, input: { projectId: first.projectId, name: 'Denied' } })
+      ).rejects.toThrow()
+      await expect(
+        archiveProject.execute({ principal, input: { projectId: first.projectId } })
+      ).rejects.toThrow()
+      await db
+        .delete(permissions)
+        .where(and(eq(permissions.userId, first.ownerId), inArray(permissions.entityId, first.ids)))
+      if (first.organizationId)
+        await db
+          .delete(member)
+          .where(
+            and(eq(member.organizationId, first.organizationId), eq(member.userId, first.ownerId))
+          )
+      await expect(listProjects.execute({ principal, input: { limit: 100 } })).rejects.toThrow()
+    }
+  )
+
+  check(
+    'rejects expired, malformed, wrong-audience and entity-scoped discovery delegation',
+    async () => {
+      const state = await fixture()
+      const principal = discoveryPrincipal(state.ownerId, state.ids[0])
+      for (const patch of [
+        { expiresAt: new Date(0) },
+        { issuedAt: new Date('invalid') },
+        { audience: 'sim:workspace-files' },
+        {
+          scope: {
+            kind: 'entity' as const,
+            entityType: 'project' as const,
+            entityId: state.projectId,
+          },
+        },
+      ]) {
+        await expect(
+          listProjects.execute({ principal: { ...principal, ...patch }, input: { limit: 10 } })
+        ).rejects.toThrow()
+      }
     }
   )
 })

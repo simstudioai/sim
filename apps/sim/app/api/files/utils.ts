@@ -1,11 +1,15 @@
-import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import {
   isPayloadSizeLimitError,
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { ensureFileNameExtension, sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
+import {
+  bufferedRepresentationEtag,
+  FILE_CACHE_CONTROL,
+  fileDeliveryHeaders,
+} from '@/lib/uploads/server/delivery'
+import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
 
@@ -151,116 +155,20 @@ export async function findLocalFile(filename: string): Promise<string | null> {
   }
 }
 
-const SAFE_INLINE_TYPES = new Set([
-  'image/png',
-  'image/jpeg',
-  'image/jpg',
-  'image/gif',
-  'image/svg+xml',
-  'image/webp',
-  'image/avif',
-  'image/bmp',
-  'image/x-icon',
-  'application/pdf',
-  'text/plain',
-  'text/csv',
-  'application/json',
-])
-
-const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'js', 'css', 'xml'])
-
-export function getSecureFileHeaders(filename: string, originalContentType: string) {
-  const extension = filename.split('.').pop()?.toLowerCase() || ''
-
-  if (FORCE_ATTACHMENT_EXTENSIONS.has(extension)) {
-    return {
-      contentType: 'application/octet-stream',
-      disposition: 'attachment',
-    }
-  }
-
-  let safeContentType = originalContentType
-
-  if (originalContentType === 'text/html') {
-    safeContentType = 'text/plain'
-  }
-
-  const disposition = SAFE_INLINE_TYPES.has(safeContentType) ? 'inline' : 'attachment'
-
-  return {
-    contentType: safeContentType,
-    disposition,
-  }
-}
-
-/**
- * Percent-encode a filename as an RFC 8187 `ext-value`.
- *
- * `encodeURIComponent` alone is not enough: it leaves `'`, `(`, `)` and `*` raw, and
- * none of those are `attr-char`. The apostrophe is the specific hazard — it is the
- * delimiter in `UTF-8''name`, so a filename like `it's.pdf` would emit a third `'`
- * and desync the parser.
- */
-function encodeExtValue(filename: string): string {
-  return encodeURIComponent(filename).replace(
-    /['()*]/g,
-    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
-  )
-}
-
-/**
- * Build the `filename` parameters for a Content-Disposition header.
- *
- * The name is attacker-controlled (it is the user's `originalName`), so it can never
- * be interpolated raw: a `"` closes the quoted-string early and everything after it
- * is parsed as further parameters. An injected `filename*` is the payload that
- * matters, because RFC 6266 tells clients to prefer `filename*` over `filename` —
- * so the attacker's value wins and the download lands under a name the product UI
- * never showed. Both parameters are therefore always emitted from sanitized input:
- * the quoted form keeps only printable ASCII minus `"` and `\`, and the `filename*`
- * form is fully percent-encoded.
- *
- * `;` is neutralized too, even though a quoted string may legally contain one: the
- * quoted parameter exists as the fallback for clients that do not implement
- * `filename*`, and those are the same clients liable to split parameters on a bare
- * `;` without honouring the quoting. The exact name still survives in `filename*`.
- */
-export function encodeFilenameForHeader(storageKey: string): string {
-  const filename = storageKey.split('/').pop() || storageKey
-  const asciiSafe = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\;]/g, '_')
-  // Unchanged input proves the name is printable ASCII with no `"` or `\`, so the
-  // quoted form alone is both safe and sufficient — `filename*` buys nothing here.
-  if (asciiSafe === filename) {
-    return `filename="${filename}"`
-  }
-  return `filename="${asciiSafe}"; filename*=UTF-8''${encodeExtValue(filename)}`
-}
-
 /**
  * Derives the served filename from the CALLER's content type (`getSecureFileHeaders`
  * downgrades `text/html`) before the header decision, so a derived `.html` name gets the
  * same forced-attachment treatment a stored `.html` file gets.
  */
 export function createFileResponse(file: FileResponse): NextResponse {
-  const servedFilename = ensureFileNameExtension(file.filename, file.contentType)
-
-  const { contentType, disposition } = getSecureFileHeaders(servedFilename, file.contentType)
-
-  const headers: Record<string, string> = {
-    'Content-Type': contentType,
-    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(servedFilename)}`,
-    // Default to PRIVATE: this response is served only after access verification, so it must never be
-    // stored by a shared cache/CDN and re-served cross-user. Genuinely public assets (avatars, OG images,
-    // workspace logos) pass an explicit `cacheControl` (see PUBLIC_ASSET_CACHE_CONTROL in the serve route).
-    'Cache-Control': file.cacheControl || 'private, no-cache',
-    'X-Content-Type-Options': 'nosniff',
-  }
-
-  if (contentType === 'image/svg+xml') {
-    headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
-  }
-
-  return new NextResponse(file.buffer as BodyInit, { status: 200, headers })
+  return new NextResponse(file.buffer as BodyInit, {
+    status: 200,
+    headers: fileDeliveryHeaders({
+      ...file,
+      cacheControl: file.cacheControl || FILE_CACHE_CONTROL.private,
+      contentLength: file.buffer.length,
+    }),
+  })
 }
 
 /**
@@ -294,18 +202,15 @@ export function createConditionalFileResponse(
   file: FileResponse,
   ifNoneMatch: string | null
 ): NextResponse {
-  const etag = `"${createHash('sha256').update(file.buffer).digest('base64url')}"`
+  const etag = bufferedRepresentationEtag(file.buffer)
 
   if (ifNoneMatchHolds(ifNoneMatch, etag)) {
-    // A 304 repeats the headers that govern caching, so the stored response is refreshed with the
-    // lifetime this request would have granted it rather than keeping the one it was stored with.
-    return new NextResponse(null, {
-      status: 304,
-      headers: {
-        ETag: etag,
-        'Cache-Control': file.cacheControl || 'private, no-cache',
-      },
+    const headers = fileDeliveryHeaders({
+      ...file,
+      cacheControl: file.cacheControl || FILE_CACHE_CONTROL.private,
     })
+    headers.set('ETag', etag)
+    return new NextResponse(null, { status: 304, headers })
   }
 
   const response = createFileResponse(file)
@@ -331,7 +236,10 @@ export function createFileErrorResponse(error: Error, status = 500): NextRespons
       error: error.name,
       message: error.message,
     },
-    { status: statusCode }
+    {
+      status: statusCode,
+      headers: { 'Cache-Control': FILE_CACHE_CONTROL.noStore, 'X-Content-Type-Options': 'nosniff' },
+    }
   )
 }
 

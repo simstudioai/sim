@@ -195,13 +195,14 @@ export async function fetchProjectFileDocAccess(
 /** Fetch a seed under the joining socket's current Project read access. */
 export async function fetchProjectFileDocSeed(
   target: ProjectDocumentRequest
-): Promise<{ update: Uint8Array; version: number }> {
+): Promise<{ update: Uint8Array; version: number } | null> {
   const response = await postToApp(
     projectDocumentPath(target, 'seed'),
     {},
     FILE_DOC_TIMEOUTS.seedRequestMs,
     target
   )
+  if (response.status === 404) return null
   if (!response.ok) throw new Error(`Project document seed failed: ${response.status}`)
   const body = (await response.json()) as { update?: unknown; version?: unknown }
   if (typeof body.update !== 'string' || typeof body.version !== 'number')

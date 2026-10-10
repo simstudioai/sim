@@ -10,10 +10,14 @@ import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import { unified } from 'unified'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { StorageContext } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { bufferZipWithinLimit } from '@/lib/uploads/server/zip'
 import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { safeZipLeafName } from '@/lib/uploads/zip-entry-path'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 
 const logger = createLogger('MarkdownExport')
@@ -21,7 +25,7 @@ const logger = createLogger('MarkdownExport')
 export const MAX_EXPORT_TOTAL_BYTES = 250 * 1024 * 1024
 /** Larger documents remain available as exact Markdown without allocating a syntax tree. */
 export const MAX_EXPORT_MARKDOWN_PARSE_BYTES = 10 * 1024 * 1024
-const MAX_EXPORT_ASSET_BYTES = 25 * 1024 * 1024
+export const MAX_EXPORT_ASSET_BYTES = 25 * 1024 * 1024
 const markdownProcessor = unified()
   .use(remarkParse)
   .use(remarkGfm)
@@ -29,7 +33,11 @@ const markdownProcessor = unified()
 const markdownLexer = new Marked()
 
 /** Source ranges keep unrelated links, definitions, code, and whitespace byte-for-byte intact. */
-function rewriteImageSources(source: string, filenames: ReadonlyMap<string, string>): string {
+function rewriteImageSources(
+  source: string,
+  filenames: ReadonlyMap<string, string>,
+  owner?: EditableFileOwner
+): string {
   const { frontmatter, body: content } = splitFrontmatter(source)
   const root = markdownProcessor.parse(content)
   const definitions = new Map<string, Definition>()
@@ -45,8 +53,8 @@ function rewriteImageSources(source: string, filenames: ReadonlyMap<string, stri
   }
 
   const replacementFor = (src: string) => {
-    const ref = extractEmbeddedFileRef(src)
-    const filename = ref && 'fileId' in ref ? filenames.get(ref.fileId) : undefined
+    const ref = extractEmbeddedFileRef(src, owner)
+    const filename = ref ? filenames.get('fileId' in ref ? ref.fileId : ref.key) : undefined
     return filename === undefined ? null : `./assets/${encodeURIComponent(filename)}`
   }
   const replacements: Array<{ start: number; end: number; value: string }> = []
@@ -160,6 +168,8 @@ export interface MarkdownExportAsset {
   context: StorageContext
   originalName: string
   size: number
+  /** Prepared authorized bytes let a compound export fence every asset after external IO. */
+  buffer?: Buffer
 }
 
 export interface MarkdownExportResult {
@@ -180,10 +190,11 @@ export class MarkdownExportSizeError extends Error {
 }
 
 function safeFilename(name: string): string {
-  return path
+  const filename = path
     .basename(name)
     .replace(/["\\]/g, '_')
     .replace(/[\r\n\t]/g, '')
+  return !filename || filename === '.' || filename === '..' ? safeZipLeafName(name) : filename
 }
 
 function deduplicatedFilename(preferred: string, existing: Set<string>, imageId: string): string {
@@ -203,10 +214,12 @@ export async function createMarkdownExport({
   content,
   fileName,
   assets,
+  owner,
 }: {
   content: Buffer
   fileName: string
   assets: readonly MarkdownExportAsset[]
+  owner?: EditableFileOwner
 }): Promise<MarkdownExportResult> {
   const plainMarkdown: MarkdownExportResult = {
     buffer: content,
@@ -226,11 +239,14 @@ export async function createMarkdownExport({
     if (overflowBytes !== undefined) return null
     let buffer: Buffer
     try {
-      buffer = await downloadFile({
-        key: asset.key,
-        context: asset.context,
-        maxBytes: MAX_EXPORT_ASSET_BYTES,
-      })
+      buffer =
+        asset.buffer ??
+        (await downloadFile({
+          key: asset.key,
+          context: asset.context,
+          maxBytes: MAX_EXPORT_ASSET_BYTES,
+        }))
+      assertKnownSizeWithinLimit(buffer.length, MAX_EXPORT_ASSET_BYTES, 'Markdown export asset')
     } catch (error) {
       logger.warn('Failed to fetch asset for export', {
         imageId: asset.imageId,
@@ -265,16 +281,27 @@ export async function createMarkdownExport({
 
   const markdown = rewriteImageSources(
     content.toString('utf-8'),
-    new Map([...assetMap].map(([imageId, asset]) => [imageId, asset.filename]))
+    new Map([...assetMap].map(([imageId, asset]) => [imageId, asset.filename])),
+    owner
   )
+  const exportedBytes = retainedBytes - content.length + Buffer.byteLength(markdown, 'utf-8')
+  if (exportedBytes > MAX_EXPORT_TOTAL_BYTES) throw new MarkdownExportSizeError(exportedBytes)
 
   const zip = new JSZip()
   zip.file(safeFilename(fileName), markdown)
   const assetsFolder = zip.folder('assets')!
   for (const { filename, buffer } of assetMap.values()) assetsFolder.file(filename, buffer)
 
+  let buffer: Buffer
+  try {
+    buffer = await bufferZipWithinLimit(zip, MAX_EXPORT_TOTAL_BYTES)
+  } catch (error) {
+    if (isPayloadSizeLimitError(error))
+      throw new MarkdownExportSizeError(error.observedBytes ?? MAX_EXPORT_TOTAL_BYTES + 1)
+    throw error
+  }
   return {
-    buffer: await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }),
+    buffer,
     fileName: safeFilename(`${fileName.replace(/\.[^.]+$/, '')}.zip`),
     contentType: 'application/zip',
     format: 'zip',

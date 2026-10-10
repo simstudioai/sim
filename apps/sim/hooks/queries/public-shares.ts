@@ -19,7 +19,7 @@ export const FILE_SHARE_STALE_TIME = 30 * 1000
 /**
  * Query key factories for public shares
  */
-export const shareKeys = {
+const shareKeys = {
   all: ['publicShares'] as const,
   details: () => [...shareKeys.all, 'detail'] as const,
   detail: (workspaceId: string, fileId: string) =>

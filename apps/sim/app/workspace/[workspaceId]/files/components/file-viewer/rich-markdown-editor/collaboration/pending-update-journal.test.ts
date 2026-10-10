@@ -19,7 +19,7 @@ import {
 
 function journal(): PendingFileDocUpdateJournal {
   return new PendingFileDocUpdateJournal({
-    workspaceId: 'workspace-1',
+    owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
     fileId: 'file-1',
     userId: 'user-1',
   })
@@ -325,7 +325,7 @@ describe('PendingFileDocUpdateJournal', () => {
   it('isolates records by user, workspace, and file', async () => {
     const first = journal()
     const otherUser = new PendingFileDocUpdateJournal({
-      workspaceId: 'workspace-1',
+      owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
       fileId: 'file-1',
       userId: 'user-2',
     })

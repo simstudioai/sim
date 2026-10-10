@@ -26,7 +26,7 @@ export class MockShareValidationError extends Error {
  * ```ts
  * import { publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
  *
- * publicSharesMockFns.mockResolveActiveShareByToken.mockResolvedValue(share)
+ * publicSharesMockFns.mockGetShareForResource.mockResolvedValue(share)
  * ```
  */
 export const publicSharesMockFns = {
@@ -42,7 +42,6 @@ export const publicSharesMockFns = {
     async (..._args: unknown[]): Promise<Map<string, unknown>> => new Map()
   ),
   mockUpsertFileShare: vi.fn(),
-  mockResolveActiveShareByToken: vi.fn(),
 }
 
 /**
@@ -62,5 +61,4 @@ export const publicSharesMock = {
   getWorkspaceSharesForResources: publicSharesMockFns.mockGetWorkspaceSharesForResources,
   getWorkspaceShares: publicSharesMockFns.mockGetWorkspaceShares,
   upsertFileShare: publicSharesMockFns.mockUpsertFileShare,
-  resolveActiveShareByToken: publicSharesMockFns.mockResolveActiveShareByToken,
 }

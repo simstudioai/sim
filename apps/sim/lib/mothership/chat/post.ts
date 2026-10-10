@@ -627,7 +627,10 @@ async function resolveAgentContexts(params: {
                 { userId, workspaceId, organizationId, chatId },
                 resource.workspaceId
               )
-            : { workspaceId: workspaceId! }
+            : workspaceId
+              ? { workspaceId }
+              : null
+        if (!target) return null
         const ctx = await withWorkspaceInvocationScope(
           { workspaceId: target.workspaceId, organizationId },
           () =>

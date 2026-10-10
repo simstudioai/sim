@@ -53,6 +53,7 @@ vi.mock('@/lib/mothership/agent-cli/scoped-transport', () => ({
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -98,17 +99,29 @@ function registry() {
   return new ResolvedSecretTraceRegistry([], { userId: 'reader', workspaceId: 'workspace' })
 }
 
-function classify(status: 'exact' | 'unknown', fileRevision = revision) {
+function classify(
+  status: 'exact' | 'unknown',
+  fileRevision = revision,
+  entries: Extract<WorkspaceFileSecretProvenance, { status: 'exact' }>['entries'] = [],
+  includePublicationRows = true
+) {
   resetDbChainMock()
+  const sidecar = {
+    id: file.id,
+    key: file.key,
+    context: file.storageContext,
+    fileContentUpdatedAt: fileRevision,
+    secretProvenanceVersion: 1,
+    provenanceContentUpdatedAt: fileRevision,
+    status,
+    entries,
+  }
+  queueTableRows(workspaceFiles, [sidecar])
+  if (!includePublicationRows) return
   queueTableRows(workspaceFiles, [
-    {
-      fileContentUpdatedAt: fileRevision,
-      secretProvenanceVersion: 1,
-      provenanceContentUpdatedAt: fileRevision,
-      status,
-      entries: [],
-    },
+    { ...file, context: file.storageContext, secretProvenanceVersion: 1 },
   ])
+  queueTableRows(workspaceFiles, [sidecar])
 }
 
 function readTransport(trace = registry()) {
@@ -149,15 +162,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     mocks.stream.mockImplementation(async () => Readable.from(Buffer.from(content)))
     mocks.buffer.mockResolvedValue(Buffer.from(content))
     mocks.decrypt.mockResolvedValue({ decrypted: content })
-    queueTableRows(workspaceFiles, [
-      {
-        fileContentUpdatedAt: revision,
-        secretProvenanceVersion: 1,
-        provenanceContentUpdatedAt: revision,
-        status: 'unknown',
-        entries: [],
-      },
-    ])
+    classify('unknown')
   })
 
   it('uses current Copilot file authority with personal keys disabled and rejects a foreign ID-only owner', async () => {
@@ -294,17 +299,8 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
   })
 
   it('imports encrypted file provenance into a fresh registry before model projection', async () => {
-    resetDbChainMock()
-    queueTableRows(workspaceFiles, [
-      {
-        fileContentUpdatedAt: revision,
-        secretProvenanceVersion: 1,
-        provenanceContentUpdatedAt: revision,
-        status: 'exact',
-        entries: [
-          { name: 'FILE_SECRET', encryptedValue: 'fixture-ciphertext', sourceUserId: 'reader' },
-        ],
-      },
+    classify('exact', revision, [
+      { name: 'FILE_SECRET', encryptedValue: 'fixture-ciphertext', sourceUserId: 'reader' },
     ])
     const trace = registry()
     const response = await readTransport(trace)(fileRequest())
@@ -363,7 +359,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
           nextCursor: null,
         })
       })
-      classify('unknown')
+      classify('unknown', revision, [], false)
       const grep = async () => {
         const trace = registry()
         const result = await executeSimCli(

@@ -20,7 +20,7 @@ import type {
   JsonNextRouteHandler,
   JsonRouteContext,
 } from '@/lib/api/server/routes/types'
-import type { ParsedRequest } from '@/lib/api/server/validation'
+import type { ParsedRequest, ParseRequestOptions } from '@/lib/api/server/validation'
 import { parseRequest } from '@/lib/api/server/validation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -53,6 +53,8 @@ interface InternalBinaryRouteOptions<
   auth: typeof internalSessionAuth
   rateLimit: InternalBinaryRateLimitPolicy
   errorPolicy: InternalErrorPolicy
+  parseOptions?: Pick<ParseRequestOptions, 'maxBodyBytes'>
+  headSafe?: boolean
   onSuccess?(args: { principal: SessionPrincipal; input: I; result: R }): void | Promise<void>
 }
 
@@ -74,6 +76,10 @@ export function defineInternalBinaryRoute<
     options.useCase.operation
   )
 
+  if (options.headSafe === false && typeof options.useCase.authorize !== 'function') {
+    throw new Error('A binary route with headSafe: false requires an authorize phase')
+  }
+
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
       if (!methodMatchesContract(request.method, options.contract.method)) {
@@ -94,11 +100,24 @@ export function defineInternalBinaryRoute<
       setRequestAuth(describePrincipalAuth(principal))
 
       await options.rateLimit.enforce(request, principal)
-      const parsed = await parseRequest(options.contract, request, context ?? {})
+      const parsed = await parseRequest(
+        options.contract,
+        request,
+        context ?? {},
+        options.parseOptions
+      )
       if (!parsed.success) return responseWithRequestId(parsed.response)
 
       try {
         const input = options.mapInput(parsed.data)
+        if (request.method === 'HEAD' && options.headSafe === false) {
+          if (!options.useCase.authorize) throw new Error('Missing HEAD authorization phase')
+          await options.useCase.authorize({ principal, input, request })
+          return new NextResponse(null, {
+            status: successStatus,
+            headers: { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' },
+          })
+        }
         const result = await options.useCase.execute({ principal, input, request })
         const descriptor = await options.present(result)
         await options.onSuccess?.({ principal, input, result })
@@ -125,7 +144,14 @@ export function defineInternalBinaryRoute<
     }
   )
 
-  return async (request, context) => wrapped(request, context)
+  return async (request, context) => {
+    const response = await wrapped(request, context)
+    if (response.status >= 400) {
+      response.headers.set('Cache-Control', 'private, no-store')
+      response.headers.set('X-Content-Type-Options', 'nosniff')
+    }
+    return response
+  }
 }
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {

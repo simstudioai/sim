@@ -11,6 +11,7 @@ import {
   extractEmbeddedFileRef,
   storedFileId,
 } from '@/lib/uploads/utils/embedded-image-ref'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 
 /** Hard cap on embedded images collected for a bulk export bundle. */
 export const MAX_EMBEDDED_IMAGES = 50
@@ -43,33 +44,48 @@ function childrenOf(token: Token): Token[] {
  * Links are excluded for the same reason: a link is navigated to, not displayed, so it is neither an
  * exportable asset nor something a document's public share should cascade to.
  */
-export function extractEmbeddedFileRefs(content: string): { keys: string[]; ids: string[] } {
+export function extractEmbeddedFileRefs(
+  content: string,
+  owner?: EditableFileOwner
+): { keys: string[]; ids: string[] } {
   const keys = new Set<string>()
   const ids = new Set<string>()
-  visitEmbeddedFileRefs(content, (ref) => {
-    if ('key' in ref) keys.add(ref.key)
-    else ids.add(ref.fileId)
-    return keys.size + ids.size >= MAX_EMBEDDED_IMAGES
-  })
+  visitEmbeddedFileRefs(
+    content,
+    (ref) => {
+      if ('key' in ref) keys.add(ref.key)
+      else ids.add(ref.fileId)
+      return keys.size + ids.size >= MAX_EMBEDDED_IMAGES
+    },
+    owner
+  )
   return { keys: [...keys], ids: [...ids] }
 }
 
 /** Matches one stored image reference without imposing a bulk export's asset-count limit. */
-export function hasEmbeddedFileRef(content: string, target: NonNullable<EmbeddedFileRef>): boolean {
-  return visitEmbeddedFileRefs(content, (ref) =>
-    'fileId' in target
-      ? 'fileId' in ref && storedFileId(ref.fileId) === target.fileId
-      : 'key' in ref && ref.key === target.key
+export function hasEmbeddedFileRef(
+  content: string,
+  target: NonNullable<EmbeddedFileRef>,
+  owner?: EditableFileOwner
+): boolean {
+  return visitEmbeddedFileRefs(
+    content,
+    (ref) =>
+      'fileId' in target
+        ? 'fileId' in ref && storedFileId(ref.fileId) === target.fileId
+        : 'key' in ref && ref.key === target.key,
+    owner
   )
 }
 
 /** Stops at the first accepted reference; callers bound document bytes before parsing. */
 function visitEmbeddedFileRefs(
   content: string,
-  visit: (ref: NonNullable<EmbeddedFileRef>) => boolean
+  visit: (ref: NonNullable<EmbeddedFileRef>) => boolean,
+  owner?: EditableFileOwner
 ): boolean {
   const record = (src: string) => {
-    const ref = extractEmbeddedFileRef(src)
+    const ref = extractEmbeddedFileRef(src, owner)
     return ref !== null && visit(ref)
   }
 
