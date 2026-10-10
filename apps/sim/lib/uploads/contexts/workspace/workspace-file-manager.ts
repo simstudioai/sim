@@ -45,6 +45,7 @@ import {
   incrementStorageUsageForBillingContextInTx,
   lockWorkspaceStorageForMutationInTx,
   maybeNotifyStorageLimitForBillingContext,
+  prepareFileAccountingInTx,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
 import {
@@ -782,7 +783,6 @@ export async function createOwnedWorkspaceFile<T>(params: {
   const name = params.fileName(fileId)
   const buffer = Buffer.from(params.content, 'utf-8')
   const storageKey = generateWorkspaceFileKey(params.workspaceId, name)
-  const storageBillingContext = await resolveStorageBillingContext(params.workspaceId)
   const uploadResult = await uploadFile({
     file: buffer,
     fileName: storageKey,
@@ -800,7 +800,11 @@ export async function createOwnedWorkspaceFile<T>(params: {
     persistMetadata: false,
   })
   try {
-    const { owner, updatedUsage } = await db.transaction(async (tx) => {
+    const { owner, updatedUsage, billing } = await db.transaction(async (tx) => {
+      const accounting = await prepareFileAccountingInTx(tx, {
+        entityType: 'workspace',
+        entityId: params.workspaceId,
+      })
       const inserted = await insertWorkspaceFileMetadataInTx(tx, {
         id: fileId,
         key: uploadResult.key,
@@ -813,14 +817,14 @@ export async function createOwnedWorkspaceFile<T>(params: {
         context: params.context,
       })
       if (!inserted) throw new Error(`Owned ${params.context} file ${fileId} was not inserted`)
-      const updatedUsage = await incrementStorageUsageForBillingContextInTx(
-        tx,
-        storageBillingContext,
-        buffer.length
-      )
-      return { owner: await params.insertOwner(tx, fileId), updatedUsage }
+      const updatedUsage = await accounting.mutation.applyDelta(buffer.length)
+      return {
+        owner: await params.insertOwner(tx, fileId),
+        updatedUsage,
+        billing: accounting.billing,
+      }
     })
-    void maybeNotifyStorageLimitForBillingContext(storageBillingContext, updatedUsage)
+    void maybeNotifyStorageLimitForBillingContext(billing, updatedUsage)
     return { fileId, owner }
   } catch (error) {
     await cleanupWorkspaceStorageObject(

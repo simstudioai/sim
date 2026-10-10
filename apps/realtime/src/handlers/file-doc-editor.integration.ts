@@ -122,6 +122,30 @@ describe('Project document editor attribution over real Redis', () => {
     }
   )
 
+  check('retirement fences a seed that has not reached Redis yet', async () => {
+    const name = `project-file-doc:${generateId()}/${generateId()}`
+    const retiredId = generateId()
+    const replacementId = generateId()
+    const retired = new Y.Doc()
+    const replacement = new Y.Doc()
+    rooms.push({ name, doc: retired })
+    retired.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    retired.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, retiredId)
+    replacement.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    replacement.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, replacementId)
+    try {
+      expect(await store.retireDocumentGeneration(name, retiredId, replacementId)).toEqual({
+        status: 'applied',
+        docId: retiredId,
+      })
+      expect(await store.seedIfEmpty(name, Y.encodeStateAsUpdate(retired), 1, true)).toBe(false)
+      expect(await store.seedIfEmpty(name, Y.encodeStateAsUpdate(replacement), 1, true)).toBe(true)
+      expect(await store.getDocumentGeneration(name)).toBe(replacementId)
+    } finally {
+      replacement.destroy()
+    }
+  })
+
   check(
     'retiring a generation fences old seeds and delayed retirement preserves the replacement',
     async () => {

@@ -153,8 +153,20 @@ describe('diff audit base selection', () => {
 
   it('keeps the first-parent fallback for a new branch push', () => {
     const data = fixture()
+    const shallow = join(data.root, 'shallow')
+    git(
+      data.root,
+      'clone',
+      '--quiet',
+      '--depth=1',
+      '--branch=foundation',
+      `file://${join(data.root, 'origin.git')}`,
+      shallow
+    )
+    data.repo = shallow
     const result = resolveBase(data, { GITHUB_EVENT_NAME: 'push', GITHUB_BEFORE: '0'.repeat(40) })
     expect(result.status, result.stderr).toBe(0)
     expect(result.output).toBe('ref=HEAD~1')
+    expect(git(data.repo, 'rev-parse', 'HEAD~1')).toBe(data.before)
   })
 })
