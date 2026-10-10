@@ -1652,7 +1652,7 @@
     "apps/sim/lib/sim-search/live/google-meet.ts": 1,
     "apps/sim/lib/sim-search/live/granola-mcp.ts": 2,
     "apps/sim/lib/sim-search/live/hubspot-mcp.test.ts": 1,
-    "apps/sim/lib/sim-search/live/lucid-mcp.ts": 2,
+    "apps/sim/lib/sim-search/live/lucid-mcp.ts": 1,
     "apps/sim/lib/sim-search/live/pages.ts": 1,
     "apps/sim/lib/sim-search/live/policy-schema.ts": 1,
     "apps/sim/lib/sim-search/live/policy.ts": 2,
