@@ -64,7 +64,7 @@ describe('patched Drizzle push against PostgreSQL', () => {
   async function schema(source: string) {
     await writeFile(
       join(directory, 'schema.ts'),
-      `import { pgTable, pgSchema, pgEnum, text, integer, bigint, boolean, check, timestamp } from ${JSON.stringify(import.meta.resolve('drizzle-orm/pg-core'))}
+      `import { pgTable, pgSchema, pgEnum, text, integer, bigint, boolean, check, timestamp, unique, foreignKey } from ${JSON.stringify(import.meta.resolve('drizzle-orm/pg-core'))}
 import { sql } from ${JSON.stringify(import.meta.resolve('drizzle-orm'))}
 ${source}`
     )
@@ -242,7 +242,7 @@ export const workspaces = pgTable('workspace', { id: text('id').primaryKey(), pr
     30_000
   )
 
-  it('installs Project lifecycle enforcement through the fresh-push reconciler and preserves it on replay', async () => {
+  it('installs native Project constraints through the fresh-push reconciler and preserves it on replay', async () => {
     function reconcileProjects() {
       const result = spawnSync(
         'bun',
@@ -264,13 +264,19 @@ export const workspaces = pgTable('workspace', { id: text('id').primaryKey(), pr
 }, (t) => [check('project_membership_rollout_singleton', sql\`\${t.id} = 'membership'\`), check('project_membership_rollout_phase', sql\`\${t.phase} IN ('connector', 'column')\`)])
 export const projects = pgTable('project', {
   id: text('id').primaryKey(), name: text('name').notNull(), ownerId: text('owner_id').notNull(),
+  organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(sql\`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END\`),
   organizationId: text('organization_id'), archivedAt: timestamp('archived_at'), updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+}, (t) => [unique('project_id_organization_scope_unique').on(t.id, t.organizationScopeKey)])
 export const workspaces = pgTable('workspace', {
   id: text('id').primaryKey(), name: text('name').notNull(), ownerId: text('owner_id').notNull(),
   projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'restrict' }),
-  organizationId: text('organization_id'), archivedAt: timestamp('archived_at'), forkedFromWorkspaceId: text('forked_from_workspace_id'),
-})
+  organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(sql\`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END\`),
+  organizationId: text('organization_id'), archivedAt: timestamp('archived_at'), forkedFromWorkspaceId: text('forked_from_workspace_id').references(() => workspaces.id, { onDelete: 'set null' }),
+}, (t) => [
+  unique('workspace_id_project_unique').on(t.id, t.projectId),
+  foreignKey({name: 'workspace_project_organization_fk', columns: [t.projectId,t.organizationScopeKey], foreignColumns: [projects.id,projects.organizationScopeKey]}),
+  foreignKey({name: 'workspace_fork_project_fk', columns: [t.forkedFromWorkspaceId,t.projectId], foreignColumns: [t.id,t.projectId]}),
+])
 export const workflows = pgTable('workflow', {
   id: text('id').primaryKey(), workspaceId: text('workspace_id'), archivedAt: timestamp('archived_at'),
 })`)
@@ -281,9 +287,8 @@ export const workflows = pgTable('workflow', {
     expect(await sql`SELECT id, phase FROM project_membership_rollout`).toEqual([
       { id: 'membership', phase: 'column' },
     ])
-    await expect(
-      sql`INSERT INTO project (id,name,owner_id) VALUES ('empty','Empty','owner')`
-    ).rejects.toMatchObject({ code: '23514' })
+    await sql`INSERT INTO project (id,name,owner_id) VALUES ('empty','Empty','owner')`
+    await sql`DELETE FROM project WHERE id = 'empty'`
     await sql.begin(async (tx) => {
       await tx`INSERT INTO project (id,name,owner_id) VALUES ('family','Family','owner')`
       await tx`INSERT INTO workspace (id,name,owner_id,project_id,forked_from_workspace_id) VALUES ('root','Root','owner','family',NULL), ('fork','Fork','owner','family','root')`
@@ -297,10 +302,10 @@ export const workflows = pgTable('workflow', {
       { id: 'fork', project_id: 'family' },
       { id: 'root', project_id: 'family' },
     ])
-    await expect(sql`DELETE FROM workspace`).rejects.toMatchObject({ code: '23514' })
     await expect(
       sql`UPDATE workspace SET organization_id = 'other' WHERE id = 'fork'`
-    ).rejects.toMatchObject({ code: '23514' })
+    ).rejects.toMatchObject({ code: '23503' })
+    await sql`DELETE FROM workspace`
     expect(await sql`SELECT to_regclass('public.project_workspace') AS legacy`).toEqual([
       { legacy: null },
     ])

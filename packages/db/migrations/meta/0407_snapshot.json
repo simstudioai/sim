@@ -17417,6 +17417,16 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "organization_scope_key": {
+          "name": "organization_scope_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END",
+            "type": "stored"
+          }
         }
       },
       "indexes": {
@@ -17496,7 +17506,13 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "project_id_organization_scope_unique": {
+          "name": "project_id_organization_scope_unique",
+          "nullsNotDistinct": false,
+          "columns": ["id", "organization_scope_key"]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "project_name_length": {
@@ -27330,6 +27346,16 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "organization_scope_key": {
+          "name": "organization_scope_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END",
+            "type": "stored"
+          }
         }
       },
       "indexes": {
@@ -27476,10 +27502,34 @@
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
+        },
+        "workspace_project_organization_fk": {
+          "name": "workspace_project_organization_fk",
+          "tableFrom": "workspace",
+          "tableTo": "project",
+          "columnsFrom": ["project_id", "organization_scope_key"],
+          "columnsTo": ["id", "organization_scope_key"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workspace_fork_project_fk": {
+          "name": "workspace_fork_project_fk",
+          "tableFrom": "workspace",
+          "tableTo": "workspace",
+          "columnsFrom": ["forked_from_workspace_id", "project_id"],
+          "columnsTo": ["id", "project_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "workspace_id_project_unique": {
+          "name": "workspace_id_project_unique",
+          "nullsNotDistinct": false,
+          "columns": ["id", "project_id"]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "workspace_storage_used_bytes_non_negative": {

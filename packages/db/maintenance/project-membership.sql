@@ -90,132 +90,78 @@ DO $$ BEGIN
   END IF;
 END $$;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION project_contract_assert_project(target_id text) RETURNS void
-LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
-DECLARE
-  record project%ROWTYPE;
-  total bigint;
-  active bigint;
-BEGIN
-  SELECT * INTO record FROM project WHERE id = target_id;
-  IF NOT FOUND THEN RETURN; END IF;
-  SELECT count(*), count(*) FILTER (WHERE w.archived_at IS NULL)
-    INTO total, active FROM workspace w WHERE w.project_id = target_id;
-  IF total = 0 OR (record.archived_at IS NULL AND active = 0)
-    OR (record.archived_at IS NOT NULL AND active > 0) THEN
-    RAISE EXCEPTION 'Project must retain environments with consistent archive state'
-      USING ERRCODE = '23514', CONSTRAINT = 'project_environment_lifecycle';
+-- The generated expression always returns non-NULL, including personal scope; writers cannot override it.
+-- Stored generated columns rewrite existing rows on PG16/17. Bound the rewrite and lock wait;
+-- a timeout rolls this phase back and leaves the connector intact for a later retry.
+BEGIN;
+SET LOCAL lock_timeout = '1s';
+SET LOCAL statement_timeout = '5s';
+LOCK TABLE project, workspace IN ACCESS EXCLUSIVE MODE NOWAIT;
+DO $$ BEGIN
+  IF to_regclass('project_workspace') IS NOT NULL THEN
+    LOCK TABLE project_workspace IN ACCESS EXCLUSIVE MODE NOWAIT;
   END IF;
-  IF EXISTS (
-    SELECT 1 FROM workspace w
-    WHERE w.project_id = target_id AND w.organization_id IS DISTINCT FROM record.organization_id
-  ) THEN
-    RAISE EXCEPTION 'Project and environment organization must agree'
-      USING ERRCODE = '23514', CONSTRAINT = 'project_environment_organization';
-  END IF;
-  IF record.archived_at IS NOT NULL AND EXISTS (
-    SELECT 1 FROM workspace w JOIN workflow f ON f.workspace_id = w.id
-    WHERE w.project_id = target_id AND f.archived_at IS NULL
-  ) THEN
-    RAISE EXCEPTION 'Archived Project cannot contain active workflows'
-      USING ERRCODE = '23514', CONSTRAINT = 'project_workflow_lifecycle';
-  END IF;
-END;
-$$;
+END $$;
+ALTER TABLE project ADD COLUMN IF NOT EXISTS organization_scope_key text
+  GENERATED ALWAYS AS (CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END) STORED;
+ALTER TABLE workspace ADD COLUMN IF NOT EXISTS organization_scope_key text
+  GENERATED ALWAYS AS (CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END) STORED;
+COMMIT;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION project_contract_assert_workspace(target_id text) RETURNS void
-LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
-DECLARE
-  parent_id text;
-  member_project_id text;
-  parent_project_id text;
-BEGIN
-  SELECT forked_from_workspace_id, project_id INTO parent_id, member_project_id FROM workspace WHERE id = target_id;
-  IF NOT FOUND THEN RETURN; END IF;
-  IF parent_id IS NOT NULL THEN
-    SELECT project_id INTO parent_project_id FROM workspace WHERE id = parent_id;
-    IF parent_project_id IS DISTINCT FROM member_project_id THEN
-      RAISE EXCEPTION 'Connected fork environments must belong to the same Project'
-        USING ERRCODE = '23514', CONSTRAINT = 'workspace_fork_project';
-    END IF;
-  END IF;
-  IF EXISTS (
-    SELECT 1 FROM workspace child
-    WHERE child.forked_from_workspace_id = target_id AND child.project_id IS DISTINCT FROM member_project_id
-  ) THEN
-    RAISE EXCEPTION 'Connected fork environments must belong to the same Project'
-      USING ERRCODE = '23514', CONSTRAINT = 'workspace_fork_project';
-  END IF;
-END;
-$$;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION project_contract_lock_projects(target_ids text[]) RETURNS void
-LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
-DECLARE
-  target_id text;
-BEGIN
-  FOR target_id IN SELECT DISTINCT id FROM unnest(target_ids) AS ids(id) WHERE id IS NOT NULL ORDER BY id LOOP
-    -- BEFORE row triggers already hold row locks; waiting here could invert the application lock order.
-    IF NOT pg_try_advisory_xact_lock(hashtextextended('project:' || target_id, 0)) THEN
-      RAISE EXCEPTION 'Project is changing; retry the operation' USING ERRCODE = '55P03';
-    END IF;
+-- Only invalid, unreferenced indexes from interrupted builds are removed. Valid indexes survive
+-- replay, including when the final foreign keys already depend on them.
+DO $$ DECLARE target_name text; BEGIN
+  FOR target_name IN SELECT c.relname FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+    WHERE c.relnamespace = 'public'::regnamespace AND NOT i.indisvalid
+      AND c.relname IN ('project_id_organization_scope_unique', 'workspace_id_project_unique')
+  LOOP
+    EXECUTE format('DROP INDEX %I', target_name);
   END LOOP;
-END;
-$$;
+END $$;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION project_contract_before_write() RETURNS trigger
-LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
-DECLARE
-  previous_id text;
-  next_id text;
-BEGIN
-  IF TG_TABLE_NAME = 'project' THEN
-    IF TG_OP <> 'INSERT' THEN previous_id := OLD.id; END IF;
-    IF TG_OP <> 'DELETE' THEN next_id := NEW.id; END IF;
-  ELSE
-    IF TG_OP <> 'INSERT' THEN previous_id := OLD.project_id; END IF;
-    IF TG_OP <> 'DELETE' THEN next_id := NEW.project_id; END IF;
-  END IF;
-  PERFORM project_contract_lock_projects(ARRAY[previous_id, next_id]);
-  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
-  RETURN NEW;
-END;
-$$;
+SET lock_timeout = 0;
+SET statement_timeout = '60s';
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION project_contract_after_write() RETURNS trigger
-LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
-DECLARE
-  previous_id text;
-  next_id text;
-  target_ids text[];
-  workspace_ids text[];
-  target_id text;
-BEGIN
-  IF TG_TABLE_NAME = 'project' THEN
-    -- Only the final row version needs a full scan; earlier deferred events describe superseded states.
-    IF TG_OP <> 'DELETE' AND EXISTS (SELECT 1 FROM project WHERE id = NEW.id AND ctid = NEW.ctid) THEN
-      PERFORM project_contract_assert_project(NEW.id);
-    END IF;
-    RETURN NULL;
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS project_id_organization_scope_unique ON project(id, organization_scope_key);
+--> statement-breakpoint
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS workspace_id_project_unique ON workspace(id, project_id);
+--> statement-breakpoint
+SET lock_timeout = '1s';
+--> statement-breakpoint
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'project'::regclass
+    AND conname = 'project_id_organization_scope_unique') THEN
+    ALTER TABLE project ADD CONSTRAINT project_id_organization_scope_unique
+      UNIQUE USING INDEX project_id_organization_scope_unique;
   END IF;
-  IF TG_OP <> 'INSERT' THEN previous_id := OLD.project_id; END IF;
-  IF TG_OP <> 'DELETE' THEN next_id := NEW.project_id; END IF;
-  target_ids := ARRAY[previous_id, next_id];
-  previous_id := NULL;
-  next_id := NULL;
-  IF TG_OP <> 'INSERT' THEN previous_id := OLD.id; END IF;
-  IF TG_OP <> 'DELETE' THEN next_id := NEW.id; END IF;
-  workspace_ids := ARRAY[previous_id, next_id];
-  FOR target_id IN SELECT DISTINCT id FROM unnest(target_ids) AS ids(id) WHERE id IS NOT NULL ORDER BY id LOOP
-    -- Touch after the mutation: immediate constraints must see it too, and repeatable-read must detect stale snapshots.
-    UPDATE project SET updated_at = updated_at WHERE id = target_id;
-  END LOOP;
-  FOR target_id IN SELECT DISTINCT id FROM unnest(workspace_ids) AS ids(id) WHERE id IS NOT NULL ORDER BY id LOOP
-    PERFORM project_contract_assert_workspace(target_id);
-  END LOOP;
-  RETURN NULL;
-END;
-$$;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'workspace'::regclass
+    AND conname = 'workspace_id_project_unique') THEN
+    ALTER TABLE workspace ADD CONSTRAINT workspace_id_project_unique
+      UNIQUE USING INDEX workspace_id_project_unique;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'workspace'::regclass
+    AND conname = 'workspace_project_organization_fk') THEN
+    ALTER TABLE workspace ADD CONSTRAINT workspace_project_organization_fk
+      FOREIGN KEY (project_id, organization_scope_key) REFERENCES project(id, organization_scope_key)
+      DEFERRABLE INITIALLY DEFERRED NOT VALID;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'workspace'::regclass
+    AND conname = 'workspace_fork_project_fk') THEN
+    ALTER TABLE workspace ADD CONSTRAINT workspace_fork_project_fk
+      FOREIGN KEY (forked_from_workspace_id, project_id) REFERENCES workspace(id, project_id)
+      DEFERRABLE INITIALLY DEFERRED NOT VALID;
+  END IF;
+END $$;
+--> statement-breakpoint
+-- Drizzle represents the FK columns/actions; the shared finalizer owns deferred timing on push.
+ALTER TABLE workspace ALTER CONSTRAINT workspace_project_organization_fk DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE workspace ALTER CONSTRAINT workspace_fork_project_fk DEFERRABLE INITIALLY DEFERRED;
+--> statement-breakpoint
+SET statement_timeout = '60s';
+--> statement-breakpoint
+ALTER TABLE workspace VALIDATE CONSTRAINT workspace_project_organization_fk;
+--> statement-breakpoint
+ALTER TABLE workspace VALIDATE CONSTRAINT workspace_fork_project_fk;
 --> statement-breakpoint
 BEGIN;
 --> statement-breakpoint
@@ -241,29 +187,12 @@ ALTER TABLE workspace ALTER COLUMN project_id SET NOT NULL;
 -- migration-safe: the required column now enforces the validated helper check's invariant.
 ALTER TABLE workspace DROP CONSTRAINT IF EXISTS workspace_project_id_present;
 --> statement-breakpoint
-DROP TRIGGER IF EXISTS project_contract_lock ON project;
-CREATE TRIGGER project_contract_lock BEFORE INSERT OR UPDATE OR DELETE ON project
-FOR EACH ROW EXECUTE FUNCTION project_contract_before_write();
-DROP TRIGGER IF EXISTS project_contract_check ON project;
-CREATE CONSTRAINT TRIGGER project_contract_check AFTER INSERT OR UPDATE OR DELETE ON project
-DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION project_contract_after_write();
---> statement-breakpoint
-DROP TRIGGER IF EXISTS project_contract_lock ON workspace;
-CREATE TRIGGER project_contract_lock BEFORE INSERT OR UPDATE OF id, project_id, archived_at, organization_id, forked_from_workspace_id OR DELETE ON workspace
-FOR EACH ROW EXECUTE FUNCTION project_contract_before_write();
-DROP TRIGGER IF EXISTS project_contract_check ON workspace;
-CREATE CONSTRAINT TRIGGER project_contract_check AFTER INSERT OR UPDATE OF id, project_id, archived_at, organization_id, forked_from_workspace_id OR DELETE ON workspace
-DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION project_contract_after_write();
---> statement-breakpoint
-DROP TRIGGER IF EXISTS workspace_sync_project_membership ON workspace;
 -- migration-safe: contract of #8830, gated on its authority-aware release being fully deployed, incompatible app/worker versions having drained, and the column-authority switch being committed; no supported application reader or writer then needs this connector.
 DROP TABLE IF EXISTS project_workspace;
-DROP FUNCTION IF EXISTS workspace_sync_project_membership_fn();
-DROP FUNCTION IF EXISTS project_workspace_sync_column_fn();
 --> statement-breakpoint
 COMMIT;
 --> statement-breakpoint
--- Membership triggers and compatible workspace-guarded writers protect new writes during validation.
+-- Composite foreign keys protect structural writes; compatible application transactions own lifecycle.
 SELECT pg_temp.validate_project_membership();
 --> statement-breakpoint
 DROP FUNCTION pg_temp.validate_project_membership();

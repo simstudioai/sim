@@ -2027,6 +2027,10 @@ export const workspace = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'set null',
     }),
+    /** Encodes nullable organization identity for the composite membership foreign key. */
+    organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(
+      sql`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END`
+    ),
     projectId: text('project_id')
       .notNull()
       .references((): AnyPgColumn => project.id, { onDelete: 'restrict' }),
@@ -2069,6 +2073,19 @@ export const workspace = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    idProjectUnique: unique('workspace_id_project_unique').on(table.id, table.projectId),
+    /** Maintenance installs these two composite checks as DEFERRABLE INITIALLY DEFERRED. */
+    projectOrganizationFk: foreignKey({
+      name: 'workspace_project_organization_fk',
+      columns: [table.projectId, table.organizationScopeKey],
+      foreignColumns: [project.id, project.organizationScopeKey],
+    }),
+    /** The existing parent FK clears only the parent pointer on deletion. */
+    forkProjectFk: foreignKey({
+      name: 'workspace_fork_project_fk',
+      columns: [table.forkedFromWorkspaceId, table.projectId],
+      foreignColumns: [table.id, table.projectId],
+    }),
     ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
     organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
     projectIdIdx: index('workspace_project_id_id_idx').on(table.projectId, table.id).concurrently(),
@@ -2101,6 +2118,10 @@ export const project = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'restrict',
     }),
+    /** Encodes nullable organization identity for the composite membership foreign key. */
+    organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(
+      sql`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END`
+    ),
     /** Lifecycle owner for personal and organization Projects; never an implicit access grant. */
     ownerId: text('owner_id')
       .notNull()
@@ -2110,6 +2131,10 @@ export const project = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    organizationScopeUnique: unique('project_id_organization_scope_unique').on(
+      table.id,
+      table.organizationScopeKey
+    ),
     nameLength: check(
       'project_name_length',
       sql`char_length(btrim(${table.name})) BETWEEN 1 AND 100`

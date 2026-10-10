@@ -131,7 +131,7 @@ async function seed(sql: Sql) {
   await prepareAndEnforce(sql)
 }
 
-const constraintFailure = (error: unknown) => getPostgresErrorCode(error) === '23514'
+const constraintFailure = (error: unknown) => getPostgresErrorCode(error) === '23503'
 
 describe('Project expand/backfill/contract against PostgreSQL', () => {
   it('repairs fully assigned stale Project archive and scope without restoring environments or workflows', async () => {
@@ -542,8 +542,8 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           await sql`SELECT attnotnull FROM pg_attribute WHERE attrelid = 'public.workspace'::regclass AND attname = 'project_id'`
         ).toEqual([{ attnotnull: true }])
         expect(
-          await sql`SELECT count(*)::int AS count FROM pg_trigger WHERE tgrelid IN ('public.workspace'::regclass,'public.project'::regclass) AND tgname IN ('project_contract_lock','project_contract_check')`
-        ).toEqual([{ count: 4 }])
+          await sql`SELECT count(*)::int AS count FROM pg_trigger WHERE tgrelid IN ('public.workspace'::regclass,'public.project'::regclass) AND NOT tgisinternal`
+        ).toEqual([{ count: 0 }])
         expect(await scoped`SELECT id,project_id FROM workspace`).toEqual([
           { id: 'shadow', project_id: null },
         ])
@@ -558,8 +558,8 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         ).toEqual([{ count: 0 }])
         await scoped`UPDATE public.workspace SET name = 'Updated' WHERE id = 'env'`
         await expect(
-          scoped`UPDATE public.workspace SET archived_at = now() WHERE id = 'env'`
-        ).rejects.toMatchObject({ code: '23514' })
+          scoped`UPDATE public.workspace SET organization_id = 'org' WHERE id = 'env'`
+        ).rejects.toMatchObject({ code: '23503' })
         expect(await sql`SELECT name,archived_at FROM public.workspace`).toEqual([
           { name: 'Updated', archived_at: null },
         ])
@@ -1098,47 +1098,29 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   })
 
-  it('validates a bulk archive once per final Project row version', async () => {
+  it('leaves lifecycle enforcement to the application without touching Project rows', async () => {
     await database(async (sql) => {
-      await sql`INSERT INTO workspace (id, name, owner_id) VALUES ('root', 'Root', 'owner')`
-      await sql`INSERT INTO workspace (id, name, owner_id, forked_from_workspace_id)
-        SELECT 'child-' || n, 'Child', 'owner', 'root' FROM generate_series(1, 200) n`
-      await prepareAndEnforce(sql)
-      await sql.unsafe(`
-        CREATE SEQUENCE project_validation_count;
-        ALTER FUNCTION project_contract_assert_project(text) RENAME TO measured_project_assert;
-        CREATE FUNCTION project_contract_assert_project(target_id text) RETURNS void LANGUAGE plpgsql AS $$
-        BEGIN
-          PERFORM nextval('project_validation_count');
-          PERFORM measured_project_assert(target_id);
-        END $$;
-      `)
-      await sql.begin(async (tx) => {
-        await tx`UPDATE workspace SET archived_at = now()`
-        await tx`UPDATE project SET archived_at = now()`
-      })
-      const [calls] =
-        await sql`SELECT CASE WHEN is_called THEN last_value::int ELSE 0 END AS count FROM project_validation_count`
-      expect(calls.count).toBe(1)
-      const [state] =
-        await sql`SELECT count(*)::int AS count FROM workspace WHERE archived_at IS NOT NULL`
-      expect(state.count).toBe(201)
+      await seed(sql)
+      const before = await sql`SELECT id, xmin::text, updated_at FROM project`
+      await sql`UPDATE workspace SET archived_at = now()`
+      expect(await sql`SELECT id, xmin::text, updated_at FROM project`).toEqual(before)
+      await sql`UPDATE project SET archived_at = now()`
+      await sql`UPDATE workspace SET archived_at = NULL`
+      await sql`INSERT INTO project (id,name,owner_id) VALUES ('empty','Empty','owner')`
+      await sql`DELETE FROM workspace`
+      expect(await sql`SELECT id FROM project`).toHaveLength(2)
     })
   })
 
-  it('revalidates each mutation after constraints switch to immediate mode', async () => {
+  it('revalidates structural mutations after constraints switch to immediate mode', async () => {
     await database(async (sql) => {
       await seed(sql)
       await expect(
         sql.begin(async (tx) => {
-          await tx`UPDATE workspace SET archived_at = now() WHERE id = 'root'`
           await tx`SET CONSTRAINTS ALL IMMEDIATE`
-          await tx`UPDATE workspace SET archived_at = now() WHERE id = 'child'`
+          await tx`UPDATE workspace SET organization_id = 'org' WHERE id = 'child'`
         })
       ).rejects.toSatisfy(constraintFailure)
-      const [active] =
-        await sql`SELECT count(*)::int AS count FROM workspace WHERE archived_at IS NULL`
-      expect(active.count).toBe(2)
     })
   })
 
@@ -1249,7 +1231,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
             { name: '0031_project_membership' },
           ])
           expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual(assignments)
-          await expect(sql`DELETE FROM workspace`).rejects.toSatisfy(constraintFailure)
+          await sql`DELETE FROM workspace`
         } finally {
           await runner.end()
         }
@@ -1366,6 +1348,45 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   })
 
+  it('rebuilds an interrupted unique index before attaching native constraints', async () => {
+    await database(async (sql) => {
+      await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('root','Root','owner')`
+      await prepare(sql)
+      const prefix = migration.slice(0, migration.indexOf('CREATE UNIQUE INDEX CONCURRENTLY'))
+      await applyMigration(sql, prefix)
+      const held = createDeferred<void>()
+      const release = createDeferred<void>()
+      const reader = sql.begin(async (tx) => {
+        await tx`SELECT id FROM project`
+        held.resolve()
+        await release.promise
+      })
+      await held.promise
+      try {
+        await expect(
+          applyMigration(
+            sql,
+            `SET statement_timeout = '100ms';
+          --> statement-breakpoint
+          CREATE UNIQUE INDEX CONCURRENTLY project_id_organization_scope_unique
+          ON project(id,organization_scope_key);`
+          )
+        ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '57014')
+      } finally {
+        release.resolve()
+        await reader
+      }
+      expect(
+        await sql`SELECT indisvalid FROM pg_index WHERE indexrelid = 'project_id_organization_scope_unique'::regclass`
+      ).toEqual([{ indisvalid: false }])
+      await applyMigration(sql, migration)
+      await applyMigration(sql, migration)
+      expect(
+        await sql`SELECT convalidated FROM pg_constraint WHERE conname = 'workspace_project_organization_fk'`
+      ).toEqual([{ convalidated: true }])
+    })
+  })
+
   it('supports a fresh database, repeated installation, and atomic first-environment creation', async () => {
     await database(async (sql) => {
       await prepareAndEnforce(sql)
@@ -1375,18 +1396,15 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         await tx`INSERT INTO workspace (id, project_id, name, owner_id) VALUES ('first', 'new', 'First', 'owner')`
         await tx`INSERT INTO workflow VALUES ('flow', 'first', NULL)`
       })
-      await expect(
-        sql`INSERT INTO project (id, name, owner_id) VALUES ('empty', 'Empty', 'owner')`
-      ).rejects.toSatisfy(constraintFailure)
-      expect(await sql`SELECT 1 FROM project`).toHaveLength(1)
+      await sql`INSERT INTO project (id, name, owner_id) VALUES ('empty', 'Empty', 'owner')`
+      expect(await sql`SELECT 1 FROM project`).toHaveLength(2)
     })
   })
 
-  it('rejects invalid archive/scope/fork changes and commits an atomic subtree disconnect', async () => {
+  it('rejects invalid scope/fork changes and commits an atomic subtree disconnect', async () => {
     await database(async (sql) => {
       await seed(sql)
       await prepareAndEnforce(sql)
-      await expect(sql`UPDATE project SET archived_at = now()`).rejects.toSatisfy(constraintFailure)
       await expect(
         sql`UPDATE workspace SET organization_id = 'org' WHERE id = 'child'`
       ).rejects.toSatisfy(constraintFailure)
@@ -1411,27 +1429,122 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   })
 
-  it('requires workflows to be archived when archiving their Project and environments', async () => {
+  it.each([
+    [null, 'org'],
+    ['org', null],
+    ['org', 'other'],
+  ])('rejects organization mismatch %s / %s on both sides', async (projectOrg, workspaceOrg) => {
     await database(async (sql) => {
       await seed(sql)
-      await prepareAndEnforce(sql)
-      await expect(
-        sql.begin(async (tx) => {
-          await tx`UPDATE project SET archived_at = now()`
-          await tx`UPDATE workspace SET archived_at = now()`
-        })
-      ).rejects.toSatisfy(constraintFailure)
+      await sql`INSERT INTO organization VALUES ('other')`
       await sql.begin(async (tx) => {
-        await tx`UPDATE workflow SET archived_at = now()`
-        await tx`UPDATE workspace SET archived_at = now()`
-        await tx`UPDATE project SET archived_at = now()`
+        await tx`UPDATE project SET organization_id = ${projectOrg}`
+        await tx`UPDATE workspace SET organization_id = ${projectOrg}`
       })
       await expect(
-        sql`UPDATE workspace SET archived_at = NULL WHERE id = 'root'`
+        sql`UPDATE workspace SET organization_id = ${workspaceOrg} WHERE id = 'child'`
       ).rejects.toSatisfy(constraintFailure)
-      expect(await sql`SELECT 1 FROM workspace WHERE archived_at IS NULL`).toHaveLength(0)
+      await expect(sql`UPDATE project SET organization_id = ${workspaceOrg}`).rejects.toSatisfy(
+        constraintFailure
+      )
+      await sql.begin(async (tx) => {
+        await tx`UPDATE workspace SET organization_id = ${workspaceOrg}`
+        await tx`UPDATE project SET organization_id = ${workspaceOrg}`
+      })
+      expect(
+        await sql`SELECT 1 FROM workspace w JOIN project p ON p.id = w.project_id
+        WHERE w.organization_id IS DISTINCT FROM p.organization_id`
+      ).toHaveLength(0)
     })
   })
+
+  it('keeps generated scope keys distinct from organization identifiers and rejects overrides', async () => {
+    await database(async (sql) => {
+      await seed(sql)
+      await sql`INSERT INTO organization VALUES ('personal')`
+      await expect(
+        sql`UPDATE workspace SET organization_id = 'personal' WHERE id = 'child'`
+      ).rejects.toSatisfy(constraintFailure)
+      await expect(
+        sql`UPDATE workspace SET organization_scope_key = 'organization:org' WHERE id = 'child'`
+      ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '428C9')
+    })
+  })
+
+  it('checks parent moves, allows atomic subtree moves and preserves membership on parent deletion', async () => {
+    await database(async (sql) => {
+      await seed(sql)
+      const [source] = await sql`SELECT project_id FROM workspace WHERE id = 'root'`
+      await sql`INSERT INTO project (id,name,owner_id) VALUES ('target','Target','owner')`
+      await sql`INSERT INTO workspace (id,project_id,name,owner_id,forked_from_workspace_id)
+        VALUES ('grandchild',${source.project_id},'Grandchild','owner','child')`
+      const before = await sql`SELECT id,xmin::text,updated_at FROM project ORDER BY id`
+      await expect(
+        sql`UPDATE workspace SET project_id = 'target' WHERE id = 'root'`
+      ).rejects.toSatisfy(constraintFailure)
+      await sql.begin(async (tx) => {
+        await tx`UPDATE workspace SET project_id = 'target' WHERE id = 'child'`
+        await tx`UPDATE workspace SET project_id = 'target' WHERE id = 'grandchild'`
+        await tx`UPDATE workspace SET forked_from_workspace_id = NULL WHERE id = 'child'`
+      })
+      await sql`DELETE FROM workspace WHERE id = 'child'`
+      expect(
+        await sql`SELECT project_id,forked_from_workspace_id FROM workspace WHERE id = 'grandchild'`
+      ).toEqual([{ project_id: 'target', forked_from_workspace_id: null }])
+      expect(await sql`SELECT id,xmin::text,updated_at FROM project ORDER BY id`).toEqual(before)
+      expect(
+        await sql`SELECT tgname FROM pg_trigger WHERE tgrelid IN ('workspace'::regclass,'project'::regclass)
+        AND NOT tgisinternal`
+      ).toHaveLength(0)
+    })
+  })
+
+  it.each(['read committed', 'repeatable read'] as const)(
+    'rejects a stale fork insertion after its parent moves under %s without touching Projects',
+    async (isolation) => {
+      await database(async (sql) => {
+        await seed(sql)
+        await sql`DELETE FROM workspace WHERE id = 'child'`
+        await sql`INSERT INTO project (id,name,owner_id) VALUES ('target','Target','owner')`
+        const before = await sql`SELECT id,xmin::text FROM project ORDER BY id`
+        await expect(
+          sql.begin(`isolation level ${isolation}`, async (tx) => {
+            const [parent] = await tx`SELECT project_id FROM workspace WHERE id = 'root'`
+            await sql`UPDATE workspace SET project_id = 'target' WHERE id = 'root'`
+            await tx`INSERT INTO workspace (id,project_id,name,owner_id,forked_from_workspace_id)
+            VALUES ('stale-child',${parent.project_id},'Stale','owner','root')`
+          })
+        ).rejects.toSatisfy((error: unknown) =>
+          ['23503', '40001'].includes(getPostgresErrorCode(error) ?? '')
+        )
+        expect(await sql`SELECT id FROM workspace WHERE id = 'stale-child'`).toHaveLength(0)
+        expect(await sql`SELECT id,xmin::text FROM project ORDER BY id`).toEqual(before)
+      })
+    }
+  )
+
+  it.each(['read committed', 'repeatable read'] as const)(
+    'rejects stale organization assignment under %s',
+    async (isolation) => {
+      await database(async (sql) => {
+        await seed(sql)
+        await expect(
+          sql.begin(`isolation level ${isolation}`, async (tx) => {
+            const [parent] = await tx`SELECT id,organization_id FROM project`
+            await sql.begin(async (move) => {
+              await move`UPDATE project SET organization_id = 'org'`
+              await move`UPDATE workspace SET organization_id = 'org'`
+            })
+            await tx`INSERT INTO workspace (id,project_id,name,owner_id,organization_id)
+            VALUES ('stale',${parent.id},'Stale','owner',${parent.organization_id})`
+          })
+        ).rejects.toSatisfy((error: unknown) =>
+          ['23503', '40001'].includes(getPostgresErrorCode(error) ?? '')
+        )
+        expect(await sql`SELECT id FROM workspace WHERE id = 'stale'`).toHaveLength(0)
+      })
+    }
+  )
 
   it('allows concurrent workflow lifecycle writes without rewriting or locking their Project', async () => {
     await database(async (sql) => {
@@ -1463,95 +1576,6 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       ).toHaveLength(1)
     })
   })
-
-  it.each([
-    ['Project update', "UPDATE project SET name = 'Contending update'"],
-    ['Project delete', 'DELETE FROM project'],
-    ['environment update', "UPDATE workspace SET archived_at = now() WHERE id = 'child'"],
-    ['environment delete', "DELETE FROM workspace WHERE id = 'child'"],
-  ])('rejects a direct %s promptly when its Project is changing', async (_operation, statement) => {
-    await database(async (sql) => {
-      await seed(sql)
-      const held = createDeferred<void>()
-      const release = createDeferred<void>()
-      const writer = sql.begin(async (tx) => {
-        await tx`UPDATE workflow SET archived_at = now() WHERE workspace_id = 'root'`
-        await tx`UPDATE workspace SET archived_at = now() WHERE id = 'root'`
-        held.resolve()
-        await release.promise
-      })
-      await held.promise
-      try {
-        await expect(
-          sql.begin(async (tx) => {
-            await tx`SET LOCAL statement_timeout = '500ms'`
-            await tx.unsafe(statement)
-          })
-        ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '55P03')
-      } finally {
-        release.resolve()
-        await writer
-      }
-      expect(
-        await sql`SELECT 1 FROM workspace WHERE id = 'child' AND archived_at IS NULL`
-      ).toHaveLength(1)
-      expect(await sql`SELECT 1 FROM project WHERE name = 'Contending update'`).toHaveLength(0)
-      expect(Object.values(await verifyProjectBackfill(sql)).every((count) => count === 0)).toBe(
-        true
-      )
-    })
-  })
-
-  it.each(['read committed', 'repeatable read'] as const)(
-    'prevents concurrent last-environment removal under %s',
-    async (isolation) => {
-      await database(async (sql) => {
-        await seed(sql)
-        await prepareAndEnforce(sql)
-        const archived = createDeferred<void>()
-        const release = createDeferred<void>()
-        const first = sql.begin(async (tx) => {
-          await tx`UPDATE workspace SET archived_at = now() WHERE id = 'root'`
-          archived.resolve()
-          await release.promise
-        })
-        await archived.promise
-        const started = createDeferred<number>()
-        const second = sql
-          .begin(`isolation level ${isolation}`, async (tx) => {
-            const [connection] =
-              await tx`SELECT pg_backend_pid() AS pid, count(*) FROM workspace WHERE archived_at IS NULL`
-            started.resolve(connection.pid)
-            await tx`SELECT pg_advisory_xact_lock(hashtextextended('project:' || project_id, 0)) FROM workspace WHERE id = 'child'`
-            await tx`UPDATE workspace SET archived_at = now() WHERE id = 'child'`
-          })
-          .then(
-            () => null,
-            (error: unknown) => error
-          )
-        const secondPid = await started.promise
-        try {
-          let waiting = false
-          for (let attempt = 0; attempt < 100; attempt++) {
-            const [state] =
-              await sql`SELECT cardinality(pg_blocking_pids(${secondPid})) > 0 AS waiting`
-            if (state.waiting) {
-              waiting = true
-              break
-            }
-            await sleep(10)
-          }
-          expect(waiting).toBe(true)
-        } finally {
-          release.resolve()
-          await first
-        }
-        const failure = await second
-        expect(['23514', '40001']).toContain(getPostgresErrorCode(failure))
-        expect(await sql`SELECT 1 FROM workspace WHERE archived_at IS NULL`).toHaveLength(1)
-      })
-    }
-  )
 
   it('refuses enforcement when an archived Project retains an active workflow', async () => {
     await database(async (sql) => {
@@ -1618,7 +1642,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         await sql`SELECT 1 FROM workspace WHERE id LIKE 'b-%' AND project_id IS NOT NULL`
       ).toHaveLength(0)
       expect(
-        await sql`SELECT 1 FROM pg_trigger WHERE tgname = 'project_contract_check'`
+        await sql`SELECT 1 FROM pg_constraint WHERE conname = 'workspace_fork_project_fk'`
       ).toHaveLength(0)
       await sql`UPDATE workspace SET organization_id = 'org' WHERE id = 'b-child'`
       await prepareAndEnforce(sql)

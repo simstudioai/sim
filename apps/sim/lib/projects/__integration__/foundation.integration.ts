@@ -105,11 +105,25 @@ function setProjectsEnabled(enabled: boolean) {
 
 beforeEach(async () => {
   setProjectsEnabled(true)
-  const rows = await db.execute(sql`SELECT tgrelid::regclass::text AS table_name FROM pg_trigger
-    WHERE tgname = 'project_contract_check'
-      AND tgrelid IN ('project'::regclass, 'workspace'::regclass)
-    ORDER BY table_name`)
-  expect(rows).toEqual([{ table_name: 'project' }, { table_name: 'workspace' }])
+  const rows =
+    await db.execute(sql`SELECT conname, condeferrable, condeferred, convalidated FROM pg_constraint
+    WHERE conrelid = 'workspace'::regclass
+      AND conname IN ('workspace_project_organization_fk', 'workspace_fork_project_fk')
+    ORDER BY conname`)
+  expect(rows).toEqual([
+    {
+      conname: 'workspace_fork_project_fk',
+      condeferrable: true,
+      condeferred: true,
+      convalidated: true,
+    },
+    {
+      conname: 'workspace_project_organization_fk',
+      condeferrable: true,
+      condeferred: true,
+      convalidated: true,
+    },
+  ])
 })
 
 const request = { requestId: 'project-foundation-integration', headers: new Headers() }
@@ -301,6 +315,7 @@ describe('Project foundation at the database and application boundary', () => {
         request,
       })
       expect(resolved.project.id).toBe(created.project.id)
+      expect(resolved.project).not.toHaveProperty('organizationScopeKey')
       const fork = await createFork({
         source,
         policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
