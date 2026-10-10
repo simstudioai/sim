@@ -265,4 +265,3 @@ DROP FUNCTION pg_temp.validate_project_membership();
 SET statement_timeout = 0;
 --> statement-breakpoint
 SET lock_timeout = '5s';
-
