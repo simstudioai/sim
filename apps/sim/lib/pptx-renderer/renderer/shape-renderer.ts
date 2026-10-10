@@ -874,7 +874,8 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
 
       // Insert rect blend group (two linear gradients + lighten) before the main path
       if ((path as any).__rectBlendGroup) {
-        svg.appendChild((path as any).__rectBlendGroup)(path as any).__rectBlendGroup = undefined
+        svg.appendChild((path as any).__rectBlendGroup)
+        ;(path as any).__rectBlendGroup = undefined
       }
 
       svg.appendChild(path)
