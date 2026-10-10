@@ -86,7 +86,7 @@ export function PromptEditor({
 
   useEffect(() => {
     if (autoFocus && !readOnly) editor.focusAtEnd()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only focus
+    // mount-only focus
   }, [])
 
   /**

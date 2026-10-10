@@ -246,7 +246,6 @@ function createArrowMarker(
     default:
       return null
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
   ;(marker as any)._markerId = id
   return marker
@@ -650,7 +649,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
             // Mark path as no-fill; the blend group handles it.
             // Tag the blend group so we can insert it before the main path later.
             path.setAttribute('fill', 'none')
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ;(path as any).__rectBlendGroup = blendGroup
           } else if (gradientFillData.type === 'radial') {
             const radialGrad = document.createElementNS(svgNs, 'radialGradient')
@@ -855,7 +853,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
           )
           if (marker) {
             defs.appendChild(marker)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             path.setAttribute('marker-start', `url(#${(marker as any)._markerId})`)
           }
         }
@@ -870,20 +867,14 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
           )
           if (marker) {
             defs.appendChild(marker)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             path.setAttribute('marker-end', `url(#${(marker as any)._markerId})`)
           }
         }
       }
 
       // Insert rect blend group (two linear gradients + lighten) before the main path
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((path as any).__rectBlendGroup) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        svg.appendChild((path as any).__rectBlendGroup)(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          path as any
-        ).__rectBlendGroup = undefined
+        svg.appendChild((path as any).__rectBlendGroup)(path as any).__rectBlendGroup = undefined
       }
 
       svg.appendChild(path)
@@ -1442,7 +1433,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
       const mask = `linear-gradient(to bottom, rgba(255,255,255,${stA.toFixed(3)}) ${stPos.toFixed(1)}%, rgba(255,255,255,${endA.toFixed(3)}) ${endPos.toFixed(1)}%)`
       const reflectValue = `below ${dist.toFixed(1)}px ${mask}`
       wrapper.style.setProperty('-webkit-box-reflect', reflectValue)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(wrapper.style as any).webkitBoxReflect = reflectValue
     }
   }

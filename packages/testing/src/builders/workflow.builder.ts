@@ -7,8 +7,6 @@ import {
 } from '../factories/block.factory'
 import type { Position } from '../types'
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 /**
  * Fluent builder for creating complex workflow states.
  *

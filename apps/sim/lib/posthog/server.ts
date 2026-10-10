@@ -23,7 +23,6 @@ function getClient(): PostHog | null {
     return null
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { PostHog } = require('posthog-node') as typeof import('posthog-node')
   _client = new PostHog(key, {
     host: 'https://us.i.posthog.com',

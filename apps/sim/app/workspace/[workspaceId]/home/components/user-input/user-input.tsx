@@ -207,7 +207,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         textarea.setSelectionRange(caretText.length, caretText.length)
       }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
+  }, []) // intentional mount-only restore
 
   const isFirstSaveRef = useRef(true)
   const draftSaveTimerRef = useRef<number | null>(null)

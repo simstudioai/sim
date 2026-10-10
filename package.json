@@ -130,8 +130,7 @@
     "type-check": "turbo run type-check",
     "release": "bun run scripts/create-single-release.ts",
     "test:scripts": "vitest run --config scripts/vitest.config.ts",
-    "check:agent-cli-boundary": "bun run scripts/check-agent-cli-boundary.ts",
-    "check:dead-code": "bun run node_modules/knip/bin/knip.js"
+    "check:agent-cli-boundary": "bun run scripts/check-agent-cli-boundary.ts"
   },
   "overrides": {
     "react": "19.2.4",
