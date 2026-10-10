@@ -1,43 +1,41 @@
 import { createLogger } from '@sim/logger'
-import { createWorkflowRecord } from '@sim/testing'
+import { createWorkflowRecord } from '@sim/testing/factories/permission.factory'
+import { idempotencyServiceMock } from '@sim/testing/mocks/idempotency-service.mock'
 import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
+import {
+  webhooksPollingUtilsMock,
+  webhooksPollingUtilsMockFns,
+} from '@sim/testing/mocks/webhooks-polling-utils.mock'
 import {
   webhooksProcessorMock,
   webhooksProcessorMockFns,
 } from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUpdateConfig } = vi.hoisted(() => ({
-  mockUpdateConfig: vi.fn(),
-}))
-
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 const mockFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
 const mockValidateUrl = inputValidationMockFns.mockValidateUrlWithDNS
 
-vi.mock('@/lib/core/idempotency/service', () => ({
-  pollingIdempotency: {
-    executeWithIdempotency: vi.fn(
-      async (_provider: string, _key: string, execute: () => Promise<unknown>) => execute()
-    ),
-  },
-}))
+vi.mock('@/lib/core/idempotency/service', () => idempotencyServiceMock)
 
 vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
-vi.mock('@/lib/webhooks/polling/utils', () => ({
-  markWebhookSuccess: vi.fn(),
-  markWebhookFailed: vi.fn(),
-  updateWebhookProviderConfig: mockUpdateConfig,
-}))
+vi.mock('@/lib/webhooks/polling/utils', () => webhooksPollingUtilsMock)
 
+import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import { rssPollingHandler } from '@/lib/webhooks/polling/rss'
 import type { PollWebhookContext, WebhookRecord } from '@/lib/webhooks/polling/types'
+import { PollFetchError } from '@/lib/webhooks/polling/utils'
 
 const mockProcessEvent = webhooksProcessorMockFns.mockProcessPolledWebhookEvent
+const {
+  mockUpdateWebhookProviderConfig: mockUpdateConfig,
+  mockMarkWebhookFailed: mockMarkFailed,
+  mockRecordPollSourceFailure,
+} = webhooksPollingUtilsMockFns
 
 const SUBSCRIBED_AT = new Date('2026-08-27T18:36:16.000Z')
 const LAST_CHECKED_AT = '2026-09-11T23:26:27.000Z'
@@ -124,5 +122,48 @@ describe('RSS delivery across delayed feed updates', () => {
 
     expect(await rssPollingHandler.pollWebhook(context())).toBe('success')
     expect(mockProcessEvent).not.toHaveBeenCalled()
+  })
+})
+
+describe('RSS polling against refusals and rate limits', () => {
+  beforeEach(() => {
+    mockValidateUrl.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
+    mockUpdateConfig.mockResolvedValue(undefined)
+  })
+
+  it('leaves an item unseen and uncounted when execution admission refuses it', async () => {
+    mockFetch.mockResolvedValue(feed('Fri, 11 Sep 2026 21:25:32 GMT'))
+    mockProcessEvent.mockResolvedValue({
+      success: false,
+      statusCode: 402,
+      error: 'Usage limit exceeded',
+      code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED,
+      retryable: false,
+    })
+
+    expect(await rssPollingHandler.pollWebhook(context())).toBe('skipped')
+
+    const recordedGuids = mockUpdateConfig.mock.calls.flatMap(
+      ([, update]) => (update as { lastSeenGuids?: string[] }).lastSeenGuids ?? []
+    )
+    expect(recordedGuids).not.toContain(GUID)
+    expect(mockMarkFailed).not.toHaveBeenCalled()
+  })
+
+  it('records a rate-limited fetch as one source failure carrying its status', async () => {
+    mockFetch.mockResolvedValue(
+      new Response('Too Many Requests', {
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: { 'Retry-After': '12' },
+      })
+    )
+
+    expect(await rssPollingHandler.pollWebhook(context())).toBe('failure')
+
+    expect(mockRecordPollSourceFailure).toHaveBeenCalledOnce()
+    const [, , error] = mockRecordPollSourceFailure.mock.calls[0]
+    expect(error).toBeInstanceOf(PollFetchError)
+    expect(error).toMatchObject({ status: 429 })
   })
 })

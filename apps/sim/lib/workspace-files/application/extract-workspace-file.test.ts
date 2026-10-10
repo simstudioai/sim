@@ -5,6 +5,10 @@ import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
+import {
+  idempotencyServiceMock,
+  idempotencyServiceMockFns,
+} from '@sim/testing/mocks/idempotency-service.mock'
 import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
@@ -23,26 +27,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const hoisted = vi.hoisted(() => ({
-  atomicallyClaim: vi.fn(),
   decompress: vi.fn(),
-  releaseLease: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/core/idempotency/service', () => ({
-  IdempotencyService: class MockIdempotencyService {
-    atomicallyClaim(...args: unknown[]) {
-      return hoisted.atomicallyClaim(...args)
-    }
-
-    release(...args: unknown[]) {
-      return hoisted.releaseLease(...args)
-    }
-  },
-}))
+vi.mock('@/lib/core/idempotency/service', () => idempotencyServiceMock)
 
 vi.mock('@/lib/uploads/archive', () => ({
   decompressArchiveBufferToWorkspaceFiles: hoisted.decompress,
@@ -71,6 +63,8 @@ const mocks = {
   loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
   notify: realtimeNotifyMockFns.mockNotifyWorkspaceFilesChanged,
   ...hoisted,
+  atomicallyClaim: idempotencyServiceMockFns.mockAtomicallyClaim,
+  releaseLease: idempotencyServiceMockFns.mockRelease,
   createFolder: workspaceFileFoldersMockFns.mockCreateWorkspaceFileFolder,
   archiveFolderIfEmpty: workspaceFileFoldersMockFns.mockArchiveWorkspaceFileFolderIfEmpty,
   resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,

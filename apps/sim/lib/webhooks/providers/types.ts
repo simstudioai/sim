@@ -167,6 +167,16 @@ export interface WebhookProviderHandler {
   /** Format error responses (some providers need special formats). */
   formatErrorResponse?(error: string, status: number): NextResponse
 
+  /**
+   * Answer a deterministic admission rejection (`lib/core/admission/rejection`)
+   * with an empty `200`, dropping the delivery. Only for senders that resend
+   * non-2xx deliveries aggressively and whose events go stale before a person
+   * could lift the block; senders that retry over days (Stripe, Meta) or whose
+   * callers read the status (generic) keep the error. Polling always gets the
+   * raw rejection.
+   */
+  acknowledgeAdmissionRejections?: boolean
+
   /** Return true to skip this event (filtering by event type, collection, etc.). */
   shouldSkipEvent?(ctx: EventFilterContext): boolean
 

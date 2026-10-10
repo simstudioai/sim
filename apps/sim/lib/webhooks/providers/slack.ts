@@ -874,6 +874,9 @@ export function shouldSkipSlackTriggerEvent(
 }
 
 export const slackHandler: WebhookProviderHandler = {
+  /** Slack disables an app's event subscription once over 95% of deliveries fail for an hour. */
+  acknowledgeAdmissionRejections: true,
+
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const signingSecret = providerConfig.signingSecret as string | undefined
     if (!signingSecret) {
