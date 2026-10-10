@@ -13,11 +13,12 @@ import {
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
+  clearPollBackoff,
   markWebhookFailed,
   markWebhookSuccess,
   PollFetchError,
   readPollRetryAfterMs,
-  recordPollFailure,
+  recordPollSourceFailure,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -97,6 +98,7 @@ export const rssPollingHandler: PollingProviderHandler = {
   async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure' | 'skipped'> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
+    const pollStartedAt = Date.now()
 
     try {
       const config = getProviderConfig<RssWebhookConfig>(webhookData.providerConfig)
@@ -133,13 +135,13 @@ export const rssPollingHandler: PollingProviderHandler = {
         logger
       )
 
-      /** Items from an admission rejection onward stay unseen, so they deliver once it lifts. */
+      // Items from an admission refusal onward stay unseen so they deliver once it lifts.
       const attemptedItems =
         admissionRejectedAt === undefined ? newItems : newItems.slice(0, admissionRejectedAt)
       const newGuids = attemptedItems.map(getRssItemGuid).filter((guid) => guid.length > 0)
 
       if (admissionRejectedAt !== undefined) {
-        /** The feed's validators are left unchanged so the next fetch cannot answer 304. */
+        // Validators stay unchanged so the next fetch cannot answer 304 for the unseen items.
         if (newGuids.length > 0) {
           await updateRssState(webhookId, now.toISOString(), newGuids, config, logger)
         }
@@ -173,10 +175,11 @@ export const rssPollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
-      await recordPollFailure(
-        webhookId,
+      await recordPollSourceFailure(
+        webhookData,
+        pollStartedAt,
         error,
-        `[${requestId}] Error processing RSS webhook ${webhookId}`,
+        `[${requestId}] Error polling RSS webhook ${webhookId}`,
         logger
       )
       return 'failure'
@@ -207,6 +210,7 @@ async function updateRssState(
     {
       lastCheckedTimestamp: timestamp,
       lastSeenGuids: allGuids,
+      ...clearPollBackoff(config),
       ...(etag !== undefined ? { etag } : {}),
       ...(lastModified !== undefined ? { lastModified } : {}),
     },
@@ -277,8 +281,7 @@ async function fetchNewRssItems(
   const lastSeenGuids = new Set(config.lastSeenGuids || [])
 
   const newItems = feed.items.filter((item) => {
-    const itemGuid =
-      item.guid || item.link || (item.title && item.pubDate ? `${item.title}-${item.pubDate}` : '')
+    const itemGuid = getRssItemGuid(item)
 
     if (itemGuid && lastSeenGuids.has(itemGuid)) {
       return false

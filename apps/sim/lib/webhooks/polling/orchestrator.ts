@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { findRecentlyRefusedWorkspaces } from '@/lib/webhooks/polling/admission-refusals'
 import { getPollingHandler } from '@/lib/webhooks/polling/registry'
 import type { PollSummary } from '@/lib/webhooks/polling/types'
 import {
-  createPayerUsageGate,
   fetchActiveWebhooks,
   getPollBackoffUntil,
   runWithConcurrency,
@@ -29,16 +29,21 @@ export async function pollProvider(providerName: string): Promise<PollSummary> {
   logger.info(`Found ${activeWebhooks.length} active ${handler.label} webhooks`)
 
   const tickStartedAt = Date.now()
-  const isPayerOverUsageLimit = createPayerUsageGate(logger)
+  const refusedWorkspaces = await findRecentlyRefusedWorkspaces([
+    ...new Set(activeWebhooks.flatMap(({ workflow }) => workflow.workspaceId ?? [])),
+  ])
+  if (refusedWorkspaces.size > 0) {
+    logger.info(`Skipping polls for ${refusedWorkspaces.size} workspaces refused by admission`)
+  }
 
   const { successCount, failureCount, skippedCount } = await runWithConcurrency(
     activeWebhooks,
     async (entry) => {
-      if (getPollBackoffUntil(entry.webhook, tickStartedAt) !== null) {
-        logger.debug(`Backing off webhook ${entry.webhook.id} after repeated poll failures`)
+      if (getPollBackoffUntil(entry.webhook.providerConfig, tickStartedAt) !== null) {
+        logger.debug(`Backing off webhook ${entry.webhook.id} after source fetch failures`)
         return 'skipped'
       }
-      if (await isPayerOverUsageLimit(entry.workflow.workspaceId)) {
+      if (entry.workflow.workspaceId && refusedWorkspaces.has(entry.workflow.workspaceId)) {
         return 'skipped'
       }
 

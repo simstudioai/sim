@@ -34,6 +34,7 @@ import {
   matchesPendingWebhookVerificationProbe,
   requiresPendingWebhookVerification,
 } from '@/lib/webhooks/pending-verification'
+import { recordPollAdmissionRefusal } from '@/lib/webhooks/polling/admission-refusals'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { normalizeWebhookRegistrationPath } from '@/lib/webhooks/registration-identity'
@@ -1042,6 +1043,9 @@ export async function processPolledWebhookEvent(
         statusCode,
         error: errorMessage,
       })
+      if (preprocessResult.admissionRejectionCode && foundWorkflow.workspaceId) {
+        await recordPollAdmissionRefusal(foundWorkflow.workspaceId)
+      }
       return {
         success: false,
         error: errorMessage,

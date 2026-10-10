@@ -1,26 +1,16 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { authOAuthUtilsMock } from '@sim/testing/mocks/auth-oauth-utils.mock'
-import {
-  billingAttributionMock,
-  billingAttributionMockFns,
-} from '@sim/testing/mocks/billing-attribution.mock'
-import {
-  billingUsageGateCacheMock,
-  billingUsageGateCacheMockFns,
-} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
-vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 vi.mock('@/triggers/constants', () => ({ MAX_CONSECUTIVE_FAILURES: 5 }))
 
 import { sql } from 'drizzle-orm'
 import {
-  createPayerUsageGate,
   getPollBackoffUntil,
-  POLL_RETRY_AFTER_CONFIG_KEY,
+  PollFetchError,
   readPollRetryAfterMs,
+  recordPollSourceFailure,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 
@@ -62,53 +52,62 @@ describe('updateWebhookProviderConfig (atomic jsonb merge)', () => {
   })
 })
 
-describe('getPollBackoffUntil', () => {
-  const now = Date.parse('2026-10-09T12:00:00.000Z')
-  const minutesAgo = (minutes: number) => new Date(now - minutes * 60_000)
+describe('poll source backoff', () => {
+  const pollStartedAt = Date.parse('2026-10-09T12:00:00.000Z')
+  const minutes = (count: number) => count * 60_000
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  /** Records one source failure on a webhook whose config carries `previousFailures`, returning the merged config update. */
+  async function failOnce(previousFailures: number, error: unknown = new Error('feed down')) {
+    await recordPollSourceFailure(
+      {
+        id: 'wh-1',
+        providerConfig: previousFailures ? { pollSourceFailures: previousFailures } : {},
+      },
+      pollStartedAt,
+      error,
+      'poll failed',
+      logger
+    )
+    const merged = allInterpolatedValues().find(
+      (value) => typeof value === 'string' && value.includes('pollBackoffUntil')
+    )
+    return JSON.parse(String(merged)) as Record<string, unknown>
+  }
 
   it.each([
-    { failedCount: 0, lastFailedAt: null, polls: true },
-    { failedCount: 1, lastFailedAt: minutesAgo(1), polls: true },
-    { failedCount: 2, lastFailedAt: minutesAgo(1), polls: false },
-    { failedCount: 2, lastFailedAt: minutesAgo(2), polls: true },
-    { failedCount: 5, lastFailedAt: minutesAgo(10), polls: false },
-    { failedCount: 5, lastFailedAt: minutesAgo(16), polls: true },
-    { failedCount: 40, lastFailedAt: minutesAgo(59), polls: false },
-    { failedCount: 40, lastFailedAt: minutesAgo(60), polls: true },
+    { previousFailures: 0, waitMinutes: 1 },
+    { previousFailures: 1, waitMinutes: 2 },
+    { previousFailures: 4, waitMinutes: 16 },
+    { previousFailures: 40, waitMinutes: 60 },
   ])(
-    'after $failedCount consecutive failures, polls=$polls',
-    ({ failedCount, lastFailedAt, polls }) => {
-      const until = getPollBackoffUntil({ failedCount, lastFailedAt, providerConfig: {} }, now)
-      expect(until === null).toBe(polls)
+    'after $previousFailures earlier source failures, waits $waitMinutes minutes from the poll start',
+    async ({ previousFailures, waitMinutes }) => {
+      const stored = await failOnce(previousFailures)
+      const until = Date.parse(String(stored.pollBackoffUntil))
+
+      expect(until).toBe(pollStartedAt + minutes(waitMinutes))
+      expect(getPollBackoffUntil(stored, until - minutes(1))).toBe(until)
+      expect(getPollBackoffUntil(stored, until)).toBeNull()
     }
   )
 
-  it('waits out a persisted Retry-After that is longer than the failure backoff', () => {
-    const retryAfter = new Date(now + 10 * 60_000).toISOString()
-    expect(
-      getPollBackoffUntil(
-        {
-          failedCount: 1,
-          lastFailedAt: minutesAgo(5),
-          providerConfig: { [POLL_RETRY_AFTER_CONFIG_KEY]: retryAfter },
-        },
-        now
-      )
-    ).toBe(Date.parse(retryAfter))
+  it('waits out a Retry-After longer than the failure backoff', async () => {
+    const stored = await failOnce(0, new PollFetchError('rate limited', 429, minutes(10)))
+    expect(Date.parse(String(stored.pollBackoffUntil))).toBe(pollStartedAt + minutes(10))
   })
 
-  it('ignores an expired or malformed Retry-After', () => {
-    for (const value of [new Date(now - 1000).toISOString(), 'not-a-date', 42]) {
-      expect(
-        getPollBackoffUntil(
-          {
-            failedCount: 0,
-            lastFailedAt: null,
-            providerConfig: { [POLL_RETRY_AFTER_CONFIG_KEY]: value },
-          },
-          now
-        )
-      ).toBeNull()
+  it('lets the next tick poll after one failure even when the failing poll ran long', async () => {
+    const stored = await failOnce(0)
+    expect(getPollBackoffUntil(stored, pollStartedAt + minutes(1) - 5_000)).toBeNull()
+  })
+
+  it('ignores a missing or malformed window', () => {
+    for (const config of [{}, { pollBackoffUntil: 'not-a-date' }, { pollBackoffUntil: 42 }, null]) {
+      expect(getPollBackoffUntil(config, pollStartedAt)).toBeNull()
     }
   })
 })
@@ -122,27 +121,5 @@ describe('readPollRetryAfterMs', () => {
     { header: null, body: 'rate limited', expected: null },
   ])('reads $header / $body', ({ header, body, expected }) => {
     expect(readPollRetryAfterMs(header, body)).toBe(expected)
-  })
-})
-
-describe('createPayerUsageGate', () => {
-  beforeEach(() => {
-    billingAttributionMockFns.mockResolveSystemBillingAttribution.mockResolvedValue({
-      workspaceId: 'workspace-1',
-    })
-  })
-
-  it('reports a payer the usage gate refuses', async () => {
-    billingUsageGateCacheMockFns.mockCheckIngestionUsageLimits.mockResolvedValue({
-      isExceeded: true,
-    })
-    expect(await createPayerUsageGate(logger)('workspace-1')).toBe(true)
-  })
-
-  it('lets the poll proceed when the payer cannot be resolved', async () => {
-    billingAttributionMockFns.mockResolveSystemBillingAttribution.mockRejectedValue(
-      new Error('payer lookup failed')
-    )
-    expect(await createPayerUsageGate(logger)('workspace-1')).toBe(false)
   })
 })

@@ -10,10 +10,10 @@ import {
 } from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUpdateConfig, mockMarkFailed, mockRecordPollFailure } = vi.hoisted(() => ({
+const { mockUpdateConfig, mockMarkFailed, mockRecordPollSourceFailure } = vi.hoisted(() => ({
   mockUpdateConfig: vi.fn(),
   mockMarkFailed: vi.fn(),
-  mockRecordPollFailure: vi.fn(),
+  mockRecordPollSourceFailure: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
@@ -34,7 +34,7 @@ vi.mock('@/lib/webhooks/polling/utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/webhooks/polling/utils')>()),
   markWebhookSuccess: vi.fn(),
   markWebhookFailed: mockMarkFailed,
-  recordPollFailure: mockRecordPollFailure,
+  recordPollSourceFailure: mockRecordPollSourceFailure,
   updateWebhookProviderConfig: mockUpdateConfig,
 }))
 
@@ -168,8 +168,8 @@ describe('RSS polling against refusals and rate limits', () => {
 
     expect(await rssPollingHandler.pollWebhook(context())).toBe('failure')
 
-    expect(mockRecordPollFailure).toHaveBeenCalledOnce()
-    const [, error] = mockRecordPollFailure.mock.calls[0]
+    expect(mockRecordPollSourceFailure).toHaveBeenCalledOnce()
+    const [, , error] = mockRecordPollSourceFailure.mock.calls[0]
     expect(error).toBeInstanceOf(PollFetchError)
     expect(error).toMatchObject({ status: 429, retryAfterMs: 12_000 })
   })
