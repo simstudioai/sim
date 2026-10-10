@@ -177,7 +177,7 @@ When adding or changing an OAuth integration block:
    `packages/sim-setup/src/capability-config.ts`. The CLI catalog is exhaustively typed and checked
    against the runtime field list; do not infer secrecy from the field name.
 4. If the canonical OAuth service declares `serviceAccountProviderId`, run
-   `bun run deployment-config:generate`; this regenerates the provider-ID facts in
+   `bun run generate:deployment-config`; this regenerates the provider-ID facts in
    `packages/deployment-config/src/service-account-providers.generated.ts`. Never hand-edit that
    generated map. Add `deploymentRequirement` policy in
    `packages/deployment-config/src/service-account-metadata.ts` only when the service-account path
@@ -959,11 +959,11 @@ Verify it with `bun run check:block-successors`.
 Adding a block on its own needs no **tool metadata** regeneration — a block references existing
 tool IDs through `tools.access` and does not change any tool's shape.
 
-But if the same change also adds, edits **or removes** a tool, run `bun run tool-metadata:generate` and commit the result, or CI fails on stale artifacts. That matters here because a block's `outputs` are authored to match its tools' outputs, and the UI reads those from the generated metadata, not the executable registry — an unregenerated tool change makes the block's outputs disagree with what the panel renders. See `.agents/skills/tool-registry-boundary/SKILL.md`.
+But if the same change also adds, edits **or removes** a tool, run `bun run generate:tool-metadata` and commit the result, or CI fails on stale artifacts. That matters here because a block's `outputs` are authored to match its tools' outputs, and the UI reads those from the generated metadata, not the executable registry — an unregenerated tool change makes the block's outputs disagree with what the panel renders. See `.agents/skills/tool-registry-boundary/SKILL.md`.
 
 A visible integration block does require the generated integration catalog and docs to be refreshed:
-`bun run tool-metadata:generate` (only when a tool changed), `bun run scripts/generate-docs.ts`,
-`bun run deployment-config:generate`, then `bun run check:audits`. Also run
+`bun run generate:tool-metadata` (only when a tool changed), `bun run scripts/generate-docs.ts`,
+`bun run generate:deployment-config`, then `bun run check:audits`. Also run
 `bun run apps/sim/scripts/check-block-registry.ts origin/staging` (CI runs it outside `check:audits`). Commit the
 full generator output. For what each check verifies, see the `validate-integration` skill →
 Regenerate Derived Artifacts.
@@ -986,10 +986,10 @@ Regenerate Derived Artifacts.
 - [ ] Outputs match tool outputs
 - [ ] Block + meta registered in registry-maps.ts (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
 - [ ] If `sunset.replacedBy` changed: regenerated and committed the block successor map; `bun run check:block-successors` passes
-- [ ] If any tool was added, changed or removed alongside the block: ran `bun run tool-metadata:generate` and committed the artifacts
+- [ ] If any tool was added, changed or removed alongside the block: ran `bun run generate:tool-metadata` and committed the artifacts
 - [ ] Ran `bun run scripts/generate-docs.ts`, reviewed the generated diff, and committed the integration catalog changes
-- [ ] `bun run integration-catalog:check` passes
-- [ ] `bun run docs:check` passes (CI gate — fails on any stale generated docs page)
+- [ ] `bun run check:integration-catalog` passes
+- [ ] `bun run check:docs` passes (CI gate — fails on any stale generated docs page)
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`

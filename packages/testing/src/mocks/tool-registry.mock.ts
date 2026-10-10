@@ -14,7 +14,7 @@
  * ```
  *
  * Registration itself is asserted with `hasToolId` from `@/tools/tool-ids`,
- * which is generated from the registry and kept in sync by `tool-metadata:check`.
+ * which is generated from the registry and kept in sync by `check:tool-metadata`.
  */
 export function partialToolRegistry<T extends { id: string }>(
   ...modules: Array<Record<string, unknown>>

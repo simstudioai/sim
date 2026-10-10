@@ -14,7 +14,7 @@ import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { hasEmbeddedFileRef } from '@/lib/uploads/server/embedded-image-refs'
 import { resolveWorkspaceInlineImage } from '@/lib/uploads/server/inline-image'
 import { serveInlineImage } from '@/app/api/files/serve-inline-image'
-import { createErrorResponse, FileNotFoundError } from '@/app/api/files/utils'
+import { createFileErrorResponse, FileNotFoundError } from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -132,10 +132,12 @@ export const GET = withRouteHandler(
       return response
     } catch (error) {
       if (error instanceof FileNotFoundError) {
-        return createErrorResponse(error)
+        return createFileErrorResponse(error)
       }
       logger.error('Error serving public inline image:', error)
-      return createErrorResponse(error instanceof Error ? error : new Error('Failed to serve file'))
+      return createFileErrorResponse(
+        error instanceof Error ? error : new Error('Failed to serve file')
+      )
     }
   }
 )

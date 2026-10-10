@@ -142,9 +142,8 @@ Before declaring a change done, run the local gate from the repo root; CI runs t
 ```bash
 bun run lint            # biome format + lint, autofixes (CI runs lint:check)
 bun run type-check      # every workspace
-bun run check:audits    # every check:* audit plus the generated-artifact checks
+bun run check:audits    # every check:* audit, generated-artifact checks included
 bun run test            # script tests, then every workspace's Vitest suite
-bun run docs-manifest:check
 git fetch origin staging  # the block-registry check diffs against it
 bun run apps/sim/scripts/check-block-registry.ts origin/staging
 ```

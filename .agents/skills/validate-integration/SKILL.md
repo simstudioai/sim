@@ -427,28 +427,28 @@ After reporting, fix every **critical** and **warning** issue. Apply **suggestio
 Several files are generated from tool and block definitions. Editing a tool or block WITHOUT regenerating them fails CI, so run these before pushing:
 
 ```bash
-bun run tool-metadata:generate       # repo root — apps/sim/tools/generated/*
+bun run generate:tool-metadata       # repo root — apps/sim/tools/generated/*
 bun run scripts/generate-docs.ts     # docs .mdx + deployment-config/integrations.json + docs icons
-bun run deployment-config:generate  # canonical OAuth registry + catalog → provider-ID facts
-bun run integration-catalog:check    # registry ↔ committed deployment metadata drift
-bun run docs:check                   # committed docs ↔ what the generator renders today
-bun run deployment-config:check     # OAuth registry/catalog ↔ provider-ID fact drift
-bun run check:audits                 # every audit CI enforces, including docs:check
+bun run generate:deployment-config  # canonical OAuth registry + catalog → provider-ID facts
+bun run check:integration-catalog    # registry ↔ committed deployment metadata drift
+bun run check:docs                   # committed docs ↔ what the generator renders today
+bun run check:deployment-config     # OAuth registry/catalog ↔ provider-ID fact drift
+bun run check:audits                 # every audit CI enforces, including check:docs
 bun run apps/sim/scripts/check-block-registry.ts origin/staging  # block ↔ tool param coverage (CI, not in check:audits)
 ```
 
-- **`tool-metadata:generate`** — required whenever a tool's `outputs`, `params`, or descriptions change. CI enforces this with `bun run tool-metadata:check`, which fails with *"Generated tool metadata is stale"*. This is the easiest gate to miss, because nothing in the tool file hints that a generated artifact mirrors it.
+- **`generate:tool-metadata`** — required whenever a tool's `outputs`, `params`, or descriptions change. CI enforces this with `bun run check:tool-metadata`, which fails with *"Generated tool metadata is stale"*. This is the easiest gate to miss, because nothing in the tool file hints that a generated artifact mirrors it.
 - **`generate-docs`** — required whenever block metadata changes (`bgColor`, `name`, `description`, operations, outputs). Regenerates the integration `.mdx`, `packages/deployment-config/src/integrations.json`, and the docs copy of `components/icons.tsx`.
-- **`deployment-config:generate`** — required for OAuth or service-account changes. Regenerates provider-ID facts from the canonical OAuth registry and integration catalog; special deployment requirements remain handwritten policy.
-- **`integration-catalog:check`** — loads the executable block registry, derives visible integration
+- **`generate:deployment-config`** — required for OAuth or service-account changes. Regenerates provider-ID facts from the canonical OAuth registry and integration catalog; special deployment requirements remain handwritten policy.
+- **`check:integration-catalog`** — loads the executable block registry, derives visible integration
   deployment fields, and compares them with the committed catalog. It catches missing/unexpected
   entries and stale auth/service IDs without loading the executable registry in client code.
-- **`docs:check`** — check mode of `generate-docs.ts`: renders every generated docs artifact in
+- **`check:docs`** — check mode of `generate-docs.ts`: renders every generated docs artifact in
   memory and fails listing any committed file that differs. Runs in CI via `check:audits`.
 
 **Always diff the regen output before committing — but commit all of it.** These generators rewrite
 every file they own, so they also true up drift that accumulated on the base branch (pages whose
-source changed without a regen). That catch-up is correct output, not a regression: `docs:check`
+source changed without a regen). That catch-up is correct output, not a regression: `check:docs`
 fails CI on any page left stale, so reverting swept-in hunks with `git checkout --` reintroduces the
 failure. Review the diff to confirm each hunk is explained by a real source change (yours or an
 upstream PR that skipped regeneration), and investigate anything that looks like content loss — a
@@ -468,10 +468,10 @@ After fixing, confirm:
 2. TypeScript compiles clean (no type errors) — check the error list is empty for the files you touched; pre-existing unrelated errors in a worktree usually mean workspace packages resolve to the main checkout
 3. The integration's tests pass, and any test you added actually fails without its fix (revert it once and watch it go red)
 4. Derived artifacts regenerated and their diffs reviewed (see above)
-5. `bun run integration-catalog:check` passes
-6. `bun run docs:check` passes
+5. `bun run check:integration-catalog` passes
+6. `bun run check:docs` passes
 7. `bun run apps/sim/scripts/check-block-registry.ts origin/staging` passes
-8. For OAuth or service-account changes, `bun run deployment-config:check` passes
+8. For OAuth or service-account changes, `bun run check:deployment-config` passes
 9. For OAuth or service-account changes, `bun run --cwd apps/sim test lib/integrations/availability.server.test.ts` passes
 10. Re-read all modified files to verify fixes are correct
 11. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
@@ -505,8 +505,8 @@ After fixing, confirm:
       `selectors.execute` boundary
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
-- [ ] Ran `bun run tool-metadata:generate` if any tool outputs/params changed, and confirmed `bun run tool-metadata:check` passes
-- [ ] Ran `bun run scripts/generate-docs.ts` if any block metadata changed, and committed the full generated diff — including stale-page catch-up for other integrations (`bun run docs:check` fails CI on reverted generator output)
+- [ ] Ran `bun run generate:tool-metadata` if any tool outputs/params changed, and confirmed `bun run check:tool-metadata` passes
+- [ ] Ran `bun run scripts/generate-docs.ts` if any block metadata changed, and committed the full generated diff — including stale-page catch-up for other integrations (`bun run check:docs` fails CI on reverted generator output)
 - [ ] Validated the docs page has an accurate `MANUAL-CONTENT-START:intro` section
 - [ ] Ran `bun run lint` after fixes
 - [ ] Verified TypeScript compiles clean
