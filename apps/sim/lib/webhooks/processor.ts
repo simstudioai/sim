@@ -10,6 +10,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { tryAdmit } from '@/lib/core/admission/gate'
+import { getDeterministicAdmissionRejectionCode } from '@/lib/core/admission/rejection'
 import {
   ADMISSION_ERROR_DESCRIPTOR,
   classifyTransientAdmissionFailure,
@@ -85,6 +86,8 @@ export interface WebhookProcessorOptions {
 export interface WebhookPreprocessingResult {
   error: NextResponse | null
   transientAdmissionFailure?: TransientAdmissionFailure
+  /** Set when the refusal holds until billing or account state changes; see `lib/core/admission/rejection`. */
+  admissionRejectionCode?: string
   actorUserId?: string
   billingAttribution?: BillingAttributionSnapshot
   executionId?: string
@@ -407,7 +410,7 @@ export async function findAllWebhooksForPath(
   }
 
   if (results.length === 0) {
-    logger.warn(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
+    logger.debug(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
     return results
   }
 
@@ -637,15 +640,18 @@ export async function checkWebhookPreprocessing(
       workspaceId: foundWorkflow.workspaceId ?? undefined,
       workflowRecord: foundWorkflow,
       executionType: 'async',
+      throttleErrorLogs: true,
     })
 
     if (!preprocessResult.success) {
       const error = preprocessResult.error
       const transientAdmissionFailure = classifyTransientAdmissionFailure(error)
+      const admissionRejectionCode = getDeterministicAdmissionRejectionCode(error)
       logger.warn(`[${requestId}] Webhook preprocessing failed`, {
         provider: foundWebhook.provider,
         error: error.message,
         statusCode: error.statusCode,
+        ...(error.code ? { code: error.code } : {}),
       })
 
       return {
@@ -654,6 +660,7 @@ export async function checkWebhookPreprocessing(
             ? formatGenericTransientAdmissionResponse(error.message, transientAdmissionFailure)
             : formatProviderErrorResponse(foundWebhook, error.message, error.statusCode),
         ...(transientAdmissionFailure ? { transientAdmissionFailure } : {}),
+        ...(admissionRejectionCode ? { admissionRejectionCode } : {}),
       }
     }
 
@@ -684,6 +691,7 @@ export interface WebhookDispatchResult {
     | 'event-mismatch'
     | 'filtered'
     | 'preprocessing'
+    | 'admission-rejected'
     | 'block-missing'
     | 'queue-failed'
 }
@@ -932,6 +940,16 @@ export async function dispatchResolvedWebhookTarget(
     options.requestId
   )
   if (preprocessResult.error) {
+    if (
+      preprocessResult.admissionRejectionCode &&
+      getProviderHandler(webhookRecord.provider).acknowledgeAdmissionRejections
+    ) {
+      return {
+        outcome: 'ignored',
+        response: new NextResponse(null, { status: 200 }),
+        reason: 'admission-rejected',
+      }
+    }
     return {
       outcome: 'failed',
       response: preprocessResult.error,
@@ -1028,6 +1046,9 @@ export async function processPolledWebhookEvent(
         success: false,
         error: errorMessage,
         statusCode,
+        ...(preprocessResult.admissionRejectionCode
+          ? { code: preprocessResult.admissionRejectionCode, retryable: false }
+          : {}),
         ...(preprocessResult.transientAdmissionFailure
           ? {
               code: preprocessResult.transientAdmissionFailure.code,
