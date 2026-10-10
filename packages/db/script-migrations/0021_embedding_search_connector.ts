@@ -38,7 +38,7 @@ const PAGE_RETRY_PAUSE = { baseMs: 10_000, maxMs: 60_000 } as const
 const PROGRESS_EVERY_PAGES = 100
 
 /** The projections that carry their document's source and ACL. */
-export const PROJECTION_SOURCE_ACL_TABLES = ['embedding_search', 'embedding_keyword_tin'] as const
+export const PROJECTION_SOURCE_ACL_TABLES = ['embedding_search'] as const
 export type ProjectionSourceAclTable = (typeof PROJECTION_SOURCE_ACL_TABLES)[number]
 
 /**

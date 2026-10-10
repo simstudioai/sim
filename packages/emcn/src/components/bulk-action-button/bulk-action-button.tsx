@@ -2,11 +2,11 @@ import { forwardRef } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
 import { Button, type ButtonProps } from '../button/button'
-import { chipFilledFillTokens, chipRadiusClass } from '../chip/chip-chrome'
+import { chipFilledFillTokens, chipRadiusClass } from '../chip/chrome'
 
 /** The shared 28px geometry and brand-hover treatment of selection action bars. */
 const bulkActionButtonVariants = cva(
-  `${chipRadiusClass} size-[28px] p-0 hover-hover:bg-[var(--brand-secondary)] hover-hover:text-[var(--text-inverse)]!`,
+  `${chipRadiusClass} size-[28px] p-0 hover-hover:bg-[var(--brand-secondary)] hover-hover:text-[var(--text-inverse)]! max-md:pointer-coarse:size-11`,
   {
     variants: {
       surface: {

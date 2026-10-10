@@ -60,7 +60,6 @@ import {
   mutateTableRowsWithSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
-import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
@@ -124,9 +123,8 @@ function readLocks(row: {
  * validates and computes against the prior writer's committed columns.
  *
  * Uses an advisory lock (not `SELECT ... FOR UPDATE` on the definition row) so
- * it adds no edges to the row-lock graph — the row-count trigger (migration
- * 0198) locks the definition row from `insertRow`/`deleteRow`, and a FOR UPDATE
- * here would invert that order. Mirrors `acquireRowOrderLock`. The lock and
+ * it adds no edges to the row-lock graph — a FOR UPDATE here would also block the
+ * foreign-key check (KEY SHARE) of every row write to the table. The lock and
  * the read both release at COMMIT/ROLLBACK; the wait is bounded by the
  * `statement_timeout` set in `setTableTxTimeouts`.
  */
@@ -560,10 +558,6 @@ export async function createTable(
       'validation',
       `Invalid schema: ${schemaValidation.errors.join(', ')}`
     )
-  }
-
-  if (data.schema.columns.some((column) => column.type === 'ttl')) {
-    await assertTableRowTtlEnabled()
   }
 
   const tableId = generateTableId()

@@ -4,11 +4,12 @@ import { redirect } from 'next/navigation'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
+import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
@@ -17,7 +18,10 @@ import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
-import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
+import {
+  WorkspaceChrome,
+  WorkspaceViewport,
+} from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 
@@ -56,19 +60,26 @@ export default async function OrganizationLayout({
   if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  const [, tableRowTtlEnabled, modelSelectorEnabled, planModeEnabled, dashboardsEnabled] =
-    await Promise.all([
-      prefetchOrganizationSidebar(
-        queryClient,
-        organizationId,
-        { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-        getActiveOrganizationId(session)
-      ),
-      isTableRowTtlEnabled(),
-      isMothershipModelSelectorEnabled(),
-      isPlanModeEnabled(),
-      isDashboardsEnabled(organizationId),
-    ])
+  const [
+    ,
+    modelSelectorEnabled,
+    planModeEnabled,
+    dashboardsEnabled,
+    workflowTestsEnabled,
+    changelogEnabled,
+  ] = await Promise.all([
+    prefetchOrganizationSidebar(
+      queryClient,
+      organizationId,
+      { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+      getActiveOrganizationId(session)
+    ),
+    isMothershipModelSelectorEnabled(),
+    isPlanModeEnabled(),
+    isDashboardsEnabled(organizationId),
+    isWorkflowTestsEnabled(organizationId),
+    isChangelogEnabled(organizationId),
+  ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
@@ -76,14 +87,15 @@ export default async function OrganizationLayout({
       <FeatureFlagsProvider
         flags={{
           dashboards: dashboardsEnabled,
-          'table-row-ttl': tableRowTtlEnabled,
+          'workflow-tests': workflowTestsEnabled,
+          changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
         }}
       >
         <OrganizationProvider context={context}>
           <GlobalCommandsProvider>
-            <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
+            <WorkspaceViewport className='workspace-root'>
               <ImpersonationBanner />
               <SessionExpired />
               <SettingsNavigationProvider>
@@ -94,7 +106,7 @@ export default async function OrganizationLayout({
                   {children}
                 </WorkspaceChrome>
               </SettingsNavigationProvider>
-            </div>
+            </WorkspaceViewport>
           </GlobalCommandsProvider>
         </OrganizationProvider>
       </FeatureFlagsProvider>

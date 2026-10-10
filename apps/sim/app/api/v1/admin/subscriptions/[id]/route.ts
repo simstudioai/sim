@@ -37,10 +37,10 @@ import { enqueueCancelAtPeriodEndSync } from '@/lib/billing/webhooks/subscriptio
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import { toAdminSubscription } from '@/app/api/v1/admin/types'
@@ -68,7 +68,7 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!subData) {
-        return notFoundResponse('Subscription')
+        return adminNotFoundResponse('Subscription')
       }
 
       logger.info(`Admin API: Retrieved subscription ${subscriptionId}`)
@@ -76,7 +76,7 @@ export const GET = withRouteHandler(
       return singleResponse(toAdminSubscription(subData))
     } catch (error) {
       logger.error('Admin API: Failed to get subscription', { error, subscriptionId })
-      return internalErrorResponse('Failed to get subscription')
+      return adminInternalErrorResponse('Failed to get subscription')
     }
   })
 )
@@ -100,15 +100,15 @@ export const DELETE = withRouteHandler(
         .limit(1)
 
       if (!existing) {
-        return notFoundResponse('Subscription')
+        return adminNotFoundResponse('Subscription')
       }
 
       if (existing.status === 'canceled') {
-        return badRequestResponse('Subscription is already canceled')
+        return adminBadRequestResponse('Subscription is already canceled')
       }
 
       if (!existing.stripeSubscriptionId) {
-        return badRequestResponse('Subscription has no Stripe subscription ID')
+        return adminBadRequestResponse('Subscription has no Stripe subscription ID')
       }
 
       if (atPeriodEnd) {
@@ -177,7 +177,7 @@ export const DELETE = withRouteHandler(
       })
     } catch (error) {
       logger.error('Admin API: Failed to cancel subscription', { error, subscriptionId })
-      return internalErrorResponse('Failed to cancel subscription')
+      return adminInternalErrorResponse('Failed to cancel subscription')
     }
   })
 )

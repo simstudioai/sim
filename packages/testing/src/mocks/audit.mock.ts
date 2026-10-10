@@ -43,6 +43,7 @@ const AuditAction = {
   INVOICE_PAYMENT_SUCCEEDED: 'invoice.payment_succeeded',
   INVOICE_PAYMENT_FAILED: 'invoice.payment_failed',
   OVERAGE_BILLED: 'billing.overage_billed',
+  BILLING_SYNC_RESOLVED: 'billing.sync_resolved',
   CHARGE_DISPUTE_OPENED: 'charge.dispute_opened',
   CHARGE_DISPUTE_CLOSED: 'charge.dispute_closed',
   SUBSCRIPTION_CREATED: 'subscription.created',

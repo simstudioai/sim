@@ -59,9 +59,9 @@ export const VantaBlock: BlockConfig = {
   type: 'vanta',
   name: 'Vanta',
   description: 'Query compliance status and manage evidence in Vanta',
-  authMode: AuthMode.ApiKey,
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Requires Vanta OAuth client credentials.',
+    'Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Select a saved Vanta credential created with your Vanta application client ID and client secret.',
   category: 'tools',
   integrationType: IntegrationType.Security,
   docsLink: 'https://docs.sim.ai/integrations/vanta',
@@ -839,29 +839,23 @@ export const VantaBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'region',
-      title: 'Region',
-      type: 'dropdown',
-      options: [
-        { label: 'US (api.vanta.com)', id: 'us' },
-        { label: 'Gov / FedRAMP (api.vanta-gov.com)', id: 'gov' },
-      ],
-      value: () => 'us',
-      mode: 'advanced',
-    },
-    {
-      id: 'clientId',
-      title: 'Client ID',
-      type: 'short-input',
-      placeholder: 'Vanta OAuth application client ID',
+      id: 'credential',
+      title: 'Vanta Account',
+      type: 'oauth-input',
+      serviceId: 'vanta',
+      credentialKind: 'service-account',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+      placeholder: 'Select Vanta credential',
       required: true,
     },
     {
-      id: 'clientSecret',
-      title: 'Client Secret',
+      id: 'manualCredential',
+      title: 'Vanta Account',
       type: 'short-input',
-      placeholder: 'Vanta OAuth application client secret',
-      password: true,
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
   ],
@@ -902,8 +896,6 @@ export const VantaBlock: BlockConfig = {
       params: (params) => {
         const { operation, ...rest } = params
         const result: Record<string, unknown> = {}
-
-        result.region = dropdownFilter(rest.region) ?? 'us'
 
         if (LIST_OPERATIONS.includes(operation)) {
           result.pageSize =
@@ -972,9 +964,7 @@ export const VantaBlock: BlockConfig = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    clientId: { type: 'string', description: 'Vanta OAuth application client ID' },
-    clientSecret: { type: 'string', description: 'Vanta OAuth application client secret' },
-    region: { type: 'string', description: 'Vanta API region (us or gov)' },
+    oauthCredential: { type: 'string', description: 'Saved Vanta credential ID' },
     frameworkId: { type: 'string', description: 'Framework ID' },
     controlId: { type: 'string', description: 'Control ID' },
     testId: { type: 'string', description: 'Test ID' },
@@ -1066,7 +1056,7 @@ export const VantaBlock: BlockConfig = {
     },
     framework: {
       type: 'json',
-      description: 'The requested framework with requirement categories',
+      description: 'Framework details (id, displayName, completion counts, requirementCategories)',
       condition: { field: 'operation', value: 'get_framework' },
     },
     controls: {
@@ -1076,7 +1066,7 @@ export const VantaBlock: BlockConfig = {
     },
     control: {
       type: 'json',
-      description: 'The requested control',
+      description: 'Control details (id, name, description, owner, status, completion counts)',
       condition: { field: 'operation', value: 'get_control' },
     },
     tests: {
@@ -1086,7 +1076,8 @@ export const VantaBlock: BlockConfig = {
     },
     test: {
       type: 'json',
-      description: 'The requested test',
+      description:
+        'Test details (id, name, status, failureDescription, remediationDescription, owner)',
       condition: { field: 'operation', value: 'get_test' },
     },
     entities: {
@@ -1101,7 +1092,8 @@ export const VantaBlock: BlockConfig = {
     },
     document: {
       type: 'json',
-      description: 'The requested document',
+      description:
+        'Document details (id, title, uploadStatus, ownerId, renewal dates, subscribers)',
       condition: { field: 'operation', value: 'get_document' },
     },
     uploads: {
@@ -1111,7 +1103,7 @@ export const VantaBlock: BlockConfig = {
     },
     upload: {
       type: 'json',
-      description: 'Metadata of the uploaded file',
+      description: 'Uploaded file metadata (id, fileName, mimeType, creationDate, uploadedBy, url)',
       condition: { field: 'operation', value: 'upload_document_file' },
     },
     file: {
@@ -1151,7 +1143,7 @@ export const VantaBlock: BlockConfig = {
     },
     person: {
       type: 'json',
-      description: 'The requested person',
+      description: 'Person details (id, emailAddress, name, employment, leaveInfo, tasksSummary)',
       condition: { field: 'operation', value: 'get_person' },
     },
     policies: {
@@ -1161,7 +1153,7 @@ export const VantaBlock: BlockConfig = {
     },
     policy: {
       type: 'json',
-      description: 'The requested policy',
+      description: 'Policy details (id, name, status, latestVersionStatus, latestApprovedVersion)',
       condition: { field: 'operation', value: 'get_policy' },
     },
     vendors: {
@@ -1171,7 +1163,8 @@ export const VantaBlock: BlockConfig = {
     },
     vendor: {
       type: 'json',
-      description: 'The requested vendor',
+      description:
+        'Vendor details (id, name, risk levels, contract dates, authDetails, latestDecision)',
       condition: { field: 'operation', value: 'get_vendor' },
     },
     computers: {
@@ -1196,7 +1189,7 @@ export const VantaBlock: BlockConfig = {
     },
     asset: {
       type: 'json',
-      description: 'The requested vulnerable asset',
+      description: 'Vulnerable asset (id, name, assetType, hasBeenScanned, scanners)',
       condition: { field: 'operation', value: 'get_vulnerable_asset' },
     },
     riskScenarios: {
@@ -1206,7 +1199,8 @@ export const VantaBlock: BlockConfig = {
     },
     riskScenario: {
       type: 'json',
-      description: 'The requested risk scenario',
+      description:
+        'Risk scenario (riskId, description, likelihood, impact, treatment, owner, reviewStatus)',
       condition: { field: 'operation', value: 'get_risk_scenario' },
     },
     pageInfo: {
@@ -1263,7 +1257,7 @@ export const VantaBlockMeta = {
       icon: VantaIcon,
       title: 'Vanta onboarding task chaser',
       prompt:
-        'Create a scheduled workflow that lists current Vanta people with overdue security tasks, and sends each person a direct Slack message listing what they still need to complete.',
+        'Create a scheduled workflow that lists current Vanta people with overdue security tasks and sends each person a direct Slack reminder with their task summary status and due date, asking them to review outstanding tasks in Vanta.',
       modules: ['scheduled', 'workflows'],
       category: 'operations',
       tags: ['automation', 'people'],
@@ -1315,13 +1309,14 @@ export const VantaBlockMeta = {
       description:
         'List Vanta vulnerabilities approaching their SLA deadlines with affected assets.',
       content:
-        '# Vulnerabilities Approaching SLA\n\nFind what must be remediated soon and where.\n\n## Steps\n1. Use List Vulnerabilities with SLA Deadline Before set to the cutoff date (e.g., 7 days from now) and SLA Deadline After set to today.\n2. Narrow with Severity (CRITICAL or HIGH first) and Fix Available set to Yes for quick wins.\n3. For each vulnerability, use Get Vulnerable Asset with its asset ID to identify the affected server, repository, or workstation.\n4. Use List Vulnerability Remediations with Remediated On Time set to No to report recent SLA misses.\n\n## Output\nReturn vulnerabilities grouped by severity with remediate-by dates, fixed versions when available, and the affected assets.',
+        '# Vulnerabilities Approaching SLA\n\nFind what must be remediated soon and where.\n\n## Steps\n1. Use List Vulnerabilities with SLA Deadline Before set to the cutoff date (e.g., 7 days from now) and SLA Deadline After set to today.\n2. Narrow with Severity (CRITICAL or HIGH first) and Fix Available set to Yes for quick wins.\n3. Use List Vulnerable Assets to find the affected server, repository, or workstation. Use Get Vulnerable Asset only with an asset ID returned by that list; a vulnerability targetId identifies an underlying resource and is not an asset ID.\n4. Use List Vulnerability Remediations with Remediated On Time set to No to report recent SLA misses.\n\n## Output\nReturn vulnerabilities grouped by severity with remediate-by dates, fixed versions when available, and the affected assets.',
     },
     {
       name: 'vanta-people-task-audit',
-      description: 'Find people with overdue security tasks in Vanta and what each still owes.',
+      description:
+        'Find people with overdue security tasks in Vanta and report their task summary status and due date.',
       content:
-        '# Audit Outstanding Security Tasks\n\nIdentify who is blocking compliance and why.\n\n## Steps\n1. Use List People with Task Summary Statuses set to OVERDUE,DUE_SOON and Employment Status set to Current.\n2. Read each person’s tasksSummary output for the due date, and use Task Types to narrow to a specific obligation (e.g., COMPLETE_TRAININGS or ACCEPT_POLICIES) when asked.\n3. Use Get Person for any individual to confirm employment, group membership, and leave status before escalating.\n\n## Output\nReturn each person’s name, email, overdue items, and due dates, ordered by how overdue they are.',
+        '# Audit Outstanding Security Tasks\n\nIdentify who is blocking compliance and why.\n\n## Steps\n1. Use List People with Task Summary Statuses set to OVERDUE,DUE_SOON and Employment Status set to Current.\n2. Read each person’s tasksSummary output for the due date, and use Task Types to narrow to a specific obligation (e.g., COMPLETE_TRAININGS or ACCEPT_POLICIES) when asked.\n3. Use Get Person for any individual to confirm employment, group membership, and leave status before escalating.\n\n## Output\nReturn each person’s name, email, task summary status, and due date, ordered by how overdue they are. The output does not include individual task details.',
     },
   ],
 } as const satisfies BlockMeta

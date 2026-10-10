@@ -48,7 +48,7 @@ import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestrati
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { parseFolderPath } from '@/lib/folders/paths'
 import {
@@ -58,7 +58,7 @@ import {
 } from '@/lib/folders/queries'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import { normalizeVfsSegment } from '@/lib/mothership/vfs/normalize-segment'
-import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
+import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import type { WorkspaceFileFolderRecord } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -100,12 +100,20 @@ import {
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
-import { displaySegmentPattern } from '@/lib/vfs/path'
+import { decodeVfsPathSegments, displaySegmentPattern } from '@/lib/vfs/path'
+import {
+  OWNED_FILE_CONTEXTS,
+  type OwnedFileContext,
+  type OwnedFileNamespace,
+  ownedFileKind,
+  parseOwnedFileReference,
+} from '@/lib/workspace-files/owned-files'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
   restoreSimPageSourceBuffer,
 } from '@/lib/workspace-files/page-source-embed'
+import { contentWritableWorkspaceFileContextCondition } from '@/lib/workspace-files/query-scope'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -166,9 +174,10 @@ export interface WorkspaceFileRecord {
   storageContext?: 'workspace' | 'mothership'
   /**
    * Set on chat uploads (`context = 'mothership'`), which the VFS addresses as
-   * `uploads/<name>` rather than `files/…`; `name` then carries the upload's display name.
+   * `uploads/<name>` rather than `files/…`, and on owned files, addressed under their owner's
+   * namespace (`tests/…`, `changelog/…`); `name` then carries the name in that namespace.
    */
-  vfsNamespace?: 'uploads'
+  vfsNamespace?: 'uploads' | OwnedFileNamespace
   /** Public share state, attached at the API boundary. `null` when never shared. */
   share?: ShareRecord | null
 }
@@ -188,6 +197,8 @@ export interface UploadedWorkspaceFileRecord extends WorkspaceFileRecord {
 
 export interface ActiveWorkspaceFileContext {
   fileId: string
+  /** `workspace_files.context`: an owned file's context makes it follow its owner's policy. */
+  fileContext: string
   workspaceId: string
   workspaceOrganizationId: string | null
   allowPersonalApiKeys: boolean
@@ -281,6 +292,7 @@ interface WorkspaceFileMetadataInsert {
   originalName: string
   contentType: string
   size: number
+  context?: 'workspace' | OwnedFileContext
 }
 
 /**
@@ -295,9 +307,9 @@ async function insertWorkspaceFileMetadataInTx(
   const [inserted] = await tx
     .insert(workspaceFiles)
     .values({
-      ...omit(metadata, ['size']),
+      ...omit(metadata, ['size', 'context']),
       sizeBytes: metadata.size,
-      context: 'workspace',
+      context: metadata.context ?? 'workspace',
       displayName: metadata.originalName,
       deletedAt: null,
       uploadedAt: new Date(),
@@ -610,6 +622,72 @@ export async function uploadWorkspaceFile(
     cause: describeError(lastError),
   })
   throw new FileConflictError(fileName)
+}
+
+/**
+ * Creates a file another resource owns: a test file's source or a release body.
+ * `insertOwner` runs in the file's insert transaction, so the owner row and its file commit together or not at all.
+ */
+export async function createOwnedWorkspaceFile<T>(params: {
+  context: OwnedFileContext
+  workspaceId: string
+  userId: string
+  content: string
+  contentType: string
+  fileName: (fileId: string) => string
+  insertOwner: (tx: DbTransaction, fileId: string) => Promise<T>
+}): Promise<{ fileId: string; owner: T }> {
+  const fileId = `wf_${generateShortId()}`
+  const name = params.fileName(fileId)
+  const buffer = Buffer.from(params.content, 'utf-8')
+  const storageKey = generateWorkspaceFileKey(params.workspaceId, name)
+  const storageBillingContext = await resolveStorageBillingContext(params.workspaceId)
+  const uploadResult = await uploadFile({
+    file: buffer,
+    fileName: storageKey,
+    contentType: params.contentType,
+    context: 'workspace',
+    preserveKey: true,
+    customKey: storageKey,
+    metadata: {
+      originalName: name,
+      uploadedAt: new Date().toISOString(),
+      purpose: 'workspace',
+      userId: params.userId,
+      workspaceId: params.workspaceId,
+    },
+    persistMetadata: false,
+  })
+  try {
+    const { owner, updatedUsage } = await db.transaction(async (tx) => {
+      const inserted = await insertWorkspaceFileMetadataInTx(tx, {
+        id: fileId,
+        key: uploadResult.key,
+        userId: params.userId,
+        workspaceId: params.workspaceId,
+        folderId: null,
+        originalName: name,
+        contentType: params.contentType,
+        size: buffer.length,
+        context: params.context,
+      })
+      if (!inserted) throw new Error(`Owned ${params.context} file ${fileId} was not inserted`)
+      const updatedUsage = await incrementStorageUsageForBillingContextInTx(
+        tx,
+        storageBillingContext,
+        buffer.length
+      )
+      return { owner: await params.insertOwner(tx, fileId), updatedUsage }
+    })
+    void maybeNotifyStorageLimitForBillingContext(storageBillingContext, updatedUsage)
+    return { fileId, owner }
+  } catch (error) {
+    await cleanupWorkspaceStorageObject(
+      uploadResult.key,
+      `${params.context} file owner insert failure`
+    )
+    throw error
+  }
 }
 
 /**
@@ -1217,6 +1295,7 @@ async function mapSingleWorkspaceFileRecord(
   if (file.context === 'mothership') {
     return mapChatUploadRecord(file, workspaceId)
   }
+  if (ownedFileKind(file.context)) return mapOwnedFileRecord(file, workspaceId)
   if (!file.folderId) {
     return mapWorkspaceFileRecord(file, workspaceId, new Map())
   }
@@ -1229,6 +1308,19 @@ async function mapSingleWorkspaceFileRecord(
     workspaceId,
     folderPath ? new Map([[file.folderId, folderPath]]) : new Map()
   )
+}
+
+/** An owned file reads under its owner's namespace, by the name its owner gives it. */
+async function mapOwnedFileRecord(
+  file: WorkspaceFileRow,
+  workspaceId: string
+): Promise<WorkspaceFileRecord> {
+  const record = mapWorkspaceFileRecord(file, workspaceId, new Map())
+  const kind = ownedFileKind(file.context)
+  if (!kind) throw new Error(`File ${file.id} is not an owned file`)
+  const name = await kind.fileName(file.id)
+  if (name === null) return record
+  return { ...record, name, vfsNamespace: kind.namespace }
 }
 
 /**
@@ -1299,27 +1391,35 @@ export async function getWorkspaceFileByName(
  */
 export interface WorkspaceFileLookupOptions {
   includeChatUploads?: boolean
+  /**
+   * Admit owned files (test files, release bodies), by id or by their owner's path
+   * (`tests/<name>.test.js`, `changelog/<id>.md`). Only content reads and writes set this, and
+   * their use cases apply the owner's policy to whatever they admit.
+   */
+  includeOwnedFiles?: boolean
   /** Internal Mothership scope for uploads/<name>; ordinary API lookup remains workspace-wide. */
   chatId?: string
 }
 
-/** Row context a single-file lookup admits: workspace files, plus chat uploads on opt-in. */
-function workspaceFileContextCondition(includeChatUploads?: boolean) {
-  return includeChatUploads
-    ? inArray(workspaceFiles.context, ['workspace', 'mothership'])
-    : eq(workspaceFiles.context, 'workspace')
+/** Row context a single-file lookup admits: workspace files, plus chat uploads and owned files on opt-in. */
+function workspaceFileContextCondition(options?: WorkspaceFileLookupOptions) {
+  const contexts: string[] = [
+    'workspace',
+    ...(options?.includeChatUploads ? ['mothership'] : []),
+    ...(options?.includeOwnedFiles ? OWNED_FILE_CONTEXTS : []),
+  ]
+  return contexts.length === 1
+    ? eq(workspaceFiles.context, 'workspace')
+    : inArray(workspaceFiles.context, contexts)
 }
 
 /** Workspace-file rows for one scope: live, Recently Deleted, or both. */
 function workspaceFileScopeCondition(
   workspaceId: string,
   scope: WorkspaceFileScope,
-  includeChatUploads?: boolean
+  lookup?: WorkspaceFileLookupOptions
 ) {
-  const base = [
-    eq(workspaceFiles.workspaceId, workspaceId),
-    workspaceFileContextCondition(includeChatUploads),
-  ]
+  const base = [eq(workspaceFiles.workspaceId, workspaceId), workspaceFileContextCondition(lookup)]
   if (scope === 'all') return and(...base)
   return scope === 'archived'
     ? and(...base, isNotNull(workspaceFiles.deletedAt))
@@ -1662,12 +1762,23 @@ async function getWorkspaceFileByExactReference(
  * records without one rather than pairing a row with a version a second query read later.
  * With `includeChatUploads`, an `uploads/<name>` path (or a chat upload's own id) reaches
  * the chat upload it names; chat uploads are never found through the listing fallback.
+ * With `includeOwnedFiles`, an owner's path (`tests/<name>.test.js`, `changelog/<id>.md`) or the
+ * file's own id reaches that owned file.
  */
 export async function resolveWorkspaceFileReference(
   workspaceId: string,
   fileReference: string,
   options?: WorkspaceFileLookupOptions
 ): Promise<WorkspaceFileRecord | null> {
+  if (options?.includeOwnedFiles) {
+    const owned = parseOwnedFileReference(fileReference)
+    if (owned) {
+      const bodyFileId = await owned.kind.bodyFileIdForKey(workspaceId, owned.key)
+      return bodyFileId
+        ? getWorkspaceFileWithCurrentVersion(workspaceId, bodyFileId, { includeOwnedFiles: true })
+        : null
+    }
+  }
   const includeChatUploads = options?.includeChatUploads === true
   if (includeChatUploads) {
     const uploadName = parseChatUploadReference(fileReference)
@@ -1682,6 +1793,7 @@ export async function resolveWorkspaceFileReference(
   if (normalizedReference.startsWith('wf_') || isUuid(normalizedReference)) {
     const file = await getWorkspaceFileWithCurrentVersion(workspaceId, normalizedReference, {
       includeChatUploads,
+      includeOwnedFiles: options?.includeOwnedFiles,
     })
     if (file) return file
   }
@@ -1705,6 +1817,7 @@ export async function loadActiveWorkspaceFileContext(
   const [context] = await db
     .select({
       fileId: workspaceFiles.id,
+      fileContext: workspaceFiles.context,
       workspaceId: workspace.id,
       workspaceOrganizationId: workspace.organizationId,
       allowPersonalApiKeys: workspace.allowPersonalApiKeys,
@@ -1715,7 +1828,7 @@ export async function loadActiveWorkspaceFileContext(
     .where(
       and(
         eq(workspaceFiles.id, fileId),
-        workspaceFileContextCondition(options?.includeChatUploads),
+        workspaceFileContextCondition(options),
         ...(options?.includeDeleted ? [] : [isNull(workspaceFiles.deletedAt)]),
         isNull(workspace.archivedAt)
       )
@@ -1736,6 +1849,7 @@ export async function loadWorkspaceFileLifecycleContext(
   const [context] = await db
     .select({
       fileId: workspaceFiles.id,
+      fileContext: workspaceFiles.context,
       workspaceId: workspace.id,
       workspaceOrganizationId: workspace.organizationId,
       allowPersonalApiKeys: workspace.allowPersonalApiKeys,
@@ -1798,7 +1912,7 @@ export async function getWorkspaceFile(
         and(
           eq(workspaceFiles.id, fileId),
           eq(workspaceFiles.workspaceId, workspaceId),
-          workspaceFileContextCondition(options?.includeChatUploads),
+          workspaceFileContextCondition(options),
           ...(includeDeleted ? [] : [isNull(workspaceFiles.deletedAt)])
         )
       )
@@ -1835,7 +1949,7 @@ export async function getWorkspaceFileWithCurrentVersion(
         workspaceFileScopeCondition(
           workspaceId,
           options?.includeDeleted ? 'all' : 'active',
-          options?.includeChatUploads
+          options
         )
       )
     )
@@ -1991,6 +2105,8 @@ export async function updateWorkspaceFileContent(
      * An omitted policy is classified as unknown rather than inheriting provenance across new bytes.
      */
     secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
+    /** Records what the file's owner derives from these bytes, atomically with the bytes. */
+    commitOwner?: (tx: DbOrTx) => Promise<void>
   }
 ): Promise<VersionedWorkspaceFileRecord> {
   if (options.collabDocState && !options.expectedUpdatedAt) {
@@ -1998,7 +2114,9 @@ export async function updateWorkspaceFileContent(
   }
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
 
-  const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId, {
+    includeOwnedFiles: true,
+  })
   if (!fileRecord) {
     throw new OrchestrationError('not_found', 'File not found')
   }
@@ -2046,7 +2164,7 @@ export async function updateWorkspaceFileContent(
             and(
               eq(workspaceFiles.id, fileId),
               eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace'),
+              contentWritableWorkspaceFileContextCondition,
               isNull(workspaceFiles.deletedAt)
             )
           )
@@ -2115,7 +2233,7 @@ export async function updateWorkspaceFileContent(
             and(
               eq(workspaceFiles.id, fileId),
               eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace'),
+              contentWritableWorkspaceFileContextCondition,
               isNull(workspaceFiles.deletedAt)
             )
           )
@@ -2123,6 +2241,7 @@ export async function updateWorkspaceFileContent(
         if (!updatedFile) {
           throw new OrchestrationError('not_found', 'File not found or could not be updated')
         }
+        await options.commitOwner?.(tx)
 
         const nextProvenance = await applyWorkspaceFileSecretProvenancePolicyInTx(
           tx,

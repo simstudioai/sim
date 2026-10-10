@@ -442,7 +442,6 @@ const TerminalView = memo(function TerminalView({
     }
     // Theme is applied by the effect below so the terminal is never torn down
     // (and its buffer never lost) for a repaint.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terminalId, scopeId])
 
   // Runs after the effect above, which is what installs these.

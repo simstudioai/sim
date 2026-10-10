@@ -39,43 +39,41 @@ The Providers tab lists only added providers. **Add provider** opens a searchabl
 
 Search availability and mode are managed through **Organization settings → Sources**. Member mode has no resource filters; service mode uses the configured source’s resource boundary. Live search/read adapters are registered under `lib/sim-search/live/`; they resolve only the acting member’s current grants. OAuth completion may invoke the shared dispatch helper, but live Search sources are rejected by queue and worker guards before indexing. Ordinary workspace KB sources retain ingestion behavior.
 
-Search requires both `CREDENTIAL_GROUPS` and `KNOWLEDGE_MEMBER_ACCESS` locally; Credential Groups alone requires only its own flag. Hosted deployments additionally enforce the routed org's feature rules and Enterprise availability. Owners and admins manage Search sources; existing Knowledge permission-group rules still apply. Managed MCP account connections remain available for live tool calls only and have no indexing switch. Separate API-key KB connectors for Fireflies, Granola, and Databricks do not consume these managed MCP connections.
+Credential Groups is an enterprise entitlement: Sim Cloud requires the routed organization's Enterprise plan, and self-hosted deployments enable it with `CREDENTIAL_GROUPS` (or `ENTERPRISE_ENABLED`). Search additionally requires `knowledge-member-access`. Owners and admins manage Search sources; existing Knowledge permission-group rules still apply. Managed MCP account connections remain available for live tool calls only and have no indexing switch. Separate API-key KB connectors for Fireflies, Granola, and Databricks do not consume these managed MCP connections.
 
 ### Feature gates
 
-| Surface or behavior | Required organization flags |
+| Surface or behavior | Required for the organization |
 | --- | --- |
-| Credential Groups settings page | `credential-groups` enabled, independently of Search |
-| Provider setup APIs, personal contributions, workspace access to the pool | `credential-groups` |
-| Organization Home/Assistant and chat pages, Sources, member Integrations, Search MCP settings | `credential-groups` and `knowledge-member-access` |
-
-| Organization Search MCP endpoint and organization knowledge search through internal/public APIs or trusted tools | `credential-groups` and `knowledge-member-access`, checked after current authorization |
+| Credential Groups settings page | Credential Groups entitlement, independently of Search |
+| Provider setup APIs, personal contributions, workspace access to the pool | Credential Groups entitlement |
+| Organization Home/Assistant and chat pages, Sources, member Integrations, Search MCP settings | Credential Groups entitlement and `knowledge-member-access` |
+| Organization Search MCP endpoint and organization knowledge search through internal/public APIs or trusted tools | Credential Groups entitlement and `knowledge-member-access`, checked after current authorization |
 
 The Search gate uses the persisted knowledge base owner or the authenticated route's target organization. User, platform-admin, and workspace targeting cannot opt a different organization into Search. Disabled organizations receive `403 Search is not enabled for this organization` before index lookup or model execution; hiding navigation is not the authorization boundary. Organization Home, Search, and chat URLs open full settings in the viewer's most recent accessible workspace when Search is disabled. Default app entry uses that same destination, and Home, Integrations, chat history, and Assistant loading UI are hidden. Connected accounts settings and Workspaces remain available. Settings and source-setup URLs also enforce their gates. Ordinary workspace knowledge search keeps its existing behavior. The legacy indexed surface retains its pause controls when that backend is selected; live Sources does not expose indexing controls.
 
-For a targeted hosted rollout, configure both existing flags in AppConfig's `feature-flags` document:
+For a targeted hosted Search rollout, add the organization to `knowledge-member-access` in AppConfig's `feature-flags` document:
 
 ```json
 {
-  "credential-groups": { "enabled": false, "orgIds": ["org-to-enable"] },
   "knowledge-member-access": { "enabled": false, "orgIds": ["org-to-enable"] }
 }
 ```
 
-`enabled: true` enables a flag globally; it is not needed alongside an org allowlist. Off AppConfig, `CREDENTIAL_GROUPS=true` and `KNOWLEDGE_MEMBER_ACCESS=true` are deployment-wide switches and cannot target individual organizations. Both flag checks still apply the organization's hosted Enterprise/billing requirements and normal membership, permission-group, and document access checks. These examples document configuration only; this change does not update a deployed AppConfig document.
+`enabled: true` enables the flag globally; it is not needed alongside an org allowlist. Off AppConfig, `KNOWLEDGE_MEMBER_ACCESS=true` is a deployment-wide switch and cannot target individual organizations. Normal membership, permission-group, and document access checks still apply.
 
-Credential-groups rollout never evaluates `workspaceIds`. Existing workspace-scoped callers resolve their owning organization and use its `orgId`; personal workspaces cannot enable connected accounts. This flag rollout is separate from the organization's workspace access allowlist, which still controls which workflows may use the pool. Normal settings no longer prefetch the legacy workspace-owned account container.
+Workspace-scoped callers resolve their owning organization's entitlement; personal workspaces cannot enable connected accounts. This entitlement is separate from the organization's workspace access allowlist, which still controls which workflows may use the pool. Normal settings no longer prefetch the legacy workspace-owned account container.
 
 Current bounds: 100 entries per discovery page, 1,000 workspace allowlist entries, and 1,000 deployed event subscriptions per organization. Event delivery is synchronous after enrollment commits; a delivery failure surfaces as an error and does not roll back the saved connection. An outbox/retry mechanism is not included.
 
 ## Rollout
 
-OAuth attempt state changes at this release boundary (OAuth v5 and managed MCP v3). Older attempts lack a verified Sim user binding; older MCP attempts also lack the configuration version. They are deliberately rejected before token exchange, with an explicit instruction to reopen the invitation and connect again. Existing saved credentials are not invalidated by the state version change. Mixed application versions cannot complete each other's in-flight attempts: pause enrollment starts, allow the ten-minute state lifetime to drain, replace the application instances together, and only then reopen enrollment and enable the org rollout. Do not run enrollment OAuth across mixed versions or roll back with active attempts.
+OAuth attempt state changes at this release boundary (OAuth v5 and managed MCP v3). Older attempts lack a verified Sim user binding; older MCP attempts also lack the configuration version. They are deliberately rejected before token exchange, with an explicit instruction to reopen the invitation and connect again. Existing saved credentials are not invalidated by the state version change. Mixed application versions cannot complete each other's in-flight attempts: pause enrollment starts, allow the ten-minute state lifetime to drain, replace the application instances together, and only then reopen enrollment. Do not run enrollment OAuth across mixed versions or roll back with active attempts.
 
 1. Apply `0328_organization_connected_accounts.sql` before deploying code that reads the new columns. It expands ownership columns and checks, adds stable enrollment identity and MCP configuration versions, and builds indexes concurrently. No grants, enrollments, or Search data are moved or deleted. Constraints are added `NOT VALID` to avoid scanning existing tables while holding the DDL lock; validate them separately after auditing existing rows.
 2. Inventory existing groups and their Search dependencies before enabling the feature. The queries below read IDs/counts only. Review archived/deleted sources too because a reset must account for retained documents and cleanup work.
 3. Existing org groups without the new v2 workspace policy stop with a migration-review error. Do not insert a v2 policy over legacy contributions. Resolve Search dependencies explicitly, retire the old group through an audited maintenance procedure, create a fresh org pool, and invite people to reconnect. No reset command is supplied or run by this change.
-4. Enable the existing `credential-groups` feature flag for the target org (`orgIds`), then set up providers and allow specific same-org workspaces. A previous workspace-only feature-flag allowlist does not enable the org surface. Sim Cloud also requires an active Enterprise entitlement.
+4. Confirm the target org has the Credential Groups entitlement (an active Enterprise plan on Sim Cloud), then set up providers and allow specific same-org workspaces.
 5. Replace legacy workflow blocks, reconfigure credential references, and redeploy event subscribers. Verify one manual run, one deployed run, and one revocation before widening the workspace allowlist.
 
 ```sql

@@ -9,9 +9,9 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getAdminAuditActor } from '@/app/api/v1/admin/dashboard/actor'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
   adminInvalidJsonResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -32,9 +32,9 @@ export const POST = withRouteHandler(
       )
     } catch (error) {
       if (error instanceof RefundOperationRejectedError) {
-        return badRequestResponse(error.message, { refundOperation: 'not_created' })
+        return adminBadRequestResponse(error.message, { refundOperation: 'not_created' })
       }
-      return badRequestResponse(getErrorMessage(error, 'Could not issue refund'))
+      return adminBadRequestResponse(getErrorMessage(error, 'Could not issue refund'))
     }
   })
 )

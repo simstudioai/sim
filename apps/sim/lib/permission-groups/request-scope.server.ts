@@ -34,7 +34,6 @@ interface Storage<T> {
 let storage: Storage<PermissionGroupConfigStore>
 
 if (typeof globalThis.process !== 'undefined' && globalThis.process.versions?.node) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { AsyncLocalStorage } = require('node:async_hooks') as typeof import('node:async_hooks')
   storage = new AsyncLocalStorage<PermissionGroupConfigStore>()
 } else {

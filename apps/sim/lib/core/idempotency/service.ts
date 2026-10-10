@@ -9,7 +9,7 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { isRetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
-import { extractProviderIdentifierFromBody } from '@/lib/webhooks/providers'
+import { extractProviderIdentifierFromBody, isDeliveryIdOptional } from '@/lib/webhooks/providers'
 
 const logger = createLogger('IdempotencyService')
 
@@ -757,10 +757,17 @@ export class IdempotencyService {
     }
 
     const uniqueId = generateId()
-    logger.warn('No unique identifier found, duplicate executions may occur', {
-      webhookId,
-      provider,
-    })
+    if (provider && isDeliveryIdOptional(provider)) {
+      logger.debug('No delivery identifier; webhook executions are not deduplicated', {
+        webhookId,
+        provider,
+      })
+    } else {
+      logger.warn('No unique identifier found, duplicate executions may occur', {
+        webhookId,
+        provider,
+      })
+    }
     return `${webhookId}:${uniqueId}`
   }
 }

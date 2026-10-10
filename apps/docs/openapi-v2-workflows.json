@@ -1842,7 +1842,7 @@
       "post": {
         "operationId": "deployWorkflow",
         "summary": "Deploy Workflow",
-        "description": "Create and asynchronously activate a deployment version. Every call creates a new version; retrying after a timeout can create a duplicate. Read Get Workflow Deployment to check activation. A conflicting webhook path returns `409`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Create and asynchronously activate a deployment version. Every call creates a new version; retrying after a timeout can create a duplicate. Read Get Workflow Deployment to check activation. `lint` reports advisory findings for the published version; they never block the deploy. A conflicting webhook path returns `409`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.deploy",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -7048,7 +7048,7 @@
               "required": ["blockId", "blockName", "blockType", "field", "value", "kind", "reason"],
               "additionalProperties": false
             },
-            "description": "Credential, resource, tool, and skill references that do not resolve. These values are still persisted; they are reported, not dropped."
+            "description": "Credential, resource, tool, and skill references that do not resolve; `block-output` references that will not work as written: a block that does not exist, or an output field the block does not have (reason `unknown-field`); and text outputs written unquoted in a JSON field (reason `unquoted-json-string`), which leave the field invalid JSON at run time unless the text is itself JSON. These values are still persisted; they are reported, not dropped."
           },
           "tableFieldIssues": {
             "type": "array",
@@ -7117,7 +7117,7 @@
         ],
         "additionalProperties": false,
         "title": "Workflow lint report",
-        "description": "Advisory findings about the saved graph. Findings never block the write; they tell a caller what will misbehave at run time."
+        "description": "Advisory findings about a saved graph. Findings never block a write or a deploy; they tell a caller what will misbehave at run time."
       },
       "ReplaceWorkflowStateResult": {
         "type": "object",
@@ -10245,7 +10245,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Non-fatal synchronization warnings. Empty when there is nothing to report."
+            "description": "Non-fatal warnings about deployment side effects, such as notifications that are still queued or failed. Empty when there is nothing to report. Lint findings are never reported here."
           },
           "activeDeployment": {
             "anyOf": [
@@ -10322,7 +10322,7 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "Non-fatal synchronization warnings. Empty when there is nothing to report."
+                "description": "Non-fatal warnings about deployment side effects, such as notifications that are still queued or failed. Empty when there is nothing to report. Lint findings are never reported here."
               },
               "activeDeployment": {
                 "anyOf": [
@@ -10540,7 +10540,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Non-fatal synchronization warnings. Empty when there is nothing to report."
+            "description": "Non-fatal warnings about deployment side effects, such as notifications that are still queued or failed. Empty when there is nothing to report. Lint findings are never reported here."
           },
           "activeDeployment": {
             "anyOf": [
@@ -10734,7 +10734,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Non-fatal synchronization warnings. Empty when there is nothing to report."
+            "description": "Non-fatal warnings about deployment side effects, such as notifications that are still queued or failed. Empty when there is nothing to report. Lint findings are never reported here."
           },
           "activeDeployment": {
             "anyOf": [
@@ -10763,6 +10763,17 @@
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991
+          },
+          "lint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkflowLintReport"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Advisory lint findings for the version this deploy publishes, checked as the deploying user. Findings never block a deploy. Null when the lint could not complete within its time budget; the deploy itself is unaffected."
           }
         },
         "required": [
@@ -10771,7 +10782,8 @@
           "deployedAt",
           "warnings",
           "activeDeployment",
-          "latestDeploymentAttempt"
+          "latestDeploymentAttempt",
+          "lint"
         ],
         "additionalProperties": false,
         "title": "Deploy result",
@@ -10813,7 +10825,19 @@
                 "activatedAt": null,
                 "error": null
               },
-              "version": 3
+              "version": 3,
+              "lint": {
+                "sources": [],
+                "sinks": [],
+                "orphanBlocks": [],
+                "emptyOutgoingPorts": [],
+                "invalidBranchPorts": [],
+                "invalidConnectionTargets": [],
+                "fieldIssues": [],
+                "unresolvedReferences": [],
+                "tableFieldIssues": [],
+                "notes": []
+              }
             }
           }
         ]
@@ -10898,7 +10922,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Non-fatal synchronization warnings. Empty when there is nothing to report."
+            "description": "Non-fatal warnings about deployment side effects, such as notifications that are still queued or failed. Empty when there is nothing to report. Lint findings are never reported here."
           },
           "activeDeployment": {
             "anyOf": [

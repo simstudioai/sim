@@ -170,6 +170,15 @@ export const account = pgTable(
     scope: text('scope'),
     password: text('password'),
     oauthConfig: text('oauth_config'),
+    /**
+     * The provider rejected `refresh_token` as revoked (`invalid_grant` and kin). The marker holds
+     * only while `refresh_revoked_token_hash` still fingerprints the stored refresh token, so any
+     * writer that stores a new chain supersedes it; a reconnect clears it explicitly, since a
+     * provider may reauthorize without issuing a new refresh token.
+     */
+    refreshRevokedAt: timestamp('refresh_revoked_at'),
+    refreshRevokedCode: text('refresh_revoked_code'),
+    refreshRevokedTokenHash: text('refresh_revoked_token_hash'),
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull(),
   },
@@ -780,6 +789,26 @@ export const resumeQueue = pgTable(
     ),
     newExecutionIdx: index('resume_queue_new_execution_idx').on(table.newExecutionId),
   })
+)
+
+/** Durable encrypted application permissions and tokens, plus expiring token-exchange failures. */
+export const clientCredentialToken = pgTable(
+  'client_credential_token',
+  {
+    id: text('id').primaryKey(),
+    encryptedValue: text('encrypted_value').notNull(),
+    accessTokenDigest: text('access_token_digest'),
+    expiresAt: timestamp('expires_at').notNull(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('client_credential_token_expires_at_idx')
+      .on(table.expiresAt)
+      .where(sql`${table.accessTokenDigest} IS NULL`),
+    index('client_credential_token_access_token_digest_idx')
+      .on(table.accessTokenDigest)
+      .where(sql`${table.accessTokenDigest} IS NOT NULL`),
+  ]
 )
 
 export const environment = pgTable('environment', {
@@ -2474,6 +2503,170 @@ export const dashboard = pgTable(
   })
 )
 
+/**
+ * A workflow test file: one concern, read as `tests/<name>.test.js`. `tests create` sets the
+ * name, title, and description; the source is a workspace file with `context = 'test'`, so it
+ * keeps versions and Sim's file edits, and `cases` is what its last accepted write declared.
+ */
+export const workflowTest = pgTable(
+  'workflow_test',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    bodyFileId: text('body_file_id')
+      .notNull()
+      .references(() => workspaceFiles.id),
+    /** Every `describe > it` path in the file with its mode (`run`, `only`, `skip`). */
+    cases: jsonb('cases').notNull().default('[]'),
+    /** sha256 of the source `cases` was read from; a run reporting another hash is stale. */
+    sourceHash: text('source_hash').notNull(),
+    createdByUserId: text('created_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    deletedAt: timestamp('deleted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceNameUnique: uniqueIndex('workflow_test_workspace_name_unique')
+      .on(table.workspaceId, table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
+    bodyFileUnique: uniqueIndex('workflow_test_body_file_unique').on(table.bodyFileId),
+  })
+)
+
+/** One run of a test file against the draft or deployed workflows. */
+export const workflowTestRun = pgTable(
+  'workflow_test_run',
+  {
+    id: text('id').primaryKey(),
+    testId: text('test_id')
+      .notNull()
+      .references(() => workflowTest.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    version: text('version').notNull(),
+    status: text('status').notNull().default('running'),
+    passed: integer('passed').notNull().default(0),
+    failed: integer('failed').notNull().default(0),
+    skipped: integer('skipped').notNull().default(0),
+    /** The sandbox report: every case's checks, judge reasons, logs, and executions. */
+    report: jsonb('report'),
+    /** Why the file produced no report: it did not load, or the run itself failed. */
+    error: text('error'),
+    /** sha256 of the source this run executed; null when it failed before reading the file. */
+    sourceHash: text('source_hash'),
+    /** `{ workflowId, deploymentVersionId }` for each workflow the run executed; null draft ids. */
+    ranAgainst: jsonb('ran_against'),
+    /** Each case's status (`running`, `pass`, `fail`, `skip`) by `describe > it` path, as it runs. */
+    progress: jsonb('progress'),
+    triggeredByActor: jsonb('triggered_by_actor').notNull(),
+    triggeredByUserId: text('triggered_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (table) => ({
+    testVersionStartedIdx: index('workflow_test_run_test_version_started_idx').on(
+      table.testId,
+      table.version,
+      table.startedAt
+    ),
+    versionCheck: check(
+      'workflow_test_run_version_check',
+      sql`${table.version} IN ('draft', 'deployed')`
+    ),
+    statusCheck: check(
+      'workflow_test_run_status_check',
+      sql`${table.status} IN ('running', 'passed', 'failed', 'error')`
+    ),
+    completedCheck: check(
+      'workflow_test_run_completed_check',
+      sql`(${table.status} = 'running') = (${table.completedAt} IS NULL)`
+    ),
+  })
+)
+
+/**
+ * A published changelog release, read as `changelog/<id>.md`. The body is a workspace file with
+ * `context = 'changelog'`, so it keeps versions and Sim's file edits. The version is a label: Sim
+ * picks the bump, the server computes the number, and people may relabel it; links use the id.
+ * `revision` guards the release's own fields against lost updates.
+ */
+export const changelogRelease = pgTable(
+  'changelog_release',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    versionMajor: integer('version_major').notNull(),
+    versionMinor: integer('version_minor').notNull(),
+    versionPatch: integer('version_patch').notNull(),
+    bumpReason: text('bump_reason').notNull(),
+    bodyFileId: text('body_file_id')
+      .notNull()
+      .references(() => workspaceFiles.id),
+    revision: integer('revision').notNull().default(1),
+    publishedAt: timestamp('published_at', { precision: 3 }).notNull().defaultNow(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceVersionUnique: uniqueIndex('changelog_release_workspace_version_unique').on(
+      table.workspaceId,
+      table.versionMajor,
+      table.versionMinor,
+      table.versionPatch
+    ),
+    bodyFileUnique: uniqueIndex('changelog_release_body_file_unique').on(table.bodyFileId),
+    workspacePublishedIdx: index('changelog_release_workspace_published_idx').on(
+      table.workspaceId,
+      table.publishedAt,
+      table.id
+    ),
+    versionCheck: check(
+      'changelog_release_version_check',
+      sql`${table.versionMajor} >= 0 AND ${table.versionMinor} >= 0 AND ${table.versionPatch} >= 0`
+    ),
+  })
+)
+
+/** One line of a release: what changed, and where it came from when Sim knows. */
+export const changelogChange = pgTable(
+  'changelog_change',
+  {
+    id: text('id').primaryKey(),
+    releaseId: text('release_id')
+      .notNull()
+      .references(() => changelogRelease.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    text: text('text').notNull(),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
+    deploymentVersionId: text('deployment_version_id').references(
+      () => workflowDeploymentVersion.id,
+      { onDelete: 'set null' }
+    ),
+    chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'set null' }),
+  },
+  (table) => ({
+    releasePositionUnique: uniqueIndex('changelog_change_release_position_unique').on(
+      table.releaseId,
+      table.position
+    ),
+  })
+)
+
 export const workspaceFiles = pgTable(
   'workspace_files',
   {
@@ -3840,39 +4033,8 @@ export const embedding = pgTable(
   })
 )
 
-/** Keyword ranking reads text-search vectors independently of chunk content and semantic vectors. */
-// contract-pending(after the indexed-search retirement release and all legacy projection writers have drained): drop embedding_keyword_search — regular KB keyword queries read embedding.content_tsv.
-export const embeddingKeywordSearch = pgTable(
-  'embedding_keyword_search',
-  {
-    id: text('id')
-      .primaryKey()
-      .references(() => embedding.id, { onDelete: 'cascade' }),
-    knowledgeBaseId: text('knowledge_base_id').notNull(),
-    documentId: text('document_id').notNull(),
-    enabled: boolean('enabled').notNull(),
-    contentTsv: tsvector('content_tsv').notNull(),
-  },
-  (table) => ({
-    knowledgeBaseIdx: index('embedding_keyword_search_kb_idx').on(table.knowledgeBaseId),
-    documentIdx: index('embedding_keyword_search_document_idx').on(table.documentId),
-    contentIdx: index('embedding_keyword_search_content_idx').using('gin', table.contentTsv),
-  })
-)
-
-/** The Tin index over {@link embeddingKeywordTin}; valid only once the projection is backfilled. */
-export const EMBEDDING_KEYWORD_TIN_INDEX = 'embedding_keyword_tin_content_idx'
-
-/**
- * BM25 keyword ranking for organization search indexes, served by the Tin text index where the
- * database provides the `tin` extension. `content` is the chunk's `english` lexemes in position
- * order, prefixed with a token naming its knowledge base, so ranking is scoped to one base inside
- * the index and stems exactly as the GIN projection does. The row mirrors its document's source
- * and ACL, like {@link embeddingSearch}. Script migration `0019_tin_keyword_projection` installs the extension,
- * the index, and the embedding and knowledge base triggers that own these rows, and only where
- * `tin` exists; elsewhere the table stays empty and keyword search keeps the GIN projection.
- */
-// contract-pending(after the indexed-search retirement release and all legacy projection writers have drained): drop embedding_keyword_tin — only retired indexed Search ranks this projection.
+/** Compatibility storage for connector-detachment workers from before keyword retirement. */
+// contract-pending(after the keyword-projection retirement release and old connector-detachment workers have drained): drop embedding_keyword_tin — no new projection writer uses it.
 export const embeddingKeywordTin = pgTable(
   'embedding_keyword_tin',
   {
@@ -5351,6 +5513,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'enrichment',
   'voice-output',
   'api-tool',
+  'workflow-test',
 ])
 
 /** Content-free organization Search activity, independent of billable model usage. */
@@ -6952,13 +7115,13 @@ export const userTableDefinitions = pgTable(
     rowCount: integer('row_count').notNull().default(0),
     /**
      * @remarks
-     * Monotonic counter bumped by triggers on `user_table_rows`: statement-level
-     * on INSERT/DELETE, and a deferred constraint trigger that bumps once per
-     * transaction at COMMIT when an UPDATE changes `data` or `order_key`. Keys the
-     * versioned table-snapshot cache so a stored CSV under `v{rows_version}` is
-     * reused until the table mutates. Never written from application code — the
-     * triggers and the `user_table_row_changes` fold are the only writers. Read the
-     * live value through `lib/table/row-changes.ts`, never this column alone.
+     * Folded part of a monotonic counter: the triggers on `user_table_rows` log one
+     * `user_table_row_changes` row per INSERT/DELETE statement, and one per
+     * transaction when an UPDATE changes `data` or `order_key`; the fold adds their
+     * count here. Keys the versioned table-snapshot cache so a stored CSV under
+     * `v{rows_version}` is reused until the table mutates. Never written from
+     * application code — the fold is the only writer. Read the live value through
+     * `lib/table/row-changes.ts`, never this column alone.
      */
     rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
     /**

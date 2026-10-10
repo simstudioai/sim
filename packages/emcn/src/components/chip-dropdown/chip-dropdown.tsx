@@ -11,10 +11,11 @@ import {
   useState,
 } from 'react'
 import type { VariantProps } from 'class-variance-authority'
+import { MENU_STYLES } from '#menu-styles'
 import { Check, ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
-import { chipIconSlotClass } from '../chip/chip-chrome'
+import { chipIconSlotClass } from '../chip/chrome'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -346,7 +347,9 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
           ) : (
             <span className={cn(overflowTextClipClass, 'flex-1')}>{option.label}</span>
           )}
-          {showSelectedCheck && isSelected ? <Check className='ml-auto! size-[16px]!' /> : null}
+          {showSelectedCheck && isSelected ? (
+            <Check aria-hidden className={MENU_STYLES.selectionIcon} />
+          ) : null}
         </DropdownMenuItem>
       )
     }
@@ -422,7 +425,9 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
               }}
             >
               <DropdownMenuItemLabel label={allLabel} />
-              {selectedValues.length === 0 ? <Check className='ml-auto! size-[16px]!' /> : null}
+              {selectedValues.length === 0 ? (
+                <Check aria-hidden className={MENU_STYLES.selectionIcon} />
+              ) : null}
             </DropdownMenuItem>
           )}
           {filteredOptions.map(renderItem)}

@@ -4488,6 +4488,74 @@ type DeployWorkflowResponseRef3 = {
 }
 
 type DeployWorkflowResponseRef4 = {
+  sources: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  sinks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  orphanBlocks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  emptyOutgoingPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    handle: string
+    label: string
+  }>
+  invalidBranchPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    sourceHandle: string
+    reason: string
+  }>
+  invalidConnectionTargets: Array<{
+    sourceBlockId: string
+    sourceBlockName: string | null
+    sourceHandle: string | null
+    targetBlockId: string
+    reason: string
+  }>
+  fieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    missingRequiredFields: Array<string>
+    inactiveModeValues: Array<{
+      canonicalId: string
+      activeMemberId: string | null
+      inactiveMemberId: string
+      kind: 'credential' | 'resource' | 'other'
+    }>
+  }>
+  unresolvedReferences: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    value: string | Array<string>
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    reason: string
+  }>
+  tableFieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    tableName: string
+  }>
+  notes: Array<string>
+}
+
+type DeployWorkflowResponseRef5 = {
   id: string
   isDeployed: boolean
   deployedAt: string | null
@@ -4495,10 +4563,11 @@ type DeployWorkflowResponseRef4 = {
   activeDeployment: DeployWorkflowResponseRef0 | null
   latestDeploymentAttempt: DeployWorkflowResponseRef1 | null
   version?: number
+  lint: DeployWorkflowResponseRef4 | null
 }
 
 export type DeployWorkflowResponse = {
-  data: DeployWorkflowResponseRef4
+  data: DeployWorkflowResponseRef5
 }
 
 /** `POST /api/v2/workflow-mcp-servers/[serverId]/tools` */
@@ -13006,9 +13075,15 @@ export type UpdateCredentialBody = {
   certificateId?: string
   orgId?: string
   dataCenter?: string
+  scope?: string
   authMethod?: string
   privateKey?: string
   username?: string
+  tenancyOcid?: string
+  userOcid?: string
+  fingerprint?: string
+  privateKeyPassphrase?: string
+  region?: string
 }
 
 type UpdateCredentialResponseRef0 = {
@@ -21959,7 +22034,8 @@ export const V2_OPERATIONS = {
       },
       serviceAccountJson: {
         kind: 'string',
-        describe: 'Write-only Google service-account JSON key.',
+        describe:
+          'Write-only provider service-account JSON configuration, including Oracle Database connection fields.',
       },
       apiToken: { kind: 'string', describe: 'Write-only provider API token.' },
       domain: { kind: 'string', describe: 'Provider account domain.' },
@@ -21976,9 +22052,18 @@ export const V2_OPERATIONS = {
       certificateId: { kind: 'string', describe: 'Provider certificate mapping identifier.' },
       orgId: { kind: 'string', describe: 'Provider organization ID.' },
       dataCenter: { kind: 'string', describe: 'Provider data center.' },
+      scope: {
+        kind: 'string',
+        describe: 'Provider permissions; preserved on reconnect when omitted.',
+      },
       authMethod: { kind: 'string', describe: 'Provider authentication method.' },
       privateKey: { kind: 'string', describe: 'Write-only PEM private key.' },
       username: { kind: 'string', describe: 'Provider run-as username.' },
+      tenancyOcid: { kind: 'string', describe: 'OCI tenancy OCID.' },
+      userOcid: { kind: 'string', describe: 'OCI user OCID.' },
+      fingerprint: { kind: 'string', describe: 'OCI API-key fingerprint.' },
+      privateKeyPassphrase: { kind: 'string', describe: 'Write-only OCI private-key passphrase.' },
+      region: { kind: 'string', describe: 'OCI home region.' },
     },
   },
   updateCustomTool: {

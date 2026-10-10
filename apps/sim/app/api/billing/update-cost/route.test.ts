@@ -17,7 +17,7 @@ import {
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
 import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { sleep } from '@sim/utils/helpers'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCheckAndBillOverageThreshold,
@@ -1255,58 +1255,73 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     expect(body.usageExceeded).toBe(false)
   })
 
-  it('answers not exceeded when the standing read outlasts the callback budget', async () => {
-    mockCheckAttributedUsageLimits.mockImplementation(async () => {
-      await sleep(1500)
-      return { isExceeded: true, scope: 'payer' }
-    })
-    const startedAt = Date.now()
-
-    const res = await POST(attributedCallback())
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({ success: true, usageExceeded: false })
-    expect(Date.now() - startedAt).toBeLessThan(1400)
-  })
-
-  it('does not pause a run on a verdict read across the end of its period', async () => {
-    const straddling = {
-      ...CURRENT_ATTRIBUTION,
-      billingPeriod: {
-        start: '2026-07-01T00:00:00.000Z',
-        end: new Date(Date.now() + 40).toISOString(),
-        source: 'stripe' as const,
-      },
-    }
-    mockRefreshAttributionPeriod.mockResolvedValue(straddling)
-    mockCheckAttributedUsageLimits.mockImplementation(async () => {
-      await sleep(80)
-      return { isExceeded: true, scope: 'payer' }
+  describe('on a fake clock', () => {
+    beforeEach(() => {
+      // Only the clock the deadline and period checks read, so mocked I/O still settles.
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     })
 
-    const body = await (await POST(attributedCallback())).json()
+    afterEach(() => {
+      vi.useRealTimers()
+    })
 
-    expect(body.usageExceeded).toBe(false)
-  })
+    it('answers not exceeded when the standing read outlasts the callback budget', async () => {
+      mockCheckAttributedUsageLimits.mockImplementation(async () => {
+        await sleep(1500)
+        return { isExceeded: true, scope: 'payer' }
+      })
 
-  it('reloads a cached current period once it has ended', async () => {
-    const ending = {
-      ...CURRENT_ATTRIBUTION,
-      billingPeriod: {
-        start: '2026-07-01T00:00:00.000Z',
-        end: new Date(Date.now() + 50).toISOString(),
-      },
-    }
-    mockRefreshAttributionPeriod
-      .mockResolvedValueOnce(ending)
-      .mockResolvedValue(CURRENT_ATTRIBUTION)
-    refuseOnlyCurrentPeriod()
-    await POST(attributedCallback())
-    await sleep(100)
+      const pending = POST(attributedCallback())
+      await vi.advanceTimersByTimeAsync(1000)
+      const res = await pending
 
-    const body = await (await POST(attributedCallback())).json()
+      expect(res.status).toBe(200)
+      await expect(res.json()).resolves.toMatchObject({ success: true, usageExceeded: false })
+      // Settle the abandoned read so no later test coalesces onto it.
+      await vi.advanceTimersByTimeAsync(500)
+    })
 
-    expect(body.usageExceeded).toBe(true)
+    it('does not pause a run on a verdict read across the end of its period', async () => {
+      const straddling = {
+        ...CURRENT_ATTRIBUTION,
+        billingPeriod: {
+          start: '2026-07-01T00:00:00.000Z',
+          end: new Date(Date.now() + 40).toISOString(),
+          source: 'stripe' as const,
+        },
+      }
+      mockRefreshAttributionPeriod.mockResolvedValue(straddling)
+      mockCheckAttributedUsageLimits.mockImplementation(async () => {
+        await sleep(80)
+        return { isExceeded: true, scope: 'payer' }
+      })
+
+      const pending = POST(attributedCallback())
+      await vi.advanceTimersByTimeAsync(80)
+      const body = await (await pending).json()
+
+      expect(body.usageExceeded).toBe(false)
+    })
+
+    it('reloads a cached current period once it has ended', async () => {
+      const ending = {
+        ...CURRENT_ATTRIBUTION,
+        billingPeriod: {
+          start: '2026-07-01T00:00:00.000Z',
+          end: new Date(Date.now() + 50).toISOString(),
+        },
+      }
+      mockRefreshAttributionPeriod
+        .mockResolvedValueOnce(ending)
+        .mockResolvedValue(CURRENT_ATTRIBUTION)
+      refuseOnlyCurrentPeriod()
+      await POST(attributedCallback())
+      await vi.advanceTimersByTimeAsync(100)
+
+      const body = await (await POST(attributedCallback())).json()
+
+      expect(body.usageExceeded).toBe(true)
+    })
   })
 
   it('keeps a recorded charge successful when the gate read fails', async () => {

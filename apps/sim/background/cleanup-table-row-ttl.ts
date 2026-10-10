@@ -13,7 +13,6 @@ import type { DbTransaction } from '@/lib/table/planner'
 import type { DeletedTableRow } from '@/lib/table/rows/ordering'
 import { withLockedTable } from '@/lib/table/service'
 import { fireTableTrigger } from '@/lib/table/trigger'
-import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { TTL_TIMESTAMP_VALIDATION } from '@/lib/table/ttl-values'
 import type { RowData, TableSchema } from '@/lib/table/types'
 
@@ -266,10 +265,6 @@ export async function runCleanupTableRowTtl(
   signal?: AbortSignal
 ): Promise<TableRowTtlCleanupResult> {
   if (signal?.aborted) return { batches: 0, deleted: 0, limitReached: false }
-  if (!(await isTableRowTtlEnabled())) {
-    logger.info('Table row TTL cleanup skipped because the feature is disabled')
-    return { batches: 0, deleted: 0, limitReached: false }
-  }
 
   const nowUtc = new Date(Date.now()).toISOString()
   const batchSize = getDeleteSnapshotBatchSize()

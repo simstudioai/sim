@@ -30,7 +30,7 @@ export function Inbox() {
   if (error && config === undefined) {
     return (
       <SettingsPanel>
-        <SettingsEmptyState tone='error'>
+        <SettingsEmptyState>
           {getErrorMessage(error, 'Failed to load Inbox settings')}
         </SettingsEmptyState>
       </SettingsPanel>

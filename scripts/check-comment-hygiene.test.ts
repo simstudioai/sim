@@ -98,3 +98,28 @@ describe('commented-out-code', () => {
     expect(rules('// return <Panel open={open} />;', 'view.tsx')).toEqual(['commented-out-code@1'])
   })
 })
+
+describe('eslint-directive', () => {
+  it('flags own-line, trailing, and block ESLint directives', () => {
+    const source = [
+      '// eslint-disable-next-line react-hooks/exhaustive-deps',
+      'useEffect(() => {}, []) // eslint-disable-line react-hooks/exhaustive-deps',
+      '/* eslint-disable @typescript-eslint/no-explicit-any */',
+      '/* eslint-enable */',
+    ].join('\n')
+    expect(rules(source)).toEqual([
+      'eslint-directive@1',
+      'eslint-directive@2',
+      'eslint-directive@3',
+      'eslint-directive@4',
+    ])
+  })
+
+  it('ignores ESLint mentioned in prose and strings', () => {
+    const source = [
+      '// Ported from a file that used an eslint-disable comment',
+      "const rule = '// eslint-disable-next-line'",
+    ].join('\n')
+    expect(rules(source)).toEqual([])
+  })
+})

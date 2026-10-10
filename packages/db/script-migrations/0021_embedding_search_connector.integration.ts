@@ -23,7 +23,7 @@ describe('projection source and ACL triggers in PostgreSQL', () => {
   let sql: Sql
   const schemaName = `projection_acl_${generateId().replaceAll('-', '')}`
 
-  const projected = (projection: 'embedding_search' | 'embedding_keyword_tin') =>
+  const projected = (projection: 'embedding_search') =>
     sql<{ id: string; connector_id: string | null; acl: string[] | null }[]>`
       SELECT id, connector_id, acl FROM ${sql(projection)} ORDER BY id`
 
@@ -54,7 +54,7 @@ describe('projection source and ACL triggers in PostgreSQL', () => {
       generation bigint NOT NULL DEFAULT 1, content boolean NOT NULL DEFAULT false,
       marked_at timestamptz NOT NULL DEFAULT now()
     )`
-    for (const projection of ['embedding_search', 'embedding_keyword_tin']) {
+    for (const projection of ['embedding_search']) {
       await sql`CREATE TABLE ${sql(projection)} (
         id text PRIMARY KEY, document_id text NOT NULL, enabled boolean NOT NULL DEFAULT true,
         connector_id text, acl text[]
@@ -64,7 +64,7 @@ describe('projection source and ACL triggers in PostgreSQL', () => {
       id text PRIMARY KEY, knowledge_base_id text, document_id text, enabled boolean, content text,
       embedding text, embedding_384 text, embedding_768 text, embedding_1024 text, embedding_3072 text
     )`
-    for (const name of ['sync_embedding_search', 'sync_embedding_keyword_search']) {
+    for (const name of ['sync_embedding_search']) {
       await sql.unsafe(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$
         BEGIN RETURN NULL; END; $$`)
     }
@@ -91,9 +91,8 @@ describe('projection source and ACL triggers in PostgreSQL', () => {
   })
 
   beforeEach(async () => {
-    await sql`TRUNCATE embedding_search, embedding_keyword_tin, knowledge_projection_dirty, document`
+    await sql`TRUNCATE embedding_search, knowledge_projection_dirty, document`
     await sql`ALTER TABLE embedding_search DISABLE TRIGGER embedding_search_source_acl_set`
-    await sql`ALTER TABLE embedding_keyword_tin DISABLE TRIGGER embedding_keyword_tin_source_acl_set`
   })
 
   it('runs everything synchronously through 0023, and 0024 adds the guards with the marks', async () => {
@@ -102,7 +101,7 @@ describe('projection source and ACL triggers in PostgreSQL', () => {
     await embeddingSearchConnectorMigration.up(sql)
     await projectionAclSkipUnfilledMigration.up(sql)
     /** The embedding triggers as `0016` installs them. */
-    for (const projection of ['embedding_search', 'embedding_keyword_search']) {
+    for (const projection of ['embedding_search']) {
       await sql.unsafe(`CREATE OR REPLACE TRIGGER ${projection}_sync AFTER INSERT ON embedding
         FOR EACH ROW EXECUTE FUNCTION sync_${projection}()`)
     }
@@ -111,9 +110,7 @@ describe('projection source and ACL triggers in PostgreSQL', () => {
     expect(before?.installed).toBe(false)
     expect(await guarded()).toEqual({
       embedding_search_sync: false,
-      embedding_keyword_search_sync: false,
       embedding_search_source_acl_set: false,
-      embedding_keyword_tin_source_acl_set: false,
     })
     await sql`INSERT INTO document (id, connector_id, acl) VALUES ('doc', 'src', ARRAY['u:alice'])`
     await sql`INSERT INTO embedding_search (id, document_id, connector_id, acl)
@@ -129,9 +126,7 @@ describe('projection source and ACL triggers in PostgreSQL', () => {
     await knowledgeProjectionAsyncMigration.up(sql)
     expect(await guarded()).toEqual({
       embedding_search_sync: true,
-      embedding_keyword_search_sync: true,
       embedding_search_source_acl_set: true,
-      embedding_keyword_tin_source_acl_set: true,
     })
     await sql`UPDATE document SET acl = ARRAY['u:carol'] WHERE id = 'doc'`
     expect((await projected('embedding_search'))[0]?.acl).toEqual(['u:carol'])
@@ -144,8 +139,6 @@ describe('projection source and ACL triggers in PostgreSQL', () => {
       SELECT indexname FROM pg_indexes WHERE schemaname = ${schemaName} ORDER BY indexname`
     expect(indexes.map((row) => row.indexname)).toEqual(
       expect.arrayContaining([
-        'embedding_keyword_tin_acl_gin_idx',
-        'embedding_keyword_tin_acl_unfilled_idx',
         'embedding_search_acl_gin_idx',
         'embedding_search_acl_unfilled_idx',
         'embedding_search_source_idx',
@@ -171,9 +164,6 @@ describe('projection source and ACL triggers in PostgreSQL', () => {
         RETURNS trigger LANGUAGE plpgsql AS $$
         BEGIN
           UPDATE embedding_search SET connector_id = NEW.connector_id, acl = NEW.acl
-          WHERE document_id = NEW.id AND enabled
-            AND (connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl);
-          UPDATE embedding_keyword_tin SET connector_id = NEW.connector_id, acl = NEW.acl
           WHERE document_id = NEW.id AND enabled
             AND (connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl);
           RETURN NEW;

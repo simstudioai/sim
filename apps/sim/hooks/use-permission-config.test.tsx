@@ -35,7 +35,7 @@ vi.mock('@/lib/permission-groups/operation-access', () => ({
 
 import type { GetAllowedIntegrationsResponse } from '@/lib/api/contracts/common'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
-import { integrationAvailabilityKeys } from '@/hooks/queries/integration-availability'
+import { integrationAvailabilityKeys } from '@/hooks/queries/utils/integration-availability-keys'
 import { type PermissionConfigResult, usePermissionConfig } from '@/hooks/use-permission-config'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson

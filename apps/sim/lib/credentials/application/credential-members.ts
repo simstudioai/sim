@@ -3,6 +3,7 @@ import { requirePrincipalSubjectUserId, type SessionPrincipal } from '@sim/auth/
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireOrdinaryCredentialType } from '@/lib/credentials/access'
+import { credentialDelegationPolicy } from '@/lib/credentials/application/authorization'
 import {
   defineAuthorizedCredentialUseCase,
   requireManageableCredentialType,
@@ -37,7 +38,7 @@ export const listCredentialMembersUseCase = defineAuthorizedWorkspaceUseCase({
   }: {
     input: CredentialMemberResourceInput & Partial<CredentialMemberPageInput>
   }) => resolveCredentialApplicationContext(input),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: credentialDelegationPolicy },
   async execute({ principal, input, context }) {
     requireManageableCredentialType(principal, context.credential)
     if (context.credential.type === 'personal_token') {

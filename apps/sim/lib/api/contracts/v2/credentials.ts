@@ -402,14 +402,20 @@ export const v2CreateCredentialConnectionContract = defineRouteContract({
   },
 })
 
+const MAX_SERVICE_ACCOUNT_JSON_CHARS = 2 * 1024 * 1024
+// JSON escaping can double the configuration; retain room for the other credential fields.
+const MAX_CREDENTIALS_JSON_CHARS = 2 * MAX_SERVICE_ACCOUNT_JSON_CHARS + 128 * 1024
+
 const v2ServiceAccountCredentialFieldsSchema = z
   .object({
     serviceAccountJson: z
       .string()
       .min(1)
-      .max(65_536)
+      .max(MAX_SERVICE_ACCOUNT_JSON_CHARS)
       .optional()
-      .describe('Write-only Google service-account JSON key.')
+      .describe(
+        'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
+      )
       .meta({ writeOnly: true }),
     apiToken: z
       .string()
@@ -444,7 +450,6 @@ const v2ServiceAccountCredentialFieldsSchema = z
     clientId: z.string().trim().min(1).max(512).optional().describe('OAuth client identifier.'),
     clientSecret: z
       .string()
-      .trim()
       .min(1)
       .max(1024)
       .optional()
@@ -459,6 +464,13 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .describe('Provider certificate mapping identifier.'),
     orgId: z.string().trim().min(1).max(255).optional().describe('Provider organization ID.'),
     dataCenter: z.string().trim().min(1).max(32).optional().describe('Provider data center.'),
+    scope: z
+      .string()
+      .trim()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe('Provider permissions; preserved on reconnect when omitted.'),
     authMethod: z
       .string()
       .trim()
@@ -475,6 +487,16 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .describe('Write-only PEM private key.')
       .meta({ writeOnly: true }),
     username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+    tenancyOcid: z.string().trim().min(1).max(255).optional().describe('OCI tenancy OCID.'),
+    userOcid: z.string().trim().min(1).max(255).optional().describe('OCI user OCID.'),
+    fingerprint: z.string().trim().min(1).max(128).optional().describe('OCI API-key fingerprint.'),
+    privateKeyPassphrase: z
+      .string()
+      .max(4096)
+      .optional()
+      .describe('Write-only OCI private-key passphrase.')
+      .meta({ writeOnly: true }),
+    region: z.string().trim().min(1).max(128).optional().describe('OCI home region.'),
   })
   .strict()
 
@@ -483,7 +505,10 @@ type V2ServiceAccountCredentialFields = z.output<typeof v2ServiceAccountCredenti
 const v2ServiceAccountCredentialsJsonSchema = z
   .string({ error: missingFieldError('credentials is required') })
   .min(1, 'credentials cannot be empty')
-  .max(131_072, 'credentials must be at most 131072 characters')
+  .max(
+    MAX_CREDENTIALS_JSON_CHARS,
+    `credentials must be at most ${MAX_CREDENTIALS_JSON_CHARS} characters`
+  )
   .describe(
     'Write-only JSON object string containing the fields declared by credential-provider discovery.'
   )
@@ -656,9 +681,11 @@ const v2ServiceAccountSecretFieldsShape = {
   serviceAccountJson: z
     .string()
     .min(1)
-    .max(65_536)
+    .max(MAX_SERVICE_ACCOUNT_JSON_CHARS)
     .optional()
-    .describe('Write-only Google service-account JSON key.')
+    .describe(
+      'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
+    )
     .meta({ writeOnly: true }),
   apiToken: z
     .string()
@@ -693,7 +720,6 @@ const v2ServiceAccountSecretFieldsShape = {
   clientId: z.string().trim().min(1).max(512).optional().describe('OAuth client identifier.'),
   clientSecret: z
     .string()
-    .trim()
     .min(1)
     .max(1024)
     .optional()
@@ -708,6 +734,13 @@ const v2ServiceAccountSecretFieldsShape = {
     .describe('Provider certificate mapping identifier.'),
   orgId: z.string().trim().min(1).max(255).optional().describe('Provider organization ID.'),
   dataCenter: z.string().trim().min(1).max(32).optional().describe('Provider data center.'),
+  scope: z
+    .string()
+    .trim()
+    .min(1)
+    .max(512)
+    .optional()
+    .describe('Provider permissions; preserved on reconnect when omitted.'),
   authMethod: z
     .string()
     .trim()
@@ -724,6 +757,16 @@ const v2ServiceAccountSecretFieldsShape = {
     .describe('Write-only PEM private key.')
     .meta({ writeOnly: true }),
   username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+  tenancyOcid: z.string().trim().min(1).max(255).optional().describe('OCI tenancy OCID.'),
+  userOcid: z.string().trim().min(1).max(255).optional().describe('OCI user OCID.'),
+  fingerprint: z.string().trim().min(1).max(128).optional().describe('OCI API-key fingerprint.'),
+  privateKeyPassphrase: z
+    .string()
+    .max(4096)
+    .optional()
+    .describe('Write-only OCI private-key passphrase.')
+    .meta({ writeOnly: true }),
+  region: z.string().trim().min(1).max(128).optional().describe('OCI home region.'),
 } as const
 
 export const v2UpdateCredentialBodySchema = z

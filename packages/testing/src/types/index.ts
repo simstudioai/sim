@@ -8,8 +8,6 @@
  * Tests themselves provide type safety through their actual usage of app types.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 export interface Position {
   x: number
   y: number

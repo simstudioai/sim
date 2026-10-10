@@ -5,7 +5,7 @@ import { v2LogErrorPolicies } from '@/lib/logs/api/route-policies'
 import { getPublicLog } from '@/lib/logs/application/get-public-log'
 import { logOperations } from '@/lib/logs/application/operations'
 import { withSpanDurationMs } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { projectLogFiles } from '@/lib/logs/log-files'
+import { projectLogFiles } from '@/lib/logs/files'
 
 export const revalidate = 0
 

@@ -31,7 +31,7 @@ import { SETTINGS_RETURN_URL_KEY } from '@/lib/navigation/settings-return'
 import { stripMicrosoftDataverseEnvironmentFromOAuthCallback } from '@/lib/oauth/microsoft-dataverse'
 import { searchSetupAccessParam } from '@/lib/sim-search/search-params'
 import { organizationSearchSetupPath } from '@/lib/sim-search/setup-navigation'
-import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
+import { oauthConnectionsKeys } from '@/hooks/queries/oauth/connections'
 import {
   organizationCredentialKeys,
   workspaceCredentialKeys,

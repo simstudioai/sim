@@ -19,11 +19,13 @@ export function getMaxSidebarWidth(viewportWidth: number): number {
   )
 }
 
-/** Clamps an expanded sidebar width into the valid range for the current viewport. */
+/** Mobile navigation does not resize the saved desktop sidebar. */
 function clampSidebarWidth(width: number): number {
   const target = Number.isFinite(width) ? width : SIDEBAR_WIDTH.DEFAULT
   const max =
-    typeof window === 'undefined' ? Number.POSITIVE_INFINITY : getMaxSidebarWidth(window.innerWidth)
+    typeof window === 'undefined' || window.innerWidth < 768
+      ? SIDEBAR_WIDTH.MAX
+      : getMaxSidebarWidth(window.innerWidth)
   return Math.min(Math.max(target, SIDEBAR_WIDTH.MIN), max)
 }
 
@@ -78,6 +80,7 @@ export const useSidebarStore = create<SidebarState>()(
     (set, get) => ({
       workspaceDropdownOpen: false,
       sidebarWidth: SIDEBAR_WIDTH.DEFAULT,
+      renderedSidebarWidth: SIDEBAR_WIDTH.DEFAULT,
       isCollapsed: readCollapsedCookie(),
       _hasHydrated: false,
       setWorkspaceDropdownOpen: (isOpen) => set({ workspaceDropdownOpen: isOpen }),
@@ -85,20 +88,23 @@ export const useSidebarStore = create<SidebarState>()(
         if (get().isCollapsed) return
         const clampedWidth = clampSidebarWidth(width)
         set({ sidebarWidth: clampedWidth })
-        applySidebarWidths(clampedWidth, false)
+        get().syncWidth()
       },
       toggleCollapsed: () => {
-        const { isCollapsed, sidebarWidth } = get()
-        const nextCollapsed = !isCollapsed
-        const expandedWidth = clampSidebarWidth(sidebarWidth)
-        set({ isCollapsed: nextCollapsed, sidebarWidth: expandedWidth })
+        const nextCollapsed = !get().isCollapsed
+        set({ isCollapsed: nextCollapsed })
         applyCollapsedCookie(nextCollapsed)
-        applySidebarWidths(expandedWidth, nextCollapsed)
+        get().syncWidth()
       },
       syncWidth: () => {
         const { isCollapsed, sidebarWidth } = get()
         const clampedWidth = clampSidebarWidth(sidebarWidth)
-        if (!isCollapsed && clampedWidth !== sidebarWidth) set({ sidebarWidth: clampedWidth })
+        set({
+          renderedSidebarWidth:
+            typeof window !== 'undefined' && window.innerWidth < 768
+              ? window.innerWidth
+              : clampedWidth,
+        })
         applySidebarWidths(clampedWidth, isCollapsed)
       },
       setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),

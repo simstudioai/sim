@@ -123,9 +123,7 @@ export function CustomTools() {
       actions={actions}
     >
       {error ? (
-        <SettingsEmptyState tone='error'>
-          {getErrorMessage(error, 'Failed to load tools')}
-        </SettingsEmptyState>
+        <SettingsEmptyState>{getErrorMessage(error, 'Failed to load tools')}</SettingsEmptyState>
       ) : isLoading ? null : showEmptyState ? (
         <SettingsEmptyState>
           {canEdit ? 'Click "Add tool" above to get started' : 'No custom tools configured'}

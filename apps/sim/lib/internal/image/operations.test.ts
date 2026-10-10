@@ -16,8 +16,6 @@ const mocks = vi.hoisted(() => ({
   getFalAICostMetadata: vi.fn(),
 }))
 
-vi.stubGlobal('fetch', mocks.fetch)
-
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 vi.mock('@sim/utils/helpers', () => utilsHelpersMock)

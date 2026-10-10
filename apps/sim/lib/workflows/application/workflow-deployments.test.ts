@@ -26,6 +26,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   listMcpTools: vi.fn(),
+  buildWorkflowLintReport: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -45,6 +46,10 @@ vi.mock('@/lib/mcp/queries', () => ({
 }))
 
 vi.mock('@/lib/workflows/deployment-status', () => workflowDeploymentStatusMock)
+
+vi.mock('@/lib/workflows/editing/lint-report', () => ({
+  buildWorkflowLintReport: mocks.buildWorkflowLintReport,
+}))
 
 import {
   activateWorkflowVersion,
@@ -76,6 +81,19 @@ const context = {
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
+}
+
+const cleanLint = {
+  sources: [],
+  sinks: [],
+  orphanBlocks: [],
+  emptyOutgoingPorts: [],
+  invalidBranchPorts: [],
+  invalidConnectionTargets: [],
+  fieldIssues: [],
+  unresolvedReferences: [],
+  tableFieldIssues: [],
+  notes: [],
 }
 
 const adminPrincipals: Array<{ principal: Principal; actorUserId: string }> = [
@@ -110,6 +128,7 @@ describe('workflow deployment application use cases', () => {
       success: true,
       deployedAt: new Date('2026-08-08T00:00:00Z'),
       version: 4,
+      deploymentVersionId: 'version-4',
       activeDeployment: null,
       latestDeploymentAttempt: null,
       warnings: [],
@@ -128,6 +147,11 @@ describe('workflow deployment application use cases', () => {
       version: 3,
     })
     mockRevert.mockResolvedValue({ success: true, lastSaved: 12345 })
+    workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState.mockResolvedValue({
+      blocks: {},
+      edges: [],
+    })
+    mocks.buildWorkflowLintReport.mockResolvedValue(cleanLint)
   })
 
   it.each(adminPrincipals)(
@@ -296,5 +320,102 @@ describe('workflow deployment application use cases', () => {
         input: { workflowId: 'workflow-1', requestId: 'request-9' },
       })
     ).rejects.toThrow('Failed to deploy workflow')
+  })
+
+  /**
+   * A draft whose Table block could never parse its row JSON deployed with an
+   * empty `warnings`, so the caller first learned of it from a failed live run.
+   * Lint then rode in `warnings`, which the workspace UI toasts as failed side
+   * effects, and every UI deploy paid for a lint nobody asked for.
+   */
+  describe('lint findings on the deployed graph', () => {
+    const unquotedRowJson = {
+      ...cleanLint,
+      unresolvedReferences: [
+        {
+          blockId: 'insert',
+          blockName: 'Insert Order',
+          field: 'data',
+          value: ['<start.order_id>'],
+          kind: 'block-output' as const,
+          reason: 'unquoted-json-string: quote it',
+        },
+      ],
+    }
+    const sideEffectWarning =
+      'Deployment activation completed, and post-activation notifications are queued.'
+
+    it('returns them as lint, linted as the acting user, never as a side-effect warning', async () => {
+      mockDeploy.mockResolvedValueOnce({
+        success: true,
+        version: 4,
+        deploymentVersionId: 'version-4',
+        warnings: [sideEffectWarning],
+      })
+      mocks.buildWorkflowLintReport.mockImplementation(
+        async (_graph: unknown, scope: { subjectUserId: string | null }) =>
+          scope.subjectUserId === 'session-user' ? unquotedRowJson : cleanLint
+      )
+
+      const result = await deployWorkflow.execute({
+        principal: createSessionPrincipal({ userId: 'session-user' }),
+        input: { workflowId: 'workflow-1', requestId: 'request-10', lintDeployedVersion: true },
+      })
+
+      expect(result.warnings).toEqual([sideEffectWarning])
+      expect(result.lint).toEqual(unquotedRowJson)
+    })
+
+    it('neither runs nor waits on a lint the surface does not ask for', async () => {
+      vi.useFakeTimers()
+      try {
+        mocks.buildWorkflowLintReport.mockReturnValue(new Promise(() => {}))
+        let settled: unknown
+        void deployWorkflow
+          .execute({
+            principal: createSessionPrincipal(),
+            input: { workflowId: 'workflow-1', requestId: 'request-11' },
+          })
+          .then((result) => {
+            settled = result
+          })
+
+        await vi.advanceTimersByTimeAsync(0)
+
+        expect(settled).toMatchObject({ success: true, warnings: [], lint: null })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('never fails or blocks a deploy when lint cannot run', async () => {
+      workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState.mockRejectedValueOnce(
+        new Error('version read failed')
+      )
+
+      const result = await deployWorkflow.execute({
+        principal: createSessionPrincipal(),
+        input: { workflowId: 'workflow-1', requestId: 'request-12', lintDeployedVersion: true },
+      })
+
+      expect(result).toMatchObject({ success: true, version: 4, warnings: [], lint: null })
+    })
+
+    it('stops waiting for a lint that outlasts its budget', async () => {
+      vi.useFakeTimers()
+      try {
+        mocks.buildWorkflowLintReport.mockReturnValue(new Promise(() => {}))
+
+        const deploying = deployWorkflow.execute({
+          principal: createSessionPrincipal(),
+          input: { workflowId: 'workflow-1', requestId: 'request-13', lintDeployedVersion: true },
+        })
+        await vi.runAllTimersAsync()
+
+        await expect(deploying).resolves.toMatchObject({ success: true, version: 4, lint: null })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 })

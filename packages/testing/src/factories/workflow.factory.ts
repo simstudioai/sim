@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 /**
  * Options for creating a mock workflow state.
  * Uses `any` for complex types to avoid conflicts with app types.

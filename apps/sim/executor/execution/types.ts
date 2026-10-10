@@ -255,6 +255,62 @@ export interface PiiBlockOutputRedaction {
   customPatterns?: CustomPiiPattern[]
 }
 
+/** A mocked block reached by a test run, carrying the inputs its execution log shows. */
+export interface MockedBlockCall {
+  blockId: string
+  blockName: string
+  blockType: string
+  input: Record<string, unknown>
+  /** Set inside a parallel: which branch made the call. */
+  branchIndex?: number
+}
+
+/** A tool call an Agent block made that the test answers instead of the tool. */
+export interface MockedToolCall {
+  /** The calling Agent's workflow block id (never a parallel-branch clone id). */
+  blockId: string
+  toolId: string
+  /** The arguments the model sent, with credentials and internal context removed. */
+  input: Record<string, unknown>
+}
+
+/** One block of a workflow a test run entered, as the executor will run it. */
+export interface TestWorkflowBlock {
+  id: string
+  name: string
+  type: string
+  params: Record<string, unknown>
+}
+
+/**
+ * Hooks a workflow test run installs. Every workflow the run executes, the tested one and each
+ * child, announces its blocks with `enterWorkflow` before running; the test matches its mocks
+ * and spies against those blocks by name. A mocked block awaits `resolveMock` in place of its
+ * handler; everything after the handler (normalization, redaction, logging, edges) runs as
+ * usual. A mocked tool call awaits `resolveToolMock` in place of the tool. Child workflow
+ * executions inherit the hooks, except a custom block's source workflow, which a test mocks as a
+ * whole, and a workflow an Agent calls as a tool, which runs without them.
+ */
+export interface ExecutionTestHooks {
+  /** `resolvedSecretTraceRegistry` redacts what this run sends back to the test. */
+  enterWorkflow(workflow: {
+    workflowId: string
+    /** The deployment this execution loaded; null when it loaded the draft. */
+    deploymentVersionId: string | null
+    blocks: TestWorkflowBlock[]
+    resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
+  }): Promise<void>
+  /** Whether this block's handler is replaced; ids are workflow block ids, never clone ids. */
+  mocksBlock(blockId: string): boolean
+  resolveMock(call: MockedBlockCall, abortSignal?: AbortSignal): Promise<NormalizedBlockOutput>
+  /** Whether this Agent block's calls to this tool are answered by the test. */
+  mocksTool(blockId: string, toolId: string): boolean
+  resolveToolMock(call: MockedToolCall, abortSignal?: AbortSignal): Promise<Record<string, unknown>>
+  /** Whether the test records this block's inputs and output while it runs for real. */
+  spiesBlock(blockId: string): boolean
+  recordSpy(call: { blockId: string; input: unknown; output: unknown }): void
+}
+
 export interface ContextExtensions {
   workspaceId?: string
   executionId?: string
@@ -351,6 +407,8 @@ export interface ContextExtensions {
    * Stop execution after this block completes. Used for "run until block" feature.
    */
   stopAfterBlockId?: string
+
+  testHooks?: ExecutionTestHooks
 
   /**
    * Ordered list of workflow IDs in the current call chain, used for cycle detection.

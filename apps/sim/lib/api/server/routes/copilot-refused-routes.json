@@ -1,0 +1,237 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/v2/chat",
+    "operation": "chat.send"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v2/files/[fileId]/versions/[version]",
+    "operation": "files.versions.delete"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/files/[fileId]/versions/[version]/content",
+    "operation": "files.versions.download"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/meta",
+    "operation": "meta.capabilities.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations",
+    "operation": "organizations.list"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]",
+    "operation": "organizations.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/access-requests",
+    "operation": "access_requests.create"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/access-requests",
+    "operation": "access_requests.list_organization"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/access-requests/[requestId]/cancel",
+    "operation": "access_requests.cancel"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/access-requests/[requestId]/preview",
+    "operation": "access_requests.preview"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/access-requests/[requestId]/resolve",
+    "operation": "access_requests.resolve"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/access-requests/discovery",
+    "operation": "access_requests.discover"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/access-requests/mine",
+    "operation": "access_requests.list_mine"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/access-requests/settings",
+    "operation": "access_requests.get_settings"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/organizations/[organizationId]/access-requests/settings",
+    "operation": "access_requests.update_settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/invitations",
+    "operation": "organizations.invitations.list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/invitations",
+    "operation": "organizations.invitations.create"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/invitations/[invitationId]",
+    "operation": "organizations.invitations.read"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v2/organizations/[organizationId]/invitations/[invitationId]",
+    "operation": "invitations.revoke"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/invitations/[invitationId]/resend",
+    "operation": "invitations.resend"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces",
+    "operation": "organizations.invitations.workspaces.list"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/members",
+    "operation": "organizations.members.list"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/organizations/[organizationId]/members/[userId]",
+    "operation": "organizations.members.update"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v2/organizations/[organizationId]/members/[userId]",
+    "operation": "organizations.members.remove"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/members/[userId]/usage-limit",
+    "operation": "organization_member_usage_limits.read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/organizations/[organizationId]/members/[userId]/usage-limit",
+    "operation": "organization_member_usage_limits.update"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/permission-groups",
+    "operation": "permission_groups.list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/permission-groups",
+    "operation": "permission_groups.create"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/permission-groups/[groupId]",
+    "operation": "permission_groups.read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/organizations/[organizationId]/permission-groups/[groupId]",
+    "operation": "permission_groups.update"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v2/organizations/[organizationId]/permission-groups/[groupId]",
+    "operation": "permission_groups.delete"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members",
+    "operation": "permission_groups.members.list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members",
+    "operation": "permission_groups.members.add"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/[userId]",
+    "operation": "permission_groups.members.remove"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk",
+    "operation": "permission_groups.members.bulk_add"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/sso/policy",
+    "operation": "organization.sso.read_requirement"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/organizations/[organizationId]/sso/policy",
+    "operation": "organization.sso.set_requirement"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/sso/providers",
+    "operation": "organization.sso.providers.list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/sso/providers",
+    "operation": "organization.sso.providers.save"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/sso/providers/[providerId]",
+    "operation": "organization.sso.providers.list"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v2/organizations/[organizationId]/sso/providers/[providerId]",
+    "operation": "organization.sso.providers.delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/sso/providers/[providerId]/primary",
+    "operation": "organization.sso.set_primary_provider"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/usage/breakdown",
+    "operation": "organization_usage.breakdown.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/usage/events",
+    "operation": "organization_usage.events.list"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/usage/summary",
+    "operation": "organization_usage.summary.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/workspaces",
+    "operation": "organizations.workspaces.list"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/workspaces",
+    "operation": "workspaces.list_public"
+  }
+]

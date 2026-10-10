@@ -506,7 +506,7 @@ interface IconRef {
 /**
  * Check mode (`--check`): render every generated artifact in memory and compare
  * it against the committed file instead of writing, so CI can fail on docs
- * drift the same way `tool-metadata:check` fails on stale tool metadata. Check
+ * drift the same way `check:tool-metadata` fails on stale tool metadata. Check
  * mode performs no filesystem mutations.
  *
  * The pipeline writes some pages twice per run — the block pass writes the base
@@ -639,7 +639,10 @@ export async function generateIconMappings(): Promise<{
   try {
     console.log('Generating icon mapping from block definitions...')
 
-    const docs: Record<string, IconRef> = {}
+    // OCI credential setup has no product block from which docs can derive its family icon.
+    const docs: Record<string, IconRef> = {
+      oci: { name: 'OracleIcon', source: '@/components/icons' },
+    }
     const visible: Record<string, IconRef> = {}
     const coreBlockTypes = new Set<string>()
     const blockFiles = (await sourceGlob(`${BLOCKS_PATH}/*.ts`)).sort()

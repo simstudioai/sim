@@ -12,6 +12,9 @@
  */
 export const APP_ENTRY_PATH = '/home'
 
+/** Keeps the landing page visible even when the viewer is signed in. */
+export const LANDING_HREF = '/?home'
+
 /**
  * The workspace picker: resolves to the viewer's most recent workspace. Use it only
  * where the viewer explicitly asked for workspaces; the default landing is
@@ -49,7 +52,8 @@ export function organizationRoutes(organizationId: string) {
   } as const
 }
 
-function isPathOrDescendant(pathname: string, root: string): boolean {
+/** Whether `pathname` is `root` itself or a route beneath it. */
+export function isPathOrDescendant(pathname: string, root: string): boolean {
   return pathname === root || pathname.startsWith(`${root}/`)
 }
 

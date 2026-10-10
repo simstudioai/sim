@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom'
-import { useCopyToClipboard } from '@sim/emcn'
+import { cn, MENU_STYLES, useCopyToClipboard } from '@sim/emcn'
 import { Check, Duplicate, Pencil, Unlink } from '@sim/emcn/icons'
 import { getMarkRange } from '@tiptap/core'
 import { type Editor, useEditorState } from '@tiptap/react'
 import { createPortal } from 'react-dom'
+import { scrollToHeading } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/heading-anchors'
 import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import {
   applyLink,
@@ -38,8 +39,8 @@ function resolveLinkRange(editor: Editor, el: HTMLElement): LinkRange | null {
 
 /**
  * Floating card shown when hovering a link, so the destination is visible even when the link text
- * differs from the URL. The URL opens in a new tab; Copy is always available, while Edit (inline) and
- * Remove require an editable document. Positioned with Floating UI against the hovered anchor; a short
+ * differs from the URL. Heading links scroll within the editor; other URLs open in a new tab.
+ * Copy is always available, while Edit (inline) and Remove require an editable document. Positioned with Floating UI against the hovered anchor; a short
  * close delay plus the card's own hover bridge let the pointer travel from the link into the card.
  */
 export function LinkHoverCard({ editor }: LinkHoverCardProps) {
@@ -186,7 +187,11 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) dismiss()
       }}
-      className='z-[var(--z-popover)] flex items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-xs transition-opacity duration-150 ease-out'
+      className={cn(
+        MENU_STYLES.surface,
+        MENU_STYLES.padding,
+        'z-[var(--z-popover)] flex items-center gap-0.5 transition-opacity duration-150 ease-out'
+      )}
     >
       {isEditing ? (
         <>
@@ -208,7 +213,13 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
           {safeHref ? (
             <a
               href={safeHref}
-              target='_blank'
+              target={safeHref.startsWith('#') ? undefined : '_blank'}
+              onClick={(event) => {
+                if (!safeHref.startsWith('#')) return
+                event.preventDefault()
+                if (!editor.isDestroyed) scrollToHeading(editor.view, safeHref)
+                dismiss()
+              }}
               rel='noopener noreferrer'
               title={rawHref}
               className='max-w-[260px] truncate px-2 text-[var(--text-body)] text-small hover:underline'

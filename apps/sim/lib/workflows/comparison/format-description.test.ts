@@ -23,7 +23,7 @@ vi.mock('@/executor/constants', () => ({
   isUuid: (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
 }))
 
-vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
+vi.mock('@/hooks/queries/oauth/credentials', () => ({
   fetchOAuthCredentialDetail: vi.fn(() => []),
 }))
 

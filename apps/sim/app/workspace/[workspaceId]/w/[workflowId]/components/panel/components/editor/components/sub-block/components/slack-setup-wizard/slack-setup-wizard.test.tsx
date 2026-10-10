@@ -46,7 +46,6 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
-  vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 async function render() {

@@ -113,6 +113,8 @@ describe('ensureOrganizationForTeamSubscription', () => {
   it('transfers a user-referenced team subscription onto the org the user administers', async () => {
     mockIsSubscriptionOrgScoped.mockResolvedValueOnce(false)
     queueWhereResponses([
+      // referenced user lookup
+      [{ name: 'Owner', email: 'owner@example.com' }],
       // membership lookup: user owns an org
       [{ id: 'member-1', organizationId: 'org-owned', role: 'owner' }],
       // locked membership re-read inside the transfer transaction

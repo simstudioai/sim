@@ -1,9 +1,12 @@
-import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
+import { Suspense } from 'react'
+import { dehydrate, HydrationBoundary, type QueryClient } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
+import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import {
   hasDesktopBackgroundExecutor,
@@ -11,12 +14,16 @@ import {
 } from '@/lib/desktop/executor/availability'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
-import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
+import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
+import { ApplicationLoading } from '@/app/_shell/application-loading'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
 import { WorkspaceAccessDenied } from '@/app/workspace/[workspaceId]/components/workspace-access-denied'
-import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
+import {
+  WorkspaceChrome,
+  WorkspaceViewport,
+} from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import {
   prefetchWorkspaceForkAvailability,
   prefetchWorkspaceHostContext,
@@ -34,16 +41,33 @@ import { WorkspaceHostProvider } from '@/app/workspace/[workspaceId]/providers/w
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import {
+  getBrandConfig,
+  mergeOrgBrandConfig,
+  type OrganizationWhitelabelSettings,
+} from '@/ee/whitelabeling'
 import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
 import { getOrgWhitelabelSettings } from '@/ee/whitelabeling/org-branding'
 
-export default async function WorkspaceLayout({
-  children,
-  params,
-}: {
+interface WorkspaceLayoutProps {
   children: React.ReactNode
   params: Promise<{ workspaceId: string }>
-}) {
+}
+
+interface WorkspaceContentProps {
+  children: React.ReactNode
+  workspaceId: string
+  session: NonNullable<Awaited<ReturnType<typeof getSession>>>
+  queryClient: QueryClient
+  hostContext: WorkspaceHostContext
+  orgSettings: Promise<OrganizationWhitelabelSettings | null>
+}
+
+interface WorkspaceLoadingProps {
+  orgSettings: Promise<OrganizationWhitelabelSettings | null>
+}
+
+export default async function WorkspaceLayout({ children, params }: WorkspaceLayoutProps) {
   const session = await getSession()
   if (!session?.user) {
     redirect('/login')
@@ -56,6 +80,38 @@ export default async function WorkspaceLayout({
     return <WorkspaceAccessDenied />
   }
 
+  const orgSettings = hostContext.hostOrganizationId
+    ? getOrgWhitelabelSettings(hostContext.hostOrganizationId)
+    : Promise.resolve(null)
+
+  return (
+    <Suspense fallback={<WorkspaceLoading orgSettings={orgSettings} />}>
+      <WorkspaceContent
+        workspaceId={workspaceId}
+        session={session}
+        queryClient={queryClient}
+        hostContext={hostContext}
+        orgSettings={orgSettings}
+      >
+        {children}
+      </WorkspaceContent>
+    </Suspense>
+  )
+}
+
+async function WorkspaceLoading({ orgSettings }: WorkspaceLoadingProps) {
+  const brand = mergeOrgBrandConfig(await orgSettings, getBrandConfig())
+  return <ApplicationLoading brand={brand} />
+}
+
+async function WorkspaceContent({
+  children,
+  workspaceId,
+  session,
+  queryClient,
+  hostContext,
+  orgSettings,
+}: WorkspaceContentProps) {
   const activeOrganizationId = getActiveOrganizationId(session)
   const principal = {
     kind: 'session',
@@ -66,17 +122,16 @@ export default async function WorkspaceLayout({
     cookieStore,
     initialOrgSettings,
     ,
-    tableRowTtlEnabled,
     modelSelectorEnabled,
     planModeEnabled,
     organizationHref,
     dashboardsEnabled,
+    workflowTestsEnabled,
+    changelogEnabled,
     desktopExecutorRegistered,
   ] = await Promise.all([
     cookies(),
-    hostContext.hostOrganizationId
-      ? getOrgWhitelabelSettings(hostContext.hostOrganizationId)
-      : Promise.resolve(null),
+    orgSettings,
     prefetchWorkspaceSidebar(
       queryClient,
       workspaceId,
@@ -84,11 +139,12 @@ export default async function WorkspaceLayout({
       hostContext,
       activeOrganizationId
     ),
-    isTableRowTtlEnabled(),
     isMothershipModelSelectorEnabled(),
     isPlanModeEnabled(),
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
+    isWorkflowTestsEnabled(hostContext.hostOrganizationId),
+    isChangelogEnabled(hostContext.hostOrganizationId),
     hasDesktopBackgroundExecutor(session.user.id),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
@@ -100,7 +156,8 @@ export default async function WorkspaceLayout({
       <FeatureFlagsProvider
         flags={{
           dashboards: dashboardsEnabled,
-          'table-row-ttl': tableRowTtlEnabled,
+          'workflow-tests': workflowTestsEnabled,
+          changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
         }}
@@ -117,7 +174,7 @@ export default async function WorkspaceLayout({
             <CustomBlocksLoader />
             <BlockVisibilityLoader />
             <GlobalCommandsProvider>
-              <div className='flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
+              <WorkspaceViewport>
                 <ImpersonationBanner />
                 <SessionExpired />
                 <WorkspacePermissionsProvider>
@@ -139,7 +196,7 @@ export default async function WorkspaceLayout({
                     </WorkspaceChrome>
                   </SettingsNavigationProvider>
                 </WorkspacePermissionsProvider>
-              </div>
+              </WorkspaceViewport>
             </GlobalCommandsProvider>
           </BrandingProvider>
         </WorkspaceHostProvider>

@@ -2,12 +2,21 @@
 
 import type React from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Badge, Button, cn, Tooltip } from '@sim/emcn'
+import {
+  Badge,
+  Button,
+  cn,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  Tooltip,
+  useScrollEdges,
+} from '@sim/emcn'
 import { ArrowUp, Paperclip, StopFilled, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { PublicChatActionButton } from '@/app/(interfaces)/chat/components/input/public-chat-action-button'
+import { isTouchMobileViewport } from '@/hooks/use-is-mobile'
 
 const logger = createLogger('ChatInput')
 
@@ -29,11 +38,13 @@ export const ChatInput: React.FC<{
 }> = ({ onSubmit, isStreaming = false, onStopStreaming }) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const attachmentsRef = useRef<HTMLDivElement>(null)
   const [inputValue, setInputValue] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [uploadErrors, setUploadErrors] = useState<string[]>([])
   const [dragCounter, setDragCounter] = useState(0)
   const isDragOver = dragCounter > 0
+  const attachmentEdges = useScrollEdges(attachmentsRef, { enabled: attachedFiles.length > 0 })
 
   useLayoutEffect(() => {
     const el = textareaRef.current
@@ -49,10 +60,8 @@ export const ChatInput: React.FC<{
     const maxSize = 10 * 1024 * 1024
     const maxFiles = 15
 
-    for (let i = 0; i < selectedFiles.length; i++) {
+    for (const file of Array.from(selectedFiles)) {
       if (attachedFiles.length + newFiles.length >= maxFiles) break
-
-      const file = selectedFiles[i]
 
       if (file.size > maxSize) {
         setUploadErrors((prev) => [...prev, `${file.name} is too large (max 10MB)`])
@@ -111,7 +120,12 @@ export const ChatInput: React.FC<{
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      !e.nativeEvent.isComposing &&
+      !isTouchMobileViewport()
+    ) {
       e.preventDefault()
       handleSubmit()
     }
@@ -125,7 +139,7 @@ export const ChatInput: React.FC<{
   const canSubmit = (inputValue.trim().length > 0 || attachedFiles.length > 0) && !isStreaming
 
   return (
-    <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-linear-to-t from-[var(--bg)] to-transparent px-4 pb-4 md:px-0 md:pb-4'>
+    <div className='relative flex w-full shrink-0 items-center justify-center bg-linear-to-t from-[var(--bg)] to-transparent px-3 pb-[max(12px,env(safe-area-inset-bottom))] md:fixed md:right-0 md:bottom-0 md:left-0 md:px-0 md:pb-4'>
       <div className='w-full max-w-3xl md:max-w-[748px]'>
         {uploadErrors.length > 0 && (
           <div className='mb-3 flex flex-col gap-2'>
@@ -168,43 +182,54 @@ export const ChatInput: React.FC<{
           }}
         >
           {attachedFiles.length > 0 && (
-            <div className='mb-1.5 flex flex-wrap gap-1.5'>
-              {attachedFiles.map((file) => (
-                <Tooltip.Root key={file.id}>
-                  <Tooltip.Trigger asChild>
-                    <div className='group relative size-[56px] shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-3)]'>
-                      {file.dataUrl ? (
-                        <img
-                          src={file.dataUrl}
-                          alt={file.name}
-                          className='size-full object-cover'
-                        />
-                      ) : (
-                        <div className='flex size-full flex-col items-center justify-center gap-0.5 text-[var(--text-muted)]'>
-                          <Paperclip className='size-[18px]' />
-                          <span className='max-w-[48px] truncate px-[2px] text-[9px]'>
-                            {file.name.split('.').pop()}
+            <div
+              ref={attachmentsRef}
+              className={cn(
+                'mb-1.5 max-md:max-h-24 max-md:overflow-y-auto max-md:overscroll-contain',
+                scrollFadeClass
+              )}
+              {...scrollFadeAttributes(attachmentEdges)}
+            >
+              <div className='flex flex-wrap gap-1.5'>
+                {attachedFiles.map((file) => (
+                  <Tooltip.Root key={file.id}>
+                    <Tooltip.Trigger asChild>
+                      <div className='group relative size-[56px] shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-3)]'>
+                        {file.dataUrl ? (
+                          <img
+                            src={file.dataUrl}
+                            alt={file.name}
+                            className='size-full object-cover'
+                          />
+                        ) : (
+                          <div className='flex size-full flex-col items-center justify-center gap-0.5 text-[var(--text-muted)]'>
+                            <Paperclip className='size-[18px]' />
+                            <span className='max-w-[48px] truncate px-[2px] text-[9px]'>
+                              {file.name.split('.').pop()}
+                            </span>
+                          </div>
+                        )}
+                        <Button
+                          variant='ghost'
+                          aria-label={`Remove ${file.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemoveFile(file.id)
+                          }}
+                          className='absolute top-[2px] right-[2px] size-11 items-start justify-end p-0 focus-visible:opacity-100 md:pointer-fine:size-[16px] md:pointer-fine:opacity-0 md:pointer-fine:group-hover:opacity-100'
+                        >
+                          <span className='flex size-7 items-center justify-center rounded-full bg-black/60 text-white md:pointer-fine:size-4'>
+                            <X className='size-[10px]' />
                           </span>
-                        </div>
-                      )}
-                      <Button
-                        variant='ghost'
-                        aria-label={`Remove ${file.name}`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleRemoveFile(file.id)
-                        }}
-                        className='absolute top-[2px] right-[2px] size-[16px] rounded-full bg-black/60 p-0 text-white opacity-0 hover-hover:text-white group-hover:opacity-100'
-                      >
-                        <X className='size-[10px]' />
-                      </Button>
-                    </div>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>
-                    <p className='max-w-[200px] truncate'>{file.name}</p>
-                  </Tooltip.Content>
-                </Tooltip.Root>
-              ))}
+                        </Button>
+                      </div>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>
+                      <p className='max-w-[200px] truncate'>{file.name}</p>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                ))}
+              </div>
             </div>
           )}
 
@@ -215,7 +240,8 @@ export const ChatInput: React.FC<{
             onKeyDown={handleKeyDown}
             placeholder={isDragOver ? 'Drop files here...' : 'Enter a message...'}
             rows={1}
-            className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[15px] text-[var(--text-primary)] leading-[24px] caret-[var(--text-primary)] outline-hidden [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
+            aria-label='Message'
+            className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[var(--text-primary)] text-md leading-[24px] caret-[var(--text-primary)] outline-hidden [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))] md:text-base [&::-webkit-scrollbar]:hidden'
           />
 
           <div className='flex items-center justify-between'>

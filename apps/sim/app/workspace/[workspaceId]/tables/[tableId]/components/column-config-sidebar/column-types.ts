@@ -18,10 +18,6 @@ export interface ColumnTypeOption {
   disabledReason?: string
 }
 
-interface ColumnTypeAvailability {
-  tableRowTtlEnabled: boolean
-}
-
 /**
  * Real column types come from the registry — adding one there makes it appear
  * in every picker automatically. `workflow` is appended because it is a UI
@@ -51,13 +47,9 @@ function columnTypeLimitMessage(label: string, maxPerTable: number): string {
 /** Picker entries with unavailable cardinality-limited types marked as disabled. */
 export function columnTypeOptionsForTable(
   columns: readonly ColumnDefinition[],
-  currentColumn: ColumnDefinition | null | undefined,
-  availability: ColumnTypeAvailability
+  currentColumn: ColumnDefinition | null | undefined
 ): ColumnTypeOption[] {
-  return COLUMN_TYPE_OPTIONS.filter(
-    (option) =>
-      option.type !== 'ttl' || availability.tableRowTtlEnabled || currentColumn?.type === 'ttl'
-  ).map((option) => {
+  return COLUMN_TYPE_OPTIONS.map((option) => {
     if (option.type === 'workflow') return option
     if (currentColumn?.type === option.type) return option
     if (option.maxPerTable === undefined) return option

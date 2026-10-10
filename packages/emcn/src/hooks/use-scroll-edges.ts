@@ -1,3 +1,5 @@
+'use client'
+
 import { type RefObject, useEffect, useState } from 'react'
 import type { ScrollEdges, ScrollEdgesX } from '../components/scroll-fade/scroll-fade'
 

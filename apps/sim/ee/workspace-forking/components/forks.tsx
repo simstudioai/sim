@@ -305,7 +305,7 @@ export function Forks() {
         >
           {lineage.isError ? (
             <div className='flex h-full flex-col items-center justify-center gap-2'>
-              <p className='text-[var(--text-error)] text-sm leading-tight'>
+              <p className='text-[var(--text-muted)] text-sm leading-tight'>
                 {getErrorMessage(lineage.error, 'Failed to load forks')}
               </p>
             </div>

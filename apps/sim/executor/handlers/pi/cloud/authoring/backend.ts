@@ -57,6 +57,7 @@ import {
   raceAbort,
   resolvePiTimeoutMs,
   scrubGitSecrets,
+  toolResultError,
 } from '@/executor/handlers/pi/cloud/shared'
 import type {
   PiBackendRun,
@@ -185,7 +186,7 @@ async function openPullRequest(
   )
 
   if (!result.success) {
-    throw new Error(`PR creation failed for branch ${branch}: ${result.error ?? 'unknown error'}`)
+    throw toolResultError(`PR creation failed for branch ${branch}`, result)
   }
 
   if (!isRecordLike(result.output)) {
@@ -221,9 +222,7 @@ async function repositoryDefaultBranch(
     { signal }
   )
   if (!result.success) {
-    throw new Error(
-      `Failed to determine the repository default branch: ${result.error ?? 'unknown error'}`
-    )
+    throw toolResultError('Failed to determine the repository default branch', result)
   }
   if (!isRecordLike(result.output)) {
     throw new Error('GitHub repository response must be an object')
@@ -264,9 +263,7 @@ async function updatePullRequest(
       { signal }
     )
     if (!result.success) {
-      throw new Error(
-        `PR update failed for branch ${params.targetBranch}: ${result.error ?? 'unknown error'}`
-      )
+      throw toolResultError(`PR update failed for branch ${params.targetBranch}`, result)
     }
   }
 

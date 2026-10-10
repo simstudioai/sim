@@ -66,4 +66,68 @@ describe('package boundary command', () => {
       rmSync(fixture, { recursive: true, force: true })
     }
   }, 30_000)
+
+  it('keeps application code surface-neutral while allowing shared contract vocabulary', () => {
+    const fixture = mkdtempSync(path.join(ROOT, 'node_modules/.boundary-audit-'))
+    try {
+      mkdirSync(path.join(fixture, 'scripts'))
+      mkdirSync(path.join(fixture, 'packages'))
+      mkdirSync(path.join(fixture, 'apps/sim/lib/widgets/application'), { recursive: true })
+      copyFileSync(
+        path.join(ROOT, 'scripts/check-monorepo-boundaries.ts'),
+        path.join(fixture, 'scripts/check-monorepo-boundaries.ts')
+      )
+      const useCase = 'apps/sim/lib/widgets/application/use-case.ts'
+      const cases = [
+        ["import { NextResponse } from 'next/server'", useCase, false],
+        ["import type { NextRequest } from 'next/server'", useCase, false],
+        ["import { GET } from '@/app/api/widgets/route'", useCase, false],
+        ["import { listWidgetsContract } from '@/lib/api/contracts/widgets'", useCase, false],
+        ["export { listWidgetsContract } from '@/lib/api/contracts/widgets'", useCase, false],
+        ["import * as contracts from '@/lib/api/contracts/widgets'", useCase, false],
+        ["import { presentWidget } from '@/lib/api/server/widget-presenters'", useCase, false],
+        ["import { presentWidget } from '@/lib/api/server/widget-presenters.ts'", useCase, false],
+        ["import { run } from '@/lib/mothership/tools/handlers/run-code'", useCase, false],
+        ["import {} from '@/lib/mothership/tools/handlers/run-code'", useCase, false],
+        ["export {} from '@/lib/api/server/widget-presenters'", useCase, false],
+        ["const tool = import('@/lib/mothership/tools/server/widgets')", useCase, false],
+        ["import { listWidgetsContract } from '../../api/contracts/widgets'", useCase, false],
+        ["import { GET } from '../../../app/api/widgets/route'", useCase, false],
+        ["import type { ListWidgetsContract } from '../../api/contracts/widgets'", useCase, true],
+        ["import type { ListWidgetsContract } from '@/lib/api/contracts/widgets'", useCase, true],
+        ["import { type listWidgetsContract } from '@/lib/api/contracts/widgets'", useCase, true],
+        [
+          "import { widgetBodySchema, MAX_WIDGETS } from '@/lib/api/contracts/widgets'",
+          useCase,
+          true,
+        ],
+        [
+          "import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'",
+          useCase,
+          true,
+        ],
+        [
+          "import { NextResponse } from 'next/server'",
+          'apps/sim/lib/widgets/application/use-case.test.ts',
+          true,
+        ],
+        ["import { NextResponse } from 'next/server'", 'apps/sim/lib/widgets/routes.ts', true],
+      ] as const
+
+      for (const [source, file, allowed] of cases) {
+        rmSync(path.join(fixture, 'apps/sim/lib/widgets'), { recursive: true, force: true })
+        mkdirSync(path.join(fixture, 'apps/sim/lib/widgets/application'), { recursive: true })
+        writeFileSync(path.join(fixture, file), `${source}\n`)
+        const result = spawnSync(
+          'bun',
+          [path.join(fixture, 'scripts/check-monorepo-boundaries.ts')],
+          { cwd: fixture, encoding: 'utf8' }
+        )
+        expect.soft(result.status, `${file}: ${source}\n${result.stderr}`).toBe(allowed ? 0 : 1)
+        if (!allowed) expect.soft(result.stderr).toContain(`${file}:1`)
+      }
+    } finally {
+      rmSync(fixture, { recursive: true, force: true })
+    }
+  }, 30_000)
 })

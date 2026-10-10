@@ -40,10 +40,6 @@ vi.mock('@/tools/utils', () => ({
 }))
 
 // Utils
-vi.mock('@/lib/core/config/environment', () => ({
-  isHosted: false,
-}))
-
 vi.mock('@/lib/core/config/api-keys', () => ({
   getRotatingApiKey: vi.fn(),
 }))
@@ -67,10 +63,6 @@ vi.mock('@/providers/utils', async (importOriginal) => {
 })
 
 // Executor utilities
-vi.mock('@/executor/path')
-vi.mock('@/executor/resolver', () => ({
-  InputResolver: vi.fn(),
-}))
 vi.mock('@/executor/utils/http', () => ({
   buildAuthHeaders: vi.fn().mockResolvedValue({ 'Content-Type': 'application/json' }),
   buildAPIUrl: vi.fn((path: string) => new URL(path, 'http://localhost:3000')),

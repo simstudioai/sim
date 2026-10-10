@@ -13,9 +13,9 @@ import { getOrganizationSeatAnalytics } from '@/lib/billing/validation/seat-mana
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import type { AdminSeatAnalytics } from '@/app/api/v1/admin/types'
@@ -39,7 +39,7 @@ export const GET = withRouteHandler(
       const analytics = await getOrganizationSeatAnalytics(organizationId)
 
       if (!analytics) {
-        return notFoundResponse('Organization or subscription')
+        return adminNotFoundResponse('Organization or subscription')
       }
 
       const data: AdminSeatAnalytics = {
@@ -58,7 +58,7 @@ export const GET = withRouteHandler(
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to get organization seats', { error, organizationId })
-      return internalErrorResponse('Failed to get organization seats')
+      return adminInternalErrorResponse('Failed to get organization seats')
     }
   })
 )

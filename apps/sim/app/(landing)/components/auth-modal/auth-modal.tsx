@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation'
 import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { type AuthProviderStatusResponse, getAuthProvidersContract } from '@/lib/api/contracts/auth'
-import { client } from '@/lib/auth/auth-client'
+import { type SocialSignInProvider, startSocialSignIn } from '@/lib/auth/social-sign-in'
 import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
@@ -79,7 +79,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<AuthView>(defaultView)
   const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
-  const [socialLoading, setSocialLoading] = useState<'github' | 'google' | 'microsoft' | null>(null)
+  const [socialLoading, setSocialLoading] = useState<SocialSignInProvider | null>(null)
   const brand = getBrandConfig()
 
   useEffect(() => {
@@ -141,10 +141,15 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
     })
   }
 
-  async function handleSocialLogin(provider: 'github' | 'google' | 'microsoft') {
+  async function handleSocialLogin(provider: SocialSignInProvider) {
     setSocialLoading(provider)
     try {
-      await client.signIn.social({ provider, callbackURL: APP_ENTRY_PATH })
+      await startSocialSignIn({
+        provider,
+        view: effectiveView,
+        surface: 'auth_modal',
+        callbackURL: APP_ENTRY_PATH,
+      })
     } catch (error) {
       logger.warn('Social sign-in did not complete', { provider, error })
     } finally {

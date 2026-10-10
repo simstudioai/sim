@@ -25,8 +25,8 @@
     "lint:check": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "bun run scripts/build-native.ts && vitest run",
+    "test:watch": "bun run scripts/build-native.ts && vitest",
     "test:e2e": "playwright test"
   },
   "dependencies": {

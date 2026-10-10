@@ -5,9 +5,9 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
   adminInvalidJsonResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -28,7 +28,7 @@ export const POST = withRouteHandler(
         await previewDashboardEnterpriseReportingPeriod(parsed.data.params.id, parsed.data.body)
       )
     } catch (error) {
-      return badRequestResponse(
+      return adminBadRequestResponse(
         getErrorMessage(error, 'Failed to preview Enterprise reporting period')
       )
     }

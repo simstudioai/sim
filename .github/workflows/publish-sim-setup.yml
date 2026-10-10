@@ -46,7 +46,7 @@ jobs:
         run: bun run bump:npm-packages sim-setup
 
       - name: Check generated deployment config
-        run: bun run deployment-config:check
+        run: bun run check:deployment-config
 
       - name: Run tests
         working-directory: packages/sim-setup

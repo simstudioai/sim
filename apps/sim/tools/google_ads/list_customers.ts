@@ -1,4 +1,5 @@
 import type {
+  GoogleAdsApiResponse,
   GoogleAdsListCustomersParams,
   GoogleAdsListCustomersResponse,
 } from '@/tools/google_ads/types'
@@ -10,7 +11,8 @@ export const googleAdsListCustomersTool: ToolConfig<
 > = {
   id: 'google_ads_list_customers',
   name: 'List Google Ads Customers',
-  description: 'List all Google Ads customer accounts accessible by the authenticated user',
+  description:
+    'List Google Ads accounts directly accessible by the authenticated user; query customer_client for manager subaccounts',
   version: '1.0.0',
 
   oauth: {
@@ -25,12 +27,6 @@ export const googleAdsListCustomersTool: ToolConfig<
       visibility: 'hidden',
       description: 'OAuth access token for the Google Ads API',
     },
-    developerToken: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Google Ads API developer token',
-    },
   },
 
   request: {
@@ -38,12 +34,11 @@ export const googleAdsListCustomersTool: ToolConfig<
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      'developer-token': params.developerToken,
     }),
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: GoogleAdsApiResponse = await response.json()
 
     if (!response.ok) {
       const errorMessage =
@@ -70,7 +65,7 @@ export const googleAdsListCustomersTool: ToolConfig<
   outputs: {
     customerIds: {
       type: 'array',
-      description: 'List of accessible customer IDs',
+      description: 'Customer IDs directly accessible by the user',
       items: {
         type: 'string',
         description: 'Google Ads customer ID (numeric, no dashes)',

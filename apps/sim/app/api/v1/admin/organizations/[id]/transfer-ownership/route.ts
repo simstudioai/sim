@@ -9,10 +9,10 @@ import { transferOrganizationOwnership } from '@/lib/billing/organizations/membe
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -34,7 +34,7 @@ export const POST = withRouteHandler(
         { params: routeParams },
         {
           validationErrorResponse: adminValidationErrorResponse,
-          invalidJsonResponse: () => badRequestResponse('Invalid request body'),
+          invalidJsonResponse: () => adminBadRequestResponse('Invalid request body'),
         }
       )
       if (!parsed.success) return parsed.response
@@ -48,7 +48,7 @@ export const POST = withRouteHandler(
         .limit(1)
 
       if (!orgRow) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       let currentOwnerUserId: string
@@ -62,7 +62,7 @@ export const POST = withRouteHandler(
           .limit(1)
 
         if (!ownerMembership) {
-          return badRequestResponse(
+          return adminBadRequestResponse(
             'Organization has no owner; provide currentOwnerUserId explicitly to seed ownership'
           )
         }
@@ -71,7 +71,7 @@ export const POST = withRouteHandler(
       }
 
       if (currentOwnerUserId === newOwnerUserId) {
-        return badRequestResponse('New owner must differ from current owner')
+        return adminBadRequestResponse('New owner must differ from current owner')
       }
 
       const [newOwnerMember] = await db
@@ -87,7 +87,7 @@ export const POST = withRouteHandler(
         .limit(1)
 
       if (!newOwnerMember) {
-        return badRequestResponse('Target user is not a member of this organization')
+        return adminBadRequestResponse('Target user is not a member of this organization')
       }
 
       const result = await transferOrganizationOwnership({
@@ -97,7 +97,7 @@ export const POST = withRouteHandler(
       })
 
       if (!result.success) {
-        return internalErrorResponse(result.error ?? 'Failed to transfer ownership')
+        return adminInternalErrorResponse(result.error ?? 'Failed to transfer ownership')
       }
 
       logger.info(`Admin API: Transferred ownership of organization ${organizationId}`, {
@@ -139,7 +139,7 @@ export const POST = withRouteHandler(
         organizationId,
         error,
       })
-      return internalErrorResponse('Failed to transfer ownership')
+      return adminInternalErrorResponse('Failed to transfer ownership')
     }
   })
 )

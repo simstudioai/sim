@@ -19,24 +19,26 @@ export const vantaListMonitoredComputersTool: InternalToolConfig<
     'List the monitored computers in a Vanta account with screenlock, disk encryption, password manager, and antivirus check outcomes',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
+
   params: {
-    clientId: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client ID',
+      visibility: 'hidden',
+      description: 'Access token supplied by the saved Vanta credential',
     },
-    clientSecret: {
+    apiDomain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client secret',
-    },
-    region: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Vanta API region: "us" (api.vanta.com, default) or "gov" (api.vanta-gov.com)',
+      visibility: 'hidden',
+      description: 'API origin supplied by the saved Vanta credential',
     },
     complianceStatusFilterMatchesAny: {
       type: 'string',
@@ -63,9 +65,8 @@ export const vantaListMonitoredComputersTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       operation: 'vanta_list_monitored_computers',
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
+      accessToken: params.accessToken,
+      apiDomain: params.apiDomain,
       complianceStatusFilterMatchesAny: params.complianceStatusFilterMatchesAny,
       pageSize: params.pageSize,
       pageCursor: params.pageCursor,
@@ -86,7 +87,7 @@ export const vantaListMonitoredComputersTool: InternalToolConfig<
       type: 'json',
       description:
         'Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page',
-      optional: true,
+      nullable: true,
       properties: VANTA_PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },

@@ -34,6 +34,7 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
+import { readAttributionProperties } from '@/lib/analytics/attribution'
 import { FREEBUFF_CLICK_ID_COOKIE } from '@/lib/analytics/freebuff'
 import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
@@ -147,6 +148,7 @@ import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { clearRecordedRevocation } from '@/lib/oauth/credential-service'
 import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
@@ -357,10 +359,17 @@ export const auth = betterAuth({
           try {
             const client = getPostHogClient()
             if (client) {
+              // Lazy so the ~90 KB domain list parses only when a sign-up is tracked.
+              const { isFreeEmailDomain } = await import('@/lib/messaging/email/free-email')
               client.identify({
                 distinctId: user.id,
                 properties: {
-                  ...(user.email ? { email: user.email } : {}),
+                  ...(user.email
+                    ? {
+                        email: user.email,
+                        email_type: isFreeEmailDomain(user.email) ? 'personal' : 'work',
+                      }
+                    : {}),
                   ...(user.name ? { name: user.name } : {}),
                 },
               })
@@ -626,14 +635,19 @@ export const auth = betterAuth({
                     ? 'sso'
                     : 'oauth'
 
+              // Consent-gated cookies survive the IdP callback (OAuth GET, SAML cross-site
+              // POST), so this reads the landing touch, not the provider's redirect.
+              const attribution = readAttributionProperties((name) => context?.getCookie(name))
+
               captureServerEvent(
                 account.userId,
                 'user_created',
                 {
                   auth_method: authMethod,
                   ...(providerId !== 'credential' ? { provider: providerId } : {}),
+                  ...attribution,
                 },
-                { setOnce: { signup_at: new Date().toISOString() } }
+                { setOnce: { signup_at: new Date().toISOString(), ...attribution } }
               )
             }
           } catch (error) {
@@ -686,6 +700,20 @@ export const auth = betterAuth({
           } catch {
             // Telemetry should not fail the operation
           }
+        },
+      },
+      update: {
+        /**
+         * Relinking an identity that already has a row updates it in place instead of creating
+         * one, and keeps the old refresh token when the provider issues none, so the fresh
+         * authorization has to clear the failures recorded against the old grant explicitly.
+         */
+        after: async (account, context) => {
+          const path = context?.path
+          if (!path?.startsWith('/oauth2/callback/') && !path?.startsWith('/callback/')) return
+          // Fails the callback only if this statement fails, so a reconnect never reports
+          // success while the old revocation still blocks the credential.
+          await clearRecordedRevocation(account.id)
         },
       },
     },

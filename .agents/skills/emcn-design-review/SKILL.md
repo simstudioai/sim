@@ -7,7 +7,7 @@ argument-hint: "[scope] [fix=true|false]"
 # EMCN Design Review
 
 Arguments:
-- scope: what to review (default: your current changes). Examples: "diff to main", "PR #123", "src/components/", "whole codebase"
+- scope: what to review (default: your current changes). Examples: "diff to staging", "PR #123", "src/components/", "whole codebase"
 - fix: whether to apply fixes (default: true). Set to false to only propose changes.
 
 User arguments: $ARGUMENTS
@@ -44,7 +44,7 @@ Use CSS variable pattern (`text-[var(--text-body)]`), never Tailwind semantics (
 
 ## Buttons and chips
 
-Header/action chrome is `Chip`/`ChipLink` (variants `primary`, `destructive`, `outline`, `border`, `border-shadow`, bare). Selection and toggles use the `active` prop, never a variant. A single-resource Delete is a plain chip behind `ChipConfirmModal`; `destructive` is only for at-scale actions (`.claude/rules/sim-settings-pages.md` "Deleting a resource"). `Button` is only for icon-only toolbar controls (`ghost`/`quiet`, `size='icon'`).
+Header/action chrome is `Chip`/`ChipLink` (variants `primary`, `destructive`, `outline`, `border`, `border-shadow`; omit `variant` for the bare chip, and `filled` is reserved for chip fields and triggers). Selection and toggles use the `active` prop, never a variant. A single-resource Delete is a plain chip behind `ChipConfirmModal`; `destructive` is only for at-scale actions (`.claude/rules/sim-settings-pages.md` "Deleting a resource"). `Button` is only for icon-only toolbar controls (`ghost`/`quiet`, `size='icon'`).
 
 ## Delete/Remove Confirmations
 
@@ -61,6 +61,10 @@ Use `ChipConfirmModal` (title "Delete/Remove {ItemType}", `confirm={{ label, onC
 ## Icons
 
 Default: `size-[14px]`. Color: `text-[var(--text-icon)]`. Scale: 14px > 16px > 12px > 20px. Use the `size-*` shorthand — flag `h-[Npx] w-[Npx]` and `h-N w-N` pairs as refactor targets.
+
+## Mobile
+
+Check at 320px and 390px with touch, then desktop and fullscreen. Use `Chip`/`ChipLink`'s `mobileIconOnly` for familiar mobile toolbar actions, preserving accessible names; keep labels for ambiguous choices. Keep navigation, primary actions, and dismissal reachable without hover or dragging; aim for 44px touch targets with compact visible icons/button faces and 16px editable text. Match behavior to the actual container or viewport breakpoint. Contain horizontal scrolling to intentional tables/code, fit overlays to the dynamic viewport, and keep the composer/actions reachable with the keyboard open. Reuse EMCN tokens and brief motion with reduced-motion support; preserve desktop geometry.
 
 ## Anti-patterns to flag
 

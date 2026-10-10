@@ -14,7 +14,6 @@ const { JWTCtor } = vi.hoisted(() => {
 vi.mock('google-auth-library', () => ({ JWT: JWTCtor }))
 
 const fetchMock = vi.fn(async () => new Response(null, { status: 200 }))
-vi.stubGlobal('fetch', fetchMock)
 
 import { gcsDestination } from '@/lib/data-drains/destinations/gcs'
 

@@ -36,6 +36,7 @@ export function profileFrom(command: Command, extra: ProfileOverrides = {}): Res
   })
 }
 
+/** The raw client behind a command. Only `connect` calls it: commands reach the API declared. */
 export function clientFrom(command: Command): { client: SimClient; profile: ResolvedProfile } {
   const profile = profileFrom(command)
   return { client: new SimClient(profile, { refreshOAuth: refreshStoredOAuth }), profile }

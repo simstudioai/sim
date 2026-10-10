@@ -33,7 +33,7 @@ Never put expand and contract in the same PR. If this PR both removes the code t
 | Drop a column/table | stop all reads/writes in code; ship it | `DROP` (annotate) |
 | Change a column type | add a new column of the new type; dual-write | backfill, swap reads, drop old |
 | Add FK / CHECK | `ADD CONSTRAINT ... NOT VALID` | `VALIDATE CONSTRAINT` separately |
-| Index an existing table | `COMMIT;` breakpoint → `SET lock_timeout = 0` → `CREATE INDEX CONCURRENTLY IF NOT EXISTS` (see `packages/db/scripts/migrate.ts`) | — |
+| Index an existing table | `COMMIT;` breakpoint → `SET lock_timeout = 0` → `CREATE INDEX CONCURRENTLY IF NOT EXISTS` → `SET lock_timeout = '5s'` (see `packages/db/scripts/migrate.ts`) | — |
 | Drop an index | `COMMIT;` breakpoint → `DROP INDEX CONCURRENTLY IF EXISTS` — plain `DROP INDEX` takes ACCESS EXCLUSIVE on the table | — |
 | Backfill data | batched + idempotent `UPDATE` (keyset/`WHERE`, bounded) | — |
 

@@ -20,7 +20,11 @@ With the Ramp block, you can:
 - **Prepare finance reviews**: Read bills and reimbursements with date, status, and employee filters.
 - **Document expenses**: Read and add memos for transaction records.
 
-Connect a Ramp account through OAuth. Self-hosted deployments require `RAMP_CLIENT_ID` and `RAMP_CLIENT_SECRET` from a Ramp developer app with Authorization Code and Refresh Token grants, plus a matching HTTPS callback at `/api/auth/oauth2/callback/ramp`. Ramp requires review before a public app can connect production businesses other than its own.
+Save your Ramp developer app's client ID and client secret as a credential, then select it in the Ramp block. Use a production app owned by your business with the **Client Credentials** grant enabled. This connection accesses your own business's Ramp data; sandbox credentials are not supported.
+
+Enable these scopes on your app: `business:read`, `users:read`, `transactions:read`, `cards:read`, `vendors:read`, `bills:read`, `reimbursements:read`, `memos:read`, and `memos:write`. Sim requests these scopes when it obtains an access token and automatically obtains a new token when needed. You do not need a redirect URI or a Sim-owned OAuth application. See [Ramp's authorization guide](https://docs.ramp.com/developer-api/v1/authorization) for app setup and permissions.
+
+The OAuth deployment settings below apply to the optional browser consent flow. They are not required when you save your own app's client credentials.
 
 List operations return one page at a time, with 2–100 results per page. Pass `nextCursor` as the pagination cursor to continue. Money outputs preserve Ramp's currency and minor-unit fields; avoid combining different currencies.
 

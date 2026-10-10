@@ -14,6 +14,15 @@ export const ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID = 'atlassian-service-account'
  */
 export const GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID = 'google-service-account' as const
 
+/** Stable identifier for an OCI API-key user-principal credential. */
+export const OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID = 'oci-api-key-service-account' as const
+
+/** Discriminator stored inside the encrypted OCI API signing-key secret blob. */
+export const OCI_API_KEY_SERVICE_ACCOUNT_SECRET_TYPE = 'oci_api_signing_key_v1' as const
+
+/** Registered credential-family owner for OCI API-key credentials. */
+export const OCI_SERVICE_ID = 'oci' as const satisfies OAuthService
+
 /**
  * Discriminator stored inside the encrypted Atlassian service account secret blob.
  */
@@ -31,7 +40,12 @@ export const SLACK_CUSTOM_BOT_PROVIDER_ID = 'slack-custom-bot' as const
 /** Discriminator stored inside the encrypted Slack custom bot secret blob. */
 export const SLACK_CUSTOM_BOT_SECRET_TYPE = 'slack_custom_bot' as const
 
+export const ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID = 'oracledb-service-account' as const
+
 export type OAuthProvider =
+  | 'oracledb'
+  | 'oracle-epm'
+  | 'oracle-fusion'
   | 'github-repositories'
   | 'github-app-installation'
   | 'google'
@@ -84,6 +98,7 @@ export type OAuthProvider =
   | 'pipedrive'
   | 'quickbooks'
   | 'ramp'
+  | 'vanta'
   | 'hubspot'
   | 'harmonic'
   | 'coda'
@@ -100,6 +115,10 @@ export type OAuthProvider =
   | 'zoho-desk'
 
 export type OAuthService =
+  | 'oracledb'
+  | 'oracle-epm'
+  | 'oracle-fusion'
+  | 'oci'
   | 'github-repositories'
   | 'google'
   | 'google-email'
@@ -150,6 +169,7 @@ export type OAuthService =
   | 'pipedrive'
   | 'quickbooks'
   | 'ramp'
+  | 'vanta'
   | 'hubspot'
   | 'harmonic'
   | 'coda'

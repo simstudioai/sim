@@ -6,12 +6,16 @@ import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
   getProviderConfig,
   type PollingProviderHandler,
+  type PollOutcome,
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
+  PollAdmissionRefusedError,
   resolveOAuthCredential,
+  skipAdmissionRefusedPoll,
+  throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -110,7 +114,7 @@ export const outlookPollingHandler: PollingProviderHandler = {
   provider: 'outlook',
   label: 'Outlook',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
 
@@ -166,6 +170,9 @@ export const outlookPollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError) {
+        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+      }
       logger.error(`[${requestId}] Error processing Outlook webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
@@ -456,6 +463,7 @@ async function processOutlookEmails(
           )
 
           if (!result.success) {
+            throwIfAdmissionRefused(result)
             logger.error(
               `[${requestId}] Failed to process webhook for email ${email.id}:`,
               result.statusCode,
@@ -477,6 +485,7 @@ async function processOutlookEmails(
       )
       processedCount++
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       logger.error(`[${requestId}] Error processing email ${email.id}:`, error)
       failedCount++
     }

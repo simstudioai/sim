@@ -49,19 +49,27 @@ export function useAutoSizeTextarea({
    * Only width is compared: `autosize` writes the textarea's height, which
    * re-notifies this observer, so reacting to height would feed itself. The
    * first delivery is measured like any other — the width can change between
-   * the mount-time measure and `observe()`.
+   * the mount-time measure and `observe()`. Defer the height write to the next
+   * frame so it cannot resize an observed target during notification delivery.
    */
   useEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
     let lastWidth: number | null = null
+    let resizeFrame: number | null = null
     const observer = new ResizeObserver(([entry]) => {
       const width = entry.contentRect.width
       if (width === lastWidth) return
       lastWidth = width
-      autosize()
+      resizeFrame ??= requestAnimationFrame(() => {
+        resizeFrame = null
+        autosize()
+      })
     })
     observer.observe(textarea)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
+    }
   }, [autosize, textareaRef])
 }

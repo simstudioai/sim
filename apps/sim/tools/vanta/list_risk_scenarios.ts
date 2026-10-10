@@ -19,24 +19,26 @@ export const vantaListRiskScenariosTool: InternalToolConfig<
     'List the risk scenarios in a Vanta risk register with likelihood/impact scores, treatment decisions, and review status',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
+
   params: {
-    clientId: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client ID',
+      visibility: 'hidden',
+      description: 'Access token supplied by the saved Vanta credential',
     },
-    clientSecret: {
+    apiDomain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client secret',
-    },
-    region: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Vanta API region: "us" (api.vanta.com, default) or "gov" (api.vanta-gov.com)',
+      visibility: 'hidden',
+      description: 'API origin supplied by the saved Vanta credential',
     },
     searchString: {
       type: 'string',
@@ -126,9 +128,8 @@ export const vantaListRiskScenariosTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       operation: 'vanta_list_risk_scenarios',
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
+      accessToken: params.accessToken,
+      apiDomain: params.apiDomain,
       searchString: params.searchString,
       includeIgnored: params.includeIgnored,
       type: params.type,
@@ -159,7 +160,7 @@ export const vantaListRiskScenariosTool: InternalToolConfig<
       type: 'json',
       description:
         'Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page',
-      optional: true,
+      nullable: true,
       properties: VANTA_PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },

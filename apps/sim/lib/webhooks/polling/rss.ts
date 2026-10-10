@@ -9,11 +9,18 @@ import {
 import {
   getProviderConfig,
   type PollingProviderHandler,
+  type PollOutcome,
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
+  clearPollBackoff,
   markWebhookFailed,
   markWebhookSuccess,
+  PollAdmissionRefusedError,
+  PollFetchError,
+  readPollRetryAfterMs,
+  recordPollSourceFailure,
+  throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -90,9 +97,10 @@ export const rssPollingHandler: PollingProviderHandler = {
   provider: 'rss',
   label: 'RSS',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
+    const pollStartedAt = Date.now()
 
     try {
       const config = getProviderConfig<RssWebhookConfig>(webhookData.providerConfig)
@@ -120,7 +128,7 @@ export const rssPollingHandler: PollingProviderHandler = {
 
       logger.info(`[${requestId}] Found ${newItems.length} new items for webhook ${webhookId}`)
 
-      const { processedCount, failedCount } = await processRssItems(
+      const { processedCount, failedCount, admissionRejectedAt } = await processRssItems(
         newItems,
         feed,
         webhookData,
@@ -129,14 +137,21 @@ export const rssPollingHandler: PollingProviderHandler = {
         logger
       )
 
-      const newGuids = newItems
-        .map(
-          (item) =>
-            item.guid ||
-            item.link ||
-            (item.title && item.pubDate ? `${item.title}-${item.pubDate}` : '')
+      // Items from an admission refusal onward stay unseen so they deliver once it lifts.
+      const attemptedItems =
+        admissionRejectedAt === undefined ? newItems : newItems.slice(0, admissionRejectedAt)
+      const newGuids = attemptedItems.map(getRssItemGuid).filter((guid) => guid.length > 0)
+
+      if (admissionRejectedAt !== undefined) {
+        // Validators stay unchanged so the next fetch cannot answer 304 for the unseen items.
+        if (newGuids.length > 0) {
+          await updateRssState(webhookId, now.toISOString(), newGuids, config, logger)
+        }
+        logger.info(
+          `[${requestId}] Stopped polling webhook ${webhookId}: execution admission refused, ${newItems.length - attemptedItems.length} items left for a later poll`
         )
-        .filter((guid) => guid.length > 0)
+        return 'skipped'
+      }
 
       await updateRssState(
         webhookId,
@@ -162,11 +177,22 @@ export const rssPollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
-      logger.error(`[${requestId}] Error processing RSS webhook ${webhookId}:`, error)
-      await markWebhookFailed(webhookId, logger)
+      await recordPollSourceFailure(
+        webhookData,
+        pollStartedAt,
+        error,
+        `[${requestId}] Error polling RSS webhook ${webhookId}`,
+        logger
+      )
       return 'failure'
     }
   },
+}
+
+function getRssItemGuid(item: RssItem): string {
+  return (
+    item.guid || item.link || (item.title && item.pubDate ? `${item.title}-${item.pubDate}` : '')
+  )
 }
 
 async function updateRssState(
@@ -186,6 +212,7 @@ async function updateRssState(
     {
       lastCheckedTimestamp: timestamp,
       lastSeenGuids: allGuids,
+      ...clearPollBackoff(config),
       ...(etag !== undefined ? { etag } : {}),
       ...(lastModified !== undefined ? { lastModified } : {}),
     },
@@ -199,104 +226,97 @@ async function fetchNewRssItems(
   requestId: string,
   logger: Logger
 ): Promise<{ feed: RssFeed; items: RssItem[]; etag?: string; lastModified?: string }> {
-  try {
-    const urlValidation = await validateUrlWithDNS(config.feedUrl, 'feedUrl', 'requestTarget')
-    if (!urlValidation.isValid) {
-      logger.error(`[${requestId}] Invalid RSS feed URL: ${urlValidation.error}`)
-      throw new Error(`Invalid RSS feed URL: ${urlValidation.error}`)
+  const urlValidation = await validateUrlWithDNS(config.feedUrl, 'feedUrl', 'requestTarget')
+  if (!urlValidation.isValid) {
+    throw new Error(`Invalid RSS feed URL: ${urlValidation.error}`)
+  }
+
+  const headers: Record<string, string> = {
+    'User-Agent': 'Sim/1.0 RSS Poller',
+    Accept: 'application/rss+xml, application/xml, text/xml, */*',
+  }
+  if (config.etag) {
+    headers['If-None-Match'] = config.etag
+  }
+  if (config.lastModified) {
+    headers['If-Modified-Since'] = config.lastModified
+  }
+
+  const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP, {
+    profile: 'requestTarget',
+    headers,
+    timeout: 30000,
+    maxResponseBytes: MAX_RSS_FEED_BYTES,
+  })
+
+  if (response.status === 304) {
+    logger.info(`[${requestId}] RSS feed not modified (304) for ${config.feedUrl}`)
+    return {
+      feed: { items: [] } as RssFeed,
+      items: [],
+      etag: response.headers.get('etag') ?? config.etag,
+      lastModified: response.headers.get('last-modified') ?? config.lastModified,
+    }
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new PollFetchError(
+      `Failed to fetch RSS feed: ${response.status} ${response.statusText}`,
+      response.status,
+      response.status === 429 || response.status === 503
+        ? readPollRetryAfterMs(response.headers.get('retry-after'), body)
+        : null
+    )
+  }
+
+  const newEtag = response.headers.get('etag') ?? undefined
+  const newLastModified = response.headers.get('last-modified') ?? undefined
+
+  const xmlContent = await response.text()
+  const feed = await parser.parseString(xmlContent)
+
+  if (!feed.items || !feed.items.length) {
+    return { feed: feed as RssFeed, items: [], etag: newEtag, lastModified: newLastModified }
+  }
+
+  const lastSeenGuids = new Set(config.lastSeenGuids || [])
+
+  const newItems = feed.items.filter((item) => {
+    const itemGuid = getRssItemGuid(item)
+
+    if (itemGuid && lastSeenGuids.has(itemGuid)) {
+      return false
     }
 
-    const headers: Record<string, string> = {
-      'User-Agent': 'Sim/1.0 RSS Poller',
-      Accept: 'application/rss+xml, application/xml, text/xml, */*',
-    }
-    if (config.etag) {
-      headers['If-None-Match'] = config.etag
-    }
-    if (config.lastModified) {
-      headers['If-Modified-Since'] = config.lastModified
-    }
-
-    const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP, {
-      profile: 'requestTarget',
-      headers,
-      timeout: 30000,
-      maxResponseBytes: MAX_RSS_FEED_BYTES,
-    })
-
-    if (response.status === 304) {
-      logger.info(`[${requestId}] RSS feed not modified (304) for ${config.feedUrl}`)
-      return {
-        feed: { items: [] } as RssFeed,
-        items: [],
-        etag: response.headers.get('etag') ?? config.etag,
-        lastModified: response.headers.get('last-modified') ?? config.lastModified,
-      }
-    }
-
-    if (!response.ok) {
-      await response.text().catch(() => {})
-      throw new Error(`Failed to fetch RSS feed: ${response.status} ${response.statusText}`)
-    }
-
-    const newEtag = response.headers.get('etag') ?? undefined
-    const newLastModified = response.headers.get('last-modified') ?? undefined
-
-    const xmlContent = await response.text()
-    const feed = await parser.parseString(xmlContent)
-
-    if (!feed.items || !feed.items.length) {
-      return { feed: feed as RssFeed, items: [], etag: newEtag, lastModified: newLastModified }
-    }
-
-    const lastSeenGuids = new Set(config.lastSeenGuids || [])
-
-    const newItems = feed.items.filter((item) => {
-      const itemGuid =
-        item.guid ||
-        item.link ||
-        (item.title && item.pubDate ? `${item.title}-${item.pubDate}` : '')
-
-      if (itemGuid && lastSeenGuids.has(itemGuid)) {
+    // Cached feeds reveal items late; only the subscription boundary excludes history, never the last poll.
+    if (item.isoDate) {
+      const itemDate = new Date(item.isoDate)
+      if (itemDate <= subscriptionStartedAt) {
         return false
       }
-
-      /**
-       * A cached feed can reveal an item after its publication time. Only the fixed
-       * subscription boundary excludes history; the last poll time is not a delivery cursor.
-       */
-      if (item.isoDate) {
-        const itemDate = new Date(item.isoDate)
-        if (itemDate <= subscriptionStartedAt) {
-          return false
-        }
-      }
-
-      return true
-    })
-
-    newItems.sort((a, b) => {
-      const dateA = a.isoDate ? new Date(a.isoDate).getTime() : 0
-      const dateB = b.isoDate ? new Date(b.isoDate).getTime() : 0
-      return dateB - dateA
-    })
-
-    const limitedItems = newItems.slice(0, 25)
-
-    logger.info(
-      `[${requestId}] Found ${newItems.length} new items (processing ${limitedItems.length})`
-    )
-
-    return {
-      feed: feed as RssFeed,
-      items: limitedItems as RssItem[],
-      etag: newEtag,
-      lastModified: newLastModified,
     }
-  } catch (error) {
-    const errorMessage = getErrorMessage(error, 'Unknown error')
-    logger.error(`[${requestId}] Error fetching RSS feed:`, errorMessage)
-    throw error
+
+    return true
+  })
+
+  newItems.sort((a, b) => {
+    const dateA = a.isoDate ? new Date(a.isoDate).getTime() : 0
+    const dateB = b.isoDate ? new Date(b.isoDate).getTime() : 0
+    return dateB - dateA
+  })
+
+  const limitedItems = newItems.slice(0, 25)
+
+  logger.info(
+    `[${requestId}] Found ${newItems.length} new items (processing ${limitedItems.length})`
+  )
+
+  return {
+    feed: feed as RssFeed,
+    items: limitedItems as RssItem[],
+    etag: newEtag,
+    lastModified: newLastModified,
   }
 }
 
@@ -307,16 +327,13 @@ async function processRssItems(
   workflowData: PollWebhookContext['workflowData'],
   requestId: string,
   logger: Logger
-): Promise<{ processedCount: number; failedCount: number }> {
+): Promise<{ processedCount: number; failedCount: number; admissionRejectedAt?: number }> {
   let processedCount = 0
   let failedCount = 0
 
-  for (const item of items) {
+  for (const [index, item] of items.entries()) {
     try {
-      const itemGuid =
-        item.guid ||
-        item.link ||
-        (item.title && item.pubDate ? `${item.title}-${item.pubDate}` : '')
+      const itemGuid = getRssItemGuid(item)
 
       if (!itemGuid) {
         logger.warn(
@@ -362,6 +379,7 @@ async function processRssItems(
           )
 
           if (!result.success) {
+            throwIfAdmissionRefused(result)
             logger.error(
               `[${requestId}] Failed to process webhook for item ${itemGuid}:`,
               result.statusCode,
@@ -379,6 +397,9 @@ async function processRssItems(
       )
       processedCount++
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError) {
+        return { processedCount, failedCount, admissionRejectedAt: index }
+      }
       const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(`[${requestId}] Error processing item:`, errorMessage)
       failedCount++

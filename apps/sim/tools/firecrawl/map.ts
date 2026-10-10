@@ -69,6 +69,8 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
 
   hosting: firecrawlHosting(),
 
+  timeoutParamIsDeadline: true,
+
   request: {
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/map',

@@ -29,7 +29,7 @@ interface AvatarsProps {
 export function Avatars({ workflowId }: AvatarsProps) {
   const { currentWorkflowId, currentSocketId } = useSocket()
   const presenceUsers = usePresenceStore((state) => state.presenceUsers)
-  const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
+  const sidebarWidth = useSidebarStore((state) => state.renderedSidebarWidth)
 
   /**
    * Scale the max visible avatars between MIN_COUNT and MAX_COUNT as the sidebar

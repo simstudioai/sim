@@ -10,8 +10,8 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getAdminAuditActor } from '@/app/api/v1/admin/dashboard/actor'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -40,7 +40,7 @@ export const POST = withRouteHandler(
         )
       )
     } catch (error) {
-      return badRequestResponse(
+      return adminBadRequestResponse(
         error instanceof EnterpriseProvisioningError
           ? error.message
           : getErrorMessage(error, 'Failed to retry Enterprise workspace move')

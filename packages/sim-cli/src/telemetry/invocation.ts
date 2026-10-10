@@ -3,6 +3,7 @@ import { cliVersion } from '#sim-cli/version'
 import { profileFrom } from '../context'
 import { isCi } from '../environment'
 import { SimApiError } from '../http/client'
+import { commandPath } from '../runtime/derive'
 import { detectCodingAgent, NO_CODING_AGENT } from './coding-agent'
 import { telemetryStatus } from './policy'
 import { loadTelemetryState, nextSession, type TelemetryState, writeTelemetryState } from './state'
@@ -133,15 +134,6 @@ interface RecordedInvocation {
   state: TelemetryState
   /** Set when this run printed the first-run notice and is therefore not reported. */
   noticeShown: boolean
-}
-
-/** The command's own name and its ancestors', root excluded, in typing order. */
-function commandPath(command: Command): string[] {
-  const names: string[] = []
-  for (let current: Command | null = command; current?.parent; current = current.parent) {
-    names.unshift(current.name())
-  }
-  return names
 }
 
 /**

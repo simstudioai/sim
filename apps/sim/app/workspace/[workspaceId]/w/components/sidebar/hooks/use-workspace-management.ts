@@ -126,7 +126,6 @@ export function useWorkspaceManagement({
         return false
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   )
 
@@ -167,7 +166,6 @@ export function useWorkspaceManagement({
         throw error
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [switchWorkspace]
   )
 
@@ -194,7 +192,6 @@ export function useWorkspaceManagement({
         logger.error('Error deleting workspace:', error)
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [switchWorkspace]
   )
 
@@ -228,7 +225,6 @@ export function useWorkspaceManagement({
         throw error
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [switchWorkspace, sessionUserId]
   )
 

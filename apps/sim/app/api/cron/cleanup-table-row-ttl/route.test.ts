@@ -1,19 +1,13 @@
 import { createMockRequest } from '@sim/testing'
 import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
-import {
-  tableTtlAvailabilityMock,
-  tableTtlAvailabilityMockFns,
-} from '@sim/testing/mocks/table-ttl-availability.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/auth/internal', () => authInternalMock)
 vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
-vi.mock('@/lib/table/ttl-availability', () => tableTtlAvailabilityMock)
 
 import { GET } from '@/app/api/cron/cleanup-table-row-ttl/route'
 
-const { mockIsTableRowTtlEnabled } = tableTtlAvailabilityMockFns
 const { mockVerifyCronAuth } = authInternalMockFns
 
 const mockEnqueue = asyncJobsMockFns.mockJobQueue.enqueue
@@ -23,7 +17,6 @@ describe('table row TTL cleanup route', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-22T17:01:00Z'))
     mockVerifyCronAuth.mockReturnValue(null)
-    mockIsTableRowTtlEnabled.mockResolvedValue(true)
     mockEnqueue.mockResolvedValue('job-ttl-1')
   })
 

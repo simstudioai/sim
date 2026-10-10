@@ -12,7 +12,7 @@ vi.unmock('@/tools/metadata-outputs')
 
 /**
  * Guards the properties the generated artifacts are relied on for. The
- * `tool-metadata:check` script guards that they are in sync with the registry;
+ * `check:tool-metadata` script guards that they are in sync with the registry;
  * these guard that what they contain is usable.
  */
 describe('generated tool metadata', () => {
