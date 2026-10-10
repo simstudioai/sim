@@ -19,11 +19,12 @@
  *
  * 3. **Selector coercions** — a block's inline `tools.config.tool` may not
  *    assign a coerced value (`Number(...)`, `parseInt(...)`, `JSON.parse(...)`,
- *    unary `+`, …) back onto its params. `selectToolId` runs the selector during
- *    serialization on the object that becomes the serialized block's `params`,
- *    before `<Block.output>` references resolve, so `params.x = Number(params.x)`
- *    turns a reference into `NaN`. Coercions belong in `tools.config.params`,
- *    which the executor runs on resolved inputs.
+ *    `!!x`, unary `+`, a template literal, a comparison, …) back onto its params.
+ *    `selectToolId` runs the selector during serialization on the object that
+ *    becomes the serialized block's `params`, before `<Block.output>` references
+ *    resolve, so `params.x = Number(params.x)` turns a reference into `NaN`.
+ *    Coercions belong in `tools.config.params`, which the executor runs on
+ *    resolved inputs.
  *
  * Integration BlockMeta coverage and sunset `replacedBy` targets are checked too.
  *
@@ -256,12 +257,39 @@ const COERCION_CALLEES = new Set([
   'parseInt',
 ])
 
-/** Whether `expression` coerces anywhere in it, including under `??`, `||`, or a conditional. */
+const COERCING_UNARY = new Set([
+  ts.SyntaxKind.PlusToken,
+  ts.SyntaxKind.MinusToken,
+  ts.SyntaxKind.ExclamationToken,
+  ts.SyntaxKind.TildeToken,
+])
+
+const COMPARISON_OPERATORS = new Set([
+  ts.SyntaxKind.EqualsEqualsToken,
+  ts.SyntaxKind.EqualsEqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsEqualsToken,
+  ts.SyntaxKind.LessThanToken,
+  ts.SyntaxKind.LessThanEqualsToken,
+  ts.SyntaxKind.GreaterThanToken,
+  ts.SyntaxKind.GreaterThanEqualsToken,
+])
+
+/**
+ * Whether `expression` derives a new value anywhere in it — a coercing call, a unary `+ - ! ~`,
+ * a template literal with substitutions, or a comparison — including under `??`, `||`, or a
+ * conditional. Any of these turns an unresolved `<Block.output>` reference into a fixed value.
+ */
 function isCoercion(expression: ts.Node): boolean {
-  if (ts.isPrefixUnaryExpression(expression) && expression.operator === ts.SyntaxKind.PlusToken) {
+  if (ts.isPrefixUnaryExpression(expression) && COERCING_UNARY.has(expression.operator)) return true
+  if (ts.isCallExpression(expression) && COERCION_CALLEES.has(expression.expression.getText())) {
     return true
   }
-  if (ts.isCallExpression(expression) && COERCION_CALLEES.has(expression.expression.getText())) {
+  if (ts.isTemplateExpression(expression)) return true
+  if (
+    ts.isBinaryExpression(expression) &&
+    COMPARISON_OPERATORS.has(expression.operatorToken.kind)
+  ) {
     return true
   }
   return ts.forEachChild(expression, (child) => (isCoercion(child) ? true : undefined)) ?? false
