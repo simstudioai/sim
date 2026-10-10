@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { mothershipChangelogInputSchema } from '@/lib/api/contracts/mothership-changelog'
 import { mothershipDashboardsInputSchema } from '@/lib/api/contracts/mothership-dashboards'
 import { mothershipTestsInputSchema } from '@/lib/api/contracts/mothership-tests'
 import { createWorkspaceInputSchema } from '@/lib/workspaces/create-input'
@@ -26,6 +27,14 @@ export const managementToolContracts = [
     description:
       'Create and run the selected workspace\u2019s workflow tests. create takes a name, a one-line title for the concern, and an optional description, and returns tests/<name>.test.js; write the cases into that file with the file tools. A test file is plain vitest: import { describe, it, expect, vi } from "vitest" and { runWorkflow, mockBlock, mockTool, spyOnBlock } from "sim:test", one top-level describe, an it per case. runWorkflow(name, input) runs a workflow and returns { output } (pass { trigger: \"Trigger block name\" } as a third argument when it has several triggers); mockBlock(blockName) returns a vi.fn whose value replaces that block\u2019s output and records its inputs; mockTool(toolId) or mockTool(agentBlockName, toolId) answers an Agent\u2019s calls to that tool the same way while the model still runs, naming built-in tools by id (slack_message), MCP tools by server as mockTool({ mcp: "Server name", tool: "tool_name" }), and custom tools by title as mockTool({ customTool: "Title" }); .mockSampleOutput({ ...overrides }) on either mock makes it answer with a placeholder output shaped like the real one, with your fields merged in; await expect(value).toMatchRubric(rubric) asks a model judge for pass or fail. Every write is checked and refused if the file does not load. run takes a version (draft while editing, deployed before shipping), waits, and returns each file\u2019s failures with line numbers and messages. list and get report status; update changes title or description.',
     inputSchema: mothershipTestsInputSchema,
+  },
+  {
+    id: 'changelog',
+    route: 'sim',
+    scope: 'all',
+    description:
+      'Publish and edit the selected workspace\u2019s changelog. publish takes a title, a markdown body, the changes (one line each, with the workflowId, deploymentVersionId, and chatId they came from when known), and bump: major, minor, or patch for how significant the release is, with a one-line bumpReason. The server computes the version from the workspace\u2019s highest one; never write a version number on publish. It returns the release with its revision and changelog/<id>.md, the body file: edit the body there with the file tools, for example to add impact charts once there is data. update changes the title, bumpReason, version label, or the whole change list, and requires expectedRevision from get, list, or publish so a concurrent edit is never overwritten. A deployment ships in one release: a deploymentVersionId already in another release is rejected. list pages newest first; get returns one release with its revision and its changelog/<id>.md path.',
+    inputSchema: mothershipChangelogInputSchema,
   },
   {
     id: 'workspaces',

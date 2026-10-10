@@ -77,13 +77,13 @@ describe('readWorkspaceFileContent', () => {
     expect(mocks.loadContext).toHaveBeenCalledWith('file-1', {
       includeDeleted: true,
       includeChatUploads: true,
-      includeTestFiles: true,
+      includeOwnedFiles: true,
     })
     expect(mocks.getFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
       includeDeleted: true,
       throwOnError: true,
       includeChatUploads: true,
-      includeTestFiles: true,
+      includeOwnedFiles: true,
     })
     expect(mocks.fetchBuffer).toHaveBeenCalledWith(file, { maxBytes: 512 })
     expect(mocks.getSecretProvenance).not.toHaveBeenCalled()

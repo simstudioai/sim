@@ -33,6 +33,7 @@ import {
   PanelLeft,
   Pin,
   Plus,
+  Rss,
   Search,
   ShieldCheck,
   Table,
@@ -752,6 +753,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
 
   const dashboardsEnabled = useFeatureFlag('dashboards')
   const testsEnabled = useFeatureFlag('workflow-tests')
+  const changelogEnabled = useFeatureFlag('changelog')
   const topNavItems = useMemo(
     () =>
       [
@@ -777,6 +779,14 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
           restricted: permissionConfig.hideFilesTab,
         },
         {
+          id: 'changelog',
+          label: 'Changelog',
+          icon: Rss,
+          href: `/workspace/${workspaceId}/changelog`,
+          hidden: !changelogEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          restricted: permissionConfig.hideFilesTab,
+        },
+        {
           id: 'integrations',
           label: 'Integrations',
           icon: Integration,
@@ -797,6 +807,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
       accessRequestsEnabled,
       chatEnabled,
       dashboardsEnabled,
+      changelogEnabled,
     ]
   )
 

@@ -49,7 +49,7 @@ function createReadWorkspaceFileRecord<const O extends WorkspaceOperation>(opera
       const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
         throwOnError: true,
         includeChatUploads: true,
-        includeTestFiles: true,
+        includeOwnedFiles: true,
       })
       if (!file) throw new OrchestrationError('not_found', 'File not found')
       return { file }

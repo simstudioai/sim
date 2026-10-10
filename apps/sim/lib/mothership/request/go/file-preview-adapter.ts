@@ -150,7 +150,7 @@ async function isFileTabTarget(
   let fileId = target.fileId
   if (!fileId && target.kind === 'path' && target.path && workspaceId) {
     fileId = (
-      await resolveWorkspaceFileReference(workspaceId, target.path, { includeTestFiles: true })
+      await resolveWorkspaceFileReference(workspaceId, target.path, { includeOwnedFiles: true })
     )?.id
   }
   return fileId === undefined || !(await findNonTabFileIds([fileId])).has(fileId)

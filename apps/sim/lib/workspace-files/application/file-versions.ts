@@ -109,7 +109,7 @@ export interface RevertWorkspaceFileVersionResult {
 async function loadActiveFile(context: ActiveWorkspaceFileContext): Promise<WorkspaceFileRecord> {
   const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
     throwOnError: true,
-    includeTestFiles: true,
+    includeOwnedFiles: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
   return file

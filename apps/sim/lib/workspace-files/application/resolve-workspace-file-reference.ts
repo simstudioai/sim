@@ -48,12 +48,12 @@ export interface ReferencedWorkspaceFileContext extends ActiveWorkspaceFileConte
  */
 const READ_CONTENT_LOOKUP: WorkspaceFileLookupOptions = {
   includeChatUploads: true,
-  includeTestFiles: true,
+  includeOwnedFiles: true,
 }
 
 /** Content writes reach test files; no other write can. */
 const CONTENT_WRITE_LOOKUP: WorkspaceFileLookupOptions = {
-  includeTestFiles: true,
+  includeOwnedFiles: true,
 }
 
 /**
