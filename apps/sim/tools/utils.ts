@@ -70,7 +70,7 @@ export function getLatestVersionTools(
  * deliberately: this one reads the live registry, so a tool added but not yet
  * regenerated stays resolvable; that one resolves against the generated id list
  * without pulling 4,300 tools into a client graph. Client code wants that one.
- * `tool-metadata:check` asserts the two never diverge.
+ * `check:tool-metadata` asserts the two never diverge.
  *
  * @param toolName The tool name to resolve (may or may not have version suffix)
  * @returns The actual tool ID in the registry, or the original name if not found
