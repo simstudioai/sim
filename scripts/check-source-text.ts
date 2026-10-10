@@ -56,8 +56,10 @@ const EXECUTABLE_SCRIPT_TYPES = new Set([
 ])
 
 const NEXT_SCRIPT_IMPORT = /import\s+(\w+)\s*(?:,\s*\{[^}]*\}\s*)?from\s*['"]next\/script['"]/
-const TYPE_ATTRIBUTE =
-  /\btype\s*=\s*(?:'([^']*)'|"([^"]*)"|\{\s*(?:'([^']*)'|"([^"]*)"|`([^`$]*)`)\s*\})/
+/** The start of the element's own `type` prop — not a suffix like `data-type`. */
+const TYPE_PROP = /(?:^|\s)type\s*=\s*/
+/** A statically known `type` value right after {@link TYPE_PROP}. */
+const LITERAL_TYPE_VALUE = /^(?:'([^']*)'|"([^"]*)"|\{\s*(?:'([^']*)'|"([^"]*)"|`([^`$]*)`)\s*\})/
 
 /** The attribute text of the JSX opening tag that starts at `start`, skipping `>` inside braces. */
 function openingTagAttributes(source: string, start: number): string {
@@ -71,17 +73,21 @@ function openingTagAttributes(source: string, start: number): string {
   return source.slice(start)
 }
 
-/** Line numbers of `next/script` elements in `source` whose `type` is not JavaScript. */
+/**
+ * Line numbers of `next/script` elements in `source` whose `type` is not JavaScript. A `type` set
+ * from an expression fails closed: the audit cannot prove it executable.
+ */
 function findDataNextScripts(source: string): number[] {
   const localName = NEXT_SCRIPT_IMPORT.exec(source)?.[1]
   if (!localName) return []
   const lines: number[] = []
   for (const match of source.matchAll(new RegExp(`<${localName}\\b`, 'g'))) {
     const attributes = openingTagAttributes(source, match.index + match[0].length)
-    const typeMatch = TYPE_ATTRIBUTE.exec(attributes)
-    if (!typeMatch) continue
-    const type = typeMatch.slice(1).find((value) => value !== undefined) ?? ''
-    if (EXECUTABLE_SCRIPT_TYPES.has(type.trim().toLowerCase())) continue
+    const typeProp = TYPE_PROP.exec(attributes)
+    if (!typeProp) continue
+    const literal = LITERAL_TYPE_VALUE.exec(attributes.slice(typeProp.index + typeProp[0].length))
+    const type = literal?.slice(1).find((value) => value !== undefined)
+    if (type !== undefined && EXECUTABLE_SCRIPT_TYPES.has(type.trim().toLowerCase())) continue
     lines.push(source.slice(0, match.index).split('\n').length)
   }
   return lines
@@ -110,7 +116,7 @@ for (const file of files) {
   if (!(await source.exists())) continue
   const bytes = await source.bytes()
   if (bytes.includes(0)) nulOffenders.push(file)
-  if (file.startsWith('apps/') && /\.[jt]sx$/.test(file)) {
+  if (file.startsWith('apps/') && /\.(?:[jt]sx|mdx)$/.test(file)) {
     const text = new TextDecoder().decode(bytes)
     if (!text.includes('next/script')) continue
     for (const line of findDataNextScripts(text)) dataScriptOffenders.push(`${file}:${line}`)
