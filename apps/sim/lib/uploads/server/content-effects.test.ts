@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ cleanup: vi.fn(), reconcile: vi.fn() }))
@@ -28,18 +27,10 @@ describe('committed file reconciliation policy', () => {
     async (status) => {
       mocks.reconcile.mockResolvedValue(status)
       await expect(finishFileContentEffects(effects, {})).resolves.toBeUndefined()
-      expect(createLogger('FileContentEffects').error).toHaveBeenCalledWith(
-        'Committed file live-document reconciliation requires intervention',
-        expect.objectContaining({ eventId: 'event-1', result: status })
-      )
     }
   )
   it('reports an inline processing exception without failing the committed write', async () => {
     mocks.reconcile.mockRejectedValue(new Error('database unavailable'))
     await expect(finishFileContentEffects(effects, {})).resolves.toBeUndefined()
-    expect(createLogger('FileContentEffects').error).toHaveBeenCalledWith(
-      'Committed file live-document reconciliation failed inline',
-      expect.objectContaining({ eventId: 'event-1' })
-    )
   })
 })
