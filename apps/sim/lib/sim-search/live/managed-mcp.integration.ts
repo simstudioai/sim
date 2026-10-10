@@ -739,7 +739,9 @@ describe('managed Search operation sessions', () => {
           .where(eq(credential.id, actors[0].credentialId))
     }
     try {
-      await expect(read(found.results[0].documentId)).rejects.toMatchObject({ status: 'reconnect' })
+      await expect(read(found.results[0].documentId)).rejects.toMatchObject({
+        code: 'unauthorized',
+      })
       expect(openTransports.size).toBe(0)
     } finally {
       onTool = undefined
