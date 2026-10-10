@@ -230,6 +230,9 @@ afterAll(resetDbChainMock)
 
 beforeEach(() => {
   resetDbChainMock()
+  /** Real Drizzle SQL bypasses the shared fragment mock; model the expansion schema explicitly. */
+  dbChainMockFns.execute.mockResolvedValue([{ marker: true, complete: false }])
+  dbChainMockFns.as.mockReturnValue(workspace)
   isInvitationExpired.mockReturnValue(false)
   /**
    * `vi.clearAllMocks` clears call records but keeps implementations, so a
