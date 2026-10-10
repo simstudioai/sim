@@ -3224,82 +3224,12 @@ describe('AgentBlockHandler', () => {
           ctx: ExecutionContext,
           tools: Array<Record<string, unknown>>
         ) => Promise<unknown[]>
-        handleExecutionError: (
-          error: unknown,
-          startTime: number,
-          provider: string,
-          model: string,
-          ctx: ExecutionContext,
-          block: SerializedBlock
-        ) => void
         processStructuredResponse: (
           result: Record<string, unknown>,
           responseFormat: unknown,
           ctx: ExecutionContext
         ) => Record<string, unknown>
       }
-
-    it('projects provider errors and internal runtime identifiers before logging', () => {
-      const registry = new ResolvedSecretTraceRegistry([
-        {
-          name: 'TOKEN',
-          plaintext: 'diagnostic-secret',
-          encryptedValue: 'encrypted-diagnostic-secret',
-        },
-      ])
-      registry.recordResolved('TOKEN', 'diagnostic-secret')
-      const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
-
-      privateHandler().handleExecutionError(
-        new Error('failed with diagnostic-secret __var_TOKEN __sim_runtime_test_1'),
-        Date.now(),
-        'diagnostic-secret',
-        '__var_TOKEN',
-        ctx,
-        mockBlock
-      )
-
-      const serializedCalls = JSON.stringify(mockAgentLogger.error.mock.calls)
-      expect(serializedCalls).not.toContain('diagnostic-secret')
-      expect(serializedCalls).not.toContain('__var_')
-      expect(serializedCalls).not.toContain('__sim_')
-      expect(mockAgentLogger.error).toHaveBeenCalledWith(
-        'Error executing provider request',
-        expect.objectContaining({
-          provider: '{{TOKEN}}',
-          model: '{{TOKEN}}',
-          errorMessage: 'failed with {{TOKEN}} {{TOKEN}} [RUNTIME_BINDING]',
-        })
-      )
-    })
-
-    it('fails closed to structural provider diagnostics without a complete registry', () => {
-      const ctx = { ...mockContext, resolvedSecretTraceRegistry: undefined }
-
-      privateHandler().handleExecutionError(
-        new Error('untracked-secret __var_TOKEN __sim_runtime_test_1'),
-        Date.now(),
-        'untracked-secret',
-        '__var_TOKEN',
-        ctx,
-        mockBlock
-      )
-
-      const metadata = mockAgentLogger.error.mock.calls.at(-1)?.[1]
-      expect(metadata).toEqual(
-        expect.objectContaining({
-          workflowId: mockContext.workflowId,
-          blockId: mockBlock.id,
-          errorType: 'error',
-        })
-      )
-      expect(metadata).not.toHaveProperty('provider')
-      expect(metadata).not.toHaveProperty('model')
-      expect(metadata).not.toHaveProperty('errorMessage')
-      expect(JSON.stringify(mockAgentLogger.error.mock.calls)).not.toContain('untracked-secret')
-      expect(JSON.stringify(mockAgentLogger.error.mock.calls)).not.toContain('__var_')
-      expect(JSON.stringify(mockAgentLogger.error.mock.calls)).not.toContain('__sim_')
-    })
 
     it('projects tool diagnostics without logging code or raw params', async () => {
       const registry = new ResolvedSecretTraceRegistry([

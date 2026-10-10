@@ -1,3 +1,4 @@
+import { adoptToolFailure } from '@/lib/core/errors/failure-log'
 import { BlockType, HTTP } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
@@ -124,7 +125,7 @@ export class ApiBlockHandler implements BlockHandler {
           timestamp: new Date().toISOString(),
         })
 
-        throw error
+        throw adoptToolFailure(error, result)
       }
 
       return result.output

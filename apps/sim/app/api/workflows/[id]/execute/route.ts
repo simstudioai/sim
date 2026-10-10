@@ -1620,7 +1620,8 @@ async function handleExecutePost(
           reqLogger,
           'Non-SSE execution failed',
           error,
-          loggingSession.projectDiagnosticError(error, { isTimeout: executionTimedOut })
+          loggingSession.projectDiagnosticError(error, { isTimeout: executionTimedOut }),
+          executionId
         )
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
@@ -2427,7 +2428,8 @@ async function handleExecutePost(
             reqLogger,
             'SSE execution failed',
             error,
-            loggingSession.projectDiagnosticError(error, { isTimeout })
+            loggingSession.projectDiagnosticError(error, { isTimeout }),
+            executionId
           )
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined

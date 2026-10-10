@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
+import { adoptToolFailure } from '@/lib/core/errors/failure-log'
 import { getBlock } from '@/blocks/index'
 import { isMcpTool } from '@/executor/constants'
 import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
@@ -362,6 +363,7 @@ export class GenericBlockHandler implements BlockHandler {
           // error so `getExecutionErrorStatus` can still reach the API caller.
           ...(typeof result.statusCode === 'number' ? { statusCode: result.statusCode } : {}),
         })
+        adoptToolFailure(error, result)
 
         throw error
       }

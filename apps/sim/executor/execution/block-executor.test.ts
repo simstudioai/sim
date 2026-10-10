@@ -13,6 +13,7 @@ import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { validateBlockType } from '@/ee/access-control/utils/permission-check'
 import { BlockType, EDGE } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
+import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -574,6 +575,74 @@ describe('BlockExecutor', () => {
       undefined
     )
     expect(state.getBlockOutput(block.id)).toEqual(output)
+  })
+
+  function failBlockWith(thrown: unknown) {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async () => {
+        throw thrown
+      },
+    }
+    const executor = new BlockExecutor([handler], resolver, {}, state)
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([])
+    return executor.execute(ctx, createNode(block), block).catch((error) => error)
+  }
+
+  function blockFailureLogsSince(loggerIndex: number) {
+    const loggers = new Set<{ error: { mock: { calls: unknown[][] } } }>(
+      blockExecutorBaseLogger.withMetadata.mock.results
+        .slice(loggerIndex)
+        .map((result: { value: { error: { mock: { calls: unknown[][] } } } }) => result.value)
+    )
+    return [...loggers].flatMap((logger) =>
+      logger.error.mock.calls.filter(([message]) => message === 'Block execution failed')
+    )
+  }
+
+  it('logs every block failure that rethrows one persistent object, not just the first', async () => {
+    /** A rejected dynamic `import()` or memoized rejected promise rethrows the same object. */
+    const persistentFault = new Error('handler module failed to load')
+    const loggerIndex = blockExecutorBaseLogger.withMetadata.mock.results.length
+
+    await failBlockWith(persistentFault)
+    await failBlockWith(persistentFault)
+
+    expect(blockFailureLogsSince(loggerIndex)).toHaveLength(2)
+  })
+
+  it('logs an internal child workflow fault with the block and run identity', async () => {
+    const loggerIndex = blockExecutorBaseLogger.withMetadata.mock.results.length
+
+    await failBlockWith(
+      new ChildWorkflowError({
+        message: '"Child" failed: child load blew up',
+        childWorkflowName: 'Child',
+        cause: new TypeError('child load blew up'),
+      })
+    )
+
+    const [[, logged]] = blockFailureLogsSince(loggerIndex)
+    expect(logged).toEqual(
+      expect.objectContaining({
+        blockId: 'function-block-1',
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        error: '"Child" failed: child load blew up',
+        failureKind: 'internal',
+      })
+    )
   })
 
   it('does not soft-succeed non-agent blocks on user AbortError', async () => {

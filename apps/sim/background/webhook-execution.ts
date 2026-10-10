@@ -1276,7 +1276,8 @@ async function executeWebhookJobInternal(
         workflowId: payload.workflowId,
         executionId,
         provider: payload.provider,
-      })
+      }),
+      executionId
     )
 
     // The finalized flag is set inside a fire-and-forget post-execution promise; await it so the

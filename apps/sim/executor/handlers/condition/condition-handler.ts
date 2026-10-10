@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { adoptToolFailure } from '@/lib/core/errors/failure-log'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import {
   isNonRetryableExecutionError,
@@ -293,9 +294,12 @@ async function evaluateSingleCondition(
 
   if (!result.success) {
     if (result.retryable === false) {
-      throw new NonRetryableExecutionError(result.error ?? 'Condition evaluation is indeterminate')
+      throw adoptToolFailure(
+        new NonRetryableExecutionError(result.error ?? 'Condition evaluation is indeterminate'),
+        result
+      )
     }
-    throw new Error(result.error ?? 'Condition evaluation failed')
+    throw adoptToolFailure(new Error(result.error ?? 'Condition evaluation failed'), result)
   }
 
   return Boolean(result.output?.result)

@@ -3302,14 +3302,16 @@ export async function executeFunctionRequest(
       )
 
       /** The author's code threw unless the isolate itself failed. */
-      const logFailure = isSystemError ? logger.error : logger.info
-      logFailure.call(logger, `[${requestId}] Function execution failed in isolated-vm`, {
-        executionTime,
-        isSystemError,
-        hasStack: Boolean(ivmError.stack),
-        line: enhancedError.line,
-        column: enhancedError.column,
-      })
+      logger[isSystemError ? 'error' : 'info'](
+        `[${requestId}] Function execution failed in isolated-vm`,
+        {
+          executionTime,
+          isSystemError,
+          hasStack: Boolean(ivmError.stack),
+          line: enhancedError.line,
+          column: enhancedError.column,
+        }
+      )
 
       return functionJsonResponse(
         {

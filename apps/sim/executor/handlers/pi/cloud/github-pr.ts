@@ -7,6 +7,7 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
+import { adoptToolFailure } from '@/lib/core/errors/failure-log'
 import { executeTool } from '@/tools'
 import { GITHUB_GRAPHQL_URL, githubGraphQlHeaders, readGraphQlData } from '@/tools/github/graphql'
 import {
@@ -109,7 +110,10 @@ export async function fetchPrSnapshot(
   )
 
   if (!result.success) {
-    throw new Error(`Failed to fetch PR #${params.pullNumber}: ${result.error ?? 'unknown error'}`)
+    throw adoptToolFailure(
+      new Error(`Failed to fetch PR #${params.pullNumber}: ${result.error ?? 'unknown error'}`),
+      result
+    )
   }
 
   return parsePullRequestSnapshot(result.output)
@@ -173,8 +177,11 @@ export async function findOpenPrForBranch(
     { signal }
   )
   if (!result.success) {
-    throw new Error(
-      `Failed to find an open PR for branch ${params.branch}: ${result.error ?? 'unknown error'}`
+    throw adoptToolFailure(
+      new Error(
+        `Failed to find an open PR for branch ${params.branch}: ${result.error ?? 'unknown error'}`
+      ),
+      result
     )
   }
 

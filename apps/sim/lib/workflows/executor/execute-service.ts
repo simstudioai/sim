@@ -848,7 +848,7 @@ export async function executeWorkflowService(
           })
         }
 
-        logFailureOnce(reqLogger, `Execution failed: ${errorMessage}`, error)
+        logFailureOnce(reqLogger, `Execution failed: ${errorMessage}`, error, {}, executionId)
 
         let compactErrorOutput: NormalizedBlockOutput | undefined
         let compactErrorBlockOutputs: Record<string, unknown> | null = null

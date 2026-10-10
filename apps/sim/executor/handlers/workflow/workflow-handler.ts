@@ -6,9 +6,9 @@ import type { Variable, WorkflowState } from '@sim/workflow-types/workflow'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import {
   classifyFailure,
-  logFailureOnce,
   markFailureKind,
   markFailureLogged,
+  wasFailureLogged,
 } from '@/lib/core/errors/failure-log'
 import { getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
@@ -973,7 +973,8 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflowName,
         instanceId,
         childTraceSpans,
-        childWorkflowSnapshotId
+        childWorkflowSnapshotId,
+        { executionId: ctx.executionId, blockId: block.id }
       )
 
       // Custom blocks expose only curated outputs — never the child workflow id,
@@ -1016,11 +1017,6 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       return mappedResult
     } catch (error: unknown) {
-      logFailureOnce(logger, 'Error executing child workflow', error, {
-        errorName: toError(error).name,
-        hasWorkflowId: workflowId.length > 0,
-      })
-
       // The child's own log row records the real failure in the source workspace,
       // so the publisher sees what the consumer deliberately cannot.
       if (childSession && childSessionStarted && !childSessionFinalized) {
@@ -1041,8 +1037,8 @@ export class WorkflowBlockHandler implements BlockHandler {
           childExecutionId,
           traceChildRuns
         )
-        /** The boundary severs `cause`, so the logged mark has to cross it explicitly. */
-        markFailureLogged(boundaryFailure)
+        /** The boundary severs `cause`, so a logged mark has to cross it explicitly. */
+        if (wasFailureLogged(error)) markFailureLogged(boundaryFailure)
         throw boundaryFailure
       }
 
@@ -1569,13 +1565,17 @@ export class WorkflowBlockHandler implements BlockHandler {
     childWorkflowName: string,
     instanceId: string,
     childTraceSpans?: WorkflowTraceSpan[],
-    childWorkflowSnapshotId?: string
+    childWorkflowSnapshotId?: string,
+    parent?: { executionId?: string; blockId: string }
   ): BlockOutput {
     const success = childResult.success !== false
     const result = childResult.output || {}
 
     if (!success) {
-      logger.warn(`Child workflow ${childWorkflowName} failed`)
+      logger.warn(`Child workflow ${childWorkflowName} failed`, {
+        executionId: parent?.executionId,
+        blockId: parent?.blockId,
+      })
       const rootErrorMessage = childResult.error || 'Child workflow execution failed'
       const chain = [childWorkflowName]
       const childFailure = new ChildWorkflowError({

@@ -311,7 +311,8 @@ export async function executeWorkflowJob(
           logger,
           `[${requestId}] Workflow execution failed: ${workflowId}`,
           error,
-          loggingSession.projectDiagnosticError(error, { executionId })
+          loggingSession.projectDiagnosticError(error, { executionId }),
+          executionId
         )
 
         if (error instanceof ExecutionTimeoutError) throw error

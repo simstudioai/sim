@@ -19,6 +19,7 @@ import { isHosted } from '@/lib/core/config/env-flags'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import {
   classifyFailure,
+  isProviderKeyRejection,
   logFailureOnce,
   markDeliberateFailure,
   markFailureKind,
@@ -1061,31 +1062,14 @@ const RESPONSE_SIZE_LIMIT_ERROR_MESSAGE =
 const SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE =
   'External integration tools cannot target this Sim instance; use an internal operation'
 
-/**
- * Validates request body size and throws a user-friendly error if exceeded
- * @param body - The request body string to check
- * @param requestId - Request ID for logging
- * @param context - Context string for logging (e.g., toolId)
- * @throws Error if body size exceeds the limit
- */
-function validateRequestBodySize(
-  body: string | undefined,
-  requestId: string,
-  context: string
-): void {
-  if (!body) return
+/** The author's workflow data is too large to send; their fault, logged once by the tool catch. */
+function bodySizeLimitError(): Error {
+  return markFailureKind(new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE), 'user')
+}
 
-  const bodySize = Buffer.byteLength(body, 'utf8')
-  if (bodySize > MAX_REQUEST_BODY_SIZE_BYTES) {
-    const bodySizeMB = (bodySize / (1024 * 1024)).toFixed(2)
-    const maxSizeMB = (MAX_REQUEST_BODY_SIZE_BYTES / (1024 * 1024)).toFixed(0)
-    logger.error(`[${requestId}] Request body size exceeds limit for ${context}:`, {
-      bodySize,
-      bodySizeMB: `${bodySizeMB}MB`,
-      maxSize: MAX_REQUEST_BODY_SIZE_BYTES,
-      maxSizeMB: `${maxSizeMB}MB`,
-    })
-    throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+function validateRequestBodySize(body: string | undefined): void {
+  if (body && Buffer.byteLength(body, 'utf8') > MAX_REQUEST_BODY_SIZE_BYTES) {
+    throw bodySizeLimitError()
   }
 }
 
@@ -1106,39 +1090,9 @@ function isBodySizeLimitError(errorMessage: string): boolean {
   )
 }
 
-/**
- * Handles body size limit errors by logging and throwing a user-friendly error
- * @param error - The original error
- * @param requestId - Request ID for logging
- * @param context - Context string for logging (e.g., toolId)
- * @throws Error with user-friendly message if it's a size limit error
- * @returns false if not a size limit error (caller should continue handling)
- */
-function handleBodySizeLimitError(
-  error: unknown,
-  requestId: string,
-  context: string,
-  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
-  structuralOnlyWithoutRegistry = false
-): boolean {
-  const errorMessage = toError(error).message
-
-  if (isBodySizeLimitError(errorMessage)) {
-    logger.error(
-      `[${requestId}] Request body size limit exceeded for ${context}:`,
-      projectToolLogMetadata(
-        { originalError: errorMessage },
-        resolvedSecretTraceRegistry,
-        {
-          hasOriginalError: errorMessage.length > 0,
-        },
-        structuralOnlyWithoutRegistry
-      )
-    )
-    throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
-  }
-
-  return false
+/** Rethrows a transport-level body size rejection as the user-facing size limit error. */
+function handleBodySizeLimitError(error: unknown): void {
+  if (isBodySizeLimitError(toError(error).message)) throw bodySizeLimitError()
 }
 
 function handleResponseSizeLimitError(error: unknown, requestId: string, context: string): boolean {
@@ -1204,9 +1158,28 @@ async function readToolResponseBody(
   }
 }
 
-/** A provider refusing Sim's own hosted key is Sim's fault, not the workflow author's. */
-function isOwnHostedKeyRejection(status: unknown): boolean {
-  return status === 401 || status === 402 || status === 403
+/**
+ * Upstream rejections from the external HTTP path. Only their (extractor-redacted) response body
+ * is logged: an internal operation's or a Function's body carries the author's data, stdout, and
+ * source lines.
+ */
+const externalHttpFailures = new WeakSet<Error>()
+
+function createExternalHttpFailure(errorInfo?: ErrorInfo, extractorId?: string): Error {
+  const failure = createTransformedErrorFromErrorInfo(errorInfo, extractorId)
+  externalHttpFailures.add(failure)
+  return failure
+}
+
+/**
+ * Attributes a failed in-process operation. Its status is Sim's own, not a third party's: a 4xx
+ * is the author's input or code (a Function's 422), a 5xx is Sim's fault.
+ */
+function createInternalOperationFailure(errorInfo: ErrorInfo, extractorId?: string): Error {
+  return markFailureKind(
+    createTransformedErrorFromErrorInfo(errorInfo, extractorId),
+    errorInfo.status !== undefined && errorInfo.status < 500 ? 'user' : 'internal'
+  )
 }
 
 /**
@@ -2341,7 +2314,8 @@ async function executeToolImplementation(
     const databaseQueryError = findDatabaseQueryError(error)
     const databaseErrorCause = databaseQueryError ? describeError(error) : undefined
     const upstreamStatus = (error as { status?: unknown } | null)?.status
-    if (hostedKeyForMetrics && isOwnHostedKeyRejection(upstreamStatus)) {
+    /** Sim's own hosted key being refused or throttled is Sim's fault and Sim's capacity. */
+    if (hostedKeyForMetrics && (isProviderKeyRejection(upstreamStatus) || upstreamStatus === 429)) {
       markFailureKind(error, 'internal')
     }
     const toolContext = params._context as Record<string, unknown> | undefined
@@ -2358,7 +2332,9 @@ async function executeToolImplementation(
             : {
                 error: normalizedError.message,
                 stack: error instanceof Error ? error.stack : undefined,
-                errorData: (error as { data?: unknown } | null)?.data,
+                ...(error instanceof Error && externalHttpFailures.has(error)
+                  ? { errorData: (error as { data?: unknown }).data }
+                  : {}),
               }),
         },
         resolvedSecretTraceRegistry,
@@ -2739,7 +2715,7 @@ async function executeDeclaredInternalOperation({
   if (privateToolMetadataType) {
     headers.set(PRIVATE_TOOL_METADATA_REQUEST_HEADER, privateToolMetadataType)
   }
-  validateRequestBodySize(JSON.stringify(operationInput), requestId, toolId)
+  validateRequestBodySize(JSON.stringify(operationInput))
   const deadline = serializeExecutionDeadlineHeader(signal)
   if (deadline) headers.set(INTERNAL_EXECUTION_DEADLINE_HEADER, deadline)
   const billingAttribution = context.billingAttribution
@@ -2845,7 +2821,7 @@ async function executeDeclaredInternalOperation({
     } catch {
       errorData = errorText
     }
-    throw createTransformedErrorFromErrorInfo(
+    throw createInternalOperationFailure(
       { status: response.status, statusText: response.statusText, data: errorData },
       tool.errorExtractor
     )
@@ -2873,7 +2849,6 @@ async function executeToolRequest(
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 ): Promise<ToolResponse> {
   const requestId = generateRequestId()
-  const structuralOnlyToolLogs = false
   try {
     const requestParams = prepareToolRequest(tool, params, resolvedSecretTraceRegistry)
     const { headers } = requestParams
@@ -2891,7 +2866,7 @@ async function executeToolRequest(
       }
     }
 
-    validateRequestBodySize(requestParams.body, requestId, toolId)
+    validateRequestBodySize(requestParams.body)
 
     const headersRecord: Record<string, string> = {}
     headers.forEach((value, key) => {
@@ -3054,29 +3029,12 @@ async function executeToolRequest(
         data: errorData,
       }
 
-      const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
+      const errorToTransform = createExternalHttpFailure(errorInfo, tool.errorExtractor)
       const hasStructuredErrorPayload =
         isRecordLike(errorData) && ('error' in errorData || 'message' in errorData)
 
       if (response.status === 413 && !hasStructuredErrorPayload) {
-        logger.error(
-          `[${requestId}] Request body too large for ${toolId} (HTTP 413):`,
-          projectToolLogMetadata(
-            {
-              status: response.status,
-              statusText: response.statusText,
-              errorData,
-            },
-            resolvedSecretTraceRegistry,
-            {
-              status: response.status,
-              statusText: response.statusText,
-              hasErrorData: errorData !== null,
-            },
-            structuralOnlyToolLogs
-          )
-        )
-        throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+        throw bodySizeLimitError()
       }
 
       throw errorToTransform
@@ -3093,16 +3051,6 @@ async function executeToolRequest(
         try {
           responseData = await response.json()
         } catch (jsonError) {
-          const normalizedError = toError(jsonError)
-          logger.error(
-            `[${requestId}] JSON parse error for ${toolId}:`,
-            projectToolLogMetadata(
-              { error: normalizedError.message },
-              resolvedSecretTraceRegistry,
-              { errorName: normalizedError.name },
-              structuralOnlyToolLogs
-            )
-          )
           throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
         }
       }
@@ -3111,7 +3059,7 @@ async function executeToolRequest(
     const { isError, errorInfo } = isErrorResponse(response, responseData)
 
     if (isError) {
-      throw createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
+      throw createExternalHttpFailure(errorInfo, tool.errorExtractor)
     }
 
     if (tool.transformResponse) {
@@ -3176,13 +3124,7 @@ async function executeToolRequest(
   } catch (error: any) {
     handleResponseSizeLimitError(error, requestId, toolId)
 
-    handleBodySizeLimitError(
-      error,
-      requestId,
-      toolId,
-      resolvedSecretTraceRegistry,
-      structuralOnlyToolLogs
-    )
+    handleBodySizeLimitError(error)
 
     if (isRetryableNetworkError(error)) markFailureKind(error, 'third_party_server')
 
@@ -3274,7 +3216,7 @@ async function executeMcpTool(
 
   try {
     logger.info(`[${actualRequestId}] Executing MCP tool: ${toolId}`)
-    validateRequestBodySize(JSON.stringify(params), actualRequestId, `mcp:${toolId}`)
+    validateRequestBodySize(JSON.stringify(params))
     const handler = await getInternalToolOperationHandler(toolId)
     if (!handler) throw new Error(`No internal operation registered for ${toolId}`)
     const resultResponse = await handler({

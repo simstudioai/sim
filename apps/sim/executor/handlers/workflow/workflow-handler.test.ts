@@ -18,6 +18,7 @@ import {
 import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
 import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { classifyFailure, wasFailureLogged } from '@/lib/core/errors/failure-log'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBlock } from '@/blocks/registry'
@@ -368,6 +369,21 @@ describe('WorkflowBlockHandler', () => {
           },
         })
       )
+    })
+
+    it('leaves an internal child load fault for the block executor to log with the run identity', async () => {
+      mockReadWorkflowDefinitionAsExecutor.mockRejectedValueOnce(
+        new TypeError('definition is undefined')
+      )
+
+      const thrown = await handler
+        .execute({ ...mockContext, executionId: 'parent-execution-id' }, mockBlock, inputs)
+        .catch((error: unknown) => error)
+
+      expect(thrown).toBeInstanceOf(Error)
+      /** Logged here, the block executor would skip its log carrying block, run, and stack. */
+      expect(wasFailureLogged(thrown)).toBe(false)
+      expect(classifyFailure(thrown)).toBe('internal')
     })
 
     it("runs a non-custom child under the parent's env and redaction policy", async () => {

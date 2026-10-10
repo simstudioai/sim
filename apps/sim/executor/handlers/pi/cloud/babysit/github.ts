@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { adoptToolFailure } from '@/lib/core/errors/failure-log'
 import type { BabysitRoundDecision } from '@/executor/handlers/pi/cloud/babysit/round'
 import {
   fetchPrSnapshot,
@@ -288,7 +289,8 @@ export async function fetchBabysitThreads(
       },
       { signal }
     )
-    if (!result.success) throw toolFailure('Failed to fetch review threads', result.error)
+    if (!result.success)
+      throw adoptToolFailure(toolFailure('Failed to fetch review threads', result.error), result)
     const output = result.output
     if (!isRecordLike(output) || !Array.isArray(output.threads)) {
       throw new Error('Review thread response is incomplete')
@@ -423,7 +425,8 @@ export async function fetchBabysitCheckState(
         },
         { signal }
       )
-      if (!result.success) throw toolFailure('Failed to fetch checks', result.error)
+      if (!result.success)
+        throw adoptToolFailure(toolFailure('Failed to fetch checks', result.error), result)
       const output = result.output
       if (!isRecordLike(output) || !Array.isArray(output.contexts)) {
         throw new Error('Check response is incomplete')

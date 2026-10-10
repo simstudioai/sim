@@ -420,7 +420,7 @@ vi.mock('@/tools/utils.server', async (importOriginal) => {
 })
 
 import type { QueryClient } from '@tanstack/react-query'
-import { classifyFailure, wasFailureLogged } from '@/lib/core/errors/failure-log'
+import { adoptToolFailure, classifyFailure, wasFailureLogged } from '@/lib/core/errors/failure-log'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
 import { ApiBlockHandler } from '@/executor/handlers/api/api-handler'
 import { buildBlockExecutionError } from '@/executor/utils/errors'
@@ -1127,6 +1127,78 @@ describe('executeTool Function', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  it('logs a fault that rethrows one object every time once per occurrence, not once per process', async () => {
+    /** A rejected dynamic `import()` or memoized rejected promise rethrows the same object. */
+    const persistentFault = new Error('internal operation module failed to load')
+    mockAssertPermissionsAllowed.mockRejectedValue(persistentFault)
+    mockToolsLogger.error.mockClear()
+
+    for (const executionId of ['execution-a', 'execution-b']) {
+      const result = await executeTool(
+        'http_request',
+        { url: 'https://example.com' },
+        { executionContext: createToolExecutionContext({ userId: 'user-123', executionId }) }
+      )
+      expect(result.success).toBe(false)
+    }
+
+    const toolFailureLogs = mockToolsLogger.error.mock.calls.filter(([message]) =>
+      String(message).includes('Error executing tool http_request')
+    )
+    expect(toolFailureLogs).toHaveLength(2)
+  })
+
+  it.each([
+    [400, 'user'],
+    [500, 'internal'],
+  ] as const)(
+    'attributes an in-process operation %i to Sim, never to a third party',
+    async (status, kind) => {
+      mockExecuteInternalToolOperation.mockResolvedValueOnce(
+        jsonResponse({ error: 'operation failed' }, status)
+      )
+
+      const result = await executeTool(
+        'sts_get_caller_identity',
+        { region: 'us-east-1', accessKeyId: 'access-key', secretAccessKey: 'secret-key' },
+        {
+          executionContext: createToolExecutionContext({
+            userId: 'user-1',
+            workspaceId: 'workspace-456',
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+          }),
+        }
+      )
+
+      expect(result.success).toBe(false)
+      expect(classifyFailure(adoptToolFailure(new Error(result.error), result))).toBe(kind)
+    }
+  )
+
+  it('never logs the response body of an in-process operation failure', async () => {
+    const rowContent = 'author-row-content-7f3a'
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      jsonResponse({ error: 'duplicate row', details: { row: rowContent } }, 400)
+    )
+
+    const result = await executeTool(
+      'sts_get_caller_identity',
+      { region: 'us-east-1', accessKeyId: 'access-key', secretAccessKey: 'secret-key' },
+      {
+        executionContext: createToolExecutionContext({
+          userId: 'user-1',
+          workspaceId: 'workspace-456',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }),
+      }
+    )
+
+    expect(result.success).toBe(false)
+    expect(JSON.stringify(allToolLogCalls())).not.toContain(rowContent)
+  })
+
   it('preserves a registered operation failure without turning it into success', async () => {
     const mockTool = {
       id: 'test_registered_operation_failure',
@@ -1779,7 +1851,8 @@ describe('executeTool Function', () => {
         JSON.stringify({
           success: false,
           error: `Execution failed with ${secret} via ${runtimeAlias}`,
-          output: { result: null, stdout: 'trace', cost },
+          output: { result: null, stdout: 'author-stdout-91c', cost },
+          debug: { lineContent: 'author-source-line-55a', stack: 'author-stack-3e1' },
           __resolvedSecretNames: ['API_KEY'],
         }),
         {
@@ -1809,6 +1882,15 @@ describe('executeTool Function', () => {
     expect(result.output?.cost).toEqual(cost)
     expect(JSON.stringify(allToolLogCalls())).not.toContain(secret)
     expect(JSON.stringify(allToolLogCalls())).not.toContain(runtimeAlias)
+    for (const authorContent of [
+      'author-stdout-91c',
+      'author-source-line-55a',
+      'author-stack-3e1',
+    ]) {
+      expect(JSON.stringify(allToolLogCalls())).not.toContain(authorContent)
+    }
+    /** A Function's 422 is the author's code throwing, not a third party refusing. */
+    expect(classifyFailure(adoptToolFailure(new Error(result.error), result))).toBe('user')
     expect(JSON.stringify(projectToolResultForCopilot(result, registry))).not.toContain(secret)
     expect(JSON.stringify(projectToolResultForCopilot(result, registry))).not.toContain(
       runtimeAlias

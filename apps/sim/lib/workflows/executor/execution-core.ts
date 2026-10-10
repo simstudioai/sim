@@ -14,11 +14,7 @@ import type { Edge } from '@xyflow/react'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { type EffectivePiiRedaction, resolveEffectivePiiRedaction } from '@/lib/billing/retention'
-import {
-  logFailureOnce,
-  markDeliberateFailure,
-  markFailureKind,
-} from '@/lib/core/errors/failure-log'
+import { logFailureOnce, markFailureKind } from '@/lib/core/errors/failure-log'
 import {
   getExecutionDeadlineAt,
   getTimeoutErrorMessage,
@@ -79,6 +75,7 @@ import {
   buildParallelSentinelEndId,
 } from '@/executor/utils/subflow-node-id-codec'
 import { Serializer } from '@/serializer'
+import { MissingRequiredFieldsError } from '@/serializer/errors'
 import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('ExecutionCore')
@@ -905,8 +902,10 @@ async function executeWorkflowCoreImpl(
         true
       )
     } catch (serializeError) {
-      /** The serializer throws a plain `Error` for the author's configuration (missing required fields, unknown block type). */
-      throw markDeliberateFailure(serializeError, 'user')
+      /** An unknown block type stays internal: a registry regression or an unregistered block. */
+      throw serializeError instanceof MissingRequiredFieldsError
+        ? markFailureKind(serializeError, 'user')
+        : serializeError
     }
     const inputFileKeys = new Set<string>()
     processedInput =
@@ -1368,7 +1367,8 @@ async function executeWorkflowCoreImpl(
         workflowId,
         executionId,
         ...(errorCause ? { cause: errorCause } : {}),
-      })
+      }),
+      executionId
     )
 
     await waitForLifecycleCallbacks()

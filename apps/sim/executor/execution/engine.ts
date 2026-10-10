@@ -201,7 +201,8 @@ export class ExecutionEngine {
         this.execLogger,
         'Execution failed',
         error,
-        projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry)
+        projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry),
+        this.context.executionId
       )
 
       const executionResult: ExecutionResult = {
@@ -484,10 +485,16 @@ export class ExecutionEngine {
        * Block failures were logged by the block executor. This catches a completion-handling
        * fault, which only this frame sees when a concurrent failure already won `executionError`.
        */
-      logFailureOnce(this.execLogger, 'Node execution failed', error, {
-        nodeId,
-        ...projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry),
-      })
+      logFailureOnce(
+        this.execLogger,
+        'Node execution failed',
+        error,
+        {
+          nodeId,
+          ...projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry),
+        },
+        this.context.executionId
+      )
       throw error
     }
   }

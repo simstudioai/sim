@@ -1,7 +1,9 @@
+import { createLogger } from '@sim/logger'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { describe, expect, it } from 'vitest'
 import {
   classifyFailure,
+  logFailureOnce,
   markDeliberateFailure,
   markFailureKind,
   markFailureLogged,
@@ -77,5 +79,20 @@ describe('wasFailureLogged', () => {
   it('does not treat an unrelated error as logged', () => {
     markFailureLogged(new Error('logged elsewhere'))
     expect(wasFailureLogged(new Error('fresh'))).toBe(false)
+  })
+
+  it('scopes a raw value logged at an execution boundary to that execution only', () => {
+    const persistentFault = new Error('module failed to load')
+    logFailureOnce(
+      createLogger('FailureLogTest'),
+      'Execution failed',
+      persistentFault,
+      {},
+      'exec-1'
+    )
+
+    expect(wasFailureLogged(persistentFault, 'exec-1')).toBe(true)
+    expect(wasFailureLogged(persistentFault, 'exec-2')).toBe(false)
+    expect(wasFailureLogged(persistentFault)).toBe(false)
   })
 })

@@ -22,6 +22,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { adoptToolFailure } from '@/lib/core/errors/failure-log'
 import { getMaxExecutionTimeout, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
 import {
@@ -185,7 +186,10 @@ async function openPullRequest(
   )
 
   if (!result.success) {
-    throw new Error(`PR creation failed for branch ${branch}: ${result.error ?? 'unknown error'}`)
+    throw adoptToolFailure(
+      new Error(`PR creation failed for branch ${branch}: ${result.error ?? 'unknown error'}`),
+      result
+    )
   }
 
   if (!isRecordLike(result.output)) {
@@ -221,8 +225,11 @@ async function repositoryDefaultBranch(
     { signal }
   )
   if (!result.success) {
-    throw new Error(
-      `Failed to determine the repository default branch: ${result.error ?? 'unknown error'}`
+    throw adoptToolFailure(
+      new Error(
+        `Failed to determine the repository default branch: ${result.error ?? 'unknown error'}`
+      ),
+      result
     )
   }
   if (!isRecordLike(result.output)) {
@@ -264,8 +271,11 @@ async function updatePullRequest(
       { signal }
     )
     if (!result.success) {
-      throw new Error(
-        `PR update failed for branch ${params.targetBranch}: ${result.error ?? 'unknown error'}`
+      throw adoptToolFailure(
+        new Error(
+          `PR update failed for branch ${params.targetBranch}: ${result.error ?? 'unknown error'}`
+        ),
+        result
       )
     }
   }

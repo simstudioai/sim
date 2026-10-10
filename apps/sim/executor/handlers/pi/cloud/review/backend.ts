@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { adoptToolFailure } from '@/lib/core/errors/failure-log'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
 import { resolvePiRunLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import {
@@ -186,8 +187,11 @@ async function submitReview(
   )
 
   if (!result.success) {
-    throw new Error(
-      `Failed to submit review for PR #${params.pullNumber}: ${result.error ?? 'unknown error'}`
+    throw adoptToolFailure(
+      new Error(
+        `Failed to submit review for PR #${params.pullNumber}: ${result.error ?? 'unknown error'}`
+      ),
+      result
     )
   }
 

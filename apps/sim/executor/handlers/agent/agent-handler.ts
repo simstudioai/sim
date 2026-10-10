@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord, omit } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { logFailureOnce, markFailureKind, markFailureLogged } from '@/lib/core/errors/failure-log'
+import { isProviderKeyRejection, markFailureKind } from '@/lib/core/errors/failure-log'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import {
   projectModelSchemaAnnotations,
@@ -309,9 +309,6 @@ function isTransportTimeout(error: unknown): boolean {
 }
 
 /**
- * Handler for Agent blocks that process LLM requests with optional tools.
- */
-/**
  * The user-facing message for a provider request that never got an answer, or null when the
  * provider did answer. The original message is appended for timeouts rather than replaced:
  * providers annotate it with the request phase they died in, which is the only thing
@@ -330,11 +327,9 @@ function describeProviderTransportFailure(error: Error): string | null {
   return null
 }
 
-function isAmbiguousProviderKeyRejection(error: unknown): boolean {
-  const status = (error as { status?: unknown } | null)?.status
-  return status === 401 || status === 402 || status === 403
-}
-
+/**
+ * Handler for Agent blocks that process LLM requests with optional tools.
+ */
 export class AgentBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === BlockType.AGENT
@@ -2964,7 +2959,6 @@ export class AgentBlockHandler implements BlockHandler {
   ): Promise<BlockOutput | StreamingExecution> {
     const providerId = providerRequest.provider
     const model = providerRequest.model
-    const providerStartTime = Date.now()
 
     try {
       let finalApiKey: string | undefined = providerRequest.apiKey
@@ -3050,11 +3044,8 @@ export class AgentBlockHandler implements BlockHandler {
     } catch (error) {
       const errorRegistry = this.createErrorRegistry(providerErrorRegistry, modelRuntimeRegistry)
       ctx.errorResolvedSecretTraceRegistry = errorRegistry
-      const diagnosticCtx = errorRegistry
-        ? { ...ctx, resolvedSecretTraceRegistry: errorRegistry }
-        : ctx
       try {
-        this.handleExecutionError(error, providerStartTime, providerId, model, diagnosticCtx, block)
+        this.handleExecutionError(error)
       } finally {
         if (modelRuntimeRegistry) {
           ctx.resolvedSecretTraceRegistry = modelRuntimeRegistry.forkForPropagatedEntries()
@@ -3075,50 +3066,18 @@ export class AgentBlockHandler implements BlockHandler {
     return errorRegistry
   }
 
-  private handleExecutionError(
-    error: any,
-    startTime: number,
-    provider: string,
-    model: string,
-    ctx: ExecutionContext,
-    block: SerializedBlock
-  ) {
-    const executionTime = Date.now() - startTime
+  /**
+   * Attributes a provider failure and rewrites a transport failure into a message the author can
+   * act on. The block executor owns the log line, with the block's and run's identity.
+   */
+  private handleExecutionError(error: unknown) {
     const transportFailure = error instanceof Error ? describeProviderTransportFailure(error) : null
     if (transportFailure) {
-      markFailureKind(error, 'third_party_server')
-    } else if (isAmbiguousProviderKeyRejection(error)) {
-      /** The handler cannot tell a hosted provider key (ours) from the author's own. */
-      markFailureKind(error, 'internal')
+      throw markFailureKind(new Error(transportFailure), 'third_party_server')
     }
-
-    logFailureOnce(
-      logger,
-      'Error executing provider request',
-      error,
-      projectAgentDiagnosticMetadata(
-        ctx,
-        {
-          executionTime,
-          provider,
-          model,
-          workflowId: ctx.workflowId,
-          blockId: block.id,
-          ...getErrorDiagnosticMetadata(error),
-        },
-        {
-          executionTime,
-          workflowId: ctx.workflowId,
-          blockId: block.id,
-          ...getErrorDiagnosticFallback(error),
-        }
-      )
-    )
-
-    if (transportFailure) {
-      const replacement = new Error(transportFailure)
-      markFailureLogged(replacement)
-      throw replacement
+    /** The handler cannot tell a hosted provider key (Sim's) from the author's own. */
+    if (isProviderKeyRejection((error as { status?: unknown } | null)?.status)) {
+      markFailureKind(error, 'internal')
     }
   }
 
