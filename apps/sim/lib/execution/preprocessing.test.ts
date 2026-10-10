@@ -15,8 +15,10 @@ import {
   billingUsageReservationMockFns,
 } from '@sim/testing/mocks/billing-usage-reservation.mock'
 import { executionLimitsMock } from '@sim/testing/mocks/execution-limits.mock'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
+import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing/mocks/redis-config.mock'
 import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -979,10 +981,6 @@ describe('preprocessExecution webhook correlation logging', () => {
 })
 
 describe('preprocessExecution admission rejection codes and blocked-run log throttling', () => {
-  let workflowSequence = 0
-  /** The throttle window outlives a test, so each test refuses a workflow no other test used. */
-  const nextWorkflowId = () => `throttled-workflow-${++workflowSequence}`
-
   const refuse = (workflowId: string, options: Record<string, unknown> = {}) =>
     preprocessExecution({
       workflowId,
@@ -996,6 +994,14 @@ describe('preprocessExecution admission rejection codes and blocked-run log thro
     })
 
   beforeEach(() => {
+    const claimedKeys = new Set<string>()
+    const redis = createMockRedis()
+    redis.set.mockImplementation(async (key: string) => {
+      if (claimedKeys.has(key)) return null
+      claimedKeys.add(key)
+      return 'OK'
+    })
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
     mockGetActivelyBannedUserIds.mockResolvedValue([])
     mockCheckAttributedUsageLimits.mockResolvedValue({
       isExceeded: true,
@@ -1003,6 +1009,8 @@ describe('preprocessExecution admission rejection codes and blocked-run log thro
       payerUsage: { currentUsage: 12, limit: 10 },
     })
   })
+
+  afterEach(resetRedisConfigMock)
 
   it.each([
     {
@@ -1027,12 +1035,26 @@ describe('preprocessExecution admission rejection codes and blocked-run log thro
     },
   ])('tags a $gate refusal with its stable code', async ({ arrange, expected }) => {
     arrange()
-    const result = await refuse(nextWorkflowId())
+    const result = await refuse('workflow-1')
     expect(result).toMatchObject({ success: false, error: expected })
   })
 
+  it('leaves an unreadable usage ledger untagged and retryable', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      reason: 'usage_unavailable',
+      message: 'Usage is temporarily unavailable',
+      payerUsage: { currentUsage: 0, limit: 0 },
+    })
+
+    const result = await refuse('workflow-1')
+
+    expect(result).toMatchObject({ success: false, error: { statusCode: 402, retryable: true } })
+    expect(result.success === false && result.error.code).toBeUndefined()
+  })
+
   it('writes one error row for repeated refusals of a workflow by the same gate', async () => {
-    const workflowId = nextWorkflowId()
+    const workflowId = 'workflow-1'
 
     for (let attempt = 0; attempt < 3; attempt++) {
       expect(await refuse(workflowId, { throttleErrorLogs: true })).toMatchObject({
@@ -1045,7 +1067,7 @@ describe('preprocessExecution admission rejection codes and blocked-run log thro
   })
 
   it('writes a row for a different gate refusing the same workflow inside the window', async () => {
-    const workflowId = nextWorkflowId()
+    const workflowId = 'workflow-1'
     await refuse(workflowId, { throttleErrorLogs: true })
     mockGetActivelyBannedUserIds.mockResolvedValue(['billed-account-1'])
     await refuse(workflowId, { throttleErrorLogs: true })
@@ -1054,7 +1076,7 @@ describe('preprocessExecution admission rejection codes and blocked-run log thro
   })
 
   it('writes every row when the caller does not ask for throttling', async () => {
-    const workflowId = nextWorkflowId()
+    const workflowId = 'workflow-1'
     await refuse(workflowId)
     await refuse(workflowId)
 
@@ -1062,7 +1084,7 @@ describe('preprocessExecution admission rejection codes and blocked-run log thro
   })
 
   it('always completes a logging session the caller supplied', async () => {
-    const workflowId = nextWorkflowId()
+    const workflowId = 'workflow-1'
     const loggingSession = {
       safeStart: vi.fn().mockResolvedValue(true),
       safeCompleteWithError: vi.fn().mockResolvedValue(undefined),

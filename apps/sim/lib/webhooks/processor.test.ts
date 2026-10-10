@@ -19,7 +19,10 @@ import {
   billingUsageReservationMock,
   billingUsageReservationMockFns,
 } from '@sim/testing/mocks/billing-usage-reservation.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
+import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing/mocks/redis-config.mock'
 import { NextRequest, NextResponse } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
@@ -106,6 +109,7 @@ vi.mock('@/triggers/jira/utils', () => ({
   isJiraEventMatch: vi.fn().mockReturnValue(true),
 }))
 
+import { findRecentlyRefusedWorkspaces } from '@/lib/webhooks/polling/admission-refusals'
 import {
   checkWebhookPreprocessing,
   dispatchResolvedWebhookTarget,
@@ -375,15 +379,6 @@ describe('deterministic admission rejections', () => {
   it.each([
     { name: 'usage limit', error: usageLimitRefusal.error },
     {
-      name: 'payer headroom',
-      error: {
-        message: 'No headroom',
-        statusCode: 402,
-        code: ADMISSION_ERROR_CODE.RESERVATION_PAYER_HEADROOM,
-        retryable: false,
-      },
-    },
-    {
       name: 'suspended account',
       error: {
         message: 'Account suspended',
@@ -433,6 +428,28 @@ describe('deterministic admission rejections', () => {
         retryable: true,
       },
     },
+    {
+      name: 'payer headroom',
+      error: {
+        message: 'No headroom',
+        statusCode: 402,
+        code: ADMISSION_ERROR_CODE.RESERVATION_PAYER_HEADROOM,
+        retryable: false,
+      },
+    },
+    {
+      name: 'member headroom',
+      error: {
+        message: 'No headroom',
+        statusCode: 402,
+        code: ADMISSION_ERROR_CODE.RESERVATION_MEMBER_HEADROOM,
+        retryable: false,
+      },
+    },
+    {
+      name: 'unreadable usage ledger',
+      error: { message: 'Usage unavailable', statusCode: 402, retryable: true },
+    },
     { name: 'uncoded failure', error: { message: 'Internal error', statusCode: 500 } },
   ])('still fails a $name for an opted-in provider so the sender retries', async ({ error }) => {
     mockProviderHandler.current = { acknowledgeAdmissionRejections: true }
@@ -442,6 +459,37 @@ describe('deterministic admission rejections', () => {
 
     expect(result.outcome).toBe('failed')
     expect(result.response.status).toBe(error.statusCode)
+  })
+
+  it('records a polled refusal so the next poll tick skips the workspace', async () => {
+    const store = new Map<string, string>()
+    const redis = createMockRedis()
+    redis.set.mockImplementation(async (key: string, value: string) => {
+      store.set(key, value)
+      return 'OK'
+    })
+    Object.assign(redis, {
+      mget: vi.fn(async (...keys: string[]) => keys.map((key) => store.get(key) ?? null)),
+    })
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
+    setEnvFlags({ isBillingEnabled: true })
+    mockPreprocessExecution.mockResolvedValueOnce(usageLimitRefusal)
+
+    try {
+      await processPolledWebhookEvent(
+        makeWebhookRecord({ provider: 'rss' }),
+        makeWorkflowRecord({ workspaceId: 'workspace-refused' }),
+        { item: {} },
+        'request-1'
+      )
+
+      expect(await findRecentlyRefusedWorkspaces(['workspace-refused', 'workspace-1'])).toEqual(
+        new Set(['workspace-refused'])
+      )
+    } finally {
+      resetEnvFlagsMock()
+      resetRedisConfigMock()
+    }
   })
 
   it('hands a poller the raw refusal and its code even when the provider acknowledges', async () => {

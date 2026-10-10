@@ -765,7 +765,10 @@ export async function preprocessExecution(
                   usageCheck.message ||
                   'Usage limit exceeded. Please upgrade your plan to continue.',
                 statusCode: 402,
-                code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED,
+                // An unreadable ledger fails closed; that is no verdict on the payer, so senders retry.
+                ...(usageCheck.reason === 'usage_unavailable'
+                  ? { retryable: true }
+                  : { code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED }),
               },
             },
             recordError: {
