@@ -560,9 +560,6 @@ jobs:
       - name: Repo audits
         run: bun run check:audits
 
-      - name: Verify docs manifest is in sync
-        run: bun run docs-manifest:check
-
       - name: Migration safety (zero-downtime) audit
         run: bun run check:migrations "${{ steps.audit_base.outputs.ref }}"
 

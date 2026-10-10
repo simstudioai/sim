@@ -10,6 +10,12 @@
  * hand-maintained list had already drifted: `check:cron-parity` existed, passed, and ran
  * nowhere. Audits that need a git base ref or write files stay excluded and keep their own
  * workflow step.
+ *
+ * Generated-artifact checks follow the same rule: name the pair `generate:<x>` / `check:<x>`
+ * and the check runs here. The suffix form `<x>:check` is reserved for checks this job cannot
+ * run: the mothership contracts (`mship*`, `trace-*`, `metrics`, `vfs`, `billing-protocol`)
+ * need the sibling copilot repo, `images:check` renders the Helm chart (it runs in
+ * `.github/workflows/helm.yml`), and `library:covers:check` is only deterministic per machine.
  */
 import path from 'node:path'
 
@@ -19,21 +25,6 @@ const EXCLUDED: Record<string, string> = {
   'check:migrations': 'diffs against a git base ref (origin/staging by default)',
   'check:api-validation': 'superseded by the :strict variant, which this runner does run',
 }
-
-/**
- * Generated-artifact checks that live outside the `check:*` namespace. Listed explicitly
- * because the `*:check` namespace also holds checks that need a sibling repo or network.
- *
- * `images:check` is deliberately absent: it renders the chart, and this job has no Helm.
- * It runs in `.github/workflows/helm.yml`, whose path filter covers its generator.
- */
-const EXTRA_AUDITS = [
-  'tool-metadata:check',
-  'deployment-config:check',
-  'integration-catalog:check',
-  'docs:check',
-  'agent-stream-docs:check',
-] as const
 
 const ROOT = path.resolve(import.meta.dir, '..')
 
@@ -45,10 +36,7 @@ interface AuditResult {
 }
 
 function auditScripts(scripts: Record<string, string>): string[] {
-  const derived = Object.keys(scripts).filter(
-    (name) => name.startsWith('check:') && !(name in EXCLUDED)
-  )
-  return [...derived, ...EXTRA_AUDITS]
+  return Object.keys(scripts).filter((name) => name.startsWith('check:') && !(name in EXCLUDED))
 }
 
 /**
