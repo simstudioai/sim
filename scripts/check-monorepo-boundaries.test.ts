@@ -86,6 +86,7 @@ describe('package boundary command', () => {
         ["export { listWidgetsContract } from '@/lib/api/contracts/widgets'", useCase, false],
         ["import * as contracts from '@/lib/api/contracts/widgets'", useCase, false],
         ["import { presentWidget } from '@/lib/api/server/widget-presenters'", useCase, false],
+        ["import { presentWidget } from '@/lib/api/server/widget-presenters.ts'", useCase, false],
         ["import { run } from '@/lib/mothership/tools/handlers/run-code'", useCase, false],
         ["import {} from '@/lib/mothership/tools/handlers/run-code'", useCase, false],
         ["export {} from '@/lib/api/server/widget-presenters'", useCase, false],

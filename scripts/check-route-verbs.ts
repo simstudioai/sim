@@ -147,9 +147,11 @@ function topLevelBindings(statements: Statements): {
 }
 
 /** Resolves exported handler references and tracing callbacks without importing server code. */
-export function wrappedRouteSites(source: string): Array<{ verb: string; optionsStart: number }> {
+export function wrappedRouteSites(
+  source: string
+): Array<{ verb: string; builder: string; optionsStart: number }> {
   const statements = parse(source, { sourceType: 'module', plugins: ['typescript'] }).program.body
-  const handlers = new Map<string, number>()
+  const handlers = new Map<string, { builder: string; optionsStart: number }>()
   for (const statement of statements) {
     if (statement.type !== 'VariableDeclaration' || statement.kind !== 'const') continue
     for (const declaration of statement.declarations) {
@@ -159,15 +161,18 @@ export function wrappedRouteSites(source: string): Array<{ verb: string; options
         continue
       const options = call.arguments[0]
       if (options?.type === 'ObjectExpression' && typeof options.start === 'number') {
-        handlers.set(declaration.id.name, options.start + 1)
+        handlers.set(declaration.id.name, {
+          builder: call.callee.name,
+          optionsStart: options.start + 1,
+        })
       }
     }
   }
   const { locals, exports } = topLevelBindings(statements)
-  const sites: Array<{ verb: string; optionsStart: number }> = []
+  const sites: Array<{ verb: string; builder: string; optionsStart: number }> = []
   for (const { exported: verb, local } of exports) {
     if (!isVerb(verb)) continue
-    const found = new Set<number>()
+    const found = new Set<{ builder: string; optionsStart: number }>()
     const direct = handlers.get(local)
     if (direct !== undefined) found.add(direct)
     const visit = (value: unknown): void => {
@@ -178,13 +183,13 @@ export function wrappedRouteSites(source: string): Array<{ verb: string; options
       }
       const node = value as Record<string, unknown>
       if (node.type === 'Identifier' && typeof node.name === 'string') {
-        const start = handlers.get(node.name)
-        if (start !== undefined) found.add(start)
+        const handler = handlers.get(node.name)
+        if (handler !== undefined) found.add(handler)
       }
       Object.values(node).forEach(visit)
     }
     if (direct === undefined) visit(locals.get(local))
-    for (const optionsStart of found) sites.push({ verb, optionsStart })
+    for (const handler of found) sites.push({ verb, ...handler })
   }
   return sites
 }
@@ -347,8 +352,12 @@ function derivedPath(file: string): string {
   return ['/api', ...segments].join('/')
 }
 
-/** Where a contract identifier is bound in a route: a builder's `contract:` key or a raw `parseRequest`. */
-type SiteKind = 'builder' | 'raw'
+/**
+ * Where a contract identifier is bound in a route: a builder's `contract:` key or a raw
+ * `parseRequest`. `scim` is `defineScimRoute`, the one builder that rejects a `HEAD` request
+ * against a `GET` contract instead of serving it through `methodMatchesContract`.
+ */
+type SiteKind = 'builder' | 'scim' | 'raw'
 
 /** One route file, as every site in it is checked against. */
 interface RouteFile {
@@ -426,13 +435,13 @@ export async function checkSite(
   }
 
   const subject =
-    kind === 'builder'
+    kind !== 'raw'
       ? `export const ${verb} is built from \`${identifier}\``
       : `export const ${verb} parses with \`${identifier}\``
   const method = contract.method.toUpperCase()
-  if (method !== verb && !(verb === 'HEAD' && method === 'GET')) {
+  if (method !== verb && !(verb === 'HEAD' && method === 'GET' && kind !== 'scim')) {
     failures.push(
-      kind === 'builder'
+      kind !== 'raw'
         ? `${relative}: ${subject}, which declares ${contract.method} ${contract.path}. Next routes by the exported symbol, so ${verb} requests 500 and ${contract.method} requests 404.`
         : `${relative}: ${subject}, which declares ${contract.method} ${contract.path}. Clients calling through the contract send ${contract.method} and get a 405.`
     )
@@ -493,13 +502,14 @@ async function main() {
 
     const directSites = [...source.matchAll(EXPORT_RE)].map((match) => ({
       verb: match[1],
+      builder: match[2],
       optionsStart: (match.index ?? 0) + match[0].length,
     }))
     const sites =
       directSites.length === builderCalls
         ? directSites
         : [...directSites, ...wrappedRouteSites(source)]
-    for (const { verb, optionsStart } of sites) {
+    for (const { verb, builder, optionsStart } of sites) {
       sitesInFile += 1
       const options = source.slice(optionsStart, optionsStart + OPTIONS_SCAN_CHARS)
 
@@ -509,7 +519,8 @@ async function main() {
         continue
       }
       const identifier = contractKey[1]
-      if (await checkSite(route, 'builder', verb, identifier, failures, verbose)) checked += 1
+      const kind = builder === 'defineScimRoute' ? 'scim' : 'builder'
+      if (await checkSite(route, kind, verb, identifier, failures, verbose)) checked += 1
     }
 
     if (sitesInFile < builderCalls) {

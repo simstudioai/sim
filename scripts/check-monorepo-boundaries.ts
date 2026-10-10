@@ -67,7 +67,7 @@ function applicationViolation(
   ) {
     return `application code imports a Copilot handler: ${specifier}`
   }
-  if (specifier.startsWith('@/') && /(^|[/-])presenters?$/.test(specifier)) {
+  if (specifier.startsWith('@/') && /(^|[/-])presenters?(\.[cm]?[jt]sx?)?$/.test(specifier)) {
     return `application code imports a presenter: ${specifier}`
   }
   if (matchesModule(specifier, '@/lib/api/contracts')) {

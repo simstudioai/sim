@@ -15,7 +15,7 @@ describe('traced route declarations', () => {
 export const POST = (request: NextRequest, context?: Parameters<typeof handler>[1]) =>
   withIncomingGoSpan(request.headers, span, undefined, () => handler(request, context))`
     expect(wrappedRouteSites(source)).toEqual([
-      { verb: 'POST', optionsStart: source.indexOf('{') + 1 },
+      { verb: 'POST', builder: 'defineInternalJsonRoute', optionsStart: source.indexOf('{') + 1 },
     ])
   })
   it('preserves a wrong verb so the contract comparison rejects it', () => {
@@ -30,8 +30,12 @@ const fallback = defineInternalJsonRoute({
 })
 export const POST = enabled ? handler : fallback`
     expect(wrappedRouteSites(source)).toEqual([
-      { verb: 'POST', optionsStart: source.indexOf('{') + 1 },
-      { verb: 'POST', optionsStart: source.indexOf('{', source.indexOf('const fallback')) + 1 },
+      { verb: 'POST', builder: 'defineInternalJsonRoute', optionsStart: source.indexOf('{') + 1 },
+      {
+        verb: 'POST',
+        builder: 'defineInternalJsonRoute',
+        optionsStart: source.indexOf('{', source.indexOf('const fallback')) + 1,
+      },
     ])
   })
   it('checks a builder handler exported through an export list', () => {
@@ -40,7 +44,7 @@ export const POST = enabled ? handler : fallback`
 })
 export { GET }`
     expect(wrappedRouteSites(source)).toEqual([
-      { verb: 'GET', optionsStart: source.indexOf('{') + 1 },
+      { verb: 'GET', builder: 'defineInternalJsonRoute', optionsStart: source.indexOf('{') + 1 },
     ])
   })
 })
@@ -131,6 +135,11 @@ describe('HEAD handlers', () => {
     const failures: string[] = []
     await checkSite(route, 'raw', 'HEAD', 'readContract', failures, false, loadModule)
     expect(failures).toEqual([])
+  })
+  it('rejects HEAD on a GET contract for defineScimRoute, which requires an exact method', async () => {
+    const failures: string[] = []
+    await checkSite(route, 'scim', 'HEAD', 'readContract', failures, false, loadModule)
+    expect(failures).toHaveLength(1)
   })
   it('still rejects any other verb on a GET contract', async () => {
     const failures: string[] = []
