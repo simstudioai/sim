@@ -494,3 +494,35 @@ it('keeps text typed into the server-rendered textarea before hydration', () => 
     container.remove()
   }
 })
+
+it('re-chipifies a seeded draft once skills load', () => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  const skill = {
+    id: 'review',
+    workspaceId: 'ws-1',
+    userId: null,
+    name: 'Review',
+    description: '',
+    content: '',
+    canEdit: false,
+    createdAt: '',
+    updatedAt: '',
+  }
+  let latest: ReturnType<typeof usePromptEditor> | undefined
+  function Editor({ skills }: { skills: (typeof skill)[] }) {
+    latest = usePromptEditor({ workspaceId: 'ws-1', availableSkills: skills })
+    return null
+  }
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    act(() => root.render(<Editor skills={[]} />))
+    act(() => latest?.setValue('/Review the draft', { seed: true }))
+    act(() => root.render(<Editor skills={[skill]} />))
+    expect(latest?.getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'review', label: 'Review' },
+    ])
+  } finally {
+    act(() => root.unmount())
+  }
+})

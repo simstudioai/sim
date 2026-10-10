@@ -335,9 +335,12 @@ export function usePromptEditor({
    * Programmatically replaces the editor text. Chipifies by default so any
    * seeded prose (template, transcript, queued message) registers its
    * integration / skill chips; pass `{ chipify: false }` for verbatim text.
+   * `{ seed: true }` treats the text like `initialValue`, re-chipified once
+   * the skill list loads while it stays untouched.
    */
-  const setValue = useCallback((text: string, options?: { chipify?: boolean }) => {
+  const setValue = useCallback((text: string, options?: { chipify?: boolean; seed?: boolean }) => {
     const next = options?.chipify === false ? text : applyAutoMentionsRef.current(text)
+    if (options?.seed) seedRef.current = next
     atInsertPosRef.current = null
     pendingCursorRef.current = null
     mentionRangeRef.current = null

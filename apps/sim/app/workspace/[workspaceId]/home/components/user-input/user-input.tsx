@@ -204,7 +204,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     if (restoredContexts) editor.setContexts(restoredContexts)
     if (restoredFiles) files.restoreAttachedFiles(restoredFiles)
     if (caretText !== null) {
-      if (editor.getValue() === '') editor.setValue(caretText)
+      if (editor.getValue() === '') editor.setValue(caretText, { seed: true })
       const textarea = textareaRef.current
       if (textarea) {
         if (!isMobileViewport()) textarea.focus()
