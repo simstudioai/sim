@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord, omit } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { isProviderKeyRejection, markFailureKind } from '@/lib/core/errors/failure-log'
+import { markFailureKind } from '@/lib/core/errors/failure-log'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import {
   projectModelSchemaAnnotations,
@@ -325,6 +325,12 @@ function describeProviderTransportFailure(error: Error): string | null {
     return 'Unable to connect to server - DNS or connection issue'
   }
   return null
+}
+
+/** A provider refusing the key it was given. */
+function isProviderKeyRejection(error: unknown): boolean {
+  const status = (error as { status?: unknown } | null)?.status
+  return status === 401 || status === 402 || status === 403
 }
 
 /**
@@ -3042,8 +3048,10 @@ export class AgentBlockHandler implements BlockHandler {
 
       return this.processProviderResponse(response, block, responseFormat, ctx)
     } catch (error) {
-      const errorRegistry = this.createErrorRegistry(providerErrorRegistry, modelRuntimeRegistry)
-      ctx.errorResolvedSecretTraceRegistry = errorRegistry
+      ctx.errorResolvedSecretTraceRegistry = this.createErrorRegistry(
+        providerErrorRegistry,
+        modelRuntimeRegistry
+      )
       try {
         this.handleExecutionError(error)
       } finally {
@@ -3076,7 +3084,7 @@ export class AgentBlockHandler implements BlockHandler {
       throw markFailureKind(new Error(transportFailure), 'third_party_server')
     }
     /** The handler cannot tell a hosted provider key (Sim's) from the author's own. */
-    if (isProviderKeyRejection((error as { status?: unknown } | null)?.status)) {
+    if (isProviderKeyRejection(error)) {
       markFailureKind(error, 'internal')
     }
   }

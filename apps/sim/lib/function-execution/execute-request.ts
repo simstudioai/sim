@@ -3301,17 +3301,15 @@ export async function executeFunctionRequest(
         errorDisplayCode
       )
 
-      /** The author's code threw unless the isolate itself failed. */
-      logger[isSystemError ? 'error' : 'info'](
-        `[${requestId}] Function execution failed in isolated-vm`,
-        {
+      /** The author's code throwing is logged once by the tool boundary; an isolate failure is ours. */
+      if (isSystemError) {
+        logger.error(`[${requestId}] Function execution failed in isolated-vm`, {
           executionTime,
-          isSystemError,
           hasStack: Boolean(ivmError.stack),
           line: enhancedError.line,
           column: enhancedError.column,
-        }
-      )
+        })
+      }
 
       return functionJsonResponse(
         {

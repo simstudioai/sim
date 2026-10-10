@@ -1,4 +1,4 @@
-import { markFailureKind } from '@/lib/core/errors/failure-log'
+import { UserFailure } from '@/lib/core/errors/user-failure'
 
 /**
  * Machine-readable class of a custom-block failure. Every member describes a
@@ -41,14 +41,13 @@ export interface CustomBlockFailure {
  * replaces the older convention of throwing *before* the `try` block to dodge
  * the catch's sanitizer, where redaction depended on lexical position.
  */
-export class BoundarySafeError extends Error {
+export class BoundarySafeError extends UserFailure {
   readonly errorType: CustomBlockErrorType
 
   constructor(options: { message: string; errorType: CustomBlockErrorType }) {
     super(options.message)
     this.name = 'BoundarySafeError'
     this.errorType = options.errorType
-    markFailureKind(this, 'user')
   }
 }
 

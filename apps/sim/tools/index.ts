@@ -19,9 +19,7 @@ import { isHosted } from '@/lib/core/config/env-flags'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import {
   classifyFailure,
-  isProviderKeyRejection,
   logFailureOnce,
-  markDeliberateFailure,
   markFailureKind,
   markFailureLogged,
 } from '@/lib/core/errors/failure-log'
@@ -2314,44 +2312,47 @@ async function executeToolImplementation(
     const databaseQueryError = findDatabaseQueryError(error)
     const databaseErrorCause = databaseQueryError ? describeError(error) : undefined
     const upstreamStatus = (error as { status?: unknown } | null)?.status
+    const hostedKeyFailure = hostedKeyForMetrics ? classifyHostedKeyFailure(error) : undefined
     /** Sim's own hosted key being refused or throttled is Sim's fault and Sim's capacity. */
-    if (hostedKeyForMetrics && (isProviderKeyRejection(upstreamStatus) || upstreamStatus === 429)) {
-      markFailureKind(error, 'internal')
-    }
+    if (hostedKeyFailure && hostedKeyFailure !== 'other') markFailureKind(error, 'internal')
     const toolContext = params._context as Record<string, unknown> | undefined
-    logFailureOnce(logger, `[${requestId}] Error executing tool ${toolId}:`, error, {
-      toolId,
-      workflowId: executionContext?.workflowId ?? undefined,
-      executionId: executionContext?.executionId,
-      blockId: typeof toolContext?.blockId === 'string' ? toolContext.blockId : undefined,
-      ...(typeof upstreamStatus === 'number' ? { status: upstreamStatus } : {}),
-      ...projectToolLogMetadata(
-        {
-          ...(databaseErrorCause
-            ? { cause: databaseErrorCause }
-            : {
-                error: normalizedError.message,
-                stack: error instanceof Error ? error.stack : undefined,
-                ...(error instanceof Error && externalHttpFailures.has(error)
-                  ? { errorData: (error as { data?: unknown }).data }
-                  : {}),
-              }),
-        },
-        resolvedSecretTraceRegistry,
-        {
-          errorName: normalizedError.name,
-          hasStack: !databaseErrorCause && Boolean(error instanceof Error && error.stack),
-          ...(databaseErrorCause ? { cause: databaseErrorCause } : {}),
-        },
-        structuralOnlyToolLogs
-      ),
-    })
+    const loggedKind = logFailureOnce(
+      logger,
+      `[${requestId}] Error executing tool ${toolId}:`,
+      error,
+      {
+        metadata: () => ({
+          toolId,
+          workflowId: executionContext?.workflowId ?? undefined,
+          executionId: executionContext?.executionId,
+          blockId: typeof toolContext?.blockId === 'string' ? toolContext.blockId : undefined,
+          ...(typeof upstreamStatus === 'number' ? { status: upstreamStatus } : {}),
+          ...projectToolLogMetadata(
+            {
+              ...(databaseErrorCause
+                ? { cause: databaseErrorCause }
+                : {
+                    error: normalizedError.message,
+                    stack: error instanceof Error ? error.stack : undefined,
+                    ...(error instanceof Error && externalHttpFailures.has(error)
+                      ? { errorData: (error as { data?: unknown }).data }
+                      : {}),
+                  }),
+            },
+            resolvedSecretTraceRegistry,
+            {
+              errorName: normalizedError.name,
+              hasStack: !databaseErrorCause && Boolean(error instanceof Error && error.stack),
+              ...(databaseErrorCause ? { cause: databaseErrorCause } : {}),
+            },
+            structuralOnlyToolLogs
+          ),
+        }),
+      }
+    )
 
-    if (hostedKeyForMetrics) {
-      hostedKeyMetrics.recordFailed({
-        ...hostedKeyForMetrics,
-        reason: classifyHostedKeyFailure(error),
-      })
+    if (hostedKeyForMetrics && hostedKeyFailure) {
+      hostedKeyMetrics.recordFailed({ ...hostedKeyForMetrics, reason: hostedKeyFailure })
     }
 
     let errorMessage = 'Unknown error occurred'
@@ -2429,7 +2430,7 @@ async function executeToolImplementation(
     }
     /** A handler rebuilding this result as a thrown error carries `output`, and with it both marks. */
     markFailureLogged(failureOutput)
-    markFailureKind(failureOutput, classifyFailure(error))
+    markFailureKind(failureOutput, loggedKind ?? classifyFailure(error))
     return {
       success: false,
       output: failureOutput,
@@ -3087,7 +3088,10 @@ async function executeToolRequest(
       try {
         data = await tool.transformResponse(mockResponse, params, { signal })
       } catch (transformError) {
-        throw markDeliberateFailure(transformError, 'third_party_client')
+        throw transformError instanceof Error &&
+          Object.getPrototypeOf(transformError) === Error.prototype
+          ? markFailureKind(transformError, 'third_party_client')
+          : transformError
       }
       if (tool.request.responseType === 'binary' && data.success) {
         if (!context) throw new Error('Binary file output requires trusted execution context')

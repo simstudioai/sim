@@ -5,11 +5,13 @@
  * security-sensitive details.
  */
 
+import { adoptToolFailure } from '@/lib/core/errors/failure-log'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { PI_EVENT_FILTER_PATH } from '@/executor/handlers/pi/cloud/event-filter-source'
 import { scrubPiSecrets } from '@/executor/handlers/pi/core/redaction'
 import { PI_PACKAGE_VERSION } from '@/scripts/pi-sandbox-packages'
+import type { ToolResponse } from '@/tools/types'
 
 export const REPO_DIR = '/workspace/repo'
 export const PROMPT_PATH = '/workspace/pi-prompt.txt'
@@ -219,4 +221,12 @@ export function extractMarkerValues(stdout: string, prefix: string): string[] {
 export function scrubGitSecrets(text: string, token: string): string {
   const withoutToken = scrubPiSecrets(text, [token])
   return withoutToken.replace(/\/\/[^/@\s]+@/g, '//***@')
+}
+
+/**
+ * The error a backend throws for a failed GitHub tool call. Carries the tool layer's marks so the
+ * failure `executeTool` already logged is not logged again at error.
+ */
+export function toolResultError(label: string, result: ToolResponse): Error {
+  return adoptToolFailure(new Error(`${label}: ${result.error ?? 'unknown error'}`), result)
 }

@@ -3,13 +3,14 @@ import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { describe, expect, it } from 'vitest'
 import {
   classifyFailure,
+  inheritFailureMarks,
   logFailureOnce,
-  markDeliberateFailure,
   markFailureKind,
   markFailureLogged,
   wasFailureLogged,
 } from '@/lib/core/errors/failure-log'
 import { RetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
+import { UserFailure } from '@/lib/core/errors/user-failure'
 import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
 
 describe('classifyFailure', () => {
@@ -56,14 +57,17 @@ describe('classifyFailure', () => {
   })
 })
 
-describe('markDeliberateFailure', () => {
-  it('attributes a plain Error but not a TypeError raised by a bug in the same code', () => {
-    expect(classifyFailure(markDeliberateFailure(new Error('channel_not_found'), 'user'))).toBe(
-      'user'
-    )
-    expect(classifyFailure(markDeliberateFailure(new TypeError('x is undefined'), 'user'))).toBe(
-      'internal'
-    )
+describe('inheritFailureMarks', () => {
+  it('carries the logged mark and attribution across a boundary that drops cause', () => {
+    const logged = new Error('child failed')
+    markFailureLogged(logged)
+    const boundary = inheritFailureMarks(new Error('Custom block execution failed'), logged)
+    expect(wasFailureLogged(boundary)).toBe(true)
+    expect(classifyFailure(boundary)).toBe('internal')
+
+    const authored = inheritFailureMarks(new Error('wrapped'), new UserFailure('missing input'))
+    expect(wasFailureLogged(authored)).toBe(false)
+    expect(classifyFailure(authored)).toBe('user')
   })
 })
 
@@ -83,13 +87,9 @@ describe('wasFailureLogged', () => {
 
   it('scopes a raw value logged at an execution boundary to that execution only', () => {
     const persistentFault = new Error('module failed to load')
-    logFailureOnce(
-      createLogger('FailureLogTest'),
-      'Execution failed',
-      persistentFault,
-      {},
-      'exec-1'
-    )
+    logFailureOnce(createLogger('FailureLogTest'), 'Execution failed', persistentFault, {
+      executionId: 'exec-1',
+    })
 
     expect(wasFailureLogged(persistentFault, 'exec-1')).toBe(true)
     expect(wasFailureLogged(persistentFault, 'exec-2')).toBe(false)

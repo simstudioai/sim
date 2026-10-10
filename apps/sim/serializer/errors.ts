@@ -1,8 +1,7 @@
-/**
- * A block the author left without a value it requires. Raised before execution starts; the
- * author's configuration, not a Sim fault, so execution logs it at info.
- */
-export class MissingRequiredFieldsError extends Error {
+import { UserFailure } from '@/lib/core/errors/user-failure'
+
+/** A block the author left without a value it requires, refused before execution starts. */
+export class MissingRequiredFieldsError extends UserFailure {
   constructor(blockName: string, missingFields: string[]) {
     super(`${blockName} is missing required fields: ${missingFields.join(', ')}`)
     this.name = 'MissingRequiredFieldsError'

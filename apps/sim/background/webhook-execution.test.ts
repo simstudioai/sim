@@ -482,12 +482,12 @@ describe('executeWebhookJob fault vs error handling', () => {
     expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalled()
     expect(loggingSessionMockFns.mockProjectDiagnosticError).toHaveBeenCalledWith(rawError, {
       workflowId: 'workflow-1',
-      executionId: 'execution-1',
       provider: 'gmail',
     })
     expect(webhookExecutionLogger.error).toHaveBeenCalledWith(
       '[request-1] Webhook execution failed',
       {
+        executionId: 'execution-1',
         workflowId: 'workflow-1',
         provider: 'gmail',
         error: projectedError,

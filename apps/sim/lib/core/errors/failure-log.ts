@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import { isRetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
+import { UserFailure } from '@/lib/core/errors/user-failure'
 import { HttpError } from '@/lib/core/utils/http-error'
 
 /**
@@ -56,26 +57,9 @@ export function markFailureKind<T>(error: T, kind: FailureKind): T {
 }
 
 /**
- * Records `kind` only when `error` is a plain `Error` deliberately thrown with a message. A
- * `TypeError`, `RangeError`, or other subclass raised by a bug in the same code stays
- * unattributed, so it keeps logging at error.
- */
-export function markDeliberateFailure<T>(error: T, kind: FailureKind): T {
-  if (error instanceof Error && Object.getPrototypeOf(error) === Error.prototype) {
-    failureKinds.set(error, kind)
-  }
-  return error
-}
-
-/** A provider refusing the key it was given; Sim's fault when the key was Sim's own. */
-export function isProviderKeyRejection(status: unknown): boolean {
-  return status === 401 || status === 402 || status === 403
-}
-
-/**
  * Attributes `error` from its cause chain. A database failure anywhere is always internal,
- * then the outermost link with an explicit mark, a Sim `HttpError` status, or an upstream
- * `status` decides. Anything unattributed is internal.
+ * then the outermost link with an explicit mark, a {@link UserFailure}, a Sim `HttpError` status,
+ * or an upstream `status` decides. Anything unattributed is internal.
  */
 export function classifyFailure(error: unknown): FailureKind {
   if (findDatabaseQueryError(error)) return 'internal'
@@ -85,6 +69,7 @@ export function classifyFailure(error: unknown): FailureKind {
 
     const marked = failureKinds.get(link)
     if (marked) return marked
+    if (link instanceof UserFailure) return 'user'
 
     if (link instanceof HttpError) {
       return link.statusCode >= 400 && link.statusCode < 500 ? 'user' : 'internal'
@@ -108,17 +93,26 @@ export function markFailureLogged(carrier: unknown): void {
 }
 
 /**
- * Moves a failed tool result's marks onto the error a handler rebuilds from it. `executeTool`
- * flattens a thrown failure into `{ success: false, output }` and logs it once; without this, the
- * handler's fresh error looks unlogged and unattributed and is logged again at error.
+ * Carries `source`'s marks onto `target`, a fresh error built at a boundary that drops `cause`:
+ * the logged mark when `source` was logged, and `source`'s attribution unless `target` has its own.
+ */
+export function inheritFailureMarks<T>(target: T, source: unknown): T {
+  if (!isKeyable(target)) return target
+  if (wasFailureLogged(source)) loggedCarriers.add(target)
+  if (!failureKinds.has(target)) failureKinds.set(target, classifyFailure(source))
+  return target
+}
+
+/**
+ * Carries a failed tool result's marks onto the error a handler rebuilds from it. `executeTool`
+ * flattens a thrown failure into `{ success: false, output }`, logs it once, and marks `output`;
+ * without this, the handler's fresh error looks unlogged and is logged again at error.
  */
 export function adoptToolFailure<T>(error: T, result: { output?: unknown }): T {
   const output = result.output
-  if (!isKeyable(error) || !isKeyable(output)) return error
-  if (loggedCarriers.has(output)) loggedCarriers.add(error)
-  const kind = failureKinds.get(output)
-  if (kind && !failureKinds.has(error)) failureKinds.set(error, kind)
-  return error
+  return isKeyable(output) && loggedCarriers.has(output)
+    ? inheritFailureMarks(error, output)
+    : error
 }
 
 /**
@@ -140,21 +134,35 @@ const LOG_LEVEL_BY_KIND = {
   internal: 'error',
 } as const satisfies Record<FailureKind, 'info' | 'warn' | 'error'>
 
+interface LogFailureOptions {
+  /** Built only when the line is logged, so a skipped boundary does no projection work. */
+  metadata?: Record<string, unknown> | (() => Record<string, unknown>)
+  /**
+   * Set at execution-level boundaries (engine, execution core, trigger surfaces): the raw value is
+   * marked for this execution only, and the id is added to the line. Below that level the caller
+   * marks the fresh carrier it throws with {@link markFailureLogged}.
+   */
+  executionId?: string
+}
+
 /**
  * Logs a failure at the severity its cause earns unless a boundary closer to the cause already
- * logged it. Pass `executionId` at execution-level boundaries (engine, execution core, trigger
- * surfaces) so the raw value is marked for that execution only; below that level the caller
- * marks the fresh carrier it throws with {@link markFailureLogged}.
+ * logged it. Returns the attribution it logged with, or `undefined` when it skipped.
  */
 export function logFailureOnce(
   logger: Logger,
   message: string,
   error: unknown,
-  metadata: Record<string, unknown> = {},
-  executionId?: string
-): void {
-  if (wasFailureLogged(error, executionId)) return
+  { metadata, executionId }: LogFailureOptions = {}
+): FailureKind | undefined {
+  if (wasFailureLogged(error, executionId)) return undefined
   const failureKind = classifyFailure(error)
-  logger[LOG_LEVEL_BY_KIND[failureKind]](message, { ...metadata, failureKind })
+  const fields = typeof metadata === 'function' ? metadata() : metadata
+  logger[LOG_LEVEL_BY_KIND[failureKind]](message, {
+    ...(executionId !== undefined ? { executionId } : {}),
+    ...fields,
+    failureKind,
+  })
   if (executionId !== undefined && isKeyable(error)) loggedInExecution.set(error, executionId)
+  return failureKind
 }

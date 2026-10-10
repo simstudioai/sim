@@ -1616,13 +1616,11 @@ async function handleExecutePost(
           return payloadTooLargeResponse()
         }
 
-        logFailureOnce(
-          reqLogger,
-          'Non-SSE execution failed',
-          error,
-          loggingSession.projectDiagnosticError(error, { isTimeout: executionTimedOut }),
-          executionId
-        )
+        logFailureOnce(reqLogger, 'Non-SSE execution failed', error, {
+          metadata: () =>
+            loggingSession.projectDiagnosticError(error, { isTimeout: executionTimedOut }),
+          executionId,
+        })
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
         const status = executionTimedOut ? 408 : getExecutionErrorStatus(error)
@@ -2424,13 +2422,10 @@ async function handleExecutePost(
             ? getTimeoutErrorMessage(timeoutController.timeoutMs)
             : getErrorMessage(error, 'Unknown error')
 
-          logFailureOnce(
-            reqLogger,
-            'SSE execution failed',
-            error,
-            loggingSession.projectDiagnosticError(error, { isTimeout }),
-            executionId
-          )
+          logFailureOnce(reqLogger, 'SSE execution failed', error, {
+            metadata: () => loggingSession.projectDiagnosticError(error, { isTimeout }),
+            executionId,
+          })
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
           let compactErrorLogs: BlockLog[] | undefined

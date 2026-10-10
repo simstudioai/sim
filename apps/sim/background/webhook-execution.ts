@@ -1268,17 +1268,14 @@ async function executeWebhookJobInternal(
       throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })
     }
 
-    logFailureOnce(
-      logger,
-      `[${requestId}] Webhook execution failed`,
-      error,
-      loggingSession.projectDiagnosticError(error, {
-        workflowId: payload.workflowId,
-        executionId,
-        provider: payload.provider,
-      }),
-      executionId
-    )
+    logFailureOnce(logger, `[${requestId}] Webhook execution failed`, error, {
+      metadata: () =>
+        loggingSession.projectDiagnosticError(error, {
+          workflowId: payload.workflowId,
+          provider: payload.provider,
+        }),
+      executionId,
+    })
 
     // The finalized flag is set inside a fire-and-forget post-execution promise; await it so the
     // signal is reliable and the failure is fully persisted before we decide fault vs error.

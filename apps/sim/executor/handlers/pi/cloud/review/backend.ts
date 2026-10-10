@@ -11,7 +11,6 @@ import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { adoptToolFailure } from '@/lib/core/errors/failure-log'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
 import { resolvePiRunLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import {
@@ -32,6 +31,7 @@ import {
   REPO_DIR,
   raceAbort,
   scrubGitSecrets,
+  toolResultError,
 } from '@/executor/handlers/pi/cloud/shared'
 import type { PiBackendRun, PiCloudReviewRunParams } from '@/executor/handlers/pi/core/backend'
 import { buildPiPrompt } from '@/executor/handlers/pi/core/context'
@@ -187,12 +187,7 @@ async function submitReview(
   )
 
   if (!result.success) {
-    throw adoptToolFailure(
-      new Error(
-        `Failed to submit review for PR #${params.pullNumber}: ${result.error ?? 'unknown error'}`
-      ),
-      result
-    )
+    throw toolResultError(`Failed to submit review for PR #${params.pullNumber}`, result)
   }
 
   const output: unknown = result.output

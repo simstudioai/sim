@@ -24,7 +24,7 @@ export async function executeInternalJsonToolOperation<C extends AnyApiRouteCont
   } catch (error) {
     signal?.throwIfAborted()
     /** The 500 below carries only the message; the cause (a database code, a stack) lives here. */
-    logFailureOnce(logger, errorMessage, error, { cause: describeError(error) })
+    logFailureOnce(logger, errorMessage, error, { metadata: { cause: describeError(error) } })
     return Response.json({ error: `${errorMessage}: ${toError(error).message}` }, { status: 500 })
   }
 }

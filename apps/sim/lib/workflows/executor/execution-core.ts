@@ -14,7 +14,8 @@ import type { Edge } from '@xyflow/react'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { type EffectivePiiRedaction, resolveEffectivePiiRedaction } from '@/lib/billing/retention'
-import { logFailureOnce, markFailureKind } from '@/lib/core/errors/failure-log'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
+import { UserFailure } from '@/lib/core/errors/user-failure'
 import {
   getExecutionDeadlineAt,
   getTimeoutErrorMessage,
@@ -75,8 +76,6 @@ import {
   buildParallelSentinelEndId,
 } from '@/executor/utils/subflow-node-id-codec'
 import { Serializer } from '@/serializer'
-import { MissingRequiredFieldsError } from '@/serializer/errors'
-import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('ExecutionCore')
 
@@ -877,10 +876,7 @@ async function executeWorkflowCoreImpl(
       const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
 
       if (!startBlock) {
-        throw markFailureKind(
-          new Error('No start block found. Add a start block to this workflow.'),
-          'user'
-        )
+        throw new UserFailure('No start block found. Add a start block to this workflow.')
       }
 
       resolvedTriggerBlockId = startBlock.blockId
@@ -892,21 +888,13 @@ async function executeWorkflowCoreImpl(
     }
 
     // Serialize workflow
-    let serializedWorkflow: SerializedWorkflow
-    try {
-      serializedWorkflow = new Serializer().serializeWorkflow(
-        mergedStates,
-        filteredEdges,
-        loops,
-        parallels,
-        true
-      )
-    } catch (serializeError) {
-      /** An unknown block type stays internal: a registry regression or an unregistered block. */
-      throw serializeError instanceof MissingRequiredFieldsError
-        ? markFailureKind(serializeError, 'user')
-        : serializeError
-    }
+    const serializedWorkflow = new Serializer().serializeWorkflow(
+      mergedStates,
+      filteredEdges,
+      loops,
+      parallels,
+      true
+    )
     const inputFileKeys = new Set<string>()
     processedInput =
       resumeFromSnapshot || runFromBlock
@@ -1358,18 +1346,16 @@ async function executeWorkflowCoreImpl(
 
     return result
   } catch (error: unknown) {
-    const errorCause = describeErrorCause(error)
-    logFailureOnce(
-      logger,
-      `[${requestId}] Execution failed:`,
-      error,
-      projectResolvedSecretDiagnosticError(error, resolvedSecretTraceRegistry, {
-        workflowId,
-        executionId,
-        ...(errorCause ? { cause: errorCause } : {}),
-      }),
-      executionId
-    )
+    logFailureOnce(logger, `[${requestId}] Execution failed:`, error, {
+      metadata: () => {
+        const errorCause = describeErrorCause(error)
+        return projectResolvedSecretDiagnosticError(error, resolvedSecretTraceRegistry, {
+          workflowId,
+          ...(errorCause ? { cause: errorCause } : {}),
+        })
+      },
+      executionId,
+    })
 
     await waitForLifecycleCallbacks()
 

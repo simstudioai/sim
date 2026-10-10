@@ -488,9 +488,7 @@ describe('async preprocessing correlation threading', () => {
         }),
       })
     )
-    expect(loggingSessionMockFns.mockProjectDiagnosticError).toHaveBeenCalledWith(rawError, {
-      executionId: 'execution-fault',
-    })
+    expect(loggingSessionMockFns.mockProjectDiagnosticError).toHaveBeenCalledWith(rawError)
     expect(workflowExecutionLogger.error).toHaveBeenCalledWith(
       '[request-fault] Workflow execution failed: workflow-1',
       { executionId: 'execution-fault', error: projectedError, failureKind: 'internal' }

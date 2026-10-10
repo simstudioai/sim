@@ -5,10 +5,9 @@ import { isRecordLike } from '@sim/utils/object'
 import type { Variable, WorkflowState } from '@sim/workflow-types/workflow'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import {
-  classifyFailure,
+  inheritFailureMarks,
   markFailureKind,
   markFailureLogged,
-  wasFailureLogged,
 } from '@/lib/core/errors/failure-log'
 import { getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
@@ -1030,16 +1029,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       // `buildBoundaryFailure` preserves an already-attached `consumerFacing`, so the
       // depth guard keeps its own classification.
       if (isCustomBlock) {
-        const boundaryFailure = this.buildBoundaryFailure(
-          error,
-          block,
-          instanceId,
-          childExecutionId,
-          traceChildRuns
-        )
-        /** The boundary severs `cause`, so a logged mark has to cross it explicitly. */
-        if (wasFailureLogged(error)) markFailureLogged(boundaryFailure)
-        throw boundaryFailure
+        throw this.buildBoundaryFailure(error, block, instanceId, childExecutionId, traceChildRuns)
       }
 
       // An error this same invocation already attributed (e.g. the depth guard, or
@@ -1186,10 +1176,8 @@ export class WorkflowBlockHandler implements BlockHandler {
       ChildWorkflowError.isChildWorkflowError(error) && error.consumerFacing
         ? error.consumerFacing
         : undefined
-    /** The boundary severs `cause`, so the failure's attribution has to cross it explicitly. */
-    const failureKind = classifyFailure(error)
     if (alreadyClassified) {
-      return markFailureKind(
+      return inheritFailureMarks(
         new ChildWorkflowError({
           message: alreadyClassified.message,
           childWorkflowName: blockName,
@@ -1197,7 +1185,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           consumerFacing: alreadyClassified,
           ...traceHandle,
         }),
-        failureKind
+        error
       )
     }
 
@@ -1212,7 +1200,8 @@ export class WorkflowBlockHandler implements BlockHandler {
         ? `Custom block execution failed (ref: ${ref})`
         : 'Custom block execution failed'
 
-    return markFailureKind(
+    /** No `cause` crosses the boundary, so the failure's marks are carried explicitly. */
+    return inheritFailureMarks(
       new ChildWorkflowError({
         message,
         childWorkflowName: blockName,
@@ -1223,7 +1212,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         // needed to join the child's own run at read time.
         ...traceHandle,
       }),
-      failureKind
+      error
     )
   }
 

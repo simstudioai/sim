@@ -22,7 +22,6 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { adoptToolFailure } from '@/lib/core/errors/failure-log'
 import { getMaxExecutionTimeout, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
 import {
@@ -58,6 +57,7 @@ import {
   raceAbort,
   resolvePiTimeoutMs,
   scrubGitSecrets,
+  toolResultError,
 } from '@/executor/handlers/pi/cloud/shared'
 import type {
   PiBackendRun,
@@ -186,10 +186,7 @@ async function openPullRequest(
   )
 
   if (!result.success) {
-    throw adoptToolFailure(
-      new Error(`PR creation failed for branch ${branch}: ${result.error ?? 'unknown error'}`),
-      result
-    )
+    throw toolResultError(`PR creation failed for branch ${branch}`, result)
   }
 
   if (!isRecordLike(result.output)) {
@@ -225,12 +222,7 @@ async function repositoryDefaultBranch(
     { signal }
   )
   if (!result.success) {
-    throw adoptToolFailure(
-      new Error(
-        `Failed to determine the repository default branch: ${result.error ?? 'unknown error'}`
-      ),
-      result
-    )
+    throw toolResultError('Failed to determine the repository default branch', result)
   }
   if (!isRecordLike(result.output)) {
     throw new Error('GitHub repository response must be an object')
@@ -271,12 +263,7 @@ async function updatePullRequest(
       { signal }
     )
     if (!result.success) {
-      throw adoptToolFailure(
-        new Error(
-          `PR update failed for branch ${params.targetBranch}: ${result.error ?? 'unknown error'}`
-        ),
-        result
-      )
+      throw toolResultError(`PR update failed for branch ${params.targetBranch}`, result)
     }
   }
 

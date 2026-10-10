@@ -789,23 +789,31 @@ export class BlockExecutor {
       }
     }
 
-    const diagnosticRegistry = ctx.errorResolvedSecretTraceRegistry
-      ? ctx.errorResolvedSecretTraceRegistry
-      : inputDisplayRegistry?.forkForToolCall()
-    if (
-      !ctx.errorResolvedSecretTraceRegistry &&
-      diagnosticRegistry &&
-      ctx.resolvedSecretTraceRegistry &&
-      ctx.resolvedSecretTraceRegistry !== inputDisplayRegistry
-    ) {
-      diagnosticRegistry.mergeToolCallRegistry(ctx.resolvedSecretTraceRegistry)
+    /** Projected only when logged: a tool failure arrives already logged and skips it. */
+    let errorDiagnostic: Record<string, unknown> | undefined
+    const getErrorDiagnostic = () => {
+      if (errorDiagnostic) return errorDiagnostic
+      if (isDatabaseError) {
+        errorDiagnostic = { cause: describeError(error) }
+        return errorDiagnostic
+      }
+      const diagnosticRegistry = ctx.errorResolvedSecretTraceRegistry
+        ? ctx.errorResolvedSecretTraceRegistry
+        : inputDisplayRegistry?.forkForToolCall()
+      if (
+        !ctx.errorResolvedSecretTraceRegistry &&
+        diagnosticRegistry &&
+        ctx.resolvedSecretTraceRegistry &&
+        ctx.resolvedSecretTraceRegistry !== inputDisplayRegistry
+      ) {
+        diagnosticRegistry.mergeToolCallRegistry(ctx.resolvedSecretTraceRegistry)
+      }
+      errorDiagnostic = projectResolvedSecretDiagnosticError(
+        error,
+        diagnosticRegistry ?? ctx.resolvedSecretTraceRegistry
+      )
+      return errorDiagnostic
     }
-    const errorDiagnostic = isDatabaseError
-      ? { cause: describeError(error) }
-      : projectResolvedSecretDiagnosticError(
-          error,
-          diagnosticRegistry ?? ctx.resolvedSecretTraceRegistry
-        )
 
     /** A user Stop or the run's own time limit aborted this block; neither is a Sim fault. */
     if (isAbort && ctx.abortSignal?.aborted) markFailureKind(error, 'user')
@@ -814,11 +822,13 @@ export class BlockExecutor {
       phase === 'input_resolution' ? 'Failed to resolve block inputs' : 'Block execution failed',
       error,
       {
-        blockId: node.id,
-        blockType: block.metadata?.id,
-        executionId: ctx.executionId,
-        workflowId: ctx.workflowId,
-        ...errorDiagnostic,
+        metadata: () => ({
+          blockId: node.id,
+          blockType: block.metadata?.id,
+          executionId: ctx.executionId,
+          workflowId: ctx.workflowId,
+          ...getErrorDiagnostic(),
+        }),
       }
     )
 
@@ -857,7 +867,7 @@ export class BlockExecutor {
       }
       this.execLogger.info('Block has error port - returning error output instead of throwing', {
         blockId: node.id,
-        ...errorDiagnostic,
+        ...getErrorDiagnostic(),
       })
       return errorOutput
     }

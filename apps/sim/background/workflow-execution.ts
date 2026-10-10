@@ -307,13 +307,10 @@ export async function executeWorkflowJob(
           metadata: payload.metadata,
         }
       } catch (error: unknown) {
-        logFailureOnce(
-          logger,
-          `[${requestId}] Workflow execution failed: ${workflowId}`,
-          error,
-          loggingSession.projectDiagnosticError(error, { executionId }),
-          executionId
-        )
+        logFailureOnce(logger, `[${requestId}] Workflow execution failed: ${workflowId}`, error, {
+          metadata: () => loggingSession.projectDiagnosticError(error),
+          executionId,
+        })
 
         if (error instanceof ExecutionTimeoutError) throw error
 
