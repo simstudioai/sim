@@ -3,6 +3,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
+import { projectLegacySlackV2Auth } from '@/lib/workflows/compatibility/slack-v2-auth'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import { materializeWorkflowComparisonState } from '@/lib/workflows/persistence/comparison-state'
 import { getWorkflowDeploymentVersion } from '@/lib/workflows/persistence/utils'
@@ -67,7 +68,10 @@ export const readWorkflowVersion = defineAuthorizedWorkflowUseCase({
       input.representation === 'comparison'
         ? await materializeWorkflowComparisonState(context.workflowId, version, context.workspaceId)
         : version.state
-    const presentedState = input.includeCredentialValues ? state : sanitizeVersionState(state)
+    const compatibleState = { ...state, blocks: projectLegacySlackV2Auth(state.blocks ?? {}) }
+    const presentedState = input.includeCredentialValues
+      ? compatibleState
+      : sanitizeVersionState(compatibleState)
     logger.info('Read workflow version', {
       workspaceId: context.workspaceId,
       workflowId: context.workflowId,
