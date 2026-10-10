@@ -23,6 +23,7 @@ import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/appl
 import {
   hasWorkspaceFileDeliveryObserver,
   reportWorkspaceFileDelivery,
+  requireCopilotWorkspaceFileDeliveryObserver,
 } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
@@ -114,6 +115,7 @@ async function executeReadWorkspaceFileText({
 >): Promise<ReadWorkspaceFileTextResult> {
   const signal = request?.signal
   signal?.throwIfAborted()
+  requireCopilotWorkspaceFileDeliveryObserver(principal)
   return extractWorkspaceFileRecordText(context.file, input, principal, signal)
 }
 
@@ -257,7 +259,7 @@ export const readWorkspaceFileText = defineAuthorizedWorkspaceFileUseCase({
   resolveContext: ({ principal, input }) =>
     resolveReferencedWorkspaceFileContext(principal, input, {
       includeChatUploads: true,
-      includeTestFiles: true,
+      includeOwnedFiles: true,
     }),
   execute: executeReadWorkspaceFileText,
 })
