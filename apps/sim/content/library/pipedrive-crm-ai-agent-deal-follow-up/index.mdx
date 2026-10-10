@@ -139,7 +139,7 @@ Sim can power a Pipedrive follow-up agent by separating event intake, CRM retrie
 
 Build and test the first version in this order:
 
-1. Add a Webhook Trigger and deploy the workflow to get its webhook URL. In Pipedrive, create a webhook subscription for the chosen deal event and use that URL as the destination.
+1. Add a Webhook Trigger and keep **Require Authentication** enabled. Pipedrive webhook subscriptions [support HTTP Basic credentials](https://developers.pipedrive.com/docs/api/v1/Webhooks): choose a unique username and password, set Sim’s **Secret Header Name** to `Authorization`, and set its **Authentication Token** to `Basic <base64(username:password)>`. Deploy the workflow to get its webhook URL, then create the Pipedrive subscription with that URL and the matching raw username and password.
 2. Connect a Pipedrive block, choose **Get Deal**, select the Pipedrive account in the OAuth account field, and map the deal ID from the webhook payload. This is the block equivalent of Pipedrive’s documented [`GET /api/v2/deals/{id}` request](https://developers.pipedrive.com/docs/api/v1/Deals), with the connected account supplying authentication.
 3. Connect the deal output to an Agent block. Instruct it to return the structured decision and draft fields described below rather than free-form text.
 4. Connect the Agent to Human in the Loop, then connect that block to a Condition. Route only an explicit approval to the sending branch; route edits, rejection, and deferral away from the sender.
