@@ -322,23 +322,28 @@ function manifest(value: unknown, id: string, kind: string | undefined) {
   return { row, counts: counts as number[] }
 }
 
+/**
+ * Region fetches are independent provider reads; running them together keeps a full read inside
+ * the live read deadline. Validation still walks them in page and region order.
+ */
+const REGION_FETCH_CONCURRENCY = 4
+
 /** Complete, bounded provider pages preserve graph data; no returned URL is fetched. */
 export async function readLucidMcp(
   client: ManagedSearchMcpClient,
   reference: Pick<NativeDocument, 'id' | 'kind' | 'revision'>
 ): Promise<NativeDocument> {
-  const before = await metadata(client, reference.id)
+  const [before, initialRaw] = await Promise.all([
+    metadata(client, reference.id),
+    client.call('fetch', { id: reference.id, metadata_only: true }),
+  ])
   if (!before) invalid('Lucid document metadata is incomplete or no longer readable.')
   if (
     (reference.kind && reference.kind !== before.kind) ||
     (reference.revision && reference.revision !== before.revision)
   )
     invalid('Lucid document changed since this result was issued. Search again before reading.')
-  const initial = manifest(
-    await client.call('fetch', { id: before.id, metadata_only: true }),
-    before.id,
-    before.kind
-  )
+  const initial = manifest(initialRaw, before.id, before.kind)
   if (
     initial.counts.length !== before.accessMetadata?.pageCount ||
     initial.row.title !== before.title
@@ -346,20 +351,23 @@ export async function readLucidMcp(
     invalid('Lucid document coverage changed before reading. Search again.')
   const pages: Record<string, unknown>[] = []
   const output = () => JSON.stringify({ document_id: before.id, title: before.title, pages })
+  const requests = initial.counts.flatMap((count, pageIndex) =>
+    Array.from({ length: Math.max(1, count) }, (_, region) => ({ pageIndex, region, count }))
+  )
+  const responses = await mapWithConcurrency(requests, REGION_FETCH_CONCURRENCY, (request) =>
+    client.call('fetch', {
+      id: before.id,
+      page_index: request.pageIndex + 1,
+      ...(request.count ? { region_index: [request.region + 1] } : {}),
+    })
+  )
+  let next = 0
   for (let pageIndex = 0; pageIndex < initial.counts.length; pageIndex++) {
-    const count = initial.counts[pageIndex]!
+    const count = initial.counts[pageIndex] ?? 0
     let assembled: Record<string, unknown> | undefined
     const chunks: Record<string, unknown>[] = []
     for (let region = 0; region < Math.max(1, count); region++) {
-      const fetched = manifest(
-        await client.call('fetch', {
-          id: before.id,
-          page_index: pageIndex + 1,
-          ...(count ? { region_index: [region + 1] } : {}),
-        }),
-        before.id,
-        before.kind
-      )
+      const fetched = manifest(responses[next++], before.id, before.kind)
       if (
         fetched.counts.some((value, index) => value !== initial.counts[index]) ||
         fetched.counts.length !== initial.counts.length ||
