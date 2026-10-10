@@ -341,7 +341,7 @@ describe('Serializer Extended Tests', () => {
       expect(webhookBlock?.config.params.triggerMode).toBe(true)
     })
 
-    it('does not pick a tool for a trigger-mode tool block whose operation is not serialized', () => {
+    it('leaves the tool id empty for a trigger-mode tool block, which TriggerBlockHandler runs', () => {
       const serializer = new Serializer()
       const block: BlockState = {
         id: 'slack-trigger',

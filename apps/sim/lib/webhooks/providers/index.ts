@@ -17,11 +17,7 @@ export function extractProviderIdentifierFromBody(provider: string, body: unknow
   return handler.extractIdempotencyId?.(body) ?? null
 }
 
-/**
- * Whether a delivery without a header or body identifier is expected for this provider.
- * Every other provider normally names its deliveries (a delivery header or a body id), so a
- * missing identifier there is an anomaly worth a warning.
- */
+/** Whether a delivery without a header or body identifier is expected for this provider. */
 export function isDeliveryIdOptional(provider: string): boolean {
   return getProviderHandler(provider).deliveryIdOptional === true
 }

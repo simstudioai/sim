@@ -145,8 +145,6 @@ async function forwardToMothership(params: {
 }
 
 /**
- * Proxy to the mothership admin API.
- *
  * Query params:
  *   env       - "dev" | "staging" | "prod"
  *   endpoint  - the admin endpoint path, e.g. "requests", "licenses", "traces"
