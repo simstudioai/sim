@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { db } from '@sim/db'
-import { member, permissions, projectWorkspace, workspace as workspaceTable } from '@sim/db/schema'
+import { member, permissions, workspace as workspaceTable } from '@sim/db/schema'
 import { insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { ROOM_ACCESS_REVOKED_EVENT } from '@sim/realtime-protocol/events'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -204,7 +204,10 @@ try {
       ).workspace
     )
     fixture.workspaceId = required(workspace.id)
-    const [binding] = await db.select().from(workspace).where(eq(workspace.id, fixture.workspaceId))
+    const [binding] = await db
+      .select()
+      .from(workspaceTable)
+      .where(eq(workspaceTable.id, fixture.workspaceId))
     assert.ok(binding)
     fixture.projectId = binding.projectId
     const [canonicalWorkspace] = await db

@@ -11,6 +11,7 @@ import {
   project,
   subscription,
   user,
+  workspace,
 } from '@sim/db/schema'
 import { insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { getErrorMessage } from '@sim/utils/errors'
