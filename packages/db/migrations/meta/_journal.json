@@ -2829,6 +2829,13 @@
       "when": 1791573858975,
       "tag": "0404_changelog",
       "breakpoints": true
+    },
+    {
+      "idx": 405,
+      "version": "7",
+      "when": 1791594144264,
+      "tag": "0405_oauth_refresh_revoked",
+      "breakpoints": true
     }
   ]
 }
