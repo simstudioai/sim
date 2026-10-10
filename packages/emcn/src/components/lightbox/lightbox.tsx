@@ -19,6 +19,10 @@ export interface LightboxProps {
   src: string
   alt: string
   type?: 'image' | 'video'
+  /** Displayed until the recording's first frame is ready. */
+  poster?: string
+  /** Reviewed English captions for a recording with speech. */
+  captionsSrc?: string
   /** Playback position to resume when a video opens. */
   startTime?: number
 }
@@ -53,18 +57,31 @@ function centerViewport(viewport: HTMLDivElement | null) {
  * </Lightbox>
  * ```
  */
-export function Lightbox({ children, src, alt, type = 'image', startTime = 0 }: LightboxProps) {
+export function Lightbox({
+  children,
+  src,
+  alt,
+  type = 'image',
+  poster,
+  captionsSrc,
+  startTime = 0,
+}: LightboxProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const mediaFrameRef = useRef<HTMLButtonElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
   const zoomAnchorRef = useRef<ZoomAnchor | null>(null)
   const [open, setOpen] = useState(false)
   const [zoom, setZoom] = useState(1)
+  const [playing, setPlaying] = useState(false)
+  const [muted, setMuted] = useState(true)
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
       zoomAnchorRef.current = null
       setZoom(1)
+      setPlaying(false)
+      setMuted(true)
     }
     setOpen(nextOpen)
   }
@@ -148,19 +165,34 @@ export function Lightbox({ children, src, alt, type = 'image', startTime = 0 }: 
                   />
                 ) : (
                   <video
+                    ref={videoRef}
                     src={src}
+                    poster={poster}
                     aria-label={alt}
                     autoPlay
                     loop
-                    muted
+                    muted={muted}
                     playsInline
+                    crossOrigin={captionsSrc ? 'anonymous' : undefined}
+                    onPlay={() => setPlaying(true)}
+                    onPause={() => setPlaying(false)}
                     onLoadedMetadata={(event) => {
                       if (startTime > 0) event.currentTarget.currentTime = startTime
                       centerViewport(viewportRef.current)
                     }}
                     className={MEDIA_CLASS}
                     style={{ zoom }}
-                  />
+                  >
+                    {captionsSrc ? (
+                      <track
+                        kind='captions'
+                        src={captionsSrc}
+                        srcLang='en'
+                        label='English'
+                        default
+                      />
+                    ) : null}
+                  </video>
                 )}
               </button>
             </ModalClose>
@@ -169,12 +201,29 @@ export function Lightbox({ children, src, alt, type = 'image', startTime = 0 }: 
         <div
           ref={controlsRef}
           role='group'
-          aria-label='Media zoom'
+          aria-label={type === 'video' ? 'Media controls' : 'Media zoom'}
           className={cn(
             chipFieldSurfaceClass,
             'mx-auto flex shrink-0 items-center p-1 shadow-[var(--shadow-overlay)]'
           )}
         >
+          {type === 'video' ? (
+            <>
+              <Chip
+                onClick={() => {
+                  const video = videoRef.current
+                  if (!video) return
+                  if (video.paused) void video.play().catch(() => setPlaying(false))
+                  else video.pause()
+                }}
+              >
+                {playing ? 'Pause' : 'Play'}
+              </Chip>
+              {captionsSrc ? (
+                <Chip onClick={() => setMuted(!muted)}>{muted ? 'Unmute' : 'Mute'}</Chip>
+              ) : null}
+            </>
+          ) : null}
           <Chip
             leftIcon={Minus}
             aria-label='Zoom out'
