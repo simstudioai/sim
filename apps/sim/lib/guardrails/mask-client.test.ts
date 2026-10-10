@@ -73,29 +73,40 @@ describe('maskPIIBatchViaHttp', () => {
     const PLACEHOLDER = '[FAILED]'
     const CHUNK_SIZE = 2000
     const CONCURRENCY = 64
-    const ATTEMPTS = 8
-    /** Two chunks more than are sent at once, so two wait in the queue. */
-    const queuedTexts = () => Array.from({ length: CHUNK_SIZE * (CONCURRENCY + 1) + 1 }, () => 'a')
+    /**
+     * Fills every concurrent slot with chunks the service fails, then queues two more
+     * chunks (`'queued'`) that it would mask if they were ever sent.
+     */
+    const failingThenQueued = () => [
+      ...Array.from({ length: CHUNK_SIZE * CONCURRENCY }, () => 'failing'),
+      ...Array.from({ length: CHUNK_SIZE + 1 }, () => 'queued'),
+    ]
+    const serviceFailingWith = (status: number) =>
+      fetchMock.mockImplementation(async (_url: string, init: { body: string }) => {
+        const { texts } = JSON.parse(init.body) as { texts: string[] }
+        if (texts[0] !== 'queued') return new Response('failed', { status })
+        return Response.json({ masked: texts.map((t) => `M(${t})`) })
+      })
 
-    it('stops sending queued chunks once one outlives its retries on an outage', async () => {
-      fetchMock.mockImplementation(async () => new Response('down', { status: 503 }))
+    it('scrubs queued chunks without sending them once an outage outlives its retries', async () => {
+      serviceFailingWith(503)
 
-      const { masked } = await maskPIIBatchViaHttp(queuedTexts(), [], undefined, undefined, {
+      const { masked } = await maskPIIBatchViaHttp(failingThenQueued(), [], undefined, undefined, {
         failedChunkPlaceholder: PLACEHOLDER,
       })
 
       expect(masked.every((value) => value === PLACEHOLDER)).toBe(true)
-      expect(fetchMock).toHaveBeenCalledTimes(CONCURRENCY * ATTEMPTS)
     })
 
-    it('keeps sending queued chunks after a persistent 500, which is not an outage', async () => {
-      fetchMock.mockImplementation(async () => new Response('bad input', { status: 500 }))
+    it('still masks queued chunks after a persistent 500, which is not an outage', async () => {
+      serviceFailingWith(500)
 
-      await maskPIIBatchViaHttp(queuedTexts(), [], undefined, undefined, {
+      const { masked } = await maskPIIBatchViaHttp(failingThenQueued(), [], undefined, undefined, {
         failedChunkPlaceholder: PLACEHOLDER,
       })
 
-      expect(fetchMock).toHaveBeenCalledTimes((CONCURRENCY + 2) * ATTEMPTS)
+      expect(masked.slice(0, CHUNK_SIZE * CONCURRENCY).every((v) => v === PLACEHOLDER)).toBe(true)
+      expect(masked.slice(CHUNK_SIZE * CONCURRENCY).every((v) => v === 'M(queued)')).toBe(true)
     })
   })
 
