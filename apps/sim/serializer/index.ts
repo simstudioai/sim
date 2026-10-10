@@ -23,6 +23,7 @@ import {
 import { getBlock } from '@/blocks'
 import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
 import type { SubBlockConfig } from '@/blocks/types'
+import { MissingRequiredFieldsError } from '@/serializer/errors'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { getToolParams } from '@/tools/metadata'
@@ -259,9 +260,7 @@ export class Serializer {
       const { missingRequiredFields } = collectBlockFieldIssues(block, blockConfig, params)
       if (missingRequiredFields.length > 0) {
         const blockName = block.name || blockConfig.name || 'Block'
-        throw new Error(
-          `${blockName} is missing required fields: ${missingRequiredFields.join(', ')}`
-        )
+        throw new MissingRequiredFieldsError(blockName, missingRequiredFields)
       }
     }
 

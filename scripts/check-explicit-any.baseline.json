@@ -143,7 +143,7 @@
     "apps/sim/executor/execution/state.ts": 3,
     "apps/sim/executor/execution/types.ts": 6,
     "apps/sim/executor/handlers/agent/agent-handler.test.ts": 1,
-    "apps/sim/executor/handlers/agent/agent-handler.ts": 31,
+    "apps/sim/executor/handlers/agent/agent-handler.ts": 30,
     "apps/sim/executor/handlers/agent/memory.test.ts": 8,
     "apps/sim/executor/handlers/agent/types.ts": 3,
     "apps/sim/executor/handlers/api/api-handler.ts": 3,

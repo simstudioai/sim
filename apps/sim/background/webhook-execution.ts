@@ -25,6 +25,7 @@ import {
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { env, envNumber } from '@/lib/core/config/env'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
   describeRetryableInfrastructureError,
   isRetryableInfrastructureError,
@@ -1267,13 +1268,14 @@ async function executeWebhookJobInternal(
       throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })
     }
 
-    logger.error(
-      `[${requestId}] Webhook execution failed`,
-      loggingSession.projectDiagnosticError(error, {
-        workflowId: payload.workflowId,
-        provider: payload.provider,
-      })
-    )
+    logFailureOnce(logger, `[${requestId}] Webhook execution failed`, error, {
+      metadata: () =>
+        loggingSession.projectDiagnosticError(error, {
+          workflowId: payload.workflowId,
+          provider: payload.provider,
+        }),
+      executionId,
+    })
 
     // The finalized flag is set inside a fire-and-forget post-execution promise; await it so the
     // signal is reliable and the failure is fully persisted before we decide fault vs error.

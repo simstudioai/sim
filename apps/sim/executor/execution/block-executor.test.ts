@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { loggerMock } from '@sim/testing'
 import { maskClientMock, maskClientMockFns } from '@sim/testing/mocks/mask-client.mock'
 import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
@@ -5,6 +6,7 @@ import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { createLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
@@ -12,6 +14,7 @@ import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { validateBlockType } from '@/ee/access-control/utils/permission-check'
 import { BlockType, EDGE } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
+import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -496,6 +499,9 @@ describe('BlockExecutor', () => {
       expect.objectContaining({ cause: expect.objectContaining({ code: 'ECONNRESET' }) })
     )
     expect(JSON.stringify(logged)).not.toContain('owner-secret-id')
+    /** Logged here at error, so the engine and the run surfaces must see it as already logged. */
+    expect(classifyFailure(thrown)).toBe('internal')
+    expect(logFailureOnce(createLogger('OuterBoundary'), 'probe', thrown)).toBeUndefined()
   })
 
   it('fires block completion callbacks for pausing blocks so clients receive pause output', async () => {
@@ -572,6 +578,116 @@ describe('BlockExecutor', () => {
     expect(state.getBlockOutput(block.id)).toEqual(output)
   })
 
+  function failBlockWith(thrown: unknown) {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async () => {
+        throw thrown
+      },
+    }
+    const executor = new BlockExecutor([handler], resolver, {}, state)
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([])
+    return executor.execute(ctx, createNode(block), block).catch((error) => error)
+  }
+
+  function blockFailureLogsSince(loggerIndex: number) {
+    const loggers = new Set<{ error: { mock: { calls: unknown[][] } } }>(
+      blockExecutorBaseLogger.withMetadata.mock.results
+        .slice(loggerIndex)
+        .map((result: { value: { error: { mock: { calls: unknown[][] } } } }) => result.value)
+    )
+    return [...loggers].flatMap((logger) =>
+      logger.error.mock.calls.filter(([message]) => message === 'Block execution failed')
+    )
+  }
+
+  it('logs every block failure that rethrows one persistent object, not just the first', async () => {
+    /** A rejected dynamic `import()` or memoized rejected promise rethrows the same object. */
+    const persistentFault = new Error('handler module failed to load')
+    const loggerIndex = blockExecutorBaseLogger.withMetadata.mock.results.length
+
+    await failBlockWith(persistentFault)
+    await failBlockWith(persistentFault)
+
+    expect(blockFailureLogsSince(loggerIndex)).toHaveLength(2)
+  })
+
+  it.each([
+    ['projects secrets and runtime identifiers out of', false],
+    ['fails closed to a structural', true],
+  ] as const)('%s the block failure line for a provider error', async (_name, incomplete) => {
+    const secret = 'block-failure-secret'
+    /** The Agent handler hands its provider error registry to the block executor this way. */
+    const errorRegistry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'encrypted-block-failure-secret' },
+    ])
+    errorRegistry.recordResolved('TOKEN', secret)
+    if (incomplete) errorRegistry.markIncomplete('unspecified')
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const loggerIndex = blockExecutorBaseLogger.withMetadata.mock.results.length
+    const state = new ExecutionState()
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (ctx) => {
+        ctx.errorResolvedSecretTraceRegistry = errorRegistry
+        throw new Error(`provider failed with ${secret} __var_TOKEN __sim_runtime_test_1`)
+      },
+    }
+    const executor = new BlockExecutor(
+      [handler],
+      new VariableResolver(workflow, {}, state),
+      {},
+      state
+    )
+
+    await executor.execute(createContext(state), createNode(block), block).catch(() => undefined)
+
+    const logged = JSON.stringify(blockFailureLogsSince(loggerIndex))
+    expect(logged).toContain('Block execution failed')
+    for (const leaked of [secret, '__var_', '__sim_']) expect(logged).not.toContain(leaked)
+  })
+
+  it('logs an internal child workflow fault with the block and run identity', async () => {
+    const loggerIndex = blockExecutorBaseLogger.withMetadata.mock.results.length
+
+    await failBlockWith(
+      new ChildWorkflowError({
+        message: '"Child" failed: child load blew up',
+        childWorkflowName: 'Child',
+        cause: new TypeError('child load blew up'),
+      })
+    )
+
+    const [[, logged]] = blockFailureLogsSince(loggerIndex)
+    expect(logged).toEqual(
+      expect.objectContaining({
+        blockId: 'function-block-1',
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        error: '"Child" failed: child load blew up',
+        failureKind: 'internal',
+      })
+    )
+  })
+
   it('does not soft-succeed non-agent blocks on user AbortError', async () => {
     const block = createBlock()
     const workflow: SerializedWorkflow = {
@@ -614,11 +730,15 @@ describe('BlockExecutor', () => {
     const ctx = createContext(state)
     ctx.abortSignal = abortController.signal
 
-    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(/abort/i)
+    const thrown = await executor.execute(ctx, createNode(block), block).catch((error) => error)
+    expect(thrown).toBeInstanceOf(Error)
+    expect(thrown.message).toMatch(/abort/i)
 
     const output = state.getBlockOutput(block.id)
     expect(output?.error).toBeTruthy()
     expect(output).not.toEqual({ content: '' })
+    /** A user Stop is not a Sim fault, so it must not page at error. */
+    expect(classifyFailure(thrown)).toBe('user')
   })
 
   it('keeps Sim Chat secret policy in runtime inputs and out of trace inputs', async () => {
