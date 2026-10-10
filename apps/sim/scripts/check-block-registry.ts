@@ -256,11 +256,15 @@ const COERCION_CALLEES = new Set([
   'parseInt',
 ])
 
-function isCoercion(expression: ts.Expression): boolean {
-  let inner = expression
-  while (ts.isParenthesizedExpression(inner) || ts.isAsExpression(inner)) inner = inner.expression
-  if (ts.isPrefixUnaryExpression(inner)) return inner.operator === ts.SyntaxKind.PlusToken
-  return ts.isCallExpression(inner) && COERCION_CALLEES.has(inner.expression.getText())
+/** Whether `expression` coerces anywhere in it, including under `??`, `||`, or a conditional. */
+function isCoercion(expression: ts.Node): boolean {
+  if (ts.isPrefixUnaryExpression(expression) && expression.operator === ts.SyntaxKind.PlusToken) {
+    return true
+  }
+  if (ts.isCallExpression(expression) && COERCION_CALLEES.has(expression.expression.getText())) {
+    return true
+  }
+  return ts.forEachChild(expression, (child) => (isCoercion(child) ? true : undefined)) ?? false
 }
 
 function findSelectorCoercions(file: string, source: ts.SourceFile): string[] {
