@@ -3,16 +3,11 @@ import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-i
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { AUGMENTATION_ENGINES, runEngine } from '@/lib/mothership/agent-cli/engines'
-import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
-import { createFileUploadTransport } from '@/lib/mothership/agent-cli/file-upload-transport'
 import { curateKnowledgeDocuments } from '@/lib/mothership/agent-cli/knowledge-curation'
-import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
-import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
 import { executeAgentCliService } from '@/lib/mothership/agent-cli/services'
 import { applySink } from '@/lib/mothership/agent-cli/sink'
-import { createTableReadTransport } from '@/lib/mothership/agent-cli/table-read-transport'
-import { createTracedCliTransport } from '@/lib/mothership/agent-cli/traced-transport'
+import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import {
@@ -79,44 +74,22 @@ async function executeBoundAgentCliRequest(
   const endpoint = getInternalApiBaseUrl()
   const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
   const files = sessionKey ? createWorkbenchFileProvenance({ ...context, sessionKey }) : undefined
-  const reads = createFileReadTransport({
-    endpoint,
-    transport: createTableReadTransport({
-      endpoint,
-      transport: createTracedCliTransport(
-        endpoint,
-        createScopedCliTransport(endpoint, invocationIdentity)
-      ),
-      registry: context.resolvedSecretTraceRegistry,
-    }),
-    userId: context.userId,
-    invocation: invocationIdentity,
-    registry: context.resolvedSecretTraceRegistry,
-    ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
-    ...(files ? { trackDownload: files.trackDownload } : {}),
-  })
   const resources: ResourceChange[] = []
   const identity: EmbeddedCliIdentity = {
     endpoint,
     apiKey,
     workspaceId: context.workspaceId,
-    transport: createResourceEffectTransport(
+    transport: createAgentCliTransport({
       endpoint,
-      files
-        ? createFileUploadTransport({
-            endpoint,
-            workspaceId: context.workspaceId,
-            userId: context.userId,
-            invocation: invocationIdentity,
-            fallback: reads,
-            uploadProvenance: files.uploadProvenance,
-          })
-        : reads,
+      invocation: invocationIdentity,
+      registry: context.resolvedSecretTraceRegistry,
+      ...(files ? { files } : {}),
       resources,
-      request.invocation.kind === 'cli' ||
+      observeReads:
+        request.invocation.kind === 'cli' ||
         (request.invocation.kind === 'augmentation' &&
-          AUGMENTATION_ENGINES[request.invocation.name]?.openReadResources === true)
-    ),
+          AUGMENTATION_ENGINES[request.invocation.name]?.openReadResources === true),
+    }),
     ...(context.signal ? { signal: context.signal } : {}),
   }
 

@@ -35,8 +35,9 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
+import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
+import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import {
   updateWorkspaceFileContent,
@@ -126,34 +127,38 @@ describe('chat-delegated file version history', () => {
   }
 
   /**
-   * Chat's composed CLI transport: the provenance-observing read layer over in-process admission.
+   * Chat's composed CLI transport, the same stack every Chat CLI invocation and engine runs on.
    * `layers` drops the outer layers to prove the inner ones hold on their own.
    */
-  function chatTransport(
+  function chatFetch(
     fixture: { workspaceId: string; organizationId: string },
     userId: string,
     registry?: ResolvedSecretTraceRegistry,
     layers: { observer?: boolean; invocationScope?: boolean } = {}
-  ) {
+  ): typeof fetch {
     const invocation = { userId, workspaceId: fixture.workspaceId, chatId: generateId() }
-    const scoped = createScopedCliTransport(ORIGIN, invocation)
     const transport =
       layers.observer === false
-        ? scoped
-        : createFileReadTransport({
+        ? createScopedCliTransport(ORIGIN, invocation)
+        : createAgentCliTransport({
             endpoint: ORIGIN,
-            transport: scoped,
-            userId,
             invocation,
             ...(registry ? { registry } : {}),
+            resources: [],
+            observeReads: true,
           })
-    return (url: string, init?: RequestInit) =>
+    return (input, init) =>
       layers.invocationScope === false
-        ? transport(`${ORIGIN}${url}`, init)
+        ? transport(input, init)
         : withWorkspaceInvocationScope(
             { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
-            () => transport(`${ORIGIN}${url}`, init)
+            () => transport(input, init)
           )
+  }
+
+  function chatTransport(...args: Parameters<typeof chatFetch>) {
+    const transport = chatFetch(...args)
+    return (url: string, init?: RequestInit) => transport(`${ORIGIN}${url}`, init)
   }
 
   function registryFor(fixture: { workspaceId: string }, userId: string) {
@@ -490,6 +495,29 @@ describe('chat-delegated file version history', () => {
       )
 
       expect(await new Response(result.stream).text()).toBe(`token=${SECRET}`)
+    })
+
+    it('serves a Chat `files read` through the composed CLI', async () => {
+      const fixture = await seedVersionedFile()
+      await revertToSecretVersion(fixture)
+      const registry = registryFor(fixture, fixture.bobId)
+
+      const result = await runCli(
+        ['files', 'read', fixture.fileId],
+        {
+          endpoint: ORIGIN,
+          apiKey: 'mothership-in-process',
+          workspaceId: fixture.workspaceId,
+          transport: chatFetch(fixture, fixture.bobId, registry),
+        },
+        null
+      )
+
+      expect(result.exitCode, result.stderr).toBe(0)
+      const projected = projectResolvedSecretModelContent(result.stdout, registry)
+      if (!projected.safe) throw new Error('File text was withheld')
+      expect(projected.value).not.toContain(SECRET)
+      expect(projected.value).toContain('token=[REDACTED_SECRET]')
     })
 
     it('serves Chat through the transport that records provenance', async () => {
