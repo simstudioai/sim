@@ -47,7 +47,8 @@ workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
 )
 
 const principal = createSessionPrincipal({ userId: 'reader', sessionId: 'session' })
-const input = { workspaceId: 'workspace' }
+const cursorRoute = { method: 'GET', path: '/api/knowledge/sim-search/sources' }
+const input = { workspaceId: 'workspace', cursorRoute }
 const LAST_SYNC = new Date('2026-09-05T12:00:00.000Z')
 
 function source(id: string, connectorType = 'google_drive', accessMode = 'admin') {
@@ -156,7 +157,7 @@ describe('organization Search source summaries', () => {
       seed([source('drive')])
       const result = await listSearchSources.execute({
         principal,
-        input: { organizationId: 'org-1' },
+        input: { organizationId: 'org-1', cursorRoute },
       })
       expect(result.sources[0]).toMatchObject({
         connectorId: 'drive',
@@ -174,7 +175,7 @@ describe('organization Search source summaries', () => {
     })
     queueTableRows(member, [])
     await expect(
-      listSearchSources.execute({ principal, input: { organizationId: 'org-1' } })
+      listSearchSources.execute({ principal, input: { organizationId: 'org-1', cursorRoute } })
     ).rejects.toThrow('Organization not found')
   })
 })

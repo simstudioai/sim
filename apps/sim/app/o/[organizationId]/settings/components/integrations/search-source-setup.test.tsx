@@ -139,7 +139,7 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
   }),
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
-vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
+vi.mock('@/hooks/queries/oauth/credentials', () => ({
   useOAuthCredentials: () => ({
     data: mocks.credentials,
     isLoading: false,

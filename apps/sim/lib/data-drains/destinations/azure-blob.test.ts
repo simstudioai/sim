@@ -21,7 +21,7 @@ vi.mock('@azure/storage-blob', () => ({
   StorageSharedKeyCredential: StorageSharedKeyCredentialCtor,
 }))
 
-import { azureBlobDestination } from '@/lib/data-drains/destinations/azure_blob'
+import { azureBlobDestination } from '@/lib/data-drains/destinations/azure-blob'
 
 const config = { accountName: 'simstore', containerName: 'drains', prefix: 'sim/' }
 // Realistic 88-char base64 (64-byte) Azure storage key shape.

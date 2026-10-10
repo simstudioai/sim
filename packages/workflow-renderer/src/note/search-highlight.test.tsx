@@ -5,7 +5,7 @@
 import { forEachSearchOccurrence } from '@sim/utils/string'
 import type { Element, ElementContent, Root, RootContent } from 'hast'
 import { describe, expect, it } from 'vitest'
-import { noteSearchHighlightPlugin } from './note-search-highlight'
+import { noteSearchHighlightPlugin } from './search-highlight'
 
 function paragraphTree(...values: string[]): Root {
   return {

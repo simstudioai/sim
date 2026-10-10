@@ -4,7 +4,7 @@ import * as React from 'react'
 import { Slot } from '@radix-ui/react-slot'
 import { createPortal } from 'react-dom'
 import { cn } from '../../lib/cn'
-import { TOOLTIP_SURFACE_CLASS } from './tooltip-styles'
+import { TOOLTIP_SURFACE_CLASS } from './styles'
 
 const TOOLTIP_OFFSET = 16
 const EDGE_GUTTER = 16

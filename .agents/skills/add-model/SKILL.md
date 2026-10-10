@@ -49,13 +49,13 @@ Use a precise WebFetch prompt: *"Extract for {model_id}: exact model id string, 
 |---|---|---|
 | `temperature` | All providers (passed through if set) | Safe but inert on always-reasoning models that reject it |
 | `toolUsageControl` | All providers (provider-level default) | Override per model only when that model differs |
-| `forcedToolUse` | `anthropic/core.ts` (anthropic, azure-anthropic, kie); defaults to `toolUsageControl` | Ignored by every other provider; set `false` only on a model behind that core that cannot force tools |
+| `forcedToolUse` | `anthropic/core.ts` (anthropic, azure-anthropic, kie) defaults it to `toolUsageControl` and reads `thinking.forcedToolUse` for forcing while thinking; `openai/core.ts` and `bedrock/index.ts` treat only an explicit `false` as "cannot force" | Ignored by every other provider; set `false` only on a model that cannot force tools |
 | `promptCaching` | Caller-placed cache breakpoints | Set only where the vendor charges for opt-in caching (absent for OpenAI/Gemini implicit caching) |
 | `reasoningEffort` | `openai/core.ts`, `azure-openai`, `xai`, `deepseek`, `groq`, `zai`, `kimi`, `cerebras`, `meta`, `litellm` (each `index.ts`) | Not read by anthropic/gemini (they use `thinking`) or by mistral, openrouter, fireworks, vertex — re-grep before assuming |
 | `verbosity` | `openai/core.ts`, `azure-openai/index.ts` only | Dead elsewhere |
 | `thinking` | `anthropic/core.ts`, `gemini/core.ts`; `deepseek`, `groq`, `zai`, `kimi` (each `index.ts`) read the resolved `thinkingLevel` | Dead elsewhere |
 | `thinking.streamed` | Docs generator + `getThinkingStreamVisibility` (`models.ts`); `anthropic/core.ts` uses `'summary'` to request `display: 'summarized'` on agent-events runs | **Mandatory on Anthropic-family thinking models** (`check:agent-stream-docs` fails without it); other families fall back to provider defaults |
-| `nativeStructuredOutputs` | `anthropic/core.ts`, `bedrock/index.ts` (via `models.ts` `supportsNativeStructuredOutputs`, which reads the flag) | Dead elsewhere — fireworks/baseten/together/openrouter call their own provider-level `supportsNativeStructuredOutputs` that ignores the model flag (always on, always off, or OpenRouter API metadata) |
+| `nativeStructuredOutputs` | `anthropic/core.ts`, `bedrock/index.ts` (via `models.ts` `supportsNativeStructuredOutputs`, which reads the flag), `nebius/index.ts`, `nvidia/index.ts` (via `getModelCapabilities`) | Dead elsewhere — fireworks/baseten/together/openrouter call their own provider-level `supportsNativeStructuredOutputs` that ignores the model flag (always on, always off, or OpenRouter API metadata) |
 | `maxOutputTokens` | Read by UI + executor for token estimation | Always meaningful — set if provider documents a cap |
 | `computerUse` | `providers/utils.ts` (`getComputerUseModels` → `computerUseModels` routing) | Set only on actual computer-use SKUs |
 | `deepResearch` | UI flag for routing to deep-research SKUs | Set only on actual deep-research model IDs |

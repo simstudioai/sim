@@ -13,7 +13,7 @@
     "node": ">=20.0.0"
   },
   "imports": {
-    "#chip-chrome": "./src/components/chip/chip-chrome.ts",
+    "#chip-chrome": "./src/components/chip/chrome.ts",
     "#cn": "./src/lib/cn.ts",
     "#menu-styles": "./src/components/dropdown-menu/styles.ts"
   },

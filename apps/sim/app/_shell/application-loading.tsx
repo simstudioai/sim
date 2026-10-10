@@ -1,4 +1,5 @@
 import { cn, SimWordmark } from '@sim/emcn'
+import { defaultBrandConfig } from '@/lib/branding'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { type BrandConfig, getBrandConfig } from '@/ee/whitelabeling'
 
@@ -12,8 +13,6 @@ export function ApplicationLoading({
   brand = getBrandConfig(),
   fullScreen = true,
 }: ApplicationLoadingProps) {
-  const wordmarkUrl = brand.wordmarkUrl || brand.logoUrl
-
   return (
     <div
       role='status'
@@ -24,9 +23,9 @@ export function ApplicationLoading({
       )}
     >
       {fullScreen && <DesktopTitleBarLane />}
-      {wordmarkUrl ? (
-        <img src={wordmarkUrl} alt='' className='h-8 max-w-[240px] object-contain' />
-      ) : brand.isWhitelabeled ? (
+      {brand.wordmarkUrl ? (
+        <img src={brand.wordmarkUrl} alt='' className='h-8 max-w-[240px] object-contain' />
+      ) : brand.name !== defaultBrandConfig.name ? (
         <span className='text-[var(--text-tertiary)] text-lg'>{brand.name}</span>
       ) : (
         <SimWordmark size='loading' tone='brand-muted' />

@@ -22,17 +22,14 @@ import { Button, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
 import { getEmbedInfo } from '@sim/utils/media-embed'
 import { BLOCK_DIMENSIONS, clampNoteBlockHeight, estimateNoteBlockHeight } from '../dimensions'
 import { OverflowSpan } from '../lib/overflow-span'
+import { WorkflowBlockBorder, type WorkflowBorderPort } from '../workflow-block/border'
 import { useActionMenuSwell } from '../workflow-block/use-action-menu-swell'
-import {
-  WorkflowBlockBorder,
-  type WorkflowBorderPort,
-} from '../workflow-block/workflow-block-border'
-import { DEFAULT_NOTE_COLOR, getNoteColorOption, type NoteColor } from './note-colors'
+import { DEFAULT_NOTE_COLOR, getNoteColorOption, type NoteColor } from './colors'
 import {
   type NoteSearchHighlight,
   type NoteSearchRange,
   noteSearchHighlightPlugin,
-} from './note-search-highlight'
+} from './search-highlight'
 
 const EMBED_SCALE = 0.78
 const EMBED_INVERSE_SCALE = `${(1 / EMBED_SCALE) * 100}%`

@@ -25,7 +25,7 @@ import {
   createOrganizationCredentialDraftContract,
 } from '@/lib/api/contracts/organization-credentials'
 import { environmentKeys } from '@/hooks/queries/environment'
-import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
+import { oauthConnectionsKeys } from '@/hooks/queries/oauth/connections'
 import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { workspaceCredentialListQueryOptions } from '@/hooks/queries/utils/fetch-workspace-credentials'
@@ -33,7 +33,7 @@ import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
 /**
  * Key prefix for OAuth credential queries.
- * Duplicated here to avoid circular imports with oauth-credentials.ts.
+ * Duplicated here to avoid circular imports with oauth/credentials.ts.
  */
 const OAUTH_CREDENTIALS_KEY = ['oauthCredentials'] as const
 

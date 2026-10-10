@@ -97,7 +97,7 @@ export const OVERLAY_CLASSES = cn(
 
 /** Single scroll container for the textarea + overlay; caps height and hides its scrollbar. */
 export const SCROLLER_CLASSES = cn(
-  'relative overflow-y-auto overflow-x-hidden',
+  'relative overflow-y-auto overflow-x-hidden max-md:overscroll-y-contain',
   '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 )
 

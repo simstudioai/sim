@@ -31,15 +31,22 @@
  *   3. Compare the exported verb symbol to `contract.method`, and the derived
  *      URL to `contract.path`.
  *
- * Known, intentional limitation: routes written as raw `withRouteHandler(...)`
- * — the documented protocol/lifecycle exceptions for streaming, multipart
- * control, large-body admission, OAuth and public execution — have no
- * `contract:` key and are deliberately out of scope. They are excluded by
- * requiring a builder call, not by an allowlist.
+ * Raw `withRouteHandler(...)` routes — the documented protocol/lifecycle
+ * exceptions for streaming, multipart control, large-body admission, OAuth and
+ * public execution — have no `contract:` key, but most still validate with
+ * `parseRequest(<contract>, …)`. Every `parseRequest` call reachable from an
+ * exported verb (directly, or through a same-file function or const it names)
+ * is checked the same way. The mismatch is just as silent there: `parseRequest`
+ * never reads a body for a `GET` contract, and `requestJson` sends the
+ * contract's verb, so clients get a 405.
  *
  * Nothing is skipped silently. A builder call site whose contract cannot be
  * located, resolved, imported or read fails the build exactly like a mismatch:
- * a guard that quietly ignores what it cannot parse guards nothing.
+ * a guard that quietly ignores what it cannot parse guards nothing. The same
+ * holds for a raw route's `parseRequest` argument imported from
+ * `@/lib/api/contracts`. A raw route whose argument is a local value or comes
+ * from any other module is out of scope: resolving it would mean importing
+ * server code.
  *
  * Usage:
  *   bun run scripts/check-route-verbs.ts
@@ -88,10 +95,63 @@ const CONTRACT_KEY_RE = /\n\s{2}contract:\s*([A-Za-z0-9_$]+)\s*,/
 /** How far past the builder's `({` to look for the `contract:` key. */
 const OPTIONS_SCAN_CHARS = 4000
 
+type Statements = ReturnType<typeof parse>['program']['body']
+
+function isVerb(name: string): boolean {
+  return VERBS.some((verb) => verb === name)
+}
+
+/**
+ * A module's top-level functions and variables (name -> body or initialiser),
+ * and every local export as `{ exported, local }` — both an inline
+ * `export const GET = …` and an export list such as `export { handler as GET }`.
+ * A re-export from another module (`export { GET } from '…'`) binds no local
+ * and is left out.
+ */
+function topLevelBindings(statements: Statements): {
+  locals: Map<string, unknown>
+  exports: Array<{ exported: string; local: string }>
+} {
+  const locals = new Map<string, unknown>()
+  const exports: Array<{ exported: string; local: string }> = []
+  for (const statement of statements) {
+    const isExport = statement.type === 'ExportNamedDeclaration'
+    if (isExport && !statement.declaration && !statement.source) {
+      for (const specifier of statement.specifiers) {
+        if (specifier.type !== 'ExportSpecifier') continue
+        const exported =
+          specifier.exported.type === 'Identifier'
+            ? specifier.exported.name
+            : specifier.exported.value
+        exports.push({ exported, local: specifier.local.name })
+      }
+      continue
+    }
+    const declaration = isExport ? statement.declaration : statement
+    const named: Array<[string, unknown]> = []
+    if (declaration?.type === 'FunctionDeclaration' && declaration.id) {
+      named.push([declaration.id.name, declaration.body])
+    } else if (declaration?.type === 'VariableDeclaration') {
+      for (const declarator of declaration.declarations) {
+        if (declarator.id.type === 'Identifier' && declarator.init) {
+          named.push([declarator.id.name, declarator.init])
+        }
+      }
+    }
+    for (const [name, root] of named) {
+      locals.set(name, root)
+      if (isExport) exports.push({ exported: name, local: name })
+    }
+  }
+  return { locals, exports }
+}
+
 /** Resolves exported handler references and tracing callbacks without importing server code. */
-export function wrappedRouteSites(source: string): Array<{ verb: string; optionsStart: number }> {
+export function wrappedRouteSites(
+  source: string
+): Array<{ verb: string; builder: string; optionsStart: number }> {
   const statements = parse(source, { sourceType: 'module', plugins: ['typescript'] }).program.body
-  const handlers = new Map<string, number>()
+  const handlers = new Map<string, { builder: string; optionsStart: number }>()
   for (const statement of statements) {
     if (statement.type !== 'VariableDeclaration' || statement.kind !== 'const') continue
     for (const declaration of statement.declarations) {
@@ -101,41 +161,121 @@ export function wrappedRouteSites(source: string): Array<{ verb: string; options
         continue
       const options = call.arguments[0]
       if (options?.type === 'ObjectExpression' && typeof options.start === 'number') {
-        handlers.set(declaration.id.name, options.start + 1)
+        handlers.set(declaration.id.name, {
+          builder: call.callee.name,
+          optionsStart: options.start + 1,
+        })
       }
     }
   }
-  const sites: Array<{ verb: string; optionsStart: number }> = []
-  for (const statement of statements) {
-    if (
-      statement.type !== 'ExportNamedDeclaration' ||
-      statement.declaration?.type !== 'VariableDeclaration'
-    )
-      continue
-    for (const declaration of statement.declaration.declarations) {
-      if (
-        declaration.id.type !== 'Identifier' ||
-        !VERBS.some((verb) => verb === declaration.id.name)
-      )
-        continue
-      const verb = declaration.id.name
-      const found = new Set<number>()
-      const visit = (value: unknown): void => {
-        if (!value || typeof value !== 'object') return
-        if (Array.isArray(value)) {
-          value.forEach(visit)
-          return
-        }
-        const node = value as Record<string, unknown>
-        if (node.type === 'Identifier' && typeof node.name === 'string') {
-          const start = handlers.get(node.name)
-          if (start !== undefined) found.add(start)
-        }
-        Object.values(node).forEach(visit)
+  const { locals, exports } = topLevelBindings(statements)
+  const sites: Array<{ verb: string; builder: string; optionsStart: number }> = []
+  for (const { exported: verb, local } of exports) {
+    if (!isVerb(verb)) continue
+    const found = new Set<{ builder: string; optionsStart: number }>()
+    const direct = handlers.get(local)
+    if (direct !== undefined) found.add(direct)
+    const visit = (value: unknown): void => {
+      if (!value || typeof value !== 'object') return
+      if (Array.isArray(value)) {
+        value.forEach(visit)
+        return
       }
-      visit(declaration.init)
-      for (const optionsStart of found) sites.push({ verb, optionsStart })
+      const node = value as Record<string, unknown>
+      if (node.type === 'Identifier' && typeof node.name === 'string') {
+        const handler = handlers.get(node.name)
+        if (handler !== undefined) found.add(handler)
+      }
+      Object.values(node).forEach(visit)
     }
+    if (direct === undefined) visit(locals.get(local))
+    for (const handler of found) sites.push({ verb, ...handler })
+  }
+  return sites
+}
+
+/** Modules that export the server-side `parseRequest`. */
+const PARSE_REQUEST_MODULES = new Set(['@/lib/api/server', '@/lib/api/server/validation'])
+
+/**
+ * Local names a module binds to `parseRequest`: `parseRequest` itself, plus
+ * each alias of an `import { parseRequest as … }` from its real module.
+ */
+function parseRequestNames(statements: Statements): Set<string> {
+  const names = new Set(['parseRequest'])
+  for (const statement of statements) {
+    if (statement.type !== 'ImportDeclaration') continue
+    if (!PARSE_REQUEST_MODULES.has(statement.source.value)) continue
+    for (const specifier of statement.specifiers) {
+      if (specifier.type !== 'ImportSpecifier') continue
+      const imported =
+        specifier.imported.type === 'Identifier'
+          ? specifier.imported.name
+          : specifier.imported.value
+      if (imported === 'parseRequest') names.add(specifier.local.name)
+    }
+  }
+  return names
+}
+
+/**
+ * The `parseRequest(<identifier>, …)` contract arguments reachable from each
+ * exported verb of a raw route, following same-file functions and consts the
+ * verb's handler names. Another exported verb is not followed: an alias such as
+ * `PUT` forwarding to `PATCH` is checked as `PATCH`. A non-identifier argument
+ * is not a resolvable contract and is left out.
+ */
+export function rawRouteContractSites(source: string): Array<{ verb: string; identifier: string }> {
+  const statements = parse(source, { sourceType: 'module', plugins: ['typescript'] }).program.body
+  const { locals, exports } = topLevelBindings(statements)
+  const parsers = parseRequestNames(statements)
+  const verbLocals = new Set(
+    exports.filter(({ exported }) => isVerb(exported)).map(({ local }) => local)
+  )
+  const sites: Array<{ verb: string; identifier: string }> = []
+  for (const { exported: verb, local } of exports) {
+    if (!isVerb(verb)) continue
+    const identifiers = new Set<string>()
+    const followed = new Set(verbLocals)
+    const visit = (value: unknown): void => {
+      if (!value || typeof value !== 'object') return
+      if (Array.isArray(value)) {
+        value.forEach(visit)
+        return
+      }
+      const node = value as Record<string, unknown>
+      if (node.type === 'CallExpression') {
+        const callee = node.callee as { type?: string; name?: string }
+        const [first] = node.arguments as Array<{ type?: string; name?: string }>
+        if (
+          callee.type === 'Identifier' &&
+          callee.name !== undefined &&
+          parsers.has(callee.name) &&
+          first?.type === 'Identifier' &&
+          first.name
+        ) {
+          identifiers.add(first.name)
+        }
+      }
+      if (node.type === 'Identifier' && typeof node.name === 'string') {
+        const local = locals.get(node.name)
+        if (local !== undefined && !followed.has(node.name)) {
+          followed.add(node.name)
+          visit(local)
+        }
+      }
+      if (node.type === 'MemberExpression' && !node.computed) {
+        visit(node.object)
+        return
+      }
+      if (node.type === 'ObjectProperty' && !node.computed) {
+        visit(node.value)
+        return
+      }
+      Object.values(node).forEach(visit)
+    }
+    visit(locals.get(local))
+    for (const identifier of identifiers) sites.push({ verb, identifier })
   }
   return sites
 }
@@ -154,9 +294,15 @@ function listRouteFiles(dir: string, found: string[] = []): string[] {
   return found
 }
 
-/** Local binding name -> module specifier, from the file's import statements. */
-function importedNames(source: string): Map<string, string> {
-  const bindings = new Map<string, string>()
+/** Where an imported local binding comes from: its module and the name that module exports it as. */
+interface ImportedBinding {
+  specifier: string
+  exported: string
+}
+
+/** Local binding name -> its source module and exported name, from the file's import statements. */
+export function importedNames(source: string): Map<string, ImportedBinding> {
+  const bindings = new Map<string, ImportedBinding>()
   for (const match of source.matchAll(
     /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"]([^'"]+)['"]/g
   )) {
@@ -164,7 +310,7 @@ function importedNames(source: string): Map<string, string> {
       const clause = raw.trim().replace(/^type\s+/, '')
       if (!clause) continue
       const [original, alias] = clause.split(/\s+as\s+/).map((part) => part.trim())
-      bindings.set(alias ?? original, match[2])
+      bindings.set(alias ?? original, { specifier: match[2], exported: original })
     }
   }
   return bindings
@@ -191,6 +337,14 @@ function loadContractModule(file: string): Promise<Record<string, unknown>> {
   return loaded
 }
 
+/** Resolves and imports a contract module; null when the specifier resolves to no file. */
+type ContractModuleLoader = (specifier: string) => Promise<Record<string, unknown>> | null
+
+const loadContractSpecifier: ContractModuleLoader = (specifier) => {
+  const modulePath = resolveContractModule(specifier)
+  return modulePath ? loadContractModule(modulePath) : null
+}
+
 /** The URL Next.js actually serves this file at: its directory, minus route groups. */
 function derivedPath(file: string): string {
   const segments = path
@@ -198,6 +352,113 @@ function derivedPath(file: string): string {
     .split(path.sep)
     .filter((segment) => segment.length > 0 && !(segment.startsWith('(') && segment.endsWith(')')))
   return ['/api', ...segments].join('/')
+}
+
+/**
+ * Where a contract identifier is bound in a route: a builder's `contract:` key or a raw
+ * `parseRequest`. `scim` is `defineScimRoute`, the one builder that rejects a `HEAD` request
+ * against a `GET` contract instead of serving it through `methodMatchesContract`.
+ */
+type SiteKind = 'builder' | 'scim' | 'raw'
+
+/** One route file, as every site in it is checked against. */
+interface RouteFile {
+  relative: string
+  /** Local binding name -> its source module and exported name. */
+  bindings: Map<string, ImportedBinding>
+  /** The URL the file serves. */
+  expectedPath: string
+}
+
+/**
+ * Whether a route serves `contractPath`. A raw catch-all route (`[...slug]`,
+ * `[[...slug]]`) dispatches sub-paths itself, so any contract under its prefix
+ * is one it serves.
+ */
+function servesPath(kind: SiteKind, expectedPath: string, contractPath: string): boolean {
+  if (contractPath === expectedPath) return true
+  const catchAll = expectedPath.search(/\/\[{1,2}\.\.\./)
+  return (
+    kind === 'raw' &&
+    catchAll !== -1 &&
+    contractPath.startsWith(expectedPath.slice(0, catchAll + 1))
+  )
+}
+
+/**
+ * Resolves `identifier` through the route's imports and compares the contract to
+ * the exported verb and the path the file serves, pushing every disagreement to
+ * `failures`. Returns whether a contract was compared: false for a site that
+ * could not be resolved (a failure) or a raw route's non-contract argument (out
+ * of scope).
+ */
+export async function checkSite(
+  route: RouteFile,
+  kind: SiteKind,
+  verb: string,
+  identifier: string,
+  failures: string[],
+  verbose: boolean,
+  loadModule: ContractModuleLoader = loadContractSpecifier
+): Promise<boolean> {
+  const { relative, bindings, expectedPath } = route
+  const binding = bindings.get(identifier)
+  if (kind === 'raw' && !binding?.specifier.startsWith('@/lib/api/contracts')) return false
+  if (!binding) {
+    failures.push(`${relative}: export const ${verb} uses \`${identifier}\`, which is not imported`)
+    return false
+  }
+  const { specifier, exported } = binding
+
+  const loading = loadModule(specifier)
+  if (!loading) {
+    failures.push(
+      `${relative}: export const ${verb} imports \`${identifier}\` from '${specifier}', which does not resolve to a contract module`
+    )
+    return false
+  }
+
+  let module: Record<string, unknown>
+  try {
+    module = await loading
+  } catch (error) {
+    failures.push(
+      `${relative}: export const ${verb} — importing '${specifier}' failed: ${(error as Error).message}`
+    )
+    return false
+  }
+
+  const contract = module[exported] as RouteContract | undefined
+  if (typeof contract?.method !== 'string' || typeof contract?.path !== 'string') {
+    failures.push(
+      `${relative}: export const ${verb} — \`${identifier}\` from '${specifier}' is not a route contract (no string \`method\`/\`path\`)`
+    )
+    return false
+  }
+
+  const subject =
+    kind !== 'raw'
+      ? `export const ${verb} is built from \`${identifier}\``
+      : `export const ${verb} parses with \`${identifier}\``
+  const method = contract.method.toUpperCase()
+  if (method !== verb && !(verb === 'HEAD' && method === 'GET' && kind !== 'scim')) {
+    failures.push(
+      kind !== 'raw'
+        ? `${relative}: ${subject}, which declares ${contract.method} ${contract.path}. Next routes by the exported symbol, so ${verb} requests 500 and ${contract.method} requests 404.`
+        : `${relative}: ${subject}, which declares ${contract.method} ${contract.path}. Clients calling through the contract send ${contract.method} and get a 405.`
+    )
+  }
+  if (!servesPath(kind, expectedPath, contract.path)) {
+    failures.push(
+      `${relative}: ${subject}, whose path is ${contract.path}, but this file serves ${expectedPath}.`
+    )
+  }
+  if (verbose) {
+    console.log(
+      `✓ ${relative} ${verb} ← ${identifier} (${kind}, ${contract.method} ${contract.path})`
+    )
+  }
+  return true
 }
 
 async function main() {
@@ -211,28 +472,46 @@ async function main() {
   const failures: string[] = []
   let checked = 0
   let files = 0
+  let rawChecked = 0
+  let rawFiles = 0
 
   for (const file of listRouteFiles(API_DIR).sort()) {
     const source = readFileSync(file, 'utf8')
+    const relative = path.relative(ROOT, file)
+    const route: RouteFile = {
+      relative,
+      bindings: importedNames(source),
+      expectedPath: derivedPath(file),
+    }
+
+    if (source.includes('parseRequest')) {
+      let rawSitesInFile = 0
+      for (const { verb, identifier } of rawRouteContractSites(source)) {
+        if (await checkSite(route, 'raw', verb, identifier, failures, verbose)) rawSitesInFile += 1
+      }
+      if (rawSitesInFile > 0) {
+        rawChecked += rawSitesInFile
+        rawFiles += 1
+      }
+    }
+
     let builderCalls = 0
     for (const _ of source.matchAll(BUILDER_CALL_RE)) builderCalls += 1
     if (builderCalls === 0) continue
 
     files += 1
-    const relative = path.relative(ROOT, file)
-    const bindings = importedNames(source)
-    const expectedPath = derivedPath(file)
     let sitesInFile = 0
 
     const directSites = [...source.matchAll(EXPORT_RE)].map((match) => ({
       verb: match[1],
+      builder: match[2],
       optionsStart: (match.index ?? 0) + match[0].length,
     }))
     const sites =
       directSites.length === builderCalls
         ? directSites
         : [...directSites, ...wrappedRouteSites(source)]
-    for (const { verb, optionsStart } of sites) {
+    for (const { verb, builder, optionsStart } of sites) {
       sitesInFile += 1
       const options = source.slice(optionsStart, optionsStart + OPTIONS_SCAN_CHARS)
 
@@ -242,56 +521,8 @@ async function main() {
         continue
       }
       const identifier = contractKey[1]
-
-      const specifier = bindings.get(identifier)
-      if (!specifier) {
-        failures.push(
-          `${relative}: export const ${verb} uses \`${identifier}\`, which is not imported`
-        )
-        continue
-      }
-
-      const modulePath = resolveContractModule(specifier)
-      if (!modulePath) {
-        failures.push(
-          `${relative}: export const ${verb} imports \`${identifier}\` from '${specifier}', which does not resolve to a contract module`
-        )
-        continue
-      }
-
-      let module: Record<string, unknown>
-      try {
-        module = await loadContractModule(modulePath)
-      } catch (error) {
-        failures.push(
-          `${relative}: export const ${verb} — importing '${specifier}' failed: ${(error as Error).message}`
-        )
-        continue
-      }
-
-      const contract = module[identifier] as RouteContract | undefined
-      if (typeof contract?.method !== 'string' || typeof contract?.path !== 'string') {
-        failures.push(
-          `${relative}: export const ${verb} — \`${identifier}\` from '${specifier}' is not a route contract (no string \`method\`/\`path\`)`
-        )
-        continue
-      }
-
-      checked += 1
-
-      if (contract.method.toUpperCase() !== verb) {
-        failures.push(
-          `${relative}: export const ${verb} is built from \`${identifier}\`, which declares ${contract.method} ${contract.path}. Next routes by the exported symbol, so ${verb} requests 500 and ${contract.method} requests 404.`
-        )
-      }
-      if (contract.path !== expectedPath) {
-        failures.push(
-          `${relative}: export const ${verb} is built from \`${identifier}\`, whose path is ${contract.path}, but this file serves ${expectedPath}.`
-        )
-      }
-      if (verbose) {
-        console.log(`✓ ${relative} ${verb} ← ${identifier} (${contract.method} ${contract.path})`)
-      }
+      const kind = builder === 'defineScimRoute' ? 'scim' : 'builder'
+      if (await checkSite(route, kind, verb, identifier, failures, verbose)) checked += 1
     }
 
     if (sitesInFile < builderCalls) {
@@ -301,9 +532,9 @@ async function main() {
     }
   }
 
-  if (checked === 0) {
+  if (checked === 0 || rawChecked === 0) {
     console.error(
-      '❌ No builder-backed route handlers found. Refusing to pass vacuously — the scan patterns are stale.'
+      '❌ No builder-backed or no raw parseRequest route handlers found. Refusing to pass vacuously — the scan patterns are stale.'
     )
     process.exit(1)
   }
@@ -312,15 +543,15 @@ async function main() {
     console.error(`\n❌ ${failures.length} route/contract disagreement(s):\n`)
     for (const failure of failures) console.error(`  ${failure}`)
     console.error(
-      '\nThe builders only compare request.method to contract.method at runtime, so these'
+      '\nThe builders only compare request.method to contract.method at runtime, and raw'
     )
-    console.error('fail as 500s in production rather than at build time. Fix the export symbol or')
-    console.error('point the route at the right contract.')
+    console.error('routes never do, so these fail in production rather than at build time. Fix the')
+    console.error('export symbol or point the route at the right contract.')
     process.exit(1)
   }
 
   console.log(
-    `✓ ${checked} builder-backed route handler(s) across ${files} file(s) match their contract's method and path`
+    `✓ ${checked} builder-backed route handler(s) across ${files} file(s) and ${rawChecked} raw parseRequest site(s) across ${rawFiles} file(s) match their contract's method and path`
   )
 }
 

@@ -1,4 +1,4 @@
-import { logProjectionSubjectUserId, resolveLogFieldProjection } from '@/lib/logs/log-projection'
+import { logProjectionSubjectUserId, resolveLogFieldProjection } from '@/lib/logs/projection'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'

@@ -1,6 +1,6 @@
 /**
  * Client-safe catalog of Microsoft Presidio PII entity types. Single source of
- * truth shared by the server-only validator (`validate_pii.ts`) and client
+ * truth shared by the server-only validator (`validate-pii.ts`) and client
  * settings UI — keep no node-only imports here.
  */
 export const SUPPORTED_PII_ENTITIES = {

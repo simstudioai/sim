@@ -29,19 +29,19 @@ import { humanizeBlockName } from '../lib/humanize-block-name'
 import { OverflowSpan } from '../lib/overflow-span'
 import type { BlockRunStatus } from '../types'
 import {
+  CONNECTION_KNOB_PEAK_PX,
+  CURSOR_SWELL_LENGTH_PX,
+  WorkflowBlockBorder,
+  type WorkflowBorderCursorHandle,
+  type WorkflowBorderPort,
+} from './border'
+import {
   getCursorBranchSourceHandleId,
   getCursorSourceHandleId,
   getCursorSourceHandlePosition,
 } from './source-handle'
 import { SubBlockRowView } from './sub-block-row-view'
 import { useActionMenuSwell } from './use-action-menu-swell'
-import {
-  CONNECTION_KNOB_PEAK_PX,
-  CURSOR_SWELL_LENGTH_PX,
-  WorkflowBlockBorder,
-  type WorkflowBorderCursorHandle,
-  type WorkflowBorderPort,
-} from './workflow-block-border'
 
 const getHandleStyle = (position: 'horizontal' | 'vertical') => {
   if (position === 'horizontal') {
@@ -722,7 +722,7 @@ export function WorkflowBlockView({
             onPointerDownCapture={syncCursorSourceHandleBounds}
             isValidConnection={(connection) => {
               if (connection.target === id) return false
-              return !wouldCreateConnectionCycle(connection.source!, connection.target!)
+              return !wouldCreateConnectionCycle(connection.source, connection.target)
             }}
           />
         )}
@@ -748,7 +748,7 @@ export function WorkflowBlockView({
             isConnectableEnd={true}
             isValidConnection={(connection) => {
               if (connection.source === id) return false
-              return !wouldCreateConnectionCycle(connection.source!, connection.target!)
+              return !wouldCreateConnectionCycle(connection.source, connection.target)
             }}
           />
         )}
@@ -1006,7 +1006,7 @@ export function WorkflowBlockView({
                   isConnectableEnd={false}
                   isValidConnection={(connection) => {
                     if (connection.target === id) return false
-                    return !wouldCreateConnectionCycle(connection.source!, connection.target!)
+                    return !wouldCreateConnectionCycle(connection.source, connection.target)
                   }}
                 />
               )
@@ -1043,7 +1043,7 @@ export function WorkflowBlockView({
                   isConnectableEnd={false}
                   isValidConnection={(connection) => {
                     if (connection.target === id) return false
-                    return !wouldCreateConnectionCycle(connection.source!, connection.target!)
+                    return !wouldCreateConnectionCycle(connection.source, connection.target)
                   }}
                 />
               )
@@ -1067,7 +1067,7 @@ export function WorkflowBlockView({
             isConnectableEnd={false}
             isValidConnection={(connection) => {
               if (connection.target === id) return false
-              return !wouldCreateConnectionCycle(connection.source!, connection.target!)
+              return !wouldCreateConnectionCycle(connection.source, connection.target)
             }}
           />
         )}
@@ -1085,7 +1085,7 @@ export function WorkflowBlockView({
             isConnectableEnd={false}
             isValidConnection={(connection) => {
               if (connection.target === id) return false
-              return !wouldCreateConnectionCycle(connection.source!, connection.target!)
+              return !wouldCreateConnectionCycle(connection.source, connection.target)
             }}
           />
         )}

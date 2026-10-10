@@ -97,8 +97,7 @@ For **every** tool file, check:
 - [ ] `Content-Type` header is set for POST/PUT/PATCH requests
 - [ ] Body sends all required fields and only includes optional fields when provided
 - [ ] For GET requests with query params: URL is constructed correctly with query string
-- [ ] ID fields in URL paths are `.trim()`-ed to prevent copy-paste whitespace errors
-- [ ] Path params use template literals correctly: `` `https://api.service.com/v1/${params.id.trim()}` ``
+- [ ] Each single ID path segment goes through `safeUrlPathSegment(params.id, 'id')` from `@/tools/url-path` (trims, rejects empty, dot, and separator values, then encodes); query values use `encodeURIComponent` or `URLSearchParams`
 
 ### Response / transformResponse
 - [ ] Correctly parses the API response (`await response.json()`)
@@ -188,7 +187,7 @@ that owns the data.
 
 ## Step 4: Validate Block
 
-### Block ↔ Tool Alignment (CRITICAL)
+### Block ↔ Tool Alignment
 
 This is the most important validation — the block must be perfectly aligned with every tool it references.
 

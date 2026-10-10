@@ -1,7 +1,7 @@
 import { cva } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
 import { chipVariants } from './chip'
-import { chipFilledFillTokens, chipGeometryClass } from './chip-chrome'
+import { chipFilledFillTokens, chipGeometryClass } from './chrome'
 
 /** Shared 30px chip geometry for segmented controls, including their inset. */
 export const segmentedControlVariants = cva(
