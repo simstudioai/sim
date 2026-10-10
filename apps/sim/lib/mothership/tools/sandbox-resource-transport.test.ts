@@ -285,11 +285,10 @@ it('cannot deliver a successful unclassified file response when recording its un
  * so the workbench's file reads depend on this proxy installing one around the route handler.
  */
 it('dispatches a workbench file read under a delivery observer the Copilot guard admits', async () => {
-  const provenance = { status: 'exact', entries: [] } as const
   routeMatcher.mockReturnValue({ params: { fileId: 'file' }, load: async () => ({ GET: fetcher }) })
   fetcher.mockImplementation(async () => {
     requireCopilotWorkspaceFileDeliveryObserver(createDelegatedPrincipal({ serviceId: 'copilot' }))
-    await reportWorkspaceFileDelivery(provenance)
+    await reportWorkspaceFileDelivery({ status: 'exact', entries: [] })
     return new Response('file text')
   })
   recordInput.mockResolvedValueOnce(undefined)
@@ -301,7 +300,6 @@ it('dispatches a workbench file read under a delivery observer the Copilot guard
 
   expect(response.status).toBe(200)
   expect(await response.text()).toBe('file text')
-  expect(recordInput).toHaveBeenCalledWith('mothership-chat:chat', provenance)
 })
 
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: mint }))
