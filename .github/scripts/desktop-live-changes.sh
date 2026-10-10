@@ -13,7 +13,7 @@ set -u
 
 relevant='^(apps/desktop/|apps/realtime/'\
 '|packages/(desktop-bridge|browser-protocol|terminal-protocol|realtime-protocol|db|auth|emcn|utils|logger|security|platform-authz|runtime-secrets)/'\
-'|apps/sim/lib/(desktop|mothership|uploads|auth|terminal|browser-agent|api/(client|server))/'\
+'|apps/sim/lib/(desktop|mothership|uploads|auth|terminal|browser-agent|workspaces/permissions|api/(client|server))/'\
 '|apps/sim/lib/api/contracts/(chats|copilot|desktop-|mothership-|upload-sessions|workspace-file)'\
 '|apps/sim/app/api/(desktop|mothership|copilot|files|v2/uploads|auth|users/me)/'\
 '|apps/sim/app/api/workspaces/\[id\]/files/'\
