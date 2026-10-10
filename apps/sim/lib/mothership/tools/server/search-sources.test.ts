@@ -68,7 +68,15 @@ describe('Search source direct tool', () => {
         audience: 'sim:knowledge',
         resourceScope: { chatId: 'actual-chat' },
       }),
-      input: { organizationId: 'actual-org', cursor: 'previous' },
+      input: {
+        organizationId: 'actual-org',
+        cursor: 'previous',
+        cursorRoute: {
+          method: 'GET',
+          path: '/api/knowledge/sim-search/sources',
+          params: undefined,
+        },
+      },
     })
     expect(mocks.chat).toHaveBeenCalledBefore(mocks.list)
   })
@@ -77,7 +85,17 @@ describe('Search source direct tool', () => {
       tool.execute({ action: 'get', connectorId: 'foreign' }, context)
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.list).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { organizationId: 'actual-org', connectorId: 'foreign' } })
+      expect.objectContaining({
+        input: {
+          organizationId: 'actual-org',
+          connectorId: 'foreign',
+          cursorRoute: {
+            method: 'GET',
+            path: '/api/knowledge/sim-search/sources',
+            params: undefined,
+          },
+        },
+      })
     )
   })
   it('returns existing setup UI without creating an index, connecting or changing approval', async () => {
