@@ -65,6 +65,12 @@ export const PUT = withRouteHandler((request, context) => PATCH(request, context
 })
 
 describe('export-list verbs on raw routes', () => {
+  it('follows an exported non-verb helper that parses the contract', () => {
+    const source = `import { updateContract } from '@/lib/api/contracts/things'
+export async function parseUpdate(request) { return parseRequest(updateContract, request) }
+export const PUT = withRouteHandler((request) => parseUpdate(request))`
+    expect(rawRouteContractSites(source)).toEqual([{ verb: 'PUT', identifier: 'updateContract' }])
+  })
   it('checks a handler exported as \`export { GET }\`', () => {
     const source = `const GET = withRouteHandler((request) => parseRequest(listContract, request, {}))
 export { GET }`

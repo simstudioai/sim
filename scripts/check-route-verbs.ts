@@ -229,12 +229,14 @@ export function rawRouteContractSites(source: string): Array<{ verb: string; ide
   const statements = parse(source, { sourceType: 'module', plugins: ['typescript'] }).program.body
   const { locals, exports } = topLevelBindings(statements)
   const parsers = parseRequestNames(statements)
-  const exportedLocals = new Set(exports.map(({ local }) => local))
+  const verbLocals = new Set(
+    exports.filter(({ exported }) => isVerb(exported)).map(({ local }) => local)
+  )
   const sites: Array<{ verb: string; identifier: string }> = []
   for (const { exported: verb, local } of exports) {
     if (!isVerb(verb)) continue
     const identifiers = new Set<string>()
-    const followed = new Set(exportedLocals)
+    const followed = new Set(verbLocals)
     const visit = (value: unknown): void => {
       if (!value || typeof value !== 'object') return
       if (Array.isArray(value)) {
