@@ -323,13 +323,16 @@ The registered migration backfills remaining assignments, verifies, then enforce
     }
     if (progress.manifestHash !== manifestHash || progress.databaseId !== databaseId)
       throw new Error('Report does not match the reviewed manifest')
+    if (progress.codeHash !== codeHash)
+      throw new Error(
+        'Report belongs to different backfill code; use the original checkout or a new report'
+      )
     if (
       progress.nextIndex > manifest.families.length ||
       progress.deferred.some((index) => index >= manifest.families.length)
     )
       throw new Error('Invalid report cursor')
     progress.runId = generateId()
-    progress.codeHash = codeHash
     progress.status = 'running'
     const started = performance.now()
     let attempts = 0

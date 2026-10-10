@@ -613,6 +613,16 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           projectsCreated: 50,
           status: 'paused',
         })
+        const mismatched = JSON.stringify({ ...report, codeHash: 'another-checkout' })
+        await writeFile(reportPath, mismatched)
+        await expect(run('apply', ['--ack-release-drained'])).rejects.toMatchObject({
+          code: 1,
+          stderr: expect.stringContaining('Report belongs to different backfill code'),
+        })
+        expect(await readFile(reportPath, 'utf8')).toBe(mismatched)
+        expect(await sql`SELECT id FROM project`).toHaveLength(50)
+        expect(await sql`SELECT id FROM workspace WHERE project_id IS NOT NULL`).toHaveLength(50)
+        await writeFile(reportPath, JSON.stringify(report))
         for (const [status, exitCode] of [
           ['running', 2],
           ['paused', 2],
