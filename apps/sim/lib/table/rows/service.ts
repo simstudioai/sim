@@ -1324,7 +1324,7 @@ export async function queryRows(
         )
       : null
 
-  logger.info(
+  logger.debug(
     `[${requestId}] Queried ${rows.length} rows from table ${table.id} (total: ${totalCount}, bytes: ${fetched.bytes}, more: ${fetched.hasMore})`
   )
 

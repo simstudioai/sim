@@ -1672,7 +1672,6 @@
     "apps/sim/lib/table/rows/service.ts": 5,
     "apps/sim/lib/table/validation.ts": 3,
     "apps/sim/lib/table/workflow-groups/service.ts": 2,
-    "apps/sim/lib/tokenization/accurate.ts": 1,
     "apps/sim/lib/uploads/archive.test.ts": 1,
     "apps/sim/lib/uploads/client/download.test.ts": 1,
     "apps/sim/lib/uploads/contexts/copilot/copilot-file-manager.test.ts": 1,

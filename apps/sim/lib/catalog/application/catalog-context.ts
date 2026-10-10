@@ -5,12 +5,15 @@ import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integration
 import { allowedIntegrationTypes, principalUserId } from '@/lib/integrations/principal-scope.server'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
-import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import {
+  getCustomBlockRowsForWorkspace,
+  listCustomBlocksWithInputsForWorkspace,
+} from '@/lib/workflows/custom-blocks/operations'
 import {
   type ActiveWorkspaceApplicationContext,
   loadActiveWorkspaceApplicationContext,
 } from '@/lib/workspaces/application/workspace-context'
-import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
+import { type CustomBlockOverlayRow, withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import type { BlockConfig } from '@/blocks/types'
 import { isHiddenUnder } from '@/blocks/visibility/context'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
@@ -28,7 +31,16 @@ export interface CatalogGate {
   /** Lowercased block types the workspace permits, or `null` when unrestricted. */
   allowedIntegrations: ReadonlySet<string> | null
   /** Workflows this workspace's organization has deployed as blocks. */
-  customBlockRows: Awaited<ReturnType<typeof listCustomBlocksWithInputsForWorkspace>>
+  customBlockRows: CustomBlockOverlayRow[]
+}
+
+export interface CatalogGateOptions {
+  /**
+   * Derive each custom block's input fields from its deployed Start, which loads every
+   * custom block's deployed workflow. Only reads that render block inputs ask for it; tool
+   * scope needs just the block types, since every custom block exposes `workflow_executor`.
+   */
+  customBlockInputs?: boolean
 }
 
 /** Loads the canonical workspace, concealing one the caller cannot reach as absent. */
@@ -43,7 +55,8 @@ export async function loadCatalogWorkspaceContext(
 /** Resolves every policy that narrows the catalog for this caller and workspace. */
 export async function resolveCatalogGate(
   principal: Principal,
-  context: ActiveWorkspaceApplicationContext
+  context: ActiveWorkspaceApplicationContext,
+  options: CatalogGateOptions = {}
 ): Promise<CatalogGate> {
   const userId = principalUserId(principal)
   const [allowedIntegrations, visibility, customBlockRows] = await Promise.all([
@@ -52,7 +65,9 @@ export async function resolveCatalogGate(
       ...(userId ? { userId } : {}),
       ...(context.workspaceOrganizationId ? { orgId: context.workspaceOrganizationId } : {}),
     }),
-    listCustomBlocksWithInputsForWorkspace(context.workspaceId),
+    options.customBlockInputs
+      ? listCustomBlocksWithInputsForWorkspace(context.workspaceId)
+      : getCustomBlockRowsForWorkspace(context.workspaceId),
   ])
   return { allowedIntegrations, visibility, customBlockRows }
 }

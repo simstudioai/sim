@@ -24,7 +24,7 @@ export const readBlockCatalog = defineAuthorizedWorkspaceUseCase({
     loadCatalogWorkspaceContext(input.workspaceId),
   authorizationOptions: { delegation: catalogDelegationPolicy },
   execute: async ({ principal, context }) => {
-    const gate = await resolveCatalogGate(principal, context)
+    const gate = await resolveCatalogGate(principal, context, { customBlockInputs: true })
     return withCatalogBlockScope(gate, async () => ({
       blocks: sortCatalogEntries(
         [

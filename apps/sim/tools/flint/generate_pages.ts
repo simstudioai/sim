@@ -85,17 +85,20 @@ export const flintGeneratePagesTool: ToolConfig<
         'Slug of the existing template page to generate from (e.g., /case-studies/template)',
     },
     items: {
-      type: 'json',
+      type: 'array',
       required: true,
       visibility: 'user-or-llm',
       description:
         'JSON array of 1-10 pages to generate. Each item requires targetPageSlug (slug for the new page) and context (content details the agent should use).',
+      minItems: 1,
+      maxItems: MAX_ITEMS,
       items: {
         type: 'object',
         properties: {
           targetPageSlug: { type: 'string', description: 'Slug for the generated page' },
           context: { type: 'string', description: 'Content context for the generated page' },
         },
+        required: ['targetPageSlug', 'context'],
       },
     },
     callbackUrl: {

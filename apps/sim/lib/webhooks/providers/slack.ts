@@ -3,9 +3,11 @@ import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import { NextResponse } from 'next/server'
 import {
   secureFetchWithPinnedIP,
@@ -406,10 +408,27 @@ async function downloadSlackFiles(
   return downloaded
 }
 
+/** How long a webhook's `missing_scope` report suppresses repeats of the same log line. */
+const MISSING_SCOPE_LOG_WINDOW_MS = 60 * 60 * 1000
+/** Memory backstop for {@link reactionsMissingScopeLogged}, far above live Slack webhooks. */
+const MISSING_SCOPE_LOG_MAX_WEBHOOKS = 10_000
+
+/**
+ * Webhooks whose bot already reported `missing_scope` on `reactions.get`. A bot without
+ * `reactions:read` fails every reaction event identically until it is reinstalled, so the
+ * configuration problem is logged once per webhook per window rather than per event. The call
+ * itself still runs, so a reinstalled bot gets message text back immediately.
+ */
+const reactionsMissingScopeLogged = new LRUCache<string, true>({
+  max: MISSING_SCOPE_LOG_MAX_WEBHOOKS,
+  ttl: MISSING_SCOPE_LOG_WINDOW_MS,
+})
+
 async function fetchSlackMessageText(
   channel: string,
   messageTs: string,
-  botToken: string
+  botToken: string,
+  webhookId: string
 ): Promise<string> {
   try {
     const params = new URLSearchParams({ channel, timestamp: messageTs })
@@ -419,10 +438,21 @@ async function fetchSlackMessageText(
     const data = (await response.json()) as {
       ok: boolean
       error?: string
+      needed?: string
       type?: string
       message?: { text?: string }
     }
     if (!data.ok) {
+      if (data.error === 'missing_scope') {
+        if (!reactionsMissingScopeLogged.has(webhookId)) {
+          reactionsMissingScopeLogged.set(webhookId, true)
+          logger.info('Slack bot lacks a scope for reactions.get — reaction message text omitted', {
+            webhookId,
+            needed: data.needed,
+          })
+        }
+        return ''
+      }
       logger.warn('Slack reactions.get failed — message text unavailable', {
         channel,
         messageTs,
@@ -986,7 +1016,12 @@ export const slackHandler: WebhookProviderHandler = {
 
     let text: string = (rawEvent?.text as string) || ''
     if (isReactionEvent && channel && messageTs && botToken) {
-      text = await fetchSlackMessageText(channel, messageTs, botToken)
+      text = await fetchSlackMessageText(
+        channel,
+        messageTs,
+        botToken,
+        toStringOrNull(webhook.id) ?? channel
+      )
     }
 
     const rawFiles: unknown[] = (rawEvent?.files as unknown[]) ?? []

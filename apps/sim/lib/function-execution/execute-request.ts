@@ -2466,7 +2466,7 @@ export async function executeFunctionRequest(
     const executionParams = { ...params }
     executionParams._context = undefined
 
-    logger.info(`[${requestId}] Function execution request`, {
+    logger.debug(`[${requestId}] Function execution request`, {
       hasCode: !!code,
       paramsCount: Object.keys(executionParams).length,
       timeout,
@@ -3335,7 +3335,7 @@ export async function executeFunctionRequest(
       )
     }
 
-    logger.info(`[${requestId}] Function executed successfully using ${executionMethod}`, {
+    logger.debug(`[${requestId}] Function executed successfully using ${executionMethod}`, {
       executionTime,
     })
 

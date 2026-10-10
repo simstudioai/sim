@@ -45,7 +45,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const startedAt = performance.now()
     const masked = await maskPIIBatch(texts, entityTypes, language, customPatterns)
-    logger.info('Masked PII batch', {
+    logger.debug('Masked PII batch', {
       count: texts.length,
       durationMs: Math.round(performance.now() - startedAt),
     })

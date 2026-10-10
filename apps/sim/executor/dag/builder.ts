@@ -97,7 +97,7 @@ export class DAGBuilder {
     // Validate loop and parallel structure
     this.validateSubflowStructure(dag)
 
-    logger.info('DAG built', {
+    logger.debug('DAG built', {
       totalNodes: dag.nodes.size,
       loopCount: dag.loopConfigs.size,
       parallelCount: dag.parallelConfigs.size,
