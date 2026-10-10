@@ -44,7 +44,7 @@ Use CSS variable pattern (`text-[var(--text-body)]`), never Tailwind semantics (
 
 ## Buttons and chips
 
-Header/action chrome is `Chip`/`ChipLink` (variants `default`, `filled`, `primary`, `destructive`, `outline`, `border`, `border-shadow`). Selection and toggles use the `active` prop, never a variant. A single-resource Delete is a plain chip behind `ChipConfirmModal`; `destructive` is only for at-scale actions (`.claude/rules/sim-settings-pages.md` "Deleting a resource"). `Button` is only for icon-only toolbar controls (`ghost`/`quiet`, `size='icon'`).
+Header/action chrome is `Chip`/`ChipLink` (variants `primary`, `destructive`, `outline`, `border`, `border-shadow`; omit `variant` for the bare chip, and `filled` is reserved for chip fields and triggers). Selection and toggles use the `active` prop, never a variant. A single-resource Delete is a plain chip behind `ChipConfirmModal`; `destructive` is only for at-scale actions (`.claude/rules/sim-settings-pages.md` "Deleting a resource"). `Button` is only for icon-only toolbar controls (`ghost`/`quiet`, `size='icon'`).
 
 ## Delete/Remove Confirmations
 
