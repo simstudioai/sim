@@ -53,7 +53,7 @@ interface BundleSpec {
   entry: string
 }
 
-const POLYFILLS_PATH = join(HERE, '_polyfills.ts')
+const POLYFILLS_PATH = join(HERE, 'isolate-polyfills.ts')
 const EVENT_POLYFILLS_PATH = join(HERE, 'event-polyfills.ts')
 const POLYFILL_PRELUDE = `
 // Isolate-side polyfills must execute BEFORE any other import (process/browser

@@ -3,7 +3,7 @@ import {
   MAX_PII_VALIDATION_DETECTED_ENTITIES,
   MAX_PII_VALIDATION_RESPONSE_BYTES,
 } from '@/lib/guardrails/pii-limits'
-import { maskPIIBatch, validatePII } from '@/lib/guardrails/validate_pii'
+import { maskPIIBatch, validatePII } from '@/lib/guardrails/validate-pii'
 
 interface Span {
   entity_type: string
@@ -33,7 +33,7 @@ function encodesAsUtf8(text: string): boolean {
   return Buffer.from(text, 'utf8').toString('utf8') === text
 }
 
-describe('validate_pii (Presidio service)', () => {
+describe('validate-pii (Presidio service)', () => {
   let analyzeBodies: Array<{ text: string; language: string; entities?: string[] }>
   let fetchMock: ReturnType<typeof vi.fn>
 

@@ -36,7 +36,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
 import { resolveFileResourceSelectionId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { deploymentKeys } from '@/hooks/queries/deployments'
-import { oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
+import { oauthCredentialKeys } from '@/hooks/queries/oauth/credentials'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'

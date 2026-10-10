@@ -18,9 +18,9 @@ import {
   projectCostTotal,
   projectExecutionData,
   resolveLogFieldProjection,
-} from '@/lib/logs/log-projection'
-import { toOverview } from '@/lib/logs/log-views'
+} from '@/lib/logs/projection'
 import type { TraceSpan } from '@/lib/logs/types'
+import { toOverview } from '@/lib/logs/views'
 import { createCopilotChatKnowledgePrincipal } from '@/lib/mothership/application/execute-knowledge-use-case'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import {

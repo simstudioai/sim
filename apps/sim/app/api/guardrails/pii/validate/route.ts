@@ -4,7 +4,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { validatePII } from '@/lib/guardrails/validate_pii'
+import { validatePII } from '@/lib/guardrails/validate-pii'
 
 /**
  * App-container capability boundary for single-text PII validation. Presidio is

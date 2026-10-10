@@ -15,7 +15,7 @@ vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.mock('@/lib/desktop', () => libDesktopMock)
 vi.mock('@/lib/oauth', () => ({ OAUTH_PROVIDERS: {} }))
 
-import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
+import { useConnectOAuthService } from '@/hooks/queries/oauth/connections'
 
 const beginOAuthConnect = vi.fn()
 const oauthLink = authClientMockFns.mockClient.oauth2.link

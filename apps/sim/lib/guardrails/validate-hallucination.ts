@@ -237,16 +237,16 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       reasoning: result.reasoning || 'No reasoning provided',
       cost,
     }
-  } catch (error: any) {
+  } catch (error) {
     /**
      * A cancelled run is not a scoring failure. Rewrapping it would erase the
      * `AbortError` name the outer handler classifies on, so it propagates as-is.
      */
     if (isAbortError(error)) throw error
     logger.error(`[${requestId}] Error scoring with LLM`, {
-      error: error.message,
+      error: getErrorMessage(error),
     })
-    throw new Error(`Failed to score confidence: ${error.message}`)
+    throw new Error(`Failed to score confidence: ${getErrorMessage(error)}`)
   }
 }
 
@@ -368,7 +368,7 @@ export async function validateHallucination(
         ? undefined
         : `Low confidence: score ${score}/10 is below threshold ${threshold}`,
     }
-  } catch (error: any) {
+  } catch (error) {
     /**
      * Cancellation is surfaced as cancellation, not as a guardrail verdict. Returning
      * `passed: false` here would fail content on a run the caller abandoned, which is
@@ -376,11 +376,11 @@ export async function validateHallucination(
      */
     if (isAbortError(error)) throw error
     logger.error(`[${requestId}] Hallucination validation error`, {
-      error: error.message,
+      error: getErrorMessage(error),
     })
     return {
       passed: false,
-      error: `Validation error: ${error.message}`,
+      error: `Validation error: ${getErrorMessage(error)}`,
     }
   }
 }

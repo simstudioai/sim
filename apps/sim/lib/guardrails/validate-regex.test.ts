@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { validateRegex, validateRegexPattern } from '@/lib/guardrails/validate_regex'
+import { validateRegex, validateRegexPattern } from '@/lib/guardrails/validate-regex'
 
 describe('validateRegex', () => {
   it('runs a catastrophic pattern in linear time', () => {

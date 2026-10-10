@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { setRecordValue } from '@/lib/core/utils/records'
 import { EXACT_ENVIRONMENT_REFERENCE } from '@/lib/environment/reference'
 import { PII_LANGUAGE_CODES, stripNerEntities } from '@/lib/guardrails/pii-entities'
-import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
+import { validateRegexPattern } from '@/lib/guardrails/validate-regex'
 
 export const unknownRecordSchema = z.record(z.string(), z.unknown())
 

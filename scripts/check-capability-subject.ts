@@ -54,7 +54,7 @@
  *
  * ## What this audit does not cover
  *
- * - Assertion B bans a fixed list of modules, and `@/lib/logs/log-projection` is
+ * - Assertion B bans a fixed list of modules, and `@/lib/logs/projection` is
  *   deliberately absent from it: three v1 logs routes import it by design,
  *   because a log FIELD PROJECTION is not a gate the middleware can apply — the
  *   route reads the whole log and blanks fields. `resolveLogFieldProjection` is

@@ -14,7 +14,7 @@ import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/conn
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { getConnectorRequiredScopes, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 
 interface ConnectorRecoveryProps {
