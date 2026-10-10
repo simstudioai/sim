@@ -18,6 +18,7 @@ import {
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
 import { env } from '@/lib/core/config/env'
+import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ResourceOwner,
@@ -793,6 +794,11 @@ function liveReadFailure(error: unknown, provider: string, deadline?: AbortSigna
   if (deadline?.aborted || (error instanceof McpError && error.code === ErrorCode.RequestTimeout))
     return new LiveReadError(
       `${name} took too long to return this document. Try again, or read a different result.`,
+      true
+    )
+  if (isRetryableNetworkError(error))
+    return new LiveReadError(
+      `${name} did not respond while reading this document. Try again shortly.`,
       true
     )
   return error

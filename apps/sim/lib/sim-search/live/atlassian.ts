@@ -212,7 +212,7 @@ export async function searchAtlassian(
   const excluded = pages.some((result) => result.excluded)
   return {
     documents,
-    partial: !input.native?.project && allSites.length > selected.length,
+    partial: excluded || (!input.native?.project && allSites.length > selected.length),
     hasMore: pages.some((result) => Boolean(result.next)),
     nextCursor: single ? pages[0]?.next : undefined,
     message:

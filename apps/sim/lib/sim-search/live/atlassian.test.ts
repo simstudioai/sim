@@ -179,5 +179,6 @@ describe('Confluence live documents', () => {
       { id: '123', kind: 'page' },
     ])
     expect(page.message).toContain('cannot be read')
+    expect(page.partial).toBe(true)
   })
 })

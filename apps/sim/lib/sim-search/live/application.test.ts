@@ -796,6 +796,16 @@ describe('authorized live retrieval', () => {
       new McpError(ErrorCode.RequestTimeout, 'TimeoutError'),
       { retryable: true, message: expect.stringContaining('took too long') },
     ],
+    [
+      'a native request socket timeout',
+      Object.assign(new Error('Request timed out after 10000ms'), { code: 'ETIMEDOUT' }),
+      { retryable: true, message: expect.stringContaining('Try again') },
+    ],
+    [
+      'a native request dispatcher timeout',
+      Object.assign(new Error('Headers Timeout Error'), { code: 'UND_ERR_HEADERS_TIMEOUT' }),
+      { retryable: true, message: expect.stringContaining('Try again') },
+    ],
   ])('classifies %s during a read so the caller can act on it', async (_, failure, expected) => {
     const search = await searchLiveKnowledge.execute({ principal, input })
     mocks.read.mockRejectedValueOnce(failure)
