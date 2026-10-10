@@ -83,19 +83,21 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     return
   }
 
-  let chatId = await resolveWorkspaceChatId(inboxTask)
+  let chatId: string | null = null
   let responseSent = false
 
   try {
-    const [[claimed], actor] = await Promise.all([
+    const [[claimed], actor, workspaceChatId] = await Promise.all([
       db
         .update(mothershipInboxTask)
         .set({ status: 'processing', processingStartedAt: new Date() })
         .where(and(eq(mothershipInboxTask.id, taskId), eq(mothershipInboxTask.status, 'received')))
         .returning({ id: mothershipInboxTask.id }),
       resolveInboxExecutionActor(inboxTask.fromEmail, ws),
+      resolveWorkspaceChatId(inboxTask),
     ])
     const userId = actor.executionUserId
+    chatId = workspaceChatId
 
     if (!claimed) {
       logger.info('Task already claimed by another execution, skipping', { taskId })

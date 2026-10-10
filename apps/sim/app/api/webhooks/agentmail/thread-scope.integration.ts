@@ -53,6 +53,8 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { Webhook } from 'svix'
+import { persistCopilotChatTurn } from '@/lib/mothership/chat/messages-store'
+import { buildPersistedUserMessage } from '@/lib/mothership/chat/persisted-message'
 import { POST } from '@/app/api/webhooks/agentmail/route'
 
 const { executeInboxTask } = await vi.importActual<
@@ -150,7 +152,8 @@ async function deliver(
         'svix-signature': new Webhook(ws.secret).sign(svixId, timestamp, body),
       },
       body,
-    })
+    }),
+    { params: Promise.resolve({}) }
   )
 }
 
@@ -167,16 +170,20 @@ async function taskFor(workspaceId: string, emailMessageId: string) {
   return task
 }
 
+async function messageCount(chatId: string): Promise<number> {
+  const messages = await db
+    .select({ id: copilotMessages.id })
+    .from(copilotMessages)
+    .where(eq(copilotMessages.chatId, chatId))
+  return messages.length
+}
+
 async function victimChatState() {
   const [chat] = await db
     .select({ updatedAt: copilotChats.updatedAt })
     .from(copilotChats)
     .where(eq(copilotChats.id, victimChatId))
-  const messages = await db
-    .select({ id: copilotMessages.id })
-    .from(copilotMessages)
-    .where(eq(copilotMessages.chatId, victimChatId))
-  return { updatedAt: chat?.updatedAt, messageCount: messages.length }
+  return { updatedAt: chat?.updatedAt, messageCount: await messageCount(victimChatId) }
 }
 
 describe('inbox reply threading stays inside the receiving workspace', () => {
@@ -280,6 +287,20 @@ describe('inbox reply threading stays inside the receiving workspace', () => {
       .from(mothershipInboxTask)
       .where(eq(mothershipInboxTask.id, taskId))
     expect(task).toEqual({ status: 'completed', chatId: options.chatId })
+    expect(await messageCount(options.chatId)).toBe(2)
+    expect(await victimChatState()).toEqual({
+      updatedAt: victimChatUpdatedAt,
+      messageCount: 0,
+    })
+  })
+
+  it("writes nothing when a turn is persisted into another workspace's chat", async () => {
+    await persistCopilotChatTurn(
+      victimChatId,
+      [buildPersistedUserMessage({ id: generateId(), content: 'Injected turn' })],
+      { workspaceId: attacker.id }
+    )
+
     expect(await victimChatState()).toEqual({
       updatedAt: victimChatUpdatedAt,
       messageCount: 0,
