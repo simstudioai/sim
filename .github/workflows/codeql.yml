@@ -87,7 +87,7 @@ jobs:
     timeout-minutes: 60
     # Not on the staging -> main release pull request: every staging push re-syncs it with code the
     # staging pull requests already ran this on, and main's push and schedule still run it.
-    if: github.event.pull_request.draft != true && github.head_ref != 'staging'
+    if: github.event.pull_request.draft != true && !(github.head_ref == 'staging' && github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       security-events: write
       contents: read

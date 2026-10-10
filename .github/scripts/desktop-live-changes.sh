@@ -17,7 +17,7 @@ relevant='^(apps/desktop/|apps/realtime/'\
 '|apps/sim/lib/api/contracts/(chats|copilot|desktop-|mothership-|upload-sessions|workspace-file)'\
 '|apps/sim/app/api/(desktop|mothership|copilot|files|v2/uploads|auth|users/me)/'\
 '|apps/sim/app/api/workspaces/\[id\]/files/'\
-'|apps/sim/app/workspace/\[workspaceId\]/(home/|components/|layout\.tsx)'\
+'|apps/sim/app/workspace/\[workspaceId\]/(home/|chat/|components/|layout\.tsx)'\
 '|apps/sim/app/(layout\.tsx|desktop/)'\
 '|apps/sim/stores/(chat|chat-panel|panel|mothership-[a-z-]+|tool-permission|terminal|copilot-terminal|browser-session)/'\
 '|apps/sim/hooks/(use-mothership|use-desktop|use-chat|queries/(mothership|desktop|copilot|chats))'\

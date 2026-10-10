@@ -99,6 +99,7 @@ start_app() {
         clear_cache
         retried=true
         launch_app "$port"
+        started=$SECONDS
         continue
       fi
       echo "::error::Local $label app exited during startup."
