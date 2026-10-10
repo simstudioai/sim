@@ -134,12 +134,28 @@ export function isValidEmailSyntax(email: string, allowDomains = false): boolean
 }
 
 /**
- * Matches UTF-16 code units that Postgres JSONB rejects: unpaired surrogate
- * halves (e.g. produced by `slice()` cutting an astral character like 𝐀 in
- * half) and the NUL character, which jsonb cannot store at all.
+ * Matches an unpaired UTF-16 surrogate half — e.g. one produced by `slice()`
+ * cutting an astral character like 😀 in half. Such a string has no UTF-8
+ * encoding, so a peer that re-encodes it strictly (Python's JSON response
+ * encoder, for one) throws on it.
  */
-const JSONB_UNSAFE =
-  /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|\u0000/g
+const UNPAIRED_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+
+/**
+ * Replaces every unpaired surrogate with U+FFFD (�), the same result as the
+ * ES2024 `String.prototype.toWellFormed`, which the shared ES2022 lib target
+ * does not type. Length-preserving, so indices into the input stay valid.
+ */
+export function toWellFormed(str: string): string {
+  return str.replace(UNPAIRED_SURROGATE, '\uFFFD')
+}
+
+/**
+ * Matches UTF-16 code units that Postgres JSONB rejects: unpaired surrogate
+ * halves (see {@link UNPAIRED_SURROGATE}) and the NUL character, which
+ * jsonb cannot store at all.
+ */
+const JSONB_UNSAFE = new RegExp(`${UNPAIRED_SURROGATE.source}|\\u0000`, 'g')
 
 /**
  * Replaces unpaired UTF-16 surrogates and NUL characters with U+FFFD (�) so

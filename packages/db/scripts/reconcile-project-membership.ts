@@ -25,7 +25,7 @@ try {
   if (!process.argv.includes('--prepare') && state.workspace && state.project && state.connector) {
     // Reuse additive DDL so schema push preserves the same legacy membership state as upgrades.
     const source = await readFile(
-      new URL('../migrations/0405_workspace_project_column.sql', import.meta.url),
+      new URL('../migrations/0406_workspace_project_column.sql', import.meta.url),
       'utf8'
     )
     const connection = await sql.reserve()

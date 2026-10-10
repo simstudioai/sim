@@ -8,8 +8,8 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -25,7 +25,7 @@ export const GET = withRouteHandler(
     try {
       return singleResponse(await getEnterpriseIssuancePreflight(parsed.data.query))
     } catch (error) {
-      return badRequestResponse(
+      return adminBadRequestResponse(
         error instanceof EnterpriseProvisioningError
           ? error.message
           : getErrorMessage(error, 'Failed to prepare Enterprise issuance')

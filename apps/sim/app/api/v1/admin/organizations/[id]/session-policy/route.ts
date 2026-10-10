@@ -26,11 +26,11 @@ import { isBillingEnabled, isSessionPoliciesEnabled } from '@/lib/core/config/en
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminForbiddenResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  forbiddenResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -64,7 +64,7 @@ export const PATCH = withRouteHandler(
         .limit(1)
 
       if (!existing) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       /**
@@ -75,7 +75,7 @@ export const PATCH = withRouteHandler(
        */
       const entitled = await isOrganizationFeatureEntitled(organizationId, isSessionPoliciesEnabled)
       if (!entitled) {
-        return forbiddenResponse(
+        return adminForbiddenResponse(
           isBillingEnabled
             ? 'Session policies are available on Enterprise plans only'
             : 'Session policies are disabled. Set ENTERPRISE_ENABLED or SESSION_POLICIES_ENABLED to enable them.'
@@ -108,7 +108,7 @@ export const PATCH = withRouteHandler(
       })
 
       if (!updated) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       invalidateSessionPolicyCache(organizationId)
@@ -131,7 +131,7 @@ export const PATCH = withRouteHandler(
       return singleResponse({ success: true as const, organizationId })
     } catch (error) {
       logger.error('Admin API: Failed to update session policy', { error, organizationId })
-      return internalErrorResponse('Failed to update session policy')
+      return adminInternalErrorResponse('Failed to update session policy')
     }
   })
 )

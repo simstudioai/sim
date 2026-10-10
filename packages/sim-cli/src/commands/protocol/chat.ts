@@ -2,12 +2,11 @@ import type { Command } from 'commander'
 import { embedStore } from '#sim-cli/embed-context'
 import { writeStderr, writeStdout } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
-import { clientFrom } from '../../context'
-import { type ChatResponse, V2_OPERATIONS } from '../../generated/v2-api'
+import type { ChatResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { readNdjson } from '../../http/ndjson'
 import { sanitize } from '../../output/render'
-import { callsOperations } from '../../runtime/called-operations'
+import { apiCommand } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 
 /** The final payload, as `POST /api/v2/chat` answers it. */
@@ -99,8 +98,8 @@ function ignoreBrokenPipe(stream: NodeJS.WriteStream): () => void {
  */
 
 export function attachChat(program: Command): void {
-  const chat = program
-    .command('chat')
+  const [chat, connectChat] = apiCommand(program, 'chat', ['chat'])
+  chat
     .description('Ask Sim and print the reply')
     .argument('<message>', 'What to ask Sim')
     .allowExcessArguments(false)
@@ -119,7 +118,7 @@ Examples:
   $ sim --output json chat "Summarize yesterday's failed runs" | jq -r '.content'
 `
     )
-    .action(async (message: string, options: ChatOptions, command: Command) => {
+    .action(async (message: string, options: ChatOptions) => {
       /**
        * Refused here so the refusal names what the caller typed: the route
        * answers in its own field names, and this command builds its request by
@@ -138,11 +137,10 @@ Examples:
         )
       }
 
-      const { client, profile } = clientFrom(command)
+      const { client, profile } = connectChat()
       const workspaceId = client.requireWorkspace()
 
-      const response = await client.requestRaw(V2_OPERATIONS.chat.path, {
-        method: 'POST',
+      const response = await client.requestRaw('chat', {
         body: {
           workspaceId,
           message,
@@ -198,5 +196,4 @@ Examples:
         restorePipeHandling?.()
       }
     })
-  callsOperations(chat, ['chat'])
 }

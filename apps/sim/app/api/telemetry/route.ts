@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { parseRequest } from '@/lib/api/server'
@@ -122,7 +123,7 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        logger.error('Telemetry collector returned error', {
+        logger.warn('Telemetry collector returned error', {
           status: response.status,
           statusText: response.statusText,
         })
@@ -133,9 +134,11 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
     } catch (fetchError) {
       clearTimeout(timeoutId)
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        logger.error('Telemetry request timed out', { endpoint })
+        logger.warn('Telemetry request timed out', { endpoint })
       } else {
-        logger.error('Failed to send telemetry to collector', fetchError)
+        logger.warn('Failed to send telemetry to collector', {
+          error: getErrorMessage(fetchError),
+        })
       }
       return false
     }

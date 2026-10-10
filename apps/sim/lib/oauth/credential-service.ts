@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { env } from '@/lib/core/config/env'
@@ -25,6 +25,7 @@ import {
   parseTokenServiceAccountSecretBlob,
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
+import { CLEARED_REFRESH_REVOCATION, CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import {
   parseGitHubInstallationBinding,
   resolveGitHubInstallationAccessToken,
@@ -42,7 +43,14 @@ import {
 } from '@/lib/oauth/microsoft'
 import { refreshOAuthToken, TOKEN_REFRESH_TIMEOUT_MS } from '@/lib/oauth/oauth'
 import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
-import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
+import {
+  clearOAuthRefreshDeadFlag,
+  getOAuthRefreshCoordinationIdentity,
+} from '@/lib/oauth/refresh-coordination'
+import {
+  isCredentialRevocationError,
+  isTerminalRefreshError,
+} from '@/lib/oauth/refresh-error-codes'
 import {
   getShopifyRefreshScope,
   refreshShopifyInstallation,
@@ -52,13 +60,10 @@ import {
   fanOutSlackTokenChain,
   getFreshestSlackChain,
   hasSlackChainMoved,
+  installationFilter,
   isSlackProvider,
 } from '@/lib/oauth/slack'
-import {
-  getRecentTerminalError,
-  isTerminalRefreshError,
-  markCredentialDead,
-} from '@/lib/oauth/terminal-errors'
+import { getRecentTerminalError, markCredentialDead } from '@/lib/oauth/terminal-errors'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
@@ -877,9 +882,108 @@ interface CoalescedRefreshOptions {
   /** External provider account id (`account.accountId`), used to scope Slack refreshes per installation. */
   providerAccountId?: string | null
   oauthConfig?: string | null
+  /** The account row's refresh token and recorded revocation, read together. */
+  chain?: RevocableChain
   requestId?: string
   userId?: string
   privacyMode?: 'selector'
+}
+
+const refreshRevocationColumns = {
+  refreshRevokedAt: account.refreshRevokedAt,
+  refreshRevokedCode: account.refreshRevokedCode,
+  refreshRevokedTokenHash: account.refreshRevokedTokenHash,
+}
+
+/** An `account` row's refresh token with the revocation recorded against it. */
+type RevocableChain = Pick<
+  typeof account.$inferSelect,
+  'refreshToken' | 'refreshRevokedAt' | 'refreshRevokedCode' | 'refreshRevokedTokenHash'
+>
+
+/**
+ * How long a recorded revocation is trusted before one refresh re-probes the provider. A revoked
+ * grant almost never comes back, but a few rejections clear without the owner reconnecting (a
+ * Microsoft Conditional Access block an admin lifts), so a dead credential costs one provider call
+ * a day instead of one per run, and still recovers on its own when the provider relents.
+ */
+const REVOKED_REFRESH_REPROBE_INTERVAL_MS = 24 * 60 * 60 * 1000
+
+function refreshTokenFingerprint(refreshToken: string): string {
+  return privateCredentialIdentity('oauth-revoked-refresh-token', refreshToken)
+}
+
+/**
+ * The provider's revocation code when it was recorded against the refresh token stored now. A
+ * marker left behind by an older chain fingerprints a token no longer stored, so a reconnect or a
+ * rotation by any writer supersedes it without having to clear it.
+ */
+function recordedRevocationCode(chain: RevocableChain | null | undefined): string | null {
+  if (!chain?.refreshToken || !chain.refreshRevokedCode || !chain.refreshRevokedTokenHash) {
+    return null
+  }
+  return chain.refreshRevokedTokenHash === refreshTokenFingerprint(chain.refreshToken)
+    ? chain.refreshRevokedCode
+    : null
+}
+
+function isRevocationReprobeDue(chain: RevocableChain | null | undefined): boolean {
+  const revokedAt = chain?.refreshRevokedAt
+  return !revokedAt || Date.now() - revokedAt.getTime() >= REVOKED_REFRESH_REPROBE_INTERVAL_MS
+}
+
+/** What one coalesced refresh produced; `null` is a failure worth retrying later. */
+type RefreshOutcome =
+  | { kind: 'token'; accessToken: string }
+  | { kind: 'revoked'; errorCode: string }
+
+function tokenOutcome(accessToken: string | null): RefreshOutcome | null {
+  return accessToken ? { kind: 'token', accessToken } : null
+}
+
+function revokedOutcome(errorCode: string | null): RefreshOutcome | null {
+  return errorCode ? { kind: 'revoked', errorCode } : null
+}
+
+/** The rows holding one refresh chain: the account, or every row of a Slack installation. */
+function chainRowsFilter(accountId: string, slackTeamId: string | null) {
+  return slackTeamId ? installationFilter(slackTeamId) : eq(account.id, accountId)
+}
+
+/**
+ * Records that the provider revoked `rejectedRefreshToken`, only on rows that still hold it and
+ * that no writer touched since `chainVersion` was read: a refresh that lost a race to a reconnect
+ * (which may keep the same refresh token) or a newer rotation matches nothing and cannot mark the
+ * live chain revoked. Leaves `updated_at` alone, so it stays the chain version. Recording again
+ * restarts the re-probe window.
+ */
+async function recordRefreshRevocation(
+  scope: { accountId: string; slackTeamId: string | null },
+  rejectedRefreshToken: string,
+  errorCode: string,
+  chainVersion: Date | undefined
+): Promise<boolean> {
+  const marked = await db
+    .update(account)
+    .set({
+      refreshRevokedAt: new Date(),
+      refreshRevokedCode: errorCode,
+      refreshRevokedTokenHash: refreshTokenFingerprint(rejectedRefreshToken),
+    })
+    .where(
+      and(
+        chainRowsFilter(scope.accountId, scope.slackTeamId),
+        eq(account.refreshToken, rejectedRefreshToken),
+        // Raw sql params skip drizzle's column mapping, so the Date is serialized explicitly;
+        // truncation keeps a version read back at millisecond precision comparable. A row that
+        // vanished before it could be read has no version and matches nothing anyway.
+        chainVersion
+          ? sql`date_trunc('milliseconds', ${account.updatedAt}) <= ${chainVersion.toISOString()}`
+          : undefined
+      )
+    )
+    .returning({ id: account.id })
+  return marked.length > 0
 }
 
 /**
@@ -934,8 +1038,8 @@ export interface CredentialTerminalRefreshError {
 
 /**
  * The terminal error the refresh path last recorded for a credential's account, if any. A
- * refresh that the provider rejected outright (a revoked grant, or a misconfigured app
- * registration) flags the account for an hour so nothing retries it; a caller that finds no
+ * revoked grant is recorded on the account row until its owner reconnects; a misconfigured app
+ * registration flags the account in Redis for an hour so nothing retries it; a caller that finds no
  * token can read the flag to tell that outcome from a passing failure worth retrying, and
  * classify it with `isCredentialRevocationError` to tell whether only reauthorizing resolves it.
  */
@@ -949,11 +1053,15 @@ export async function getCredentialTerminalRefreshError(
       providerId: account.providerId,
       providerAccountId: account.accountId,
       idToken: account.idToken,
+      refreshToken: account.refreshToken,
+      ...refreshRevocationColumns,
     })
     .from(account)
     .where(eq(account.id, resolved.accountId))
     .limit(1)
   if (!row) return null
+  const recorded = recordedRevocationCode(row)
+  if (recorded) return { errorCode: recorded, providerId: row.providerId }
   const errorCode = await getRecentTerminalError(
     getOAuthRefreshCoordinationIdentity(
       refreshCoordinationScope(
@@ -967,10 +1075,55 @@ export async function getCredentialTerminalRefreshError(
   return errorCode ? { errorCode, providerId: row.providerId } : null
 }
 
-interface StoredChain {
+/**
+ * Clears the revocation recorded on an account's own row after its owner reauthorized it. A
+ * reauthorization can keep the old refresh token when the provider issues none, which the
+ * revocation's token fingerprint cannot tell from no reauthorization at all. One conditional
+ * statement with no Redis, so the sign-in path gains no dependency and most logins write nothing.
+ */
+export async function clearRecordedRevocation(accountId: string): Promise<void> {
+  await db
+    .update(account)
+    .set(CLEARED_REFRESH_REVOCATION)
+    .where(and(eq(account.id, accountId), isNotNull(account.refreshRevokedTokenHash)))
+}
+
+/**
+ * Clears every refresh failure recorded against an account after its owner reauthorized it: the
+ * revocation on its chain's rows (every row of a Slack installation) and the Redis terminal-error
+ * flag.
+ */
+export async function clearOAuthRefreshFailure(accountId: string): Promise<void> {
+  const [row] = await db
+    .select({
+      providerId: account.providerId,
+      providerAccountId: account.accountId,
+      idToken: account.idToken,
+    })
+    .from(account)
+    .where(eq(account.id, accountId))
+    .limit(1)
+  if (!row) return
+  const slackTeamId = isSlackProvider(row.providerId)
+    ? extractSlackTeamId(row.providerAccountId)
+    : null
+  await Promise.all([
+    slackTeamId
+      ? db
+          .update(account)
+          .set(CLEARED_REFRESH_REVOCATION)
+          .where(and(installationFilter(slackTeamId), isNotNull(account.refreshRevokedTokenHash)))
+      : clearRecordedRevocation(accountId),
+    clearOAuthRefreshDeadFlag(
+      refreshCoordinationScope(accountId, row.providerId, row.providerAccountId, row.idToken)
+    ),
+  ])
+}
+
+interface StoredChain extends RevocableChain {
   accessToken: string | null
   accessTokenExpiresAt: Date | null
-  refreshToken: string | null
+  updatedAt: Date
 }
 
 /** The chain an account row holds now, or nothing when the account is gone. */
@@ -980,6 +1133,8 @@ async function readStoredChain(accountId: string): Promise<StoredChain | undefin
       accessToken: account.accessToken,
       accessTokenExpiresAt: account.accessTokenExpiresAt,
       refreshToken: account.refreshToken,
+      updatedAt: account.updatedAt,
+      ...refreshRevocationColumns,
     })
     .from(account)
     .where(eq(account.id, accountId))
@@ -1004,11 +1159,12 @@ async function performCoalescedRefresh({
   refreshToken,
   providerAccountId,
   oauthConfig,
+  chain,
   requestId,
   userId,
   privacyMode,
-}: CoalescedRefreshOptions): Promise<string | null> {
-  if (providerId === 'shopify') return refreshShopifyInstallation(accountId)
+}: CoalescedRefreshOptions): Promise<RefreshOutcome | null> {
+  if (providerId === 'shopify') return tokenOutcome(await refreshShopifyInstallation(accountId))
   /**
    * Slack bot tokens are per-installation (team × app): every account row for
    * one team holds a copy of the same rotating chain, so refreshes are locked,
@@ -1027,6 +1183,10 @@ async function performCoalescedRefresh({
     ...(privacyMode === 'selector' ? {} : { accountId }),
   }
 
+  // A recorded revocation answers without the provider until the daily re-probe; the caller logs it.
+  const recordedCode = recordedRevocationCode(chain)
+  if (recordedCode && !isRevocationReprobeDue(chain)) return revokedOutcome(recordedCode)
+
   const deadCode = await getRecentTerminalError(scopeKey)
   if (deadCode) {
     logger.warn('Skipping refresh: credential recently failed', {
@@ -1039,12 +1199,23 @@ async function performCoalescedRefresh({
   const lockKey = `oauth:refresh:${scopeKey}`
 
   const refreshPromise = coalesceLocally(lockKey, () =>
-    withLeaderLock<string>({
+    withLeaderLock<RefreshOutcome>({
       key: lockKey,
       ttlSec: REFRESH_LOCK_TTL_SEC,
       maxWaitMs: REFRESH_FOLLOWER_MAX_WAIT_MS,
       onLeader: async () => {
         try {
+          /**
+           * Reread under the lock: another process may have recorded a revocation after the
+           * caller read the row, and the version guards the record against a reconnect that
+           * lands while the provider call is in flight.
+           */
+          const current = await readStoredChain(accountId)
+          const recordedMeanwhile = recordedRevocationCode(current)
+          if (recordedMeanwhile && !isRevocationReprobeDue(current)) {
+            return revokedOutcome(recordedMeanwhile)
+          }
+          let chainVersion = current?.updatedAt
           let refreshTokenToUse = refreshToken
           let slackChainVersion: Date | null = null
           if (slackTeamId) {
@@ -1055,6 +1226,7 @@ async function performCoalescedRefresh({
               )
             }
             slackChainVersion = freshest.chainVersion
+            chainVersion = freshest.chainVersion
             if (
               freshest.accessToken &&
               freshest.accessTokenExpiresAt &&
@@ -1070,7 +1242,7 @@ async function performCoalescedRefresh({
                 { ifChainUnchangedSince: freshest.chainVersion }
               )
               logger.info('Reused freshest Slack installation token', logContext)
-              return freshest.accessToken
+              return tokenOutcome(freshest.accessToken)
             }
             refreshTokenToUse = freshest.refreshToken
           }
@@ -1087,16 +1259,21 @@ async function performCoalescedRefresh({
             : await refreshOAuthToken(providerId, refreshTokenToUse)
 
           if (!result.ok) {
-            logger.error('Failed to refresh token', {
-              ...logContext,
-              errorCode: result.errorCode,
-              message: result.message,
-            })
-            if (result.errorCode && isTerminalRefreshError(result.errorCode, providerId)) {
+            const { errorCode } = result
+            const revoked = isCredentialRevocationError(errorCode, providerId)
+            if (!revoked) {
+              logger.error('Failed to refresh token', {
+                ...logContext,
+                errorCode,
+                message: result.message,
+              })
+            }
+            const chainScope = { accountId, slackTeamId }
+            if (errorCode && isTerminalRefreshError(errorCode, providerId)) {
               // A refresh that lost a race with a concurrent connect or a newer
               // rotation fails with a revoked/rotated-out token even though the
-              // account just got a live chain — dead-flagging then would take
-              // down a healthy credential for an hour.
+              // account just got a live chain — recording it then would take
+              // down a healthy credential.
               if (
                 slackChainVersion &&
                 (await hasSlackChainMoved(slackTeamId!, slackChainVersion))
@@ -1108,12 +1285,41 @@ async function performCoalescedRefresh({
                 const stored = await readStoredChain(accountId)
                 if (stored && stored.refreshToken !== refreshToken) {
                   logger.info('Skipping dead flag: chain moved during refresh', logContext)
-                  return usableStoredToken(stored, providerId)
+                  return tokenOutcome(usableStoredToken(stored, providerId))
                 }
               }
-              await markCredentialDead(scopeKey, result.errorCode)
+              if (!revoked) {
+                await markCredentialDead(scopeKey, errorCode)
+                return null
+              }
+              if (
+                !(await recordRefreshRevocation(
+                  chainScope,
+                  refreshTokenToUse,
+                  errorCode,
+                  chainVersion
+                ))
+              ) {
+                logger.info('Skipping revocation record: chain moved during refresh', logContext)
+                return null
+              }
+              // Logged once per rejection; later runs short-circuited by the record stay silent.
+              logger.warn('Provider revoked the refresh token; recorded until reconnect', {
+                ...logContext,
+                errorCode,
+              })
+              return revokedOutcome(errorCode)
             }
-            return null
+            // A re-probe that fails for a passing reason keeps the revocation, unless the chain moved.
+            const stillRevoked =
+              recordedCode !== null &&
+              (await recordRefreshRevocation(
+                chainScope,
+                refreshTokenToUse,
+                recordedCode,
+                chainVersion
+              ))
+            return stillRevoked ? revokedOutcome(recordedCode) : null
           }
 
           const accessTokenExpiresAt = new Date(Date.now() + result.expiresIn * 1000)
@@ -1126,12 +1332,13 @@ async function performCoalescedRefresh({
                 refreshToken: result.refreshToken || refreshTokenToUse,
                 accessTokenExpiresAt,
               },
-              { ifChainUnchangedSince: slackChainVersion ?? undefined }
+              { ifChainUnchangedSince: slackChainVersion ?? undefined, freshlyIssued: true }
             )
           } else {
             const updateData: Record<string, unknown> = {
               accessToken: result.accessToken,
               accessTokenExpiresAt,
+              ...CLEARED_REFRESH_REVOCATION,
               updatedAt: new Date(),
             }
             if (result.refreshToken && result.refreshToken !== refreshToken) {
@@ -1171,18 +1378,18 @@ async function performCoalescedRefresh({
                 'Rotation write lost to a newer chain; using the stored token',
                 logContext
               )
-              return usableStoredToken(stored, providerId)
+              return tokenOutcome(usableStoredToken(stored, providerId))
             }
           }
 
           logger.info('Successfully refreshed access token', logContext)
-          return result.accessToken
+          return { kind: 'token', accessToken: result.accessToken }
         } catch (error) {
           logger.error('Refresh failed inside leader path', {
             ...logContext,
             ...(privacyMode === 'selector' ? {} : { error: toError(error).message }),
           })
-          return null
+          return revokedOutcome(recordedCode)
         }
       },
       onFollower: async () => {
@@ -1191,6 +1398,8 @@ async function performCoalescedRefresh({
             .select({
               accessToken: account.accessToken,
               accessTokenExpiresAt: account.accessTokenExpiresAt,
+              refreshToken: account.refreshToken,
+              ...refreshRevocationColumns,
             })
             .from(account)
             .where(eq(account.id, accountId))
@@ -1201,9 +1410,12 @@ async function performCoalescedRefresh({
             !isOAuthAccessTokenExpiring(row.accessTokenExpiresAt, providerId)
           ) {
             logger.info('Got fresh access token from coalesced refresh', logContext)
-            return row.accessToken
+            return { kind: 'token', accessToken: row.accessToken }
           }
-          return null
+          const revokedByLeader = recordedRevocationCode(row)
+          return revokedByLeader && !isRevocationReprobeDue(row)
+            ? revokedOutcome(revokedByLeader)
+            : null
         } catch (error) {
           logger.warn('Follower DB read failed during refresh poll', {
             ...logContext,
@@ -1238,6 +1450,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       scope: account.scope,
       updatedAt: account.updatedAt,
       oauthConfig: account.oauthConfig,
+      ...refreshRevocationColumns,
     })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
@@ -1276,9 +1489,10 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       refreshToken: credential.refreshToken!,
       providerAccountId: credential.providerAccountId,
       oauthConfig: credential.oauthConfig,
+      chain: credential,
       userId,
     })
-    if (fresh) return fresh
+    if (fresh?.kind === 'token') return fresh.accessToken
     if (!accessTokenNeedsRefresh && credential.accessToken) {
       return credential.accessToken
     }
@@ -1386,11 +1600,12 @@ export async function resolveCredentialTokenBundle(
       refreshToken: credential.refreshToken!,
       providerAccountId: credential.accountId,
       oauthConfig: credential.oauthConfig,
+      chain: credential,
       requestId,
       userId: credential.userId,
       privacyMode: options?.privacyMode,
     })
-    if (fresh) return { accessToken: fresh }
+    if (fresh?.kind === 'token') return { accessToken: fresh.accessToken }
 
     // If refresh was only triggered proactively (Microsoft refresh-token aging /
     // Instagram long-lived nearing expiry), the still-valid access token is fine.
@@ -1498,14 +1713,21 @@ export async function refreshTokenIfNeeded(
     refreshToken: credential.refreshToken!,
     providerAccountId: credential.accountId,
     oauthConfig: credential.oauthConfig,
+    chain: credential,
     requestId,
     userId: credential.userId,
   })
-  if (fresh) return { accessToken: fresh, refreshed: true }
+  if (fresh?.kind === 'token') return { accessToken: fresh.accessToken, refreshed: true }
 
   if (!accessTokenNeedsRefresh && credential.accessToken) {
     logger.info(`[${requestId}] Refresh unavailable; reusing still-valid access token`)
     return { accessToken: credential.accessToken, refreshed: false }
+  }
+  if (fresh?.kind === 'revoked') {
+    throw new CredentialRevokedError(
+      `The ${credential.providerId} credential was revoked by the provider (${fresh.errorCode}). Reconnect it to continue.`,
+      { providerId: credential.providerId, errorCode: fresh.errorCode }
+    )
   }
   throw new Error('Failed to refresh token')
 }

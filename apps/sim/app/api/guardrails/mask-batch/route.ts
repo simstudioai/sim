@@ -5,9 +5,24 @@ import { guardrailsMaskBatchContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { maskPIIBatch } from '@/lib/guardrails/validate_pii'
+import {
+  maskPIIBatch,
+  PiiServiceRejectedError,
+  PiiServiceUnavailableError,
+} from '@/lib/guardrails/validate_pii'
 
 const logger = createLogger('GuardrailsMaskBatchAPI')
+
+/**
+ * Tells the mask client how to react to a failure: 422 = Presidio rejected this
+ * input (never resend it), 503 = Presidio is down (retry, and stop sending queued
+ * chunks), 500 = anything else (retry this chunk alone).
+ */
+function statusForMaskError(error: unknown): 422 | 503 | 500 {
+  if (error instanceof PiiServiceRejectedError) return 422
+  if (error instanceof PiiServiceUnavailableError) return 503
+  return 500
+}
 
 /**
  * Internal batch PII masking. The log-redaction persist path runs in both the
@@ -30,21 +45,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const startedAt = performance.now()
     const masked = await maskPIIBatch(texts, entityTypes, language, customPatterns)
-    logger.info('Masked PII batch', {
+    logger.debug('Masked PII batch', {
       count: texts.length,
       durationMs: Math.round(performance.now() - startedAt),
     })
     return NextResponse.json({ masked })
   } catch (error) {
-    // An unreachable/misconfigured Presidio service makes maskPIIBatch throw; fail
-    // loudly here (the caller scrubs to REDACTION_FAILED, so PII is never leaked).
+    // Fail loudly; the caller scrubs to REDACTION_FAILED, so PII is never leaked.
+    const status = statusForMaskError(error)
     logger.error('PII batch masking failed', {
       error: getErrorMessage(error),
       count: texts.length,
+      status,
     })
-    return NextResponse.json(
-      { error: getErrorMessage(error, 'PII masking failed') },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: getErrorMessage(error, 'PII masking failed') }, { status })
   }
 })

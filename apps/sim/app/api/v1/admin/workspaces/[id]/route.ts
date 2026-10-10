@@ -15,8 +15,8 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  internalErrorResponse,
-  notFoundResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import { type AdminWorkspaceDetail, toAdminWorkspace } from '@/app/api/v1/admin/types'
@@ -42,7 +42,7 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!workspaceData) {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
 
       const [workflowCountResult, folderCountResult] = await Promise.all([
@@ -66,7 +66,7 @@ export const GET = withRouteHandler(
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to get workspace', { error, workspaceId })
-      return internalErrorResponse('Failed to get workspace')
+      return adminInternalErrorResponse('Failed to get workspace')
     }
   })
 )

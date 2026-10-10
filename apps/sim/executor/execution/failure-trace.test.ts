@@ -1,5 +1,7 @@
+import { createLogger } from '@sim/logger'
 import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
 import { describe, expect, it, vi } from 'vitest'
+import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { DAGExecutor } from '@/executor/execution/executor'
 import { hasExecutionResult } from '@/executor/utils/errors'
@@ -69,5 +71,24 @@ describe('failed run trace', () => {
     expect(failing).toMatchObject({ status: 'error', name: 'Call' })
     expect(failing?.output?.error).toMatch(/"nope" doesn't exist on block "start"/)
     expect(thrown.executionResult.error).toBe(thrown.message)
+  })
+
+  it('reaches the run boundary attributed to the author and already logged', async () => {
+    const executor = new DAGExecutor({
+      workflow,
+      contextExtensions: { workspaceId: 'ws', executionId: 'exec', userId: 'u' },
+    })
+
+    const thrown = await executor.execute('wf').then(
+      () => undefined,
+      (error: unknown) => error
+    )
+
+    /**
+     * The block executor logged it; the block wrap and the engine's rethrow must keep that
+     * visible so execution-core and the trigger surfaces do not log it again.
+     */
+    expect(logFailureOnce(createLogger('OuterBoundary'), 'probe', thrown)).toBeUndefined()
+    expect(classifyFailure(thrown)).toBe('user')
   })
 })

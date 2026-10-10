@@ -300,7 +300,8 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   // Block suspicious requests, but exempt machine-to-machine endpoints that may
   // legitimately omit User-Agent headers (webhooks and MCP protocol discovery/calls).
   if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpDiscoveryEndpoint) {
-    logger.warn('Blocked suspicious request', {
+    // Scanner traffic (empty or tool user agents probing /admin.php etc.); the 403 is the response.
+    logger.debug('Blocked suspicious request', {
       userAgent,
       ip: getClientIp(request),
       url: request.url,

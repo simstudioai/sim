@@ -8,7 +8,7 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { enforceUserRateLimit, type TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { createCodedErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatValidateAPI')
 
@@ -35,7 +35,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      return createErrorResponse('Unauthorized', 401)
+      return createCodedErrorResponse('Unauthorized', 401)
     }
 
     const { searchParams } = new URL(request.url)
@@ -54,7 +54,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         })
       }
 
-      return createErrorResponse(errorMessage, 400)
+      return createCodedErrorResponse(errorMessage, 400)
     }
 
     const rateLimited = await enforceUserRateLimit(
@@ -84,6 +84,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     })
   } catch (error: any) {
     logger.error('Error validating chat identifier:', error)
-    return createErrorResponse(error.message || 'Failed to validate identifier', 500)
+    return createCodedErrorResponse(error.message || 'Failed to validate identifier', 500)
   }
 })

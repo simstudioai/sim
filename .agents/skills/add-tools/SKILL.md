@@ -190,6 +190,8 @@ fallback, or caller-controlled `_context` authority.
 
 A required `'hidden'` param needs an `oauth` declaration or `hosting.apiKeyParam` to supply it (`bun run check:tool-param-reachability`).
 
+A declared `timeout` param is an ordinary tool input — put it in the request body or URL yourself if the provider expects it; it becomes Sim's millisecond request deadline only when the tool sets `timeoutParamIsDeadline: true` (`http_request`). A `method` param on a tool with a fixed `request.method` would be sent as the HTTP verb, so the same audit rejects it.
+
 ### Parameter Types
 - `'string'` - Text values
 - `'number'` - Numeric values
@@ -453,7 +455,7 @@ export const tools = {
 3. Regenerate the tool metadata artifacts:
 
 ```bash
-bun run tool-metadata:generate
+bun run generate:tool-metadata
 ```
 
 Client code reads a tool's `params`/`outputs` from generated metadata rather than
@@ -612,10 +614,10 @@ If creating V2 tools (API-aligned outputs), use `_v2` suffix:
 - [ ] Types file has all interfaces
 - [ ] Index.ts exports all tools and re-exports types (`export * from './types'`)
 - [ ] Tools registered in `tools/registry.ts`
-- [ ] `bun run tool-metadata:generate` run and the regenerated artifacts committed
+- [ ] `bun run generate:tool-metadata` run and the regenerated artifacts committed
 - [ ] `bun run scripts/generate-docs.ts` run and the refreshed docs committed — the integration's
       docs page is rendered from each tool's description, params, and outputs, and CI's
-      `bun run docs:check` fails on stale pages
+      `bun run check:docs` fails on stale pages
 - [ ] Block wired: `tools.access`, dropdown options, subBlocks, `tools.config`, outputs, inputs
 - [ ] Model, durable-storage, and internal-execution boundaries use the shared provenance mechanisms
       only where a concrete Sim `{{...}}` resolution path requires them

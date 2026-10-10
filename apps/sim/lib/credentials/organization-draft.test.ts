@@ -1,6 +1,7 @@
 import { pendingCredentialDraft } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
 import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { authOAuthUtilsMock } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import {
   organizationMembershipMock,
   organizationMembershipMockFns,
@@ -9,7 +10,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
   context: vi.fn(),
-  clear: vi.fn(),
   deleteOrphan: vi.fn(),
 }))
 vi.mock('@sim/audit', () => auditMock)
@@ -18,7 +18,7 @@ vi.mock('@/lib/credentials/organization', () => ({
   getCredentialCreationOrganizationContext: hoisted.context,
 }))
 vi.mock('@/lib/credentials/deletion', () => ({ deleteOrphanedOAuthAccount: hoisted.deleteOrphan }))
-vi.mock('@/lib/oauth/refresh-coordination', () => ({ clearOAuthRefreshDeadFlag: hoisted.clear }))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 import { completeOrganizationCredentialDraft } from '@/lib/credentials/organization-draft'
 

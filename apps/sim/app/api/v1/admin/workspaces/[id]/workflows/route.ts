@@ -29,7 +29,11 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { archiveWorkflowsForWorkspace } from '@/lib/workflows/lifecycle'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
-import { internalErrorResponse, listResponse, notFoundResponse } from '@/app/api/v1/admin/responses'
+import {
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
+  listResponse,
+} from '@/app/api/v1/admin/responses'
 import { type AdminWorkflow, createPaginationMeta, toAdminWorkflow } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkspaceWorkflowsAPI')
@@ -54,7 +58,7 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!workspaceData) {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
 
       const [countResult, workflows] = await Promise.all([
@@ -94,7 +98,7 @@ export const GET = withRouteHandler(
       return listResponse(data, pagination)
     } catch (error) {
       logger.error('Admin API: Failed to list workspace workflows', { error, workspaceId })
-      return internalErrorResponse('Failed to list workflows')
+      return adminInternalErrorResponse('Failed to list workflows')
     }
   })
 )
@@ -114,7 +118,7 @@ export const DELETE = withRouteHandler(
         .limit(1)
 
       if (!workspaceData) {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
 
       const workflowsToDelete = await db
@@ -135,7 +139,7 @@ export const DELETE = withRouteHandler(
       return NextResponse.json({ success: true, deleted: deletedCount })
     } catch (error) {
       logger.error('Admin API: Failed to delete workspace workflows', { error, workspaceId })
-      return internalErrorResponse('Failed to delete workflows')
+      return adminInternalErrorResponse('Failed to delete workflows')
     }
   })
 )

@@ -3,7 +3,7 @@ import { vi } from 'vitest'
 /**
  * Controllable mock functions for `@/app/api/workflows/utils`.
  *
- * Default `createSuccessResponse`/`createErrorResponse` return a mock Response-like
+ * Default `createSuccessResponse`/`createCodedErrorResponse` return a mock Response-like
  * object where `.json()` resolves to the payload — compatible with most assertions
  * like `expect(await res.json()).toEqual(...)` and `expect(res.status).toBe(...)`.
  *
@@ -21,7 +21,7 @@ export const workflowsApiUtilsMockFns = {
     ok: true,
     json: async () => data,
   })),
-  mockCreateErrorResponse: vi.fn((error: string, status: number, code?: string) => ({
+  mockCreateCodedErrorResponse: vi.fn((error: string, status: number, code?: string) => ({
     status,
     ok: false,
     json: async () => ({
@@ -43,7 +43,7 @@ export const workflowsApiUtilsMockFns = {
  */
 export const workflowsApiUtilsMock = {
   createSuccessResponse: workflowsApiUtilsMockFns.mockCreateSuccessResponse,
-  createErrorResponse: workflowsApiUtilsMockFns.mockCreateErrorResponse,
+  createCodedErrorResponse: workflowsApiUtilsMockFns.mockCreateCodedErrorResponse,
   checkNeedsRedeployment: workflowsApiUtilsMockFns.mockCheckNeedsRedeployment,
   verifyWorkspaceMembership: workflowsApiUtilsMockFns.mockVerifyWorkspaceMembership,
 }

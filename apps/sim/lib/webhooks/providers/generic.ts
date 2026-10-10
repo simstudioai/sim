@@ -139,6 +139,7 @@ function mergeRequestData(
 }
 
 export const genericHandler: WebhookProviderHandler = {
+  deliveryIdOptional: true,
   extraDeliveryMethods: {
     methods: ['GET', 'PUT', 'PATCH', 'DELETE'],
     enabledBy: ACCEPT_OTHER_METHODS_FLAG,

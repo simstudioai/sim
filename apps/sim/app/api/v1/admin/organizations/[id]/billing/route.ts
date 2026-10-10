@@ -29,11 +29,11 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import type { AdminOrganizationBillingSummary } from '@/app/api/v1/admin/types'
@@ -68,7 +68,7 @@ export const GET = withRouteHandler(
         ])
 
         if (!orgData) {
-          return notFoundResponse('Organization')
+          return adminNotFoundResponse('Organization')
         }
 
         const data: AdminOrganizationBillingSummary = {
@@ -100,7 +100,7 @@ export const GET = withRouteHandler(
       const billingData = await getOrganizationBillingData(organizationId, dbReplica)
 
       if (!billingData) {
-        return notFoundResponse('Organization or subscription')
+        return adminNotFoundResponse('Organization or subscription')
       }
 
       const usagePercentage =
@@ -132,7 +132,7 @@ export const GET = withRouteHandler(
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to get organization billing', { error, organizationId })
-      return internalErrorResponse('Failed to get organization billing')
+      return adminInternalErrorResponse('Failed to get organization billing')
     }
   })
 )
@@ -161,7 +161,7 @@ export const PATCH = withRouteHandler(
         .limit(1)
 
       if (!orgData) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       const { orgUsageLimit } = parsed.data.body
@@ -193,10 +193,10 @@ export const PATCH = withRouteHandler(
         })
       }
 
-      return badRequestResponse('No valid fields to update')
+      return adminBadRequestResponse('No valid fields to update')
     } catch (error) {
       logger.error('Admin API: Failed to update organization billing', { error, organizationId })
-      return internalErrorResponse('Failed to update organization billing')
+      return adminInternalErrorResponse('Failed to update organization billing')
     }
   })
 )

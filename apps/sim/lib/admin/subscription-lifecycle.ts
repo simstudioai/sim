@@ -177,6 +177,24 @@ async function listRecentSubscriptionPayments(stripe: Stripe, stripeSubscription
   }
 }
 
+/**
+ * Where a dashboard cancellation event stands. A completed event with a `lastError` is a dead
+ * letter an operator resolved without the cancellation reaching Stripe, so it reads as `resolved`
+ * with that note, never as `applied`.
+ */
+function cancellationSyncOutcome(status: string, lastError: string | null) {
+  if (status === 'completed') {
+    return lastError
+      ? { status: 'resolved' as const, error: lastError }
+      : { status: 'applied' as const, error: null }
+  }
+  if (status === 'dead_letter') return { status: 'failed' as const, error: lastError }
+  return {
+    status: status === 'processing' ? ('processing' as const) : ('pending' as const),
+    error: null,
+  }
+}
+
 async function getDashboardCancellationSync(organizationId: string, subscriptionId: string) {
   const [row] = await db
     .select({
@@ -205,15 +223,7 @@ async function getDashboardCancellationSync(organizationId: string, subscription
       row.eventType === OUTBOX_EVENT_TYPES.STRIPE_CANCEL_SUBSCRIPTION_IMMEDIATELY
         ? ('immediate' as const)
         : ('period_end' as const),
-    status:
-      row.status === 'completed'
-        ? ('applied' as const)
-        : row.status === 'dead_letter'
-          ? ('failed' as const)
-          : row.status === 'processing'
-            ? ('processing' as const)
-            : ('pending' as const),
-    error: row.status === 'dead_letter' ? row.error : null,
+    ...cancellationSyncOutcome(row.status, row.error),
   }
 }
 
@@ -286,6 +296,7 @@ export async function requestDashboardSubscriptionCancellation({
         id: outboxEvent.id,
         eventType: outboxEvent.eventType,
         status: outboxEvent.status,
+        lastError: outboxEvent.lastError,
         subscriptionId: sql<string>`${outboxEvent.payload} ->> 'subscriptionId'`,
         reason: sql<string | null>`${outboxEvent.payload} ->> 'reason'`,
       })
@@ -351,12 +362,8 @@ export async function requestDashboardSubscriptionCancellation({
         operationId,
         outboxEventId: existingOperation.id,
         subscriptionId: existingOperation.subscriptionId,
-        status:
-          existingOperation.status === 'completed'
-            ? ('applied' as const)
-            : existingOperation.status === 'processing'
-              ? ('processing' as const)
-              : ('pending' as const),
+        status: cancellationSyncOutcome(existingOperation.status, existingOperation.lastError)
+          .status,
       }
     }
 

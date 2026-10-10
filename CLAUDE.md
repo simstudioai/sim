@@ -6,7 +6,7 @@ This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.c
 
 - **Package manager**: `bun` and `bunx`, never `npm` and `npx`.
 - **Logging**: `createLogger` from `@sim/logger`; `logger.info` / `logger.warn` / `logger.error`, never `console.log`. Inside `withRouteHandler` the logger already carries the request ID — no manual `withMetadata({ requestId })`.
-- **Comments**: name things so the code explains itself. TSDoc documents exported APIs and non-obvious modules. An inline `//` is only for a terse, non-obvious *why*, or for a script-enforced `// <tag>: <reason>` annotation (`boundary-raw-fetch`, `double-cast-allowed`, `boundary-raw-json`, `untyped-response`, `rq-lint-allow`, `client-boundary-allow`, `utils-lint-allow`, …). History belongs in the commit message. No `====` separators or commented-out code (`check:comment-hygiene` enforces this). The `/you-might-not-need-a-comment` skill applies this to a diff.
+- **Comments**: name things so the code explains itself. TSDoc documents exported APIs and non-obvious modules. An inline `//` is only for a terse, non-obvious *why*, or for a script-enforced `// <tag>: <reason>` annotation (`boundary-raw-fetch`, `double-cast-allowed`, `boundary-raw-json`, `untyped-response`, `rq-lint-allow`, `client-boundary-allow`, `utils-lint-allow`, …). History belongs in the commit message. No `====` separators, commented-out code, or ESLint directives (`eslint-disable`/`eslint-enable`; nothing runs ESLint; `check:comment-hygiene` enforces all three). The `/you-might-not-need-a-comment` skill applies this to a diff.
 - **ID generation**: `generateId()` (UUID v4, the default) or `generateShortId(size?)` (URL-safe, 21 chars by default) from `@sim/utils/id` — never `crypto.randomUUID()`, `nanoid`, or `uuid`. Both use `crypto.getRandomValues()`, so they also work in non-secure (HTTP) browsers. For other randomness, `@sim/utils/random` (`randomInt`, `randomFloat`, `randomItem`, `generateRandomBytes`, `generateRandomHex`) — never `Math.random()` or `crypto.randomBytes()`.
 - **Common utilities**: use the shared helpers from the `@sim/utils/<module>` subpaths instead of inline implementations (`check:utils` bans most of the inline forms below):
   - `sleep(ms)` from `@sim/utils/helpers` — never `new Promise(resolve => setTimeout(resolve, ms))`
@@ -142,9 +142,8 @@ Before declaring a change done, run the local gate from the repo root; CI runs t
 ```bash
 bun run lint            # biome format + lint, autofixes (CI runs lint:check)
 bun run type-check      # every workspace
-bun run check:audits    # every check:* audit plus the generated-artifact checks
+bun run check:audits    # every check:* audit, generated-artifact checks included
 bun run test            # script tests, then every workspace's Vitest suite
-bun run docs-manifest:check
 git fetch origin staging  # the block-registry check diffs against it
 bun run apps/sim/scripts/check-block-registry.ts origin/staging
 ```
