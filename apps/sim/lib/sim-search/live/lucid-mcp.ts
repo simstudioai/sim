@@ -352,18 +352,17 @@ export async function readLucidMcp(
   const pages: Record<string, unknown>[] = []
   const output = () => JSON.stringify({ document_id: before.id, title: before.title, pages })
   const requests = initial.counts.flatMap((count, pageIndex) =>
-    Array.from({ length: Math.max(1, count) }, (_, region) => ({ pageIndex, region, count }))
-  )
-  const responses = await mapWithConcurrency(requests, REGION_FETCH_CONCURRENCY, (request) =>
-    client.call('fetch', {
+    Array.from({ length: Math.max(1, count) }, (_, region) => ({
       id: before.id,
-      page_index: request.pageIndex + 1,
-      ...(request.count ? { region_index: [request.region + 1] } : {}),
-    })
+      page_index: pageIndex + 1,
+      ...(count ? { region_index: [region + 1] } : {}),
+    }))
+  )
+  const responses = await mapWithConcurrency(requests, REGION_FETCH_CONCURRENCY, (args) =>
+    client.call('fetch', args)
   )
   let next = 0
-  for (let pageIndex = 0; pageIndex < initial.counts.length; pageIndex++) {
-    const count = initial.counts[pageIndex] ?? 0
+  for (const [pageIndex, count] of initial.counts.entries()) {
     let assembled: Record<string, unknown> | undefined
     const chunks: Record<string, unknown>[] = []
     for (let region = 0; region < Math.max(1, count); region++) {

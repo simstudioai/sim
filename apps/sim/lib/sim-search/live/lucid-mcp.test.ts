@@ -4,11 +4,12 @@ import type { ManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
 
 const ID = '0b6a3f0e-5a52-4c55-9d8c-6d2f2a1b9c11'
 const COUNTS = [2, 1]
+const TITLE = 'Fixture diagram'
 const metadataRow = {
   documentId: ID,
   viewUrl: `https://lucid.app/lucidchart/${ID}/view`,
   product: 'lucidchart',
-  title: 'Fixture diagram',
+  title: TITLE,
   version: 7,
   pageCount: COUNTS.length,
   lastModified: '2026-10-01T12:00:00Z',
@@ -18,7 +19,7 @@ function manifest(extra: Record<string, unknown> = {}) {
   return {
     document_id: ID,
     edit_url: `https://lucid.app/lucidchart/${ID}/edit`,
-    title: 'Fixture diagram',
+    title: TITLE,
     metadata: { page_count: COUNTS.length, page_region_counts: COUNTS, ...extra },
   }
 }
