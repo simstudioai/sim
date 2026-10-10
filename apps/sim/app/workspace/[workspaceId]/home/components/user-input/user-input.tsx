@@ -203,8 +203,10 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     }
     if (restoredContexts) editor.setContexts(restoredContexts)
     if (restoredFiles) files.restoreAttachedFiles(restoredFiles)
-    if (caretText !== null) {
-      if (editor.getValue() === '') editor.setValue(caretText, { seed: true })
+    // Text typed before hydration wins over the saved draft, caret included.
+    const typedBeforeHydration = initialValue === '' && editor.getValue() !== ''
+    if (caretText !== null && !typedBeforeHydration) {
+      if (initialValue === '') editor.setValue(caretText, { seed: true })
       const textarea = textareaRef.current
       if (textarea) {
         if (!isMobileViewport()) textarea.focus()
