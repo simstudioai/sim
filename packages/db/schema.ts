@@ -69,6 +69,23 @@ export function foldedEmail(column: AnyPgColumn | SQL): SQL<string> {
   return sql<string>`lower(btrim(${column}))`
 }
 
+/** The characters JavaScript's `trim()` and `\s` treat as whitespace, as a PostgreSQL class. */
+const DISPLAY_WHITESPACE =
+  '[ \\t\\n\\v\\f\\r\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]'
+
+/**
+ * A file name reduced to the VFS path segment it displays as, in SQL: NFC-composed, trimmed,
+ * control characters removed, whitespace runs collapsed to one space. It is the exact
+ * expression `workspace_files_workspace_display_name_idx` indexes, so a predicate spelled any
+ * other way scans the workspace's files. The TypeScript twin is `normalizeDisplaySegment` in
+ * `apps/sim/lib/vfs/path.ts`; the two must apply the same steps in the same order. Constants
+ * are inlined with `sql.raw` because a bound parameter would not match the index expression.
+ */
+export function displaySegmentKey(column: AnyPgColumn | SQL): SQL<string> {
+  const ws = sql.raw(DISPLAY_WHITESPACE)
+  return sql<string>`regexp_replace(regexp_replace(regexp_replace(normalize(${column}, NFC), '^${ws}+|${ws}+$', '', 'g'), '[\\x01-\\x1f\\x7f]', '', 'g'), '${ws}+', ' ', 'g')`
+}
+
 export const user = pgTable(
   'user',
   {
@@ -2801,6 +2818,18 @@ export const workspaceFiles = pgTable(
      */
     workspaceActiveKeysetIdx: index('workspace_files_workspace_active_keyset_idx')
       .on(table.workspaceId, table.id)
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
+    /**
+     * Serves name references that miss the exact-name lookup (a stored name whose whitespace,
+     * composition, or control characters differ from its VFS path, or a bare name in a folder).
+     * Without it each miss reads every live file in the workspace — one per new file a workflow
+     * writes, since the existence check misses by definition.
+     */
+    workspaceDisplayNameIdx: index('workspace_files_workspace_display_name_idx')
+      .on(table.workspaceId, displaySegmentKey(table.originalName))
       .concurrently()
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`

@@ -13,7 +13,12 @@ export class VfsPathError extends Error {
   }
 }
 
-function normalizeDisplaySegment(segment: string): string {
+/**
+ * The name a VFS path segment displays: NFC-composed, trimmed, control characters removed,
+ * whitespace runs collapsed. Its SQL twin is `displaySegmentKey` in `@sim/db/schema`, which an
+ * index serves; the two must apply the same steps in the same order.
+ */
+export function normalizeDisplaySegment(segment: string): string {
   return segment.normalize('NFC').trim().replace(CONTROL_CHARS, '').replace(WHITESPACE, ' ')
 }
 

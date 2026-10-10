@@ -5,7 +5,13 @@
 
 import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
-import { uploadSession, type WorkspaceFileRow, workspace, workspaceFiles } from '@sim/db/schema'
+import {
+  displaySegmentKey,
+  uploadSession,
+  type WorkspaceFileRow,
+  workspace,
+  workspaceFiles,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import {
@@ -100,7 +106,11 @@ import {
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
-import { decodeVfsPathSegments, displaySegmentPattern } from '@/lib/vfs/path'
+import {
+  decodeVfsPathSegments,
+  displaySegmentPattern,
+  normalizeDisplaySegment,
+} from '@/lib/vfs/path'
 import {
   OWNED_FILE_CONTEXTS,
   type OwnedFileContext,
@@ -1801,8 +1811,41 @@ export async function resolveWorkspaceFileReference(
   const exactReferenceFile = await getWorkspaceFileByExactReference(workspaceId, referenceSegments)
   if (exactReferenceFile) return exactReferenceFile
 
-  const files = await listWorkspaceFiles(workspaceId)
-  return findWorkspaceFileRecord(files, fileReference)
+  const candidates = await listWorkspaceFileReferenceCandidates(
+    workspaceId,
+    [fileReference, normalizedReference],
+    referenceSegments.at(-1)
+  )
+  return findWorkspaceFileRecord(candidates, fileReference)
+}
+
+/**
+ * The live workspace files {@link findWorkspaceFileRecord} can match for a reference: those
+ * whose id is one of `ids`, or whose name displays as `leafName`. Each of its rules requires one
+ * of the two, so it picks the same file from these rows as from the whole workspace — read
+ * through `workspace_files_workspace_display_name_idx` instead of every file the workspace has.
+ */
+async function listWorkspaceFileReferenceCandidates(
+  workspaceId: string,
+  ids: string[],
+  leafName: string | undefined
+): Promise<WorkspaceFileRecord[]> {
+  const rows = await db
+    .select(workspaceFileListColumns)
+    .from(workspaceFiles)
+    .where(
+      and(
+        workspaceFileScopeCondition(workspaceId, 'active'),
+        or(
+          inArray(workspaceFiles.id, ids),
+          leafName === undefined
+            ? undefined
+            : eq(displaySegmentKey(workspaceFiles.originalName), normalizeDisplaySegment(leafName))
+        )
+      )
+    )
+    .orderBy(workspaceFiles.uploadedAt)
+  return hydrateWorkspaceFilePaths(rows, workspaceId)
 }
 
 /**
