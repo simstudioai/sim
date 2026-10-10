@@ -1093,16 +1093,11 @@ function handleBodySizeLimitError(error: unknown): void {
   if (isBodySizeLimitError(toError(error).message)) throw bodySizeLimitError()
 }
 
-function handleResponseSizeLimitError(error: unknown, requestId: string, context: string): boolean {
-  if (!isPayloadSizeLimitError(error)) return false
-
-  logger.error(`[${requestId}] Response body size limit exceeded for ${context}:`, {
-    label: error.label,
-    maxBytes: error.maxBytes,
-    observedBytes: error.observedBytes,
-  })
+/** The author's request returned more than a tool response may carry; a user failure. */
+function handleResponseSizeLimitError(error: unknown): void {
+  if (!isPayloadSizeLimitError(error)) return
   if (error.maxBytes !== MAX_TOOL_RESPONSE_BODY_BYTES) throw error
-  throw new Error(RESPONSE_SIZE_LIMIT_ERROR_MESSAGE)
+  throw markFailureKind(new Error(RESPONSE_SIZE_LIMIT_ERROR_MESSAGE), 'user')
 }
 
 function cloneResponseHeaders(headers: Headers | HeadersInit | undefined): Headers {
@@ -1178,6 +1173,19 @@ function createInternalOperationFailure(errorInfo: ErrorInfo, extractorId?: stri
     createTransformedErrorFromErrorInfo(errorInfo, extractorId),
     errorInfo.status !== undefined && errorInfo.status < 500 ? 'user' : 'internal'
   )
+}
+
+/**
+ * The `output` of a failed tool result this layer has logged. Marked so that `adoptToolFailure`
+ * carries the logged mark and attribution onto the error a block handler rebuilds from it.
+ */
+function loggedFailureOutput(
+  error: unknown,
+  output: Record<string, unknown> = {}
+): Record<string, unknown> {
+  markFailureLogged(output)
+  markFailureKind(output, classifyFailure(error))
+  return output
 }
 
 /**
@@ -2316,40 +2324,35 @@ async function executeToolImplementation(
     /** Sim's own hosted key being refused or throttled is Sim's fault and Sim's capacity. */
     if (hostedKeyFailure && hostedKeyFailure !== 'other') markFailureKind(error, 'internal')
     const toolContext = toRecord(params._context)
-    const loggedKind = logFailureOnce(
-      logger,
-      `[${requestId}] Error executing tool ${toolId}:`,
-      error,
-      {
-        metadata: () => ({
-          toolId,
-          workflowId: executionContext?.workflowId ?? undefined,
-          executionId: executionContext?.executionId,
-          blockId: typeof toolContext.blockId === 'string' ? toolContext.blockId : undefined,
-          ...(typeof upstreamStatus === 'number' ? { status: upstreamStatus } : {}),
-          ...projectToolLogMetadata(
-            {
-              ...(databaseErrorCause
-                ? { cause: databaseErrorCause }
-                : {
-                    error: normalizedError.message,
-                    stack: error instanceof Error ? error.stack : undefined,
-                    ...(error instanceof Error && externalHttpFailures.has(error)
-                      ? { errorData: error.data }
-                      : {}),
-                  }),
-            },
-            resolvedSecretTraceRegistry,
-            {
-              errorName: normalizedError.name,
-              hasStack: !databaseErrorCause && Boolean(error instanceof Error && error.stack),
-              ...(databaseErrorCause ? { cause: databaseErrorCause } : {}),
-            },
-            structuralOnlyToolLogs
-          ),
-        }),
-      }
-    )
+    logFailureOnce(logger, `[${requestId}] Error executing tool ${toolId}:`, error, {
+      metadata: () => ({
+        toolId,
+        workflowId: executionContext?.workflowId ?? undefined,
+        executionId: executionContext?.executionId,
+        blockId: typeof toolContext.blockId === 'string' ? toolContext.blockId : undefined,
+        ...(typeof upstreamStatus === 'number' ? { status: upstreamStatus } : {}),
+        ...projectToolLogMetadata(
+          {
+            ...(databaseErrorCause
+              ? { cause: databaseErrorCause }
+              : {
+                  error: normalizedError.message,
+                  stack: error instanceof Error ? error.stack : undefined,
+                  ...(error instanceof Error && externalHttpFailures.has(error)
+                    ? { errorData: error.data }
+                    : {}),
+                }),
+          },
+          resolvedSecretTraceRegistry,
+          {
+            errorName: normalizedError.name,
+            hasStack: !databaseErrorCause && Boolean(error instanceof Error && error.stack),
+            ...(databaseErrorCause ? { cause: databaseErrorCause } : {}),
+          },
+          structuralOnlyToolLogs
+        ),
+      }),
+    })
 
     if (hostedKeyForMetrics && hostedKeyFailure) {
       hostedKeyMetrics.recordFailed({ ...hostedKeyForMetrics, reason: hostedKeyFailure })
@@ -2424,16 +2427,12 @@ async function executeToolImplementation(
     const responseData = isRecordLike(rawResponseData) ? rawResponseData : undefined
     const functionSandboxCost =
       normalizedToolId === 'function_execute' ? readFunctionSandboxCost(responseData) : undefined
-    const failureOutput = {
-      ...errorDetails,
-      ...(functionSandboxCost ? { cost: functionSandboxCost } : {}),
-    }
-    /** Lets `adoptToolFailure` carry both marks onto a handler's rebuilt error. */
-    markFailureLogged(failureOutput)
-    markFailureKind(failureOutput, loggedKind ?? classifyFailure(error))
     return {
       success: false,
-      output: failureOutput,
+      output: loggedFailureOutput(error, {
+        ...errorDetails,
+        ...(functionSandboxCost ? { cost: functionSandboxCost } : {}),
+      }),
       error: errorMessage,
       ...(responseData?.retryable === false ? { retryable: false } : {}),
       // Sim's own status (hosted-key 429/503) survives the flattening from a
@@ -2667,14 +2666,18 @@ async function executeDeclaredInternalOperation({
     'schema' in operationInput &&
     'params' in operationInput
   ) {
-    validateClientSideParams(
-      operationInput.params as Record<string, any>,
-      operationInput.schema as {
-        type: string
-        properties: Record<string, any>
-        required?: string[]
-      }
-    )
+    try {
+      validateClientSideParams(
+        operationInput.params as Record<string, any>,
+        operationInput.schema as {
+          type: string
+          properties: Record<string, any>
+          required?: string[]
+        }
+      )
+    } catch (validationError) {
+      throw markFailureKind(validationError, 'user')
+    }
   }
 
   const headers = new Headers()
@@ -3126,7 +3129,7 @@ async function executeToolRequest(
       error: undefined,
     }
   } catch (error: any) {
-    handleResponseSizeLimitError(error, requestId, toolId)
+    handleResponseSizeLimitError(error)
 
     handleBodySizeLimitError(error)
 
@@ -3313,15 +3316,25 @@ async function executeMcpTool(
 
     const errorMsg = toError(error).message
     if (isBodySizeLimitError(errorMsg)) {
-      logger.error(
+      const failure = bodySizeLimitError()
+      logFailureOnce(
+        logger,
         `[${actualRequestId}] Request body size limit exceeded for mcp:${toolId}:`,
-        projectToolLogMetadata({ originalError: errorMsg }, context?.resolvedSecretTraceRegistry, {
-          hasOriginalError: errorMsg.length > 0,
-        })
+        failure,
+        {
+          metadata: () =>
+            projectToolLogMetadata(
+              { originalError: errorMsg },
+              context?.resolvedSecretTraceRegistry,
+              {
+                hasOriginalError: errorMsg.length > 0,
+              }
+            ),
+        }
       )
       return {
         success: false,
-        output: {},
+        output: loggedFailureOutput(failure),
         error: BODY_SIZE_LIMIT_ERROR_MESSAGE,
         timing: {
           startTime: actualStartTime,
@@ -3332,26 +3345,26 @@ async function executeMcpTool(
     }
 
     const normalizedError = toError(error)
-    logger.error(
-      `[${actualRequestId}] Error executing MCP tool ${toolId}:`,
-      projectToolLogMetadata(
-        {
-          error: normalizedError.message,
-          stack: error instanceof Error ? error.stack : undefined,
-        },
-        context?.resolvedSecretTraceRegistry,
-        {
-          errorName: normalizedError.name,
-          hasStack: Boolean(error instanceof Error && error.stack),
-        }
-      )
-    )
+    logFailureOnce(logger, `[${actualRequestId}] Error executing MCP tool ${toolId}:`, error, {
+      metadata: () =>
+        projectToolLogMetadata(
+          {
+            error: normalizedError.message,
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+          context?.resolvedSecretTraceRegistry,
+          {
+            errorName: normalizedError.name,
+            hasStack: Boolean(error instanceof Error && error.stack),
+          }
+        ),
+    })
 
     const errorMessage = getErrorMessage(error, `Failed to execute MCP tool ${toolId}`)
 
     return {
       success: false,
-      output: {},
+      output: loggedFailureOutput(error),
       error: errorMessage,
       timing: {
         startTime: actualStartTime,

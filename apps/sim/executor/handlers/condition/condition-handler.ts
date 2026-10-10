@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
-import { adoptToolFailure } from '@/lib/core/errors/failure-log'
+import { getErrorMessage } from '@sim/utils/errors'
+import { adoptToolFailure, markFailureKind } from '@/lib/core/errors/failure-log'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import {
   isNonRetryableExecutionError,
@@ -508,8 +508,11 @@ export class ConditionBlockHandler implements BlockHandler {
       case 'no-match':
         return null
       case 'expression-threw':
-        logger.error('Failed to evaluate condition', { conditionCount: conditions.length })
-        throw conditionError(conditions[evaluation.index], evaluation.message)
+        /** The author's expression threw; the block executor logs it once. */
+        throw markFailureKind(
+          conditionError(conditions[evaluation.index], evaluation.message),
+          'user'
+        )
       case 'no-verdict':
         if (!evaluation.retryable) {
           throw new NonRetryableExecutionError(
@@ -523,7 +526,6 @@ export class ConditionBlockHandler implements BlockHandler {
         // failure as it stands. The whole list was one call, so no single
         // branch owns that failure; name the first, where evaluation started.
         if (evaluation.timedOut || ctx.abortSignal?.aborted) {
-          logger.error('Failed to evaluate conditions', { conditionCount: conditions.length })
           throw conditionError(conditions[0], evaluation.message)
         }
         logger.warn('Batched condition evaluation produced no verdict, retrying one at a time', {
@@ -549,7 +551,6 @@ export class ConditionBlockHandler implements BlockHandler {
         )
         if (conditionMet) return condition
       } catch (error) {
-        logger.error('Failed to evaluate condition', { errorName: toError(error).name })
         throw conditionError(
           condition,
           getErrorMessage(error, 'Condition evaluation failed'),

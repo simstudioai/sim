@@ -482,15 +482,17 @@ export class ExecutionEngine {
       /**
        * Block failures were logged by the block executor. This catches a completion-handling
        * fault, which only this frame sees when a concurrent failure already won `executionError`.
+       * Normalized first, as `trackExecution` would, so `run()` sees the mark on the same object.
        */
-      logFailureOnce(this.execLogger, 'Node execution failed', error, {
+      const failure = toError(error)
+      logFailureOnce(this.execLogger, 'Node execution failed', failure, {
         metadata: () =>
-          projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry, {
+          projectResolvedSecretDiagnosticError(failure, this.context.resolvedSecretTraceRegistry, {
             nodeId,
           }),
         executionId: this.context.executionId,
       })
-      throw error
+      throw failure
     }
   }
 

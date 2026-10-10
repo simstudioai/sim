@@ -107,6 +107,7 @@ export class FunctionBlockHandler implements BlockHandler {
         userId: ctx.userId,
         isDeployedContext: ctx.isDeployedContext,
         enforceCredentialAccess: ctx.enforceCredentialAccess,
+        blockId: block.id,
       },
     }
 

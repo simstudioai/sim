@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { inheritFailureMarks } from '@/lib/core/errors/failure-log'
 import type { PiEvent } from '@/executor/handlers/pi/core/events'
 
 /**
@@ -36,11 +37,14 @@ export function getScrubbedPiErrorMessage(
   return scrubPiSecrets(getErrorMessage(error, fallback), secrets)
 }
 
-/** Creates a boundary-safe error without retaining a potentially secret-bearing cause. */
+/**
+ * Creates a boundary-safe error without retaining a potentially secret-bearing cause. The failure
+ * marks still cross, so a GitHub tool failure the tool layer logged is not logged again.
+ */
 export function createScrubbedPiError(
   error: unknown,
   secrets: readonly string[],
   fallback?: string
 ): Error {
-  return new Error(getScrubbedPiErrorMessage(error, secrets, fallback))
+  return inheritFailureMarks(new Error(getScrubbedPiErrorMessage(error, secrets, fallback)), error)
 }

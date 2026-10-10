@@ -63,10 +63,10 @@ export function markFailureKind<T>(error: T, kind: FailureKind): T {
  */
 export function classifyFailure(error: unknown): FailureKind {
   if (findDatabaseQueryError(error)) return 'internal'
+  const chain = causeChain(error)
+  if (chain.some(isRetryableSetupError)) return 'internal'
 
-  for (const link of causeChain(error)) {
-    if (isRetryableSetupError(link)) return 'internal'
-
+  for (const link of chain) {
     const marked = failureKinds.get(link)
     if (marked) return marked
     if (link instanceof UserFailure) return 'user'

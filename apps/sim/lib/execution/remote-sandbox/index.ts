@@ -958,14 +958,10 @@ async function executeInSandboxWithinBudget(
 
     if (execution.error) {
       const errorMessage = `${execution.error.name}: ${execution.error.value}`
-      /** The author's code raising is logged once by the tool boundary; a provider failure is ours. */
-      if (execution.providerFailure) {
-        logger.error('Sandbox execution failed', {
-          sandboxId,
-          hasTraceback: Boolean(execution.error.traceback),
-          providerFailure: execution.providerFailure,
-        })
-      }
+      logger.error('Sandbox execution failed', {
+        sandboxId,
+        hasTraceback: Boolean(execution.error.traceback),
+      })
       const executionResult = {
         result: null,
         stdout: execution.error.traceback || errorMessage,
@@ -1157,14 +1153,10 @@ async function executeShellInSandboxWithinBudget(
       // back to stdout for the real command output before the generic message.
       const errorMessage =
         result.stderr || result.stdout || `Process exited with code ${result.exitCode}`
-      /** A non-zero exit is logged once by the tool boundary; a provider failure is ours. */
-      if (result.providerFailure) {
-        logger.error('Sandbox shell execution error', {
-          sandboxId,
-          exitCode: result.exitCode,
-          providerFailure: result.providerFailure,
-        })
-      }
+      logger.error('Sandbox shell execution error', {
+        sandboxId,
+        exitCode: result.exitCode,
+      })
       const executionResult = {
         result: null,
         stdout,

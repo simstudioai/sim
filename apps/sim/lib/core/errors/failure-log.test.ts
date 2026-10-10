@@ -26,6 +26,13 @@ describe('classifyFailure', () => {
     expect(classifyFailure(wrapped)).toBe('internal')
   })
 
+  it('keeps a retryable setup failure internal even beneath a marked wrapper', () => {
+    const setup = new RetryableSetupError('setup')
+    expect(classifyFailure(markFailureKind(new Error('wrapped', { cause: setup }), 'user'))).toBe(
+      'internal'
+    )
+  })
+
   it('keeps a retryable setup failure internal even when its cause was the author’s', () => {
     const cause = markFailureKind(new Error('missing field'), 'user')
     expect(classifyFailure(new RetryableSetupError('setup', { cause }))).toBe('internal')
