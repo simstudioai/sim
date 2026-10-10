@@ -24,7 +24,6 @@ const fetchMock = vi.fn(
       headers: { 'content-type': 'application/json' },
     })
 )
-vi.stubGlobal('fetch', fetchMock)
 
 import { bigqueryDestination } from '@/lib/data-drains/destinations/bigquery'
 

@@ -19,7 +19,7 @@ export class MockNoActiveDeploymentError extends Error {
  *
  * @example
  * ```ts
- * import { workflowsPersistenceUtilsMockFns } from '@sim/testing'
+ * import { workflowsPersistenceUtilsMockFns } from '@sim/testing/mocks/workflows-persistence-utils.mock'
  *
  * workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables.mockResolvedValue({
  *   blocks: {},

@@ -2,7 +2,6 @@ import { gunzipSync } from 'node:zlib'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.fn(async () => new Response(null, { status: 202 }))
-vi.stubGlobal('fetch', fetchMock)
 
 import { datadogDestination } from '@/lib/data-drains/destinations/datadog'
 

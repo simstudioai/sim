@@ -9,7 +9,9 @@
  *
  * @example
  * ```ts
- * import { authMockFns, createMockRequest, createWorkflowState } from '@sim/testing'
+ * import { createWorkflowState } from '@sim/testing/factories/workflow.factory'
+ * import { authMockFns } from '@sim/testing/mocks/auth.mock'
+ * import { createMockRequest } from '@sim/testing/mocks/request.mock'
  * ```
  */
 

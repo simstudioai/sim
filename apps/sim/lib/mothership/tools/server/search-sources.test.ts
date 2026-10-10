@@ -2,6 +2,7 @@ import {
   mothershipOrganizationChatsMock,
   mothershipOrganizationChatsMockFns,
 } from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { simSearchConnectorsMock } from '@sim/testing/mocks/sim-search-connectors.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ vi.mock('@/lib/knowledge/application/sim-search', () => ({
   prepareSearchSource: { authorize: hoisted.authorize, execute: hoisted.prepare },
 }))
 vi.mock('@/lib/sim-search/connectors', () => ({
+  ...simSearchConnectorsMock,
   SEARCH_SOURCE_TYPES: [
     ['google_drive', { name: 'Google Drive', mirrorsSourceAcls: true }],
     ['gmail', { name: 'Gmail' }],

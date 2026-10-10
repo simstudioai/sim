@@ -1,4 +1,5 @@
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { tableConstantsMock } from '@sim/testing/mocks/table-constants.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Passthrough React hooks so the hook can run outside a React root.
@@ -28,7 +29,9 @@ vi.mock('@/hooks/queries/tables', () => ({
 }))
 
 vi.mock('@/lib/table/constants', () => ({
-  TABLE_LIMITS: { MAX_BULK_OPERATION_SIZE: 3 }, // small limit so tests don't need 1000 items
+  ...tableConstantsMock,
+  // small limit so tests don't need 1000 items
+  TABLE_LIMITS: { ...tableConstantsMock.TABLE_LIMITS, MAX_BULK_OPERATION_SIZE: 3 },
 }))
 
 const mockPopUndo = vi.fn()

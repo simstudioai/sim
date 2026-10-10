@@ -23,6 +23,7 @@ import {
   permissionGroupsResolveMock,
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { simSearchConnectorsMock } from '@sim/testing/mocks/sim-search-connectors.mock'
 import { workspaceAuthzMock } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,6 +38,7 @@ vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveM
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/sim-search/connectors', () => ({
+  ...simSearchConnectorsMock,
   SEARCH_SOURCE_TYPES: [
     ['gmail', { name: 'Gmail' }],
     ['google_drive', { name: 'Google Drive' }],

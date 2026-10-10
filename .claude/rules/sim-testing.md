@@ -88,7 +88,8 @@ describe('GET /api/my-route', () => {
 
 `apps/sim/vitest.setup.ts` mocks the modules nearly every test touches. `@sim/testing` holds one
 central mock for every other module that more than a couple of tests mock. Never hand-roll a
-`vi.mock` factory for either — `bun run check:test-patterns` fails on a new one.
+`vi.mock` factory for either — `bun run check:test-patterns` fails on a new one (integration and
+`*.live.test.ts` files bind real boundaries and are exempt).
 
 - **Global module**: don't `vi.mock` it; drive it through its knobs (table below).
 - **Any other module**: find its central mock by copying an existing use —
@@ -161,7 +162,8 @@ The suite's wall time is bound by the single Vite server thread that serves ever
 
 1. `vi.hoisted()` + `vi.mock()` + static imports. Never `vi.resetModules()` + `vi.doMock()` +
    dynamic `import()`, except for a module that caches a singleton at module scope.
-2. Never `vi.importActual()`/`importOriginal` to build a partial mock — use the central mock.
+2. Build a partial mock with `vi.importActual()`/`importOriginal` only for a module with no central
+   mock; otherwise use the central mock.
 3. Mock heavy graphs a test does not need and the setup does not already mock: `@/blocks`,
    `@/triggers/registry`, `@/tools/generated/*`.
 4. No real timers: `vi.useFakeTimers()`, `flushMicrotasks()`, or `flushMacrotask()`.

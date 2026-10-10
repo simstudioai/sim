@@ -76,7 +76,6 @@ afterEach(() => {
   pty.emit = null
   pty.exit = null
   pty.writes.length = 0
-  vi.unstubAllEnvs()
 })
 
 describe('a shell that is still starting', () => {
