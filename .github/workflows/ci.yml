@@ -32,41 +32,9 @@ permissions:
   contents: read
 
 jobs:
-  # A release lands on main as a merge whose tree is identical to the staging head it merges, and
-  # that staging push already ran the checks on exactly this code. When a staging run of the merged
-  # parent passed `checks / ci`, main skips its own checks and the deploy chain gates on this proof
-  # instead. Any other shape, any error, or no green staging run falls back to the full checks.
-  proof:
-    name: proof
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    # Waits for a staging run still in progress for at most 40 minutes.
-    timeout-minutes: 45
-    permissions:
-      contents: read
-      actions: read
-    outputs:
-      proven: ${{ steps.proof.outputs.proven }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
-        with:
-          fetch-depth: 2
-          persist-credentials: false
-
-      - name: Look for a green staging run of this tree
-        id: proof
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash .github/scripts/staging-proof.sh >> "$GITHUB_OUTPUT"
-
   checks:
     name: checks
-    needs: [proof]
-    if: >-
-      !cancelled() &&
-      (github.ref != 'refs/heads/dev' || github.event_name == 'pull_request') &&
-      needs.proof.outputs.proven != 'true'
+    if: github.ref != 'refs/heads/dev' || github.event_name == 'pull_request'
     uses: ./.github/workflows/checks.yml
 
   # Detect if this is a version release commit (e.g., "v0.5.24: ...")
@@ -74,7 +42,7 @@ jobs:
   # message, no checkout and no install.
   version:
     name: version
-    runs-on: *runner-2vcpu
+    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     outputs:
@@ -146,14 +114,14 @@ jobs:
   # migration sidecar)
   migrate:
     name: migrate
-    needs: [proof, checks]
+    needs: [checks]
     # Explicit need results instead of the implicit success(): a skipped job
     # anywhere in the transitive needs chain silently fails implicit success()
     # and cascade-skips the deploy chain (migrate -> promote ->
     # CodeDeploy) — this bit us on 2026-07-23. State requirements explicitly.
     if: >-
       !cancelled() &&
-      (needs.checks.result == 'success' || needs.proof.outputs.proven == 'true') &&
+      needs.checks.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/migrate.yml

@@ -36,9 +36,6 @@ permissions:
 jobs:
   chart:
     name: chart
-    # Not on the staging -> main release pull request: every staging push re-syncs it with code the
-    # staging pull requests already ran this on, and main's push and schedule still run it.
-    if: ${{ !(github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
