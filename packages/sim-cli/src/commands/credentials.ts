@@ -9,6 +9,7 @@ import {
 } from '../generated/v2-api'
 import { SimApiError } from '../http/client'
 import { describeOperation } from '../runtime/build'
+import { callsOperations, runsOperation } from '../runtime/called-operations'
 import { coerce } from '../runtime/request'
 import { renderResult } from '../runtime/result'
 
@@ -193,7 +194,7 @@ export function attachCredentialCommands(program: Command): void {
 
   acceptNameOnUpdate(credentials)
 
-  credentials
+  const create = credentials
     .command('create')
     .argument('<providerId>', 'Service-account provider to create a credential for')
     .description(
@@ -219,6 +220,8 @@ export function attachCredentialCommands(program: Command): void {
     .action((providerId: string, options: CreateServiceAccountOptions, command: Command) =>
       createServiceAccount(command, providerId, options)
     )
+  callsOperations(create, ['listCredentialProviders', 'createServiceAccountCredential'])
+  runsOperation(create, 'createServiceAccountCredential')
 
   credentials
     .command('connect')

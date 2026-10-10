@@ -337,7 +337,7 @@ async function downloadToOutput(
 }
 
 export function attachFileGet(files: Command): void {
-  files
+  const get = files
     .command('get')
     .argument('<fileId>', 'File whose content to read')
     .allowExcessArguments(false)
@@ -347,6 +347,7 @@ export function attachFileGet(files: Command): void {
     .action((fileId: string, options: DownloadOutputOptions, command: Command) =>
       downloadToOutput(command, V2_OPERATIONS.downloadFile, { fileId }, options)
     )
+  callsOperations(get, ['downloadFile'])
 }
 
 export function attachFileVersionDownload(versions: Command): void {
