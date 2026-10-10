@@ -4,6 +4,7 @@ import { clientFrom } from '../../context'
 import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { resolvePath, SimApiError } from '../../http/client'
+import { callsOperations } from '../../runtime/called-operations'
 import { isTerminalSafeContentType, saveToFile, streamToStdout } from './files-get'
 import { printProtocolResult } from './result'
 
@@ -44,7 +45,7 @@ function safeBaseName(name: string): string | null {
 }
 
 export function attachKnowledgeExport(knowledge: Command): void {
-  knowledge
+  const exportCommand = knowledge
     .command('export')
     .argument('<knowledgeBaseId>', 'Knowledge base to export')
     .allowExcessArguments(false)
@@ -106,4 +107,5 @@ export function attachKnowledgeExport(knowledge: Command): void {
         vectors: options.vectors,
       })
     })
+  callsOperations(exportCommand, ['exportKnowledgeBase'])
 }

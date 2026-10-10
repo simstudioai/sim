@@ -22,8 +22,8 @@ import {
 } from '#sim-cli/contract/reference'
 import { V2_OPERATIONS, type V2OperationName } from '#sim-cli/generated/v2-api'
 import { buildProgram } from '#sim-cli/program'
-import { calledOperations } from '#sim-cli/runtime/called-operations'
-import { camel, deriveCommandPath } from '#sim-cli/runtime/derive'
+import { calledOperations, operationOf } from '#sim-cli/runtime/called-operations'
+import { camel } from '#sim-cli/runtime/derive'
 import { cursorSlot, flagNameFor } from '#sim-cli/runtime/request'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -76,21 +76,6 @@ function collectLeaves(command: Command, prefix: string[]): { path: string[]; co
   return children.flatMap((child) => collectLeaves(child, [...prefix, child.name()]))
 }
 
-/**
- * Command path → v2 operation name. Every operation names its command the way the
- * program builder does (`deriveCommandPath`); a contract entry's explicit `command`
- * string overrides that, exactly as it does when the program is built.
- */
-const OPERATION_BY_PATH = new Map<string, V2OperationName>()
-const operations = Object.keys(V2_OPERATIONS) as V2OperationName[]
-for (const operation of operations) {
-  OPERATION_BY_PATH.set(deriveCommandPath(operation).join(' '), operation)
-}
-for (const operation of operations) {
-  const command = CLI_CONTRACT[operation]?.command
-  if (command) OPERATION_BY_PATH.set(command, operation)
-}
-
 const OPENAPI_DOCS: ReferenceDocument[] = fs
   .readdirSync(path.join(ROOT, 'apps/docs'))
   .filter((name) => /^openapi-v2-.*\.json$/.test(name))
@@ -138,7 +123,7 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
         ...(option.defaultValue !== undefined ? { defaultValue: String(option.defaultValue) } : {}),
         ...(option.argChoices ? { choices: option.argChoices } : {}),
       }))
-    const operation = OPERATION_BY_PATH.get(cmdPath.join(' '))
+    const operation = operationOf(command)
     const jsonOptions = new Set(
       options.filter((option) => /<json\|@file>/.test(option.flags)).map((option) => option.name)
     )
