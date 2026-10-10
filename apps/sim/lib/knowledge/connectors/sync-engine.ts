@@ -819,18 +819,23 @@ async function resolveAccessToken(
   })
 
   if (!resolved) {
-    logger.error(`[${requestId}] Connector credential resolved no access token`, {
-      credentialId: connector.credentialId,
-      userId,
-      authMode: connectorConfig.auth.mode,
-    })
     const revocationError =
       connectorConfig.auth.mode === 'oauth' && connector.credentialId
         ? await getCredentialRevocationError(connector.credentialId)
         : null
+    const logContext = {
+      credentialId: connector.credentialId,
+      userId,
+      authMode: connectorConfig.auth.mode,
+    }
     if (revocationError && connector.credentialId) {
+      logger.warn(`[${requestId}] Connector credential was revoked by the source`, {
+        ...logContext,
+        errorCode: revocationError,
+      })
       throw new ConnectorCredentialRevokedError(connector.credentialId, revocationError)
     }
+    logger.error(`[${requestId}] Connector credential resolved no access token`, logContext)
     throw new Error(`Failed to obtain access token for credential ${connector.credentialId}`)
   }
 

@@ -153,7 +153,7 @@ describe('OAuth Utils', () => {
       ])
       mockRefreshOAuthToken.mockResolvedValueOnce({
         ok: false,
-        errorCode: 'token_revoked',
+        errorCode: 'invalid_client',
       })
       mockSelectChain([])
 
@@ -164,7 +164,7 @@ describe('OAuth Utils', () => {
       const installationIdentity = getOAuthRefreshCoordinationIdentity('slack:T08CM6ZNYBE')
       expect(fakeRedis.set).toHaveBeenCalledWith(
         `oauth:dead:${installationIdentity}`,
-        'token_revoked',
+        'invalid_client',
         'EX',
         3600
       )
@@ -182,7 +182,7 @@ describe('OAuth Utils', () => {
       ])
       mockRefreshOAuthToken.mockResolvedValueOnce({
         ok: false,
-        errorCode: 'token_revoked',
+        errorCode: 'invalid_client',
       })
       mockSelectChain([{ moved: new Date() }])
 

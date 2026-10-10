@@ -84,6 +84,7 @@ import {
   recordServiceCost,
   recordServiceMeteringFailure,
 } from '@/lib/mothership/billing/service-observer'
+import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -2043,9 +2044,12 @@ async function executeToolImplementation(
         contextParams.impersonateUserEmail = undefined
         if (contextParams.workflowId) contextParams.workflowId = undefined
       } catch (error: any) {
-        logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {
-          error: toError(error).message,
-        })
+        // A revoked credential is the user's to reconnect; the resolver already logged it.
+        if (!(error instanceof CredentialRevokedError)) {
+          logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {
+            error: toError(error).message,
+          })
+        }
         throw error
       }
     }

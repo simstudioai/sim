@@ -148,6 +148,7 @@ import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { clearOAuthRefreshFailure } from '@/lib/oauth/credential-service'
 import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
@@ -698,6 +699,26 @@ export const auth = betterAuth({
             })
           } catch {
             // Telemetry should not fail the operation
+          }
+        },
+      },
+      update: {
+        /**
+         * Relinking an identity that already has a row updates it in place instead of creating
+         * one, and keeps the old refresh token when the provider issues none, so the fresh
+         * authorization has to clear the failures recorded against the old grant explicitly.
+         */
+        after: async (account, context) => {
+          const path = context?.path
+          if (!path?.startsWith('/oauth2/callback/') && !path?.startsWith('/callback/')) return
+          try {
+            await clearOAuthRefreshFailure(account.id)
+          } catch (error) {
+            logger.error('[account.update.after] Failed to clear recorded refresh failures', {
+              accountId: account.id,
+              providerId: account.providerId,
+              error,
+            })
           }
         },
       },

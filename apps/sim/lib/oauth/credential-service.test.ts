@@ -51,11 +51,13 @@ vi.mock('@/lib/oauth/slack', () => ({
   fanOutSlackTokenChain: vi.fn(),
   getFreshestSlackChain: hoisted.getFreshestSlackChain,
   hasSlackChainMoved: vi.fn(() => false),
+  installationFilter: vi.fn(),
   isSlackProvider: (providerId: string) => providerId === 'slack',
 }))
 
 vi.mock('@/lib/oauth/terminal-errors', () => ({
   getRecentTerminalError: hoisted.getRecentTerminalError,
+  isCredentialRevocationError: vi.fn(() => false),
   isTerminalRefreshError: vi.fn(() => false),
   markCredentialDead: vi.fn(),
 }))
@@ -512,7 +514,7 @@ describe('OAuth access-token refresh headroom', () => {
   it('does not flag a credential dead when a terminal failure follows a newer rotation', async () => {
     queueCredentialAccount(createOAuthAccount())
     vi.mocked(isTerminalRefreshError).mockReturnValue(true)
-    mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_grant' })
+    mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_client' })
     queueTableRows(account, [
       {
         ...createOAuthAccount(3_600_000),
@@ -529,13 +531,12 @@ describe('OAuth access-token refresh headroom', () => {
   it('flags a credential dead on a terminal failure when its chain did not move', async () => {
     queueCredentialAccount(createOAuthAccount())
     vi.mocked(isTerminalRefreshError).mockReturnValue(true)
-    mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_grant' })
+    mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_client' })
     queueTableRows(account, [createOAuthAccount()])
     await expect(
       resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
     ).resolves.toBeNull()
-    expect(markCredentialDead).toHaveBeenCalledWith(expect.any(String), 'invalid_grant')
-    expect(isTerminalRefreshError).toHaveBeenCalledWith('invalid_grant', 'google-drive')
+    expect(markCredentialDead).toHaveBeenCalledWith(expect.any(String), 'invalid_client')
   })
 
   it('uses the stored chain when the rotation write loses to a newer one', async () => {

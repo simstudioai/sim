@@ -7,7 +7,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { deleteOrphanedOAuthAccount } from '@/lib/credentials/deletion'
 import { resumeConnectorsAfterCredentialReconnect } from '@/lib/knowledge/connectors/credential-recovery'
-import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
+import { clearOAuthRefreshFailure } from '@/lib/oauth/credential-service'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialDraftHooks')
@@ -75,7 +75,7 @@ export async function handleCreateCredentialFromDraft(params: {
       .set({ updatedAt: now })
       .where(eq(schema.credential.id, existingCredential.id))
 
-    await clearOAuthRefreshDeadFlag(accountId)
+    await clearOAuthRefreshFailure(accountId)
     await resumeConnectorsAfterCredentialReconnect(accountId, now)
 
     recordAudit({
@@ -110,7 +110,7 @@ export async function handleCreateCredentialFromDraft(params: {
     accountId,
   })
 
-  await clearOAuthRefreshDeadFlag(accountId)
+  await clearOAuthRefreshFailure(accountId)
 
   recordAudit({
     workspaceId: draft.workspaceId,
@@ -210,7 +210,7 @@ export async function handleReconnectCredential(params: {
     }
   )
 
-  await clearOAuthRefreshDeadFlag(newAccountId)
+  await clearOAuthRefreshFailure(newAccountId)
   await resumeConnectorsAfterCredentialReconnect(newAccountId, now)
 
   recordAudit({

@@ -170,6 +170,15 @@ export const account = pgTable(
     scope: text('scope'),
     password: text('password'),
     oauthConfig: text('oauth_config'),
+    /**
+     * The provider rejected `refresh_token` as revoked (`invalid_grant` and kin). The marker holds
+     * only while `refresh_revoked_token_hash` still fingerprints the stored refresh token, so any
+     * writer that stores a new chain supersedes it; a reconnect clears it explicitly, since a
+     * provider may reauthorize without issuing a new refresh token.
+     */
+    refreshRevokedAt: timestamp('refresh_revoked_at'),
+    refreshRevokedCode: text('refresh_revoked_code'),
+    refreshRevokedTokenHash: text('refresh_revoked_token_hash'),
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull(),
   },

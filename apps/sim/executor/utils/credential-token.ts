@@ -7,6 +7,7 @@ import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/ex
 import { resolveCopilotOrganizationPersonalToken } from '@/lib/mothership/application/resolve-organization-personal-token'
 import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import type { CopilotExecutionContext } from '@/lib/mothership/auth/application-delegation'
+import { CredentialRevokedError, OAUTH_CREDENTIAL_REVOKED } from '@/lib/oauth/credential-revoked'
 import {
   type CredentialTokenPayload,
   resolveCredentialAccessToken,
@@ -124,14 +125,17 @@ export async function resolveExecutorCredentialToken(
   })
 
   if (!result.ok) {
+    const message = `Failed to obtain credential for ${params.toolLabel ?? credentialId}: ${result.error}`
+    // The resolver already logged the revocation once, at WARN, where it was classified.
+    if (result.code === OAUTH_CREDENTIAL_REVOKED) {
+      throw new CredentialRevokedError(message)
+    }
     logger.error(`[${requestId}] Credential token resolution failed`, {
       status: result.status,
       credentialId,
       code: result.code,
     })
-    throw new Error(
-      `Failed to obtain credential for ${params.toolLabel ?? credentialId}: ${result.error}`
-    )
+    throw new Error(message)
   }
 
   return result.token
