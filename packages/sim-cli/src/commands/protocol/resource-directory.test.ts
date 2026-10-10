@@ -1,25 +1,56 @@
 import { Command } from 'commander'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { OutputFormat, ResolvedProfile } from '../../config/index'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { attachProtocolCommands } from './index'
 
-const { mockRequest, output } = vi.hoisted(() => ({
-  mockRequest: vi.fn(),
+interface SentRequest {
+  method: string
+  url: URL
+  body: unknown
+}
+
+interface Wire {
+  output: { format: OutputFormat }
+  sent: SentRequest[]
+  respond: (url: URL) => unknown
+}
+
+const wire: Wire = vi.hoisted(() => ({
   output: { format: 'json' },
+  sent: [],
+  respond: () => ({ data: [], nextCursor: null }),
 }))
 
-vi.mock('../../context', () => ({
-  clientFrom: () => ({
-    client: { request: mockRequest, requireWorkspace: () => 'ws_local' },
-    profile: {
-      workspaceId: 'ws_local',
-      output: output.format,
-      name: 'default',
-      apiKey: 'k',
-      endpoint: 'https://sim.example',
+vi.mock('../../context', async () => {
+  const { SimClient } = await import('../../http/client')
+  return {
+    clientFrom: () => {
+      const profile: ResolvedProfile = {
+        name: 'default',
+        authProfile: 'default',
+        endpoint: 'https://sim.example',
+        apiKey: 'k',
+        oauth: null,
+        workspaceId: 'ws_local',
+        output: wire.output.format,
+        sources: { endpoint: 'flag', credential: 'flag', workspaceId: 'flag', output: 'flag' },
+        transport: async (input: string | URL | Request, init?: RequestInit) => {
+          const url = new URL(String(input))
+          wire.sent.push({
+            method: init?.method ?? 'GET',
+            url,
+            body: init?.body ? JSON.parse(String(init.body)) : undefined,
+          })
+          return new Response(JSON.stringify(wire.respond(url)), {
+            headers: { 'content-type': 'application/json' },
+          })
+        },
+      }
+      return { client: new SimClient(profile), profile }
     },
-  }),
-}))
+  }
+})
 
 function program(): Command {
   const root = new Command('sim').exitOverride()
@@ -34,9 +65,14 @@ function program(): Command {
 }
 
 beforeEach(() => {
-  mockRequest.mockReset()
-  output.format = 'json'
+  wire.sent.length = 0
+  wire.respond = () => ({ data: [], nextCursor: null })
+  wire.output.format = 'json'
 })
+
+function sentTo(path: string): SentRequest[] {
+  return wire.sent.filter((request) => request.url.pathname === path)
+}
 
 describe('resource directory', () => {
   it('encodes the path both commands take, as every contract-driven flag does', async () => {
@@ -44,22 +80,22 @@ describe('resource directory', () => {
     // for them: `--folder '/Folder 1'` worked while `ls '/Folder 1'` was
     // rejected as non-canonical, and `mkdir` disagreed with the `folders
     // create` the README calls its long form.
-    mockRequest.mockResolvedValue({ data: [], nextCursor: null })
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
     await program().parseAsync(['node', 'sim', 'table', 'ls', '/Q1 (draft)'])
-    expect(mockRequest).toHaveBeenCalledWith('/api/v2/tables/folders', {
-      method: 'GET',
-      query: expect.objectContaining({ parentPath: '/Q1%20%28draft%29' }),
-    })
+    const [listed] = sentTo('/api/v2/tables/folders')
+    expect(listed.method).toBe('GET')
+    expect(listed.url.searchParams.get('parentPath')).toBe('/Q1%20%28draft%29')
 
-    mockRequest.mockReset()
-    mockRequest.mockResolvedValue({ data: { folder: {} } })
+    wire.sent.length = 0
+    wire.respond = () => ({ data: { folder: {} } })
     await program().parseAsync(['node', 'sim', 'table', 'mkdir', '/Q1 (draft)'])
-    expect(mockRequest).toHaveBeenCalledWith('/api/v2/tables/folders', {
-      method: 'POST',
-      body: { workspaceId: 'ws_local', path: '/Q1%20%28draft%29' },
-    })
+    expect(sentTo('/api/v2/tables/folders')).toEqual([
+      expect.objectContaining({
+        method: 'POST',
+        body: { workspaceId: 'ws_local', path: '/Q1%20%28draft%29' },
+      }),
+    ])
   })
 
   it('decodes folder paths for the human formats but leaves json on the wire form', async () => {
@@ -67,8 +103,8 @@ describe('resource directory', () => {
     // format never reached it: the sibling `folders list` printed `/Folder 2`
     // while `ls` printed `/Folder%202` for the same folder, one column away
     // from the decoded `name` it prints beside it.
-    mockRequest.mockImplementation(async (path: string) => {
-      if (path === '/api/v2/tables/folders') {
+    wire.respond = (url) => {
+      if (url.pathname === '/api/v2/tables/folders') {
         return {
           data: [
             {
@@ -92,18 +128,18 @@ describe('resource directory', () => {
         ],
         nextCursor: null,
       }
-    })
+    }
 
     const logged: string[] = []
     vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
 
-    output.format = 'text'
+    wire.output.format = 'text'
     await program().parseAsync(['node', 'sim', 'table', 'ls', '/Folder 2'])
     expect(logged.join('\n')).toContain('/Folder 2/New folder')
     expect(logged.join('\n')).not.toContain('%20')
 
     logged.length = 0
-    output.format = 'json'
+    wire.output.format = 'json'
     await program().parseAsync(['node', 'sim', 'table', 'ls', '/Folder 2'])
     const entries = JSON.parse(logged[0]) as Array<{ kind: string; ref: string }>
     expect(entries.find((entry) => entry.kind === 'folder')?.ref).toBe('/Folder%202/New%20folder')
