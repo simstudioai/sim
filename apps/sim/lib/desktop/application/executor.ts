@@ -169,10 +169,12 @@ export const listDesktopInbox = defineAuthorizedCredentialUserUseCase({
     input: DeviceInput
   }): Promise<{ items: DesktopInboxEntry[] }> {
     await requireBoundDevice(principal, input.deviceId)
+    void touchDesktopDevice(input.deviceId).catch((error) =>
+      logger.warn('Failed to record desktop device last seen', { deviceId: input.deviceId, error })
+    )
     const [rows] = await Promise.all([
       listDesktopInboxRows({ deviceId: input.deviceId, userId: principal.userId }),
       markDesktopPresent(input.deviceId),
-      touchDesktopDevice(input.deviceId),
     ])
     return { items: classifyDesktopInbox(rows) }
   },

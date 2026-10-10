@@ -98,8 +98,8 @@ describe('authenticateApiKeyFromHeader', () => {
 })
 
 describe('updateApiKeyLastUsed', () => {
-  it('only writes when the stored lastUsed is missing or stale', async () => {
-    await updateApiKeyLastUsed('key-1')
+  it('only writes when the stored lastUsed is missing or stale', () => {
+    updateApiKeyLastUsed('key-1')
 
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ lastUsed: expect.any(Date) })
@@ -113,12 +113,26 @@ describe('updateApiKeyLastUsed', () => {
     })
   })
 
-  it('swallows database errors instead of failing the request', async () => {
+  it('returns without waiting for a write that has not committed', () => {
+    dbChainMockFns.where.mockReturnValueOnce(new Promise(() => {}))
+
+    expect(updateApiKeyLastUsed('key-stalled')).toBeUndefined()
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+  })
+
+  it('writes a key at most once per staleness window in this process', () => {
+    updateApiKeyLastUsed('key-hot')
+    updateApiKeyLastUsed('key-hot')
+
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs database errors instead of failing the request', async () => {
     dbChainMockFns.update.mockImplementationOnce(() => {
       throw new Error('connection lost')
     })
 
-    await expect(updateApiKeyLastUsed('key-1')).resolves.toBeUndefined()
-    expect(serviceLogger.error).toHaveBeenCalled()
+    expect(() => updateApiKeyLastUsed('key-failing')).not.toThrow()
+    await vi.waitFor(() => expect(serviceLogger.error).toHaveBeenCalled())
   })
 })

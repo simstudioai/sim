@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { apiKey as apiKeyTable, user as userTable } from '@sim/db/schema'
 import { createLogger, setRequestAuth } from '@sim/logger'
 import { and, eq, isNull, lt, or } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBillingSettings, type WorkspaceBillingSettings } from '@/lib/workspaces/utils'
@@ -137,16 +138,34 @@ export async function authenticateApiKeyFromHeader(
 const LAST_USED_STALENESS_WINDOW_MS = 10 * 60 * 1000
 
 /**
- * Update the last used timestamp for an API key.
+ * Keys this process has written `lastUsed` for within the staleness window. The
+ * TTL is the debounce: a still-fresh entry means the stored value is recent, so
+ * concurrent requests on one key never queue behind each other's row lock.
+ */
+const recentLastUsedWrites = new LRUCache<string, true>({
+  max: 10_000,
+  ttl: LAST_USED_STALENESS_WINDOW_MS,
+})
+
+/**
+ * Record that an API key was used, without delaying the request.
  *
- * `lastUsed` is display-only, so the write uses a staleness window: it only
- * fires when the stored value is older than
+ * `lastUsed` is display-only, so the write is fire-and-forget: a commit that
+ * waits on the database (for example on synchronous replication) must never
+ * hold up an authenticated request. It is debounced per process and, across
+ * processes, only fires when the stored value is older than
  * {@link LAST_USED_STALENESS_WINDOW_MS}. High-traffic keys otherwise rewrite
  * the same row on every request, serializing concurrent requests behind row
  * locks. The 10-minute window matches GitLab's personal-access-token
  * last-used tracking.
  */
-export async function updateApiKeyLastUsed(keyId: string): Promise<void> {
+export function updateApiKeyLastUsed(keyId: string): void {
+  if (recentLastUsedWrites.has(keyId)) return
+  recentLastUsedWrites.set(keyId, true)
+  void writeLastUsed(keyId)
+}
+
+async function writeLastUsed(keyId: string): Promise<void> {
   try {
     const staleBefore = new Date(Date.now() - LAST_USED_STALENESS_WINDOW_MS)
     await db

@@ -120,7 +120,7 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
     .limit(1)
   const row = requireValidRow(candidate)
 
-  await updateApiKeyLastUsed(row.id)
+  updateApiKeyLastUsed(row.id)
   logger.debug('Authenticated v2 API key', { keyId: row.id, keyType: row.type })
 
   if (row.type === 'personal') {
