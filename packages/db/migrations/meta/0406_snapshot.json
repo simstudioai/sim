@@ -17488,6 +17488,41 @@
       },
       "isRLSEnabled": false
     },
+    "public.project_membership_rollout": {
+      "name": "project_membership_rollout",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "phase": {
+          "name": "phase",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'connector'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_membership_rollout_singleton": {
+          "name": "project_membership_rollout_singleton",
+          "value": "\"project_membership_rollout\".\"id\" = 'membership'"
+        },
+        "project_membership_rollout_phase": {
+          "name": "project_membership_rollout_phase",
+          "value": "\"project_membership_rollout\".\"phase\" IN ('connector', 'column')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.public_share": {
       "name": "public_share",
       "schema": "",

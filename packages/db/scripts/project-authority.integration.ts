@@ -33,11 +33,6 @@ async function database(run: (sql: Sql, runner: Sql, url: string) => Promise<voi
       'utf8'
     )
     for (const statement of expansion.split('--> statement-breakpoint')) await sql.unsafe(statement)
-    await sql.unsafe(`CREATE TABLE IF NOT EXISTS project_membership_rollout (
-      id text PRIMARY KEY CHECK (id = 'membership'),
-      phase text NOT NULL DEFAULT 'connector' CONSTRAINT project_membership_rollout_phase CHECK (phase IN ('connector', 'column'))
-    )`)
-    await sql`INSERT INTO project_membership_rollout (id, phase) VALUES ('membership', 'connector') ON CONFLICT DO NOTHING`
     await sql`INSERT INTO project (id,name,owner_id) VALUES ('retained','Retained','owner')`
     await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('env','Environment','owner')`
     await sql`INSERT INTO project_workspace (project_id,workspace_id) VALUES ('retained','env')`

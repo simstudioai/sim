@@ -112,11 +112,6 @@ describeWithRedis('Operator archive repair against the full compatible schema', 
         timeout: 120000,
       }
     )
-    await client.unsafe(`CREATE TABLE IF NOT EXISTS project_membership_rollout (
-      id text PRIMARY KEY CHECK (id = 'membership'),
-      phase text NOT NULL DEFAULT 'connector' CONSTRAINT project_membership_rollout_phase CHECK (phase IN ('connector', 'column'))
-    )`)
-    await client`INSERT INTO project_membership_rollout (id, phase) VALUES ('membership', 'connector') ON CONFLICT DO NOTHING`
     await client`SELECT pg_advisory_lock(hashtextextended('sim:project-backfill-operator', 0))`
     try {
       await switchProjectMembershipAuthority(client)

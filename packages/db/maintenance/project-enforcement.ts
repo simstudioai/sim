@@ -6,7 +6,12 @@ import type { Sql } from 'postgres'
 export async function enforceProjectMembership(sql: Sql): Promise<void> {
   const source = await readFile(new URL('./project-membership.sql', import.meta.url), 'utf8')
   const connection = await sql.reserve()
+  let previousSearchPath: string | undefined
   try {
+    const [settings] = await connection<{ search_path: string }[]>`SHOW search_path`
+    previousSearchPath = settings.search_path
+    /** The SQL spans committed phases, so pin this reserved session until all phases finish. */
+    await connection`SELECT set_config('search_path', 'public, pg_temp', false)`
     for (const statement of source.split('--> statement-breakpoint')) {
       if (statement.trim()) await connection.unsafe(statement)
     }
@@ -19,6 +24,12 @@ export async function enforceProjectMembership(sql: Sql): Promise<void> {
     await connection
       .unsafe("SELECT pg_advisory_unlock(hashtextextended('sim:project-backfill-operator', 0))")
       .catch(() => undefined)
-    connection.release()
+    try {
+      if (previousSearchPath !== undefined) {
+        await connection`SELECT set_config('search_path', ${previousSearchPath}, false)`
+      }
+    } finally {
+      connection.release()
+    }
   }
 }

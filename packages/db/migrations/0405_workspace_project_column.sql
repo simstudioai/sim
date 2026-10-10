@@ -6,7 +6,27 @@ SELECT set_config(CASE WHEN current_setting('transaction_timeout', true) IS NULL
 SET LOCAL statement_timeout = '5s';
 LOCK TABLE workspace IN ACCESS EXCLUSIVE MODE NOWAIT;
 LOCK TABLE project IN SHARE ROW EXCLUSIVE MODE NOWAIT;
-ALTER TABLE "workspace" ADD COLUMN IF NOT EXISTS "project_id" text;
+CREATE TABLE IF NOT EXISTS "project_membership_rollout" (
+  "id" text PRIMARY KEY,
+  "phase" text DEFAULT 'connector' NOT NULL,
+  CONSTRAINT "project_membership_rollout_singleton" CHECK ("id" = 'membership'),
+  CONSTRAINT "project_membership_rollout_phase" CHECK ("phase" IN ('connector', 'column'))
+);
+DO $$
+DECLARE had_column boolean;
+BEGIN
+  SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'workspace'::regclass
+    AND attname = 'project_id' AND NOT attisdropped) INTO had_column;
+  ALTER TABLE workspace ADD COLUMN IF NOT EXISTS project_id text;
+  IF NOT EXISTS (SELECT 1 FROM project_membership_rollout WHERE id = 'membership') THEN
+    IF had_column THEN
+      IF EXISTS (SELECT 1 FROM workspace WHERE project_id IS DISTINCT FROM NULL) THEN
+        RAISE EXCEPTION 'Populated Project columns require explicit authority reconciliation before rollout initialization' USING ERRCODE = '55000';
+      END IF;
+    END IF;
+    INSERT INTO project_membership_rollout (id, phase) VALUES ('membership', 'connector');
+  END IF;
+END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint
     WHERE conrelid = 'workspace'::regclass AND conname = 'workspace_project_id_project_id_fk') THEN

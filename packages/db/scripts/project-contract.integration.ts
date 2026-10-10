@@ -11,6 +11,7 @@ import {
   projectBackfillDatabaseId,
   verifyProjectBackfill,
 } from '@sim/db/maintenance/project-backfill'
+import { enforceProjectMembership } from '@sim/db/maintenance/project-enforcement'
 import journal from '@sim/db/migrations/meta/_journal.json'
 import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
@@ -55,12 +56,7 @@ async function database(run: (sql: Sql, url: string) => Promise<void>) {
     )
     await applyMigration(sql, expansion)
     /** These reconciliation fixtures model the already committed column-authority phase. */
-    await sql.unsafe(`CREATE TABLE IF NOT EXISTS project_membership_rollout (
-      id text PRIMARY KEY CHECK (id = 'membership'),
-      phase text NOT NULL DEFAULT 'connector' CONSTRAINT project_membership_rollout_phase CHECK (phase IN ('connector', 'column'))
-    )`)
-    await sql`INSERT INTO project_membership_rollout (id, phase) VALUES ('membership', 'column')
-      ON CONFLICT (id) DO UPDATE SET phase = 'column'`
+    await sql`UPDATE project_membership_rollout SET phase = 'column' WHERE id = 'membership'`
     await run(sql, url.toString())
   } finally {
     await sql.end({ timeout: 2 })
@@ -518,6 +514,60 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       })
     }
   )
+
+  it('enforces public membership across a shadow search path and restores the caller path', async () => {
+    await database(async (sql, url) => {
+      await sql`INSERT INTO project (id,name,owner_id) VALUES ('retained','Retained','owner')`
+      await sql`CREATE SCHEMA shadow`
+      await sql`CREATE TABLE shadow.project (LIKE public.project INCLUDING ALL)`
+      await sql`CREATE TABLE shadow.workspace (LIKE public.workspace INCLUDING ALL)`
+      await sql`CREATE TABLE shadow.workflow (LIKE public.workflow INCLUDING ALL)`
+      await sql`CREATE TABLE shadow.project_workspace (project_id text, workspace_id text)`
+      await sql`INSERT INTO shadow.workspace (id,name,owner_id) VALUES ('shadow','Untouched','owner')`
+      const scoped = postgres(url, {
+        max: 1,
+        connection: { search_path: 'shadow,public' },
+        onnotice: () => {},
+      })
+      try {
+        await expect(enforceProjectMembership(scoped)).rejects.toThrow('nonempty Projects')
+        expect(await scoped`SHOW search_path`).toEqual([{ search_path: 'shadow,public' }])
+        await sql`INSERT INTO workspace (id,name,owner_id,project_id) VALUES ('env','Environment','owner','retained')`
+        await enforceProjectMembership(scoped)
+        expect(await scoped`SHOW search_path`).toEqual([{ search_path: 'shadow,public' }])
+        expect(await sql`SELECT to_regclass('public.project_workspace') AS connector`).toEqual([
+          { connector: null },
+        ])
+        expect(
+          await sql`SELECT attnotnull FROM pg_attribute WHERE attrelid = 'public.workspace'::regclass AND attname = 'project_id'`
+        ).toEqual([{ attnotnull: true }])
+        expect(
+          await sql`SELECT count(*)::int AS count FROM pg_trigger WHERE tgrelid IN ('public.workspace'::regclass,'public.project'::regclass) AND tgname IN ('project_contract_lock','project_contract_check')`
+        ).toEqual([{ count: 4 }])
+        expect(await scoped`SELECT id,project_id FROM workspace`).toEqual([
+          { id: 'shadow', project_id: null },
+        ])
+        expect(
+          await sql`SELECT to_regclass('shadow.project_workspace') IS NOT NULL AS retained`
+        ).toEqual([{ retained: true }])
+        expect(
+          await sql`SELECT attnotnull FROM pg_attribute WHERE attrelid = 'shadow.workspace'::regclass AND attname = 'project_id'`
+        ).toEqual([{ attnotnull: false }])
+        expect(
+          await sql`SELECT count(*)::int AS count FROM pg_trigger WHERE tgrelid IN ('shadow.workspace'::regclass,'shadow.project'::regclass) AND NOT tgisinternal`
+        ).toEqual([{ count: 0 }])
+        await scoped`UPDATE public.workspace SET name = 'Updated' WHERE id = 'env'`
+        await expect(
+          scoped`UPDATE public.workspace SET archived_at = now() WHERE id = 'env'`
+        ).rejects.toMatchObject({ code: '23514' })
+        expect(await sql`SELECT name,archived_at FROM public.workspace`).toEqual([
+          { name: 'Updated', archived_at: null },
+        ])
+      } finally {
+        await scoped.end({ timeout: 2 })
+      }
+    })
+  })
 
   it('requires completed assignments before final enforcement and leaves missing assignments untouched', async () => {
     await database(async (sql) => {

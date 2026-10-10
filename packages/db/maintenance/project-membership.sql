@@ -15,7 +15,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION pg_temp.validate_project_membership() RETURNS void LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION pg_temp.validate_project_membership() RETURNS void LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
   IF EXISTS (
     WITH RECURSIVE reachable(id) AS (
@@ -91,7 +91,7 @@ DO $$ BEGIN
 END $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION project_contract_assert_project(target_id text) RETURNS void
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   record project%ROWTYPE;
   total bigint;
@@ -124,7 +124,7 @@ END;
 $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION project_contract_assert_workspace(target_id text) RETURNS void
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   parent_id text;
   member_project_id text;
@@ -150,7 +150,7 @@ END;
 $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION project_contract_lock_projects(target_ids text[]) RETURNS void
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   target_id text;
 BEGIN
@@ -164,7 +164,7 @@ END;
 $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION project_contract_before_write() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   previous_id text;
   next_id text;
@@ -183,7 +183,7 @@ END;
 $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION project_contract_after_write() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   previous_id text;
   next_id text;

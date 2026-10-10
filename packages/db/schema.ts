@@ -2114,6 +2114,24 @@ export const project = pgTable(
   })
 )
 
+/** Durable authority selection; retained after connector retirement for expansion rollback. */
+export const projectMembershipRollout = pgTable(
+  'project_membership_rollout',
+  {
+    id: text('id').primaryKey(),
+    phase: text('phase', { enum: ['connector', 'column'] })
+      .notNull()
+      .default('connector'),
+  },
+  (table) => ({
+    singleton: check('project_membership_rollout_singleton', sql`${table.id} = 'membership'`),
+    phase: check(
+      'project_membership_rollout_phase',
+      sql`${table.phase} IN ('connector', 'column')`
+    ),
+  })
+)
+
 export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_type', [
   'workflow',
   'oauth_credential',

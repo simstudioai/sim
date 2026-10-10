@@ -225,7 +225,7 @@ export const knowledgeBases = pgTable('knowledge_base', {
       }
       await schema(`export const rollout = pgTable('project_membership_rollout', {
   id: text('id').primaryKey(), phase: text('phase').notNull().default('connector'),
-}, (t) => [check('project_membership_rollout_id_check', sql\`\${t.id} = 'membership'\`), check('project_membership_rollout_phase_check', sql\`\${t.phase} IN ('connector', 'column')\`)])
+}, (t) => [check('project_membership_rollout_singleton', sql\`\${t.id} = 'membership'\`), check('project_membership_rollout_phase', sql\`\${t.phase} IN ('connector', 'column')\`)])
 export const projects = pgTable('project', { id: text('id').primaryKey() })
 export const workspaces = pgTable('workspace', { id: text('id').primaryKey(), projectId: text('project_id').notNull() })`)
       const result = runPush(['--force'])
@@ -261,7 +261,7 @@ export const workspaces = pgTable('workspace', { id: text('id').primaryKey(), pr
     }
     await schema(`export const rollout = pgTable('project_membership_rollout', {
   id: text('id').primaryKey(), phase: text('phase').notNull().default('connector'),
-}, (t) => [check('project_membership_rollout_id_check', sql\`\${t.id} = 'membership'\`), check('project_membership_rollout_phase_check', sql\`\${t.phase} IN ('connector', 'column')\`)])
+}, (t) => [check('project_membership_rollout_singleton', sql\`\${t.id} = 'membership'\`), check('project_membership_rollout_phase', sql\`\${t.phase} IN ('connector', 'column')\`)])
 export const projects = pgTable('project', {
   id: text('id').primaryKey(), name: text('name').notNull(), ownerId: text('owner_id').notNull(),
   organizationId: text('organization_id'), archivedAt: timestamp('archived_at'), updatedAt: timestamp('updated_at').notNull().defaultNow(),
