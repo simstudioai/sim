@@ -114,7 +114,7 @@ export const CONTAINER_DIMENSIONS = {
 
 /**
  * Handle position constants - must match CSS in workflow-block/block-view.tsx,
- * sub-block-row-view.tsx, and subflow-node.tsx
+ * workflow-block/sub-block-row-view.tsx, and subflow/node-view.tsx
  */
 export const HANDLE_POSITIONS = {
   /** Error knob center inset from the card's right edge. */
