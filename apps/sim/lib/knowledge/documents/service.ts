@@ -2546,7 +2546,15 @@ export async function createDocumentRecords(
   const { returnData, storageNotification, unrecordedCount } = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
 
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+    /**
+     * `FOR NO KEY UPDATE` still serializes this insert with other document writes,
+     * KB moves, and archive, but not with the `FOR KEY SHARE` that each embedding
+     * insert takes through its foreign key, so uploads never queue behind a
+     * long-running indexing transaction in the same knowledge base.
+     */
+    await tx.execute(
+      sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR NO KEY UPDATE`
+    )
 
     const kb = await tx
       .select({
@@ -3229,7 +3237,9 @@ export async function createSingleDocument(
       await claimKnowledgeUploadForAttachment(tx, options.uploadedArtifact.cleanupEventId)
     }
 
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+    await tx.execute(
+      sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR NO KEY UPDATE`
+    )
 
     const kb = await tx
       .select({
@@ -4332,6 +4342,9 @@ async function hardDeleteDocumentBatch(
      * Lock every parent KB in stable ID order before deleting document rows.
      * Normal inserts and KB moves take the same parent lock first, so the
      * workspace snapshots used for accounting cannot change mid-delete.
+     * `no key update` lets embedding inserts keep taking their foreign-key
+     * `KEY SHARE` lock, so a delete neither waits on indexing elsewhere in the
+     * KB nor deadlocks against an indexing pass on one of its own documents.
      */
     const knowledgeBaseIds = [
       ...new Set(documentsToDelete.map((doc) => doc.knowledgeBaseId)),
@@ -4351,7 +4364,7 @@ async function hardDeleteDocumentBatch(
         )
       )
       .orderBy(asc(knowledgeBase.id))
-      .for('update')
+      .for('no key update')
     const lockedKnowledgeBaseById = new Map(lockedKnowledgeBases.map((kb) => [kb.id, kb]))
     for (const doc of documentsToDelete) {
       const lockedKb = lockedKnowledgeBaseById.get(doc.knowledgeBaseId)
