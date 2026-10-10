@@ -65,6 +65,7 @@ function folderRow(overrides: Record<string, unknown> = {}) {
   return {
     id: SOURCE_FOLDER_ID,
     resourceType: 'workflow',
+    projectId: null,
     name: 'Source',
     userId: TEST_USER.id,
     workspaceId: WORKSPACE_ID,

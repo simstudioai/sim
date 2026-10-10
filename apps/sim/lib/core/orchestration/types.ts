@@ -1,3 +1,5 @@
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+
 export type OrchestrationErrorCode =
   | 'validation'
   /**
@@ -104,6 +106,8 @@ export function asOrchestrationError(error: unknown): OrchestrationError | null 
   let current: unknown = error
   while (current instanceof Error) {
     if (current instanceof OrchestrationError) return current
+    if (isPayloadSizeLimitError(current))
+      return new OrchestrationError('payload_too_large', current.message)
     current = current.cause
   }
   return null

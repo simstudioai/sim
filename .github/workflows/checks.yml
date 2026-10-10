@@ -10,7 +10,7 @@ permissions:
 jobs:
   integration:
     # Runs the real-infrastructure test layer: every `*.integration.ts` in packages/db and
-    # apps/sim, discovered by glob (`vitest run --mode integration`), against the database each
+    # apps/sim and apps/realtime, discovered by glob (`vitest run --mode integration`), against the database each
     # provisioning path produces. A new integration suite needs no workflow change.
     #
     # The two paths build different schemas (migrations add triggers, checks and NOT VALID
@@ -112,6 +112,11 @@ jobs:
           TZ: America/Los_Angeles
         run: bun run test --mode integration --shard=${{ matrix.shard }}/4
 
+      - name: Run apps/realtime integration tests
+        if: matrix.shard == 1
+        working-directory: apps/realtime
+        run: bun run test --mode integration
+
       - name: Verify cumulative billing timeout recovery on PostgreSQL 16
         if: matrix.provision == 'push' && matrix.shard == 1
         working-directory: apps/sim
@@ -129,6 +134,7 @@ jobs:
           path: |
             packages/db/test-results/*.json
             apps/sim/test-results/*.json
+            apps/realtime/test-results/*.json
           if-no-files-found: warn
           retention-days: 14
 
@@ -431,6 +437,9 @@ jobs:
   # kept off the test shards so neither waits on the other.
   lint:
     name: lint
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: *runner-4vcpu
     timeout-minutes: 15
 
@@ -520,19 +529,14 @@ jobs:
       # It is fetched by SHA at depth 1; the audits diff two tips and need no
       # common ancestry. An all-zero `before` means the branch is new and has no
       # predecessor to diff, so `HEAD~1` remains the fallback there.
+      # Manual runs pin the actual base SHA of the dispatched branch's unique open PR.
+      # A merge commit's first parent does not identify a stacked PR's review base.
       - name: Resolve base ref for diff-based audits
         id: audit_base
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git fetch --depth=1 origin "${{ github.base_ref }}"
-            echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ github.event.before }}" ] &&
-               [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-            git fetch --depth=1 origin "${{ github.event.before }}"
-            echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "ref=HEAD~1" >> "$GITHUB_OUTPUT"
-          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_BEFORE: ${{ github.event.before }}
+        run: bash .github/scripts/resolve-audit-base.sh
 
       - name: Check block registry invariants
         run: bun run apps/sim/scripts/check-block-registry.ts "${{ steps.audit_base.outputs.ref }}"

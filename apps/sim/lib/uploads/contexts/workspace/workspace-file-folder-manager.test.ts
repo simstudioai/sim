@@ -1,10 +1,13 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { projectMembershipMock } from '@sim/testing/mocks/project-membership.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAcquireFolderMutationLock, mockDeduplicateFolderName } = vi.hoisted(() => ({
   mockAcquireFolderMutationLock: vi.fn(),
   mockDeduplicateFolderName: vi.fn(),
 }))
+
+vi.mock('@/lib/projects/membership', () => projectMembershipMock)
 
 vi.mock('@/lib/folders/locks', () => ({
   acquireFolderMutationLock: mockAcquireFolderMutationLock,
@@ -97,6 +100,7 @@ describe('listWorkspaceFileFolders', () => {
   const activeParent = {
     id: 'parent-1',
     resourceType: 'file',
+    projectId: null,
     workspaceId: 'workspace-1',
     userId: 'user-1',
     name: 'Engineering',
@@ -183,6 +187,7 @@ describe('relocateWorkspaceFileFolderByPath', () => {
   const source = {
     id: 'folder-source',
     resourceType: 'file',
+    projectId: null,
     workspaceId: 'workspace-1',
     userId: 'user-1',
     name: 'xp-files',

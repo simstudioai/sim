@@ -26,7 +26,7 @@ vi.mock('@/lib/core/security/deployment-auth', () => ({
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/uploads/documents/compile', () => ({
   resolveServableDoc: mockResolveServableDoc,
 }))
 

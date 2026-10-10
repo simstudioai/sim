@@ -11,6 +11,7 @@ import { buildUpgradeHref, type UpgradeReason } from '@/lib/billing/upgrade-reas
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getEmailPreferences } from '@/lib/messaging/email/unsubscribe'
+import { organizationRoutes } from '@/lib/navigation/paths'
 
 const logger = createLogger('LimitNotifications')
 
@@ -246,7 +247,7 @@ export async function resolveLimitEmailRecipients(
 export async function maybeSendLimitThresholdEmail(params: {
   category: LimitCategory
   scope: 'user' | 'organization'
-  workspaceId: string
+  workspaceId?: string
   currentUsage: number
   limit: number
   /** Pre-formatted current usage for the email body, e.g. "4.2 GB", "9 seats". */
@@ -288,7 +289,12 @@ export async function maybeSendLimitThresholdEmail(params: {
 
     const kind = desired === REACH_THRESHOLD ? 'reached' : 'warning'
     const percentUsed = Math.min(100, Math.round(percent))
-    const upgradeLink = `${getBaseUrl()}${buildUpgradeHref(params.workspaceId, category)}`
+    const billingPath = params.workspaceId
+      ? buildUpgradeHref(params.workspaceId, category)
+      : scope === 'organization' && params.organizationId
+        ? organizationRoutes(params.organizationId).settingsSection('billing')
+        : '/account/settings/billing'
+    const upgradeLink = `${getBaseUrl()}${billingPath}`
 
     const [{ getLimitEmailSubject, renderLimitThresholdEmail }, { sendEmail }] = await Promise.all([
       import('@/components/emails'),
@@ -348,12 +354,12 @@ export async function maybeSendLimitThresholdEmail(params: {
  *   (the uploader for storage; the workspace's billed account for tables).
  * @param params.subscription - Pre-resolved subscription (may be `null`) to skip
  *   the `getHighestPrioritySubscription` lookup on hot paths; omit to fetch here.
- * @param params.billingEntity - Exact workspace payer when already resolved.
+ * @param params.billingEntity - Exact resource payer when already resolved.
  */
 export async function maybeNotifyLimit(params: {
   category: LimitCategory
   billedUserId: string
-  workspaceId: string
+  workspaceId?: string
   currentUsage: number
   limit: number
   usageLabel: string

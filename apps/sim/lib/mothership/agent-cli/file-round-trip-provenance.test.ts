@@ -12,6 +12,7 @@ import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/bi
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
+import { projectMembershipMock } from '@sim/testing/mocks/project-membership.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import {
@@ -46,6 +47,7 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: async () => 'fixture' }))
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/projects/membership', () => projectMembershipMock)
 vi.mock('@/lib/billing/storage', () => billingStorageMock)
 vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
@@ -137,6 +139,9 @@ const SOURCE = {
   key: `workspace/${WORKSPACE}/123-abc-source.txt`,
   userId: 'reader',
   workspaceId: WORKSPACE,
+  entityType: 'workspace',
+  entityId: WORKSPACE,
+  organizationId: null,
   folderId: null,
   context: 'workspace',
   chatId: null,
@@ -179,6 +184,7 @@ function queueRead(file: typeof SOURCE, provenance: WorkspaceFileSecretProvenanc
     {
       workspaceId: WORKSPACE,
       fileId: file.id,
+      ownership: file,
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'owner',

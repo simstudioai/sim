@@ -33,29 +33,27 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => (
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: mockReadWorkspaceFileMetadata },
 }))
-vi.mock('./doc-compiled-store', () => ({
+vi.mock('@/lib/uploads/documents/compiled-store', () => ({
+  compiledArtifactKey: vi.fn(() => 'compiled-artifact-key'),
   loadCompiledDoc: mockLoadCompiledDoc,
   loadPublishedCompiledDoc: mockLoadPublishedCompiledDoc,
   publishCompiledDocArtifact: mockPublishCompiledDocArtifact,
   storeCompiledDoc: mockStoreCompiledDoc,
 }))
-vi.mock('@/app/api/files/utils', () => ({
-  getContentType: (name: string) =>
-    name.endsWith('.pdf')
-      ? 'application/pdf'
-      : name.endsWith('.txt')
-        ? 'text/plain'
-        : 'application/octet-stream',
-}))
 
-import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
-import { compileDoc, resolveServableDoc, resolveServableDocBytes } from './doc-compile'
+import {
+  compileDoc,
+  resolveServableDoc,
+  resolveServableDocBytes,
+} from '@/lib/uploads/documents/compile'
+import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 
 const { mockExecuteInSandbox } = remoteSandboxMockFns
 
 const WORKSPACE_ID = '550e8400-e29b-41d4-a716-446655440000'
 const FILE_PRINCIPAL = { kind: 'session', userId: 'user-1' } as const
 const PDF_MAGIC = Buffer.from('%PDF-1.7\n...binary...')
+const LEGACY_PDF_SOURCE = Buffer.from('pdf.addPage();', 'utf-8')
 const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas\n# generates a PDF', 'utf-8')
 const XLSX_SOURCE = Buffer.from('from openpyxl import Workbook\n# generates an xlsx', 'utf-8')
 
@@ -73,6 +71,40 @@ describe('resolveServableDocBytes', () => {
     setEnvFlags({ isDocSandboxEnabled: true })
     mockLoadPublishedCompiledDoc.mockResolvedValue(null)
   })
+
+  it.each(['authenticated', 'public', 'compile'] as const)(
+    'serves a retained JavaScript PDF through %s resolution using its source MIME',
+    async (surface) => {
+      const source = "const note = `It's fine`;\n// getFileBase64('example-only')\npdf.addPage();"
+      const artifact = Buffer.from('%PDF-retained-javascript')
+      mockLoadCompiledDoc.mockResolvedValue(artifact)
+
+      const resolved =
+        surface === 'public'
+          ? await resolveServableDoc(WORKSPACE_ID, Buffer.from(source), 'retained.pdf', {
+              sourceMime: 'text/x-pdflibjs',
+            })
+          : surface === 'compile'
+            ? await compileDoc({
+                source,
+                fileName: 'retained.pdf',
+                workspaceId: WORKSPACE_ID,
+                filePrincipal: FILE_PRINCIPAL,
+                sourceMime: 'text/x-pdflibjs',
+              })
+            : await resolveServableDocBytes({
+                rawBuffer: Buffer.from(source),
+                fileName: 'retained.pdf',
+                workspaceId: WORKSPACE_ID,
+                filePrincipal: FILE_PRINCIPAL,
+                sourceMime: 'text/x-pdflibjs',
+              })
+
+      expect(resolved).toMatchObject({ buffer: artifact, contentType: 'application/pdf' })
+      if ('dependsOnReferencedFiles' in resolved)
+        expect(resolved.dependsOnReferencedFiles).toBe(false)
+    }
+  )
 
   it('swaps generated-doc source for the compiled artifact + binary content type', async () => {
     const artifact = Buffer.from('%PDF-compiled-binary')
@@ -158,7 +190,7 @@ describe('resolveServableDocBytes', () => {
       filePrincipal: FILE_PRINCIPAL,
     })
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       buffer: Buffer.from('%PDF-rebuilt'),
       contentType: 'application/pdf',
       dependsOnReferencedFiles: true,
@@ -346,7 +378,7 @@ describe('resolveServableDocBytes', () => {
     mockRunSandboxTask.mockResolvedValue(compiled)
 
     const result = await resolveServableDocBytes({
-      rawBuffer: PDF_SOURCE,
+      rawBuffer: LEGACY_PDF_SOURCE,
       fileName: 'report.pdf',
       workspaceId: WORKSPACE_ID,
     })
@@ -355,7 +387,7 @@ describe('resolveServableDocBytes', () => {
     expect(result.contentType).toBe('application/pdf')
     expect(mockRunSandboxTask).toHaveBeenCalledWith(
       'pdf-generate',
-      { code: PDF_SOURCE.toString('utf-8'), workspaceId: WORKSPACE_ID },
+      { code: LEGACY_PDF_SOURCE.toString('utf-8'), workspaceId: WORKSPACE_ID },
       expect.objectContaining({})
     )
   })
@@ -368,7 +400,7 @@ describe('resolveServableDocBytes', () => {
 
     await expect(
       resolveServableDocBytes({
-        rawBuffer: PDF_SOURCE,
+        rawBuffer: LEGACY_PDF_SOURCE,
         fileName: 'report.pdf',
         workspaceId: WORKSPACE_ID,
       })

@@ -10,6 +10,9 @@ import { knowledgeProjectionAsyncMigration } from '@sim/db/script-migrations/002
 import { userTableSchemaForWriteMigration } from '@sim/db/script-migrations/0026_user_table_schema_for_write'
 import { retireKeywordWritersMigration } from '@sim/db/script-migrations/0030_retire_keyword_writers'
 import { projectMembershipMigration } from '@sim/db/script-migrations/0031_project_membership'
+import { validateFileOwnershipMigration } from '@sim/db/script-migrations/0031_validate_file_ownership'
+import { backfillPublicShareEntitiesMigration } from '@sim/db/script-migrations/0033_backfill_public_share_entities'
+import { validateFileWorkspaceBindingMigration } from '@sim/db/script-migrations/0034_validate_file_workspace_binding'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -61,6 +64,9 @@ export const scriptMigrations: readonly ScriptMigration[] = [
    * Search data retirement is an operator-run maintenance command, not a deploy step:
    * run `packages/db/scripts/retire-indexed-search.ts --help` for usage.
    */
+  validateFileOwnershipMigration,
+  backfillPublicShareEntitiesMigration,
+  validateFileWorkspaceBindingMigration,
 ]
 
 /**
@@ -72,11 +78,8 @@ export const scriptMigrations: readonly ScriptMigration[] = [
  *
  * Fails fast: a missing required env var or a throwing `up` aborts the run
  * before the name is recorded, so the migration retries on the next upgrade.
- * A deferred `up` is not recorded either, but lets the later migrations run.
  *
- * `migrations` defaults to the registry and exists so a test can apply a
- * synthetic list: a deferral followed by a later migration is otherwise
- * uncoverable while the only deferring migration is the last registered entry.
+ * `migrations` defaults to the registry; callers may supply a scoped list.
  */
 export async function runScriptMigrations(
   sql: Sql,

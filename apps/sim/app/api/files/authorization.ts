@@ -59,7 +59,7 @@ function workspacePermissionSatisfies(
 async function lookupWorkspaceFileByKey(
   key: string,
   options?: { includeDeleted?: boolean }
-): Promise<{ workspaceId: string; uploadedBy: string } | null> {
+): Promise<{ workspaceId: string } | null> {
   try {
     const { includeDeleted = false } = options ?? {}
     // Priority 1: Check new workspaceFiles table
@@ -69,7 +69,6 @@ async function lookupWorkspaceFileByKey(
     if (fileRecord) {
       return {
         workspaceId: fileRecord.workspaceId || '',
-        uploadedBy: fileRecord.userId,
       }
     }
 
@@ -78,7 +77,6 @@ async function lookupWorkspaceFileByKey(
       const [legacyFile] = await db
         .select({
           workspaceId: workspaceFile.workspaceId,
-          uploadedBy: workspaceFile.uploadedBy,
         })
         .from(workspaceFile)
         .where(
@@ -91,7 +89,6 @@ async function lookupWorkspaceFileByKey(
       if (legacyFile) {
         return {
           workspaceId: legacyFile.workspaceId,
-          uploadedBy: legacyFile.uploadedBy,
         }
       }
     } catch (legacyError) {
@@ -122,9 +119,22 @@ export async function verifyFileAccess(
   options?: { requireWrite?: boolean; knowledgeAccess?: KnowledgeFileAccess }
 ): Promise<boolean> {
   /** Organization images require the Principal-aware Assistant application resolver. */
-  if (cloudKey.startsWith('assistant/') || cloudKey.startsWith('chat-images/')) return false
+  if (
+    cloudKey.startsWith('assistant/') ||
+    cloudKey.startsWith('chat-images/') ||
+    cloudKey.startsWith('project/') ||
+    context === 'project'
+  )
+    return false
   const requireWrite = options?.requireWrite ?? false
   try {
+    const canonical = await getFileMetadataByKey(cloudKey, undefined, { includeDeleted: true })
+    if (canonical?.projectId != null || canonical?.context === 'project') return false
+    if (canonical && isWorkspaceScopedContext(canonical.context)) {
+      if (canonical.deletedAt || !canonical.workspaceId) return false
+      const permission = await getUserEntityPermissions(userId, 'workspace', canonical.workspaceId)
+      return workspacePermissionSatisfies(permission, requireWrite)
+    }
     const keyContext = inferContextFromKey(cloudKey)
     /** Organization logos are changed only through the organization-authorized upload lifecycle. */
     if (keyContext === 'organization-logos') return !requireWrite

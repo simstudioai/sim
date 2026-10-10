@@ -2,7 +2,7 @@ import { MAX_SANDBOX_IMAGE_DATA_URI_CHARS } from '@/lib/execution/isolated-vm-li
 import { workspaceFileBroker } from '@/lib/execution/sandbox/brokers/workspace-file'
 import { defineSandboxTask } from '@/lib/execution/sandbox/define-task'
 import type { SandboxTaskInput } from '@/lib/execution/sandbox/types'
-import { PPTX_SHIM_JS } from '@/lib/mothership/tools/server/files/pptx-shim'
+import { PPTX_SHIM_JS } from '@/lib/uploads/documents/pptx-shim'
 
 export const pptxGenerateTask = defineSandboxTask<SandboxTaskInput>({
   id: 'pptx-generate',

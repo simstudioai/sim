@@ -1,10 +1,11 @@
 import { dbFor } from '@sim/db'
-import { workspaceFileSearchRevision, workspaceFiles } from '@sim/db/schema'
+import { fileSearchDependency, workspaceFileSearchRevision, workspaceFiles } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, or, type SQL, type SQLWrapper, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { fileSearchAdmission } from '@/lib/workspace-files/search/admission'
 import {
   probeFileSearchCandidates,
@@ -28,6 +29,12 @@ import {
   FileSearchPatternError,
 } from '@/lib/workspace-files/search/pattern'
 import {
+  currentFileSearchDependencies,
+  resolveFileSearchOwner,
+  searchableFileCondition,
+} from '@/lib/workspace-files/search/scope'
+import type { FileSearchDependencyIdentity } from '@/lib/workspace-files/search/source'
+import {
   buildLiteralMatchStart,
   buildMatchExpression,
 } from '@/lib/workspace-files/search/sql-pattern'
@@ -44,7 +51,9 @@ export interface WorkspaceFileSearchIndexStatus {
 
 export interface WorkspaceFileSearchSource {
   identity: WorkspaceFileSecretProvenanceIdentity
-  ownerUserId: string
+  ownerUserId?: string
+  buildId: string
+  dependencies: (FileSearchDependencyIdentity & { ownerUserId?: string })[]
 }
 
 export interface WorkspaceFileSearchResult {
@@ -60,8 +69,17 @@ export interface WorkspaceFileSearchResult {
   sources: WorkspaceFileSearchSource[]
 }
 
-interface SearchWorkspaceFileIndexInput {
-  workspaceId: string
+interface FileSearchSource extends Omit<WorkspaceFileSearchSource, 'identity'> {
+  owner: EditableFileOwner
+  identity: { fileId: string; key: string; contentUpdatedAt: Date }
+}
+
+export interface FileSearchResult extends Omit<WorkspaceFileSearchResult, 'sources'> {
+  sources: FileSearchSource[]
+}
+
+interface SearchFileIndexInput {
+  owner: EditableFileOwner
   pattern: CompiledFileSearchPattern
   maxResults: number
   /** Restricts the search to one folder scope. Absent searches the workspace. */
@@ -204,13 +222,14 @@ async function readCandidateLines(
   return lines.map((line) => ({ ...candidates[line.candidate], ...line }))
 }
 
-export async function searchWorkspaceFileIndex({
-  workspaceId,
+export async function searchFileIndex({
+  owner,
   pattern,
   maxResults,
   folderScope,
   signal,
-}: SearchWorkspaceFileIndexInput): Promise<WorkspaceFileSearchResult> {
+}: SearchFileIndexInput): Promise<FileSearchResult> {
+  owner = resolveFileSearchOwner({ owner })
   signal?.throwIfAborted()
   if (!Number.isInteger(maxResults) || maxResults < 1 || maxResults > FILE_SEARCH_MAX_RESULTS) {
     throw new FileSearchPatternError(
@@ -228,12 +247,12 @@ export async function searchWorkspaceFileIndex({
   const folderPredicate = folderScope ? buildFolderPredicate(folderScope) : undefined
 
   return fileSearchAdmission.run(
-    workspaceId,
+    `${owner.entityType}:${owner.entityId}`,
     async (signal, deadlineAt) => {
       try {
         signal.throwIfAborted()
         /** Metadata pages and line reads share one deadline and a consistent revision snapshot. */
-        const { rows, coverageRows } = await dbFor('search').transaction(
+        const { rows, coverageRows, dependencies } = await dbFor('search').transaction(
           async (tx) => {
             signal?.throwIfAborted()
             const deadline = Math.min(deadlineAt, Date.now() + FILE_SEARCH_STATEMENT_TIMEOUT_MS)
@@ -247,7 +266,7 @@ export async function searchWorkspaceFileIndex({
 
             /** Transaction-owned slots release on completion, cancellation, or connection loss. */
             for (const [scope, capacity] of [
-              [`workspace:${workspaceId}`, FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY],
+              [`${owner.entityType}:${owner.entityId}`, FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY],
               ['global', FILE_SEARCH_QUERY_GLOBAL_CONCURRENCY],
             ] as const) {
               const slots =
@@ -273,7 +292,7 @@ export async function searchWorkspaceFileIndex({
             await guardRemainingTime()
             /** Probe without a global sort. Rare queries finish here; broad queries scan files in order. */
             const probed = await probeFileSearchCandidates(tx, {
-              workspaceId,
+              owner,
               pattern,
               folderPredicate,
             })
@@ -286,7 +305,7 @@ export async function searchWorkspaceFileIndex({
               if (broad) {
                 candidates = await readOrderedFileSearchCandidates(
                   tx,
-                  { workspaceId, pattern, folderPredicate },
+                  { owner, pattern, folderPredicate },
                   after
                 )
               }
@@ -329,8 +348,8 @@ export async function searchWorkspaceFileIndex({
             signal?.throwIfAborted()
             const coverage = await tx
               .select({
-                readyFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'ready' AND ${workspaceFileSearchRevision.buildId} IS NOT NULL)::int`,
-                pendingFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} is null or ${workspaceFileSearchRevision.status} = 'pending' or (${workspaceFileSearchRevision.status} = 'ready' AND ${workspaceFileSearchRevision.buildId} IS NULL))::int`,
+                readyFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'ready' AND ${workspaceFileSearchRevision.buildId} IS NOT NULL AND ${currentFileSearchDependencies(workspaceFileSearchRevision.buildId, owner)})::int`,
+                pendingFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} is null or ${workspaceFileSearchRevision.status} = 'pending' or (${workspaceFileSearchRevision.status} = 'ready' AND (${workspaceFileSearchRevision.buildId} IS NULL OR NOT (${currentFileSearchDependencies(workspaceFileSearchRevision.buildId, owner)}))))::int`,
                 failedFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'failed')::int`,
                 skippedFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'skipped')::int`,
                 partialFiles: sql<number>`0::int`,
@@ -348,14 +367,36 @@ export async function searchWorkspaceFileIndex({
               )
               .where(
                 and(
-                  eq(workspaceFiles.workspaceId, workspaceId),
-                  eq(workspaceFiles.context, 'workspace'),
+                  searchableFileCondition(owner),
                   isNull(workspaceFiles.deletedAt),
                   folderPredicate
                 )
               )
 
-            return { rows: matchedRows, coverageRows: coverage }
+            const buildIds = [
+              ...new Set(matchedRows.slice(0, maxResults).map((row) => row.buildId)),
+            ]
+            const dependencies =
+              buildIds.length === 0
+                ? []
+                : await tx
+                    .select({
+                      buildId: fileSearchDependency.buildId,
+                      fileId: fileSearchDependency.fileId,
+                      key: fileSearchDependency.key,
+                      sourceContentUpdatedAt: fileSearchDependency.sourceContentUpdatedAt,
+                      ownerUserId: workspaceFiles.userId,
+                    })
+                    .from(fileSearchDependency)
+                    .innerJoin(
+                      workspaceFiles,
+                      and(
+                        eq(workspaceFiles.id, fileSearchDependency.fileId),
+                        searchableFileCondition(owner)
+                      )
+                    )
+                    .where(inArray(fileSearchDependency.buildId, buildIds))
+            return { rows: matchedRows, coverageRows: coverage, dependencies }
           },
           { isolationLevel: 'repeatable read', accessMode: 'read only' }
         )
@@ -369,16 +410,23 @@ export async function searchWorkspaceFileIndex({
           skippedFiles: 0,
           partialFiles: 0,
         }
-        const sourcesByFileId = new Map<string, WorkspaceFileSearchSource>()
+        const sourcesByFileId = new Map<string, FileSearchSource>()
         for (const row of resultRows) {
           sourcesByFileId.set(row.fileId, {
+            owner,
             identity: {
               fileId: row.fileId,
               key: row.fileKey,
-              context: 'workspace',
               contentUpdatedAt: row.contentUpdatedAt,
             },
-            ownerUserId: row.ownerUserId,
+            ...(row.ownerUserId ? { ownerUserId: row.ownerUserId } : {}),
+            buildId: row.buildId,
+            dependencies: dependencies
+              .filter((entry) => entry.buildId === row.buildId)
+              .map(({ buildId: _buildId, ownerUserId, ...entry }) => ({
+                ...entry,
+                ...(ownerUserId ? { ownerUserId } : {}),
+              })),
           })
         }
 
@@ -412,4 +460,44 @@ export async function searchWorkspaceFileIndex({
     },
     signal
   )
+}
+
+/** Existing workspace callers retain their scope and result while sharing the owner-aware index. */
+export async function searchWorkspaceFileIndex(
+  input: Omit<SearchFileIndexInput, 'owner'> & { workspaceId: string }
+): Promise<WorkspaceFileSearchResult> {
+  const { workspaceId, ...query } = input
+  const result = await searchFileIndex({
+    ...query,
+    owner: { entityType: 'workspace', entityId: workspaceId },
+  })
+  return toWorkspaceFileSearchResult(result)
+}
+
+/** Preserves the legacy private classification list, including every contributing input. */
+export function toWorkspaceFileSearchResult(result: FileSearchResult): WorkspaceFileSearchResult {
+  const sources = new Map<string, WorkspaceFileSearchSource>()
+  for (const source of result.sources) {
+    if (source.owner.entityType !== 'workspace')
+      throw new Error('Workspace search result has a different owner')
+    sources.set(source.identity.fileId, {
+      ...source,
+      identity: { ...source.identity, context: 'workspace' },
+    })
+    for (const dependency of source.dependencies) {
+      if (sources.has(dependency.fileId)) continue
+      sources.set(dependency.fileId, {
+        identity: {
+          fileId: dependency.fileId,
+          key: dependency.key,
+          contentUpdatedAt: dependency.sourceContentUpdatedAt,
+          context: 'workspace',
+        },
+        ...(dependency.ownerUserId ? { ownerUserId: dependency.ownerUserId } : {}),
+        buildId: source.buildId,
+        dependencies: [],
+      })
+    }
+  }
+  return { ...result, sources: [...sources.values()] }
 }

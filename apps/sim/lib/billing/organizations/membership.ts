@@ -10,7 +10,6 @@ import {
   account,
   credential,
   invitation,
-  knowledgeBase,
   member,
   organization,
   permissionGroupMember,
@@ -19,7 +18,6 @@ import {
   user,
   userStats,
   workspace,
-  workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -39,6 +37,7 @@ import {
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import { MEMBER_BILLING_RECONCILIATION_EVENT_TYPE } from '@/lib/billing/organizations/membership-reconciliation-event'
+import { reassignOrganizationSharedResourcesTx } from '@/lib/billing/organizations/resource-handoff'
 import { isPaid, sqlIsPro } from '@/lib/billing/plan-helpers'
 import { changeOrganizationWorkspaceBilledAccountsInTx } from '@/lib/billing/storage/payer-transfer'
 import {
@@ -66,11 +65,10 @@ import {
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
 import { reassignOrganizationProjects } from '@/lib/projects/membership'
+import { handoffProjectsForOrganizationDepartureTx } from '@/lib/projects/resource-handoff'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
-import {
-  reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
-  WorkspaceBillingAccountRemovalError,
-} from '@/lib/workspaces/utils'
+import { reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/resource-handoff'
+import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 import { endDirectoryMembershipTx } from '@/ee/scim/lib/identity/end-directory-membership'
 
 export { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
@@ -571,14 +569,8 @@ async function reassignOwnedOrganizationResourcesTx({
   organizationId: string
   workspaceIds: string[]
 }) {
-  const [ownerMembership] = await tx
-    .select({ userId: member.userId })
-    .from(member)
-    .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
-    .limit(1)
-
-  const ownerId = ownerMembership?.userId
-  if (!ownerId || ownerId === userId) return 0
+  const ownerId = await reassignOrganizationSharedResourcesTx(tx, organizationId, userId)
+  if (!ownerId) return 0
 
   await reassignOrganizationProjects(tx, {
     organizationId,
@@ -586,28 +578,7 @@ async function reassignOwnedOrganizationResourcesTx({
     toUserId: ownerId,
     workspaceIds,
   })
-
-  /** Creator attribution must survive account deletion without changing document ACLs. */
-  await tx
-    .update(knowledgeBase)
-    .set({ userId: ownerId, updatedAt: new Date() })
-    .where(
-      and(
-        eq(knowledgeBase.organizationId, organizationId),
-        isNull(knowledgeBase.workspaceId),
-        eq(knowledgeBase.userId, userId)
-      )
-    )
-  await tx
-    .update(workspaceFiles)
-    .set({ userId: ownerId, updatedAt: new Date() })
-    .where(
-      and(
-        eq(workspaceFiles.organizationId, organizationId),
-        isNull(workspaceFiles.workspaceId),
-        eq(workspaceFiles.userId, userId)
-      )
-    )
+  await handoffProjectsForOrganizationDepartureTx(tx, organizationId, userId)
 
   if (workspaceIds.length === 0) return 0
 
@@ -1239,13 +1210,13 @@ export async function transferUserBetweenOrganizations(
           workspaceIds,
         })
         if (workspaceIds.length > 0) {
-          const workflowOwnershipReassignment =
-            await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
+          const resourceOwnershipReassignment =
+            await reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx({
               tx,
               workspaceIds,
               departingUserId: params.userId,
             })
-          if (workflowOwnershipReassignment.unresolved.length > 0) {
+          if (resourceOwnershipReassignment.unresolved.length > 0) {
             throw new WorkspaceBillingAccountRemovalError()
           }
           const deletedPermissions = await tx
@@ -1468,13 +1439,13 @@ export async function removeUserFromOrganization(
           }
         }
 
-        const workflowOwnershipReassignment =
-          await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
+        const resourceOwnershipReassignment =
+          await reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx({
             tx,
             workspaceIds,
             departingUserId: userId,
           })
-        if (workflowOwnershipReassignment.unresolved.length > 0) {
+        if (resourceOwnershipReassignment.unresolved.length > 0) {
           throw new WorkspaceBillingAccountRemovalError()
         }
 
@@ -1685,13 +1656,13 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
           }
         }
 
-        const workflowOwnershipReassignment =
-          await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
+        const resourceOwnershipReassignment =
+          await reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx({
             tx,
             workspaceIds,
             departingUserId: userId,
           })
-        if (workflowOwnershipReassignment.unresolved.length > 0) {
+        if (resourceOwnershipReassignment.unresolved.length > 0) {
           throw new WorkspaceBillingAccountRemovalError()
         }
 

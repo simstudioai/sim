@@ -49,7 +49,9 @@ export function getFolderPath(
 /** Returns the canonical public API path for a folder and rejects corrupt trees. */
 export function getCanonicalFolderPath(
   folderId: string | null | undefined,
-  folders: Record<string, WorkflowFolder> | Map<string, WorkflowFolder>
+  folders:
+    | Record<string, Pick<WorkflowFolder, 'name' | 'parentId'>>
+    | Map<string, Pick<WorkflowFolder, 'name' | 'parentId'>>
 ): string {
   if (!folderId) return '/'
 
@@ -61,7 +63,7 @@ export function getCanonicalFolderPath(
     if (visited.has(currentFolderId)) throw new Error('Folder tree contains a cycle')
     visited.add(currentFolderId)
 
-    const folder: WorkflowFolder | undefined =
+    const folder: Pick<WorkflowFolder, 'name' | 'parentId'> | undefined =
       folders instanceof Map ? folders.get(currentFolderId) : folders[currentFolderId]
     if (!folder) throw new Error(`Folder ${currentFolderId} was not found`)
     segments.unshift(folder.name)

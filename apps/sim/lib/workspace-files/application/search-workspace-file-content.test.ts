@@ -1,3 +1,4 @@
+import { dbChainMockFns } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
@@ -13,7 +14,8 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/workspace-files/search/repository', () => ({
-  searchWorkspaceFileIndex: hoisted.search,
+  searchFileIndex: hoisted.search,
+  toWorkspaceFileSearchResult: vi.fn(),
 }))
 vi.mock('@/lib/workspace-files/resolve-folder-scope', () => ({
   resolveWorkspaceFolderScope: hoisted.folders,
@@ -58,5 +60,19 @@ describe('searchWorkspaceFileContent cancellation', () => {
     ).rejects.toBe(signal.reason)
     expect(mocks.folders).not.toHaveBeenCalled()
     expect(mocks.search).not.toHaveBeenCalled()
+  })
+  it('maps a delivery-lock timeout to a retryable orchestration error', async () => {
+    dbChainMockFns.transaction.mockRejectedValueOnce(
+      new Error('query failed', {
+        cause: Object.assign(new Error('lock timeout'), { code: '55P03' }),
+      })
+    )
+    await expect(
+      searchWorkspaceFileContent.execute({
+        principal,
+        input,
+        request: { headers: new Headers() },
+      })
+    ).rejects.toMatchObject({ code: 'locked' })
   })
 })

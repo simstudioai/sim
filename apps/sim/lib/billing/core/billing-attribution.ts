@@ -24,6 +24,7 @@ import { parseWorkflowExecutionTimeoutSeconds } from '@/lib/billing/execution-ti
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   BILLING_ACCOUNT_DECISION_HEADER,
   BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES,
@@ -113,6 +114,7 @@ export interface ResolveBillingAttributionParams {
 }
 
 export interface ResolveWorkspaceBillingPayerOptions {
+  executor?: DbOrTx
   onMissing?: 'throw' | 'return-null'
 }
 
@@ -674,7 +676,8 @@ export async function resolveWorkspaceBillingPayer(
   workspaceId: string,
   options: ResolveWorkspaceBillingPayerOptions = {}
 ) {
-  const [workspacePayer] = await db
+  const executor = options.executor ?? db
+  const [workspacePayer] = await executor
     .select({
       billedAccountUserId: workspace.billedAccountUserId,
       organizationId: workspace.organizationId,
@@ -690,8 +693,11 @@ export async function resolveWorkspaceBillingPayer(
 
   const { billedAccountUserId, organizationId } = workspacePayer
   const payerSubscription = organizationId
-    ? await getOrganizationSubscription(organizationId, { onError: 'throw' })
-    : await getHighestPriorityPersonalSubscription(billedAccountUserId, { onError: 'throw' })
+    ? await getOrganizationSubscription(organizationId, { onError: 'throw', executor })
+    : await getHighestPriorityPersonalSubscription(billedAccountUserId, {
+        onError: 'throw',
+        executor,
+      })
 
   const expectedReferenceId = organizationId ?? billedAccountUserId
   if (payerSubscription && payerSubscription.referenceId !== expectedReferenceId) {

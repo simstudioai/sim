@@ -69,6 +69,7 @@ export type StorageContext =
   | 'mothership'
   | 'execution'
   | 'workspace'
+  | 'project'
   | 'test'
   | 'changelog'
   | 'table-import'

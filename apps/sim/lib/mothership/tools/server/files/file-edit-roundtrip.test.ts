@@ -18,7 +18,7 @@ vi.mock('@/lib/mothership/auth/file-delegation', () => ({
   messageForCopilotFileError: (_error: unknown, fallback: string) => fallback,
 }))
 vi.mock('@/lib/execution/sandbox/run-task', () => ({ runSandboxTask }))
-vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/uploads/documents/compile', () => ({
   compileDoc,
   getE2BDocFormat: async () => null,
   DOCXJS_SOURCE_MIME: 'text/x-docxjs',

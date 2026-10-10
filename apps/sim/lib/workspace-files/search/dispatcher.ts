@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import {
+  fileSearchDispatchQueue,
   workspaceFileSearchBackfill,
   workspaceFileSearchBuild,
-  workspaceFileSearchDispatchQueue,
   workspaceFileSearchRevision,
   workspaceFiles,
 } from '@sim/db/schema'
@@ -33,6 +33,7 @@ import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { runDetached } from '@/lib/core/utils/background'
 import { tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbTransaction } from '@/lib/db/types'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import {
   FILE_SEARCH_BACKFILL_PAGE_SIZE,
   FILE_SEARCH_CLEANUP_BACKLOG_ROWS,
@@ -58,12 +59,18 @@ import {
   markWorkspaceFileSearchIndexFailed,
   type WorkspaceFileSearchIndexPayload,
 } from '@/lib/workspace-files/search/indexing'
+import { lockFileSearchOwners } from '@/lib/workspace-files/search/owner-policy'
+import {
+  currentFileSearchDependencies,
+  fileSearchOwnerFields,
+  resolveFileSearchOwner,
+} from '@/lib/workspace-files/search/scope'
 import { configureFileSearchTransaction } from '@/lib/workspace-files/search/transaction'
 import type { workspaceFileSearchIndexTask } from '@/background/workspace-file-search-index'
 
 const logger = createLogger('WorkspaceFileSearchDispatcher')
 const DISPATCH_LOCK_NAME = 'workspace-file-search-dispatch'
-const BACKFILL_CURSOR_ID = 'workspace-file-search-chunks-v2'
+const BACKFILL_CURSOR_ID = 'file-search-owners-v3'
 
 async function runDispatchPhase<T>(phase: string, operation: () => Promise<T>): Promise<T> {
   const startedAt = Date.now()
@@ -128,7 +135,10 @@ export function buildWorkspaceFileSearchTriggerItems(
     options: {
       idempotencyKey: `workspace-file-search-v2:${payload.fileId}:${payload.sourceContentUpdatedAt}:${payload.dispatchToken ?? 'initial'}`,
       idempotencyKeyTTL: '1h' as const,
-      tags: [`workspaceId:${payload.workspaceId}`, `fileId:${payload.fileId}`],
+      tags: [
+        `fileOwner:${resolveFileSearchOwner(payload).entityType}:${resolveFileSearchOwner(payload).entityId}`,
+        `fileId:${payload.fileId}`,
+      ],
       region,
     },
   }))
@@ -148,24 +158,33 @@ function revisionFilter(rows: readonly RevisionIdentity[]): SQL | undefined {
   )
 }
 
-async function enqueueWorkspaces(
+function rowOwner(row: { entityType: string; entityId: string }): EditableFileOwner {
+  return resolveFileSearchOwner({ owner: row })
+}
+
+function queuedOwnerFilter(owners: readonly EditableFileOwner[]): SQL | undefined {
+  return or(
+    ...owners.map((owner) =>
+      and(
+        eq(fileSearchDispatchQueue.entityType, owner.entityType),
+        eq(fileSearchDispatchQueue.entityId, owner.entityId)
+      )
+    )
+  )
+}
+
+async function enqueueOwners(
   tx: DbTransaction,
-  workspaceIds: readonly string[],
+  owners: readonly EditableFileOwner[],
   now: Date
 ): Promise<void> {
-  const uniqueWorkspaceIds = [...new Set(workspaceIds)]
-  if (uniqueWorkspaceIds.length === 0) return
+  const unique = [...new Map(owners.map((owner) => [JSON.stringify(owner), owner])).values()]
+  if (unique.length === 0) return
   await tx
-    .insert(workspaceFileSearchDispatchQueue)
-    .values(
-      uniqueWorkspaceIds.map((workspaceId) => ({
-        workspaceId,
-        enqueuedAt: now,
-        updatedAt: now,
-      }))
-    )
+    .insert(fileSearchDispatchQueue)
+    .values(unique.map((owner) => ({ ...owner, enqueuedAt: now, updatedAt: now })))
     .onConflictDoUpdate({
-      target: workspaceFileSearchDispatchQueue.workspaceId,
+      target: [fileSearchDispatchQueue.entityType, fileSearchDispatchQueue.entityId],
       set: { updatedAt: now },
     })
 }
@@ -223,39 +242,42 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
     .for('update')
     .limit(1)
   if (!cursor || !isBackfillPageDue(cursor.completedAt, now)) return 0
-  const afterWorkspaceId = cursor.completedAt ? null : cursor.afterWorkspaceId
+  const afterEntityType = cursor.completedAt ? null : cursor.afterEntityType
+  const afterEntityId = cursor.completedAt ? null : cursor.afterEntityId
   const afterFileId = cursor.completedAt ? null : cursor.afterFileId
 
   const rows = await tx
     .select({
-      workspaceId: workspaceFiles.workspaceId,
+      entityType: sql<string>`CASE WHEN ${workspaceFiles.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END`,
+      entityId: sql<string>`coalesce(${workspaceFiles.projectId}, ${workspaceFiles.workspaceId})`,
       fileId: workspaceFiles.id,
       sourceContentUpdatedAt: workspaceFiles.contentUpdatedAt,
     })
     .from(workspaceFiles)
     .where(
       and(
-        eq(workspaceFiles.context, 'workspace'),
+        sql`((${workspaceFiles.context} = 'workspace' AND ${workspaceFiles.workspaceId} IS NOT NULL) OR (${workspaceFiles.context} = 'project' AND ${workspaceFiles.projectId} IS NOT NULL))`,
         isNull(workspaceFiles.deletedAt),
-        isNotNull(workspaceFiles.workspaceId),
-        afterWorkspaceId && afterFileId
-          ? sql`(${workspaceFiles.workspaceId}, ${workspaceFiles.id}) > (${afterWorkspaceId}, ${afterFileId})`
+        afterEntityType && afterEntityId && afterFileId
+          ? sql`(CASE WHEN ${workspaceFiles.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END, coalesce(${workspaceFiles.projectId}, ${workspaceFiles.workspaceId}), ${workspaceFiles.id}) > (${afterEntityType}, ${afterEntityId}, ${afterFileId})`
           : undefined
       )
     )
-    .orderBy(asc(workspaceFiles.workspaceId), asc(workspaceFiles.id))
+    .orderBy(
+      sql`CASE WHEN ${workspaceFiles.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END`,
+      sql`coalesce(${workspaceFiles.projectId}, ${workspaceFiles.workspaceId})`,
+      asc(workspaceFiles.id)
+    )
     .limit(FILE_SEARCH_BACKFILL_PAGE_SIZE)
     .for('share', { of: workspaceFiles })
 
-  const files = rows.filter(
-    (row): row is typeof row & { workspaceId: string } => row.workspaceId !== null
-  )
+  const files = rows.map((row) => ({ ...row, owner: rowOwner(row) }))
   if (files.length > 0) {
     await tx
       .insert(workspaceFileSearchRevision)
       .values(
         files.map((file) => ({
-          workspaceId: file.workspaceId,
+          ...fileSearchOwnerFields(file.owner),
           fileId: file.fileId,
           sourceContentUpdatedAt: file.sourceContentUpdatedAt,
           status: 'pending' as const,
@@ -263,9 +285,9 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
         }))
       )
       .onConflictDoNothing()
-    await enqueueWorkspaces(
+    await enqueueOwners(
       tx,
-      files.map((file) => file.workspaceId),
+      files.map((file) => file.owner),
       now
     )
   }
@@ -274,7 +296,8 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
   await tx
     .update(workspaceFileSearchBackfill)
     .set({
-      afterWorkspaceId: last?.workspaceId ?? afterWorkspaceId,
+      afterEntityType: last?.entityType ?? afterEntityType,
+      afterEntityId: last?.entityId ?? afterEntityId,
       afterFileId: last?.fileId ?? afterFileId,
       completedAt: rows.length < FILE_SEARCH_BACKFILL_PAGE_SIZE ? now : null,
       updatedAt: now,
@@ -298,7 +321,8 @@ async function reapStaleClaims(
 ): Promise<{ reaped: number; abandoned: number }> {
   const rows = await tx
     .select({
-      workspaceId: workspaceFileSearchRevision.workspaceId,
+      entityType: sql<string>`coalesce(${workspaceFileSearchRevision.entityType}, 'workspace')`,
+      entityId: sql<string>`coalesce(${workspaceFileSearchRevision.entityId}, ${workspaceFileSearchRevision.workspaceId})`,
       fileId: workspaceFileSearchRevision.fileId,
       sourceContentUpdatedAt: workspaceFileSearchRevision.sourceContentUpdatedAt,
       currentFileId: workspaceFiles.id,
@@ -309,8 +333,9 @@ async function reapStaleClaims(
       workspaceFiles,
       and(
         eq(workspaceFiles.id, workspaceFileSearchRevision.fileId),
-        eq(workspaceFiles.workspaceId, workspaceFileSearchRevision.workspaceId),
-        eq(workspaceFiles.context, 'workspace'),
+        sql`CASE WHEN ${workspaceFiles.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END = coalesce(${workspaceFileSearchRevision.entityType}, 'workspace')`,
+        sql`coalesce(${workspaceFiles.projectId}, ${workspaceFiles.workspaceId}) = coalesce(${workspaceFileSearchRevision.entityId}, ${workspaceFileSearchRevision.workspaceId})`,
+        sql`${workspaceFiles.context} = coalesce(${workspaceFileSearchRevision.entityType}, 'workspace')`,
         isNull(workspaceFiles.deletedAt),
         eq(workspaceFiles.contentUpdatedAt, workspaceFileSearchRevision.sourceContentUpdatedAt)
       )
@@ -328,11 +353,7 @@ async function reapStaleClaims(
       .update(workspaceFileSearchRevision)
       .set({ dispatchedAt: null, handoffExpiresAt: null, updatedAt: now })
       .where(currentFilter)
-    await enqueueWorkspaces(
-      tx,
-      current.map((row) => row.workspaceId),
-      now
-    )
+    await enqueueOwners(tx, current.map(rowOwner), now)
   }
   const obsoleteFilter = revisionFilter(obsolete)
   if (obsoleteFilter) {
@@ -351,113 +372,147 @@ async function reapStaleClaims(
  * cannot be flattened into that join, so the claim stays an ordered walk of the pending index
  * that stops after the batch size.
  */
-async function claimQueuedWorkspaceJobs(
+async function reconcileOwnerDependencies(
   tx: DbTransaction,
-  workspaceIds: readonly string[],
+  owners: readonly EditableFileOwner[],
+  now: Date
+) {
+  for (const owner of owners) {
+    const stale = await tx
+      .select({ fileId: workspaceFiles.id, buildId: workspaceFileSearchRevision.buildId })
+      .from(workspaceFileSearchRevision)
+      .innerJoin(workspaceFiles, eq(workspaceFiles.id, workspaceFileSearchRevision.fileId))
+      .where(
+        and(
+          sql`coalesce(${workspaceFileSearchRevision.entityType}, 'workspace') = ${owner.entityType}`,
+          sql`coalesce(${workspaceFileSearchRevision.entityId}, ${workspaceFileSearchRevision.workspaceId}) = ${owner.entityId}`,
+          eq(workspaceFileSearchRevision.status, 'ready'),
+          sql`NOT (${currentFileSearchDependencies(workspaceFileSearchRevision.buildId, owner)})`
+        )
+      )
+      .orderBy(asc(workspaceFiles.id))
+      .limit(FILE_SEARCH_BACKFILL_PAGE_SIZE)
+      .for('update', { of: workspaceFiles, skipLocked: true })
+    for (const row of stale) {
+      if (!row.buildId) continue
+      await tx
+        .update(workspaceFileSearchBuild)
+        .set({ expiresAt: now })
+        .where(eq(workspaceFileSearchBuild.id, row.buildId))
+      await tx
+        .update(workspaceFileSearchRevision)
+        .set({
+          status: 'pending',
+          buildId: null,
+          dispatchedAt: null,
+          handoffExpiresAt: null,
+          failureReason: null,
+          lineCount: 0,
+          chunkCount: 0,
+          indexedBytes: 0,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(workspaceFileSearchRevision.fileId, row.fileId),
+            eq(workspaceFileSearchRevision.buildId, row.buildId)
+          )
+        )
+    }
+  }
+}
+
+async function claimQueuedOwnerJobs(
+  tx: DbTransaction,
+  owners: readonly EditableFileOwner[],
   remainingGlobalCapacity: number,
   now: Date
 ): Promise<WorkspaceFileSearchIndexPayload[]> {
-  if (workspaceIds.length === 0 || remainingGlobalCapacity <= 0) return []
-  const workspaceValues = sql.join(
-    workspaceIds.map((workspaceId) => sql`(${workspaceId})`),
+  if (owners.length === 0 || remainingGlobalCapacity <= 0) return []
+  const ownerValues = sql.join(
+    owners.map((owner) => sql`(${owner.entityType}, ${owner.entityId})`),
     sql`, `
   )
   const rows = await tx.execute<{
-    workspaceId: string
+    entityType: string
+    entityId: string
     fileId: string
     sourceContentUpdatedAt: string
   }>(sql`
-    WITH selected_workspace(workspace_id) AS (
-      VALUES ${workspaceValues}
-    ),
-    candidates AS MATERIALIZED (
-      SELECT queued.*
-      FROM selected_workspace AS selected
+    WITH selected_owner(entity_type, entity_id) AS (VALUES ${ownerValues}), candidates AS MATERIALIZED (
+      SELECT queued.* FROM selected_owner selected
       CROSS JOIN LATERAL (
-        SELECT count(*)::int AS active_count
-        FROM (
-          SELECT 1 FROM workspace_file_search_revision AS active
-          WHERE active.workspace_id = selected.workspace_id
+        SELECT count(*)::int AS active_count FROM (
+          SELECT 1 FROM workspace_file_search_revision active
+          WHERE coalesce(active.entity_type, 'workspace') = selected.entity_type
+            AND coalesce(active.entity_id, active.workspace_id) = selected.entity_id
             AND active.status = 'pending' AND active.dispatched_at IS NOT NULL
           LIMIT ${FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING}
-        ) AS active_claims
-      ) AS workspace_active
+        ) active_claims
+      ) owner_active
       CROSS JOIN LATERAL (
-        SELECT search_index.workspace_id, search_index.file_id,
-          search_index.source_content_updated_at, search_index.updated_at
-        FROM workspace_file_search_revision AS search_index
+        SELECT search_index.file_id, search_index.source_content_updated_at, search_index.updated_at,
+          coalesce(search_index.entity_type, 'workspace') entity_type, coalesce(search_index.entity_id, search_index.workspace_id) entity_id
+        FROM workspace_file_search_revision search_index
         CROSS JOIN LATERAL (
-          SELECT 1 FROM workspace_files AS file
-          WHERE file.id = search_index.file_id
-            AND file.workspace_id = search_index.workspace_id
-            AND file.context = 'workspace'
-            AND file.deleted_at IS NULL
-            AND file.content_updated_at = search_index.source_content_updated_at
+          SELECT 1 FROM workspace_files file WHERE file.id = search_index.file_id
+            AND file.context = selected.entity_type
+            AND CASE WHEN file.project_id IS NOT NULL THEN 'project' ELSE 'workspace' END = selected.entity_type
+            AND coalesce(file.project_id, file.workspace_id) = selected.entity_id
+            AND file.deleted_at IS NULL AND file.content_updated_at = search_index.source_content_updated_at
           LIMIT 1
-        ) AS live_file
-        WHERE search_index.workspace_id = selected.workspace_id
+        ) live_file
+        WHERE coalesce(search_index.entity_type, 'workspace') = selected.entity_type
+          AND coalesce(search_index.entity_id, search_index.workspace_id) = selected.entity_id
           AND search_index.status = 'pending' AND search_index.dispatched_at IS NULL
         ORDER BY search_index.updated_at, search_index.file_id, search_index.source_content_updated_at
-        LIMIT greatest(0, ${FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING} - workspace_active.active_count)
+        LIMIT greatest(0, ${FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING} - owner_active.active_count)
         FOR UPDATE OF search_index SKIP LOCKED
-      ) AS queued
-      ORDER BY queued.updated_at, queued.workspace_id, queued.file_id, queued.source_content_updated_at
+      ) queued
+      ORDER BY queued.updated_at, queued.entity_type, queued.entity_id, queued.file_id, queued.source_content_updated_at
       LIMIT ${remainingGlobalCapacity}
-    )
-    UPDATE workspace_file_search_revision AS search_index
-    SET dispatched_at = ${now.toISOString()}::timestamp,
-      handoff_expires_at = clock_timestamp() + ${FILE_SEARCH_DISPATCH_HANDOFF_MS} * interval '1 millisecond'
-    FROM candidates
-    WHERE search_index.file_id = candidates.file_id
-      AND search_index.source_content_updated_at = candidates.source_content_updated_at
-      AND search_index.status = 'pending'
-      AND search_index.dispatched_at IS NULL
-    RETURNING
-      search_index.workspace_id AS "workspaceId",
-      search_index.file_id AS "fileId",
-      search_index.source_content_updated_at AT TIME ZONE 'UTC' AS "sourceContentUpdatedAt"
+    ) UPDATE workspace_file_search_revision search_index
+      SET dispatched_at = ${now.toISOString()}::timestamp,
+        handoff_expires_at = clock_timestamp() + ${FILE_SEARCH_DISPATCH_HANDOFF_MS} * interval '1 millisecond'
+      FROM candidates WHERE search_index.file_id = candidates.file_id
+        AND search_index.source_content_updated_at = candidates.source_content_updated_at
+        AND search_index.status = 'pending' AND search_index.dispatched_at IS NULL
+      RETURNING coalesce(search_index.entity_type, 'workspace') AS "entityType",
+        coalesce(search_index.entity_id, search_index.workspace_id) AS "entityId",
+        search_index.file_id AS "fileId", search_index.source_content_updated_at AT TIME ZONE 'UTC' AS "sourceContentUpdatedAt"
   `)
-
-  const remainingForWorkspace = tx
+  const remaining = tx
     .select({ fileId: workspaceFileSearchRevision.fileId })
     .from(workspaceFileSearchRevision)
-    .innerJoin(
-      workspaceFiles,
-      and(
-        eq(workspaceFiles.id, workspaceFileSearchRevision.fileId),
-        eq(workspaceFiles.workspaceId, workspaceFileSearchDispatchQueue.workspaceId),
-        eq(workspaceFiles.context, 'workspace'),
-        isNull(workspaceFiles.deletedAt),
-        eq(workspaceFiles.contentUpdatedAt, workspaceFileSearchRevision.sourceContentUpdatedAt)
-      )
-    )
     .where(
       and(
-        eq(workspaceFileSearchRevision.workspaceId, workspaceFileSearchDispatchQueue.workspaceId),
-        eq(workspaceFileSearchRevision.status, 'pending'),
-        isNull(workspaceFileSearchRevision.dispatchedAt)
+        sql`coalesce(${workspaceFileSearchRevision.entityType}, 'workspace') = ${fileSearchDispatchQueue.entityType}`,
+        sql`coalesce(${workspaceFileSearchRevision.entityId}, ${workspaceFileSearchRevision.workspaceId}) = ${fileSearchDispatchQueue.entityId}`,
+        or(
+          and(
+            eq(workspaceFileSearchRevision.status, 'pending'),
+            isNull(workspaceFileSearchRevision.dispatchedAt)
+          ),
+          and(
+            eq(workspaceFileSearchRevision.status, 'ready'),
+            or(
+              ...owners.map((owner) =>
+                and(
+                  sql`coalesce(${workspaceFileSearchRevision.entityType}, 'workspace') = ${owner.entityType}`,
+                  sql`coalesce(${workspaceFileSearchRevision.entityId}, ${workspaceFileSearchRevision.workspaceId}) = ${owner.entityId}`,
+                  sql`NOT (${currentFileSearchDependencies(workspaceFileSearchRevision.buildId, owner)})`
+                )
+              )
+            )
+          )
+        )
       )
     )
   await tx
-    .update(workspaceFileSearchDispatchQueue)
-    .set({ lastDispatchedAt: now, updatedAt: now })
-    .where(
-      and(
-        inArray(workspaceFileSearchDispatchQueue.workspaceId, workspaceIds),
-        exists(remainingForWorkspace)
-      )
-    )
-  await tx
-    .delete(workspaceFileSearchDispatchQueue)
-    .where(
-      and(
-        inArray(workspaceFileSearchDispatchQueue.workspaceId, workspaceIds),
-        notExists(remainingForWorkspace)
-      )
-    )
-
+    .delete(fileSearchDispatchQueue)
+    .where(and(queuedOwnerFilter(owners), notExists(remaining)))
   return rows.map((row) => ({
-    workspaceId: row.workspaceId,
+    owner: rowOwner(row),
     fileId: row.fileId,
     sourceContentUpdatedAt: new Date(row.sourceContentUpdatedAt).toISOString(),
     dispatchToken: now.toISOString(),
@@ -468,7 +523,7 @@ async function claimQueuedWorkspaceJobs(
  * Whether a dispatch pass at `now` has anything to do, so the per-minute cron can skip starting one
  * on an idle deployment. Mirrors each phase of {@link dispatchWorkspaceFileSearchIndexJobs} with the
  * same predicates: a backfill page is due, a build has expired for cleanup, a claim is stale for the
- * reaper, or a workspace is queued for claiming. File writes, file deletes, and released claims
+ * reaper, or an owner is queued for claiming. File writes, file deletes, and released claims
  * all land in one of these through the `workspace_file_search_mark_pending` trigger or the
  * dispatcher's own writes.
  */
@@ -480,9 +535,9 @@ export async function hasWorkspaceFileSearchDispatchWork(now: Date): Promise<boo
     .limit(1)
   if (!cursor || isBackfillPageDue(cursor.completedAt, now)) return true
 
-  const queuedWorkspace = db
-    .select({ workspaceId: workspaceFileSearchDispatchQueue.workspaceId })
-    .from(workspaceFileSearchDispatchQueue)
+  const queuedOwner = db
+    .select({ entityId: fileSearchDispatchQueue.entityId })
+    .from(fileSearchDispatchQueue)
     .limit(1)
   const expiredBuild = db
     .select({ id: workspaceFileSearchBuild.id })
@@ -495,7 +550,7 @@ export async function hasWorkspaceFileSearchDispatchWork(now: Date): Promise<boo
     .where(staleClaim(now))
     .limit(1)
   const [probe] = await db.execute<{ hasWork: boolean }>(
-    sql`SELECT ${or(exists(queuedWorkspace), exists(expiredBuild), exists(staleClaimRow))} AS "hasWork"`
+    sql`SELECT ${or(exists(queuedOwner), exists(expiredBuild), exists(staleClaimRow))} AS "hasWork"`
   )
   return probe?.hasWork === true
 }
@@ -573,24 +628,32 @@ export async function prepareWorkspaceFileSearchDispatch(
           }
         }
 
-        const workspaces = await tx
-          .select({ workspaceId: workspaceFileSearchDispatchQueue.workspaceId })
-          .from(workspaceFileSearchDispatchQueue)
+        const queued = await tx
+          .select({
+            entityType: fileSearchDispatchQueue.entityType,
+            entityId: fileSearchDispatchQueue.entityId,
+          })
+          .from(fileSearchDispatchQueue)
           .orderBy(
-            sql`${workspaceFileSearchDispatchQueue.lastDispatchedAt} ASC NULLS FIRST`,
-            asc(workspaceFileSearchDispatchQueue.enqueuedAt),
-            asc(workspaceFileSearchDispatchQueue.workspaceId)
+            sql`${fileSearchDispatchQueue.lastDispatchedAt} ASC NULLS FIRST`,
+            asc(fileSearchDispatchQueue.enqueuedAt),
+            asc(fileSearchDispatchQueue.entityType),
+            asc(fileSearchDispatchQueue.entityId)
           )
           .limit(Math.min(FILE_SEARCH_INDEX_DISPATCH_WORKSPACES, remainingGlobalCapacity))
           .for('update', { skipLocked: true })
-
+        const candidates = queued.map(rowOwner)
+        if (candidates.length > 0) {
+          // Rotate busy owners too; otherwise a full locked page starves every later owner.
+          await tx
+            .update(fileSearchDispatchQueue)
+            .set({ lastDispatchedAt: now, updatedAt: now })
+            .where(queuedOwnerFilter(candidates))
+        }
+        const owners = await lockFileSearchOwners(tx, candidates, { skipBusy: true })
+        await reconcileOwnerDependencies(tx, owners, now)
         const payloads = await runDispatchPhase('claim', () =>
-          claimQueuedWorkspaceJobs(
-            tx,
-            workspaces.map((workspace) => workspace.workspaceId),
-            remainingGlobalCapacity,
-            now
-          )
+          claimQueuedOwnerJobs(tx, owners, remainingGlobalCapacity, now)
         )
         return { payloads, backfilledFiles, reapedClaims, abandonedClaims, lockAcquired: true }
       })
@@ -600,7 +663,7 @@ export async function prepareWorkspaceFileSearchDispatch(
 
 function dispatchedRevisions(payloads: readonly WorkspaceFileSearchIndexPayload[]) {
   return payloads.map((payload) => ({
-    workspaceId: payload.workspaceId,
+    owner: resolveFileSearchOwner(payload),
     fileId: payload.fileId,
     sourceContentUpdatedAt: new Date(payload.sourceContentUpdatedAt),
     dispatchToken: payload.dispatchToken,
@@ -619,9 +682,9 @@ async function releaseDispatchClaims(payloads: readonly WorkspaceFileSearchIndex
           .set({ dispatchedAt: null, handoffExpiresAt: null, updatedAt: new Date() })
           .where(and(filter, eq(workspaceFileSearchRevision.status, 'pending')))
       }
-      await enqueueWorkspaces(
+      await enqueueOwners(
         tx,
-        rows.map((row) => row.workspaceId),
+        rows.map((row) => row.owner),
         new Date()
       )
     })

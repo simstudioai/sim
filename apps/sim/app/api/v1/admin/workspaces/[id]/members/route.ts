@@ -49,15 +49,11 @@ import {
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
-import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
+import { ProjectConflictError } from '@/lib/projects/errors'
+import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
-import {
-  reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
-  transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,
-  WorkspaceBillingAccountRemovalError,
-} from '@/lib/workspaces/utils'
+import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminBadRequestResponse,
@@ -394,28 +390,19 @@ export const DELETE = withRouteHandler(
         return adminNotFoundResponse('Workspace member')
       }
 
-      await db.transaction(async (tx) => {
-        await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
-          tx,
+      const removed = await db.transaction(async (tx) => {
+        const result = await revokeWorkspaceAccessTx(tx, {
           workspaceId,
-          departingUserId: userId,
+          userId,
+          expectedPermissionId: existingPermission.id,
         })
-
-        const workflowOwnershipReassignment =
-          await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
-            tx,
-            workspaceIds: [workspaceId],
-            departingUserId: userId,
-          })
-        if (workflowOwnershipReassignment.unresolved.length > 0) {
+        if (!result.revoked) {
+          if (result.reason === 'membership-changed') return false
           throw new WorkspaceBillingAccountRemovalError()
         }
-
-        await tx.delete(permissions).where(eq(permissions.id, existingPermission.id))
-
-        await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, userId)
-        await removeWorkspaceSkillMembershipsTx(tx, workspaceId, userId)
+        return true
       })
+      if (!removed) return adminNotFoundResponse('Workspace member')
 
       logger.info(`Admin API: Removed user ${userId} from workspace ${workspaceId}`)
 
@@ -432,6 +419,7 @@ export const DELETE = withRouteHandler(
 
       return singleResponse({ removed: true, userId, workspaceId })
     } catch (error) {
+      if (error instanceof ProjectConflictError) return adminConflictResponse(error.message)
       if (error instanceof WorkspaceBillingAccountRemovalError) {
         return adminBadRequestResponse(error.message)
       }

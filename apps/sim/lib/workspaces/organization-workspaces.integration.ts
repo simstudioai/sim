@@ -48,16 +48,12 @@ beforeAll(async () => {
       archived_at timestamp, organization_assigned_at timestamp, updated_at timestamp,
       storage_used_bytes bigint NOT NULL
     );
-    CREATE TABLE project_workspace (
-      project_id text NOT NULL REFERENCES project(id) ON DELETE RESTRICT,
-      workspace_id text NOT NULL UNIQUE REFERENCES workspace(id) ON DELETE CASCADE,
-      PRIMARY KEY (project_id, workspace_id)
-    );
     CREATE TABLE permissions (
       id text PRIMARY KEY, user_id text, entity_type text, entity_id text, permission_type text,
       created_at timestamp, updated_at timestamp, UNIQUE(user_id, entity_type, entity_id)
     );
-    CREATE TABLE workspace_files (workspace_id text, context text, size_bytes bigint);
+    CREATE TABLE workspace_files (id text, workspace_id text, project_id text, context text, size_bytes bigint);
+    CREATE TABLE workspace_file_version (file_id text, size_bytes bigint, billable boolean);
     CREATE TABLE knowledge_base (id text PRIMARY KEY, workspace_id text);
     CREATE TABLE document (
       knowledge_base_id text, file_size bigint, connector_id text, deleted_at timestamp
@@ -70,7 +66,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await connection.unsafe(`
-    TRUNCATE member, organization, project, project_workspace, permission_group, invitation, user_stats, workspace, permissions,
+    TRUNCATE member, organization, project, permission_group, invitation, user_stats, workspace, permissions,
       workspace_files, knowledge_base, document, knowledge_connector;
     INSERT INTO member VALUES ('owner-membership', 'org', 'org-owner', 'owner');
     INSERT INTO organization VALUES ('org', 40);
@@ -81,7 +77,7 @@ beforeEach(async () => {
       id, project_id, name, owner_id, organization_id, workspace_mode, billed_account_user_id,
       organization_assigned_at, storage_used_bytes
     ) VALUES ('workspace', 'project', 'Workspace', 'workspace-owner', 'org', 'organization', 'org-owner', now(), 40);
-    INSERT INTO workspace_files VALUES ('workspace', 'workspace', 40);
+    INSERT INTO workspace_files VALUES ('file', 'workspace', NULL, 'workspace', 40);
   `)
 })
 

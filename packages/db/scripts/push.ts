@@ -5,6 +5,7 @@ import postgres, { type Sql } from 'postgres'
 
 const logger = createLogger('DatabasePush')
 const RECONCILIATION_COMMANDS = [
+  ['bun', '--env-file=.env', 'run', './scripts/reconcile-file-ownership.ts'],
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-project-membership.ts'],
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-credential-group-resource-policies.ts'],
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-oauth-provider.ts'],

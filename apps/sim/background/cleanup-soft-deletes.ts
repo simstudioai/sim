@@ -21,8 +21,8 @@ import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import { type CleanupJobPayload, runCleanupWithLimits } from '@/lib/billing/cleanup-dispatcher'
 import {
   decrementStorageUsageForBillingContextInTx,
+  lockWorkspaceStorageForMutationInTx,
   resolveStorageBillingContext,
-  type StorageBillingContext,
 } from '@/lib/billing/storage'
 import {
   batchDeleteByWorkspaceAndTimestamp,
@@ -30,6 +30,7 @@ import {
   chunkedBatchDeleteByScope,
   consumeRowBudget,
   DEFAULT_DELETE_CHUNK_SIZE,
+  DEFAULT_MAX_BATCHES_PER_TABLE,
   type RowBudget,
   selectRowsByIdChunks,
 } from '@/lib/cleanup/batch-delete'
@@ -42,8 +43,14 @@ import {
   resolveCleanupOwnerScope,
 } from '@/lib/cleanup/resource-scope'
 import { deduplicateFolderName } from '@/lib/folders/naming'
+import { requireWorkspaceFolder } from '@/lib/folders/scope'
 import { settleDetachedConnectorReservations } from '@/lib/knowledge/connectors/detachment'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
+import {
+  cleanupArchivedProjectFileFolders,
+  cleanupArchivedProjectFiles,
+} from '@/lib/projects/files/retention'
+import { lockWorkspaceProject } from '@/lib/projects/membership'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { allocateUniqueWorkspaceFileName } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -324,21 +331,12 @@ async function deleteExpiredBillableWorkspaceFileRows(
   }
 
   for (const [workspaceId, workspaceRows] of rowsByWorkspace) {
-    let billingContext: StorageBillingContext
-    try {
-      billingContext = await resolveStorageBillingContext(workspaceId)
-    } catch (error) {
-      result.failed += workspaceRows.length
-      logger.error(`[${label}/workspaceFiles] Failed to resolve current storage payer`, {
-        error,
-        workspaceId,
-      })
-      continue
-    }
-
     for (const batch of chunkArray(workspaceRows, DEFAULT_DELETE_CHUNK_SIZE)) {
       try {
         const deletedCount = await db.transaction(async (tx) => {
+          await lockWorkspaceProject(tx, workspaceId)
+          await lockWorkspaceStorageForMutationInTx(tx, workspaceId)
+          const billingContext = await resolveStorageBillingContext(workspaceId, tx)
           const fileIds = batch.map(({ id }) => id)
           await tx
             .delete(workflowTest)
@@ -676,11 +674,13 @@ async function reRootActiveFolderChildrenUnguarded(
       name: folderTable.name,
       workspaceId: folderTable.workspaceId,
       resourceType: folderTable.resourceType,
+      projectId: folderTable.projectId,
     })
     .from(folderTable)
     .where(and(inArray(folderTable.parentId, expiredIds), isNull(folderTable.deletedAt)))
 
-  for (const row of childFolders) {
+  for (const childFolder of childFolders) {
+    const row = requireWorkspaceFolder(childFolder)
     await reRootOne(
       async () => {
         const name = await deduplicateFolderName(
@@ -863,6 +863,17 @@ export async function runCleanupSoftDeletes(
   const startTime = Date.now()
   const { workspaceIds, retentionHours, label } = payload
   const scope = resolveCleanupOwnerScope(payload)
+  const projectFileBudget = budgets?.files ?? {
+    remaining: DEFAULT_DELETE_CHUNK_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
+  }
+  const projectFolderBudget = budgets?.folders ?? {
+    remaining: DEFAULT_DELETE_CHUNK_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
+  }
+  for (const projectId of [...new Set(payload.projectIds ?? [])].sort()) {
+    if (projectFileBudget.remaining <= 0 && projectFolderBudget.remaining <= 0) break
+    await cleanupArchivedProjectFiles(projectId, projectFileBudget)
+    await cleanupArchivedProjectFileFolders(projectId, projectFolderBudget)
+  }
 
   if (scope.ids.length === 0) {
     logger.info(`[${label}] No resource owners to process`)

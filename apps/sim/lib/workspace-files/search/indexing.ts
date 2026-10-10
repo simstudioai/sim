@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer'
 import { createLogger } from '@sim/logger'
 import { describeError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import {
   type BackgroundRetryDecision,
   type BackgroundRetryPolicy,
@@ -8,16 +9,14 @@ import {
 } from '@/lib/core/errors/background-retry'
 import { redactDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import {
   FILE_SEARCH_INDEX_CAPACITY_MAX_ATTEMPTS,
   FILE_SEARCH_INDEX_CAPACITY_RETRY_BASE_MS,
   FILE_SEARCH_INDEX_CAPACITY_RETRY_MAX_MS,
   FILE_SEARCH_INDEX_MAX_ATTEMPTS,
-  FILE_SEARCH_MAX_SOURCE_BYTES,
   FILE_SEARCH_SLOW_INSERT_BATCH_MS,
 } from '@/lib/workspace-files/search/constants'
-import { extractIndexText, loadIndexableBytes } from '@/lib/workspace-files/search/extract'
+import { extractIndexText } from '@/lib/workspace-files/search/extract'
 import { iterateFileSearchBatches } from '@/lib/workspace-files/search/index-batches'
 import {
   estimateTrigramKeys,
@@ -34,11 +33,15 @@ import {
   failFileSearchRevision,
   publishFileSearchBuild,
 } from '@/lib/workspace-files/search/index-state'
+import {
+  type FileSearchOwnerScope,
+  resolveFileSearchOwner,
+} from '@/lib/workspace-files/search/scope'
+import { loadFileSearchSource } from '@/lib/workspace-files/search/source'
 
 const logger = createLogger('WorkspaceFileSearchIndexer')
 
-export interface WorkspaceFileSearchIndexPayload {
-  workspaceId: string
+export type WorkspaceFileSearchIndexPayload = FileSearchOwnerScope & {
   fileId: string
   sourceContentUpdatedAt: string
   /** Identifies the dispatch claim so stale callbacks cannot change a newer run. */
@@ -49,7 +52,7 @@ function parseRevision(payload: WorkspaceFileSearchIndexPayload): FileSearchRevi
   const sourceContentUpdatedAt = new Date(payload.sourceContentUpdatedAt)
   if (Number.isNaN(sourceContentUpdatedAt.getTime()))
     throw new Error('Invalid workspace file search revision')
-  return { workspaceId: payload.workspaceId, fileId: payload.fileId, sourceContentUpdatedAt }
+  return { owner: resolveFileSearchOwner(payload), fileId: payload.fileId, sourceContentUpdatedAt }
 }
 
 /**
@@ -69,7 +72,7 @@ async function appendTimedBatch(
     const durationMs = Date.now() - startedAt
     if (durationMs >= FILE_SEARCH_SLOW_INSERT_BATCH_MS) {
       logger.warn('Workspace file search insert batch was slow', {
-        workspaceId: build.workspaceId,
+        owner: resolveFileSearchOwner(build),
         fileId: build.fileId,
         buildId: build.id,
         firstOrdinal: batch[0]?.ordinal,
@@ -83,10 +86,25 @@ async function appendTimedBatch(
 }
 
 export async function indexWorkspaceFileForSearch(
-  payload: WorkspaceFileSearchIndexPayload,
+  input: unknown,
   signal: AbortSignal
 ): Promise<void> {
   signal.throwIfAborted()
+  const owner = resolveFileSearchOwner(input)
+  if (
+    !isRecordLike(input) ||
+    typeof input.fileId !== 'string' ||
+    !input.fileId ||
+    typeof input.sourceContentUpdatedAt !== 'string' ||
+    (input.dispatchToken !== undefined && typeof input.dispatchToken !== 'string')
+  )
+    throw new Error('Invalid file search payload')
+  const payload: WorkspaceFileSearchIndexPayload = {
+    owner,
+    fileId: input.fileId,
+    sourceContentUpdatedAt: input.sourceContentUpdatedAt,
+    dispatchToken: input.dispatchToken,
+  }
   if (!payload.dispatchToken) return
   const revision = parseRevision(payload)
   const build = await beginFileSearchBuild(revision, payload.dispatchToken)
@@ -96,19 +114,10 @@ export async function indexWorkspaceFileForSearch(
   }
   const startedAt = Date.now()
   try {
-    const file = await getWorkspaceFile(payload.workspaceId, payload.fileId, { throwOnError: true })
-    if (!file || file.contentUpdatedAt?.getTime() !== revision.sourceContentUpdatedAt.getTime())
-      return
-    if (file.size > FILE_SEARCH_MAX_SOURCE_BYTES) {
-      await publishFileSearchBuild(
-        build,
-        { status: 'skipped', failureReason: 'source_too_large' },
-        signal
-      )
-      return
-    }
-    const bytes = await loadIndexableBytes(file, signal)
-    const extracted = await extractIndexText(bytes, file.name, signal)
+    const source = await loadFileSearchSource(revision, signal)
+    if (!source) return
+    const { file, bytes, dependencies, artifactKey } = source
+    const extracted = await extractIndexText(bytes, file.originalName, signal)
     if (!extracted) {
       await publishFileSearchBuild(
         build,
@@ -126,7 +135,14 @@ export async function indexWorkspaceFileForSearch(
     }
     const published = await publishFileSearchBuild(
       build,
-      { status: 'ready', chunkCount, lineCount: plan.lineCount, indexedBytes: plan.indexedBytes },
+      {
+        status: 'ready',
+        chunkCount,
+        lineCount: plan.lineCount,
+        indexedBytes: plan.indexedBytes,
+        dependencies,
+        ...(artifactKey ? { artifactKey } : {}),
+      },
       signal
     )
     logger.info('Workspace file search build completed', {

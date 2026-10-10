@@ -4,8 +4,11 @@ import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
-import { and, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
-import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
+import { and, count, desc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm'
+import {
+  type ChangeWorkspaceStoragePayerParams,
+  changeWorkspaceStoragePayerInTx,
+} from '@/lib/billing/storage/payer-transfer'
 import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('WorkspaceUtils')
@@ -344,42 +347,36 @@ export async function reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
   return { reassigned, unresolved }
 }
 
-/**
- * Reassigns `billedAccountUserId` on every workspace that points to `departingUserId` to
- * another eligible user, so the user can be deleted without violating the `workspace.billed_account_user_id`
- * foreign key (`ON DELETE NO ACTION`).
- *
- * Preference order for the replacement:
- *  1. The workspace owner (if different from the departing user)
- *  2. Any existing workspace admin
- *
- * Returns the list of workspaces that could not be reassigned (no owner + no admin). Callers should
- * block user deletion when `unresolved.length > 0` so we never leave an orphaned billing reference.
- *
- * Pass `executor` to enroll the handover in a caller-owned transaction — account
- * deletion does, so a later failure in the same transaction rolls the transfers
- * back instead of leaving a workspace reassigned for a deletion that never
- * happened. The per-workspace `transaction` call below becomes a savepoint in
- * that case, preserving the payer-ledger atomicity it exists for.
- */
-export async function reassignBilledAccountForUser(
+/** Plans the existing owner/admin replacement policy before a compound payer transfer takes locks. */
+export async function planBilledAccountReassignmentsForUser(
   departingUserId: string,
-  executor: DbOrTx = db
-): Promise<ReassignBilledAccountResult> {
-  const billedWorkspaces = await executor
+  executor: DbOrTx,
+  options: { excludeWorkspaceIds?: string[]; lockRows?: boolean } = {}
+): Promise<{ changes: ChangeWorkspaceStoragePayerParams[]; unresolved: string[] }> {
+  const query = executor
     .select({
       id: workspaceTable.id,
       ownerId: workspaceTable.ownerId,
       organizationId: workspaceTable.organizationId,
     })
     .from(workspaceTable)
-    .where(eq(workspaceTable.billedAccountUserId, departingUserId))
+    .where(
+      and(
+        eq(workspaceTable.billedAccountUserId, departingUserId),
+        options.excludeWorkspaceIds?.length
+          ? notInArray(workspaceTable.id, options.excludeWorkspaceIds)
+          : undefined
+      )
+    )
+  const billedWorkspaces = options.lockRows
+    ? await query.orderBy(workspaceTable.id).for('no key update')
+    : await query
 
   if (billedWorkspaces.length === 0) {
-    return { reassigned: [], unresolved: [] }
+    return { changes: [], unresolved: [] }
   }
 
-  const reassigned: ReassignBilledAccountResult['reassigned'] = []
+  const changes: ChangeWorkspaceStoragePayerParams[] = []
   const unresolved: string[] = []
 
   for (const ws of billedWorkspaces) {
@@ -407,23 +404,58 @@ export async function reassignBilledAccountForUser(
       continue
     }
 
-    await executor.transaction(async (tx) => {
-      await changeWorkspaceStoragePayerInTx(tx, {
-        workspaceId: ws.id,
+    changes.push({
+      workspaceId: ws.id,
+      organizationId: ws.organizationId,
+      billedAccountUserId: replacement,
+      expectedCurrentPayer: {
         organizationId: ws.organizationId,
-        billedAccountUserId: replacement,
-        expectedCurrentPayer: {
-          organizationId: ws.organizationId,
-          billedAccountUserId: departingUserId,
-        },
-      })
+        billedAccountUserId: departingUserId,
+      },
+    })
+  }
+  return { changes, unresolved }
+}
+
+/**
+ * Reassigns `billedAccountUserId` on every workspace that points to `departingUserId` to
+ * another eligible user, so the user can be deleted without violating the `workspace.billed_account_user_id`
+ * foreign key (`ON DELETE NO ACTION`).
+ *
+ * Preference order for the replacement:
+ *  1. The workspace owner (if different from the departing user)
+ *  2. Any existing workspace admin
+ *
+ * Returns the list of workspaces that could not be reassigned (no owner + no admin). Callers should
+ * block user deletion when `unresolved.length > 0` so we never leave an orphaned billing reference.
+ *
+ * Pass `executor` to enroll the handover in a caller-owned transaction — account
+ * deletion does, so a later failure in the same transaction rolls the transfers
+ * back instead of leaving a workspace reassigned for a deletion that never
+ * happened. The per-workspace `transaction` call below becomes a savepoint in
+ * that case, preserving the payer-ledger atomicity it exists for.
+ */
+export async function reassignBilledAccountForUser(
+  departingUserId: string,
+  executor: DbOrTx = db
+): Promise<ReassignBilledAccountResult> {
+  const { changes, unresolved } = await planBilledAccountReassignmentsForUser(
+    departingUserId,
+    executor
+  )
+  const reassigned: ReassignBilledAccountResult['reassigned'] = []
+  for (const change of changes) {
+    await executor.transaction(async (tx) => {
+      await changeWorkspaceStoragePayerInTx(tx, change)
       await tx
         .update(workspaceTable)
         .set({ updatedAt: new Date() })
-        .where(eq(workspaceTable.id, ws.id))
+        .where(eq(workspaceTable.id, change.workspaceId))
     })
-
-    reassigned.push({ workspaceId: ws.id, newBilledAccountUserId: replacement })
+    reassigned.push({
+      workspaceId: change.workspaceId,
+      newBilledAccountUserId: change.billedAccountUserId,
+    })
   }
 
   if (reassigned.length > 0) {
