@@ -1,14 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { db } from '@sim/db'
-import {
-  folder,
-  permissions,
-  projectWorkspace,
-  user,
-  workspace,
-  workspaceFiles,
-} from '@sim/db/schema'
+import { folder, permissions, project, user, workspace, workspaceFiles } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
@@ -83,9 +76,9 @@ async function fixture() {
     workspaceMode: 'personal',
   })
   const [membership] = await db
-    .select({ projectId: projectWorkspace.projectId })
-    .from(projectWorkspace)
-    .where(eq(projectWorkspace.workspaceId, workspaceId))
+    .select({ projectId: workspace.projectId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
   if (!membership) throw new Error('Fixture Project missing')
   const projectId = membership.projectId
   owned.projectId = projectId
@@ -176,6 +169,9 @@ afterAll(async () => {
                 )
           }
           await deleteWorkspaceFixture(tx, eq(workspace.id, fixture.workspaceId))
+          if (fixture.projectId) {
+            await tx.delete(project).where(eq(project.id, fixture.projectId))
+          }
           await tx.delete(user).where(inArray(user.id, fixture.users))
         })
         cleanup.push({ workspaceId: fixture.workspaceId, status: 'passed' })

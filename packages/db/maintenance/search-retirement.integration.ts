@@ -104,10 +104,9 @@ describe('operator-driven Search retirement in PostgreSQL', () => {
     await sql`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
       VALUES ('reader', 'Synthetic reader', 'reader@example.test', true, now(), now())`
     await sql.begin(async (tx) => {
-      await tx`INSERT INTO workspace (id, name, owner_id, billed_account_user_id)
-        VALUES ('workspace', 'Synthetic workspace', 'reader', 'reader')`
       await tx`INSERT INTO project (id, name, owner_id) VALUES ('project', 'Synthetic project', 'reader')`
-      await tx`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('project', 'workspace')`
+      await tx`INSERT INTO workspace (id, project_id, name, owner_id, billed_account_user_id)
+        VALUES ('workspace', 'project', 'Synthetic workspace', 'reader', 'reader')`
     })
     await sql`CREATE TABLE search_embedding_cleanup_progress (
       id integer PRIMARY KEY, knowledge_base_id text, phase text, after_id text)`

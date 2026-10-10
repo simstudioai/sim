@@ -293,7 +293,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
 Then regenerate the generated tool metadata and commit it:
 
 ```bash
-bun run tool-metadata:generate
+bun run generate:tool-metadata
 ```
 
 Client code reads `params`/`outputs` from these artifacts rather than importing
@@ -370,7 +370,7 @@ the OAuth service configuration, deployment availability, and the setup CLI.
    infer secret fields from naming; the CLI mapping is exhaustively checked against the runtime
    fields.
 4. If the canonical OAuth service has `serviceAccountProviderId`, run
-   `bun run deployment-config:generate` to refresh
+   `bun run generate:deployment-config` to refresh
    `packages/deployment-config/src/service-account-providers.generated.ts`; never hand-edit the
    generated provider-ID map. In `packages/deployment-config/src/service-account-metadata.ts`, use:
    - no `deploymentRequirement` when the service-account path works independently of OAuth client fields;
@@ -386,8 +386,8 @@ a resolvable capability must fail validation; an independent service account use
 
 ## Step 8: Generate and Validate the Catalog
 
-Run `bun run tool-metadata:generate`, `bun run scripts/generate-docs.ts`,
-`bun run deployment-config:generate`, then `bun run check:audits` (see the `validate-integration`
+Run `bun run generate:tool-metadata`, `bun run scripts/generate-docs.ts`,
+`bun run generate:deployment-config`, then `bun run check:audits` (see the `validate-integration`
 skill → Regenerate Derived Artifacts for the full list and what each check verifies).
 
 The docs generator creates `apps/docs/content/docs/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
@@ -457,7 +457,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] All optional outputs have `optional: true`
 - [ ] Created `index.ts` barrel export
 - [ ] Registered all tools in `tools/registry.ts`
-- [ ] Ran `bun run tool-metadata:generate` and committed the regenerated artifacts
+- [ ] Ran `bun run generate:tool-metadata` and committed the regenerated artifacts
 - [ ] Classified every model-visible, opaque, Sim-durable, and internal-execution request field
 - [ ] Added shared model-input projection or private provenance only where required; ordinary
       external resource locators and control inputs retain their request semantics
@@ -530,15 +530,15 @@ If creating V2 versions (API-aligned outputs):
 
 ### Docs and deployment metadata
 - [ ] Ran `bun run scripts/generate-docs.ts`
-- [ ] Ran `bun run deployment-config:generate` for OAuth or service-account changes
+- [ ] Ran `bun run generate:deployment-config` for OAuth or service-account changes
 - [ ] Verified docs file created
 - [ ] Wrote the `{/* MANUAL-CONTENT-START:intro */}` section under `<BlockInfoCard />` and confirmed it survives a regenerate
 - [ ] Reviewed and committed the generated `packages/deployment-config/src/integrations.json` change
-- [ ] `bun run integration-catalog:check` passes
-- [ ] `bun run docs:check` passes — CI fails on stale generated docs, so commit the full generator
+- [ ] `bun run check:integration-catalog` passes
+- [ ] `bun run check:docs` passes — CI fails on stale generated docs, so commit the full generator
       output, including catch-up regeneration for pages another PR left stale (never revert it as
       "unrelated drift")
-- [ ] `bun run deployment-config:check` passes
+- [ ] `bun run check:deployment-config` passes
 
 ### Final Validation (Required)
 - [ ] Read every tool file and cross-referenced inputs/outputs against the API docs

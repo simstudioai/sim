@@ -548,7 +548,7 @@ export function BYOK() {
       }
     >
       {keysError && activeQueryData === undefined ? (
-        <SettingsEmptyState tone='error'>
+        <SettingsEmptyState>
           {getErrorMessage(keysError, 'Failed to load provider keys')}
         </SettingsEmptyState>
       ) : (

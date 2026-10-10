@@ -57,7 +57,6 @@ let storage: Storage<RequestContext>
 
 if (typeof globalThis.process !== 'undefined' && globalThis.process.versions?.node) {
   // Node.js — use real AsyncLocalStorage
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { AsyncLocalStorage } = require('node:async_hooks') as typeof import('node:async_hooks')
   storage = new AsyncLocalStorage<RequestContext>()
 } else {

@@ -144,12 +144,12 @@ jobs:
   # The suites exercise HTTP behavior rather than a provisioning path, so they run once, against
   # the production (migrate) path. Each group's app environment lives in http-e2e.sh.
   #
-  # SCIM runs two suites against a hosted app and is the longest group, so it keeps the 8 vCPU
-  # runner; the others boot a smaller self-hosted app and fit on 4.
+  # SCIM's hosted suites and the mobile browser matrix use 8 vCPU; the other
+  # self-hosted suites fit on 4.
   e2e:
     name: e2e (${{ matrix.group }})
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.runner || 'ubuntu-latest' }}
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.group == 'mobile' && 40 || 20 }}
     strategy:
       fail-fast: false
       matrix:
@@ -164,6 +164,8 @@ jobs:
             runner: blacksmith-8vcpu-ubuntu-2404
           - group: desktop-inbox
             runner: blacksmith-4vcpu-ubuntu-2404
+          - group: mobile
+            runner: blacksmith-8vcpu-ubuntu-2404
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -571,9 +573,6 @@ jobs:
       # summary and annotates failures. Audits needing a base ref stay separate below.
       - name: Repo audits
         run: bun run check:audits
-
-      - name: Verify docs manifest is in sync
-        run: bun run docs-manifest:check
 
       - name: Migration safety (zero-downtime) audit
         run: bun run check:migrations "${{ steps.audit_base.outputs.ref }}"

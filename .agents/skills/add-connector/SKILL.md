@@ -89,7 +89,7 @@ export const {service}ConnectorMeta: ConnectorMeta = {
 
   configFields: [
     // Rendered dynamically by the add-connector modal UI
-    // Supports 'short-input', 'dropdown', and 'selector' types — see ConfigField Types below
+    // Supports 'short-input', 'dropdown', and 'selector' types — see ConnectorConfigField Types below
   ],
 
   // Optional: tag definitions are metadata too — declare them here
@@ -167,7 +167,7 @@ export const {service}Connector: ConnectorConfig = {
 }
 ```
 
-## ConfigField Types
+## ConnectorConfigField Types
 
 The add-connector modal renders these automatically — no custom UI needed.
 

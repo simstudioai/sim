@@ -70,6 +70,8 @@ export type StorageContext =
   | 'execution'
   | 'workspace'
   | 'project'
+  | 'test'
+  | 'changelog'
   | 'table-import'
   | 'profile-pictures'
   | 'og-images'

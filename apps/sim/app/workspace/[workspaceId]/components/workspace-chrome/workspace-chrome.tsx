@@ -1,15 +1,24 @@
 'use client'
 
-import { type ReactNode, useEffect, useLayoutEffect, useState } from 'react'
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { applyDesktopTitleBarMode, type DesktopTitleBarMode } from '@sim/desktop-bridge'
-import { cn } from '@sim/emcn'
-import { ArrowLeft, ArrowRight, PanelLeft } from '@sim/emcn/icons'
+import { Chip, cn } from '@sim/emcn'
+import { ArrowLeft, ArrowRight, PanelLeft, X } from '@sim/emcn/icons'
 import { usePathname } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
 import { SidebarChromeProvider } from '@/app/workspace/[workspaceId]/components/workspace-chrome/sidebar-chrome-context'
 import { useSidebarPeek } from '@/app/workspace/[workspaceId]/components/workspace-chrome/use-sidebar-peek'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
 import { SIDEBAR_NO_MOTION_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { isMobileViewport, useIsMobile } from '@/hooks/use-is-mobile'
 import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
 import { useSearchModalStore } from '@/stores/modals/search/store'
@@ -161,6 +170,26 @@ export function WorkspaceChrome({
 }: WorkspaceChromeProps) {
   const pathname = usePathname()
   const isFullscreen = isFullscreenPath(pathname)
+  const isMobile = useIsMobile()
+  const navigationId = useId()
+  const navigationToggleRef = useRef<HTMLButtonElement>(null)
+  const [mobileNavigationPath, setMobileNavigationPath] = useState<string | null>(null)
+  const mobileNavigationOpen = isMobile && mobileNavigationPath === pathname && !isFullscreen
+
+  if (mobileNavigationPath !== null && (mobileNavigationPath !== pathname || !isMobile)) {
+    setMobileNavigationPath(null)
+  }
+
+  useEffect(() => {
+    if (!mobileNavigationOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      setMobileNavigationPath(null)
+      navigationToggleRef.current?.focus()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [mobileNavigationOpen])
 
   const setOrigin = useFullscreenOriginStore((s) => s.setOrigin)
 
@@ -183,6 +212,16 @@ export function WorkspaceChrome({
   const syncSidebarWidth = useSidebarStore((s) => s.syncWidth)
   const toggleSidebar = useSidebarStore((s) => s.toggleCollapsed)
 
+  const handleSidebarToggle = useCallback(() => {
+    if (isMobileViewport()) {
+      if (!isFullscreen) {
+        setMobileNavigationPath((current) => (current === pathname ? null : pathname))
+      }
+      return
+    }
+    toggleSidebar()
+  }, [isFullscreen, pathname, toggleSidebar])
+
   /**
    * Single source of collapse for the whole chrome, driving the rail's structure,
    * labels, and width. The server renders from the `sidebar_collapsed` cookie
@@ -198,7 +237,7 @@ export function WorkspaceChrome({
    * desktop shell. The web app keeps a 51px icon rail (with its own hover flyouts),
    * and native fullscreen falls back to that same rail.
    */
-  const peekEnabled = isCollapsed && !isFullscreen && titleBarMode === 'inset'
+  const peekEnabled = !isMobile && isCollapsed && !isFullscreen && titleBarMode === 'inset'
   const { isPeekActive, cardRef, triggerRef, onTriggerEnter, onTriggerLeave } = useSidebarPeek(
     peekEnabled,
     isSearchModalOpen
@@ -226,7 +265,7 @@ export function WorkspaceChrome({
   useEffect(() => {
     return getDesktopBridge()?.onCommand?.((command) => {
       if (command === 'toggle-sidebar') {
-        useSidebarStore.getState().toggleCollapsed()
+        handleSidebarToggle()
         return
       }
       // The shell's View > Search claims `Mod+K` before the renderer sees it, so
@@ -236,7 +275,7 @@ export function WorkspaceChrome({
         searchModal.setOpen(!searchModal.isOpen)
       }
     })
-  }, [])
+  }, [handleSidebarToggle])
 
   /**
    * A layout effect, not a passive one: the seed below arms the peek, and a passive
@@ -276,9 +315,24 @@ export function WorkspaceChrome({
 
   return (
     <div
-      className='desktop-workspace-window-frame relative flex min-h-0 flex-1'
+      className='desktop-workspace-window-frame relative flex min-h-0 flex-1 flex-col md:flex-row'
       data-sidebar-collapsed={isCollapsed || undefined}
     >
+      {!isFullscreen && (
+        <div className='flex shrink-0 items-center border-[var(--border)] border-b bg-[var(--surface-1)] px-2 md:hidden'>
+          <Chip
+            ref={navigationToggleRef}
+            mobileIconOnly
+            leftIcon={mobileNavigationOpen ? X : PanelLeft}
+            aria-label={mobileNavigationOpen ? 'Close navigation' : 'Open navigation'}
+            aria-expanded={mobileNavigationOpen}
+            aria-controls={navigationId}
+            onClick={handleSidebarToggle}
+          >
+            {mobileNavigationOpen ? 'Close navigation' : 'Navigation'}
+          </Chip>
+        </div>
+      )}
       <div
         aria-hidden
         className={cn(
@@ -287,15 +341,36 @@ export function WorkspaceChrome({
         )}
       />
       <div
+        id={navigationId}
         ref={cardRef}
         className={cn(
           'sidebar-shell-outer shrink-0 overflow-hidden',
           SIDEBAR_NO_MOTION_CLASS,
+          mobileNavigationOpen ? 'max-md:min-h-0 max-md:w-full max-md:flex-1' : 'max-md:hidden',
           isPeekActive ? PEEK_CARD_CHROME : isFullscreen ? 'w-0' : 'w-[var(--sidebar-width)]'
         )}
-        data-collapsed={isCollapsed || undefined}
+        data-collapsed={(!isMobile && isCollapsed) || undefined}
         data-peek={isPeekActive || undefined}
-        aria-hidden={isFullscreen || undefined}
+        aria-hidden={isFullscreen || (isMobile && !mobileNavigationOpen) || undefined}
+        inert={isFullscreen || (isMobile && !mobileNavigationOpen)}
+        onClick={(event) => {
+          if (
+            !mobileNavigationOpen ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          ) {
+            return
+          }
+          const link =
+            event.target instanceof Element
+              ? event.target.closest<HTMLAnchorElement>('a[href]')
+              : null
+          if (link?.origin === window.location.origin && link.pathname === pathname) {
+            setMobileNavigationPath(null)
+          }
+        }}
         suppressHydrationWarning
       >
         <div
@@ -304,13 +379,21 @@ export function WorkspaceChrome({
             isPeekActive ? 'w-[var(--sidebar-width)]' : 'w-full'
           )}
         >
-          <SidebarChromeProvider isCollapsed={isCollapsed} isPeeking={isPeekActive}>
+          <SidebarChromeProvider
+            isCollapsed={!isMobile && isCollapsed}
+            isPeeking={isPeekActive}
+            onToggle={handleSidebarToggle}
+          >
             {sidebar}
           </SidebarChromeProvider>
         </div>
       </div>
       <div
-        className='workspace-content-shell flex min-w-0 flex-1 flex-col'
+        className={cn(
+          'workspace-content-shell flex min-h-0 min-w-0 flex-1 flex-col',
+          mobileNavigationOpen && 'max-md:hidden'
+        )}
+        inert={mobileNavigationOpen}
         data-sidebar-collapsed={isCollapsed || undefined}
         /* A fullscreen route slides the sidebar away without collapsing it, so the pane
            inherits the traffic-light lane the same way a collapsed sidebar does. */
@@ -318,7 +401,7 @@ export function WorkspaceChrome({
       >
         <div
           className={cn(
-            'flex-1 overflow-hidden bg-[var(--bg)]',
+            'min-h-0 flex-1 overflow-hidden bg-[var(--bg)] max-md:border-l-0',
             CONTENT_PANE_DIVIDER,
             isFullscreen && 'border-l-0'
           )}

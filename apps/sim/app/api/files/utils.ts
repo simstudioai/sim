@@ -218,7 +218,7 @@ export function createConditionalFileResponse(
   return response
 }
 
-export function createErrorResponse(error: Error, status = 500): NextResponse {
+export function createFileErrorResponse(error: Error, status = 500): NextResponse {
   const statusCode =
     error instanceof FileNotFoundError
       ? 404

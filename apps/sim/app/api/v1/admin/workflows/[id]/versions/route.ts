@@ -6,8 +6,8 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listWorkflowVersions } from '@/lib/workflows/persistence/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  internalErrorResponse,
-  notFoundResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import type { AdminDeploymentVersion } from '@/app/api/v1/admin/types'
@@ -29,7 +29,7 @@ export const GET = withRouteHandler(
       const workflowRecord = await getActiveWorkflowRecord(workflowId)
 
       if (!workflowRecord) {
-        return notFoundResponse('Workflow')
+        return adminNotFoundResponse('Workflow')
       }
 
       const { versions } = await listWorkflowVersions(workflowId)
@@ -49,7 +49,7 @@ export const GET = withRouteHandler(
       return singleResponse({ versions: response })
     } catch (error) {
       logger.error(`Admin API: Failed to list versions for workflow ${workflowId}`, { error })
-      return internalErrorResponse('Failed to list deployment versions')
+      return adminInternalErrorResponse('Failed to list deployment versions')
     }
   })
 )

@@ -3,6 +3,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const PROTECTED_RESOURCE_METADATA = '/.well-known/oauth-protected-resource'
 const AUTHORIZATION_SERVER_METADATA = '/.well-known/oauth-authorization-server'
+const OPENAI_APPS_CHALLENGE = '/.well-known/openai-apps-challenge'
 
 /**
  * A `Host` header as a URL authority under `protocol`: lower-cased, without the
@@ -45,7 +46,9 @@ export function resolveSimMcpHostPath(
   if (pathname === mcp.pathname) return SIM_MCP_ROUTE_PATH
   if (pathname === `${PROTECTED_RESOURCE_METADATA}${mcp.pathname}`) return internalMetadataPath
   if (!dedicated) return null
-  return pathname === AUTHORIZATION_SERVER_METADATA ? pathname : 'not_found'
+  return pathname === AUTHORIZATION_SERVER_METADATA || pathname === OPENAI_APPS_CHALLENGE
+    ? pathname
+    : 'not_found'
 }
 
 /**

@@ -196,7 +196,7 @@ export const credentialOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    ...HUMAN_AND_COPILOT_PRINCIPALS,
   }),
   upsertMember: defineCredentialOperation(
     defineWorkspaceOperation({
@@ -205,7 +205,7 @@ export const credentialOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'integrations.manage',
-      principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+      ...HUMAN_AND_COPILOT_PRINCIPALS,
     }),
     'admin'
   ),
@@ -216,7 +216,7 @@ export const credentialOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'integrations.manage',
-      principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+      ...HUMAN_AND_COPILOT_PRINCIPALS,
     }),
     'admin'
   ),

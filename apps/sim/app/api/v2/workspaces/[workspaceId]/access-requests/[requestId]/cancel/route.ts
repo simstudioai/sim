@@ -2,7 +2,7 @@ import { v2CancelWorkspaceAccessRequestContract } from '@/lib/api/contracts/v2/a
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2AccessRequestErrorPolicy } from '@/lib/api/server/routes/access-requests'
 import { accessRequestOperations } from '@/ee/access-requests/lib/application/operations'
-import { cancelAccessRequest } from '@/ee/access-requests/lib/application/requests'
+import { workspaceAccessRequestUseCases } from '@/ee/access-requests/lib/application/requests'
 
 export const POST = defineV2JsonRoute({
   contract: v2CancelWorkspaceAccessRequestContract,
@@ -14,6 +14,6 @@ export const POST = defineV2JsonRoute({
     requestId: params.requestId,
     scope: { kind: 'workspace' as const, workspaceId: params.workspaceId },
   }),
-  useCase: cancelAccessRequest,
+  useCase: workspaceAccessRequestUseCases.cancel,
   present: ({ request }) => ({ data: request }),
 })

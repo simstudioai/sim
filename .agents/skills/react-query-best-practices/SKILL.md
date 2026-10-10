@@ -7,7 +7,7 @@ argument-hint: "[scope] [fix=true|false]"
 # React Query Best Practices
 
 Arguments:
-- scope: what to analyze (default: your current changes). Examples: "diff to main", "PR #123", "src/hooks/queries/", "whole codebase"
+- scope: what to analyze (default: your current changes). Examples: "diff to staging", "PR #123", "src/hooks/queries/", "whole codebase"
 - fix: whether to apply fixes (default: true). Set to false to only propose changes.
 
 User arguments: $ARGUMENTS

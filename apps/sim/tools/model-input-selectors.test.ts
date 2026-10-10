@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { a2aSendMessageTool } from '@/tools/a2a/send_message'
 import { agentphoneCreateCallTool } from '@/tools/agentphone/create_call'
-import { airweaveSearchTool } from '@/tools/airweave/search'
 import { brightDataDiscoverTool } from '@/tools/brightdata/discover'
 import { contextDevExtractTool } from '@/tools/context_dev/extract'
 import { contextDevSearchTool } from '@/tools/context_dev/search'
@@ -276,28 +275,6 @@ describe('model-facing integration selectors', () => {
     expect(
       selectModelInput(linkupSearchTool, { q: 'answer this', outputType: 'sourcedAnswer' })
     ).toStrictEqual({ q: 'answer this' })
-  })
-
-  it('projects Airweave queries only when the effective search path uses a model', () => {
-    expect(
-      selectModelInput(airweaveSearchTool, {
-        query: 'literal keyword',
-        retrievalStrategy: 'keyword',
-      })
-    ).toStrictEqual({})
-    expect(
-      selectModelInput(airweaveSearchTool, {
-        query: 'semantic search',
-        retrievalStrategy: 'hybrid',
-      })
-    ).toStrictEqual({ query: 'semantic search' })
-    expect(
-      selectModelInput(airweaveSearchTool, {
-        query: 'expand this',
-        retrievalStrategy: 'keyword',
-        expandQuery: true,
-      })
-    ).toStrictEqual({ query: 'expand this' })
   })
 
   it('projects only the effective Bright Data AI-ranking input', () => {

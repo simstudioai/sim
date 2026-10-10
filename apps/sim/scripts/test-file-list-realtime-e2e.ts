@@ -204,10 +204,7 @@ try {
       ).workspace
     )
     fixture.workspaceId = required(workspace.id)
-    const [binding] = await db
-      .select()
-      .from(projectWorkspace)
-      .where(eq(projectWorkspace.workspaceId, fixture.workspaceId))
+    const [binding] = await db.select().from(workspace).where(eq(workspace.id, fixture.workspaceId))
     assert.ok(binding)
     fixture.projectId = binding.projectId
     const [canonicalWorkspace] = await db

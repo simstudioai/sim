@@ -123,9 +123,8 @@ try {
   await sql`INSERT INTO api_key (id, user_id, name, key, key_hash, type) VALUES (${generateId()}, ${ownerId}, 'Lifecycle fixture', ${ownerKey}, ${sha256Hex(ownerKey)}, 'personal')`
   await sql.begin(async (tx) => {
     await tx`INSERT INTO project (id,name,owner_id) VALUES (${projectId},'Lifecycle HTTP fixture',${ownerId})`
-    await tx`INSERT INTO workspace (id, name, owner_id, billed_account_user_id)
-      VALUES (${workspaceId}, 'Lifecycle HTTP fixture', ${ownerId}, ${ownerId})`
-    await tx`INSERT INTO project_workspace (project_id,workspace_id) VALUES (${projectId},${workspaceId})`
+    await tx`INSERT INTO workspace (id, name, owner_id, billed_account_user_id, project_id)
+      VALUES (${workspaceId}, 'Lifecycle HTTP fixture', ${ownerId}, ${ownerId}, ${projectId})`
   })
   for (const userId of [ownerId, departingId]) {
     await sql`INSERT INTO permissions (id, user_id, entity_type, entity_id, permission_type)

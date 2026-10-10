@@ -10,7 +10,7 @@ interface OrganizationLandingProps {
 export function OrganizationLanding({ heading, children }: OrganizationLandingProps) {
   return (
     <div className='min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
-      <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
+      <div className='flex min-h-full flex-col items-center justify-center px-3 pt-14 pb-8 md:px-6 md:pt-[2vh] md:pb-[22vh]'>
         <h1 className={cn(pageHeadingClassName, 'mb-7 max-w-chat')}>{heading}</h1>
         <div className='relative w-full max-w-chat'>{children}</div>
       </div>

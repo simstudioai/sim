@@ -8,7 +8,6 @@ import {
   outboxEvent,
   permissions,
   project,
-  projectWorkspace,
   publicShare,
   uploadSession,
   user,
@@ -126,10 +125,7 @@ async function fixture() {
     entityId: workspaceId,
     permissionType: 'admin',
   })
-  const [binding] = await db
-    .select()
-    .from(projectWorkspace)
-    .where(eq(projectWorkspace.workspaceId, workspaceId))
+  const [binding] = await db.select().from(workspace).where(eq(workspace.id, workspaceId))
   if (!binding) throw new Error('Private Project fixture missing')
   const projectId = binding.projectId
   const folderId = generateId()
@@ -240,6 +236,7 @@ async function erasePrivateProject(f: Awaited<ReturnType<typeof fixture>>) {
   return db.transaction(async (tx) => {
     const result = await prepareProjectsForAccountDeletion(tx, f.userId, [f.workspaceId])
     await tx.delete(workspace).where(eq(workspace.id, f.workspaceId))
+    await tx.delete(project).where(inArray(project.id, result))
     return result
   })
 }
@@ -294,8 +291,9 @@ describe('Private Project teardown and durable object cleanup', () => {
       const f = await fixture()
       await expect(
         db.transaction(async (tx) => {
-          await prepareProjectsForAccountDeletion(tx, f.userId, [f.workspaceId])
+          const projectIds = await prepareProjectsForAccountDeletion(tx, f.userId, [f.workspaceId])
           await tx.delete(workspace).where(eq(workspace.id, f.workspaceId))
+          await tx.delete(project).where(inArray(project.id, projectIds))
           throw new Error('Later account teardown failed')
         })
       ).rejects.toThrow('Later account teardown failed')
@@ -340,8 +338,9 @@ describe('Private Project teardown and durable object cleanup', () => {
     const deletion = db.transaction(async (tx) => {
       const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
       pid.resolve(connection.pid)
-      await prepareProjectsForAccountDeletion(tx, f.userId, [f.workspaceId])
+      const projectIds = await prepareProjectsForAccountDeletion(tx, f.userId, [f.workspaceId])
       await tx.delete(workspace).where(eq(workspace.id, f.workspaceId))
+      await tx.delete(project).where(inArray(project.id, projectIds))
     })
     const observedDeletion = deletion.then(
       () => null,

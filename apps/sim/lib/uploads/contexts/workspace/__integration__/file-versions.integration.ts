@@ -9,8 +9,6 @@ import {
   organization,
   outboxEvent,
   permissions,
-  project,
-  projectWorkspace,
   user,
   workspace,
   workspaceFileSecretProvenance,
@@ -105,23 +103,6 @@ describe('workspace file version history in PostgreSQL', () => {
       { notifyWorkspaceChange: false }
     )
     return { ...ids, fileId: uploaded.id, firstKey: uploaded.key }
-  }
-
-  async function unbindWorkspaceProject(workspaceId: string) {
-    await db.transaction(async (tx) => {
-      /** Reconstruct a pre-backfill row; runtime transactions retain all enforcement triggers. */
-      await tx.execute(sql`SET LOCAL session_replication_role = replica`)
-      const bindings = await tx
-        .delete(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, workspaceId))
-        .returning()
-      await tx.delete(project).where(
-        inArray(
-          project.id,
-          bindings.map((binding) => binding.projectId)
-        )
-      )
-    })
   }
 
   function versionRows(fileId: string) {
@@ -692,7 +673,6 @@ describe('workspace file version history in PostgreSQL', () => {
     'serializes full member revocation with a size-changing content write ($first first, original=$content)',
     async ({ first, content }) => {
       const fixture = await seedFile(content)
-      await unbindWorkspaceProject(fixture.workspaceId)
       await db
         .update(workspaceFiles)
         .set({ userId: fixture.bobId })
@@ -767,7 +747,7 @@ describe('workspace file version history in PostgreSQL', () => {
   )
 
   it.each(['handoff', 'restore'] as const)(
-    'serializes legacy member revocation with a size-changing restore (%s first)',
+    'serializes member revocation with a size-changing restore (%s first)',
     async (first) => {
       const fixture = await seedFile('original')
       await db
@@ -782,7 +762,6 @@ describe('workspace file version history in PostgreSQL', () => {
         undefined,
         { version: { source: 'api', authorUserId: fixture.bobId } }
       )
-      await unbindWorkspaceProject(fixture.workspaceId)
       const [before] = await db
         .select({ bytes: workspace.storageUsedBytes })
         .from(workspace)
@@ -840,7 +819,6 @@ describe('workspace file version history in PostgreSQL', () => {
     'serializes member revocation with archive rollback (%s first)',
     async (first) => {
       const fixture = await seedFile('original')
-      await unbindWorkspaceProject(fixture.workspaceId)
       await db
         .update(workspaceFiles)
         .set({ userId: fixture.bobId })
@@ -901,7 +879,6 @@ describe('workspace file version history in PostgreSQL', () => {
     'serializes member revocation with retention cleanup (%s first)',
     async (first) => {
       const fixture = await seedFile('original')
-      await unbindWorkspaceProject(fixture.workspaceId)
       await db
         .update(workspaceFiles)
         .set({ userId: fixture.bobId, deletedAt: new Date(0) })

@@ -15,7 +15,6 @@ import {
   permissionGroupWorkspace,
   permissions,
   project,
-  projectWorkspace,
   user,
   workspace,
   workspaceFiles,
@@ -162,12 +161,10 @@ async function fixture() {
         billedAccountUserId: ownerId,
         workspaceMode: 'organization' as const,
         name: 'Environment',
+        projectId,
         forkedFromWorkspaceId: index ? workspaces[0] : null,
       }))
     )
-    await tx
-      .insert(projectWorkspace)
-      .values(workspaces.map((workspaceId) => ({ projectId, workspaceId })))
   })
   await db.insert(permissions).values({
     id: generateId(),
@@ -235,13 +232,14 @@ afterAll(async () => {
   await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
   for (const f of fixtures) {
     const memberships = await db
-      .select({ projectId: projectWorkspace.projectId })
-      .from(projectWorkspace)
-      .where(inArray(projectWorkspace.workspaceId, f.workspaces))
+      .select({ projectId: workspace.projectId })
+      .from(workspace)
+      .where(inArray(workspace.id, f.workspaces))
     const projectIds = [f.projectId, ...memberships.map((row) => row.projectId)]
     await db.delete(workspaceFiles).where(inArray(workspaceFiles.projectId, projectIds))
     await db.delete(folder).where(inArray(folder.projectId, projectIds))
     await deleteWorkspaceFixture(db, inArray(workspace.id, f.workspaces))
+    await db.delete(project).where(inArray(project.id, projectIds))
     await db.delete(organization).where(eq(organization.id, f.organizationId))
     await db.delete(user).where(inArray(user.id, f.users))
   }
@@ -1336,10 +1334,7 @@ describe('compound copy owner authority', () => {
         billedAccountUserId: f.ownerId,
         workspaceMode: 'organization',
       })
-      const [extra] = await db
-        .select()
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, extraWorkspaceId))
+      const [extra] = await db.select().from(workspace).where(eq(workspace.id, extraWorkspaceId))
       const first = selection(f)
       const second = {
         source: {
@@ -1407,10 +1402,7 @@ describe('Mothership origin navigation and independent Project authority', () =>
       billedAccountUserId: f.ownerId,
       workspaceMode: 'organization',
     })
-    const [binding] = await db
-      .select()
-      .from(projectWorkspace)
-      .where(eq(projectWorkspace.workspaceId, workspaceId))
+    const [binding] = await db.select().from(workspace).where(eq(workspace.id, workspaceId))
     if (!binding) throw new Error('Target Project missing')
     await grant(f.readerId, workspaceId, 'admin')
     return { workspaceId, projectId: binding.projectId }

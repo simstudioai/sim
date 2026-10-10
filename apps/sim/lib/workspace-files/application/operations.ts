@@ -29,8 +29,14 @@ const HUMAN_FILE_TOOL_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot', 'executor'],
 } as const
 /**
- * Version history admits direct callers only; delegated version access is a separate decision.
+ * Chat may list, read and revert versions as the delegating user: a version text read refuses a
+ * delegated caller unless a delivery observer records the snapshot's secret provenance, and a
+ * revert writes a new, undoable version that reinstates that provenance. Deleting a version purges
+ * history irreversibly, so it admits direct callers only. Download stays direct-only too, but it
+ * is not a hard boundary for a writer: reverting to a version and downloading the current file
+ * reaches the same bytes, with provenance tracked at each step.
  */
+const VERSION_HISTORY_PRINCIPAL_POLICY = ALL_COPILOT_PRINCIPAL_POLICY
 const DIRECT_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
 } as const
@@ -166,7 +172,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...DIRECT_PRINCIPAL_POLICY,
+    ...VERSION_HISTORY_PRINCIPAL_POLICY,
   }),
   readVersion: defineWorkspaceOperation({
     id: 'files.versions.read',
@@ -174,7 +180,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...DIRECT_PRINCIPAL_POLICY,
+    ...VERSION_HISTORY_PRINCIPAL_POLICY,
   }),
   readVersionContent: defineWorkspaceOperation({
     id: 'files.versions.read_content',
@@ -182,7 +188,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...DIRECT_PRINCIPAL_POLICY,
+    ...VERSION_HISTORY_PRINCIPAL_POLICY,
   }),
   downloadVersion: defineWorkspaceOperation({
     id: 'files.versions.download',
@@ -198,7 +204,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...DIRECT_PRINCIPAL_POLICY,
+    ...VERSION_HISTORY_PRINCIPAL_POLICY,
   }),
   deleteVersion: defineWorkspaceOperation({
     id: 'files.versions.delete',

@@ -4,7 +4,7 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { renderToReadableStream } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -73,6 +73,7 @@ vi.mock('@/app/workspace/[workspaceId]/components/session-expired', () => ({
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
   WorkspaceChrome: mockWorkspaceChrome,
+  WorkspaceViewport: ({ children }: { children: ReactNode }) => children,
 }))
 
 vi.mock('@/lib/desktop/executor/presence', () => ({
@@ -177,7 +178,7 @@ describe('WorkspaceLayout host context', () => {
       children: <div>Workspace child</div>,
       params: Promise.resolve({ workspaceId: 'workspace-b' }),
     })
-    renderToStaticMarkup(element)
+    await new Response(await renderToReadableStream(element)).text()
 
     expect(mockGetOrgWhitelabelSettings).toHaveBeenCalledWith('org-b')
     expect(mockGetOrgWhitelabelSettings).not.toHaveBeenCalledWith('org-a')
@@ -210,7 +211,7 @@ describe('WorkspaceLayout host context', () => {
       children: <div>Secret workspace child</div>,
       params: Promise.resolve({ workspaceId: 'workspace-denied' }),
     })
-    const html = renderToStaticMarkup(element)
+    const html = await new Response(await renderToReadableStream(element)).text()
 
     expect(html).toContain('Workspace access denied')
     expect(html).not.toContain('Secret workspace child')
@@ -225,7 +226,7 @@ describe('WorkspaceLayout host context', () => {
       children: <div>Workspace child</div>,
       params: Promise.resolve({ workspaceId: 'workspace-b' }),
     })
-    renderToStaticMarkup(element)
+    await new Response(await renderToReadableStream(element)).text()
     return mockWorkspaceChrome.mock.calls[0][0].sidebar
   }
 

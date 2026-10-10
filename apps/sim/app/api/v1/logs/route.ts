@@ -11,7 +11,7 @@ import {
   projectCostTotal,
   projectExecutionData,
   resolveLogFieldProjection,
-} from '@/lib/logs/log-projection'
+} from '@/lib/logs/projection'
 import { decodePublicLogCursor, listPublicWorkflowLogs } from '@/lib/logs/public-queries'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'

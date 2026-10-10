@@ -1,4 +1,4 @@
-import { project, projectWorkspace, workspace } from '@sim/db/schema'
+import { project, workspace } from '@sim/db/schema'
 import { asc, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
@@ -20,11 +20,10 @@ export async function archiveProjectInTransaction(
   const now = record.archivedAt ?? new Date()
   const environments = await tx
     .select({ id: workspace.id })
-    .from(projectWorkspace)
-    .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
-    .where(eq(projectWorkspace.projectId, projectId))
+    .from(workspace)
+    .where(eq(workspace.projectId, projectId))
     .orderBy(asc(workspace.id))
-    .for('no key update', { of: workspace })
+    .for('no key update')
   const effects: EnvironmentArchiveEffects[] = []
   for (const { id } of environments)
     effects.push(await archiveEnvironmentInTransaction(tx, id, now))

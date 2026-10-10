@@ -346,7 +346,7 @@ export function MCP() {
     if (!refreshServerMutation.isSuccess && !refreshServerMutation.isError) return
     const timeout = window.setTimeout(() => refreshServerMutation.reset(), 3000)
     return () => window.clearTimeout(timeout)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation object is unstable; status flags are the triggers
+    // mutation object is unstable; status flags are the triggers
   }, [refreshServerMutation.isSuccess, refreshServerMutation.isError])
 
   const editingServer = editingServerId
@@ -694,7 +694,7 @@ export function MCP() {
         }
       >
         {listError ? (
-          <SettingsEmptyState tone='error'>
+          <SettingsEmptyState>
             {getErrorMessage(listError, 'Failed to load MCP servers')}
           </SettingsEmptyState>
         ) : serversLoading ? (

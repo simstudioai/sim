@@ -1,5 +1,5 @@
 import type { Principal, ResourceFileCopyScope } from '@sim/auth/principal'
-import { projectWorkspace, workspace } from '@sim/db/schema'
+import { workspace } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
 import { and, asc, inArray, isNull } from 'drizzle-orm'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
@@ -169,9 +169,9 @@ export async function createFileCopyAuthorizer(
     await lockProjectBackfillWrites(tx, workspaceIds)
     const memberships = workspaceIds.length
       ? await tx
-          .select()
-          .from(projectWorkspace)
-          .where(inArray(projectWorkspace.workspaceId, workspaceIds))
+          .select({ workspaceId: workspace.id, projectId: workspace.projectId })
+          .from(workspace)
+          .where(inArray(workspace.id, workspaceIds))
       : []
     const parents = new Map(memberships.map((row) => [row.workspaceId, row.projectId]))
     if (workspaceIds.some((workspaceId) => !parents.has(workspaceId))) {
@@ -186,9 +186,9 @@ export async function createFileCopyAuthorizer(
     for (const projectId of projectIds) await lockProject(tx, projectId)
     const currentMemberships = workspaceIds.length
       ? await tx
-          .select()
-          .from(projectWorkspace)
-          .where(inArray(projectWorkspace.workspaceId, workspaceIds))
+          .select({ workspaceId: workspace.id, projectId: workspace.projectId })
+          .from(workspace)
+          .where(inArray(workspace.id, workspaceIds))
       : []
     if (
       currentMemberships.length !== memberships.length ||

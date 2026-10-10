@@ -7,7 +7,6 @@ import {
   folder,
   permissions,
   project,
-  projectWorkspace,
   user,
   userStats,
   workspace,
@@ -56,10 +55,7 @@ afterAll(async () => {
     await db
       .delete(workspaceFiles)
       .where(inArray(workspaceFiles.userId, [creatorId, collaboratorId]))
-    const [binding] = await db
-      .select()
-      .from(projectWorkspace)
-      .where(eq(projectWorkspace.workspaceId, workspaceId))
+    const [binding] = await db.select().from(workspace).where(eq(workspace.id, workspaceId))
     if (binding) {
       await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, binding.projectId))
       await db.delete(folder).where(eq(folder.projectId, binding.projectId))
@@ -146,10 +142,7 @@ it('partial departure retains Project attribution; successor handoff and prior-d
       undefined,
       { version: { source: 'api', authorUserId: creatorId }, syncLiveDoc: false }
     )
-    const [binding] = await db
-      .select()
-      .from(projectWorkspace)
-      .where(eq(projectWorkspace.workspaceId, workspaceId))
+    const [binding] = await db.select().from(workspace).where(eq(workspace.id, workspaceId))
     const projectFolderId = generateId()
     await db.insert(folder).values({
       id: projectFolderId,

@@ -9,7 +9,7 @@ import {
   type LogFieldProjection,
   projectCostTotal,
   resolveLogFieldProjection,
-} from '@/lib/logs/log-projection'
+} from '@/lib/logs/projection'
 import {
   RESUME_EXECUTION_JOB_ID_PREFIX,
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,

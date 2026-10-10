@@ -26,8 +26,8 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  internalErrorResponse,
-  notFoundResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import type {
@@ -58,7 +58,7 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!workspaceData) {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
 
       const workflows = await db
@@ -188,7 +188,7 @@ export const GET = withRouteHandler(
       })
     } catch (error) {
       logger.error('Admin API: Failed to export workspace', { error, workspaceId })
-      return internalErrorResponse('Failed to export workspace')
+      return adminInternalErrorResponse('Failed to export workspace')
     }
   })
 )

@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
@@ -120,6 +120,12 @@ interface FileViewerProps {
     status: 'idle' | 'saving' | 'saved' | 'error',
     retry?: () => Promise<void>
   ) => void
+  /** Receives why a save was refused; text files only. */
+  onSaveError?: (error: unknown) => void
+  /** Replaces the file's own preview pane, for an owner with a richer view of the file. */
+  preview?: ReactNode
+  /** Which side of a split the source takes; `end` puts it after the preview. */
+  sourceSide?: 'start' | 'end'
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
   discardRef?: React.MutableRefObject<(() => void) | null>
@@ -175,6 +181,9 @@ function FileViewerContent({
   autoFocus,
   onDirtyChange,
   onSaveStatusChange,
+  onSaveError,
+  preview,
+  sourceSide,
   saveRef,
   downloadSourceRef,
   discardRef,
@@ -253,6 +262,9 @@ function FileViewerContent({
         autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
         onSaveStatusChange={onSaveStatusChange}
+        onSaveError={onSaveError}
+        preview={preview}
+        sourceSide={sourceSide}
         saveRef={saveRef}
         discardRef={discardRef}
         streamingContent={streamingContent}

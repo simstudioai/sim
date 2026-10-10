@@ -7,6 +7,7 @@ import {
   member,
   organization,
   permissions,
+  project,
   tableRunDispatches,
   uploadSession,
   user,
@@ -758,7 +759,11 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       true
     )
     if (executionBlockers.length) throw new AccountDeletionBlockedError(executionBlockers)
-    await prepareProjectsForAccountDeletion(tx, userId, doomedWorkspaceIds)
+    const projectIdsToDelete = await prepareProjectsForAccountDeletion(
+      tx,
+      userId,
+      doomedWorkspaceIds
+    )
     if (doomedWorkspaceIds.length > 0) {
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
@@ -797,6 +802,10 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
           },
         ])
       }
+    }
+
+    if (projectIdsToDelete.length) {
+      await tx.delete(project).where(inArray(project.id, projectIdsToDelete))
     }
 
     /**

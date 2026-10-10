@@ -13,6 +13,7 @@ import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/applicatio
 import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
 import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { CredentialRevokedError, OAUTH_CREDENTIAL_REVOKED } from '@/lib/oauth/credential-revoked'
 import {
   getCredential,
   type ResolvedCredential,
@@ -212,6 +213,14 @@ export async function completeOAuthCredentialToken(params: {
 
     return { ok: true, token: buildOAuthTokenPayload(credential, accessToken) }
   } catch (error) {
+    if (error instanceof CredentialRevokedError) {
+      logger.warn(`[${requestId}] OAuth credential revoked by provider; reconnect required`, {
+        credentialId: resolvedCredentialId,
+        providerId: error.provider?.providerId,
+        errorCode: error.provider?.errorCode,
+      })
+      return { ok: false, status: 401, code: OAUTH_CREDENTIAL_REVOKED, error: error.message }
+    }
     logger.error(`[${requestId}] Failed to refresh access token:`, error)
     return { ok: false, status: 401, error: 'Failed to refresh access token' }
   }

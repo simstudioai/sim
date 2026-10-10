@@ -15,10 +15,12 @@ import {
 } from 'electron'
 import {
   beginAccountDataTeardown,
+  captureAccountDataGeneration,
   completeDeploymentScopedTeardown,
   getAccountDataTeardownKind,
   getAccountDataTeardownOrigin,
   initializeAccountDataRecovery,
+  isAccountDataGenerationCurrent,
   isAccountDataTeardownRequired,
   prepareAccountDataTeardownForQuit,
   retryAccountDataTeardown,
@@ -74,6 +76,7 @@ import {
 } from '@/main/help-search'
 import { registerIpcHandlers } from '@/main/ipc'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
+import { LocalFilePermissions } from '@/main/local-file-permissions'
 import { executeLocalFileRequest } from '@/main/local-files'
 import { LocalFilesystemService, mountVfsRoot } from '@/main/local-filesystem'
 import { createEncryptedLocalFilesystemGrantStore } from '@/main/local-filesystem-grant-store'
@@ -167,6 +170,19 @@ function main(): void {
       join(userDataPath, 'local-filesystem-grants.json')
     ),
   })
+  const localFilePermissions = new LocalFilePermissions(
+    localFilesystem,
+    () => config.get('fullFileAccess') === true,
+    () => {
+      desktopSettings.setFullFileAccess(true)
+    }
+  )
+  const clearLocalFileAccess = async () => {
+    config.set('fullFileAccess', false)
+    const saved = config.flush()
+    await localFilesystem.forgetAll()
+    if (!saved) throw new Error('Full file access could not be disabled')
+  }
   const scopeEvents = new ScopedEventRouter()
   const terminal = new TerminalRegistry(
     {
@@ -349,7 +365,7 @@ function main(): void {
             },
           },
           { label: 'task resource state', clear: clearDesktopChatSessions },
-          { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
+          { label: 'local filesystem grants', clear: clearLocalFileAccess },
         ]
         const outcomes = await Promise.allSettled(
           stores.map(({ clear }) => Promise.resolve().then(clear))
@@ -533,6 +549,9 @@ function main(): void {
 
   const desktopSettings = createDesktopSettingsService({
     config,
+    onFullFileAccessChanged: (preferences) => {
+      broadcast('desktop:settings:full-file-access-changed', preferences)
+    },
     getMainWindow,
     openMainWindowAt: (route) => void openMainWindowAt(route),
     setAutoDownloadUpdates: (enabled) => updater?.setAutoDownload(enabled),
@@ -627,8 +646,27 @@ function main(): void {
       },
       terminal,
       localFiles: {
-        request: (call, request) =>
-          executeLocalFileRequest(request, { toolName: call.toolName, args: call.args }),
+        request: async (call, request, signal) => {
+          const generation = captureAccountDataGeneration()
+          const origin = appOrigin()
+          const authorization = { toolName: call.toolName, args: call.args }
+          try {
+            const access = await localFilePermissions.authorize(authorization, {
+              parent: async () => getMainWindow(),
+              origin,
+              generation,
+              signal,
+              isCurrent: () =>
+                isAccountDataGenerationCurrent(generation) &&
+                accountDataAvailable() &&
+                appOrigin() === origin,
+              revalidate: () => desktopExecutor.revalidateCall(call),
+            })
+            return await executeLocalFileRequest(request, authorization, access)
+          } catch (error) {
+            return { ok: false, error: getErrorMessage(error) }
+          }
+        },
       },
       imports: {
         importEntry: (request, signal) => desktopExecutor.importEntry(request, signal),
@@ -654,7 +692,7 @@ function main(): void {
       // that would have cleared fine still holding the outgoing deployment's
       // access. Each failure is named so the picker can say what survived.
       const stores = [
-        { label: 'local file access', clear: () => localFilesystem.forgetAll() },
+        { label: 'local file access', clear: clearLocalFileAccess },
         {
           label: 'built-in browser sessions',
           clear: () => clearAgentBrowserProfile({ settingsPersistence: 'server-repair' }),
@@ -772,7 +810,7 @@ function main(): void {
       }
       const stores = [
         { label: 'built-in browser sessions', clear: () => clearAgentBrowserProfile() },
-        { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
+        { label: 'local filesystem grants', clear: clearLocalFileAccess },
         {
           label: 'browser site history',
           clear: () => {
@@ -891,6 +929,7 @@ function main(): void {
         if (win) loadHealthByWindow.get(win)?.retry()
       },
       localFilesystem,
+      localFilePermissions,
       terminal,
       settings: desktopSettings,
       getWindowState: (sender) => ({
@@ -980,6 +1019,9 @@ function main(): void {
       allowHttpLocalhost,
       openSettings,
       openServerSettings: () => serverWindow.open(),
+      openFolderAccess: (parent) => {
+        if (accountDataAvailable()) localFilesystem.showAccessMenu(parent)
+      },
       newWindow: () => void createAndLoadAppWindow(),
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
       handleFocusedResourceShortcut: (win, shortcut) =>

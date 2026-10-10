@@ -2466,7 +2466,7 @@ export async function executeFunctionRequest(
     const executionParams = { ...params }
     executionParams._context = undefined
 
-    logger.info(`[${requestId}] Function execution request`, {
+    logger.debug(`[${requestId}] Function execution request`, {
       hasCode: !!code,
       paramsCount: Object.keys(executionParams).length,
       timeout,
@@ -3272,12 +3272,6 @@ export async function executeFunctionRequest(
       }
 
       const isSystemError = isolatedResult.error.isSystemError === true
-      const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
-      logFn(`[${requestId}] Function execution failed in isolated-vm`, {
-        executionTime,
-        isSystemError,
-        hasStack: Boolean(isolatedResult.error.stack),
-      })
 
       const ivmError = isolatedResult.error
       let adjustedLine = ivmError.line
@@ -3307,11 +3301,15 @@ export async function executeFunctionRequest(
         errorDisplayCode
       )
 
-      const detailLogFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
-      detailLogFn(`[${requestId}] Enhanced error details`, {
-        line: enhancedError.line,
-        column: enhancedError.column,
-      })
+      /** The author's code throwing is logged once by the tool boundary; an isolate failure is ours. */
+      if (isSystemError) {
+        logger.error(`[${requestId}] Function execution failed in isolated-vm`, {
+          executionTime,
+          hasStack: Boolean(ivmError.stack),
+          line: enhancedError.line,
+          column: enhancedError.column,
+        })
+      }
 
       return functionJsonResponse(
         {
@@ -3335,7 +3333,7 @@ export async function executeFunctionRequest(
       )
     }
 
-    logger.info(`[${requestId}] Function executed successfully using ${executionMethod}`, {
+    logger.debug(`[${requestId}] Function executed successfully using ${executionMethod}`, {
       executionTime,
     })
 
@@ -3498,11 +3496,6 @@ export async function executeFunctionRequest(
           )
     }
 
-    logger.error(`[${requestId}] Function execution failed`, {
-      executionTime,
-      hasStack: Boolean(error.stack),
-    })
-
     const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
     const enhancedError = extractEnhancedError(error, userCodeStartLine, errorDisplayCode)
     const userFriendlyErrorMessage = scrubInternalIdentifiers(
@@ -3510,7 +3503,9 @@ export async function executeFunctionRequest(
       compilerInternalIdentifiers
     )
 
-    logger.error(`[${requestId}] Enhanced error details`, {
+    logger.error(`[${requestId}] Function execution failed`, {
+      executionTime,
+      hasStack: Boolean(error.stack),
       line: enhancedError.line,
       column: enhancedError.column,
       userCodeStartLine,

@@ -1,7 +1,7 @@
 /**
  * AUTO-GENERATED FILE. DO NOT EDIT.
  * Generated from apps/docs/content/docs by scripts/sync-docs-manifest.ts.
- * Run: bun run docs-manifest:generate.
+ * Run: bun run generate:docs-manifest.
  *
  * Every page in the copilot's read-only `docs/` VFS tree, as a path that is
  * simultaneously the `docs/`-relative VFS path and the docs.sim.ai URL path
@@ -75,7 +75,6 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/ahrefs.mdx',
   'integrations/airtable-service-account.mdx',
   'integrations/airtable.mdx',
-  'integrations/airweave.mdx',
   'integrations/algolia.mdx',
   'integrations/amplitude.mdx',
   'integrations/apify.mdx',
@@ -103,6 +102,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/calcom.mdx',
   'integrations/calendly.mdx',
   'integrations/cbinsights.mdx',
+  'integrations/checkr.mdx',
   'integrations/circleback.mdx',
   'integrations/clay.mdx',
   'integrations/clerk.mdx',

@@ -21,7 +21,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useSendWorkspaceInvitations } from '@/hooks/queries/invitations'
-import { useOrganizationBilling } from '@/hooks/queries/organization'
+import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { useAdminWorkspaces } from '@/hooks/queries/workspace'
 
 const logger = createLogger('InviteModal')
@@ -193,7 +193,7 @@ export function InviteModal({
   )
   const canViewOrganizationBilling = canGrantOrganizationAdmin
 
-  const { data: organizationBillingData } = useOrganizationBilling(organizationId ?? '', {
+  const { data: organizationBillingData } = useOrganizationPlanSeats(organizationId ?? '', {
     enabled: open && billingEnabled && canViewOrganizationBilling,
   })
 

@@ -14,7 +14,10 @@ import type { DbOrTx } from '@/lib/db/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import type { AccessRequestContext } from '@/ee/access-requests/lib/application/authorization'
 import { loadAccessRequestMembership } from '@/ee/access-requests/lib/application/authorization'
-import { defineAuthorizedAccessRequestUseCase } from '@/ee/access-requests/lib/application/authorized-use-case'
+import {
+  admitWorkspaceDelegation,
+  defineAuthorizedAccessRequestUseCase,
+} from '@/ee/access-requests/lib/application/authorized-use-case'
 import { accessRequestOperations } from '@/ee/access-requests/lib/application/operations'
 import { prepareAccessRequestPolicy } from '@/ee/access-requests/lib/application/prepare'
 import {
@@ -115,13 +118,13 @@ async function hasCurrentMemberLimitMembership(
 export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
   operation: accessRequestOperations.discover,
   scope: (input: DiscoverAccessRequestsInput) => input,
-  async execute({ input, principal, context, executor }): Promise<AccessRequestDiscovery> {
+  async execute({ input, actorUserId, context, executor }): Promise<AccessRequestDiscovery> {
     const organizationId = context.organizationId
     if (!organizationId || !(await isAccessRequestEnabled(organizationId, executor)))
       return { enabled: false, organizationId, entries: [], total: 0, hasMore: false }
     const catalog = await loadAccessRequestCatalog(
       {
-        userId: principal.userId,
+        userId: actorUserId,
         organizationId,
         workspaceId: context.workspaceId,
       },
@@ -139,7 +142,7 @@ export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
       )
     })
     const offset = input.offset ?? 0
-    const policy = await loadAccessRequestPolicy(executor, context, principal.userId)
+    const policy = await loadAccessRequestPolicy(executor, context, actorUserId)
     const pending = await executor
       .select({
         id: permissionAccessRequest.id,
@@ -152,7 +155,7 @@ export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
       .where(
         and(
           eq(permissionAccessRequest.organizationId, organizationId),
-          eq(permissionAccessRequest.requesterId, principal.userId),
+          eq(permissionAccessRequest.requesterId, actorUserId),
           or(
             eq(permissionAccessRequest.scopeKey, accessRequestScopeKey(input)),
             eq(permissionAccessRequest.scopeKey, memberLimitScopeKey(organizationId))
@@ -164,12 +167,7 @@ export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
       .limit(ACCESS_REQUEST_MAX_PENDING)
     const pendingMemberLimit = pending.find((row) => row.targetKey === 'usage_limit:member')
     const memberLimitMembershipMatches = pendingMemberLimit
-      ? await hasCurrentMemberLimitMembership(
-          executor,
-          context,
-          principal.userId,
-          pendingMemberLimit
-        )
+      ? await hasCurrentMemberLimitMembership(executor, context, actorUserId, pendingMemberLimit)
       : false
     const pendingByTarget = new Map(
       pending
@@ -186,7 +184,7 @@ export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
       const result = await evaluateAccessRequestTarget(
         executor,
         context,
-        principal.userId,
+        actorUserId,
         input,
         target,
         catalog,
@@ -233,12 +231,12 @@ interface MutationResult {
 export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
   operation: accessRequestOperations.create,
   scope: (input: CreateAccessRequestInput) => input.scope,
-  prepare: ({ principal, context, input }) =>
-    prepareAccessRequestPolicy(context, principal.userId, input.target.kind),
+  prepare: ({ actorUserId, context, input }) =>
+    prepareAccessRequestPolicy(context, actorUserId, input.target.kind),
   mutation: true,
   async execute({
-    principal,
     input,
+    actorUserId,
     context,
     executor,
     prepared,
@@ -261,7 +259,7 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
       target.kind === 'usage_limit'
         ? await loadAccessRequestMembership(
             executor,
-            principal.userId,
+            actorUserId,
             { kind: 'organization', organizationId },
             organizationId
           )
@@ -275,13 +273,13 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
     const currentPolicy = await loadAccessRequestPolicy(
       executor,
       context,
-      principal.userId,
+      actorUserId,
       prepared.entitled
     )
     const policy = await evaluateAccessRequestTarget(
       executor,
       context,
-      principal.userId,
+      actorUserId,
       input.scope,
       target,
       catalog,
@@ -293,7 +291,7 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
       .where(
         and(
           eq(permissionAccessRequest.organizationId, organizationId),
-          eq(permissionAccessRequest.requesterId, principal.userId),
+          eq(permissionAccessRequest.requesterId, actorUserId),
           eq(permissionAccessRequest.scopeKey, scopeKey),
           eq(permissionAccessRequest.targetKey, targetKey),
           eq(permissionAccessRequest.status, 'pending')
@@ -322,7 +320,7 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
       const membership = origin
         ? await loadAccessRequestMembership(
             executor,
-            principal.userId,
+            actorUserId,
             { kind: 'workspace', workspaceId: pending.workspaceId },
             organizationId
           )
@@ -369,7 +367,7 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
       .where(
         and(
           eq(permissionAccessRequest.organizationId, organizationId),
-          eq(permissionAccessRequest.requesterId, principal.userId),
+          eq(permissionAccessRequest.requesterId, actorUserId),
           eq(permissionAccessRequest.status, 'pending')
         )
       )
@@ -384,7 +382,7 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
       .where(
         and(
           eq(permissionAccessRequest.organizationId, organizationId),
-          eq(permissionAccessRequest.requesterId, principal.userId),
+          eq(permissionAccessRequest.requesterId, actorUserId),
           gte(
             permissionAccessRequest.createdAt,
             new Date(Date.now() - ACCESS_REQUEST_SUBMISSION_WINDOW_MS)
@@ -401,7 +399,7 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
       .values({
         id: generateId(),
         organizationId,
-        requesterId: principal.userId,
+        requesterId: actorUserId,
         workspaceId: requestWorkspaceId,
         scopeKey,
         targetKey,
@@ -457,13 +455,13 @@ interface ListMineInput {
 export const listMyAccessRequests = defineAuthorizedAccessRequestUseCase({
   operation: accessRequestOperations.listMine,
   scope: (input: ListMineInput) => input.scope,
-  async execute({ principal, input, context, executor }) {
+  async execute({ input, actorUserId, context, executor }) {
     if (!context.organizationId) return { requests: [], total: 0, hasMore: false }
     return listAccessRequestRecords(
       executor,
       and(
         eq(permissionAccessRequest.organizationId, context.organizationId),
-        eq(permissionAccessRequest.requesterId, principal.userId),
+        eq(permissionAccessRequest.requesterId, actorUserId),
         input.requestId ? eq(permissionAccessRequest.id, input.requestId) : undefined,
         input.status ? eq(permissionAccessRequest.status, input.status) : undefined,
         or(
@@ -487,7 +485,7 @@ export const cancelAccessRequest = defineAuthorizedAccessRequestUseCase({
   operation: accessRequestOperations.cancel,
   scope: (input: CancelInput) => input.scope,
   mutation: true,
-  async execute({ principal, input, context, executor }): Promise<MutationResult> {
+  async execute({ input, actorUserId, executor, context }): Promise<MutationResult> {
     const row = await loadStoredAccessRequest(
       executor,
       requireOrganization(context.organizationId),
@@ -495,7 +493,7 @@ export const cancelAccessRequest = defineAuthorizedAccessRequestUseCase({
       true
     )
     if (
-      row.requesterId !== principal.userId ||
+      row.requesterId !== actorUserId ||
       (row.scopeKey !== accessRequestScopeKey(input.scope) &&
         row.scopeKey !== memberLimitScopeKey(row.organizationId))
     )
@@ -506,7 +504,7 @@ export const cancelAccessRequest = defineAuthorizedAccessRequestUseCase({
       .update(permissionAccessRequest)
       .set({
         status: 'cancelled',
-        decidedBy: principal.userId,
+        decidedBy: actorUserId,
         decidedAt: new Date(),
         updatedAt: new Date(),
       })
@@ -529,6 +527,14 @@ export const cancelAccessRequest = defineAuthorizedAccessRequestUseCase({
         ]
       : [],
 })
+
+/** A member's own requests, served to the workspace routes and to Chat acting for that member. */
+export const workspaceAccessRequestUseCases = {
+  discover: admitWorkspaceDelegation(discoverAccessRequests),
+  create: admitWorkspaceDelegation(createAccessRequest),
+  listMine: admitWorkspaceDelegation(listMyAccessRequests),
+  cancel: admitWorkspaceDelegation(cancelAccessRequest),
+} as const
 
 interface OrganizationInput {
   organizationId: string
@@ -573,19 +579,19 @@ export const updateAccessRequestSettings = defineAuthorizedAccessRequestUseCase(
   operation: accessRequestOperations.updateSettings,
   scope: (input: UpdateSettingsInput) => organizationScope(input),
   mutation: true,
-  async execute({ principal, input, executor }): Promise<AccessRequestSettings> {
+  async execute({ input, actorUserId, executor }): Promise<AccessRequestSettings> {
     await executor
       .insert(organizationAccessRequestSettings)
       .values({
         organizationId: input.organizationId,
         allowRequests: input.allowRequests,
-        updatedBy: principal.userId,
+        updatedBy: actorUserId,
       })
       .onConflictDoUpdate({
         target: organizationAccessRequestSettings.organizationId,
         set: {
           allowRequests: input.allowRequests,
-          updatedBy: principal.userId,
+          updatedBy: actorUserId,
           updatedAt: new Date(),
         },
       })

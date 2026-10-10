@@ -1,8 +1,8 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  // Plain `knip` (check:dead-code) gates reachability and dependency ownership.
-  // Unused exports, types, and duplicates are ratcheted by check:unused-exports,
-  // which reuses this config in the same knip pass.
+  // Plain `knip` reports reachability and dependency ownership. check:unused-exports runs
+  // knip with this config, gates these at zero, and ratchets unused exports, types, and
+  // duplicates in the same pass.
   "include": ["files", "dependencies", "unlisted", "unresolved"],
   // On by default: every workspace's `exports` map serves only this monorepo, so an entry export
   // no workspace imports is dead. The workspaces below turn it off because their entries are
@@ -73,6 +73,8 @@
         "node-gyp",
         // Imported inside the generated source string in sandbox/bundles/build.ts.
         "pptxgenjs",
+        "@vitest/expect",
+        "@vitest/spy",
         // Next aliases this marker to its bundled server-only module.
         "server-only",
         // Knip's email CLI plugin infers this transitive preview implementation.
@@ -106,7 +108,12 @@
       // ensure-pty-prebuilds.ts assembles these package names for universal builds.
       "ignoreDependencies": ["@lydell/node-pty-darwin-arm64", "@lydell/node-pty-darwin-x64"]
     },
-    "apps/docs": { "includeEntryExports": false },
+    "apps/docs": {
+      "includeEntryExports": false,
+      // scripts/generate-docs.ts copies this verbatim from apps/sim/components/icons.tsx, whose
+      // export surface is already ratcheted there; docs consumes only the icons it maps.
+      "ignoreIssues": { "components/icons.tsx": ["exports", "types", "duplicates"] }
+    },
     "apps/pii": { "includeEntryExports": false },
     "packages/cli": { "includeEntryExports": false },
     "packages/db": {

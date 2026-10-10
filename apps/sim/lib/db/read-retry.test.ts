@@ -1,3 +1,4 @@
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { isTransientDatabaseReadError, withDatabaseReadRetry } from '@/lib/db/read-retry'
 
@@ -8,6 +9,44 @@ function driverError(code: string): Error {
 afterEach(() => vi.useRealTimers())
 
 describe('independent database read retries', () => {
+  it('does not start another read after the elapsed budget is spent', async () => {
+    vi.useFakeTimers()
+    const error = driverError('40001')
+    let attempts = 0
+    const result = expect(
+      withDatabaseReadRetry(
+        async () => {
+          attempts++
+          if (attempts > 1) return 'late recovery'
+          await sleep(100)
+          throw error
+        },
+        { maxElapsedMs: 50 }
+      )
+    ).rejects.toBe(error)
+    await vi.runAllTimersAsync()
+    await result
+    expect(attempts).toBe(1)
+  })
+
+  it('supplies the remaining budget to each fresh read', async () => {
+    vi.useFakeTimers()
+    const budgets: Array<number | undefined> = []
+    const result = withDatabaseReadRetry(
+      async (remainingMs) => {
+        budgets.push(remainingMs)
+        if (budgets.length === 1) throw driverError('40001')
+        return 'recovered'
+      },
+      { maxElapsedMs: 1000, maxAttempts: 2 }
+    )
+    await vi.runAllTimersAsync()
+    await expect(result).resolves.toBe('recovered')
+    expect(budgets[0]).toBe(1000)
+    expect(budgets[1]).toBeGreaterThan(0)
+    expect(budgets[1]).toBeLessThan(1000)
+  })
+
   it.each(['08006', '57P01', '53300', '55P03', 'ECONNRESET', 'CONNECTION_CLOSED'])(
     'rebuilds a failed %s read and returns the recovered rows',
     async (code) => {

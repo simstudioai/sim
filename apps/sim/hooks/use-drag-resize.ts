@@ -19,21 +19,6 @@ interface UseDragResizeOptions {
    */
   getTarget: () => HTMLElement | null
   /**
-   * Other subtrees that read {@link cssVar} but are not what the drag resizes —
-   * the toast stack insets by `--panel-width`/`--terminal-height` yet is
-   * portalled to `<body>`, so it shares no ancestor with either. Each is
-   * written alongside the primary, which keeps the recalc scoped AND keeps
-   * these consumers tracking the drag; one left off here reads the stale
-   * `:root` value and only catches up when the drag commits.
-   *
-   * Deliberately separate from {@link getTarget} rather than one list: these
-   * come and go independently of the drag (a toast auto-dismisses mid-drag),
-   * so they must never become the liveness reference. Absent (`null`) or
-   * duplicate elements are ignored, and writing to one that detaches mid-drag
-   * is harmless.
-   */
-  getExtraTargets?: () => (HTMLElement | null)[]
-  /**
    * Maps a pointer position to the clamped target dimension, or `null` to
    * ignore the move. Runs at most once per animation frame (before the write,
    * so a layout read here happens against clean layout) and once more on
@@ -107,8 +92,6 @@ export function useDragResize(options: UseDragResizeOptions) {
     const pointerId = e.pointerId
     const { cssVar } = optionsRef.current
     const target = optionsRef.current.getTarget() ?? document.documentElement
-    const extras = optionsRef.current.getExtraTargets?.() ?? []
-    const targets = [...new Set([target, ...extras.filter((el) => el !== null)])]
     document.body.style.cursor = optionsRef.current.cursor
     document.body.style.userSelect = 'none'
     handle.setPointerCapture?.(pointerId)
@@ -118,7 +101,7 @@ export function useDragResize(options: UseDragResizeOptions) {
     let lastApplied: number | null = null
 
     const applyValue = (value: number) => {
-      for (const el of targets) el.style.setProperty(cssVar, `${value}px`)
+      target.style.setProperty(cssVar, `${value}px`)
       lastApplied = value
       optionsRef.current.onApply?.(value)
     }
@@ -162,9 +145,7 @@ export function useDragResize(options: UseDragResizeOptions) {
       }
       if (lastApplied !== null) {
         optionsRef.current.commit(lastApplied)
-        for (const el of targets) {
-          if (el !== document.documentElement) el.style.removeProperty(cssVar)
-        }
+        if (target !== document.documentElement) target.style.removeProperty(cssVar)
       }
       optionsRef.current.onEnd?.()
     }

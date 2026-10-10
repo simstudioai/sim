@@ -636,6 +636,9 @@ export function useUpdateWorkspaceFileContent() {
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
       })
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.record(variables.workspaceId, variables.fileId),
+      })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onError: (error) => {

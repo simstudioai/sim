@@ -1,4 +1,5 @@
 import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
+import { tableConstantsMock } from '@sim/testing/mocks/table-constants.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Capture useEffect calls so tests can trigger them manually.
@@ -58,9 +59,7 @@ vi.mock('@/blocks', () => ({
   getBlock: vi.fn(() => undefined),
 }))
 
-vi.mock('@/lib/table/constants', () => ({
-  TABLE_LIMITS: { MAX_QUERY_LIMIT: 1000 },
-}))
+vi.mock('@/lib/table/constants', () => tableConstantsMock)
 
 import { useTable } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table'
 

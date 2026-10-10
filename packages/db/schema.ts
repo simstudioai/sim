@@ -170,6 +170,15 @@ export const account = pgTable(
     scope: text('scope'),
     password: text('password'),
     oauthConfig: text('oauth_config'),
+    /**
+     * The provider rejected `refresh_token` as revoked (`invalid_grant` and kin). The marker holds
+     * only while `refresh_revoked_token_hash` still fingerprints the stored refresh token, so any
+     * writer that stores a new chain supersedes it; a reconnect clears it explicitly, since a
+     * provider may reauthorize without issuing a new refresh token.
+     */
+    refreshRevokedAt: timestamp('refresh_revoked_at'),
+    refreshRevokedCode: text('refresh_revoked_code'),
+    refreshRevokedTokenHash: text('refresh_revoked_token_hash'),
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull(),
   },
@@ -2031,6 +2040,13 @@ export const workspace = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'set null',
     }),
+    /** Encodes nullable organization identity for the composite membership foreign key. */
+    organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(
+      sql`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END`
+    ),
+    projectId: text('project_id')
+      .notNull()
+      .references((): AnyPgColumn => project.id, { onDelete: 'restrict' }),
     workspaceMode: workspaceModeEnum('workspace_mode').notNull().default('grandfathered_shared'),
     billedAccountUserId: text('billed_account_user_id')
       .notNull()
@@ -2070,8 +2086,22 @@ export const workspace = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    idProjectUnique: unique('workspace_id_project_unique').on(table.id, table.projectId),
+    /** Maintenance installs these two composite checks as DEFERRABLE INITIALLY DEFERRED. */
+    projectOrganizationFk: foreignKey({
+      name: 'workspace_project_organization_fk',
+      columns: [table.projectId, table.organizationScopeKey],
+      foreignColumns: [project.id, project.organizationScopeKey],
+    }),
+    /** The existing parent FK clears only the parent pointer on deletion. */
+    forkProjectFk: foreignKey({
+      name: 'workspace_fork_project_fk',
+      columns: [table.forkedFromWorkspaceId, table.projectId],
+      foreignColumns: [table.id, table.projectId],
+    }),
     ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
     organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
+    projectIdIdx: index('workspace_project_id_id_idx').on(table.projectId, table.id).concurrently(),
     nonNegativeStorage: check(
       'workspace_storage_used_bytes_non_negative',
       sql`${table.storageUsedBytes} >= 0`
@@ -2101,6 +2131,10 @@ export const project = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'restrict',
     }),
+    /** Encodes nullable organization identity for the composite membership foreign key. */
+    organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(
+      sql`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END`
+    ),
     /** Lifecycle owner for personal and organization Projects; never an implicit access grant. */
     ownerId: text('owner_id')
       .notNull()
@@ -2110,6 +2144,10 @@ export const project = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    organizationScopeUnique: unique('project_id_organization_scope_unique').on(
+      table.id,
+      table.organizationScopeKey
+    ),
     nameLength: check(
       'project_name_length',
       sql`char_length(btrim(${table.name})) BETWEEN 1 AND 100`
@@ -2120,24 +2158,6 @@ export const project = pgTable(
       table.id
     ),
     ownerIdx: index('project_owner_archive_id_idx').on(table.ownerId, table.archivedAt, table.id),
-  })
-)
-
-/** Deferred membership and lifecycle triggers are installed by 0403 after the Project backfill. */
-export const projectWorkspace = pgTable(
-  'project_workspace',
-  {
-    projectId: text('project_id')
-      .notNull()
-      .references(() => project.id, { onDelete: 'restrict' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.projectId, table.workspaceId] }),
-    workspaceUnique: uniqueIndex('project_workspace_workspace_id_unique').on(table.workspaceId),
   })
 )
 
@@ -2504,6 +2524,170 @@ export const dashboard = pgTable(
   },
   (table) => ({
     workspaceUnique: uniqueIndex('dashboard_workspace_id_unique').on(table.workspaceId),
+  })
+)
+
+/**
+ * A workflow test file: one concern, read as `tests/<name>.test.js`. `tests create` sets the
+ * name, title, and description; the source is a workspace file with `context = 'test'`, so it
+ * keeps versions and Sim's file edits, and `cases` is what its last accepted write declared.
+ */
+export const workflowTest = pgTable(
+  'workflow_test',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    bodyFileId: text('body_file_id')
+      .notNull()
+      .references(() => workspaceFiles.id),
+    /** Every `describe > it` path in the file with its mode (`run`, `only`, `skip`). */
+    cases: jsonb('cases').notNull().default('[]'),
+    /** sha256 of the source `cases` was read from; a run reporting another hash is stale. */
+    sourceHash: text('source_hash').notNull(),
+    createdByUserId: text('created_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    deletedAt: timestamp('deleted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceNameUnique: uniqueIndex('workflow_test_workspace_name_unique')
+      .on(table.workspaceId, table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
+    bodyFileUnique: uniqueIndex('workflow_test_body_file_unique').on(table.bodyFileId),
+  })
+)
+
+/** One run of a test file against the draft or deployed workflows. */
+export const workflowTestRun = pgTable(
+  'workflow_test_run',
+  {
+    id: text('id').primaryKey(),
+    testId: text('test_id')
+      .notNull()
+      .references(() => workflowTest.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    version: text('version').notNull(),
+    status: text('status').notNull().default('running'),
+    passed: integer('passed').notNull().default(0),
+    failed: integer('failed').notNull().default(0),
+    skipped: integer('skipped').notNull().default(0),
+    /** The sandbox report: every case's checks, judge reasons, logs, and executions. */
+    report: jsonb('report'),
+    /** Why the file produced no report: it did not load, or the run itself failed. */
+    error: text('error'),
+    /** sha256 of the source this run executed; null when it failed before reading the file. */
+    sourceHash: text('source_hash'),
+    /** `{ workflowId, deploymentVersionId }` for each workflow the run executed; null draft ids. */
+    ranAgainst: jsonb('ran_against'),
+    /** Each case's status (`running`, `pass`, `fail`, `skip`) by `describe > it` path, as it runs. */
+    progress: jsonb('progress'),
+    triggeredByActor: jsonb('triggered_by_actor').notNull(),
+    triggeredByUserId: text('triggered_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (table) => ({
+    testVersionStartedIdx: index('workflow_test_run_test_version_started_idx').on(
+      table.testId,
+      table.version,
+      table.startedAt
+    ),
+    versionCheck: check(
+      'workflow_test_run_version_check',
+      sql`${table.version} IN ('draft', 'deployed')`
+    ),
+    statusCheck: check(
+      'workflow_test_run_status_check',
+      sql`${table.status} IN ('running', 'passed', 'failed', 'error')`
+    ),
+    completedCheck: check(
+      'workflow_test_run_completed_check',
+      sql`(${table.status} = 'running') = (${table.completedAt} IS NULL)`
+    ),
+  })
+)
+
+/**
+ * A published changelog release, read as `changelog/<id>.md`. The body is a workspace file with
+ * `context = 'changelog'`, so it keeps versions and Sim's file edits. The version is a label: Sim
+ * picks the bump, the server computes the number, and people may relabel it; links use the id.
+ * `revision` guards the release's own fields against lost updates.
+ */
+export const changelogRelease = pgTable(
+  'changelog_release',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    versionMajor: integer('version_major').notNull(),
+    versionMinor: integer('version_minor').notNull(),
+    versionPatch: integer('version_patch').notNull(),
+    bumpReason: text('bump_reason').notNull(),
+    bodyFileId: text('body_file_id')
+      .notNull()
+      .references(() => workspaceFiles.id),
+    revision: integer('revision').notNull().default(1),
+    publishedAt: timestamp('published_at', { precision: 3 }).notNull().defaultNow(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceVersionUnique: uniqueIndex('changelog_release_workspace_version_unique').on(
+      table.workspaceId,
+      table.versionMajor,
+      table.versionMinor,
+      table.versionPatch
+    ),
+    bodyFileUnique: uniqueIndex('changelog_release_body_file_unique').on(table.bodyFileId),
+    workspacePublishedIdx: index('changelog_release_workspace_published_idx').on(
+      table.workspaceId,
+      table.publishedAt,
+      table.id
+    ),
+    versionCheck: check(
+      'changelog_release_version_check',
+      sql`${table.versionMajor} >= 0 AND ${table.versionMinor} >= 0 AND ${table.versionPatch} >= 0`
+    ),
+  })
+)
+
+/** One line of a release: what changed, and where it came from when Sim knows. */
+export const changelogChange = pgTable(
+  'changelog_change',
+  {
+    id: text('id').primaryKey(),
+    releaseId: text('release_id')
+      .notNull()
+      .references(() => changelogRelease.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    text: text('text').notNull(),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
+    deploymentVersionId: text('deployment_version_id').references(
+      () => workflowDeploymentVersion.id,
+      { onDelete: 'set null' }
+    ),
+    chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'set null' }),
+  },
+  (table) => ({
+    releasePositionUnique: uniqueIndex('changelog_change_release_position_unique').on(
+      table.releaseId,
+      table.position
+    ),
   })
 )
 
@@ -5493,6 +5677,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'enrichment',
   'voice-output',
   'api-tool',
+  'workflow-test',
 ])
 
 /** Content-free organization Search activity, independent of billable model usage. */

@@ -81,7 +81,6 @@ export function useWebhookInfo(blockId: string, workflowId: string): UseWebhookI
         logger.error('Error reactivating webhook:', error)
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [workflowId, blockId]
   )
 

@@ -91,7 +91,6 @@ describe('useContextManagement while the user types', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-    vi.restoreAllMocks()
   })
 
   /**

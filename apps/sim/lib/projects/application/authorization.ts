@@ -4,14 +4,7 @@ import {
   requirePrincipalSubjectUserId,
   type SessionPrincipal,
 } from '@sim/auth/principal'
-import {
-  member,
-  permissionGroup,
-  permissions,
-  project,
-  projectWorkspace,
-  workspace,
-} from '@sim/db/schema'
+import { member, permissionGroup, permissions, project, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
@@ -99,7 +92,7 @@ async function loadProjectMemberships(
     : []
   const environmentQuery = tx
     .select({
-      projectId: projectWorkspace.projectId,
+      projectId: workspace.projectId,
       id: workspace.id,
       name: workspace.name,
       organizationId: workspace.organizationId,
@@ -107,11 +100,10 @@ async function loadProjectMemberships(
       parentId: workspace.forkedFromWorkspaceId,
       allowPersonalApiKeys: workspace.allowPersonalApiKeys,
     })
-    .from(projectWorkspace)
-    .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
+    .from(workspace)
     .where(
       inArray(
-        projectWorkspace.projectId,
+        workspace.projectId,
         records.map((record) => record.id)
       )
     )
@@ -137,6 +129,7 @@ async function loadProjectMemberships(
   const grantsById = new Map(grants.map((row) => [row.id, row.permission]))
   const environmentsByProject = new Map<string, ProjectEnvironmentAccess[]>()
   for (const { projectId, ...row } of environments) {
+    if (!projectId) continue
     const access = { ...row, permission: grantsById.get(row.id) ?? null }
     const rows = environmentsByProject.get(projectId)
     if (rows) rows.push(access)

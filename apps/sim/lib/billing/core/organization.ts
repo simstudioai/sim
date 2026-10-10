@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, count, eq, gte, lt, sql } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
+import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
 import { resolveSubscriptionUsagePeriodOrDefault } from '@/lib/billing/core/reporting-period'
 import {
   getBillingPeriodUsageCost,
@@ -80,7 +81,10 @@ export async function getOrgMemberLedgerByUser(
 ): Promise<Map<string, number>> {
   let billingPeriod = period ?? null
   if (period === undefined) {
-    const subscription = await getOrganizationSubscription(organizationId, { executor })
+    const subscription = await getOrganizationSubscription(organizationId, {
+      executor,
+      onError: 'throw',
+    })
     billingPeriod = subscription ? resolveSubscriptionUsagePeriodOrDefault(subscription) : null
   }
   if (!billingPeriod) return new Map<string, number>()
@@ -106,54 +110,56 @@ async function getOrganizationMemberUsageCounts(
   billingPeriod: UsageQueryPeriod,
   executor: DbClient
 ): Promise<{ overLimit: number; nearLimit: number }> {
-  const currentUsage = sql<number>`coalesce(sum(${usageLog.cost}), 0)`
-    .mapWith(Number)
-    .as('current_usage')
-  const usageLimit = sql<number>`coalesce(${userStats.currentUsageLimit}, ${getFreeTierLimit()})`
-    .mapWith(Number)
-    .as('usage_limit')
-  const perMemberUsage = executor
-    .select({ currentUsage, usageLimit })
-    .from(member)
-    .leftJoin(userStats, eq(userStats.userId, member.userId))
-    .leftJoin(
-      usageLog,
-      and(
-        eq(usageLog.userId, member.userId),
-        eq(usageLog.billingEntityType, 'organization'),
-        eq(usageLog.billingEntityId, organizationId),
-        ...(billingPeriod.source === 'reporting'
-          ? [
-              gte(usageLog.createdAt, billingPeriod.start),
-              lt(usageLog.createdAt, billingPeriod.end),
-            ]
-          : [
-              eq(usageLog.billingPeriodStart, billingPeriod.start),
-              eq(usageLog.billingPeriodEnd, billingPeriod.end),
-            ])
+  return readLedgerBounded(executor, async (tx) => {
+    const currentUsage = sql<number>`coalesce(sum(${usageLog.cost}), 0)`
+      .mapWith(Number)
+      .as('current_usage')
+    const usageLimit = sql<number>`coalesce(${userStats.currentUsageLimit}, ${getFreeTierLimit()})`
+      .mapWith(Number)
+      .as('usage_limit')
+    const perMemberUsage = tx
+      .select({ currentUsage, usageLimit })
+      .from(member)
+      .leftJoin(userStats, eq(userStats.userId, member.userId))
+      .leftJoin(
+        usageLog,
+        and(
+          eq(usageLog.userId, member.userId),
+          eq(usageLog.billingEntityType, 'organization'),
+          eq(usageLog.billingEntityId, organizationId),
+          ...(billingPeriod.source === 'reporting'
+            ? [
+                gte(usageLog.createdAt, billingPeriod.start),
+                lt(usageLog.createdAt, billingPeriod.end),
+              ]
+            : [
+                eq(usageLog.billingPeriodStart, billingPeriod.start),
+                eq(usageLog.billingPeriodEnd, billingPeriod.end),
+              ])
+        )
       )
-    )
-    .where(eq(member.organizationId, organizationId))
-    .groupBy(member.userId, userStats.currentUsageLimit)
-    .as('organization_member_usage')
+      .where(eq(member.organizationId, organizationId))
+      .groupBy(member.userId, userStats.currentUsageLimit)
+      .as('organization_member_usage')
 
-  const [counts] = await executor
-    .select({
-      overLimit:
-        sql<number>`count(*) filter (where ${perMemberUsage.currentUsage} > ${perMemberUsage.usageLimit})`.mapWith(
-          Number
-        ),
-      nearLimit:
-        sql<number>`count(*) filter (where ${perMemberUsage.usageLimit} > 0 and ${perMemberUsage.currentUsage} <= ${perMemberUsage.usageLimit} and ${perMemberUsage.currentUsage} / ${perMemberUsage.usageLimit} >= 0.8)`.mapWith(
-          Number
-        ),
-    })
-    .from(perMemberUsage)
+    const [counts] = await tx
+      .select({
+        overLimit:
+          sql<number>`count(*) filter (where ${perMemberUsage.currentUsage} > ${perMemberUsage.usageLimit})`.mapWith(
+            Number
+          ),
+        nearLimit:
+          sql<number>`count(*) filter (where ${perMemberUsage.usageLimit} > 0 and ${perMemberUsage.currentUsage} <= ${perMemberUsage.usageLimit} and ${perMemberUsage.currentUsage} / ${perMemberUsage.usageLimit} >= 0.8)`.mapWith(
+            Number
+          ),
+      })
+      .from(perMemberUsage)
 
-  return {
-    overLimit: counts?.overLimit ?? 0,
-    nearLimit: counts?.nearLimit ?? 0,
-  }
+    return {
+      overLimit: counts?.overLimit ?? 0,
+      nearLimit: counts?.nearLimit ?? 0,
+    }
+  })
 }
 
 /**
@@ -168,7 +174,10 @@ export async function getOrganizationMemberUsageSnapshot(
   } = {}
 ): Promise<OrganizationMemberUsageSnapshot> {
   const executor = options.executor ?? db
-  const subscription = await getOrganizationSubscription(organizationId, { executor })
+  const subscription = await getOrganizationSubscription(organizationId, {
+    executor,
+    onError: 'throw',
+  })
   const billingPeriod = subscription ? resolveSubscriptionUsagePeriodOrDefault(subscription) : null
   return {
     billingPeriod,
@@ -178,14 +187,28 @@ export async function getOrganizationMemberUsageSnapshot(
   }
 }
 
-/**
- * Get comprehensive organization billing and usage data
- */
+type OrganizationBillingOverview = Omit<
+  OrganizationUsageData,
+  'membersOverLimit' | 'membersNearLimit'
+>
+type OrganizationBillingMemberPage = { limit?: number; offset?: number }
+
+/** Reads billing and usage, optionally omitting the unpaginated member-limit aggregate. */
+export function getOrganizationBillingData(
+  organizationId: string,
+  executor: DbClient,
+  memberPage: OrganizationBillingMemberPage & { includeMemberUsageCounts: false }
+): Promise<OrganizationBillingOverview | null>
+export function getOrganizationBillingData(
+  organizationId: string,
+  executor?: DbClient,
+  memberPage?: OrganizationBillingMemberPage & { includeMemberUsageCounts?: true }
+): Promise<OrganizationUsageData | null>
 export async function getOrganizationBillingData(
   organizationId: string,
   executor: DbClient = db,
-  memberPage: { limit?: number; offset?: number } = {}
-): Promise<OrganizationUsageData | null> {
+  memberPage: OrganizationBillingMemberPage & { includeMemberUsageCounts?: boolean } = {}
+): Promise<OrganizationBillingOverview | null> {
   try {
     // Get organization info
     const orgRecord = await executor
@@ -202,7 +225,10 @@ export async function getOrganizationBillingData(
     const organizationData = orgRecord[0]
 
     // Get organization subscription directly (referenceId = organizationId)
-    const subscription = await getOrganizationSubscription(organizationId, { executor })
+    const subscription = await getOrganizationSubscription(organizationId, {
+      executor,
+      onError: 'throw',
+    })
 
     if (!subscription) {
       logger.warn('No subscription found for organization', { organizationId })
@@ -320,9 +346,12 @@ export async function getOrganizationBillingData(
 
     const pendingSeats = await countPendingSeatInvitations(organizationId, executor)
     const usedSeats = membersTotal + pendingSeats
-    const memberUsageCounts = billingPeriod
-      ? await getOrganizationMemberUsageCounts(organizationId, billingPeriod, executor)
-      : { overLimit: 0, nearLimit: 0 }
+    const memberUsageCounts =
+      memberPage.includeMemberUsageCounts === false
+        ? null
+        : billingPeriod
+          ? await getOrganizationMemberUsageCounts(organizationId, billingPeriod, executor)
+          : { overLimit: 0, nearLimit: 0 }
 
     const billingPeriodStart = billingPeriod?.start ?? null
     const billingPeriodEnd = billingPeriod?.end ?? null
@@ -348,8 +377,12 @@ export async function getOrganizationBillingData(
         offset,
         hasMore: offset + members.length < membersTotal,
       },
-      membersOverLimit: memberUsageCounts.overLimit,
-      membersNearLimit: memberUsageCounts.nearLimit,
+      ...(memberUsageCounts
+        ? {
+            membersOverLimit: memberUsageCounts.overLimit,
+            membersNearLimit: memberUsageCounts.nearLimit,
+          }
+        : {}),
       members,
     }
   } catch (error) {

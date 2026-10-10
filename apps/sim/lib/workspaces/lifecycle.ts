@@ -29,7 +29,7 @@ const logger = createLogger('WorkspaceLifecycle')
 
 /** Bounds each batched workflow archive statement's parameter list. */
 const WORKFLOW_ARCHIVE_BATCH_SIZE = 1_000
-/** Bounds concurrent post-commit notifications; each is best-effort and catches its own errors. */
+/** Bounds concurrent post-commit notifications and provider cleanup. */
 const ARCHIVE_NOTIFICATION_CONCURRENCY = 8
 
 /** What an environment archive must announce once its transaction commits. */
@@ -135,30 +135,44 @@ export async function archiveEnvironmentInTransaction(
 }
 
 /**
- * Announces a committed environment archive. Every step is best-effort and isolated, so
- * one failed notification never skips the rest.
+ * Announces a committed environment archive. Cleanup is best-effort by default; maintenance
+ * callers can require provider cleanup to succeed before recording completion.
  */
 export async function finishEnvironmentArchive(
   effects: EnvironmentArchiveEffects,
-  requestId: string
+  requestId: string,
+  options: { strictExternalCleanup?: boolean } = {}
 ): Promise<void> {
   const { workspaceId } = effects
-  await mapWithConcurrency(effects.workflows, ARCHIVE_NOTIFICATION_CONCURRENCY, (row) =>
-    finishWorkflowArchive(row.id, workspaceId, row.serverIds, { requestId }).catch((error) =>
-      logger.warn(`[${requestId}] Post-archive notification failed for workflow ${row.id}`, {
-        error,
+  try {
+    const cleanupErrors: unknown[] = []
+    await mapWithConcurrency(effects.workflows, ARCHIVE_NOTIFICATION_CONCURRENCY, (row) =>
+      finishWorkflowArchive(row.id, workspaceId, row.serverIds, {
+        requestId,
+        strictExternalCleanup: options.strictExternalCleanup,
+      }).catch((error: unknown) => {
+        if (options.strictExternalCleanup) {
+          cleanupErrors.push(error)
+          return
+        }
+        logger.warn(`[${requestId}] Post-archive notification failed for workflow ${row.id}`, {
+          error,
+        })
       })
     )
-  )
-  await mcpService.clearCache(workspaceId).catch(() => undefined)
-  if (!mcpPubSub) return
-  for (const serverId of effects.serverIds) {
-    try {
-      mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
-    } catch (error) {
-      logger.warn(`[${requestId}] MCP tools-changed publish failed for server ${serverId}`, {
-        error,
-      })
+    if (cleanupErrors.length > 0) throw cleanupErrors[0]
+  } finally {
+    await mcpService.clearCache(workspaceId).catch(() => undefined)
+    if (mcpPubSub) {
+      for (const serverId of effects.serverIds) {
+        try {
+          mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+        } catch (error) {
+          logger.warn(`[${requestId}] MCP tools-changed publish failed for server ${serverId}`, {
+            error,
+          })
+        }
+      }
     }
   }
 }

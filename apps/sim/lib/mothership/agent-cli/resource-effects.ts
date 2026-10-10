@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import type { z } from 'zod'
 import type { AnyApiRouteContract } from '@/lib/api/contracts/types'
 import * as credentials from '@/lib/api/contracts/v2/credentials'
@@ -15,7 +16,10 @@ import * as tables from '@/lib/api/contracts/v2/tables'
 import * as workflows from '@/lib/api/contracts/v2/workflows'
 import { parseFolderPath } from '@/lib/folders/paths'
 import type { ResourceAddress, ResourceChange } from '@/lib/mothership/generated/resources'
+import { findNonTabFileIds } from '@/lib/mothership/resources/file-tabs'
 import { encodeVfsPathSegments } from '@/lib/vfs/path'
+
+const logger = createLogger('ResourceEffects')
 
 interface EffectContext {
   params: Record<string, string>
@@ -339,6 +343,27 @@ function matchParams(pattern: string, pathname: string): Record<string, string> 
   return params
 }
 
+/**
+ * Only workspace files and chat uploads open as file tabs; other rows open as their owner. The
+ * request already committed, so a failed lookup opens no file tab rather than failing it.
+ */
+async function onlyFileTabs(changes: ResourceChange[]): Promise<ResourceChange[]> {
+  const fileUpsertId = (change: ResourceChange) =>
+    change.op === 'upsert' && change.resource.type === 'file' ? change.resource.id : undefined
+  const ids = changes.flatMap((change) => fileUpsertId(change) ?? [])
+  let nonTabIds: Set<string>
+  try {
+    nonTabIds = await findNonTabFileIds(ids)
+  } catch (error) {
+    logger.error('Could not check which files open as tabs; opening none', { error })
+    nonTabIds = new Set(ids)
+  }
+  return changes.filter((change) => {
+    const id = fileUpsertId(change)
+    return id === undefined || !nonTabIds.has(id)
+  })
+}
+
 /** The observer adds no request and never reads provider responses or download bodies. */
 export function createResourceEffectTransport(
   endpoint: string,
@@ -366,7 +391,8 @@ export function createResourceEffectTransport(
     const response = await transport(input, init)
     if (route && response.ok && (!route.readOnly || observeReads)) {
       const params = matchParams(route.path, url.pathname)
-      if (params) effects.push(...(await route.project(response, { params, body })))
+      if (params)
+        effects.push(...(await onlyFileTabs(await route.project(response, { params, body }))))
     }
     return response
   }

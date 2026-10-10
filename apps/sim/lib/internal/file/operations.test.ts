@@ -443,11 +443,9 @@ describe('file manage folder wiring', () => {
       )
 
       expect(response.status).toBe(200)
-      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
-        'workspace-1',
-        'a-self',
-        undefined
-      )
+      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'a-self', {
+        includeOwnedFiles: true,
+      })
     })
 
     it('refuses an ambiguous name instead of editing an arbitrary file', async () => {
@@ -484,11 +482,9 @@ describe('file manage folder wiring', () => {
         })
       )
 
-      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
-        'workspace-1',
-        'a-self',
-        undefined
-      )
+      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'a-self', {
+        includeOwnedFiles: true,
+      })
     })
   })
 
@@ -582,7 +578,7 @@ describe('file manage folder wiring', () => {
     expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
       'workspace-1',
       'notes-in-reports',
-      undefined
+      { includeOwnedFiles: true }
     )
   })
 

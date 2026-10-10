@@ -47,11 +47,15 @@
  * reachable, so a parameter needing an exemption is one no caller can supply —
  * exactly what this audit exists to reject.
  *
+ * Two registry rules ride along: a hosted tool may not report its own `cost`
+ * output, and a fixed-verb external tool may not declare a `method` param that
+ * the transport would send as the HTTP verb.
+ *
  * Usage:
  *   bun run scripts/check-tool-param-reachability.ts
  */
 import { tools } from '../apps/sim/tools/registry'
-import type { ToolConfig } from '../apps/sim/tools/types'
+import { isInternalToolConfig, type ToolConfig } from '../apps/sim/tools/types'
 
 /**
  * The one parameter credential resolution assigns unconditionally.
@@ -119,6 +123,26 @@ function findHostedToolsReportingCost(): string[] {
     .sort()
 }
 
+/**
+ * An external tool with a fixed HTTP verb must not declare a `method` param.
+ *
+ * `formatToolRequest` (`tools/request-transport.ts`) sends `params.method || request.method`
+ * whenever `request.method` is not a function, so a provider field named `method` (an S3
+ * presign operation, a payment method) silently replaces the verb. A tool whose verb really
+ * comes from that param reads it in a `request.method` function, which this rule allows.
+ */
+function findVerbOverridingParams(): string[] {
+  return Object.entries(tools)
+    .filter(
+      ([, config]) =>
+        !isInternalToolConfig(config) &&
+        typeof config.request.method !== 'function' &&
+        Object.hasOwn(config.params ?? {}, 'method')
+    )
+    .map(([toolId]) => toolId)
+    .sort()
+}
+
 function findUnreachableParams(): Finding[] {
   const findings: Finding[] = []
 
@@ -172,6 +196,17 @@ function main(): void {
     for (const toolId of costReporters) {
       console.error(
         `  ${toolId} — declares hosting AND a 'cost' output; direct execution reads output.cost on a hosted tool as "Sim's key paid", so a self-reported cost would bill BYOK and caller-keyed calls`
+      )
+    }
+    process.exit(1)
+  }
+
+  const verbOverriders = findVerbOverridingParams()
+  if (verbOverriders.length > 0) {
+    console.error('Tool parameter reachability audit failed:\n')
+    for (const toolId of verbOverriders) {
+      console.error(
+        `  ${toolId} — declares a 'method' param on a fixed-verb request; the transport sends params.method as the HTTP verb. Rename the param, or read it in a request.method function`
       )
     }
     process.exit(1)

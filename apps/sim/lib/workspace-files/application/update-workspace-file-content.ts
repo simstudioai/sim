@@ -15,6 +15,7 @@ import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/appl
 import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { prepareOwnedFileContentWrite } from '@/lib/workspace-files/application/owned-file-content'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 
@@ -64,6 +65,7 @@ async function updateAuthorizedWorkspaceFileContent({
   const expectedUpdatedAt = input.expectedRevision
     ? parseWorkspaceFileRevision(input.expectedRevision, canonical.fileId)
     : input.expectedUpdatedAt
+  const commitOwner = await prepareOwnedFileContentWrite(canonical, content)
   let file: VersionedWorkspaceFileRecord
   try {
     file = await updateStoredWorkspaceFileContent(
@@ -76,6 +78,7 @@ async function updateAuthorizedWorkspaceFileContent({
         version: resolveWorkspaceFileVersionWrite(principal),
         ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
         syncLiveDoc: input.syncLiveDoc,
+        commitOwner,
         secretProvenancePolicy: {
           ...(input.provenanceMode === 'preserve'
             ? { mode: 'preserve' as const }
@@ -115,8 +118,8 @@ function projectUpdateWorkspaceFileContentAudit(result: UpdateWorkspaceFileConte
 
 const admitUpdateWorkspaceFileContentUseCase = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateContent,
-  resolveContext: ({ input }: { input: { fileId: string } }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({ principal, input }: { principal: Principal; input: { fileId: string } }) =>
+    resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
   async execute() {},
 })
 
@@ -129,8 +132,13 @@ export async function admitUpdateWorkspaceFileContent(
 
 export const updateWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateContent,
-  resolveContext: ({ input }: { input: UpdateWorkspaceFileContentInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UpdateWorkspaceFileContentInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
   async execute({ principal, input, context }): Promise<UpdateWorkspaceFileContentResult> {
     const content = Buffer.from(input.content, input.encoding === 'base64' ? 'base64' : 'utf-8')
     if (content.length > MAX_WORKSPACE_FILE_CONTENT_BYTES) {
@@ -151,8 +159,13 @@ export const updateWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
 
 export const updateWorkspaceFileContentFromBuffer = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateContent,
-  resolveContext: ({ input }: { input: UpdateWorkspaceFileContentBufferInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UpdateWorkspaceFileContentBufferInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
   execute: ({ principal, input, context }) =>
     updateAuthorizedWorkspaceFileContent({
       principal,

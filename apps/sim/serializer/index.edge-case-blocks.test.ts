@@ -14,7 +14,6 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
  * Hoisted mock setup - vi.mock is hoisted, so we need to hoist the config too.
  */
 const { mockBlockConfigs, createMockGetBlock } = vi.hoisted(() => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mockBlockConfigs: Record<string, any> = {
     starter: {
       name: 'Starter',
@@ -39,7 +38,6 @@ const { mockBlockConfigs, createMockGetBlock } = vi.hoisted(() => {
       tools: {
         access: ['anthropic_chat', 'openai_chat'],
         config: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           tool: (params: Record<string, any>) => {
             const model = params.model || 'gpt-4o'
             if (model.includes('claude')) return 'anthropic'
@@ -214,7 +212,6 @@ const { mockBlockConfigs, createMockGetBlock } = vi.hoisted(() => {
     },
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const createMockGetBlock = (extraConfigs: Record<string, any> = {}) => {
     const configs = { ...mockBlockConfigs, ...extraConfigs }
     return (type: string) => configs[type] || null
@@ -339,6 +336,28 @@ describe('Serializer Extended Tests', () => {
       const webhookBlock = serialized.blocks.find((b) => b.id === 'webhook-1')
 
       expect(webhookBlock?.config.params.triggerMode).toBe(true)
+    })
+
+    it('leaves the tool id empty for a trigger-mode tool block, which TriggerBlockHandler runs', () => {
+      const serializer = new Serializer()
+      const block: BlockState = {
+        id: 'slack-trigger',
+        type: 'slack',
+        name: 'Slack',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          text: { id: 'text', type: 'long-input', value: 'hello' },
+        },
+        outputs: {},
+        enabled: true,
+        triggerMode: true,
+      }
+
+      const serialized = serializer.serializeWorkflow({ 'slack-trigger': block }, [], {})
+      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-trigger')
+
+      expect(slackBlock?.config.params.triggerMode).toBe(true)
+      expect(slackBlock?.config.tool).toBe('')
     })
   })
 

@@ -6,12 +6,14 @@ import {
   Code,
   Heading1,
   Heading2,
+  Heading3,
   Highlighter,
   Italic,
   Link as LinkIcon,
   List,
   ListChecks,
   ListOrdered,
+  Pilcrow,
   Strikethrough,
   TextQuote,
   Unlink,
@@ -37,8 +39,10 @@ import {
   ToolbarButton,
   ToolbarDivider,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/toolbar-button'
+import { ToolbarMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/toolbar-menu'
 import { useBubbleMenuFloating } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/use-bubble-menu-floating'
 import { useEditorToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/use-editor-toolbar'
+import { selectionTouchesTable } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/table'
 
 /**
  * Whether the formatting toolbar may show for the given range: the editor is editable, the range
@@ -148,14 +152,23 @@ export function EditorBubbleMenu({
       highlight: e.isActive('highlight'),
       code: e.isActive('code'),
       link: e.isActive('link'),
+      text:
+        e.isActive('paragraph') &&
+        !e.isActive('bulletList') &&
+        !e.isActive('orderedList') &&
+        !e.isActive('taskList') &&
+        !e.isActive('blockquote'),
       heading1: e.isActive('heading', { level: 1 }),
       heading2: e.isActive('heading', { level: 2 }),
+      heading3: e.isActive('heading', { level: 3 }),
       bulletList: e.isActive('bulletList'),
       orderedList: e.isActive('orderedList'),
       taskList: e.isActive('taskList'),
       blockquote: e.isActive('blockquote'),
+      canText: !selectionTouchesTable(e.state),
       canHeading1: e.can().toggleHeading({ level: 1 }),
       canHeading2: e.can().toggleHeading({ level: 2 }),
+      canHeading3: e.can().toggleHeading({ level: 3 }),
       canBulletList: e.can().toggleBulletList(),
       canOrderedList: e.can().toggleOrderedList(),
       canTaskList: e.can().toggleTaskList(),
@@ -363,6 +376,80 @@ export function EditorBubbleMenu({
                 <ToolbarDivider />
               </>
             )}
+            <ToolbarMenu
+              editor={editor}
+              label='Text style'
+              value='Style'
+              items={[
+                {
+                  icon: Pilcrow,
+                  label: 'Text',
+                  active: active.text,
+                  disabled: !active.canText,
+                  onSelect: () => {
+                    if (!selectionTouchesTable(editor.state)) {
+                      editor.chain().focus().clearNodes().run()
+                    }
+                  },
+                },
+                {
+                  icon: Heading1,
+                  label: 'Heading 1',
+                  shortcut: '⌘⌥1',
+                  active: active.heading1,
+                  disabled: !active.canHeading1,
+                  onSelect: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
+                },
+                {
+                  icon: Heading2,
+                  label: 'Heading 2',
+                  shortcut: '⌘⌥2',
+                  active: active.heading2,
+                  disabled: !active.canHeading2,
+                  onSelect: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+                },
+                {
+                  icon: Heading3,
+                  label: 'Heading 3',
+                  shortcut: '⌘⌥3',
+                  active: active.heading3,
+                  disabled: !active.canHeading3,
+                  onSelect: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
+                },
+                {
+                  icon: List,
+                  label: 'Bulleted list',
+                  shortcut: '⌘⇧8',
+                  active: active.bulletList,
+                  disabled: !active.canBulletList,
+                  onSelect: () => editor.chain().focus().toggleBulletList().run(),
+                },
+                {
+                  icon: ListOrdered,
+                  label: 'Numbered list',
+                  shortcut: '⌘⇧7',
+                  active: active.orderedList,
+                  disabled: !active.canOrderedList,
+                  onSelect: () => editor.chain().focus().toggleOrderedList().run(),
+                },
+                {
+                  icon: ListChecks,
+                  label: 'Checklist',
+                  shortcut: '⌘⇧9',
+                  active: active.taskList,
+                  disabled: !active.canTaskList,
+                  onSelect: () => editor.chain().focus().toggleTaskList().run(),
+                },
+                {
+                  icon: TextQuote,
+                  label: 'Quote',
+                  shortcut: '⌘⇧B',
+                  active: active.blockquote,
+                  disabled: !active.canBlockquote,
+                  onSelect: () => editor.chain().focus().toggleBlockquote().run(),
+                },
+              ]}
+            />
             <ToolbarButton
               icon={Bold}
               label='Bold'
@@ -378,82 +465,39 @@ export function EditorBubbleMenu({
               onClick={() => editor.chain().focus().toggleItalic().run()}
             />
             <ToolbarButton
-              icon={Strikethrough}
-              label='Strikethrough'
-              shortcut='⌘⇧S'
-              isActive={active.strike}
-              onClick={() => editor.chain().focus().toggleStrike().run()}
-            />
-            <ToolbarButton
-              icon={Highlighter}
-              label='Highlight'
-              shortcut='⌘⇧H'
-              isActive={active.highlight}
-              onClick={() => editor.chain().focus().toggleMark('highlight').run()}
-            />
-            <ToolbarButton
-              icon={Code}
-              label='Code'
-              shortcut='⌘E'
-              isActive={active.code}
-              onClick={() => editor.chain().focus().toggleCode().run()}
-            />
-            <ToolbarButton
               icon={LinkIcon}
               label='Link'
               shortcut='⌘K'
               isActive={active.link}
               onClick={openLinkEditor}
             />
-            <ToolbarDivider />
-            <ToolbarButton
-              icon={Heading1}
-              label='Heading 1'
-              shortcut='⌘⌥1'
-              isActive={active.heading1}
-              disabled={!active.canHeading1}
-              onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-            />
-            <ToolbarButton
-              icon={Heading2}
-              label='Heading 2'
-              shortcut='⌘⌥2'
-              isActive={active.heading2}
-              disabled={!active.canHeading2}
-              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-            />
-            <ToolbarDivider />
-            <ToolbarButton
-              icon={List}
-              label='Bulleted list'
-              shortcut='⌘⇧8'
-              isActive={active.bulletList}
-              disabled={!active.canBulletList}
-              onClick={() => editor.chain().focus().toggleBulletList().run()}
-            />
-            <ToolbarButton
-              icon={ListOrdered}
-              label='Numbered list'
-              shortcut='⌘⇧7'
-              isActive={active.orderedList}
-              disabled={!active.canOrderedList}
-              onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            />
-            <ToolbarButton
-              icon={ListChecks}
-              label='Checklist'
-              shortcut='⌘⇧9'
-              isActive={active.taskList}
-              disabled={!active.canTaskList}
-              onClick={() => editor.chain().focus().toggleTaskList().run()}
-            />
-            <ToolbarButton
-              icon={TextQuote}
-              label='Quote'
-              shortcut='⌘⇧B'
-              isActive={active.blockquote}
-              disabled={!active.canBlockquote}
-              onClick={() => editor.chain().focus().toggleBlockquote().run()}
+            <ToolbarMenu
+              editor={editor}
+              label='More formatting'
+              active={active.strike || active.highlight || active.code}
+              items={[
+                {
+                  icon: Strikethrough,
+                  label: 'Strikethrough',
+                  shortcut: '⌘⇧S',
+                  active: active.strike,
+                  onSelect: () => editor.chain().focus().toggleStrike().run(),
+                },
+                {
+                  icon: Highlighter,
+                  label: 'Highlight',
+                  shortcut: '⌘⇧H',
+                  active: active.highlight,
+                  onSelect: () => editor.chain().focus().toggleMark('highlight').run(),
+                },
+                {
+                  icon: Code,
+                  label: 'Code',
+                  shortcut: '⌘E',
+                  active: active.code,
+                  onSelect: () => editor.chain().focus().toggleCode().run(),
+                },
+              ]}
             />
           </>
         )}

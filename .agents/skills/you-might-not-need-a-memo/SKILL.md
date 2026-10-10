@@ -7,7 +7,7 @@ argument-hint: "[scope] [fix=true|false]"
 # You Might Not Need a Memo
 
 Arguments:
-- scope: what to analyze (default: your current changes). Examples: "diff to main", "PR #123", "src/components/", "whole codebase"
+- scope: what to analyze (default: your current changes). Examples: "diff to staging", "PR #123", "src/components/", "whole codebase"
 - fix: whether to apply fixes (default: true). Set to false to only propose changes.
 
 User arguments: $ARGUMENTS

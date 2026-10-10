@@ -18,7 +18,11 @@ import { adminV1ListWorkspaceFoldersContract } from '@/lib/api/contracts/v1/admi
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
-import { internalErrorResponse, listResponse, notFoundResponse } from '@/app/api/v1/admin/responses'
+import {
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
+  listResponse,
+} from '@/app/api/v1/admin/responses'
 import { type AdminFolder, createPaginationMeta, toAdminFolder } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkspaceFoldersAPI')
@@ -43,7 +47,7 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!workspaceData) {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
 
       /**
@@ -79,7 +83,7 @@ export const GET = withRouteHandler(
       return listResponse(data, pagination)
     } catch (error) {
       logger.error('Admin API: Failed to list workspace folders', { error, workspaceId })
-      return internalErrorResponse('Failed to list folders')
+      return adminInternalErrorResponse('Failed to list folders')
     }
   })
 )
