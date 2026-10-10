@@ -261,8 +261,12 @@ function resultFor(
   }
 }
 
-/** Accounts searched at once; bounds token refresh and provider fan-out in large organizations. */
-const ACCOUNT_CONCURRENCY = 4
+/**
+ * Accounts searched at once; bounds token refresh and provider fan-out in large organizations.
+ * Each account is one provider, and a search waits for every account, so a second wave adds a
+ * full provider round trip; eight covers the account count most organizations search.
+ */
+const ACCOUNT_CONCURRENCY = 8
 /** Candidates verified at once; each verification is one or more provider requests. */
 const VERIFY_CONCURRENCY = 5
 const MAX_ACCOUNTS = 20
