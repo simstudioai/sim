@@ -201,14 +201,6 @@ jobs:
         working-directory: packages/db
         run: bun run db:migrate
 
-      # One cache per group: each group's app runs under its own fixed NEXT_PUBLIC_* values.
-      - name: Mount Turbopack dev cache
-        uses: ./.github/actions/dev-cache
-        with:
-          provider: ${{ vars.CI_PROVIDER }}
-          name: e2e-${{ matrix.group }}
-          env-hash: ${{ hashFiles('.github/scripts/http-e2e.sh') }}
-
       # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
       # short of writing its report.
       - name: Run end-to-end suites
@@ -301,13 +293,21 @@ jobs:
         run: bun run db:migrate
 
       # Turbopack's dev cache turns the spec's route warm-up from a cold compile (~4 min) into a
-      # restore.
+      # restore. It is content-addressed, so a pull request's changed modules still recompile; the
+      # key carries the installed Next version so an upgrade starts from an empty cache, and the
+      # event and fork segments keep untrusted runs off the cache trusted runs read.
+      - name: Resolve Turbopack dev cache key
+        id: next-cache
+        run: echo "key=${GITHUB_REPOSITORY}-next-dev-desktop-live-${GITHUB_EVENT_NAME}${FORK_SUFFIX}-$(jq -r .version node_modules/next/package.json)" >> "$GITHUB_OUTPUT"
+        env:
+          FORK_SUFFIX: ${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+
       - name: Mount Turbopack dev cache
-        uses: ./.github/actions/dev-cache
+        uses: ./.github/actions/cache
         with:
           provider: ${{ vars.CI_PROVIDER }}
-          name: desktop-live
-          env-hash: ${{ hashFiles('.github/workflows/checks.yml') }}
+          key: ${{ steps.next-cache.outputs.key }}
+          path: ./apps/sim/.next/dev
 
       # Chat switches, Stop, sign-out, approval, the dormant-executor round trip, and background
       # runs across a chat switch and a network cut. The spec runs the recording proxy (the app's

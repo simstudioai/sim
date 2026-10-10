@@ -10,13 +10,11 @@
 # the readiness deadline only has to catch a hung boot: an exited server fails immediately, and
 # either way the server log tail lands in the job log.
 #
-# Each group restores its own Turbopack dev cache (mounted by the dev-cache action, keyed by group
-# and by this file's hash, so a cache is only ever read under the NEXT_PUBLIC_* values it was
-# compiled with). The app is stopped with SIGINT so its last cache write completes: `next dev`
-# SIGKILLs its server 100ms after SIGTERM. A cache Turbopack reports as corrupt is dropped, and a
-# startup it aborted is retried once from an empty cache. The app runs in its own session under an
-# E2E_APP tag, and stop-session.sh returns only once every process in that session or carrying
-# that tag has exited (Next's telemetry flush runs detached and still writes .next/dev).
+# Each app starts from an empty Turbopack dev cache: a cache written under other NEXT_PUBLIC_*
+# values, by a server that `next dev` SIGKILLs 100ms after SIGTERM, can panic Turbopack or wedge a
+# route compile on restore. It runs in its own session under an E2E_APP tag, and stop-session.sh
+# returns only once every process in that session or carrying that tag has exited (Next's
+# telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
 group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|mobile>}
@@ -29,35 +27,11 @@ app_tag=''
 server_log=''
 status_log=''
 
-cache_broken() {
-  grep -qiE 'cache corruption|turbopack.*panic|panicked' "$server_log" 2>/dev/null
-}
-
-# The cache directory is a mount point: empty it rather than remove it.
-clear_cache() {
-  local cache="$GITHUB_WORKSPACE/apps/sim/.next/dev"
-  [ -d "$cache" ] || return 0
-  find "$cache" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-}
-
-# SIGINT is best-effort; the cleanup always runs, since workers and the detached telemetry flush
-# can outlive a server that has already exited.
-stop_app() {
-  if kill -INT "$server_pid" 2>/dev/null; then
-    for _ in $(seq 1 30); do kill -0 "$server_pid" 2>/dev/null || break; sleep 1; done
-  fi
-  bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$app_tag"
-}
-
 finish() {
   local status=$?
   if [ -n "$server_pid" ]; then
-    stop_app || status=1
+    bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$app_tag" || status=1
     wait "$server_pid" 2>/dev/null || true
-    if cache_broken; then
-      echo "::warning::Turbopack reported a broken dev cache; clearing it for the next run."
-      clear_cache
-    fi
     if [ -n "$status_log" ]; then
       awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$status_log"
     fi
@@ -68,13 +42,6 @@ finish() {
   exit "$status"
 }
 trap finish EXIT
-
-# launch_app <port>
-launch_app() {
-  E2E_APP="$app_tag" setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
-    --port "$1" > "$server_log" 2>&1 &
-  server_pid=$!
-}
 
 # start_app <name> <port> <label> [record-http-status]
 start_app() {
@@ -87,21 +54,14 @@ start_app() {
   export NEXT_PUBLIC_APP_URL="http://127.0.0.1:$port"
   export BETTER_AUTH_URL="$NEXT_PUBLIC_APP_URL"
   export DISABLE_TELEMETRY=true NEXT_TELEMETRY_DISABLED=1
-  launch_app "$port"
+  rm -rf .next/dev
+  E2E_APP="$app_tag" setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
+    --port "$port" > "$server_log" 2>&1 &
+  server_pid=$!
 
-  local started=$SECONDS retried=false
+  local started=$SECONDS
   until curl --fail --silent --max-time 10 "$NEXT_PUBLIC_APP_URL/api/health" > /dev/null; do
     if ! kill -0 "$server_pid" 2>/dev/null; then
-      if [ "$retried" = false ] && cache_broken; then
-        echo "::warning::Turbopack rejected the restored dev cache; restarting from an empty cache."
-        tail -n 50 "$server_log"
-        stop_app
-        clear_cache
-        retried=true
-        launch_app "$port"
-        started=$SECONDS
-        continue
-      fi
       echo "::error::Local $label app exited during startup."
       exit 1
     fi
