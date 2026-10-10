@@ -1151,6 +1151,7 @@ try {
     durationMs: 0,
     error: getErrorMessage(error),
   })
+  logger.error('FAIL suite setup', { error: getErrorMessage(error) })
 } finally {
   await check('fixtures are removed', undefined, async () => {
     await sql.begin(async (tx) => {
