@@ -16,7 +16,7 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
@@ -239,9 +239,9 @@ describe('workspace file names in PostgreSQL', () => {
     }))
     for (const file of files) {
       await db.execute(sql`
-        INSERT INTO ${workspaceFiles} (id, key, user_id, workspace_id, folder_id, context, original_name, content_type)
+        INSERT INTO ${workspaceFiles} (id, key, user_id, workspace_id, folder_id, context, original_name, content_type, size_bytes)
         VALUES (${file.id}, ${`legacy/${file.id}`}, ${fixture.aliceId}, ${fixture.workspaceId},
-          ${file.folderId}, 'workspace', ${file.name}, 'text/plain')`)
+          ${file.folderId}, 'workspace', ${file.name}, 'text/plain', 1)`)
     }
     await db.execute(sql`
       INSERT INTO ${workspaceFiles} (id, key, user_id, workspace_id, context, original_name, content_type)
@@ -264,17 +264,22 @@ describe('workspace file names in PostgreSQL', () => {
     }
     expect(await resolveWorkspaceFileReference(fixture.workspaceId, 'brand-new.txt')).toBeNull()
 
+    // The resolver's candidate query for a miss: the id arm, the display-name arm, its order.
     const plan = await db.execute(
-      sql`EXPLAIN (FORMAT JSON) SELECT id FROM ${workspaceFiles} WHERE ${and(
-        eq(workspaceFiles.workspaceId, fixture.workspaceId),
-        eq(workspaceFiles.context, 'workspace'),
-        isNull(workspaceFiles.deletedAt),
-        eq(displaySegmentKey(workspaceFiles.originalName), 'brand-new.txt')
-      )}`
+      sql`EXPLAIN (FORMAT JSON) SELECT id, original_name, folder_id, uploaded_at
+        FROM ${workspaceFiles} WHERE ${and(
+          eq(workspaceFiles.workspaceId, fixture.workspaceId),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt),
+          or(
+            inArray(workspaceFiles.id, ['brand-new.txt']),
+            eq(displaySegmentKey(workspaceFiles.originalName), 'brand-new.txt')
+          )
+        )} ORDER BY ${workspaceFiles.uploadedAt}`
     )
-    expect(JSON.stringify(plan[0]['QUERY PLAN'])).toContain(
-      'workspace_files_workspace_display_name_idx'
-    )
+    const scan = JSON.stringify(plan[0]['QUERY PLAN'])
+    expect(scan).toContain('workspace_files_workspace_display_name_idx')
+    expect(scan).not.toContain('workspace_files_workspace_active_keyset_idx')
   })
 
   it('falls back to a short-id suffix after 20 numbered copies, including under concurrency', async () => {
