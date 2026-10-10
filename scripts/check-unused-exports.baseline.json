@@ -4348,7 +4348,6 @@
   "apps/sim/lib/credentials/application/provider-catalog.ts#CredentialProviderFieldOption",
   "apps/sim/lib/credentials/application/resolve-organization-personal-token.ts#organizationPersonalConnectionOperation",
   "apps/sim/lib/credentials/application/resolve-organization-personal-token.ts#organizationPersonalCredentialOperation",
-  "apps/sim/lib/credentials/application/service-account.ts#StoredSlackBotCredentialInput",
   "apps/sim/lib/credentials/client-credential-accounts/descriptors.ts#ClientCredentialAccountOption",
   "apps/sim/lib/credentials/client-credential-accounts/descriptors.ts#DEFAULT_ZOHO_DESK_DATA_CENTER",
   "apps/sim/lib/credentials/client-credential-accounts/descriptors.ts#NETSUITE_SUITETALK_ORIGIN_REGEX",
