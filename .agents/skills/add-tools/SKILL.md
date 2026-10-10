@@ -190,6 +190,8 @@ fallback, or caller-controlled `_context` authority.
 
 A required `'hidden'` param needs an `oauth` declaration or `hosting.apiKeyParam` to supply it (`bun run check:tool-param-reachability`).
 
+A declared `timeout` param goes to the provider as-is; it becomes Sim's millisecond request deadline only when the tool sets `timeoutParamIsDeadline: true` (`http_request`). A `method` param on a tool with a fixed `request.method` would be sent as the HTTP verb, so the same audit rejects it.
+
 ### Parameter Types
 - `'string'` - Text values
 - `'number'` - Numeric values

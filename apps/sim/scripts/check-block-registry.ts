@@ -3,7 +3,7 @@
 /**
  * CI check: enforces block-registry invariants that protect the runtime.
  *
- * Two checks run in sequence:
+ * Checks run in sequence:
  *
  * 1. **Subblock ID stability** — diffs the current registry against a base ref
  *    and fails if any subblock ID was removed without a corresponding entry in
@@ -17,6 +17,16 @@
  *    resolve values via direct lookup; mismatches false-flag fields as missing
  *    at submit time.
  *
+ * 3. **Selector coercions** — a block's inline `tools.config.tool` may not
+ *    assign a coerced value (`Number(...)`, `parseInt(...)`, `JSON.parse(...)`,
+ *    unary `+`, …) back onto its params. `selectToolId` runs the selector during
+ *    serialization on the object that becomes the serialized block's `params`,
+ *    before `<Block.output>` references resolve, so `params.x = Number(params.x)`
+ *    turns a reference into `NaN`. Coercions belong in `tools.config.params`,
+ *    which the executor runs on resolved inputs.
+ *
+ * Integration BlockMeta coverage and sunset `replacedBy` targets are checked too.
+ *
  * Usage:
  *   bun run apps/sim/scripts/check-block-registry.ts [base-ref]
  *
@@ -25,6 +35,9 @@
  */
 
 import { execFileSync } from 'node:child_process'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import ts from '@typescript/typescript6'
 import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migrations'
 import { getAllBlocks, getBlock, getBlockMeta, getBlockRegistry } from '@/blocks/registry'
 import { readBlockRegistryAtRef } from '@/scripts/block-registry-snapshot'
@@ -231,6 +244,92 @@ function checkSunsetReplacedBy(): CheckResult {
   return { kind: 'fail', errors }
 }
 
+const COERCION_CALLEES = new Set([
+  'BigInt',
+  'Boolean',
+  'JSON.parse',
+  'Number',
+  'Number.parseFloat',
+  'Number.parseInt',
+  'String',
+  'parseFloat',
+  'parseInt',
+])
+
+function isCoercion(expression: ts.Expression): boolean {
+  let inner = expression
+  while (ts.isParenthesizedExpression(inner) || ts.isAsExpression(inner)) inner = inner.expression
+  if (ts.isPrefixUnaryExpression(inner)) return inner.operator === ts.SyntaxKind.PlusToken
+  return ts.isCallExpression(inner) && COERCION_CALLEES.has(inner.expression.getText())
+}
+
+function findSelectorCoercions(file: string, source: ts.SourceFile): string[] {
+  const errors: string[] = []
+  const visit = (node: ts.Node) => {
+    const selector =
+      ts.isPropertyAssignment(node) || ts.isMethodDeclaration(node) ? node : undefined
+    const config = selector?.parent.parent
+    if (
+      selector &&
+      ts.isIdentifier(selector.name) &&
+      selector.name.text === 'tool' &&
+      config &&
+      ts.isPropertyAssignment(config) &&
+      ts.isIdentifier(config.name) &&
+      config.name.text === 'config'
+    ) {
+      const fn = ts.isMethodDeclaration(selector) ? selector : selector.initializer
+      const paramsName =
+        (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) || ts.isMethodDeclaration(fn)) &&
+        fn.parameters[0] &&
+        ts.isIdentifier(fn.parameters[0].name)
+          ? fn.parameters[0].name.text
+          : undefined
+      const findAssignments = (inner: ts.Node) => {
+        if (
+          ts.isBinaryExpression(inner) &&
+          inner.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+          (ts.isPropertyAccessExpression(inner.left) || ts.isElementAccessExpression(inner.left)) &&
+          ts.isIdentifier(inner.left.expression) &&
+          inner.left.expression.text === paramsName &&
+          isCoercion(inner.right)
+        ) {
+          const line = source.getLineAndCharacterOfPosition(inner.getStart()).line + 1
+          errors.push(
+            `${file}:${line}: \`${inner.getText()}\` coerces a param inside tools.config.tool.\n` +
+              '  → Return the coerced value from tools.config.params instead.'
+          )
+        }
+        ts.forEachChild(inner, findAssignments)
+      }
+      if (paramsName) findAssignments(fn)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  return errors
+}
+
+function checkSelectorCoercions(): CheckResult {
+  const blocksDir = join(gitRoot, 'apps/sim/blocks/blocks')
+  const errors: string[] = []
+  for (const name of readdirSync(blocksDir)) {
+    if (!name.endsWith('.ts') || name.endsWith('.test.ts')) continue
+    const path = join(blocksDir, name)
+    const source = ts.createSourceFile(
+      path,
+      readFileSync(path, 'utf-8'),
+      ts.ScriptTarget.Latest,
+      true
+    )
+    errors.push(...findSelectorCoercions(`apps/sim/blocks/blocks/${name}`, source))
+  }
+  if (errors.length === 0) {
+    return { kind: 'pass', message: 'Selector coercion check passed' }
+  }
+  return { kind: 'fail', errors }
+}
+
 function reportResult(label: string, failureHeader: string, result: CheckResult): boolean {
   if (result.kind === 'pass') {
     console.log(`✓ ${result.message}`)
@@ -252,6 +351,7 @@ const stabilityResult = checkSubblockIdStability()
 const canonicalResult = checkCanonicalIdContract()
 const metaCoverageResult = checkIntegrationMetaCoverage()
 const sunsetResult = checkSunsetReplacedBy()
+const selectorCoercionResult = checkSelectorCoercions()
 
 const stabilityOk = reportResult(
   'Subblock ID stability check',
@@ -277,4 +377,10 @@ const sunsetOk = reportResult(
   sunsetResult
 )
 
-process.exit(stabilityOk && canonicalOk && metaCoverageOk && sunsetOk ? 0 : 1)
+const selectorCoercionOk = reportResult(
+  'Selector coercion check',
+  'tools.config.tool runs at serialization, before references resolve, so a coerced reference becomes NaN.',
+  selectorCoercionResult
+)
+
+process.exit(stabilityOk && canonicalOk && metaCoverageOk && sunsetOk && selectorCoercionOk ? 0 : 1)
