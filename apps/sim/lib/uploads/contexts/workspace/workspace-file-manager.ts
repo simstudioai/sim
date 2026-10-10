@@ -101,11 +101,13 @@ import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/sha
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
 import { displaySegmentPattern } from '@/lib/vfs/path'
-import { parseTestFileReference, TEST_FILE_SUFFIX } from '@/lib/workflow-tests/paths'
 import {
-  getLiveWorkflowTestByBodyFileId,
-  getLiveWorkflowTestByName,
-} from '@/lib/workflow-tests/repository'
+  OWNED_FILE_CONTEXTS,
+  type OwnedFileContext,
+  type OwnedFileNamespace,
+  ownedFileKind,
+  parseOwnedFileReference,
+} from '@/lib/workspace-files/owned-files'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
@@ -172,9 +174,10 @@ export interface WorkspaceFileRecord {
   storageContext?: 'workspace' | 'mothership'
   /**
    * Set on chat uploads (`context = 'mothership'`), which the VFS addresses as
-   * `uploads/<name>` rather than `files/…`; `name` then carries the upload's display name.
+   * `uploads/<name>` rather than `files/…`, and on owned files, addressed under their owner's
+   * namespace (`tests/…`, `changelog/…`); `name` then carries the name in that namespace.
    */
-  vfsNamespace?: 'uploads' | 'tests'
+  vfsNamespace?: 'uploads' | OwnedFileNamespace
   /** Public share state, attached at the API boundary. `null` when never shared. */
   share?: ShareRecord | null
 }
@@ -194,7 +197,7 @@ export interface UploadedWorkspaceFileRecord extends WorkspaceFileRecord {
 
 export interface ActiveWorkspaceFileContext {
   fileId: string
-  /** `workspace_files.context`: `'test'` for a test file, which follows its test's policy. */
+  /** `workspace_files.context`: an owned file's context makes it follow its owner's policy. */
   fileContext: string
   workspaceId: string
   workspaceOrganizationId: string | null
@@ -289,7 +292,7 @@ interface WorkspaceFileMetadataInsert {
   originalName: string
   contentType: string
   size: number
-  context?: 'workspace' | 'test'
+  context?: 'workspace' | OwnedFileContext
 }
 
 /**
@@ -622,11 +625,11 @@ export async function uploadWorkspaceFile(
 }
 
 /**
- * Creates a file another resource owns: a test file's source (`context = 'test'`).
+ * Creates a file another resource owns: a test file's source or a release body.
  * `insertOwner` runs in the file's insert transaction, so the owner row and its file commit together or not at all.
  */
 export async function createOwnedWorkspaceFile<T>(params: {
-  context: 'test'
+  context: OwnedFileContext
   workspaceId: string
   userId: string
   content: string
@@ -1292,7 +1295,7 @@ async function mapSingleWorkspaceFileRecord(
   if (file.context === 'mothership') {
     return mapChatUploadRecord(file, workspaceId)
   }
-  if (file.context === 'test') return mapTestFileRecord(file, workspaceId)
+  if (ownedFileKind(file.context)) return mapOwnedFileRecord(file, workspaceId)
   if (!file.folderId) {
     return mapWorkspaceFileRecord(file, workspaceId, new Map())
   }
@@ -1307,15 +1310,17 @@ async function mapSingleWorkspaceFileRecord(
   )
 }
 
-/** A test file reads as `tests/<name>.test.js`, the path Sim addresses it by. */
-async function mapTestFileRecord(
+/** An owned file reads under its owner's namespace, by the name its owner gives it. */
+async function mapOwnedFileRecord(
   file: WorkspaceFileRow,
   workspaceId: string
 ): Promise<WorkspaceFileRecord> {
   const record = mapWorkspaceFileRecord(file, workspaceId, new Map())
-  const owner = await getLiveWorkflowTestByBodyFileId(file.id)
-  if (!owner) return record
-  return { ...record, name: `${owner.name}${TEST_FILE_SUFFIX}`, vfsNamespace: 'tests' }
+  const kind = ownedFileKind(file.context)
+  if (!kind) throw new Error(`File ${file.id} is not an owned file`)
+  const name = await kind.fileName(file.id)
+  if (name === null) return record
+  return { ...record, name, vfsNamespace: kind.namespace }
 }
 
 /**
@@ -1387,20 +1392,21 @@ export async function getWorkspaceFileByName(
 export interface WorkspaceFileLookupOptions {
   includeChatUploads?: boolean
   /**
-   * Admit test files (`context = 'test'`), by id or as `tests/<name>.test.js`. Only content
-   * reads and writes set this, and their use cases apply the test policy to whatever they admit.
+   * Admit owned files (test files, release bodies), by id or by their owner's path
+   * (`tests/<name>.test.js`, `changelog/<id>.md`). Only content reads and writes set this, and
+   * their use cases apply the owner's policy to whatever they admit.
    */
-  includeTestFiles?: boolean
+  includeOwnedFiles?: boolean
   /** Internal Mothership scope for uploads/<name>; ordinary API lookup remains workspace-wide. */
   chatId?: string
 }
 
-/** Row context a single-file lookup admits: workspace files, plus chat uploads and test files on opt-in. */
+/** Row context a single-file lookup admits: workspace files, plus chat uploads and owned files on opt-in. */
 function workspaceFileContextCondition(options?: WorkspaceFileLookupOptions) {
-  const contexts = [
+  const contexts: string[] = [
     'workspace',
     ...(options?.includeChatUploads ? ['mothership'] : []),
-    ...(options?.includeTestFiles ? ['test'] : []),
+    ...(options?.includeOwnedFiles ? OWNED_FILE_CONTEXTS : []),
   ]
   return contexts.length === 1
     ? eq(workspaceFiles.context, 'workspace')
@@ -1756,21 +1762,20 @@ async function getWorkspaceFileByExactReference(
  * records without one rather than pairing a row with a version a second query read later.
  * With `includeChatUploads`, an `uploads/<name>` path (or a chat upload's own id) reaches
  * the chat upload it names; chat uploads are never found through the listing fallback.
- * With `includeTestFiles`, `tests/<name>.test.js` (or the file's own id) reaches that test file.
+ * With `includeOwnedFiles`, an owner's path (`tests/<name>.test.js`, `changelog/<id>.md`) or the
+ * file's own id reaches that owned file.
  */
 export async function resolveWorkspaceFileReference(
   workspaceId: string,
   fileReference: string,
   options?: WorkspaceFileLookupOptions
 ): Promise<WorkspaceFileRecord | null> {
-  if (options?.includeTestFiles) {
-    const testName = parseTestFileReference(fileReference)
-    if (testName !== null) {
-      const owner = await getLiveWorkflowTestByName(workspaceId, testName)
-      return owner
-        ? getWorkspaceFileWithCurrentVersion(workspaceId, owner.bodyFileId, {
-            includeTestFiles: true,
-          })
+  if (options?.includeOwnedFiles) {
+    const owned = parseOwnedFileReference(fileReference)
+    if (owned) {
+      const bodyFileId = await owned.kind.bodyFileIdForKey(workspaceId, owned.key)
+      return bodyFileId
+        ? getWorkspaceFileWithCurrentVersion(workspaceId, bodyFileId, { includeOwnedFiles: true })
         : null
     }
   }
@@ -1788,7 +1793,7 @@ export async function resolveWorkspaceFileReference(
   if (normalizedReference.startsWith('wf_') || isUuid(normalizedReference)) {
     const file = await getWorkspaceFileWithCurrentVersion(workspaceId, normalizedReference, {
       includeChatUploads,
-      includeTestFiles: options?.includeTestFiles,
+      includeOwnedFiles: options?.includeOwnedFiles,
     })
     if (file) return file
   }
@@ -2110,7 +2115,7 @@ export async function updateWorkspaceFileContent(
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
 
   const fileRecord = await getWorkspaceFile(workspaceId, fileId, {
-    includeTestFiles: true,
+    includeOwnedFiles: true,
   })
   if (!fileRecord) {
     throw new OrchestrationError('not_found', 'File not found')

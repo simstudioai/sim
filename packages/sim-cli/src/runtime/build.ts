@@ -123,7 +123,11 @@ function addParseErrorGuidance(command: Command): Command {
         return
       }
       const flags = command.options.filter((option) => !option.hidden).map((option) => option.flags)
-      write(`Options for ${commandPath(command)}: ${flags.join(', ')}\n`)
+      write(
+        flags.length > 0
+          ? `Options for ${commandPath(command)}: ${flags.join(', ')}\n`
+          : `${commandPath(command)} takes no options.\n`
+      )
     },
   })
   return command

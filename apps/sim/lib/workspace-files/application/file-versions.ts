@@ -37,7 +37,7 @@ import {
 import {
   hasWorkspaceFileDeliveryObserver,
   reportWorkspaceFileDelivery,
-  requireDelegatedWorkspaceFileDeliveryObserver,
+  requireCopilotWorkspaceFileDeliveryObserver,
 } from '@/lib/workspace-files/application/file-delivery-observer'
 import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
@@ -109,7 +109,7 @@ export interface RevertWorkspaceFileVersionResult {
 async function loadActiveFile(context: ActiveWorkspaceFileContext): Promise<WorkspaceFileRecord> {
   const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
     throwOnError: true,
-    includeTestFiles: true,
+    includeOwnedFiles: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
   return file
@@ -220,7 +220,7 @@ export const readWorkspaceFileVersionText = defineAuthorizedWorkspaceFileUseCase
     principal,
     request,
   }): Promise<ReadWorkspaceFileVersionTextResult> {
-    requireDelegatedWorkspaceFileDeliveryObserver(principal)
+    requireCopilotWorkspaceFileDeliveryObserver(principal)
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
     const fileAtVersion = recordAtVersion(file, version)

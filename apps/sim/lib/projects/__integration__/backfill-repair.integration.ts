@@ -65,11 +65,12 @@ const run = (command: string, artifacts = { manifest, report }) =>
 
 describeWithRedis('Operator archive repair against the full compatible schema', () => {
   beforeAll(async () => {
+    if (!redisUrl) throw new Error('Archive repair integration requires TEST_REDIS_URL')
     directory = await mkdtemp(join(tmpdir(), 'project-repair-test-'))
     manifest = join(directory, 'manifest.json')
     report = join(directory, 'report.json')
-    cache = new Redis(redisUrl!)
-    subscriber = new Redis(redisUrl!)
+    cache = new Redis(redisUrl)
+    subscriber = new Redis(redisUrl)
     subscriber.on('message', (_channel, message) => published.push(JSON.parse(message)))
     await new Promise<void>((resolve) => realtime.listen(0, '127.0.0.1', resolve))
     const address = realtime.address()
@@ -82,7 +83,7 @@ describeWithRedis('Operator archive repair against the full compatible schema', 
     )
     const folder = join(directory, 'migrations')
     await mkdir(join(folder, 'meta'), { recursive: true })
-    const expansion = journal.entries.find((entry) => entry.tag === '0404_workspace_project_column')
+    const expansion = journal.entries.find((entry) => entry.tag === '0405_workspace_project_column')
     if (!expansion) throw new Error('Missing expansion migration')
     const entries = journal.entries.filter((entry) => entry.when <= expansion.when)
     const source = new URL('../../../../../packages/db/migrations/', import.meta.url)

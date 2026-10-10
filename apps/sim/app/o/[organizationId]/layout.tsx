@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
@@ -59,19 +60,26 @@ export default async function OrganizationLayout({
   if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  const [, modelSelectorEnabled, planModeEnabled, dashboardsEnabled, workflowTestsEnabled] =
-    await Promise.all([
-      prefetchOrganizationSidebar(
-        queryClient,
-        organizationId,
-        { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-        getActiveOrganizationId(session)
-      ),
-      isMothershipModelSelectorEnabled(),
-      isPlanModeEnabled(),
-      isDashboardsEnabled(organizationId),
-      isWorkflowTestsEnabled(organizationId),
-    ])
+  const [
+    ,
+    modelSelectorEnabled,
+    planModeEnabled,
+    dashboardsEnabled,
+    workflowTestsEnabled,
+    changelogEnabled,
+  ] = await Promise.all([
+    prefetchOrganizationSidebar(
+      queryClient,
+      organizationId,
+      { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+      getActiveOrganizationId(session)
+    ),
+    isMothershipModelSelectorEnabled(),
+    isPlanModeEnabled(),
+    isDashboardsEnabled(organizationId),
+    isWorkflowTestsEnabled(organizationId),
+    isChangelogEnabled(organizationId),
+  ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
@@ -80,6 +88,7 @@ export default async function OrganizationLayout({
         flags={{
           dashboards: dashboardsEnabled,
           'workflow-tests': workflowTestsEnabled,
+          changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
         }}

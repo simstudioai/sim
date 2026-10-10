@@ -49,7 +49,7 @@ async function executeTestRun(params: {
   try {
     await markWorkflowTestRunStarted(runId)
     const file = await getWorkspaceFile(test.workspaceId, test.bodyFileId, {
-      includeTestFiles: true,
+      includeOwnedFiles: true,
     })
     if (!file) throw new Error(`${testFilePath(test.name)} has no source file`)
     const buffer = await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_TEST_SOURCE_BYTES })

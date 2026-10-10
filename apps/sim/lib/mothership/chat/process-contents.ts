@@ -1046,7 +1046,11 @@ async function resolveFileResource(
     type: 'active_resource',
     tag: '@active_resource',
     content: '',
-    path: canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name }),
+    path: canonicalWorkspaceFilePath({
+      folderPath: record.folderPath,
+      name: record.name,
+      prefix: record.vfsNamespace,
+    }),
   }
 }
 
@@ -1091,7 +1095,11 @@ async function resolveFileSelectionResource(
     principal,
     input: { fileId, assertedWorkspaceId: workspaceId },
   })
-  const path = canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
+  const path = canonicalWorkspaceFilePath({
+    folderPath: record.folderPath,
+    name: record.name,
+    prefix: record.vfsNamespace,
+  })
   const snippet = truncateSelectionText(text)
   const lineRange =
     startLine && endLine && endLine !== startLine

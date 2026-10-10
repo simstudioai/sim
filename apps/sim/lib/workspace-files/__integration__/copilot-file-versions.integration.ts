@@ -1,4 +1,4 @@
-/** Chat's in-process CLI reading and reverting workspace file version history as the delegating user. */
+/** Chat's in-process CLI reading workspace files and reverting their version history as the delegating user. */
 import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -36,15 +36,21 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
+import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
+import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
+import { WorkspaceFileDeliveryUnobservedError } from '@/lib/workspace-files/application/file-delivery-observer'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import '@/app/api/v2/files/[fileId]/text/route'
 import '@/app/api/v2/files/[fileId]/versions/route'
 import '@/app/api/v2/files/[fileId]/versions/[version]/route'
 import '@/app/api/v2/files/[fileId]/versions/[version]/content/route'
@@ -122,34 +128,38 @@ describe('chat-delegated file version history', () => {
   }
 
   /**
-   * Chat's composed CLI transport: the provenance-observing read layer over in-process admission.
+   * Chat's composed CLI transport, the same stack every Chat CLI invocation and engine runs on.
    * `layers` drops the outer layers to prove the inner ones hold on their own.
    */
-  function chatTransport(
+  function chatFetch(
     fixture: { workspaceId: string; organizationId: string },
     userId: string,
     registry?: ResolvedSecretTraceRegistry,
     layers: { observer?: boolean; invocationScope?: boolean } = {}
-  ) {
+  ): typeof fetch {
     const invocation = { userId, workspaceId: fixture.workspaceId, chatId: generateId() }
-    const scoped = createScopedCliTransport(ORIGIN, invocation)
     const transport =
       layers.observer === false
-        ? scoped
-        : createFileReadTransport({
+        ? createScopedCliTransport(ORIGIN, invocation)
+        : createAgentCliTransport({
             endpoint: ORIGIN,
-            transport: scoped,
-            userId,
             invocation,
             ...(registry ? { registry } : {}),
+            resources: [],
+            observeReads: true,
           })
-    return (url: string, init?: RequestInit) =>
+    return (input, init) =>
       layers.invocationScope === false
-        ? transport(`${ORIGIN}${url}`, init)
+        ? transport(input, init)
         : withWorkspaceInvocationScope(
             { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
-            () => transport(`${ORIGIN}${url}`, init)
+            () => transport(input, init)
           )
+  }
+
+  function chatTransport(...args: Parameters<typeof chatFetch>) {
+    const transport = chatFetch(...args)
+    return (url: string, init?: RequestInit) => transport(`${ORIGIN}${url}`, init)
   }
 
   function registryFor(fixture: { workspaceId: string }, userId: string) {
@@ -402,5 +412,130 @@ describe('chat-delegated file version history', () => {
     const untracked = await chatTransport(fixture, fixture.bobId)(url)
     expect(untracked.status).toBe(503)
     expect(await untracked.text()).not.toContain(SECRET)
+  })
+
+  /**
+   * The current-file text read and download admitted Chat whether or not a delivery observer would
+   * record the secret provenance of the bytes; only the transport Chat composes today installed one.
+   */
+  describe('current-file reads without a delivery observer', () => {
+    async function revertToSecretVersion(fixture: Awaited<ReturnType<typeof seedVersionedFile>>) {
+      const reverted = await chatTransport(fixture, fixture.aliceId)(
+        `/api/v2/files/${fixture.fileId}/versions/2/revert`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ workspaceId: fixture.workspaceId }),
+        }
+      )
+      expect(reverted.status).toBe(200)
+    }
+
+    function inWorkspace<T>(
+      fixture: { workspaceId: string; organizationId: string },
+      run: () => T
+    ) {
+      return withWorkspaceInvocationScope(
+        { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
+        run
+      )
+    }
+
+    function download(
+      fixture: { workspaceId: string; fileId: string },
+      principal: Parameters<typeof downloadWorkspaceFileStream.execute>[0]['principal']
+    ) {
+      return downloadWorkspaceFileStream.execute({
+        principal,
+        input: { fileId: fixture.fileId, assertedWorkspaceId: fixture.workspaceId },
+      })
+    }
+
+    it('refuses a Chat text read before returning the secret', async () => {
+      const fixture = await seedVersionedFile()
+      await revertToSecretVersion(fixture)
+
+      const response = await chatTransport(fixture, fixture.bobId, undefined, { observer: false })(
+        `/api/v2/files/${fixture.fileId}/text?workspaceId=${fixture.workspaceId}`
+      )
+
+      expect(response.status).toBe(503)
+      const body = await response.text()
+      expect(body).not.toContain(SECRET)
+      expect(JSON.parse(body)).toMatchObject({ error: { code: 'SERVICE_UNAVAILABLE' } })
+    })
+
+    it('refuses a Chat download before streaming any bytes', async () => {
+      const fixture = await seedVersionedFile()
+      const principal = createCopilotChatPrincipal(
+        { userId: fixture.bobId, workspaceId: fixture.workspaceId, chatId: generateId() },
+        WORKSPACE_FILES_DELEGATION_AUDIENCE
+      )
+
+      await expect(inWorkspace(fixture, () => download(fixture, principal))).rejects.toThrow(
+        WorkspaceFileDeliveryUnobservedError
+      )
+    })
+
+    it('still serves a workflow run, which no Chat model reads', async () => {
+      const fixture = await seedVersionedFile()
+      await revertToSecretVersion(fixture)
+      const now = Date.now()
+
+      const result = await inWorkspace(fixture, () =>
+        download(fixture, {
+          kind: 'delegated',
+          serviceId: 'executor',
+          subjectUserId: fixture.bobId,
+          workspaceId: fixture.workspaceId,
+          delegationId: generateId(),
+          audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+          issuedAt: new Date(now),
+          expiresAt: new Date(now + 60_000),
+        })
+      )
+
+      expect(await new Response(result.stream).text()).toBe(`token=${SECRET}`)
+    })
+
+    it('serves a Chat `files read` through the composed CLI', async () => {
+      const fixture = await seedVersionedFile()
+      await revertToSecretVersion(fixture)
+      const registry = registryFor(fixture, fixture.bobId)
+
+      const result = await runCli(
+        ['files', 'read', fixture.fileId],
+        {
+          endpoint: ORIGIN,
+          apiKey: 'mothership-in-process',
+          workspaceId: fixture.workspaceId,
+          transport: chatFetch(fixture, fixture.bobId, registry),
+        },
+        null
+      )
+
+      expect(result.exitCode, result.stderr).toBe(0)
+      const projected = projectResolvedSecretModelContent(result.stdout, registry)
+      if (!projected.safe) throw new Error('File text was withheld')
+      expect(projected.value).not.toContain(SECRET)
+      expect(projected.value).toContain('token=[REDACTED_SECRET]')
+    })
+
+    it('serves Chat through the transport that records provenance', async () => {
+      const fixture = await seedVersionedFile()
+      await revertToSecretVersion(fixture)
+      const registry = registryFor(fixture, fixture.bobId)
+
+      const response = await chatTransport(
+        fixture,
+        fixture.bobId,
+        registry
+      )(`/api/v2/files/${fixture.fileId}?workspaceId=${fixture.workspaceId}`)
+
+      expect(response.status).toBe(200)
+      const projected = projectResolvedSecretModelContent(await response.text(), registry)
+      if (!projected.safe) throw new Error('Downloaded file was withheld')
+      expect(projected.value).toBe('token=[REDACTED_SECRET]')
+    })
   })
 })

@@ -233,6 +233,7 @@ async function render(
           flags={{
             dashboards: false,
             'workflow-tests': false,
+            changelog: false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
           }}
@@ -311,6 +312,7 @@ it.each([
             flags={{
               dashboards: false,
               'workflow-tests': false,
+              changelog: false,
               'mothership-model-selector': false,
               'mothership-plan-mode': planEnabled,
             }}
@@ -406,6 +408,7 @@ it('keeps restored queued skills scoped when replacing a draft', async () => {
           flags={{
             dashboards: false,
             'workflow-tests': false,
+            changelog: false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
           }}

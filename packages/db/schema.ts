@@ -2571,6 +2571,79 @@ export const workflowTestRun = pgTable(
   })
 )
 
+/**
+ * A published changelog release, read as `changelog/<id>.md`. The body is a workspace file with
+ * `context = 'changelog'`, so it keeps versions and Sim's file edits. The version is a label: Sim
+ * picks the bump, the server computes the number, and people may relabel it; links use the id.
+ * `revision` guards the release's own fields against lost updates.
+ */
+export const changelogRelease = pgTable(
+  'changelog_release',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    versionMajor: integer('version_major').notNull(),
+    versionMinor: integer('version_minor').notNull(),
+    versionPatch: integer('version_patch').notNull(),
+    bumpReason: text('bump_reason').notNull(),
+    bodyFileId: text('body_file_id')
+      .notNull()
+      .references(() => workspaceFiles.id),
+    revision: integer('revision').notNull().default(1),
+    publishedAt: timestamp('published_at', { precision: 3 }).notNull().defaultNow(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceVersionUnique: uniqueIndex('changelog_release_workspace_version_unique').on(
+      table.workspaceId,
+      table.versionMajor,
+      table.versionMinor,
+      table.versionPatch
+    ),
+    bodyFileUnique: uniqueIndex('changelog_release_body_file_unique').on(table.bodyFileId),
+    workspacePublishedIdx: index('changelog_release_workspace_published_idx').on(
+      table.workspaceId,
+      table.publishedAt,
+      table.id
+    ),
+    versionCheck: check(
+      'changelog_release_version_check',
+      sql`${table.versionMajor} >= 0 AND ${table.versionMinor} >= 0 AND ${table.versionPatch} >= 0`
+    ),
+  })
+)
+
+/** One line of a release: what changed, and where it came from when Sim knows. */
+export const changelogChange = pgTable(
+  'changelog_change',
+  {
+    id: text('id').primaryKey(),
+    releaseId: text('release_id')
+      .notNull()
+      .references(() => changelogRelease.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    text: text('text').notNull(),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
+    deploymentVersionId: text('deployment_version_id').references(
+      () => workflowDeploymentVersion.id,
+      { onDelete: 'set null' }
+    ),
+    chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'set null' }),
+  },
+  (table) => ({
+    releasePositionUnique: uniqueIndex('changelog_change_release_position_unique').on(
+      table.releaseId,
+      table.position
+    ),
+  })
+)
+
 export const workspaceFiles = pgTable(
   'workspace_files',
   {

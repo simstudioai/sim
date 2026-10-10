@@ -46,6 +46,22 @@ const examples = {
     { action: 'run', version: 'draft', names: ['triage'], only: ['Triage > posts a summary'] },
     { action: 'delete', name: 'triage' },
   ],
+  changelog: [
+    { action: 'list' },
+    { action: 'get', releaseId: 'release-1' },
+    {
+      action: 'publish',
+      title: 'Billing goes straight to billing',
+      body: '## Summary\n\nThe router sends billing questions to the billing agent first.',
+      bump: 'minor',
+      bumpReason: 'New routing behavior',
+      changes: [
+        { text: 'Billing questions reach the billing agent first', workflowId: 'wf-1' },
+        { text: 'Escalations explain themselves', chatId: workspaceId },
+      ],
+    },
+    { action: 'update', releaseId: 'release-1', expectedRevision: '2', version: '1.5.0' },
+  ],
 }
 
 describe('management tool provider contract', () => {
