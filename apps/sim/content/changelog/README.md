@@ -50,7 +50,7 @@ Choose a few relevant links instead of repeating every destination in a separate
 
 ## Search and answer-engine visibility
 
-Keep each summary independently useful: name Sim and the feature, explain the new capability, and state material availability limits in the article. Put setup steps and demonstration explanations in server-rendered text alongside the media. Do not leave important facts only inside a screenshot or video.
+Keep each summary independently useful: name Sim and the feature, explain the new capability, and state material availability limits in the article. Write a short announcement of what changed and why it is useful, with a contextual setup link. Keep capture notes and review evidence in the production brief, out of public prose and media descriptions. Do not leave important facts only inside a screenshot or video.
 
 The index and archive use real links, semantic lists, and CollectionPage/ItemList data matching the visible entries. Articles keep their own canonical URLs, BlogPosting data, authorship metadata, original publication dates, and substantive correction dates. Public articles appear in the sitemap and RSS; previews stay noindex and drafts stay out of public routes. Preserve these properties when changing the layout. If the archive eventually needs pagination, use server-rendered pages with real next/previous links and a self-canonical URL for each page; do not make older entries accessible only through a JavaScript button.
 
