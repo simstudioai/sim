@@ -1,7 +1,6 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import Parser from 'rss-parser'
-import { getDeterministicAdmissionRejectionCode } from '@/lib/core/admission/rejection'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import {
   secureFetchWithPinnedIP,
@@ -15,9 +14,11 @@ import {
 import {
   markWebhookFailed,
   markWebhookSuccess,
+  PollAdmissionRefusedError,
   PollFetchError,
   readPollRetryAfterMs,
   recordPollSourceFailure,
+  throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -316,14 +317,6 @@ async function fetchNewRssItems(
   }
 }
 
-/** Thrown out of the idempotency wrapper so a refused item is not recorded as processed. */
-class AdmissionRefusedError extends Error {
-  constructor(statusCode: number | undefined, message: string | undefined) {
-    super(`Execution admission refused (${statusCode}): ${message}`)
-    this.name = 'AdmissionRefusedError'
-  }
-}
-
 async function processRssItems(
   items: RssItem[],
   feed: RssFeed,
@@ -383,9 +376,7 @@ async function processRssItems(
           )
 
           if (!result.success) {
-            if (getDeterministicAdmissionRejectionCode(result)) {
-              throw new AdmissionRefusedError(result.statusCode, result.error)
-            }
+            throwIfAdmissionRefused(result)
             logger.error(
               `[${requestId}] Failed to process webhook for item ${itemGuid}:`,
               result.statusCode,
@@ -403,7 +394,7 @@ async function processRssItems(
       )
       processedCount++
     } catch (error) {
-      if (error instanceof AdmissionRefusedError) {
+      if (error instanceof PollAdmissionRefusedError) {
         return { processedCount, failedCount, admissionRejectedAt: index }
       }
       const errorMessage = getErrorMessage(error, 'Unknown error')

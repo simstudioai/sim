@@ -4,13 +4,16 @@ import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import {
   getProviderConfig,
   type PollingProviderHandler,
+  type PollOutcome,
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
-  recordPollSourceFailure,
+  PollAdmissionRefusedError,
   resolveOAuthCredential,
+  skipAdmissionRefusedPoll,
+  throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -193,10 +196,9 @@ export const hubspotPollingHandler: PollingProviderHandler = {
   provider: 'hubspot',
   label: 'HubSpot',
 
-  async pollWebhook(ctx: PollWebhookContext) {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, requestId, logger } = ctx
     const webhookId = webhookData.id
-    const pollStartedAt = Date.now()
 
     try {
       const accessToken = await resolveOAuthCredential(webhookData, 'hubspot', requestId)
@@ -207,13 +209,11 @@ export const hubspotPollingHandler: PollingProviderHandler = {
       }
       return await pollSearchBased(ctx, config, accessToken)
     } catch (error) {
-      await recordPollSourceFailure(
-        webhookData,
-        pollStartedAt,
-        error,
-        `[${requestId}] Error polling HubSpot webhook ${webhookId}`,
-        logger
-      )
+      if (error instanceof PollAdmissionRefusedError) {
+        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+      }
+      logger.error(`[${requestId}] Error processing HubSpot webhook ${webhookId}:`, error)
+      await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
   },
@@ -457,6 +457,7 @@ async function pollListMembership(
             requestId
           )
           if (!wfResult.success) {
+            throwIfAdmissionRefused(wfResult)
             throw new Error(
               `Webhook processing failed (${wfResult.statusCode}): ${wfResult.error ?? 'unknown'}`
             )
@@ -466,6 +467,7 @@ async function pollListMembership(
       )
       processedCount++
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError) throw error
       failedCount++
       logger.error(
         `[${requestId}] Error processing HubSpot list membership ${member.recordId}:`,
@@ -835,6 +837,7 @@ async function processRecords(
               requestId
             )
             if (!result.success) {
+              throwIfAdmissionRefused(result)
               throw new Error(
                 `Webhook processing failed (${result.statusCode}): ${result.error ?? 'unknown'}`
               )
@@ -851,6 +854,7 @@ async function processRecords(
           snapshot.values.set(record.id, propertyValue ?? null)
         }
       } catch (error) {
+        if (error instanceof PollAdmissionRefusedError) throw error
         failedCount++
         cursorFrozen = true
         logger.error(

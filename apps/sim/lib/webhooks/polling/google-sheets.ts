@@ -5,13 +5,16 @@ import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
   type PollingProviderHandler,
+  type PollOutcome,
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
-  recordPollSourceFailure,
+  PollAdmissionRefusedError,
   resolveOAuthCredential,
+  skipAdmissionRefusedPoll,
+  throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -52,10 +55,9 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
   provider: 'google-sheets',
   label: 'Google Sheets',
 
-  async pollWebhook(ctx: PollWebhookContext) {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
-    const pollStartedAt = Date.now()
 
     try {
       const accessToken = await resolveOAuthCredential(webhookData, 'google-sheets', requestId)
@@ -229,13 +231,11 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
-      await recordPollSourceFailure(
-        webhookData,
-        pollStartedAt,
-        error,
-        `[${requestId}] Error polling Google Sheets webhook ${webhookId}`,
-        logger
-      )
+      if (error instanceof PollAdmissionRefusedError) {
+        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+      }
+      logger.error(`[${requestId}] Error processing Google Sheets webhook ${webhookId}:`, error)
+      await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
   },
@@ -433,6 +433,7 @@ async function processRows(
           )
 
           if (!result.success) {
+            throwIfAdmissionRefused(result)
             logger.error(
               `[${requestId}] Failed to process webhook for row ${rowNumber}:`,
               result.statusCode,
@@ -450,6 +451,7 @@ async function processRows(
       )
       processedCount++
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(`[${requestId}] Error processing row ${rowNumber}:`, errorMessage)
       failedCount++

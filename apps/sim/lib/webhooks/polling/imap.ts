@@ -13,12 +13,15 @@ import {
 import {
   getProviderConfig,
   type PollingProviderHandler,
+  type PollOutcome,
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
-  recordPollSourceFailure,
+  PollAdmissionRefusedError,
+  skipAdmissionRefusedPoll,
+  throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -114,10 +117,9 @@ export const imapPollingHandler: PollingProviderHandler = {
   provider: 'imap',
   label: 'IMAP',
 
-  async pollWebhook(ctx: PollWebhookContext) {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
-    const pollStartedAt = Date.now()
 
     try {
       const config = getProviderConfig<ImapWebhookConfig>(webhookData.providerConfig)
@@ -202,15 +204,12 @@ export const imapPollingHandler: PollingProviderHandler = {
         } catch {}
         throw innerError
       }
-    } catch {
-      // The IMAP client's errors can echo server responses, so the cause is not logged.
-      await recordPollSourceFailure(
-        webhookData,
-        pollStartedAt,
-        new Error('IMAP poll failed'),
-        `[${requestId}] Error polling IMAP webhook ${webhookId}`,
-        logger
-      )
+    } catch (error) {
+      if (error instanceof PollAdmissionRefusedError) {
+        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+      }
+      logger.error(`[${requestId}] Error processing IMAP webhook ${webhookId}`)
+      await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
   },
@@ -582,6 +581,7 @@ async function processEmails(
             )
 
             if (!result.success) {
+              throwIfAdmissionRefused(result)
               logger.error(
                 `[${requestId}] Failed to process webhook for email ${email.uid}:`,
                 result.statusCode,
@@ -614,7 +614,8 @@ async function processEmails(
           `[${requestId}] Successfully processed email ${email.uid} from ${email.mailboxPath} for webhook ${webhookData.id}`
         )
         processedCount++
-      } catch {
+      } catch (error) {
+        if (error instanceof PollAdmissionRefusedError) throw error
         logger.error(`[${requestId}] Error processing email ${email.uid}`)
         failedCount++
       }

@@ -929,7 +929,10 @@ export async function dispatchResolvedWebhookTarget(
         outcome: 'ignored',
         response:
           verificationResponse ??
-          new NextResponse('Trigger block not found in deployment', { status: 404 }),
+          new NextResponse('Trigger block not found in deployment', {
+            status: 404,
+            headers: { 'x-slack-no-retry': '1' },
+          }),
         reason: 'block-missing',
       }
     }

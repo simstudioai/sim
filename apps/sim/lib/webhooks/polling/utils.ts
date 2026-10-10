@@ -5,6 +5,7 @@ import { toNumberOrNull } from '@sim/utils/coerce'
 import { toRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm'
+import { getDeterministicAdmissionRejectionCode } from '@/lib/core/admission/rejection'
 import {
   getOAuthToken,
   refreshAccessTokenIfNeeded,
@@ -13,6 +14,7 @@ import {
 } from '@/lib/oauth/credential-service'
 import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
 import type { PollOutcome, WebhookRecord, WorkflowRecord } from '@/lib/webhooks/polling/types'
+import type { PolledWebhookEventResult } from '@/lib/webhooks/processor'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 /** Concurrency limit for parallel webhook processing. Standardized across all providers. */
@@ -37,6 +39,37 @@ export function isPollBackedOff(providerConfig: unknown, now: number): boolean {
   const value = toRecord(providerConfig)[POLL_BACKOFF_UNTIL_KEY]
   const until = typeof value === 'string' ? Date.parse(value) : Number.NaN
   return !Number.isNaN(until) && until - POLL_TICK_TOLERANCE_MS > now
+}
+
+/**
+ * Stops a poller's batch when execution admission refused an item for a reason
+ * that holds until a person acts (`lib/core/admission/rejection`). Thrown from
+ * inside the item's idempotency callback, so the refused item is not recorded as
+ * processed; the poller returns `skipped` without advancing its cursor or
+ * counting a failure, and items that already ran replay as idempotent no-ops.
+ */
+export class PollAdmissionRefusedError extends Error {
+  constructor(result: Pick<PolledWebhookEventResult, 'statusCode' | 'error'>) {
+    super(`Execution admission refused (${result.statusCode}): ${result.error}`)
+    this.name = 'PollAdmissionRefusedError'
+  }
+}
+
+/** Throws {@link PollAdmissionRefusedError} when a polled event was refused deterministically. */
+export function throwIfAdmissionRefused(result: PolledWebhookEventResult): void {
+  if (getDeterministicAdmissionRejectionCode(result)) throw new PollAdmissionRefusedError(result)
+}
+
+/** Logs a poll stopped by {@link PollAdmissionRefusedError} and reports it as skipped. */
+export function skipAdmissionRefusedPoll(
+  logger: Logger,
+  requestId: string,
+  webhookId: string
+): 'skipped' {
+  logger.info(
+    `[${requestId}] Execution admission refused webhook ${webhookId}; left its items for a later poll`
+  )
+  return 'skipped'
 }
 
 /**

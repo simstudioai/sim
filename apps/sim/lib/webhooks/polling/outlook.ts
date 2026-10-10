@@ -6,13 +6,16 @@ import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
   getProviderConfig,
   type PollingProviderHandler,
+  type PollOutcome,
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
-  recordPollSourceFailure,
+  PollAdmissionRefusedError,
   resolveOAuthCredential,
+  skipAdmissionRefusedPoll,
+  throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -111,10 +114,9 @@ export const outlookPollingHandler: PollingProviderHandler = {
   provider: 'outlook',
   label: 'Outlook',
 
-  async pollWebhook(ctx: PollWebhookContext) {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
-    const pollStartedAt = Date.now()
 
     try {
       logger.info(`[${requestId}] Processing Outlook webhook: ${webhookId}`)
@@ -168,13 +170,11 @@ export const outlookPollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
-      await recordPollSourceFailure(
-        webhookData,
-        pollStartedAt,
-        error,
-        `[${requestId}] Error polling Outlook webhook ${webhookId}`,
-        logger
-      )
+      if (error instanceof PollAdmissionRefusedError) {
+        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+      }
+      logger.error(`[${requestId}] Error processing Outlook webhook ${webhookId}:`, error)
+      await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
   },
@@ -463,6 +463,7 @@ async function processOutlookEmails(
           )
 
           if (!result.success) {
+            throwIfAdmissionRefused(result)
             logger.error(
               `[${requestId}] Failed to process webhook for email ${email.id}:`,
               result.statusCode,
@@ -484,6 +485,7 @@ async function processOutlookEmails(
       )
       processedCount++
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError) throw error
       logger.error(`[${requestId}] Error processing email ${email.id}:`, error)
       failedCount++
     }

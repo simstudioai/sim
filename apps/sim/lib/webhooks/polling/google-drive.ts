@@ -5,13 +5,16 @@ import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
   type PollingProviderHandler,
+  type PollOutcome,
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
-  recordPollSourceFailure,
+  PollAdmissionRefusedError,
   resolveOAuthCredential,
+  skipAdmissionRefusedPoll,
+  throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -83,10 +86,9 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
   provider: 'google-drive',
   label: 'Google Drive',
 
-  async pollWebhook(ctx: PollWebhookContext) {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
-    const pollStartedAt = Date.now()
 
     try {
       const accessToken = await resolveOAuthCredential(webhookData, 'google-drive', requestId)
@@ -171,6 +173,9 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError) {
+        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+      }
       if (error instanceof Error && error.name === 'DrivePageTokenInvalidError') {
         await updateWebhookProviderConfig(webhookId, { pageToken: undefined }, logger)
         await markWebhookSuccess(webhookId, logger)
@@ -186,13 +191,8 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
         )
         return 'success'
       }
-      await recordPollSourceFailure(
-        webhookData,
-        pollStartedAt,
-        error,
-        `[${requestId}] Error polling Google Drive webhook ${webhookId}`,
-        logger
-      )
+      logger.error(`[${requestId}] Error processing Google Drive webhook ${webhookId}:`, error)
+      await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
   },
@@ -404,6 +404,7 @@ async function processChanges(
         )
 
         if (!result.success) {
+          throwIfAdmissionRefused(result)
           logger.error(
             `[${requestId}] Failed to process webhook for file ${change.fileId}:`,
             result.statusCode,
@@ -420,6 +421,7 @@ async function processChanges(
       )
       processedCount++
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(
         `[${requestId}] Error processing change for file ${change.fileId}:`,
