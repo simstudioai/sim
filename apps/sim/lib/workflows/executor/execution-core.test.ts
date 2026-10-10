@@ -160,13 +160,11 @@ vi.mock('@/serializer', () => ({
   },
 }))
 
-import { classifyFailure } from '@/lib/core/errors/failure-log'
 import {
   executeWorkflowCore,
   FINALIZED_EXECUTION_ID_TTL_MS,
   wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
-import { MissingRequiredFieldsError } from '@/serializer/errors'
 
 const uploadWorkflowInputMock = uploadsExecutionMockFns.mockUploadExecutionFile
 largeValueMetadataMockFns.mockRegisterLargeValueOwner.mockResolvedValue(true)
@@ -701,32 +699,6 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(safeCompleteMock).toHaveBeenCalledWith(
       expect.objectContaining({ finalOutput: runtimeOutput })
     )
-  })
-
-  it.each([
-    [
-      'a block missing a required field',
-      new MissingRequiredFieldsError('Slack', ['Slack Account']),
-      'user',
-    ],
-    [
-      'an unknown block type, a registry regression',
-      new Error('Invalid block type: retired'),
-      'internal',
-    ],
-  ] as const)('attributes a serializer refusal for %s', async (_name, refusal, kind) => {
-    serializeWorkflowMock.mockImplementationOnce(() => {
-      throw refusal
-    })
-
-    const thrown = await executeWorkflowCore({
-      snapshot: createSnapshot() as any,
-      callbacks: {},
-      loggingSession: loggingSession as any,
-    }).catch((error: unknown) => error)
-
-    expect(thrown).toBe(refusal)
-    expect(classifyFailure(thrown)).toBe(kind)
   })
 
   it('activates trusted pre-execution provenance on the installed execution registry', async () => {

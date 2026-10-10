@@ -1060,7 +1060,7 @@ const RESPONSE_SIZE_LIMIT_ERROR_MESSAGE =
 const SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE =
   'External integration tools cannot target this Sim instance; use an internal operation'
 
-/** The author's workflow data is too large to send; their fault, logged once by the tool catch. */
+/** The author's data is too large to send, so it is a user failure. */
 function bodySizeLimitError(): Error {
   return markFailureKind(new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE), 'user')
 }
@@ -2428,7 +2428,7 @@ async function executeToolImplementation(
       ...errorDetails,
       ...(functionSandboxCost ? { cost: functionSandboxCost } : {}),
     }
-    /** A handler rebuilding this result as a thrown error carries `output`, and with it both marks. */
+    /** Lets `adoptToolFailure` carry both marks onto a handler's rebuilt error. */
     markFailureLogged(failureOutput)
     markFailureKind(failureOutput, loggedKind ?? classifyFailure(error))
     return {

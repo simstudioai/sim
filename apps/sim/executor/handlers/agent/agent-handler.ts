@@ -327,7 +327,6 @@ function describeProviderTransportFailure(error: Error): string | null {
   return null
 }
 
-/** A provider refusing the key it was given. */
 function isProviderKeyRejection(error: unknown): boolean {
   const status = (error as { status?: unknown } | null)?.status
   return status === 401 || status === 402 || status === 403

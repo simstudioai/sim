@@ -560,7 +560,6 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
           const result = await executeTool(toolId, toolParams, { executionContext: ctx })
           const durationMs = Date.now() - startTime
 
-          /** `executeTool` already logged the failure with its tool id and attribution. */
           if (!result.success) {
             return {
               toolId,

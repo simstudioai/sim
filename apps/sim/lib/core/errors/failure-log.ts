@@ -57,9 +57,9 @@ export function markFailureKind<T>(error: T, kind: FailureKind): T {
 }
 
 /**
- * Attributes `error` from its cause chain. A database failure anywhere is always internal,
- * then the outermost link with an explicit mark, a {@link UserFailure}, a Sim `HttpError` status,
- * or an upstream `status` decides. Anything unattributed is internal.
+ * Attributes `error` from its cause chain. A database or retryable setup failure is always
+ * internal, then the outermost link with an explicit mark, a {@link UserFailure}, a Sim `HttpError`
+ * status, or an upstream `status` decides. Anything unattributed is internal.
  */
 export function classifyFailure(error: unknown): FailureKind {
   if (findDatabaseQueryError(error)) return 'internal'

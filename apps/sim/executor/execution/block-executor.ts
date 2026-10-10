@@ -789,7 +789,7 @@ export class BlockExecutor {
       }
     }
 
-    /** Projected only when logged: a tool failure arrives already logged and skips it. */
+    /** Lazy, so a failure a tool already logged skips the secret projection. */
     let errorDiagnostic: Record<string, unknown> | undefined
     const getErrorDiagnostic = () => {
       if (errorDiagnostic) return errorDiagnostic
@@ -887,7 +887,7 @@ export class BlockExecutor {
         executionTime: duration,
       },
     })
-    /** A thrown primitive has no `cause` link back to the value logged above. */
+    /** The raw thrown value is never marked logged, so the fresh block error carries the mark. */
     markFailureLogged(blockError)
     throw blockError
   }

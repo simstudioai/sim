@@ -1200,7 +1200,6 @@ export class WorkflowBlockHandler implements BlockHandler {
         ? `Custom block execution failed (ref: ${ref})`
         : 'Custom block execution failed'
 
-    /** No `cause` crosses the boundary, so the failure's marks are carried explicitly. */
     return inheritFailureMarks(
       new ChildWorkflowError({
         message,

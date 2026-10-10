@@ -622,6 +622,48 @@ describe('BlockExecutor', () => {
     expect(blockFailureLogsSince(loggerIndex)).toHaveLength(2)
   })
 
+  it.each([
+    ['projects secrets and runtime identifiers out of', false],
+    ['fails closed to a structural', true],
+  ] as const)('%s the block failure line for a provider error', async (_name, incomplete) => {
+    const secret = 'block-failure-secret'
+    /** The Agent handler hands its provider error registry to the block executor this way. */
+    const errorRegistry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'encrypted-block-failure-secret' },
+    ])
+    errorRegistry.recordResolved('TOKEN', secret)
+    if (incomplete) errorRegistry.markIncomplete('unspecified')
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const loggerIndex = blockExecutorBaseLogger.withMetadata.mock.results.length
+    const state = new ExecutionState()
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (ctx) => {
+        ctx.errorResolvedSecretTraceRegistry = errorRegistry
+        throw new Error(`provider failed with ${secret} __var_TOKEN __sim_runtime_test_1`)
+      },
+    }
+    const executor = new BlockExecutor(
+      [handler],
+      new VariableResolver(workflow, {}, state),
+      {},
+      state
+    )
+
+    await executor.execute(createContext(state), createNode(block), block).catch(() => undefined)
+
+    const logged = JSON.stringify(blockFailureLogsSince(loggerIndex))
+    expect(logged).toContain('Block execution failed')
+    for (const leaked of [secret, '__var_', '__sim_']) expect(logged).not.toContain(leaked)
+  })
+
   it('logs an internal child workflow fault with the block and run identity', async () => {
     const loggerIndex = blockExecutorBaseLogger.withMetadata.mock.results.length
 
