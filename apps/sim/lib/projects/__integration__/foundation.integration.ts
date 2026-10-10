@@ -358,6 +358,7 @@ describe('Project foundation at the database and application boundary', () => {
       const childProject = await membership(fork.workspace.id)
       expect(childProject).toEqual(expect.any(String))
       expect(childProject).not.toBe(sourceProject)
+      if (!childProject) throw new Error('Detached environment is missing its Project')
       const rows = await db
         .select({ projectId: workspace.projectId, parent: workspace.forkedFromWorkspaceId })
         .from(workspace)
@@ -376,8 +377,8 @@ describe('Project foundation at the database and application boundary', () => {
       if (phase === 'connector') {
         /** The old Project-first teardown must remove a newly created private environment. */
         await db.transaction(async (tx) => {
-          await tx.delete(projectWorkspace).where(eq(projectWorkspace.projectId, childProject!))
-          await tx.delete(project).where(eq(project.id, childProject!))
+          await tx.delete(projectWorkspace).where(eq(projectWorkspace.projectId, childProject))
+          await tx.delete(project).where(eq(project.id, childProject))
           await tx.delete(workspace).where(eq(workspace.id, fork.workspace.id))
         })
         expect(await membership(fork.workspace.id)).toBeUndefined()
@@ -450,7 +451,8 @@ describe('Project foundation at the database and application boundary', () => {
         release.resolve()
         await cutover
       }
-      const result = await read!
+      if (!read) throw new Error('Project snapshot read was not started')
+      const result = await read
       expect(result.project.environments.map((row) => row.id)).toEqual(f.ids)
       expect(result.project.environments[0].name).toBe('Committed after cutover')
     }
