@@ -1313,7 +1313,8 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           if (statement.includes('LOCK TABLE workspace,')) {
             const before = await locks();
             await sleep(6500);
-            process.stdout.write(JSON.stringify({ before, after: await locks() }));
+            const result = JSON.stringify({ before, after: await locks() });
+            await new Promise((resolve, reject) => process.stdout.write(result, (error) => error ? reject(error) : resolve()));
             process.exit(0);
           }
         }

@@ -1,6 +1,7 @@
 -- Installed by the registered Project migration after bounded backfill and verification.
 COMMIT;
 --> statement-breakpoint
+-- Validation scans and concurrent index builds have a separate 60-second budget.
 SET statement_timeout = '60s';
 --> statement-breakpoint
 DO $$ BEGIN
@@ -115,6 +116,8 @@ ALTER TABLE workspace ADD COLUMN IF NOT EXISTS organization_scope_key text
   GENERATED ALWAYS AS (CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END) STORED;
 COMMIT;
 --> statement-breakpoint
+SET statement_timeout = '5s';
+--> statement-breakpoint
 -- Only invalid, unreferenced indexes from interrupted builds are removed. Valid indexes survive
 -- replay, including when the final foreign keys already depend on them.
 DO $$ DECLARE target_name text; BEGIN
@@ -134,6 +137,7 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS project_id_organization_scope_uni
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS workspace_id_project_unique ON workspace(id, project_id);
 --> statement-breakpoint
 SET lock_timeout = '1s';
+SET statement_timeout = '5s';
 --> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'project'::regclass

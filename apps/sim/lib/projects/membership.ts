@@ -143,7 +143,14 @@ export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: strin
       throw new ProjectConflictError('Project membership needs reconciliation')
     await acquireAdvisoryXactLock(tx, 'project', projectLockKey(membership.projectId))
     const [current] = await tx
-      .select({ project })
+      .select({
+        project: {
+          id: project.id,
+          ownerId: project.ownerId,
+          organizationId: project.organizationId,
+          archivedAt: project.archivedAt,
+        },
+      })
       .from(workspace)
       .innerJoin(project, eq(project.id, workspace.projectId))
       .where(eq(workspace.id, workspaceId))
