@@ -55,7 +55,12 @@ const EXECUTABLE_SCRIPT_TYPES = new Set([
   'text/partytown',
 ])
 
-const NEXT_SCRIPT_IMPORT = /import\s+(\w+)\s*(?:,\s*\{[^}]*\}\s*)?from\s*['"]next\/script['"]/
+/** `import Script from 'next/script'` (optionally with named imports) or `import { default as Script }`. */
+const NEXT_SCRIPT_IMPORT =
+  /import\s+(?:(\w+)\s*(?:,\s*\{[^}]*\}\s*)?|\{[^}]*\bdefault\s+as\s+(\w+)[^}]*\}\s*)from\s*['"]next\/script['"]/
+
+/** MDX fenced and inline code, which a docs page displays rather than renders. */
+const MDX_CODE = /```[\s\S]*?```|`[^`\n]*`/g
 /** The start of the element's own `type` prop — not a suffix like `data-type`. */
 const TYPE_PROP = /(?:^|\s)type\s*=\s*/
 /** A statically known `type` value right after {@link TYPE_PROP}. */
@@ -78,7 +83,8 @@ function openingTagAttributes(source: string, start: number): string {
  * from an expression fails closed: the audit cannot prove it executable.
  */
 function findDataNextScripts(source: string): number[] {
-  const localName = NEXT_SCRIPT_IMPORT.exec(source)?.[1]
+  const importMatch = NEXT_SCRIPT_IMPORT.exec(source)
+  const localName = importMatch?.[1] ?? importMatch?.[2]
   if (!localName) return []
   const lines: number[] = []
   for (const match of source.matchAll(new RegExp(`<${localName}\\b`, 'g'))) {
@@ -117,7 +123,10 @@ for (const file of files) {
   const bytes = await source.bytes()
   if (bytes.includes(0)) nulOffenders.push(file)
   if (file.startsWith('apps/') && /\.(?:[jt]sx|mdx)$/.test(file)) {
-    const text = new TextDecoder().decode(bytes)
+    const decoded = new TextDecoder().decode(bytes)
+    const text = file.endsWith('.mdx')
+      ? decoded.replace(MDX_CODE, (code) => code.replace(/[^\n]/g, ' '))
+      : decoded
     if (!text.includes('next/script')) continue
     for (const line of findDataNextScripts(text)) dataScriptOffenders.push(`${file}:${line}`)
   }
