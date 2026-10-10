@@ -1,0 +1,27 @@
+---
+slug: intune-device-inventory
+title: 'Bring Intune device inventory into your agents'
+description: 'Use Microsoft Intune in Sim to read managed devices, installed application inventory, and compliance status for IT reviews and agent follow-ups.'
+date: '2026-10-08T07:10:06Z'
+authors: [waleed]
+tags: [Integrations]
+ogImage: /changelog/intune-device-filter-v1.jpg
+ogAlt: 'Microsoft Intune block in Sim configured to list noncompliant devices'
+technical: false
+draft: false
+release:
+  versions: [v0.9.15]
+---
+
+<ChangelogImage
+  src="/changelog/intune-device-filter-v1.jpg"
+  alt="Microsoft Intune’s List Devices operation with a sample noncompliant-device filter in Sim"
+  width="1280"
+  height="720"
+/>
+
+Add [Microsoft Intune](/integrations/microsoft-intune) to a workflow and select **List Devices**. Filter for noncompliant devices to prepare an IT review, or inspect detected applications and compliance policy status. The screenshot shows configuration only; no devices were queried or changed.
+
+Connect a Microsoft work or school account with the appropriate Intune role. Your tenant needs an active Intune license and administrator consent. Remote actions depend on the device platform and permissions; restart, lock, and retirement also require explicit confirmation.
+
+Included in [v0.9.15](https://github.com/simstudioai/sim/releases/tag/v0.9.15). The [Intune setup guide](https://docs.sim.ai/integrations/intune) covers permissions, filters, and supported actions.

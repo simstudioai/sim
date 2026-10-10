@@ -1,6 +1,13 @@
 'use client'
 
-import { type ReactElement, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type ComponentProps,
+  type ReactElement,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import {
   bindPreviewWheelZoom,
   Chip,
@@ -10,6 +17,7 @@ import {
   ModalClose,
   ModalContent,
   ModalTrigger,
+  Slider,
 } from '@sim/emcn'
 import { Minus, Plus } from '@sim/emcn/icons'
 
@@ -23,6 +31,8 @@ export interface LightboxProps {
   poster?: string
   /** Reviewed English captions for a recording with speech. */
   captionsSrc?: string
+  /** Opt into CORS when the media server supports it. */
+  crossOrigin?: ComponentProps<'video'>['crossOrigin']
   /** Playback position to resume when a video opens. */
   startTime?: number
 }
@@ -46,6 +56,13 @@ function centerViewport(viewport: HTMLDivElement | null) {
   viewport.scrollTop = (viewport.scrollHeight - viewport.clientHeight) / 2
 }
 
+function formatPlaybackTime(seconds: number) {
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}:${Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, '0')}`
+}
+
 /**
  * A click-to-close media viewer with bottom zoom controls, the platform's modal
  * focus trap, Escape dismissal, and focus restoration to its trigger.
@@ -64,6 +81,7 @@ export function Lightbox({
   type = 'image',
   poster,
   captionsSrc,
+  crossOrigin,
   startTime = 0,
 }: LightboxProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -75,6 +93,9 @@ export function Lightbox({
   const [zoom, setZoom] = useState(1)
   const [playing, setPlaying] = useState(false)
   const [muted, setMuted] = useState(true)
+  const [duration, setDuration] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
+  const playbackTime = Math.min(currentTime, duration)
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
@@ -82,6 +103,8 @@ export function Lightbox({
       setZoom(1)
       setPlaying(false)
       setMuted(true)
+      setDuration(0)
+      setCurrentTime(0)
     }
     setOpen(nextOpen)
   }
@@ -173,14 +196,27 @@ export function Lightbox({
                     loop
                     muted={muted}
                     playsInline
-                    crossOrigin={captionsSrc ? 'anonymous' : undefined}
+                    crossOrigin={crossOrigin}
                     onPlay={() => setPlaying(true)}
                     onPause={() => setPlaying(false)}
+                    onDurationChange={(event) => {
+                      const nextDuration = event.currentTarget.duration
+                      setDuration(
+                        Number.isFinite(nextDuration) && nextDuration > 0 ? nextDuration : 0
+                      )
+                    }}
+                    onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
                     onLoadedMetadata={(event) => {
-                      if (startTime > 0) event.currentTarget.currentTime = startTime
+                      const video = event.currentTarget
+                      if (Number.isFinite(startTime) && startTime > 0) {
+                        video.currentTime = Number.isFinite(video.duration)
+                          ? Math.min(startTime, video.duration)
+                          : startTime
+                      }
+                      setCurrentTime(video.currentTime)
                       centerViewport(viewportRef.current)
                     }}
-                    className={MEDIA_CLASS}
+                    className={cn(MEDIA_CLASS, 'max-h-[calc(100dvh-9rem)]')}
                     style={{ zoom }}
                   >
                     {captionsSrc ? (
@@ -204,11 +240,34 @@ export function Lightbox({
           aria-label={type === 'video' ? 'Media controls' : 'Media zoom'}
           className={cn(
             chipFieldSurfaceClass,
-            'mx-auto flex shrink-0 items-center p-1 shadow-[var(--shadow-overlay)]'
+            'mx-auto flex max-w-[92vw] shrink-0 flex-wrap items-center justify-center p-1 shadow-[var(--shadow-overlay)]',
+            type === 'video' && 'w-80'
           )}
         >
           {type === 'video' ? (
             <>
+              <div className='flex w-full items-center gap-3 px-3 text-[var(--text-body)] text-caption'>
+                <span className='shrink-0 tabular-nums'>{formatPlaybackTime(playbackTime)}</span>
+                <Slider
+                  aria-label='Seek video'
+                  aria-valuetext={`${formatPlaybackTime(playbackTime)} of ${formatPlaybackTime(duration)}`}
+                  min={0}
+                  max={duration || 1}
+                  step={1}
+                  value={[playbackTime]}
+                  disabled={duration <= 0}
+                  onValueChange={([value]) => {
+                    const video = videoRef.current
+                    if (!video || value === undefined || !Number.isFinite(value) || duration <= 0) {
+                      return
+                    }
+                    video.currentTime = Math.min(duration, Math.max(0, value))
+                    setCurrentTime(video.currentTime)
+                  }}
+                  className='h-11 min-w-0 flex-1'
+                />
+                <span className='shrink-0 tabular-nums'>{formatPlaybackTime(duration)}</span>
+              </div>
               <Chip
                 onClick={() => {
                   const video = videoRef.current

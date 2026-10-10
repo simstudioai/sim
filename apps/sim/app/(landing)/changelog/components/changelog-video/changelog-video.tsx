@@ -26,7 +26,14 @@ export function ChangelogVideo({
   }
   return (
     <figure className='my-6'>
-      <Lightbox type='video' src={src} poster={poster} alt={caption} captionsSrc={captionsSrc}>
+      <Lightbox
+        type='video'
+        src={src}
+        poster={poster}
+        alt={caption}
+        captionsSrc={captionsSrc}
+        crossOrigin='anonymous'
+      >
         <button
           type='button'
           aria-label={`Open ${caption} in media viewer`}
