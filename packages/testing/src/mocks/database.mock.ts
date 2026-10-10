@@ -244,7 +244,18 @@ const update = chainSpy()
 const set = chainSpy()
 const del = chainSpy()
 const returning = vi.fn(() => Promise.resolve([] as unknown[]))
-const execute = vi.fn(() => Promise.resolve([] as unknown[]))
+const execute = vi.fn((statement?: unknown) => {
+  if (
+    statement &&
+    typeof statement === 'object' &&
+    'toSQL' in statement &&
+    typeof statement.toSQL === 'function' &&
+    statement.toSQL().sql.includes("to_regclass('public.project_membership_rollout')")
+  ) {
+    return Promise.resolve([{ marker: true, complete: false }] as unknown[])
+  }
+  return Promise.resolve([] as unknown[])
+})
 const query = vi.fn(() => Promise.resolve([] as unknown[]))
 const onConflictDoUpdate = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<void>)

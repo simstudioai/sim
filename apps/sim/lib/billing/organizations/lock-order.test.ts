@@ -235,7 +235,7 @@ describe('workspace payer-change transaction lock ordering', () => {
       return chain
     }
     const tx = {
-      execute: async () => [],
+      execute: async () => [{ marker: true, complete: false }],
       select,
       selectDistinct: select,
       insert: () => ({

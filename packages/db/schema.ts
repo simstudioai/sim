@@ -2122,7 +2122,7 @@ export const project = pgTable(
   })
 )
 
-/** Durable authority selection; retained after connector retirement for expansion rollback. */
+/** contract-pending(after #8830 is fully deployed): #8590 drops this with the connector; readers recognize the completed schema. */
 export const projectMembershipRollout = pgTable(
   'project_membership_rollout',
   {

@@ -39,6 +39,20 @@ export async function getProjectMembershipPhase(
   tx: DbTransaction
 ): Promise<'connector' | 'column'> {
   await lockProjectMembershipBarrier(tx)
+  const [schema] = await tx.execute<{ marker: boolean; complete: boolean }>(sql`
+    SELECT to_regclass('public.project_membership_rollout') IS NOT NULL AS marker,
+      to_regclass('public.project_workspace') IS NULL
+      AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'public.workspace'::regclass
+        AND attname = 'project_id' AND attnotnull AND NOT attisdropped)
+      AND (SELECT count(*) = 3 FROM pg_constraint
+        WHERE conrelid = 'public.workspace'::regclass AND contype = 'f' AND convalidated
+        AND conname IN ('workspace_project_id_project_id_fk',
+          'workspace_project_organization_fk', 'workspace_fork_project_fk')) AS complete
+  `)
+  if (!schema?.marker) {
+    if (schema?.complete) return 'column'
+    throw new Error('Project membership authority is missing or invalid')
+  }
   const [state] = await tx
     .select({ phase: projectMembershipRollout.phase })
     .from(projectMembershipRollout)

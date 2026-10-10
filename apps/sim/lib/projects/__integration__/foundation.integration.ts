@@ -314,6 +314,60 @@ afterAll(async () => {
 })
 
 describe('Project foundation at the database and application boundary', () => {
+  check(
+    'completed contraction needs no rollout marker, but incomplete schemas fail closed',
+    async () => {
+      const f = await fixture(false, 1)
+      const rollback = new Error('Restore expansion schema after contraction proof')
+      await expect(
+        db.transaction(async (tx) => {
+          await tx.execute(sql`LOCK TABLE workspace IN ACCESS EXCLUSIVE MODE NOWAIT`)
+          await tx.execute(sql`DROP TABLE project_membership_rollout`)
+          await expect(getProjectMembershipPhase(tx)).rejects.toThrow('authority is missing')
+          await tx.execute(sql`DROP TABLE project_workspace`)
+          await expect(getProjectMembershipPhase(tx)).rejects.toThrow('authority is missing')
+          await tx.execute(sql`ALTER TABLE workspace ALTER COLUMN project_id SET NOT NULL`)
+          await expect(getProjectMembershipPhase(tx)).rejects.toThrow('authority is missing')
+          await tx.execute(sql`ALTER TABLE project ADD COLUMN organization_scope_key text
+        GENERATED ALWAYS AS (CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END) STORED`)
+          await tx.execute(sql`ALTER TABLE workspace ADD COLUMN organization_scope_key text
+        GENERATED ALWAYS AS (CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END) STORED`)
+          await tx.execute(
+            sql`ALTER TABLE project ADD CONSTRAINT project_id_organization_scope_unique UNIQUE (id, organization_scope_key)`
+          )
+          await tx.execute(
+            sql`ALTER TABLE workspace ADD CONSTRAINT workspace_id_project_unique UNIQUE (id, project_id)`
+          )
+          await tx.execute(sql`ALTER TABLE workspace ADD CONSTRAINT workspace_project_organization_fk
+        FOREIGN KEY (project_id, organization_scope_key) REFERENCES project(id, organization_scope_key) DEFERRABLE INITIALLY DEFERRED`)
+          await tx.execute(sql`ALTER TABLE workspace ADD CONSTRAINT workspace_fork_project_fk
+        FOREIGN KEY (forked_from_workspace_id, project_id) REFERENCES workspace(id, project_id) DEFERRABLE INITIALLY DEFERRED`)
+          await tx.execute(
+            sql`ALTER TABLE workspace VALIDATE CONSTRAINT workspace_project_id_project_id_fk`
+          )
+          expect(await getProjectMembershipPhase(tx)).toBe('column')
+          const created = await createWorkspaceInTransaction(tx, {
+            userId: f.ownerId,
+            name: 'After contraction',
+            organizationId: null,
+            observedOrganizationId: null,
+            governingPermissionGroupOrganizationId: null,
+            workspaceMode: 'personal',
+            billedAccountUserId: f.ownerId,
+            skipDefaultWorkflow: true,
+          })
+          const environments = await getProjectEnvironmentSource(tx)
+          const [row] = await tx
+            .select({ projectId: environments.projectId })
+            .from(environments)
+            .where(eq(environments.id, created.id))
+          expect(row.projectId).toEqual(expect.any(String))
+          throw rollback
+        })
+      ).rejects.toBe(rollback)
+    }
+  )
+
   for (const phase of ['connector', 'column'] as const) {
     check(`workspace creation and fork/disconnect use only ${phase} authority`, async () => {
       setProjectsEnabled(false)
