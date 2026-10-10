@@ -53,17 +53,6 @@ export async function cleanupExpiredFileFolderInTx(
         .where(and(folderScope, eq(folder.id, child.id)))
     }
   }
-  const rootFiles = await tx
-    .select({ name: workspaceFiles.originalName })
-    .from(workspaceFiles)
-    .where(
-      and(
-        fileOwnerCondition(owner),
-        workspaceFileNameFolderCondition(null),
-        isNull(workspaceFiles.deletedAt)
-      )
-    )
-  const rootNames = new Set(rootFiles.map(({ name }) => name))
   for (;;) {
     const children = await tx
       .select({ id: workspaceFiles.id, name: workspaceFiles.originalName })
@@ -79,11 +68,40 @@ export async function cleanupExpiredFileFolderInTx(
       .limit(FILES_PER_QUERY)
       .for('update')
     if (!children.length) break
+    const candidateNames = new Set(children.map(({ name }) => name))
+    const rootFiles = await tx
+      .select({ name: workspaceFiles.originalName })
+      .from(workspaceFiles)
+      .where(
+        and(
+          fileOwnerCondition(owner),
+          workspaceFileNameFolderCondition(null),
+          isNull(workspaceFiles.deletedAt),
+          inArray(workspaceFiles.originalName, [...candidateNames])
+        )
+      )
+    const rootNames = new Set(rootFiles.map(({ name }) => name))
     const renamed: { id: string; name: string }[] = []
     for (const child of children) {
       const name = await generateRestoreName(
         child.name,
-        async (candidate) => rootNames.has(candidate),
+        async (candidate) => {
+          if (rootNames.has(candidate)) return true
+          if (candidateNames.has(candidate)) return false
+          const [existing] = await tx
+            .select({ id: workspaceFiles.id })
+            .from(workspaceFiles)
+            .where(
+              and(
+                fileOwnerCondition(owner),
+                workspaceFileNameFolderCondition(null),
+                isNull(workspaceFiles.deletedAt),
+                eq(workspaceFiles.originalName, candidate)
+              )
+            )
+            .limit(1)
+          return Boolean(existing)
+        },
         { hasExtension: true }
       )
       rootNames.add(name)

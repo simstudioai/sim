@@ -2705,8 +2705,7 @@ export async function updateWorkspaceFileContent(
     }
     await finishFileContentEffects(
       { cleanupIds: finalized.storageCleanupEventIds, liveDocEventId: finalized.liveDocEventId },
-      { workspaceId, fileId, reason: 'released version' },
-      'defer'
+      { workspaceId, fileId, reason: 'released version' }
     )
 
     const currentFolderPath =

@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ cleanup: vi.fn(), reconcile: vi.fn() }))
@@ -22,12 +23,23 @@ describe('committed file reconciliation policy', () => {
       await expect(finishFileContentEffects(effects, {})).resolves.toBeUndefined()
     }
   )
-  it.each(['dead_letter', 'not_found'])('propagates a terminal %s result', async (status) => {
-    mocks.reconcile.mockResolvedValue(status)
-    await expect(finishFileContentEffects(effects, {})).rejects.toThrow(status)
-  })
-  it('retains the explicit defer policy for a terminal result', async () => {
-    mocks.reconcile.mockResolvedValue('dead_letter')
-    await expect(finishFileContentEffects(effects, {}, 'defer')).resolves.toBeUndefined()
+  it.each(['dead_letter', 'not_found'])(
+    'reports a terminal %s result without failing the committed write',
+    async (status) => {
+      mocks.reconcile.mockResolvedValue(status)
+      await expect(finishFileContentEffects(effects, {})).resolves.toBeUndefined()
+      expect(createLogger('FileContentEffects').error).toHaveBeenCalledWith(
+        'Committed file live-document reconciliation requires intervention',
+        expect.objectContaining({ eventId: 'event-1', result: status })
+      )
+    }
+  )
+  it('reports an inline processing exception without failing the committed write', async () => {
+    mocks.reconcile.mockRejectedValue(new Error('database unavailable'))
+    await expect(finishFileContentEffects(effects, {})).resolves.toBeUndefined()
+    expect(createLogger('FileContentEffects').error).toHaveBeenCalledWith(
+      'Committed file live-document reconciliation failed inline',
+      expect.objectContaining({ eventId: 'event-1' })
+    )
   })
 })

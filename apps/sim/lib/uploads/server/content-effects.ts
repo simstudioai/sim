@@ -5,36 +5,26 @@ import { processFileLiveDocReconciliationNow } from '@/lib/uploads/server/live-d
 
 const logger = createLogger('FileContentEffects')
 
-/** Processes durable content effects after commit, retaining the caller's inline failure policy. */
+/** Reports durable effect failures without changing the outcome of an already committed write. */
 export async function finishFileContentEffects(
   effects: { cleanupIds: readonly string[]; liveDocEventId?: string },
-  logContext: Record<string, unknown>,
-  reconciliationFailure: 'propagate' | 'defer' = 'propagate'
+  logContext: Record<string, unknown>
 ): Promise<void> {
   await processWorkspaceFileStorageCleanupsNow(effects.cleanupIds, logContext)
   if (!effects.liveDocEventId) return
-  if (reconciliationFailure === 'propagate') {
-    const result = await processFileLiveDocReconciliationNow(effects.liveDocEventId)
-    if (result === 'dead_letter' || result === 'not_found') {
-      throw new Error(`Live document reconciliation could not complete: ${result}`)
-    }
-    if (result !== 'completed') {
-      logger.warn('Live document reconciliation remains pending', {
-        ...logContext,
-        eventId: effects.liveDocEventId,
-        result,
-      })
-    }
-    return
-  }
   const context = { ...logContext, eventId: effects.liveDocEventId }
   try {
     const result = await processFileLiveDocReconciliationNow(effects.liveDocEventId)
-    if (result !== 'completed') {
-      logger.warn('Live document reconciliation deferred to outbox retry', { ...context, result })
+    if (result === 'dead_letter' || result === 'not_found') {
+      logger.error('Committed file live-document reconciliation requires intervention', {
+        ...context,
+        result,
+      })
+    } else if (result !== 'completed') {
+      logger.warn('Live document reconciliation remains pending', { ...context, result })
     }
   } catch (error) {
-    logger.warn('Live document reconciliation deferred after inline processing error', {
+    logger.error('Committed file live-document reconciliation failed inline', {
       ...context,
       error: describeError(error),
     })
