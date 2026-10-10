@@ -412,11 +412,7 @@ export async function executeWorkflowService(
         kind: 'precheck',
         message: preprocessError.message,
         statusCode: preprocessError.statusCode,
-        /**
-         * Admission rejection codes steer Sim's own retry decisions (webhook acknowledgement,
-         * polling back-off) and are not part of the public error contract: a 403 names only
-         * `FORBIDDEN_DETAIL_CODES`, and a 402 already says `USAGE_LIMIT_EXCEEDED`.
-         */
+        /** Admission rejection codes steer internal retries; they are not public error codes. */
         code: getDeterministicAdmissionRejectionCode(preprocessError)
           ? undefined
           : preprocessError.code,

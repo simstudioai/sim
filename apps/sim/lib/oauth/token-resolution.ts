@@ -221,11 +221,7 @@ export async function completeOAuthCredentialToken(params: {
       })
       return { ok: false, status: 401, code: OAUTH_CREDENTIAL_REVOKED, error: error.message }
     }
-    /**
-     * The cause and credential live only here; the operation that fails because of it (the tool
-     * call, under the same request id) logs the one ERROR line with the run's identity.
-     */
-    logger.warn(`[${requestId}] Failed to refresh access token`, {
+    logger.error(`[${requestId}] Failed to refresh access token`, {
       credentialId: resolvedCredentialId,
       providerId: credential.providerId,
       cause: describeError(error),

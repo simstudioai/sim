@@ -980,7 +980,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         {
           executionId: ctx.executionId,
           blockId: block.id,
-          childExecutionId: childExecutionId ?? ctx.executionId,
+          childExecutionId,
           registry: childResolvedSecretTraceRegistry,
         }
       )

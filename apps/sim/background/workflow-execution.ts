@@ -17,7 +17,8 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { getDeterministicAdmissionRejectionCode } from '@/lib/core/admission/rejection'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
-import { logFailureOnce, markFailureKind } from '@/lib/core/errors/failure-log'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
+import { UserFailure } from '@/lib/core/errors/user-failure'
 import {
   capExecutionTimeoutMs,
   createTimeoutAbortController,
@@ -214,13 +215,10 @@ export async function executeWorkflowJob(
         })
 
         if (!preprocessResult.success) {
-          const preprocessFailure = new Error(
-            preprocessResult.error?.message || 'Preprocessing failed'
-          )
-          /** A usage limit or suspended account holds until a person changes billing or account. */
+          const message = preprocessResult.error?.message || 'Preprocessing failed'
           throw getDeterministicAdmissionRejectionCode(preprocessResult.error)
-            ? markFailureKind(preprocessFailure, 'user')
-            : preprocessFailure
+            ? new UserFailure(message)
+            : new Error(message)
         }
 
         const actorUserId = preprocessResult.actorUserId!
