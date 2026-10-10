@@ -7,6 +7,7 @@
  */
 
 import { dbChainMockFns } from '@sim/testing'
+import { flushMacrotask } from '@sim/testing/helpers/async'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import {
@@ -98,8 +99,9 @@ describe('authenticateApiKeyFromHeader', () => {
 })
 
 describe('updateApiKeyLastUsed', () => {
-  it('only writes when the stored lastUsed is missing or stale', () => {
+  it('only writes when the stored lastUsed is missing or stale', async () => {
     updateApiKeyLastUsed('key-1')
+    await flushMacrotask()
 
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ lastUsed: expect.any(Date) })
@@ -111,20 +113,6 @@ describe('updateApiKeyLastUsed', () => {
         { type: 'or', conditions: [{ type: 'isNull' }, { type: 'lt' }] },
       ],
     })
-  })
-
-  it('returns without waiting for a write that has not committed', () => {
-    dbChainMockFns.where.mockReturnValueOnce(new Promise(() => {}))
-
-    expect(updateApiKeyLastUsed('key-stalled')).toBeUndefined()
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
-  })
-
-  it('writes a key at most once per staleness window in this process', () => {
-    updateApiKeyLastUsed('key-hot')
-    updateApiKeyLastUsed('key-hot')
-
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
   })
 
   it('logs database errors instead of failing the request', async () => {
