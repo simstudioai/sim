@@ -59,8 +59,12 @@ const EXECUTABLE_SCRIPT_TYPES = new Set([
 const NEXT_SCRIPT_IMPORT =
   /import\s+(?:(\w+)\s*(?:,\s*\{[^}]*\}\s*)?|\{[^}]*\bdefault\s+as\s+(\w+)[^}]*\}\s*)from\s*['"]next\/script['"]/
 
-/** MDX fenced and inline code, which a docs page displays rather than renders. */
-const MDX_CODE = /```[\s\S]*?```|`[^`\n]*`/g
+/**
+ * MDX fenced and inline code, which a docs page displays rather than renders. An inline span
+ * directly inside a JSX expression (`{`…`}`, `=`…, `(`…) is a template literal, not code, so it
+ * is left intact for the `type` check.
+ */
+const MDX_CODE = /```[\s\S]*?```|(?<![{=($\w])`[^`\n]*`/g
 /** The start of the element's own `type` prop — not a suffix like `data-type`. */
 const TYPE_PROP = /(?:^|\s)type\s*=\s*/
 /** A statically known `type` value right after {@link TYPE_PROP}. */
