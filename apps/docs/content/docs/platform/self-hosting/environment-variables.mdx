@@ -279,7 +279,7 @@ Configure at least one. Every configured provider stays active and is tried in o
 
 ## Limits
 
-Self-hosted deployments (billing disabled) run without plan limits: no rate limits, no execution timeouts, no table or storage caps, and no retention-based data deletion. Each limit can be opted back in individually by explicitly setting its variable.
+Self-hosted deployments (billing disabled) run without plan limits: no plan rate limits, no execution timeouts, no table or storage caps, and no retention-based data deletion. Each limit can be opted back in individually by explicitly setting its variable.
 
 | Variable | Opts in | Suggested value |
 |----------|---------|-----------------|
@@ -298,6 +298,10 @@ Self-hosted deployments (billing disabled) run without plan limits: no rate limi
 
 <Callout type="warn">
   Neither deployment presets these. The Helm chart previously did, which enforced hosted-plan caps on self-hosted installs; chart 1.5.0 removed the presets so Compose and Kubernetes behave identically.
+</Callout>
+
+<Callout type="info">
+  One limit applies regardless of billing: the v2 API (`/api/v2/...`) allows each client IP a burst of 600 requests, then 300 per minute, checked before authentication. `BILLING_ENABLED` and the variables above don't change it. With Docker Compose, requests from the host machine all arrive from the bridge gateway address and share one budget. Behind a reverse proxy, set `AUTH_TRUSTED_PROXIES` so each client is counted by its own address.
 </Callout>
 
 ### Removing a limit you already inherited
