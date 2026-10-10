@@ -1,7 +1,35 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import type { V2OperationName } from '../generated/v2-api'
+import { SimClient } from '../http/client'
 import { OperationClient } from './called-operations'
+
+interface SentRequest {
+  method: string
+  url: string
+}
+
+/** A real client whose transport records what reaches the wire. */
+function wireClient(operations: V2OperationName[], sent: SentRequest[]) {
+  const http = new SimClient({
+    name: 'fixture',
+    authProfile: 'fixture',
+    endpoint: 'https://sim.example',
+    apiKey: 'fixture-key',
+    oauth: null,
+    workspaceId: 'ws-1',
+    output: 'json',
+    sources: { endpoint: 'flag', credential: 'flag', workspaceId: 'flag', output: 'flag' },
+    transport: async (input, init) => {
+      sent.push({ method: init?.method ?? 'GET', url: String(input) })
+      return new Response(JSON.stringify({ data: {} }), {
+        headers: { 'content-type': 'application/json' },
+      })
+    },
+  })
+  return new OperationClient(http, new Set(operations), 'sim secrets set')
+}
 
 describe('a declared operation client', () => {
   /**
@@ -10,33 +38,23 @@ describe('a declared operation client', () => {
    * out, or the inventory would describe a command that calls more than it says.
    */
   it('refuses an operation its command did not declare, before any request', async () => {
-    const request = vi.fn()
-    const client = new OperationClient(
-      { request, requestRaw: vi.fn(), requireWorkspace: vi.fn() },
-      new Set(['getMeta']),
-      'sim meta status'
-    )
+    const sent: SentRequest[] = []
 
-    await expect(client.request('listWorkspaces')).rejects.toThrow(
-      '"sim meta status" calls listWorkspaces, which it does not declare'
+    await expect(wireClient(['setSecret'], sent).request('listWorkspaces')).rejects.toThrow(
+      '"sim secrets set" calls listWorkspaces, which it does not declare'
     )
-    expect(request).not.toHaveBeenCalled()
+    expect(sent).toEqual([])
   })
 
-  it('addresses a declared operation by its route and method, encoding each id', async () => {
-    const request = vi.fn().mockResolvedValue({ data: {} })
-    const client = new OperationClient(
-      { request, requestRaw: vi.fn(), requireWorkspace: vi.fn() },
-      new Set(['setSecret']),
-      'sim secrets set'
-    )
+  it('sends a declared operation to its route with its method, encoding each id', async () => {
+    const sent: SentRequest[] = []
 
-    await client.request('setSecret', { params: { name: 'a/b?c' }, body: { value: 'x' } })
-
-    expect(request).toHaveBeenCalledWith('/api/v2/secrets/a%2Fb%3Fc', {
-      method: 'PUT',
+    await wireClient(['setSecret'], sent).request('setSecret', {
+      params: { name: 'a/b?c' },
       body: { value: 'x' },
     })
+
+    expect(sent).toEqual([{ method: 'PUT', url: 'https://sim.example/api/v2/secrets/a%2Fb%3Fc' }])
   })
 })
 
