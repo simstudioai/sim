@@ -296,6 +296,9 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       expect(await sql`SELECT to_regclass('project_workspace')::text AS connector`).toEqual([
         { connector: null },
       ])
+      expect(await sql`SELECT to_regclass('public.project_membership_rollout') AS marker`).toEqual([
+        { marker: null },
+      ])
       const assignments = await sql`SELECT id,project_id FROM workspace ORDER BY id`
       await runRegisteredProjectMigration(url)
       expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual(assignments)
@@ -1215,6 +1218,9 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           expect(await sql`SELECT to_regclass('project_workspace')::text AS connector`).toEqual([
             { connector: null },
           ])
+          expect(
+            await sql`SELECT to_regclass('public.project_membership_rollout') AS marker`
+          ).toEqual([{ marker: null }])
           expect(await sql`SELECT * FROM script_migrations`).toHaveLength(0)
           await expect(
             sql`INSERT INTO workspace (id,name,owner_id) VALUES ('bad','Bad','owner')`

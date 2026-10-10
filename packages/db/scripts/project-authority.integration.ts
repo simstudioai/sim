@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
+import { readProjectMembershipPhase } from '@sim/db/maintenance/project-rollout'
 import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
@@ -52,7 +53,7 @@ function migrate(sql: Sql) {
 }
 
 async function phase(sql: Sql) {
-  return sql`SELECT phase FROM project_membership_rollout WHERE id = 'membership'`
+  return [{ phase: await readProjectMembershipPhase(sql) }]
 }
 
 describe('Project membership authority cutover', () => {
@@ -66,6 +67,9 @@ describe('Project membership authority cutover', () => {
       })
       await migrate(runner)
       expect(await phase(sql)).toEqual([{ phase: 'column' }])
+      expect(await sql`SELECT to_regclass('public.project_membership_rollout') AS marker`).toEqual([
+        { marker: null },
+      ])
       expect(await sql`SELECT name,project_id FROM workspace`).toEqual([
         { name: 'Legacy write', project_id: 'retained' },
       ])

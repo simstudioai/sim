@@ -9,9 +9,19 @@ type ProjectMembershipPhase = 'connector' | 'column'
 export async function readProjectMembershipPhase(
   sql: Sql | TransactionSql
 ): Promise<ProjectMembershipPhase> {
-  const [table] =
-    await sql`SELECT to_regclass('public.project_membership_rollout') IS NOT NULL AS present`
-  if (!table?.present) throw new Error('Project membership rollout marker is missing')
+  const [table] = await sql`SELECT
+    to_regclass('public.project_membership_rollout') IS NOT NULL AS present,
+    to_regclass('public.project_workspace') IS NULL
+    AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('public.workspace')
+      AND attname = 'project_id' AND attnotnull AND NOT attisdropped)
+    AND (SELECT count(*) = 3 FROM pg_constraint
+      WHERE conrelid = to_regclass('public.workspace') AND contype = 'f' AND convalidated
+      AND conname IN ('workspace_project_id_project_id_fk',
+        'workspace_project_organization_fk', 'workspace_fork_project_fk')) AS complete`
+  if (!table?.present) {
+    if (table?.complete) return 'column'
+    throw new Error('Project membership rollout marker is missing before completed contraction')
+  }
   const rows = await sql<
     { id: string; phase: string }[]
   >`SELECT id, phase FROM public.project_membership_rollout`
@@ -63,27 +73,4 @@ export async function switchProjectMembershipAuthority(sql: Sql): Promise<void> 
       await sleep(backoffWithJitter(attempt, null, { baseMs: 100, maxMs: 500 }))
     }
   }
-}
-
-/** Only an empty final schema push may initialize a missing singleton directly in column mode. */
-export async function bootstrapProjectColumnAuthority(sql: Sql): Promise<void> {
-  await sql.begin(async (tx) => {
-    await tx`SET LOCAL statement_timeout = '3s'`
-    await tx`LOCK TABLE public.workspace IN ACCESS EXCLUSIVE MODE NOWAIT`
-    const [state] = await tx`SELECT
-      to_regclass('public.project_workspace') IS NULL AS retired,
-      EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'public.workspace'::regclass
-        AND attname = 'project_id' AND attnotnull AND NOT attisdropped) AS required,
-      NOT EXISTS (SELECT 1 FROM public.workspace) AND NOT EXISTS (SELECT 1 FROM public.project) AS empty`
-    if (!state?.retired || !state.required)
-      throw new Error('Project authority bootstrap requires the fresh final schema')
-    const [table] =
-      await tx`SELECT to_regclass('public.project_membership_rollout') IS NOT NULL AS present`
-    if (!table?.present)
-      throw new Error('Project membership rollout table is missing from the final schema')
-    const rows = await tx`SELECT id, phase FROM public.project_membership_rollout`
-    if (!rows.length && state.empty)
-      await tx`INSERT INTO public.project_membership_rollout (id, phase) VALUES ('membership', 'column')`
-    await assertProjectColumnAuthority(tx)
-  })
 }

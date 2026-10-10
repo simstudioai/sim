@@ -5,9 +5,16 @@ SET statement_timeout = '60s';
 --> statement-breakpoint
 DO $$ BEGIN
   IF to_regclass('public.project_membership_rollout') IS NULL THEN
-    RAISE EXCEPTION 'Project membership rollout marker is missing' USING ERRCODE = '55000';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.project_membership_rollout WHERE id = 'membership' AND phase = 'column') THEN
+    IF to_regclass('public.project_workspace') IS NOT NULL
+      OR NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'public.workspace'::regclass
+        AND attname = 'project_id' AND attnotnull AND NOT attisdropped)
+      OR (SELECT count(*) FROM pg_constraint
+        WHERE conrelid = 'public.workspace'::regclass AND contype = 'f' AND convalidated
+        AND conname IN ('workspace_project_id_project_id_fk',
+          'workspace_project_organization_fk', 'workspace_fork_project_fk')) <> 3 THEN
+      RAISE EXCEPTION 'Project membership rollout marker is missing before completed contraction' USING ERRCODE = '55000';
+    END IF;
+  ELSIF NOT EXISTS (SELECT 1 FROM public.project_membership_rollout WHERE id = 'membership' AND phase = 'column') THEN
     RAISE EXCEPTION 'Project membership authority must switch before enforcement' USING ERRCODE = '55000';
   END IF;
   IF NOT pg_try_advisory_lock(hashtextextended('sim:project-backfill-operator', 0)) THEN
@@ -189,6 +196,8 @@ ALTER TABLE workspace DROP CONSTRAINT IF EXISTS workspace_project_id_present;
 --> statement-breakpoint
 -- migration-safe: contract of #8830, gated on its authority-aware release being fully deployed, incompatible app/worker versions having drained, and the column-authority switch being committed; no supported application reader or writer then needs this connector.
 DROP TABLE IF EXISTS project_workspace;
+-- migration-safe: contract of #8830, whose deployed readers recognize the required column and validated foreign keys after both temporary tables disappear atomically under the workspace barrier.
+DROP TABLE IF EXISTS project_membership_rollout;
 --> statement-breakpoint
 COMMIT;
 --> statement-breakpoint

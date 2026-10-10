@@ -1,5 +1,4 @@
 import { enforceProjectMembership } from '@sim/db/maintenance/project-enforcement'
-import { bootstrapProjectColumnAuthority } from '@sim/db/maintenance/project-rollout'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import postgres from 'postgres'
@@ -24,10 +23,9 @@ try {
     )
   }
   if (!process.argv.includes('--prepare') && state.workspace && state.project) {
-    // Drizzle cannot express lifecycle triggers; fresh push uses the same enforcement as migrations.
-    await bootstrapProjectColumnAuthority(sql)
+    /** Drizzle cannot express deferred FK timing; fresh push shares the migration finalizer. */
     await enforceProjectMembership(sql)
-    logger.info('Project membership validation and lifecycle enforcement completed')
+    logger.info('Project membership validation and native constraints completed')
   }
 } catch (error) {
   logger.error('Project schema push stopped; resolve the error and retry', {

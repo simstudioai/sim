@@ -223,10 +223,7 @@ export const knowledgeBases = pgTable('knowledge_base', {
         await sql`ALTER TABLE workspace ADD COLUMN project_id text`
         await sql`UPDATE workspace SET project_id = 'retained'`
       }
-      await schema(`export const rollout = pgTable('project_membership_rollout', {
-  id: text('id').primaryKey(), phase: text('phase').notNull().default('connector'),
-}, (t) => [check('project_membership_rollout_singleton', sql\`\${t.id} = 'membership'\`), check('project_membership_rollout_phase', sql\`\${t.phase} IN ('connector', 'column')\`)])
-export const projects = pgTable('project', { id: text('id').primaryKey() })
+      await schema(`export const projects = pgTable('project', { id: text('id').primaryKey() })
 export const workspaces = pgTable('workspace', { id: text('id').primaryKey(), projectId: text('project_id').notNull() })`)
       const result = runPush(['--force'])
       expect(result.error).toBeUndefined()
@@ -259,10 +256,7 @@ export const workspaces = pgTable('workspace', { id: text('id').primaryKey(), pr
       expect(result.error).toBeUndefined()
       expect(result.status, result.stdout + result.stderr).toBe(0)
     }
-    await schema(`export const rollout = pgTable('project_membership_rollout', {
-  id: text('id').primaryKey(), phase: text('phase').notNull().default('connector'),
-}, (t) => [check('project_membership_rollout_singleton', sql\`\${t.id} = 'membership'\`), check('project_membership_rollout_phase', sql\`\${t.phase} IN ('connector', 'column')\`)])
-export const projects = pgTable('project', {
+    await schema(`export const projects = pgTable('project', {
   id: text('id').primaryKey(), name: text('name').notNull(), ownerId: text('owner_id').notNull(),
   organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(sql\`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END\`),
   organizationId: text('organization_id'), archivedAt: timestamp('archived_at'), updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -284,8 +278,8 @@ export const workflows = pgTable('workflow', {
     expect(first.error, first.stderr).toBeUndefined()
     expect(first.status, first.stdout + first.stderr).toBe(0)
     reconcileProjects()
-    expect(await sql`SELECT id, phase FROM project_membership_rollout`).toEqual([
-      { id: 'membership', phase: 'column' },
+    expect(await sql`SELECT to_regclass('public.project_membership_rollout') AS marker`).toEqual([
+      { marker: null },
     ])
     await sql`INSERT INTO project (id,name,owner_id) VALUES ('empty','Empty','owner')`
     await sql`DELETE FROM project WHERE id = 'empty'`
@@ -297,7 +291,9 @@ export const workflows = pgTable('workflow', {
     expect(repeated.error, repeated.stderr).toBeUndefined()
     expect(repeated.status, repeated.stdout + repeated.stderr).toBe(0)
     reconcileProjects()
-    expect(await sql`SELECT phase FROM project_membership_rollout`).toEqual([{ phase: 'column' }])
+    expect(await sql`SELECT to_regclass('public.project_membership_rollout') AS marker`).toEqual([
+      { marker: null },
+    ])
     expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual([
       { id: 'fork', project_id: 'family' },
       { id: 'root', project_id: 'family' },

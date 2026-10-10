@@ -2148,24 +2148,6 @@ export const project = pgTable(
   })
 )
 
-/** contract-pending(after #8830 is fully deployed): #8590 drops this with the connector; readers recognize the completed schema. */
-export const projectMembershipRollout = pgTable(
-  'project_membership_rollout',
-  {
-    id: text('id').primaryKey(),
-    phase: text('phase', { enum: ['connector', 'column'] })
-      .notNull()
-      .default('connector'),
-  },
-  (table) => ({
-    singleton: check('project_membership_rollout_singleton', sql`${table.id} = 'membership'`),
-    phase: check(
-      'project_membership_rollout_phase',
-      sql`${table.phase} IN ('connector', 'column')`
-    ),
-  })
-)
-
 export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_type', [
   'workflow',
   'oauth_credential',
