@@ -39,6 +39,7 @@ import {
   normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import type { PgInsertValue } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { env } from '@/env'
@@ -87,13 +88,13 @@ type WorkflowScopedTable = typeof workflowBlocks | typeof workflowEdges | typeof
  * which aborts the transaction instead of dropping that row silently.
  */
 async function upsertWorkflowRows<T extends WorkflowScopedTable>(
-  tx: any,
+  tx: DbOrTx,
   table: T,
   workflowId: string,
-  values: Array<{ id: string; workflowId: string } & Record<string, unknown>>,
+  values: PgInsertValue<T>[],
   set: Partial<Record<keyof T['$inferInsert'], SQL>>
 ) {
-  const written: Array<{ id: string }> = await tx
+  const written = await tx
     .insert(table)
     .values(values)
     .onConflictDoUpdate({ target: table.id, set, setWhere: eq(table.workflowId, workflowId) })
@@ -107,14 +108,14 @@ async function upsertWorkflowRows<T extends WorkflowScopedTable>(
 const SUBFLOW_UPSERT_SET = {
   config: sql`excluded.config`,
   updatedAt: sql`now()`,
-}
+} as const
 
 const EDGE_UPSERT_SET = {
   sourceBlockId: sql`excluded.source_block_id`,
   targetBlockId: sql`excluded.target_block_id`,
   sourceHandle: sql`excluded.source_handle`,
   targetHandle: sql`excluded.target_handle`,
-}
+} as const
 
 interface FilterEdgesForPersistResult<T> {
   safeEdges: T[]
@@ -988,8 +989,8 @@ async function handleBlocksOperationTx(
             workflowId,
             type: block.type as string,
             name: block.name as string,
-            positionX: (block.position as { x: number; y: number }).x,
-            positionY: (block.position as { x: number; y: number }).y,
+            positionX: String((block.position as { x: number; y: number }).x),
+            positionY: String((block.position as { x: number; y: number }).y),
             data: (block.data as Record<string, unknown> | undefined) || {},
             subBlocks: mergedSubBlocks,
             outputs: (block.outputs as Record<string, unknown>) || {},
@@ -999,7 +1000,7 @@ async function handleBlocksOperationTx(
             triggerMode: (block.triggerMode as boolean) ?? false,
             errorEnabled: (block.errorEnabled as boolean) ?? false,
             retry: (block.retry as Record<string, unknown> | undefined) ?? null,
-            height: (block.height as number) || 0,
+            height: String((block.height as number) || 0),
             locked: (block.locked as boolean) ?? false,
           }
         })
