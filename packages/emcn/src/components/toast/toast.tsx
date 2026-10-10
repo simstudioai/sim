@@ -27,7 +27,7 @@ import { X } from '../../icons/x'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
 import { Chip } from '../chip/chip'
-import { chipContentIconClass, chipFilledFillTokens } from '../chip/chip-chrome'
+import { chipContentIconClass, chipFilledFillTokens } from '../chip/chrome'
 
 const AUTO_DISMISS_MS = 5000
 

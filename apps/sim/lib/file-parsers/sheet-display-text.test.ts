@@ -230,4 +230,19 @@ describe('normalizeSheetDisplayText', () => {
     expect(inside.w).toBe('2026-03-04')
     expect(outside.w).toBe('3/5/2026')
   })
+
+  it('keeps the file text for a date format longer than Excel allows', () => {
+    const sheet = XLSX.utils.aoa_to_sheet([['a']])
+    const at = new Date(Date.UTC(2024, 2, 15, 14, 30))
+    sheet.A1 = { t: 'd', v: at, z: `m/d/yyyy h:mm${'"x"'.repeat(100)}`, w: '3/15/2024 14:30' }
+    sheet.B1 = { t: 'd', v: at, z: `m/d/yyyy h:mm${'"x"'.repeat(80)}`, w: '3/15/2024 14:30' }
+    sheet.C1 = { t: 'd', v: at, z: `[h]:mm${'"x"'.repeat(100)}`, w: '14:30' }
+    sheet['!ref'] = 'A1:C1'
+
+    normalizeSheetDisplayText(sheet, XLSX.utils.decode_range('A1:C1'), XLSX.utils)
+
+    expect(sheet.A1.w).toBe('3/15/2024 14:30')
+    expect(sheet.B1.w).toBe('2024-03-15T14:30:00')
+    expect(sheet.C1.w).toBe('14:30')
+  })
 })

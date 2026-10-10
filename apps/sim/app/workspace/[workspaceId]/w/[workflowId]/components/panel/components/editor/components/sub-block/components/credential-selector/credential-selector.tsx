@@ -28,7 +28,7 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import { BrandIcon } from '@/blocks/brand-icon'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkspaceCredential, useWorkspaceCredentials } from '@/hooks/queries/credentials'
-import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 

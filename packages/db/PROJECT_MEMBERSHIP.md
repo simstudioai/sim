@@ -42,14 +42,16 @@ deferred timing after fresh schema push because Drizzle does not represent that 
    only for unassigned legacy rows. It performs no bulk membership backfill.
 2. After verifying incompatible membership-sensitive requests/workers have drained,
    #8590 switches authority, performs bounded backfill/reconciliation, validates native
-   constraints, requires membership, and retires the connector. Its migration runs
+   constraints, requires membership, and retires the connector and authority marker atomically. Its migration runs
    while #8830 is serving, before the new app is promoted.
 
 The all-at-once traffic switch stops fresh requests to retired app servers. Remaining
 in-flight operations and independently scheduled workers must be identified explicitly.
 No new infrastructure maintenance mechanism, synchronization triggers, dual writes, or
 extra compatibility release is required. After authority switches, #8830 is the oldest
-supported application rollback; retain the column-phase marker and database changes.
+supported application rollback; retain the database changes. #8830 recognizes the completed schema (no connector or
+marker, required membership, and validated foreign keys) as column authority; a missing
+marker before completion remains an error. This supersedes retaining the marker for rollback.
 
 On PostgreSQL 16/17, adding stored generated scope columns rewrites their tables. The
 finalizer bounds the rewrite and refuses busy tables without waiting. A timeout leaves

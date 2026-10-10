@@ -64,7 +64,6 @@ describe('desktop activity polling', () => {
     act(() => root?.unmount())
     root = undefined
     vi.useRealTimers()
-    vi.unstubAllGlobals()
     Reflect.deleteProperty(window, 'simDesktop')
   })
 

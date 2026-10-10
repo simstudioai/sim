@@ -629,10 +629,10 @@ export interface BlockConfig {
     /**
      * Natural-language summary shown on the card in place of its field rows.
      *
-     * Third-person present with the block as the implicit subject — the header
-     * already names it, so write `Posts a message to ⟨#eng⟩`, never `Sends a
-     * Slack message`. A block with no summary keeps the field-row layout, which
-     * is what makes adoption incremental.
+     * Imperative, with the card naming its own action — the header already names
+     * the service, so write `Post a message to ⟨#eng⟩`, never `Posts a message`
+     * or `Post a Slack message`. A block with no summary keeps the field-row
+     * layout, which is what makes adoption incremental.
      */
     sentences?: {
       /** Used when the block has no operation dropdown. */

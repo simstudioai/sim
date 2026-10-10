@@ -377,9 +377,13 @@ type TestTransaction = Parameters<Parameters<typeof testDatabase.transaction>[0]
 
 /**
  * Starts a transaction that takes its locks in `holdLocks`, then parks until released and runs
- * `finish`. `untilBlocking` resolves once another backend is waiting on one of its locks.
+ * `finish`. `locked` resolves once those locks are held: start the contending work after it, or the
+ * contender can take the lock first and nothing ever waits on the parked transaction.
+ * `untilBlocking` resolves once another backend is waiting on one of its locks; if none does within
+ * the deadline it releases the transaction before throwing, so a failure never leaves it holding
+ * locks that the suite's teardown then waits on.
  */
-async function startParkedTransaction(
+function startParkedTransaction(
   holdLocks: (tx: TestTransaction) => Promise<void>,
   finish: (tx: TestTransaction) => Promise<void> = async () => {}
 ) {
@@ -400,7 +404,7 @@ async function startParkedTransaction(
   })
   async function untilBlocking() {
     const pid = await holderPid
-    const deadline = Date.now() + 5000
+    const deadline = Date.now() + 10_000
     while (Date.now() < deadline) {
       const [row] = await connection<{ blocked: number }[]>`
         select count(*)::int as blocked from pg_stat_activity
@@ -408,10 +412,10 @@ async function startParkedTransaction(
       if (row.blocked > 0) return
       await sleep(10)
     }
+    release()
     throw new Error('No transaction ever waited on the parked one')
   }
-  await Promise.race([holderPid, done])
-  return { done, release, untilBlocking }
+  return { done, release, locked: holderPid.then(() => undefined), untilBlocking }
 }
 
 describe('cancel_at_period_end sync', () => {
@@ -1028,7 +1032,7 @@ describe('Team activation', () => {
     })
     stripe.addSubscription({ id: stripeSubscriptionId, customer: `cus_${subscriptionId}` })
 
-    const cancelling = await startParkedTransaction(async (tx) => {
+    const cancelling = startParkedTransaction(async (tx) => {
       await tx
         .update(subscription)
         .set({ cancelAtPeriodEnd: true })
@@ -1040,6 +1044,7 @@ describe('Team activation', () => {
         reason: 'admin-cancel-at-period-end',
       })
     })
+    await cancelling.locked
     const activating = testDatabase.transaction((tx) =>
       ensureTeamOrganizationForAcceptance({
         billingOwnerUserId: owner.id,
@@ -1048,12 +1053,8 @@ describe('Team activation', () => {
         workspaceIdsToAttach: [],
       })
     )
-    try {
-      await cancelling.untilBlocking()
-    } finally {
-      cancelling.release()
-      await Promise.allSettled([cancelling.done, activating])
-    }
+    await cancelling.untilBlocking()
+    cancelling.release()
     await cancelling.done
     await expect(activating).resolves.toMatchObject({ success: true })
     expect((await storedSubscription(subscriptionId)).cancelAtPeriodEnd).toBe(false)
@@ -1079,7 +1080,7 @@ describe('operator retry', () => {
     )
     await deadLetter(pauseSync)
 
-    const writing = await startParkedTransaction(
+    const writing = startParkedTransaction(
       async (tx) => {
         await tx
           .update(subscription)
@@ -1095,13 +1096,10 @@ describe('operator retry', () => {
         })
       }
     )
+    await writing.locked
     const requeuing = requeueFromAdminApi(pauseSync)
-    try {
-      await writing.untilBlocking()
-    } finally {
-      writing.release()
-      await Promise.allSettled([writing.done, requeuing])
-    }
+    await writing.untilBlocking()
+    writing.release()
 
     await expect(Promise.all([writing.done, requeuing])).resolves.toBeDefined()
     await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
@@ -1124,7 +1122,7 @@ describe('operator retry', () => {
     )
     await deadLetter(cancelSync)
 
-    const writing = await startParkedTransaction(
+    const writing = startParkedTransaction(
       async (tx) => {
         await tx
           .update(subscription)
@@ -1140,18 +1138,15 @@ describe('operator retry', () => {
         })
       }
     )
+    await writing.locked
     const retrying = requestDashboardSubscriptionCancellation({
       organizationId: org.organizationId,
       operationId,
       timing: 'period_end',
       actor,
     })
-    try {
-      await writing.untilBlocking()
-    } finally {
-      writing.release()
-      await Promise.allSettled([writing.done, retrying])
-    }
+    await writing.untilBlocking()
+    writing.release()
 
     await expect(Promise.all([writing.done, retrying])).resolves.toBeDefined()
     expect((await storedSubscription(org.subscriptionId)).cancelAtPeriodEnd).toBe(true)

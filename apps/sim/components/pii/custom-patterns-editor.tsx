@@ -3,7 +3,7 @@
 import { Chip, ChipInput } from '@sim/emcn'
 import { Plus, Trash } from '@sim/emcn/icons'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
-import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
+import { validateRegexPattern } from '@/lib/guardrails/validate-regex'
 
 /** Matches the `.max(20)` bound on `customPatterns` in the boundary contract. */
 const MAX_PATTERNS = 20

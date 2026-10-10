@@ -21,7 +21,7 @@
  */
 import * as React from 'react'
 import { cn } from '../../lib/cn'
-import { chipFieldSurfaceClass, chipFieldTextClass } from '../chip/chip-chrome'
+import { chipFieldSurfaceClass, chipFieldTextClass } from '../chip/chrome'
 
 export interface ChipTextareaProps
   extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'size'> {

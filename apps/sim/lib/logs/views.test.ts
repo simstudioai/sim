@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
+import { toOverview } from '@/lib/logs/views'
 
 const ref = (preview: unknown) => ({ __sim: 'ref', preview, size: 100 })
 

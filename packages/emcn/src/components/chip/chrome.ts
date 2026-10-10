@@ -122,7 +122,7 @@ export const chipIconSlotClass = 'inline-flex size-[16px] shrink-0 items-center 
  * This token serves resource-table ROW CELLS, not chip content itself. It lives
  * in this module deliberately: the same cell builders compose it with
  * {@link chipContentGap} to keep table cells visually aligned with chip
- * content, and chip-chrome is the single home for that shared icon/label
+ * content, and this module is the single home for that shared icon/label
  * chrome — do not relocate it to a table-specific module.
  */
 export const cellIconNodeClass =

@@ -9,7 +9,7 @@ import {
   maskPIIBatch,
   PiiServiceRejectedError,
   PiiServiceUnavailableError,
-} from '@/lib/guardrails/validate_pii'
+} from '@/lib/guardrails/validate-pii'
 
 const logger = createLogger('GuardrailsMaskBatchAPI')
 

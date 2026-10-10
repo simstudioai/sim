@@ -1,18 +1,17 @@
 /**
- * Mock implementations for common dependencies.
+ * Mock implementations for common dependencies. Tests import each one from its own file, not
+ * from this barrel.
  *
  * @example
  * ```ts
- * import { createMockLogger, setupGlobalFetchMock, databaseMock } from '@sim/testing/mocks'
+ * import { encryptionMock } from '@sim/testing/mocks/encryption.mock'
+ * import { setupGlobalFetchMock } from '@sim/testing/mocks/fetch.mock'
  *
- * // Mock the logger
- * vi.mock('@sim/logger', () => ({ createLogger: () => createMockLogger() }))
+ * vi.mock('@/lib/core/security/encryption', () => encryptionMock)
  *
- * // Mock fetch globally
- * setupGlobalFetchMock({ json: { success: true } })
- *
- * // Mock database
- * vi.mock('@sim/db', () => databaseMock)
+ * beforeEach(() => {
+ *   setupGlobalFetchMock({ json: { success: true } })
+ * })
  * ```
  */
 
@@ -176,7 +175,7 @@ export {
   toolsUtilsMock,
   toolsUtilsMockFns,
 } from './blocks.mock'
-// Copilot HTTP mocks (for @/lib/copilot/request/http)
+// Copilot HTTP mocks (for @/lib/mothership/request/http)
 export {
   copilotHttpMock,
   copilotHttpMockFns,
@@ -930,8 +929,6 @@ export {
 export {
   v1PersonalKeyCredential,
   v1RateLimitContextModuleMock,
-  v1RateLimiterModuleMock,
-  v1SubscriptionModuleMock,
   v1WorkspaceKeyCredential,
 } from './v1-route.mock'
 export {
