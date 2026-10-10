@@ -19,7 +19,8 @@
  *
  * 3. **Selector coercions** — a block's inline `tools.config.tool` may not
  *    assign a coerced value (`Number(...)`, `parseInt(...)`, `JSON.parse(...)`,
- *    `!!x`, unary `+`, a template literal, a comparison, …) back onto its params.
+ *    `!!x`, unary `+`, a template literal, a comparison, …) back onto its params,
+ *    nor write to a param with a compound assignment (`+=`, `??=`, …) or `++`/`--`.
  *    `selectToolId` runs the selector during serialization on the object that
  *    becomes the serialized block's `params`, before `<Block.output>` references
  *    resolve, so `params.x = Number(params.x)` turns a reference into `NaN`.
@@ -317,15 +318,24 @@ function findSelectorCoercions(file: string, source: ts.SourceFile): string[] {
         ts.isIdentifier(fn.parameters[0].name)
           ? fn.parameters[0].name.text
           : undefined
+      const isParamsMember = (target: ts.Expression) =>
+        (ts.isPropertyAccessExpression(target) || ts.isElementAccessExpression(target)) &&
+        ts.isIdentifier(target.expression) &&
+        target.expression.text === paramsName
       const findAssignments = (inner: ts.Node) => {
-        if (
-          ts.isBinaryExpression(inner) &&
-          inner.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-          (ts.isPropertyAccessExpression(inner.left) || ts.isElementAccessExpression(inner.left)) &&
-          ts.isIdentifier(inner.left.expression) &&
-          inner.left.expression.text === paramsName &&
-          isCoercion(inner.right)
-        ) {
+        const operator = ts.isBinaryExpression(inner) ? inner.operatorToken.kind : undefined
+        const derivedWrite =
+          (ts.isBinaryExpression(inner) &&
+            isParamsMember(inner.left) &&
+            ((operator === ts.SyntaxKind.EqualsToken && isCoercion(inner.right)) ||
+              (operator !== undefined &&
+                operator >= ts.SyntaxKind.FirstCompoundAssignment &&
+                operator <= ts.SyntaxKind.LastCompoundAssignment))) ||
+          ((ts.isPrefixUnaryExpression(inner) || ts.isPostfixUnaryExpression(inner)) &&
+            (inner.operator === ts.SyntaxKind.PlusPlusToken ||
+              inner.operator === ts.SyntaxKind.MinusMinusToken) &&
+            isParamsMember(inner.operand))
+        if (derivedWrite) {
           const line = source.getLineAndCharacterOfPosition(inner.getStart()).line + 1
           errors.push(
             `${file}:${line}: \`${inner.getText()}\` coerces a param inside tools.config.tool.\n` +
