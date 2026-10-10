@@ -23,7 +23,8 @@ const sourceIds = Array.from({ length: 105 }, () => generateId())
   .sort()
   .reverse()
 const olderSourceId = generateId()
-const input = { workspaceId: ids.workspaceId }
+const cursorRoute = { method: 'GET', path: '/api/knowledge/sim-search/sources' }
+const input = { workspaceId: ids.workspaceId, cursorRoute }
 
 beforeAll(async () => {
   await seedKnowledgeAclFixture(ids)

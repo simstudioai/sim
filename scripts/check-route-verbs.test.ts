@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { wrappedRouteSites } from './check-route-verbs'
+import { rawRouteContractSites, wrappedRouteSites } from './check-route-verbs'
 
 describe('traced route declarations', () => {
   const handler = `const handler = defineInternalJsonRoute({
@@ -28,5 +28,20 @@ export const POST = enabled ? handler : fallback`
       { verb: 'POST', optionsStart: source.indexOf('{') + 1 },
       { verb: 'POST', optionsStart: source.indexOf('{', source.indexOf('const fallback')) + 1 },
     ])
+  })
+})
+
+describe('raw route parseRequest sites', () => {
+  it('attributes a contract parsed in a same-file helper to the verb that calls it', () => {
+    const source = `async function handle(request) {
+  return parseRequest(updateContract, request, {})
+}
+export const PATCH = withRouteHandler((request) => handle(request))`
+    expect(rawRouteContractSites(source)).toEqual([{ verb: 'PATCH', identifier: 'updateContract' }])
+  })
+  it('checks a verb alias only under the verb it forwards to', () => {
+    const source = `export const PATCH = withRouteHandler((request) => parseRequest(updateContract, request, {}))
+export const PUT = withRouteHandler((request, context) => PATCH(request, context))`
+    expect(rawRouteContractSites(source)).toEqual([{ verb: 'PATCH', identifier: 'updateContract' }])
   })
 })

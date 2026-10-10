@@ -31,15 +31,22 @@
  *   3. Compare the exported verb symbol to `contract.method`, and the derived
  *      URL to `contract.path`.
  *
- * Known, intentional limitation: routes written as raw `withRouteHandler(...)`
- * — the documented protocol/lifecycle exceptions for streaming, multipart
- * control, large-body admission, OAuth and public execution — have no
- * `contract:` key and are deliberately out of scope. They are excluded by
- * requiring a builder call, not by an allowlist.
+ * Raw `withRouteHandler(...)` routes — the documented protocol/lifecycle
+ * exceptions for streaming, multipart control, large-body admission, OAuth and
+ * public execution — have no `contract:` key, but most still validate with
+ * `parseRequest(<contract>, …)`. Every `parseRequest` call reachable from an
+ * exported verb (directly, or through a same-file function or const it names)
+ * is checked the same way. The mismatch is just as silent there: `parseRequest`
+ * never reads a body for a `GET` contract, and `requestJson` sends the
+ * contract's verb, so clients get a 405.
  *
  * Nothing is skipped silently. A builder call site whose contract cannot be
  * located, resolved, imported or read fails the build exactly like a mismatch:
- * a guard that quietly ignores what it cannot parse guards nothing.
+ * a guard that quietly ignores what it cannot parse guards nothing. The same
+ * holds for a raw route's `parseRequest` argument imported from
+ * `@/lib/api/contracts`. A raw route whose argument is a local value or comes
+ * from any other module is out of scope: resolving it would mean importing
+ * server code.
  *
  * Usage:
  *   bun run scripts/check-route-verbs.ts
@@ -140,6 +147,82 @@ export function wrappedRouteSites(source: string): Array<{ verb: string; options
   return sites
 }
 
+/**
+ * The `parseRequest(<identifier>, …)` contract arguments reachable from each
+ * exported verb of a raw route, following same-file functions and consts the
+ * verb's handler names. Another exported verb is not followed: an alias such as
+ * `PUT` forwarding to `PATCH` is checked as `PATCH`. A non-identifier argument
+ * is not a resolvable contract and is left out.
+ */
+export function rawRouteContractSites(source: string): Array<{ verb: string; identifier: string }> {
+  const statements = parse(source, { sourceType: 'module', plugins: ['typescript'] }).program.body
+  const locals = new Map<string, unknown>()
+  const exported = new Set<string>()
+  for (const statement of statements) {
+    const isExport = statement.type === 'ExportNamedDeclaration'
+    const declaration = isExport ? statement.declaration : statement
+    const named: Array<[string, unknown]> = []
+    if (declaration?.type === 'FunctionDeclaration' && declaration.id) {
+      named.push([declaration.id.name, declaration.body])
+    } else if (declaration?.type === 'VariableDeclaration') {
+      for (const declarator of declaration.declarations) {
+        if (declarator.id.type === 'Identifier' && declarator.init) {
+          named.push([declarator.id.name, declarator.init])
+        }
+      }
+    }
+    for (const [name, root] of named) {
+      locals.set(name, root)
+      if (isExport) exported.add(name)
+    }
+  }
+  const sites: Array<{ verb: string; identifier: string }> = []
+  for (const verb of exported) {
+    if (!VERBS.some((name) => name === verb)) continue
+    const identifiers = new Set<string>()
+    const followed = new Set(exported)
+    const visit = (value: unknown): void => {
+      if (!value || typeof value !== 'object') return
+      if (Array.isArray(value)) {
+        value.forEach(visit)
+        return
+      }
+      const node = value as Record<string, unknown>
+      if (node.type === 'CallExpression') {
+        const callee = node.callee as { type?: string; name?: string }
+        const [first] = node.arguments as Array<{ type?: string; name?: string }>
+        if (
+          callee.type === 'Identifier' &&
+          callee.name === 'parseRequest' &&
+          first?.type === 'Identifier' &&
+          first.name
+        ) {
+          identifiers.add(first.name)
+        }
+      }
+      if (node.type === 'Identifier' && typeof node.name === 'string') {
+        const local = locals.get(node.name)
+        if (local !== undefined && !followed.has(node.name)) {
+          followed.add(node.name)
+          visit(local)
+        }
+      }
+      if (node.type === 'MemberExpression' && !node.computed) {
+        visit(node.object)
+        return
+      }
+      if (node.type === 'ObjectProperty' && !node.computed) {
+        visit(node.value)
+        return
+      }
+      Object.values(node).forEach(visit)
+    }
+    visit(locals.get(verb))
+    for (const identifier of identifiers) sites.push({ verb, identifier })
+  }
+  return sites
+}
+
 interface RouteContract {
   method?: unknown
   path?: unknown
@@ -200,6 +283,106 @@ function derivedPath(file: string): string {
   return ['/api', ...segments].join('/')
 }
 
+/** Where a contract identifier is bound in a route: a builder's `contract:` key or a raw `parseRequest`. */
+type SiteKind = 'builder' | 'raw'
+
+/** One route file, as every site in it is checked against. */
+interface RouteFile {
+  relative: string
+  /** Local binding name -> module specifier. */
+  bindings: Map<string, string>
+  /** The URL the file serves. */
+  expectedPath: string
+}
+
+/**
+ * Whether a route serves `contractPath`. A raw catch-all route (`[...slug]`,
+ * `[[...slug]]`) dispatches sub-paths itself, so any contract under its prefix
+ * is one it serves.
+ */
+function servesPath(kind: SiteKind, expectedPath: string, contractPath: string): boolean {
+  if (contractPath === expectedPath) return true
+  const catchAll = expectedPath.search(/\/\[{1,2}\.\.\./)
+  return (
+    kind === 'raw' &&
+    catchAll !== -1 &&
+    contractPath.startsWith(expectedPath.slice(0, catchAll + 1))
+  )
+}
+
+/**
+ * Resolves `identifier` through the route's imports and compares the contract to
+ * the exported verb and the path the file serves, pushing every disagreement to
+ * `failures`. Returns whether a contract was compared: false for a site that
+ * could not be resolved (a failure) or a raw route's non-contract argument (out
+ * of scope).
+ */
+async function checkSite(
+  route: RouteFile,
+  kind: SiteKind,
+  verb: string,
+  identifier: string,
+  failures: string[],
+  verbose: boolean
+): Promise<boolean> {
+  const { relative, bindings, expectedPath } = route
+  const specifier = bindings.get(identifier)
+  if (kind === 'raw' && !specifier?.startsWith('@/lib/api/contracts')) return false
+  if (!specifier) {
+    failures.push(`${relative}: export const ${verb} uses \`${identifier}\`, which is not imported`)
+    return false
+  }
+
+  const modulePath = resolveContractModule(specifier)
+  if (!modulePath) {
+    failures.push(
+      `${relative}: export const ${verb} imports \`${identifier}\` from '${specifier}', which does not resolve to a contract module`
+    )
+    return false
+  }
+
+  let module: Record<string, unknown>
+  try {
+    module = await loadContractModule(modulePath)
+  } catch (error) {
+    failures.push(
+      `${relative}: export const ${verb} — importing '${specifier}' failed: ${(error as Error).message}`
+    )
+    return false
+  }
+
+  const contract = module[identifier] as RouteContract | undefined
+  if (typeof contract?.method !== 'string' || typeof contract?.path !== 'string') {
+    failures.push(
+      `${relative}: export const ${verb} — \`${identifier}\` from '${specifier}' is not a route contract (no string \`method\`/\`path\`)`
+    )
+    return false
+  }
+
+  const subject =
+    kind === 'builder'
+      ? `export const ${verb} is built from \`${identifier}\``
+      : `export const ${verb} parses with \`${identifier}\``
+  if (contract.method.toUpperCase() !== verb) {
+    failures.push(
+      kind === 'builder'
+        ? `${relative}: ${subject}, which declares ${contract.method} ${contract.path}. Next routes by the exported symbol, so ${verb} requests 500 and ${contract.method} requests 404.`
+        : `${relative}: ${subject}, which declares ${contract.method} ${contract.path}. Clients calling through the contract send ${contract.method} and get a 405.`
+    )
+  }
+  if (!servesPath(kind, expectedPath, contract.path)) {
+    failures.push(
+      `${relative}: ${subject}, whose path is ${contract.path}, but this file serves ${expectedPath}.`
+    )
+  }
+  if (verbose) {
+    console.log(
+      `✓ ${relative} ${verb} ← ${identifier} (${kind}, ${contract.method} ${contract.path})`
+    )
+  }
+  return true
+}
+
 async function main() {
   const verbose = process.argv.includes('--verbose')
 
@@ -211,17 +394,34 @@ async function main() {
   const failures: string[] = []
   let checked = 0
   let files = 0
+  let rawChecked = 0
+  let rawFiles = 0
 
   for (const file of listRouteFiles(API_DIR).sort()) {
     const source = readFileSync(file, 'utf8')
+    const relative = path.relative(ROOT, file)
+    const route: RouteFile = {
+      relative,
+      bindings: importedNames(source),
+      expectedPath: derivedPath(file),
+    }
+
+    if (source.includes('parseRequest')) {
+      let rawSitesInFile = 0
+      for (const { verb, identifier } of rawRouteContractSites(source)) {
+        if (await checkSite(route, 'raw', verb, identifier, failures, verbose)) rawSitesInFile += 1
+      }
+      if (rawSitesInFile > 0) {
+        rawChecked += rawSitesInFile
+        rawFiles += 1
+      }
+    }
+
     let builderCalls = 0
     for (const _ of source.matchAll(BUILDER_CALL_RE)) builderCalls += 1
     if (builderCalls === 0) continue
 
     files += 1
-    const relative = path.relative(ROOT, file)
-    const bindings = importedNames(source)
-    const expectedPath = derivedPath(file)
     let sitesInFile = 0
 
     const directSites = [...source.matchAll(EXPORT_RE)].map((match) => ({
@@ -242,56 +442,7 @@ async function main() {
         continue
       }
       const identifier = contractKey[1]
-
-      const specifier = bindings.get(identifier)
-      if (!specifier) {
-        failures.push(
-          `${relative}: export const ${verb} uses \`${identifier}\`, which is not imported`
-        )
-        continue
-      }
-
-      const modulePath = resolveContractModule(specifier)
-      if (!modulePath) {
-        failures.push(
-          `${relative}: export const ${verb} imports \`${identifier}\` from '${specifier}', which does not resolve to a contract module`
-        )
-        continue
-      }
-
-      let module: Record<string, unknown>
-      try {
-        module = await loadContractModule(modulePath)
-      } catch (error) {
-        failures.push(
-          `${relative}: export const ${verb} — importing '${specifier}' failed: ${(error as Error).message}`
-        )
-        continue
-      }
-
-      const contract = module[identifier] as RouteContract | undefined
-      if (typeof contract?.method !== 'string' || typeof contract?.path !== 'string') {
-        failures.push(
-          `${relative}: export const ${verb} — \`${identifier}\` from '${specifier}' is not a route contract (no string \`method\`/\`path\`)`
-        )
-        continue
-      }
-
-      checked += 1
-
-      if (contract.method.toUpperCase() !== verb) {
-        failures.push(
-          `${relative}: export const ${verb} is built from \`${identifier}\`, which declares ${contract.method} ${contract.path}. Next routes by the exported symbol, so ${verb} requests 500 and ${contract.method} requests 404.`
-        )
-      }
-      if (contract.path !== expectedPath) {
-        failures.push(
-          `${relative}: export const ${verb} is built from \`${identifier}\`, whose path is ${contract.path}, but this file serves ${expectedPath}.`
-        )
-      }
-      if (verbose) {
-        console.log(`✓ ${relative} ${verb} ← ${identifier} (${contract.method} ${contract.path})`)
-      }
+      if (await checkSite(route, 'builder', verb, identifier, failures, verbose)) checked += 1
     }
 
     if (sitesInFile < builderCalls) {
@@ -301,9 +452,9 @@ async function main() {
     }
   }
 
-  if (checked === 0) {
+  if (checked === 0 || rawChecked === 0) {
     console.error(
-      '❌ No builder-backed route handlers found. Refusing to pass vacuously — the scan patterns are stale.'
+      '❌ No builder-backed or no raw parseRequest route handlers found. Refusing to pass vacuously — the scan patterns are stale.'
     )
     process.exit(1)
   }
@@ -312,15 +463,15 @@ async function main() {
     console.error(`\n❌ ${failures.length} route/contract disagreement(s):\n`)
     for (const failure of failures) console.error(`  ${failure}`)
     console.error(
-      '\nThe builders only compare request.method to contract.method at runtime, so these'
+      '\nThe builders only compare request.method to contract.method at runtime, and raw'
     )
-    console.error('fail as 500s in production rather than at build time. Fix the export symbol or')
-    console.error('point the route at the right contract.')
+    console.error('routes never do, so these fail in production rather than at build time. Fix the')
+    console.error('export symbol or point the route at the right contract.')
     process.exit(1)
   }
 
   console.log(
-    `✓ ${checked} builder-backed route handler(s) across ${files} file(s) match their contract's method and path`
+    `✓ ${checked} builder-backed route handler(s) across ${files} file(s) and ${rawChecked} raw parseRequest site(s) across ${rawFiles} file(s) match their contract's method and path`
   )
 }
 
