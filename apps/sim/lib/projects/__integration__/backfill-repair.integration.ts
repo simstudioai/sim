@@ -182,61 +182,91 @@ describe('Operator archive repair against the full compatible schema', () => {
     60000
   )
 
-  it('repairs an explicitly reviewed detached family without changing environments and replays a lost report', async () => {
-    const artifacts = {
-      manifest: join(directory, 'detach-manifest.json'),
-      report: join(directory, 'detach-report.json'),
-    }
-    try {
-      await client`INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at)
+  it.each(['column', 'mixed'] as const)(
+    'repairs an explicitly reviewed detached family with %s membership and replays a lost report',
+    async (membership) => {
+      const artifacts = {
+        manifest: join(directory, `detach-${membership}-manifest.json`),
+        report: join(directory, `detach-${membership}-report.json`),
+      }
+      try {
+        await client`INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at)
         VALUES ('detach-owner','Owner','detach@fixture.test',true,now(),now())`
-      await client`INSERT INTO project (id,name,owner_id) VALUES ('detach-project','Keep context','detach-owner')`
-      await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,project_id)
+        await client`INSERT INTO project (id,name,owner_id) VALUES ('detach-project','Keep context','detach-owner')`
+        await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,project_id)
         VALUES ('retained-root','Retained','detach-owner','detach-owner','detach-project'),
           ('detached-root','Detached','detach-owner','detach-owner','detach-project')`
-      await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,project_id,forked_from_workspace_id)
+        await client`INSERT INTO workspace (id,name,owner_id,billed_account_user_id,project_id,forked_from_workspace_id)
         VALUES ('detached-child','Child','detach-owner','detach-owner','detach-project','detached-root')`
-      await expect(run('plan', artifacts)).rejects.toMatchObject({ code: 2 })
-      const plan = JSON.parse(await readFile(artifacts.manifest, 'utf8'))
-      plan.groupings[0].decision = 'detach'
-      plan.groupings[0].detachRootId = 'detached-root'
-      await writeFile(artifacts.manifest, JSON.stringify(plan))
-      const before =
-        await client`SELECT id,owner_id,organization_id,archived_at,forked_from_workspace_id FROM workspace ORDER BY id`
-      const holder = postgres(url.toString(), { max: 1 })
-      try {
-        await holder.begin(async (tx) => {
-          await tx`SELECT pg_advisory_xact_lock(hashtextextended('project:detach-project',0))`
-          await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
-          expect(await client`SELECT id FROM project WHERE owner_id='detach-owner'`).toHaveLength(1)
-        })
+        if (membership === 'mixed') {
+          await client`INSERT INTO project_workspace (project_id,workspace_id)
+          VALUES ('detach-project','retained-root'),('detach-project','detached-child')`
+          await client`UPDATE workspace SET project_id=NULL WHERE id IN ('retained-root','detached-child')`
+        }
+        await expect(run('plan', artifacts)).rejects.toMatchObject({ code: 2 })
+        const plan = JSON.parse(await readFile(artifacts.manifest, 'utf8'))
+        plan.groupings[0].decision = 'detach'
+        plan.groupings[0].detachRootId = 'detached-root'
+        await writeFile(artifacts.manifest, JSON.stringify(plan))
+        const before =
+          await client`SELECT id,owner_id,organization_id,archived_at,forked_from_workspace_id FROM workspace ORDER BY id`
+        const holder = postgres(url.toString(), { max: 1 })
+        try {
+          await holder.begin(async (tx) => {
+            await tx`SELECT pg_advisory_xact_lock(hashtextextended('project:detach-project',0))`
+            await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
+            expect(await client`SELECT id FROM project WHERE owner_id='detach-owner'`).toHaveLength(
+              1
+            )
+          })
+          if (membership === 'mixed') {
+            await client`INSERT INTO project (id,name,owner_id) VALUES ('changed-project','Changed','detach-owner')`
+            await holder.begin(async (tx) => {
+              await tx`UPDATE project_workspace SET project_id='changed-project' WHERE workspace_id='retained-root'`
+              await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
+              expect(
+                await client`SELECT project_id FROM workspace WHERE id='retained-root'`
+              ).toEqual([{ project_id: null }])
+              expect(
+                await client`SELECT id FROM project WHERE id=${plan.groupings[0].destinationProjectId}`
+              ).toHaveLength(0)
+            })
+            await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 1 })
+            expect(await client`SELECT project_id FROM workspace WHERE id='retained-root'`).toEqual(
+              [{ project_id: null }]
+            )
+            await client`UPDATE project_workspace SET project_id='detach-project' WHERE workspace_id='retained-root'`
+            await client`DELETE FROM project WHERE id='changed-project'`
+          }
+        } finally {
+          await holder.end()
+        }
+        await client`UPDATE workspace SET archived_at='2026-05-01' WHERE id='detached-child'`
+        await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 1 })
+        expect(await client`SELECT id FROM project WHERE owner_id='detach-owner'`).toHaveLength(1)
+        await client`UPDATE workspace SET archived_at=NULL WHERE id='detached-child'`
+        await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
+        const destination = plan.groupings[0].destinationProjectId
+        expect(
+          await client`SELECT id FROM workspace WHERE project_id = ${destination} ORDER BY id`
+        ).toEqual([{ id: 'detached-child' }, { id: 'detached-root' }])
+        expect(await client`SELECT id,name FROM project WHERE id = 'detach-project'`).toEqual([
+          { id: 'detach-project', name: 'Keep context' },
+        ])
+        expect(
+          await client`SELECT id,owner_id,organization_id,archived_at,forked_from_workspace_id FROM workspace ORDER BY id`
+        ).toEqual(before)
+        await rm(artifacts.report)
+        await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
+        expect(await client`SELECT id FROM project WHERE owner_id = 'detach-owner'`).toHaveLength(2)
       } finally {
-        await holder.end()
+        await client`DELETE FROM workspace WHERE owner_id = 'detach-owner'`
+        await client`DELETE FROM project WHERE owner_id = 'detach-owner'`
+        await client`DELETE FROM "user" WHERE id = 'detach-owner'`
       }
-      await client`UPDATE workspace SET archived_at='2026-05-01' WHERE id='detached-child'`
-      await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 1 })
-      expect(await client`SELECT id FROM project WHERE owner_id='detach-owner'`).toHaveLength(1)
-      await client`UPDATE workspace SET archived_at=NULL WHERE id='detached-child'`
-      await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
-      const destination = plan.groupings[0].destinationProjectId
-      expect(
-        await client`SELECT id FROM workspace WHERE project_id = ${destination} ORDER BY id`
-      ).toEqual([{ id: 'detached-child' }, { id: 'detached-root' }])
-      expect(await client`SELECT id,name FROM project WHERE id = 'detach-project'`).toEqual([
-        { id: 'detach-project', name: 'Keep context' },
-      ])
-      expect(
-        await client`SELECT id,owner_id,organization_id,archived_at,forked_from_workspace_id FROM workspace ORDER BY id`
-      ).toEqual(before)
-      await rm(artifacts.report)
-      await expect(run('repair', artifacts)).rejects.toMatchObject({ code: 2 })
-      expect(await client`SELECT id FROM project WHERE owner_id = 'detach-owner'`).toHaveLength(2)
-    } finally {
-      await client`DELETE FROM workspace WHERE owner_id = 'detach-owner'`
-      await client`DELETE FROM project WHERE owner_id = 'detach-owner'`
-      await client`DELETE FROM "user" WHERE id = 'detach-owner'`
-    }
-  }, 60000)
+    },
+    60000
+  )
 
   it('keeps a Project active when another active environment still uses legacy membership', async () => {
     const artifacts = {
@@ -265,7 +295,7 @@ describe('Operator archive repair against the full compatible schema', () => {
     }
   }, 60000)
 
-  it('completes provider cleanup despite a throwing local MCP subscriber', async () => {
+  it('notifies healthy local MCP subscribers and completes cleanup after another subscriber throws', async () => {
     const serverId = generateId()
     try {
       await client`INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at)
@@ -288,13 +318,17 @@ describe('Operator archive repair against the full compatible schema', () => {
         import { repairArchivedProjectEnvironment } from '@/lib/projects/backfill-repair';
         import { mcpPubSub } from '@/lib/mcp/pubsub';
         import { db, dbReplica } from '@sim/db';
+        import assert from 'node:assert/strict';
         import postgres from 'postgres';
         const client = postgres(process.env.MIGRATION_DATABASE_URL, {max:1});
         const unsubscribe = mcpPubSub.onWorkflowToolsChanged(() => { throw new Error('fixture subscriber failed'); });
+        const received = [];
+        const unsubscribeHealthy = mcpPubSub.onWorkflowToolsChanged((event) => received.push(event));
         try {
           await repairArchivedProjectEnvironment(client, {workspaceId:'local-env', archivedAt:'2026-05-01 00:00:00', workflowIds:['local-flow']}, 'local-subscriber');
+          assert.ok(received.some((event) => event.serverId === '${serverId}' && event.workspaceId === 'local-env'), 'Healthy subscriber missed the archive notification');
         } finally {
-          unsubscribe(); mcpPubSub.dispose(); await client.end();
+          unsubscribe(); unsubscribeHealthy(); mcpPubSub.dispose(); await client.end();
           await Promise.all([...new Set([db.$client,dbReplica.$client])].map(client=>client.end()));
         }
       `,

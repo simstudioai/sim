@@ -153,11 +153,11 @@ export async function repairProjectGrouping(
     !review.roots.includes(rootId) ||
     review.destinationProjectId === review.projectId ||
     review.members.length > 1000 ||
-    review.members.some((row) => row.projectId !== review.projectId) ||
+    review.members.some((row) => (row.projectId ?? row.legacyProjectId) !== review.projectId) ||
     projectGroupingEvidence(review.members) !== review.evidence
   )
     throw new ProjectBackfillConflict(
-      'Detach requires an exact reviewed, fully assigned Project; rediscover after apply'
+      'Detach requires an exact reviewed Project grouping; rediscover'
     )
   const expected = new Map(review.members.map((row) => [row.id, row]))
   const root = expected.get(rootId)
@@ -185,14 +185,32 @@ export async function repairProjectGrouping(
     ]
     if (!(await tryAcquireAdvisoryXactLocks(tx, 'project_backfill', keys)))
       throw new ProjectBackfillBusy('Reviewed Project grouping is busy')
+    const reviewedIds = review.members.map((row) => row.id)
+    await tx.execute(sql`SELECT id FROM workspace
+      WHERE ${inArray(schema.workspace.id, reviewedIds)}
+      ORDER BY id COLLATE "C" FOR NO KEY UPDATE NOWAIT`)
+    const [legacy] = await tx.execute<{ present: boolean }>(
+      sql`SELECT to_regclass('public.project_workspace') IS NOT NULL AS present`
+    )
+    if (legacy?.present) {
+      await tx.execute(sql`SELECT pw.workspace_id FROM project_workspace pw
+        JOIN workspace ON workspace.id = pw.workspace_id
+        WHERE ${inArray(schema.workspace.id, reviewedIds)} AND workspace.project_id IS NULL
+        ORDER BY pw.workspace_id COLLATE "C" FOR SHARE OF pw NOWAIT`)
+    }
+    const legacyAssignment = legacy?.present
+      ? sql`(SELECT pw.project_id FROM project_workspace pw WHERE pw.workspace_id = workspace.id)`
+      : sql`NULL::text`
     const current = await tx.execute<ProjectBackfillWorkspace>(sql`
       SELECT id, forked_from_workspace_id AS "parentId", owner_id AS "ownerId",
-        organization_id AS "organizationId", archived_at::text AS "archivedAt", project_id AS "projectId", NULL::text AS "legacyProjectId"
-      FROM workspace WHERE project_id IN (${review.projectId},${review.destinationProjectId})
+        organization_id AS "organizationId", archived_at::text AS "archivedAt", project_id AS "projectId", ${legacyAssignment} AS "legacyProjectId"
+      FROM workspace WHERE coalesce(project_id, ${legacyAssignment}) IN (${review.projectId},${review.destinationProjectId})
       ORDER BY id COLLATE "C" LIMIT 1001 FOR NO KEY UPDATE NOWAIT`)
     if (current.length > 1000)
       throw new ProjectBackfillConflict('Project grouping exceeds repair limit')
-    const destination = current.filter((row) => row.projectId === review.destinationProjectId)
+    const destination = current.filter(
+      (row) => (row.projectId ?? row.legacyProjectId) === review.destinationProjectId
+    )
     if (destination.length) {
       if (
         projectGroupingEvidence(
@@ -220,6 +238,10 @@ export async function repairProjectGrouping(
       throw new ProjectBackfillConflict(
         'Reviewed Project ownership or scope requires reconciliation before detach'
       )
+    await tx
+      .update(schema.workspace)
+      .set({ projectId: review.projectId })
+      .where(and(inArray(schema.workspace.id, reviewedIds), isNull(schema.workspace.projectId)))
     await splitForkProject(tx, rootId, review.destinationProjectId)
   })
 }
