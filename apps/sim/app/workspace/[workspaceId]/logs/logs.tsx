@@ -591,7 +591,7 @@ export default function Logs() {
   }, [contextMenuLog])
 
   const cancelExecution = useCancelExecution(workspaceId)
-  const retryExecution = useRetryExecution()
+  const retryExecution = useRetryExecution(workspaceId)
 
   const handleCancelExecution = useCallback(async () => {
     const workflowId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
@@ -611,17 +611,17 @@ export default function Logs() {
     async (log: WorkflowLogRow | null) => {
       const workflowId = log?.workflow?.id || log?.workflowId
       const executionId = log?.executionId
-      if (!workflowId || !executionId) return
+      if (!userPermissions.canEdit || !workflowId || !executionId) return
 
       try {
         await retryExecution.mutateAsync({ workflowId, executionId })
         toast.success('Retry started')
-      } catch {
-        toast.error('Failed to retry execution')
+      } catch (error) {
+        toast.error(getErrorMessage(error, 'Failed to retry execution'))
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [userPermissions.canEdit]
   )
 
   const handleRetryExecution = useCallback(() => {
@@ -840,7 +840,7 @@ export default function Logs() {
       onNavigatePrev={handleNavigatePrev}
       hasNext={selectedLogIndex >= 0 && selectedLogIndex < logs.length - 1}
       hasPrev={selectedLogIndex > 0}
-      onRetryExecution={handleRetrySidebarExecution}
+      onRetryExecution={userPermissions.canEdit ? handleRetrySidebarExecution : undefined}
       isRetryPending={retryExecution.isPending}
       onActiveTabChange={handleActiveTabChange}
     />
@@ -1248,6 +1248,7 @@ export default function Logs() {
         onCancelExecution={handleCancelExecution}
         onRetryExecution={handleRetryExecution}
         canCancelExecution={userPermissions.canEdit}
+        canRetryExecution={userPermissions.canEdit}
         isCancelPending={cancelExecution.isPending}
         cancelPendingExecutionId={cancelExecution.variables?.executionId}
         isRetryPending={retryExecution.isPending}
