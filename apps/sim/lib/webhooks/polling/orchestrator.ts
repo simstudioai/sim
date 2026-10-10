@@ -3,7 +3,12 @@ import { generateShortId } from '@sim/utils/id'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { getPollingHandler } from '@/lib/webhooks/polling/registry'
 import type { PollSummary } from '@/lib/webhooks/polling/types'
-import { fetchActiveWebhooks, runWithConcurrency } from '@/lib/webhooks/polling/utils'
+import {
+  createPayerUsageGate,
+  fetchActiveWebhooks,
+  getPollBackoffUntil,
+  runWithConcurrency,
+} from '@/lib/webhooks/polling/utils'
 
 /** Poll all active webhooks for a given provider. */
 export async function pollProvider(providerName: string): Promise<PollSummary> {
@@ -18,14 +23,25 @@ export async function pollProvider(providerName: string): Promise<PollSummary> {
   const activeWebhooks = await fetchActiveWebhooks(handler.provider)
   if (!activeWebhooks.length) {
     logger.info(`No active ${handler.label} webhooks found`)
-    return { total: 0, successful: 0, failed: 0 }
+    return { total: 0, successful: 0, failed: 0, skipped: 0 }
   }
 
   logger.info(`Found ${activeWebhooks.length} active ${handler.label} webhooks`)
 
-  const { successCount, failureCount } = await runWithConcurrency(
+  const tickStartedAt = Date.now()
+  const isPayerOverUsageLimit = createPayerUsageGate(logger)
+
+  const { successCount, failureCount, skippedCount } = await runWithConcurrency(
     activeWebhooks,
     async (entry) => {
+      if (getPollBackoffUntil(entry.webhook, tickStartedAt) !== null) {
+        logger.debug(`Backing off webhook ${entry.webhook.id} after repeated poll failures`)
+        return 'skipped'
+      }
+      if (await isPayerOverUsageLimit(entry.workflow.workspaceId)) {
+        return 'skipped'
+      }
+
       const requestId = generateShortId()
       return withResourceOutboundScope({ workspaceId: entry.workflow.workspaceId }, () =>
         handler.pollWebhook({
@@ -43,6 +59,7 @@ export async function pollProvider(providerName: string): Promise<PollSummary> {
     total: activeWebhooks.length,
     successful: successCount,
     failed: failureCount,
+    skipped: skippedCount,
   }
   logger.info(`${handler.label} polling completed`, summary)
   return summary

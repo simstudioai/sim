@@ -10,8 +10,10 @@ import {
 } from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUpdateConfig } = vi.hoisted(() => ({
+const { mockUpdateConfig, mockMarkFailed, mockRecordPollFailure } = vi.hoisted(() => ({
   mockUpdateConfig: vi.fn(),
+  mockMarkFailed: vi.fn(),
+  mockRecordPollFailure: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
@@ -28,14 +30,18 @@ vi.mock('@/lib/core/idempotency/service', () => ({
 
 vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
-vi.mock('@/lib/webhooks/polling/utils', () => ({
+vi.mock('@/lib/webhooks/polling/utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/webhooks/polling/utils')>()),
   markWebhookSuccess: vi.fn(),
-  markWebhookFailed: vi.fn(),
+  markWebhookFailed: mockMarkFailed,
+  recordPollFailure: mockRecordPollFailure,
   updateWebhookProviderConfig: mockUpdateConfig,
 }))
 
+import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import { rssPollingHandler } from '@/lib/webhooks/polling/rss'
 import type { PollWebhookContext, WebhookRecord } from '@/lib/webhooks/polling/types'
+import { PollFetchError } from '@/lib/webhooks/polling/utils'
 
 const mockProcessEvent = webhooksProcessorMockFns.mockProcessPolledWebhookEvent
 
@@ -124,5 +130,47 @@ describe('RSS delivery across delayed feed updates', () => {
 
     expect(await rssPollingHandler.pollWebhook(context())).toBe('success')
     expect(mockProcessEvent).not.toHaveBeenCalled()
+  })
+})
+
+describe('RSS polling against refusals and rate limits', () => {
+  beforeEach(() => {
+    mockValidateUrl.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
+    mockUpdateConfig.mockResolvedValue(undefined)
+  })
+
+  it('leaves an item unseen and uncounted when execution admission refuses it', async () => {
+    mockFetch.mockResolvedValue(feed('Fri, 11 Sep 2026 21:25:32 GMT'))
+    mockProcessEvent.mockResolvedValue({
+      success: false,
+      statusCode: 402,
+      error: 'Usage limit exceeded',
+      code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED,
+      retryable: false,
+    })
+
+    expect(await rssPollingHandler.pollWebhook(context())).toBe('skipped')
+
+    const recordedGuids = mockUpdateConfig.mock.calls.flatMap(
+      ([, update]) => (update as { lastSeenGuids?: string[] }).lastSeenGuids ?? []
+    )
+    expect(recordedGuids).not.toContain(GUID)
+    expect(mockMarkFailed).not.toHaveBeenCalled()
+  })
+
+  it("records a rate-limited fetch as one failure carrying the source's requested wait", async () => {
+    mockFetch.mockResolvedValue(
+      new Response('{"ok":false,"description":"Too Many Requests: FLOOD_WAIT_12"}', {
+        status: 429,
+        statusText: 'Too Many Requests',
+      })
+    )
+
+    expect(await rssPollingHandler.pollWebhook(context())).toBe('failure')
+
+    expect(mockRecordPollFailure).toHaveBeenCalledOnce()
+    const [, error] = mockRecordPollFailure.mock.calls[0]
+    expect(error).toBeInstanceOf(PollFetchError)
+    expect(error).toMatchObject({ status: 429, retryAfterMs: 12_000 })
   })
 })

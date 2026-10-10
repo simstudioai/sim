@@ -7,6 +7,8 @@ export interface PollSummary {
   total: number
   successful: number
   failed: number
+  /** Not polled this tick: backing off after failures, or the payer is over its usage limit. */
+  skipped: number
 }
 
 /** Context passed to a provider handler when processing one webhook. */
@@ -49,7 +51,8 @@ export interface PollingProviderHandler {
 
   /**
    * Process a single webhook entry.
-   * Return 'success' (even if 0 new items) or 'failure'.
+   * Return 'success' (even if 0 new items), 'failure', or 'skipped' when the
+   * poll stopped without consuming anything (an admission rejection mid-poll).
    */
-  pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'>
+  pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure' | 'skipped'>
 }
