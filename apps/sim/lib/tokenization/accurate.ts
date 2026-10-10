@@ -18,11 +18,18 @@ import {
   type TiktokenEncoding,
   type TiktokenModel,
 } from 'js-tiktoken'
+import { LRUCache } from 'lru-cache'
 
 const logger = createLogger('TokenizationAccurate')
 
 /** Keyed by encoding, not model: each instance holds a full rank table, so models share one. */
 const encodingCache = new Map<TiktokenEncoding, Tiktoken>()
+
+/**
+ * Model id → encoding name, so a non-OpenAI model does not throw and catch inside
+ * `getEncodingNameForModel` on every count. Model ids are caller-supplied, hence the ceiling.
+ */
+const encodingNameByModel = new LRUCache<string, TiktokenEncoding>({ max: 1_000 })
 
 /** OpenAI families tokenized with `o200k_base` that `js-tiktoken`'s exact-name table may not list yet. */
 const O200K_MODEL_FAMILY = /^(?:gpt-(?:4o|4\.1|4\.5|5|6|oss)|chatgpt-4o|o\d)/
@@ -33,12 +40,17 @@ const O200K_MODEL_FAMILY = /^(?:gpt-(?:4o|4\.1|4\.5|5|6|oss)|chatgpt-4o|o\d)/
  * tiktoken encoding and is approximated with `cl100k_base`.
  */
 function resolveEncodingName(modelName: string): TiktokenEncoding {
+  const cached = encodingNameByModel.get(modelName)
+  if (cached) return cached
+  let encodingName: TiktokenEncoding
   try {
-    return getEncodingNameForModel(modelName as TiktokenModel)
+    encodingName = getEncodingNameForModel(modelName as TiktokenModel)
   } catch {
     const baseModel = modelName.slice(modelName.lastIndexOf('/') + 1).toLowerCase()
-    return O200K_MODEL_FAMILY.test(baseModel) ? 'o200k_base' : 'cl100k_base'
+    encodingName = O200K_MODEL_FAMILY.test(baseModel) ? 'o200k_base' : 'cl100k_base'
   }
+  encodingNameByModel.set(modelName, encodingName)
+  return encodingName
 }
 
 function getEncoding(modelName: string): Tiktoken {
