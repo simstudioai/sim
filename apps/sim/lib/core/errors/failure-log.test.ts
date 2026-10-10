@@ -10,6 +10,7 @@ import {
 } from '@/lib/core/errors/failure-log'
 import { RetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import { UserFailure } from '@/lib/core/errors/user-failure'
+import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
 
 const logger = createLogger('FailureLogTest')
@@ -54,6 +55,11 @@ describe('classifyFailure', () => {
     const ours = markFailureKind(new Error('hosted key rejected', { cause: upstream }), 'internal')
     expect(classifyFailure(ours)).toBe('internal')
     expect(classifyFailure(upstream)).toBe('third_party_client')
+  })
+
+  it('attributes a revoked OAuth credential to its owner, not to Sim', () => {
+    const revoked = new CredentialRevokedError('Reconnect your account')
+    expect(classifyFailure(new Error('Tool failed', { cause: revoked }))).toBe('user')
   })
 
   it('leaves an unattributed failure internal', () => {

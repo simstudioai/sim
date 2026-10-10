@@ -3,6 +3,7 @@ import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import { isRetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import { UserFailure } from '@/lib/core/errors/user-failure'
 import { HttpError } from '@/lib/core/utils/http-error'
+import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 
 /**
  * Who a failure is attributable to, which decides how loudly the server logs it. The user
@@ -58,8 +59,9 @@ export function markFailureKind<T>(error: T, kind: FailureKind): T {
 
 /**
  * Attributes `error` from its cause chain. A database or retryable setup failure is always
- * internal, then the outermost link with an explicit mark, a {@link UserFailure}, a Sim `HttpError`
- * status, or an upstream `status` decides. Anything unattributed is internal.
+ * internal, then the outermost link with an explicit mark, a {@link UserFailure} or revoked
+ * credential, a Sim `HttpError` status, or an upstream `status` decides. Anything unattributed is
+ * internal.
  */
 export function classifyFailure(error: unknown): FailureKind {
   if (findDatabaseQueryError(error)) return 'internal'
@@ -69,7 +71,8 @@ export function classifyFailure(error: unknown): FailureKind {
   for (const link of chain) {
     const marked = failureKinds.get(link)
     if (marked) return marked
-    if (link instanceof UserFailure) return 'user'
+    /** Only the credential's owner reconnecting restores a revoked grant. */
+    if (link instanceof UserFailure || link instanceof CredentialRevokedError) return 'user'
 
     if (link instanceof HttpError) {
       return link.statusCode >= 400 && link.statusCode < 500 ? 'user' : 'internal'
