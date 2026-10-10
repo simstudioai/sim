@@ -39,7 +39,9 @@ const logger = createLogger('MothershipSandboxResourceTransport')
 /**
  * GET routes whose responses are the producer-owned catalog (blocks, tools, connector types):
  * no execution output, file content, or row values, so no producer records provenance for
- * them and none is expected. Only the missing-provenance log consults this.
+ * them and none is expected. Only the missing-provenance log consults this. Each contract
+ * resolves through the generated route table itself, so a renamed path parameter cannot
+ * drift from the pattern `matchV2Route` reports.
  */
 const CATALOG_ROUTE_PATTERNS: ReadonlySet<string> = new Set(
   [
@@ -48,7 +50,10 @@ const CATALOG_ROUTE_PATTERNS: ReadonlySet<string> = new Set(
     v2ListToolsContract,
     v2GetToolContract,
     v2ListConnectorTypesContract,
-  ].map((contract) => contract.path.replace(/\[([^\]]+)\]/g, '{$1}'))
+  ].flatMap((contract) => {
+    const pattern = matchV2Route(contract.path.replace(/\[[^\]]+\]/g, 'catalog-id'))?.pattern
+    return pattern ? [pattern] : []
+  })
 )
 
 /**
