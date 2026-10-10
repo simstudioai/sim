@@ -2,13 +2,6 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { LRUCache } from 'lru-cache'
 import { NextRequest } from 'next/server'
-import {
-  v2GetBlockContract,
-  v2GetToolContract,
-  v2ListBlocksContract,
-  v2ListConnectorTypesContract,
-  v2ListToolsContract,
-} from '@/lib/api/contracts/v2/catalog'
 import { v2DownloadFileContract, v2ReadFileTextContract } from '@/lib/api/contracts/v2/files'
 import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
@@ -26,6 +19,7 @@ import { recordExistingSessionFileInput } from '@/lib/execution/remote-sandbox/s
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
+import { isCatalogRoute } from '@/lib/mothership/tools/sandbox-catalog-routes'
 import {
   readSandboxResourceScope,
   recordSandboxResourceEffects,
@@ -35,25 +29,6 @@ import { observeTableRowDelivery } from '@/lib/table/application/row-delivery-ob
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
 const logger = createLogger('MothershipSandboxResourceTransport')
-
-/**
- * GET routes whose responses are the producer-owned catalog (blocks, tools, connector types):
- * no execution output, file content, or row values, so no producer records provenance for
- * them and none is expected. Each contract resolves through the generated route table
- * itself, so a renamed path parameter cannot drift from the pattern `matchV2Route` reports.
- */
-const CATALOG_ROUTE_PATTERNS: ReadonlySet<string> = new Set(
-  [
-    v2ListBlocksContract,
-    v2GetBlockContract,
-    v2ListToolsContract,
-    v2GetToolContract,
-    v2ListConnectorTypesContract,
-  ].flatMap((contract) => {
-    const pattern = matchV2Route(contract.path.replace(/\[[^\]]+\]/g, 'catalog-id'))?.pattern
-    return pattern ? [pattern] : []
-  })
-)
 
 /**
  * Data-bearing routes already reported as lacking a provenance producer. The gap is a
@@ -196,11 +171,7 @@ async function proxyAuthorizedSandboxRequest(
     )
     try {
       if (fileRead && !fileObserved && result.ok && result.body) await recordInput(false)
-      else if (
-        !fileObserved &&
-        !rowProvenance &&
-        !(method === 'GET' && CATALOG_ROUTE_PATTERNS.has(matched.pattern))
-      ) {
+      else if (!fileObserved && !rowProvenance && !isCatalogRoute(method, matched.pattern)) {
         /** Missing producer evidence is unrecorded, not proof that the machine received a secret. */
         const routeKey = `${method} ${matched.pattern}`
         if (!unrecordedProvenanceRoutesLogged.has(routeKey)) {
