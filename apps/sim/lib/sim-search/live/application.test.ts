@@ -1,3 +1,4 @@
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { setEnv } from '@sim/testing/mocks/env.mock'
@@ -768,6 +769,47 @@ describe('authorized live retrieval', () => {
       })
     ).rejects.toThrow('Revoked')
     expect(mocks.read).not.toHaveBeenCalled()
+  })
+  it.each([
+    [
+      'a missing or non-readable document',
+      new NativeSearchError('unavailable', 'Provider request failed (404).', undefined, 404),
+      { code: 'not_found', message: expect.stringContaining('Search again') },
+    ],
+    [
+      'a revoked grant',
+      new NativeSearchError('reconnect', 'The provider denied access.'),
+      { code: 'unauthorized', message: expect.stringContaining('Reconnect Google Drive') },
+    ],
+    [
+      'a provider rate limit',
+      new NativeSearchError('rate_limited', 'Provider rate limit reached.', 30),
+      { retryable: true, retryAfterSeconds: 30 },
+    ],
+    [
+      'a provider outage',
+      new NativeSearchError('unavailable', 'Provider request failed (503).', undefined, 503),
+      { retryable: true, message: expect.stringContaining('Try again') },
+    ],
+    [
+      'an MCP request timeout',
+      new McpError(ErrorCode.RequestTimeout, 'TimeoutError'),
+      { retryable: true, message: expect.stringContaining('took too long') },
+    ],
+  ])('classifies %s during a read so the caller can act on it', async (_, failure, expected) => {
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    mocks.read.mockRejectedValueOnce(failure)
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    ).rejects.toMatchObject(expected)
   })
   it.each([
     ['a stop reason', 'user_stop:test'],

@@ -19,6 +19,7 @@ import {
 import type { BaseServerTool, ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
+import { LiveReadError } from '@/lib/sim-search/live/read-error'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('WorkspaceSearchTool')
@@ -165,8 +166,16 @@ export const readDocumentServerTool: BaseServerTool = {
           }
         } catch (error) {
           logger.error('Document read failed', { error })
+          if (error instanceof LiveReadError)
+            return {
+              success: false,
+              retryable: error.retryable,
+              ...(error.retryAfterSeconds ? { retryAfterSeconds: error.retryAfterSeconds } : {}),
+              message: error.message,
+            }
           return {
             success: false,
+            retryable: false,
             message:
               error instanceof z.ZodError
                 ? 'Invalid document arguments'
