@@ -17,6 +17,7 @@ export interface AnthropicStreamComplete {
   usage: AnthropicUsageAccumulator
   /** Assembled thinking text for traces (redacted blocks become `[redacted]`). */
   thinking: string
+  finishReason?: string
   nativeContent: Anthropic.Messages.ContentBlock[]
 }
 
@@ -40,6 +41,7 @@ export function createReadableStreamFromAnthropicStream(
         const thinkingBlocks: string[] = []
         let currentThinking = ''
         let usageSnapshot: AnthropicUsageLike = {}
+        let finishReason: string | undefined
         const nativeBlocks = new Map<number, Anthropic.Messages.ContentBlock>()
 
         const flushThinkingBlock = () => {
@@ -60,6 +62,9 @@ export function createReadableStreamFromAnthropicStream(
           }
 
           if (event.type === 'message_delta') {
+            if (typeof event.delta.stop_reason === 'string') {
+              finishReason = event.delta.stop_reason
+            }
             usageSnapshot = {
               ...usageSnapshot,
               input_tokens: event.usage.input_tokens ?? usageSnapshot.input_tokens,
@@ -133,6 +138,7 @@ export function createReadableStreamFromAnthropicStream(
             content: fullContent,
             usage,
             thinking: thinkingBlocks.filter(Boolean).join('\n\n'),
+            finishReason,
             nativeContent: [...nativeBlocks.entries()]
               .sort(([left], [right]) => left - right)
               .map(([, block]) => block),

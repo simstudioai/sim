@@ -301,6 +301,9 @@ export function createOpenAICompatibleAgentEventStream(
             ...(finishReason ? { finishReason } : {}),
           })
         }
+        if (finishReason) {
+          controller.enqueue({ type: 'turn_end', turn, finishReason })
+        }
 
         controller.close()
       } catch (error) {
