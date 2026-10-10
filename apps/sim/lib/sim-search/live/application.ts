@@ -42,7 +42,6 @@ import {
 } from '@/lib/sim-search/live/account-session'
 import {
   listLiveAccounts,
-  type ResolvedLiveAccount,
   resolveListedLiveAccount,
   resolveLiveAccount,
 } from '@/lib/sim-search/live/accounts'
@@ -818,59 +817,58 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
       (input.filters?.documentIds && !input.filters.documentIds.includes(input.documentId))
     )
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
-    let resolved: ResolvedLiveAccount
+    /** Cancellation by the caller passes through unclassified. */
+    const readFailure = (error: unknown, deadline?: AbortSignal) =>
+      input.signal?.aborted ? error : liveReadFailure(error, reference.provider, deadline)
+    const [resolved, policies] = await Promise.all([
+      resolveLiveAccount(input, userId, reference.account),
+      loadLiveSearchPolicies(input),
+    ]).catch((error: unknown) => {
+      throw readFailure(error)
+    })
+    if (resolved.account.provider !== reference.provider)
+      throw new OrchestrationError('not_found', 'Document account changed')
+    const deadline = AbortSignal.timeout(READ_DEADLINE_MS)
+    const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline
+    const pool = createPinnedConnectionPool()
     let document: NativeDocument
-    let deadline: AbortSignal | undefined
+    let session: LiveAccountSession | undefined
     try {
-      const [account, policies] = await Promise.all([
-        resolveLiveAccount(input, userId, reference.account),
-        loadLiveSearchPolicies(input),
-      ])
-      resolved = account
-      if (resolved.account.provider !== reference.provider)
-        throw new OrchestrationError('not_found', 'Document account changed')
-      deadline = AbortSignal.timeout(READ_DEADLINE_MS)
-      const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline
-      const pool = createPinnedConnectionPool()
-      let session: LiveAccountSession | undefined
-      try {
-        session = await openLiveAccountSession({
-          owner: input,
-          userId,
-          resolved,
-          policies,
-          signal,
-          pool,
-        })
-        if (!(await session.verify(reference)))
-          throw new OrchestrationError(
-            'not_found',
-            'Document is outside your organization’s search scope'
-          )
-        const currentSession = session
-        document = await measureSearchStage('live.read', () =>
-          currentSession.read(reference, input.filters)
+      session = await openLiveAccountSession({
+        owner: input,
+        userId,
+        resolved,
+        policies,
+        signal,
+        pool,
+      })
+      if (!(await session.verify(reference)))
+        throw new OrchestrationError(
+          'not_found',
+          'Document is outside your organization’s search scope'
         )
-        /** Readers degrade section failures to warnings, so the signal decides cancellation. */
-        signal.throwIfAborted()
-        const current = await session.verifyCurrent(document)
-        /** A verifier may report a check cut short by cancellation as a normal result. */
-        signal.throwIfAborted()
-        if (!current)
-          throw new OrchestrationError(
-            'not_found',
-            'Document is outside your organization’s search scope'
-          )
-      } finally {
-        try {
-          await session?.close()
-        } finally {
-          pool.destroy()
-        }
-      }
+      const currentSession = session
+      document = await measureSearchStage('live.read', () =>
+        currentSession.read(reference, input.filters)
+      )
+      /** Readers degrade section failures to warnings, so the signal decides cancellation. */
+      signal.throwIfAborted()
+      const current = await session.verifyCurrent(document)
+      /** A verifier may report a check cut short by cancellation as a normal result. */
+      signal.throwIfAborted()
+      if (!current)
+        throw new OrchestrationError(
+          'not_found',
+          'Document is outside your organization’s search scope'
+        )
     } catch (error) {
-      if (input.signal?.aborted) throw error
-      throw liveReadFailure(error, reference.provider, deadline)
+      throw readFailure(error, deadline)
+    } finally {
+      try {
+        await session?.close()
+      } finally {
+        pool.destroy()
+      }
     }
     if (!matchesLiveFilters(document, input.documentId, reference.provider, input.filters))
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
