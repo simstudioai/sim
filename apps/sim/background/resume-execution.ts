@@ -249,9 +249,14 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
       executedAt: new Date().toISOString(),
     }
   } catch (error) {
+    /** The resumed run executes under its parent's execution id, so dedupe on that one. */
     logFailureOnce(logger, 'Background resume execution failed', error, {
-      metadata: () => projectResolvedSecretDiagnosticError(error, undefined, { workflowId }),
-      executionId: resumeExecutionId,
+      metadata: () => ({
+        resumeExecutionId,
+        workflowId,
+        ...projectResolvedSecretDiagnosticError(error, undefined),
+      }),
+      executionId: parentExecutionId,
     })
     throw error
   } finally {

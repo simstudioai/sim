@@ -1710,6 +1710,8 @@ async function executeToolImplementation(
 
   // Hoisted so the outer catch can attribute a thrown failure to the chosen key.
   let hostedKeyForMetrics: { provider: string; tool: string; key: string } | undefined
+  /** Hoisted so the outer catch names the account selected after normalization. */
+  let selectedCredentialId: string | undefined
   let completePendingSecretActivation: (() => void) | undefined
 
   try {
@@ -1890,6 +1892,7 @@ async function executeToolImplementation(
       const workflowId = scope.workflowId
       const userId = scope.userId
       const credentialId = contextParams.credential as string
+      selectedCredentialId = credentialId
       const toolLabel = tool?.name || toolId
       const impersonateEmail = contextParams.impersonateUserEmail as string | undefined
 
@@ -2321,7 +2324,7 @@ async function executeToolImplementation(
         workflowId: executionContext?.workflowId ?? undefined,
         executionId: executionContext?.executionId,
         blockId: typeof toolContext.blockId === 'string' ? toolContext.blockId : undefined,
-        credentialId: typeof params.credential === 'string' ? params.credential : undefined,
+        credentialId: selectedCredentialId,
         ...(typeof upstreamStatus === 'number' ? { status: upstreamStatus } : {}),
         ...projectToolLogMetadata(
           {

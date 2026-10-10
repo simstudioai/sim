@@ -1575,14 +1575,12 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     if (!success) {
       const rootErrorMessage = childResult.error || 'Child workflow execution failed'
-      logger.warn(
-        `Child workflow ${childWorkflowName} failed`,
-        projectResolvedSecretDiagnosticError(rootErrorMessage, parent?.registry, {
-          executionId: parent?.executionId,
-          blockId: parent?.blockId,
-          childExecutionId: parent?.childExecutionId,
-        })
-      )
+      logger.warn(`Child workflow ${childWorkflowName} failed`, {
+        executionId: parent?.executionId,
+        blockId: parent?.blockId,
+        childExecutionId: parent?.childExecutionId,
+        ...projectResolvedSecretDiagnosticError(rootErrorMessage, parent?.registry),
+      })
       const chain = [childWorkflowName]
       const childFailure = new ChildWorkflowError({
         message: formatWorkflowChainMessage(chain, rootErrorMessage),

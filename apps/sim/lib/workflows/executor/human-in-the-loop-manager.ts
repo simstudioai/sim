@@ -8,7 +8,7 @@ import type { Edge } from '@xyflow/react'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { logFailureOnce } from '@/lib/core/errors/failure-log'
+import { logFailureOnce, markFailureKind } from '@/lib/core/errors/failure-log'
 import {
   createTimeoutAbortController,
   getAsyncExecutionTimeoutForBillingAttribution,
@@ -1055,13 +1055,18 @@ export class PauseResumeManager {
           )
         })
       }
+      /** A refusal to admit the resume (already resumed, not paused) is the caller's, not Sim's. */
+      if (error instanceof ResumeAdmissionError && error.statusCode < 500) {
+        markFailureKind(error, 'user')
+      }
+      /** The resumed run executes under its parent's execution id, so dedupe on that one. */
       logFailureOnce(logger, 'Resume execution failed', error, {
-        metadata: () =>
-          projectResolvedSecretDiagnosticError(error, undefined, {
-            parentExecutionId: pausedExecution.executionId,
-            contextId,
-          }),
-        executionId: resumeExecutionId,
+        metadata: () => ({
+          resumeExecutionId,
+          contextId,
+          ...projectResolvedSecretDiagnosticError(error, undefined),
+        }),
+        executionId: pausedExecution.executionId,
       })
       if (!(error instanceof ResumeAdmissionError)) {
         await PauseResumeManager.processQueuedResumes(
