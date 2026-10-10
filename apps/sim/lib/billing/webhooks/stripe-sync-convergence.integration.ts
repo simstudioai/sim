@@ -15,6 +15,7 @@ import {
   type InMemoryStripe,
   stripeClientMock,
 } from '@sim/testing/mocks/stripe.mock'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { type BetterAuthOptions, betterAuth } from 'better-auth'
 import { createAuthMiddleware } from 'better-auth/api'
@@ -376,7 +377,11 @@ type TestTransaction = Parameters<Parameters<typeof testDatabase.transaction>[0]
 
 /**
  * Starts a transaction that takes its locks in `holdLocks`, then parks until released and runs
- * `finish`. `untilBlocking` resolves once another backend is waiting on one of its locks.
+ * `finish`. `locked` resolves once those locks are held: start the contending work after it, or the
+ * contender can take the lock first and nothing ever waits on the parked transaction.
+ * `untilBlocking` resolves once another backend is waiting on one of its locks; if none does within
+ * the deadline it releases the transaction before throwing, so a failure never leaves it holding
+ * locks that the suite's teardown then waits on.
  */
 function startParkedTransaction(
   holdLocks: (tx: TestTransaction) => Promise<void>,
@@ -399,16 +404,18 @@ function startParkedTransaction(
   })
   async function untilBlocking() {
     const pid = await holderPid
-    for (let attempt = 0; attempt < 200; attempt++) {
+    const deadline = Date.now() + 10_000
+    while (Date.now() < deadline) {
       const [row] = await connection<{ blocked: number }[]>`
         select count(*)::int as blocked from pg_stat_activity
         where ${pid}::int = any(pg_blocking_pids(pid))`
       if (row.blocked > 0) return
-      await new Promise<void>((resolve) => setImmediate(resolve))
+      await sleep(10)
     }
+    release()
     throw new Error('No transaction ever waited on the parked one')
   }
-  return { done, release, untilBlocking }
+  return { done, release, locked: holderPid.then(() => undefined), untilBlocking }
 }
 
 describe('cancel_at_period_end sync', () => {
@@ -1037,6 +1044,7 @@ describe('Team activation', () => {
         reason: 'admin-cancel-at-period-end',
       })
     })
+    await cancelling.locked
     const activating = testDatabase.transaction((tx) =>
       ensureTeamOrganizationForAcceptance({
         billingOwnerUserId: owner.id,
@@ -1088,6 +1096,7 @@ describe('operator retry', () => {
         })
       }
     )
+    await writing.locked
     const requeuing = requeueFromAdminApi(pauseSync)
     await writing.untilBlocking()
     writing.release()
@@ -1129,6 +1138,7 @@ describe('operator retry', () => {
         })
       }
     )
+    await writing.locked
     const retrying = requestDashboardSubscriptionCancellation({
       organizationId: org.organizationId,
       operationId,

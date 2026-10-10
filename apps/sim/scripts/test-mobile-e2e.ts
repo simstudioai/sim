@@ -553,6 +553,27 @@ async function exerciseViewport(
     }
 
     if (viewport.name === 'desktop') {
+      await check(`${prefix}/a saved draft returns after a reload`, page, async () => {
+        const draft = 'A draft saved before reloading'
+        const storedDrafts = () =>
+          page.evaluate(() => localStorage.getItem('mothership-drafts:v1') ?? '')
+        await visit(page, 'home')
+        const composer = page.getByRole('textbox', { name: 'Message', exact: true })
+        await composer.fill(draft)
+        await expect.poll(storedDrafts).toContain(draft)
+        const pageErrorCount = pageErrors.length
+        const nativeErrorCount = nativeErrors.length
+        await visit(page, 'home')
+        await expect(composer).toHaveValue(draft)
+        assert.deepEqual(
+          [...pageErrors.slice(pageErrorCount), ...nativeErrors.slice(nativeErrorCount)],
+          [],
+          'Restoring a saved draft must hydrate cleanly'
+        )
+        await composer.fill('')
+        await expect.poll(storedDrafts).not.toContain(draft)
+      })
+
       for (const width of [390, viewport.width]) {
         await check(
           `${prefix}/${width}px draft scroll boundaries preserve the surrounding page`,
@@ -591,8 +612,12 @@ async function exerciseViewport(
             try {
               await page.setViewportSize({ width, height: 520 })
               await composer.fill('A draft line\n'.repeat(30))
+              await expect
+                .poll(async () => (await readScroll().catch(() => null))?.max ?? 0, {
+                  message: 'The draft must overflow its editor',
+                })
+                .toBeGreaterThan(100)
               const editor = await readScroll()
-              assert(editor.max > 100, 'The draft must overflow its editor')
               await page.mouse.move(editor.x, editor.y)
               await page.mouse.wheel(0, 10_000)
               await expect
@@ -1151,6 +1176,7 @@ try {
     durationMs: 0,
     error: getErrorMessage(error),
   })
+  logger.error('FAIL suite setup', { error: getErrorMessage(error) })
 } finally {
   await check('fixtures are removed', undefined, async () => {
     await sql.begin(async (tx) => {

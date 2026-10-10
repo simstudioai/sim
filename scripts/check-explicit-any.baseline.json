@@ -221,8 +221,6 @@
     "apps/sim/lib/file-parsers/csv-parser.ts": 3,
     "apps/sim/lib/function-execution/execute-request.test.ts": 2,
     "apps/sim/lib/function-execution/execute-request.ts": 3,
-    "apps/sim/lib/guardrails/validate_hallucination.ts": 2,
-    "apps/sim/lib/guardrails/validate_json.ts": 1,
     "apps/sim/lib/logs/execution/logger.test.ts": 15,
     "apps/sim/lib/logs/execution/logger.ts": 7,
     "apps/sim/lib/logs/execution/logging-session.test.ts": 7,
@@ -1956,7 +1954,6 @@
     "packages/sim-cli/src/transfer/embedded-files.test.ts": 1,
     "packages/sim-setup/src/lifecycle.test.ts": 3,
     "packages/ts-sdk/examples/basic-usage.ts": 4,
-    "packages/workflow-renderer/src/workflow-block/workflow-block-view.tsx": 12,
     "packages/workflow-types/src/workflow.ts": 1,
     "scripts/create-single-release.ts": 1,
     "scripts/generate-docs.ts": 2

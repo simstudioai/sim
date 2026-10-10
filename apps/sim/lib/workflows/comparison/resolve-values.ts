@@ -12,7 +12,7 @@ import { resolveFolderPathLabel } from '@/lib/workflows/subblocks/display'
 import { getBlock } from '@/blocks/registry'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { isUuid } from '@/executor/constants'
-import { fetchOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
+import { fetchOAuthCredentialDetail } from '@/hooks/queries/oauth/credentials'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { formatParameterLabel } from '@/tools/params'
 

@@ -74,10 +74,6 @@ export default defineConfig(({ mode }) => {
             replacement: path.resolve(__dirname, '../../packages/logger/src'),
           },
           {
-            find: '@/stores/console/store',
-            replacement: path.resolve(__dirname, 'stores/console/store.ts'),
-          },
-          {
             find: '@/stores/execution/store',
             replacement: path.resolve(__dirname, 'stores/execution/store.ts'),
           },

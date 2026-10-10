@@ -25,7 +25,7 @@ vi.mock('@sim/emcn', () => emcnMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/lib/desktop', () => libDesktopMock)
-vi.mock('@/hooks/queries/oauth/oauth-connections', () => ({
+vi.mock('@/hooks/queries/oauth/connections', () => ({
   oauthConnectionsKeys: { connections: () => ['oauthConnections'] },
 }))
 vi.mock('@/hooks/queries/utils/fetch-workspace-credentials', () => ({
@@ -41,7 +41,7 @@ import {
   readOAuthReturnContext,
   writeOAuthReturnContext,
 } from '@/lib/credentials/client-state'
-import { oauthCredentialKeys, useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { oauthCredentialKeys, useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import {
   useDesktopOAuthConnectListener,

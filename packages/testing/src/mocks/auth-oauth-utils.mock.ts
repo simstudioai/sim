@@ -22,7 +22,7 @@ export class ServiceAccountTokenErrorMock extends Error {
  *
  * @example
  * ```ts
- * import { authOAuthUtilsMockFns } from '@sim/testing'
+ * import { authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
  *
  * authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded.mockResolvedValue('access-token')
  * authOAuthUtilsMockFns.mockGetOAuthToken.mockResolvedValue(null)

@@ -1,6 +1,6 @@
 import { ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
-import { chipIconSlotClass } from './chip-chrome'
+import { chipIconSlotClass } from './chrome'
 
 interface ChipChevronDownProps {
   /** Layout-only extras (e.g. `ml-auto` to push the chevron flush right). Never chrome. */

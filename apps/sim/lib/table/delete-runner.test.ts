@@ -1,3 +1,4 @@
+import { tableConstantsMock } from '@sim/testing/mocks/table-constants.mock'
 import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
 import {
   tableJobsServiceMock,
@@ -24,8 +25,8 @@ vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/sql', () => ({ buildFilterClause: mockBuildFilterClause }))
 vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 vi.mock('@/lib/table/constants', () => ({
-  TABLE_LIMITS: { DELETE_PAGE_SIZE: 2 },
-  USER_TABLE_ROWS_SQL_NAME: 'user_table_rows',
+  ...tableConstantsMock,
+  TABLE_LIMITS: { ...tableConstantsMock.TABLE_LIMITS, DELETE_PAGE_SIZE: 2 },
 }))
 
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'

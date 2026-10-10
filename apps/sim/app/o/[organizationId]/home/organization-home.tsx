@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
@@ -48,6 +48,7 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
+import { useHydrated } from '@/hooks/use-hydrated'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 import type { ChatContext } from '@/stores/panel'
@@ -58,15 +59,11 @@ interface OrganizationHomeProps {
   requestMode?: ChatRequestMode
 }
 
-const subscribeToClient = () => () => {}
-const clientSnapshot = () => true
-const serverSnapshot = () => false
-
 /** Home chooses the conversation mode before its first message. */
 export function OrganizationHome(props: OrganizationHomeProps) {
   const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
   const { data: session } = useSession()
-  const isClient = useSyncExternalStore(subscribeToClient, clientSnapshot, serverSnapshot)
+  const isClient = useHydrated()
   const isRestoredChatEntry = useRestoredChatEntry({ chatId: props.chatId })
   if (!mothershipAvailable || (!canBuild && !searchAccess.memberScoped)) return null
   /** Preferences are browser-persisted and keyed by user; never paint a guessed mode first. */

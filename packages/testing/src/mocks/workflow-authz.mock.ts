@@ -50,7 +50,7 @@ class MockFolderNotFoundError extends Error {
  *
  * @example
  * ```ts
- * import { workflowAuthzMockFns } from '@sim/testing'
+ * import { workflowAuthzMockFns } from '@sim/testing/mocks/workflow-authz.mock'
  *
  * workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
  *   allowed: true,

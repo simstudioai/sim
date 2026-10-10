@@ -20,7 +20,7 @@ import {
   chipHoverSurfaceClass,
   chipPrimaryFillTokens,
   chipRadiusClass,
-} from './chip-chrome'
+} from './chrome'
 
 /**
  * 30px pill — the platform's most common chrome pattern.

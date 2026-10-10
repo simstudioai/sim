@@ -13,10 +13,10 @@ Import components, `cn`, and tokens from the `@sim/emcn` barrel; icons come from
 
 Never hand-roll the chip pill from raw class strings (they go stale). Compose from the canonical sources:
 
-- **Surface, typography + content tokens:** `chip/chip-chrome.ts` — `chipFieldSurfaceClass`, `chipFieldTextClass` (text fields and the dropdown search box build on these), plus the chip-content chrome `chipContentGap`, `chipGeometryClass`, `chipContentIconClass`, `chipContentLabelClass`, `cellIconNodeClass` (non-chip surfaces that must visually match chip content, e.g. resource table cells), and the row-state pair `chipHoverSurfaceClass` / `chipActiveSurfaceClass` (hover vs. selected — mutually exclusive, so a selected row holds its surface through hover; every hand-rolled row imports these rather than restating the literals). All are re-exported from the `@sim/emcn` barrel — no subpath import needed.
+- **Surface, typography + content tokens:** `chip/chrome.ts` — `chipFieldSurfaceClass`, `chipFieldTextClass` (text fields and the dropdown search box build on these), plus the chip-content chrome `chipContentGap`, `chipGeometryClass`, `chipContentIconClass`, `chipContentLabelClass`, `cellIconNodeClass` (non-chip surfaces that must visually match chip content, e.g. resource table cells), and the row-state pair `chipHoverSurfaceClass` / `chipActiveSurfaceClass` (hover vs. selected — mutually exclusive, so a selected row holds its surface through hover; every hand-rolled row imports these rather than restating the literals). All are re-exported from the `@sim/emcn` barrel — no subpath import needed.
 - **Pill geometry:** `chip/chip.tsx` — `chipVariants` (30px tall, `rounded-lg`, `px-2`, icon↔text `gap-1.5`). Every pill-shaped trigger (`ChipDropdown`, `ChipSelect`, `ChipSwitch`) reuses it for visual parity.
 
-Canonical look: normal font-weight (never `font-medium`/`font-semibold`), value text `--text-body`, icons `--text-icon` at `size-[14px]`, placeholder `--text-muted`, `transition-colors`, **no focus ring** (the caret marks focus). Filled surface is `--surface-5` light / `--surface-4` dark with a `--border` border (`chip-chrome.ts` still spells it through the legacy alias `--border-1`; new code writes `--border`).
+Canonical look: normal font-weight (never `font-medium`/`font-semibold`), value text `--text-body`, icons `--text-icon` at `size-[14px]`, placeholder `--text-muted`, `transition-colors`, **no focus ring** (the caret marks focus). Filled surface is `--surface-5` light / `--surface-4` dark with a `--border` border (`chip/chrome.ts` still spells it through the legacy alias `--border-1`; new code writes `--border`).
 
 `MENU_STYLES` in `dropdown-menu/styles.ts` owns the shared dropdown, picker-list, and popover chrome. Its default menu rows are 28px at `text-small`; chip pills remain 30px at `text-sm`. Menus reuse the chip gap, row radius, and search-field surface and typography, with a 12px outer radius, 4px padding, and `shadow-medium`. Compose these tokens instead of overriding chrome at call sites. Within the package, shared initialization-time tokens use private imports to avoid public-barrel cycles; consumers import `MENU_STYLES` from `@sim/emcn`.
 
@@ -49,7 +49,7 @@ Declare keyboard intent on the action-owning primitive; never add document-level
 
 ## Authoring principles
 
-- **One source of truth for shared chrome.** Compose from `chip-chrome.ts` / `chipVariants`; never duplicate the chrome string.
+- **One source of truth for shared chrome.** Compose from `chip/chrome.ts` / `chipVariants`; never duplicate the chrome string.
 - **Props over `className` overrides.** When a consumer needs to change chrome, expose a prop (`error`, `icon`, `endAdornment`, `inputClassName`); reaching for `className` to restyle chrome is the smell.
 - **`cn()` for a single state toggle, CVA for genuine multiple variants.** A lone `error` boolean is `cn()`, not a CVA variant.
 - **Discriminated-union props for modes** (e.g. `multiple`, the modal field `type`) instead of near-duplicate components.
