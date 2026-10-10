@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { AuthType } from '@/lib/auth/hybrid'
 import { createCopilotManagedOAuthPrincipal } from '@/lib/credentials/application/copilot-managed-oauth-delegation'
 import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
@@ -14,8 +13,6 @@ import {
 } from '@/lib/oauth/token-resolution'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { getToolMetadata } from '@/tools/metadata'
-
-const logger = createLogger('ExecutorCredentialToken')
 
 export interface ResolveExecutorCredentialTokenParams {
   requestId: string
@@ -130,11 +127,6 @@ export async function resolveExecutorCredentialToken(
     if (result.code === OAUTH_CREDENTIAL_REVOKED) {
       throw new CredentialRevokedError(message)
     }
-    logger.error(`[${requestId}] Credential token resolution failed`, {
-      status: result.status,
-      credentialId,
-      code: result.code,
-    })
     throw new Error(message)
   }
 

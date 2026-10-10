@@ -94,10 +94,10 @@ describe('executeResumeJob terminal errors', () => {
 
     await expect(executeResumeJob(payload)).rejects.toBe(rawError)
 
-    expect(resumeExecutionLogger.error).toHaveBeenCalledWith('Background resume execution failed', {
-      errorType: 'error',
-      hasStack: true,
-    })
+    expect(resumeExecutionLogger.error).toHaveBeenCalledWith(
+      'Background resume execution failed',
+      expect.objectContaining({ errorType: 'error', hasStack: true })
+    )
     const loggerPayload = JSON.stringify(resumeExecutionLogger.error.mock.calls)
     expect(loggerPayload).not.toContain(secret)
     expect(loggerPayload).not.toContain('__var_')

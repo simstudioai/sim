@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { describeError, getErrorMessage } from '@sim/utils/errors'
 import {
   impersonateEmailSchema,
   type OAuthTokenResponse,
@@ -221,7 +221,11 @@ export async function completeOAuthCredentialToken(params: {
       })
       return { ok: false, status: 401, code: OAUTH_CREDENTIAL_REVOKED, error: error.message }
     }
-    logger.error(`[${requestId}] Failed to refresh access token:`, error)
+    logger.error(`[${requestId}] Failed to refresh access token`, {
+      credentialId: resolvedCredentialId,
+      providerId: credential.providerId,
+      cause: describeError(error),
+    })
     return { ok: false, status: 401, error: 'Failed to refresh access token' }
   }
 }

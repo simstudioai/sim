@@ -18,6 +18,7 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { classifyTransientAdmissionFailure } from '@/lib/core/admission/transient-failure'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
   describeRetryableInfrastructureError,
   isRetryableInfrastructureError,
@@ -1191,9 +1192,11 @@ export async function executeScheduleJob(
             'consecutive_failures'
           )
         } catch (error: unknown) {
-          logger.error(
+          logFailureOnce(
+            logger,
             `[${requestId}] Error executing scheduled workflow ${payload.workflowId}`,
-            loggingSession.projectDiagnosticError(error)
+            error,
+            { metadata: () => loggingSession.projectDiagnosticError(error), executionId }
           )
 
           const nextRunAt = await determineNextRunAfterError(payload, now, requestId)

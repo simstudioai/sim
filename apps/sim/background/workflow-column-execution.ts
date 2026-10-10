@@ -14,6 +14,7 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import {
   capExecutionTimeoutMs,
@@ -1200,13 +1201,17 @@ async function runWorkflowAndWriteTerminal(
         return terminalResult.status
       } catch (err) {
         const message = toError(err).message
-        logger.error(
+        logFailureOnce(
+          logger,
           `Workflow group cell execution failed (table=${tableId} row=${rowId} group=${groupId})`,
+          err,
           {
-            error: message,
+            metadata: () => ({
+              error: message,
+              cause: describeError(err),
+              retryable: isRetryableInfrastructureError(err),
+            }),
             executionId,
-            cause: describeError(err),
-            retryable: isRetryableInfrastructureError(err),
           }
         )
         await progressWriter?.finish()
