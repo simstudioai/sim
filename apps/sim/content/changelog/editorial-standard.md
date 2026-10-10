@@ -14,11 +14,11 @@ Keep existing article URLs, original dates, and RSS identities when refining his
 
 - Headline: name the capability or action, at most 65 characters. Avoid generic headlines such as “A better experience.”
 - Summary: 15–40 words for search, sharing, and RSS, naming Sim and explaining the capability in plain language. It must make sense without the image.
-- Body: normally 60–180 words, with one concrete example or short path to the feature. Explain the action and result; do not repeat the summary or turn a small improvement into a tutorial.
-- Media: place the reviewed image or video immediately after the article header, before procedural detail. Images use the shared lightbox and can show a brief caption for a necessary demonstration limit. Videos keep native playback controls and an accessible description, without a repeated description beneath the player. Any material claim limitation belongs in the article's prose.
+- Body: lead with what changed and what teams can do with it. Aim for 2–4 short sentences, usually 30–90 words, followed by a useful documentation link. There is no minimum word count; keep the body under 120 words. Use one concrete example when it adds clarity. Save setup instructions for the linked guide; do not pad a simple update into a tutorial.
+- Media: place the reviewed image or video immediately after the article header. Both use the shared lightbox; videos show a plain poster with playback, seeking, and zoom controls inside the viewer. Use concise alt text or an accessible action label without a visible video description. Do not add captions or prose about how the capture was made, whether a query ran, sample credentials, or what a screenshot does not prove. Keep capture provenance and review evidence in production.md.
 - Supporting notes: up to three related, source-backed improvements, each one sentence. Omit empty sections. Do not invent extras to fill a template.
 - Links: one descriptive setup/documentation link, plus an integration, model, or product link when directly relevant. Use the actual catalog slug and guide. Put links in context; avoid a wall of generic “Learn more” links.
-- Availability: retain real version, plan, permission, and rollout restrictions in the article. Keep unverified rollout questions, source analysis, capture instructions, and approval checkboxes in production.md.
+- Availability: keep restrictions that affect whether someone can use the feature, such as a required plan or administrator role, in one concise sentence. Link to documentation for setup details. Keep unverified rollout questions, source analysis, capture instructions, and approval checkboxes in production.md. Never substitute a capture disclaimer for verifying a claim.
 
 Use short active sentences and familiar words. Technical identifiers, retry timings, queue keys, PR numbers, and performance claims without measurements do not belong in the article. There is no minimum number of announcements per week.
 
@@ -36,7 +36,7 @@ Every production brief records:
 
 Use the same clean demo workspace and product theme. Frame the relevant panel with enough context to locate it, and make the result legible at a 390px viewport. Hide unrelated private sidebar content before recording. Keep UI text and controls intact; never generate a different product state to improve a screenshot. Prefer recording at the intended framing over aggressive crops later.
 
-Begin with the task ready to perform, show the action, and hold on its result. Avoid decorative intros, music, title cards, and excessive cursor movement. Keep the headline and important explanation in HTML. Label videos assembled from still screenshots as edited walkthroughs.
+Begin with the task ready to perform, show the action, and hold on its result. Avoid decorative intros, music, title cards, and excessive cursor movement. Keep the headline and important explanation in HTML. Record videos assembled from still screenshots as edited walkthroughs in the production brief; do not describe them as continuous recordings in public copy.
 
 Choose the poster deliberately after reviewing the video. An opening menu, empty state, spinner, or arbitrary first second rarely explains the feature. The media workflow can provide candidate frames, but an editor selects the final timestamp. Preview candidates are not approved assets. Preserve the real aspect ratio inside the shared media frame; do not stretch product UI. Use the same reviewed result frame for the article poster and share image when it works in both contexts.
 
