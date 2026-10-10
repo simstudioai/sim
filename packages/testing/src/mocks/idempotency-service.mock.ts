@@ -6,7 +6,8 @@ import { vi } from 'vitest'
  * Every `IdempotencyService` instance and the exported singletons (`webhookIdempotency`,
  * `pollingIdempotency`, `chatSendIdempotency`) share these functions. `executeWithIdempotency`
  * runs the operation once, as a first claim would; `executeOrSkipInProgress` resolves with its
- * result. `atomicallyClaim` is a bare `vi.fn()`; `release` resolves `undefined`.
+ * result. `atomicallyClaim` is a bare `vi.fn()`; `release` resolves `undefined`. The static
+ * `IdempotencyService.createWebhookIdempotencyKey` returns `<webhookId>:idempotency-key`.
  * `mockConstructor` records each `new IdempotencyService(config)`. Defaults are
  * `vi.fn(impl)`, so `mockReset()` restores them.
  *
@@ -19,6 +20,9 @@ import { vi } from 'vitest'
  */
 export const idempotencyServiceMockFns = {
   mockConstructor: vi.fn((_config?: unknown): void => {}),
+  mockCreateWebhookIdempotencyKey: vi.fn(
+    (webhookId: string, ..._args: unknown[]): string => `${webhookId}:idempotency-key`
+  ),
   mockAtomicallyClaim: vi.fn(),
   mockRelease: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockExecuteWithIdempotency: vi.fn(
@@ -48,6 +52,9 @@ const idempotencyMethods = {
 }
 
 class IdempotencyService {
+  static createWebhookIdempotencyKey = (webhookId: string, ...args: unknown[]) =>
+    idempotencyServiceMockFns.mockCreateWebhookIdempotencyKey(webhookId, ...args)
+
   constructor(config?: unknown) {
     idempotencyServiceMockFns.mockConstructor(config)
   }
