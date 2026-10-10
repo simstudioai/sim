@@ -255,23 +255,25 @@ export const RedisBlock: BlockConfig = {
       'redis_setnx',
     ],
     config: {
-      tool: (params) => {
+      tool: (params) => `redis_${params.operation}`,
+      params: (params) => {
+        const coerced: Record<string, number> = {}
         if (params.ex) {
-          params.ex = Number(params.ex)
+          coerced.ex = Number(params.ex)
         }
         if (params.seconds !== undefined) {
-          params.seconds = Number(params.seconds)
+          coerced.seconds = Number(params.seconds)
         }
         if (params.start !== undefined) {
-          params.start = Number(params.start)
+          coerced.start = Number(params.start)
         }
         if (params.stop !== undefined) {
-          params.stop = Number(params.stop)
+          coerced.stop = Number(params.stop)
         }
         if (params.increment !== undefined) {
-          params.increment = Number(params.increment)
+          coerced.increment = Number(params.increment)
         }
-        return `redis_${params.operation}`
+        return coerced
       },
     },
   },

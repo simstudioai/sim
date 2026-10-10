@@ -113,6 +113,7 @@ import {
   getOwnEnumerableDataEntries,
   prepareToolRequest,
   projectToolModelInputParams,
+  readRequestedDeadline,
 } from '@/tools/request-transport'
 import type {
   BYOKProviderId,
@@ -2749,7 +2750,7 @@ async function executeDeclaredInternalOperation({
   } else {
     const handler = await getInternalToolOperationHandler(toolId)
     if (!handler) throw new Error(`No internal operation registered for ${toolId}`)
-    const requestedTimeout = Number(params.timeout)
+    const requestedTimeout = Number(readRequestedDeadline(tool, params))
     const operationTimeout =
       Number.isFinite(requestedTimeout) && requestedTimeout > 0
         ? Math.min(requestedTimeout, getMaxExecutionTimeout())
