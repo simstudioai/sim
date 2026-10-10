@@ -9,6 +9,7 @@ import {
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { toTriggerMaxDurationSeconds } from '@/lib/core/execution-limits'
+import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { RESUME_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/enqueue-execution'
@@ -48,9 +49,9 @@ export interface ExecuteResumeWorkflowOptions {
   resumeInput: unknown
   isApiCaller: boolean
   pollingSurface: 'legacy' | 'v2'
-  allowStreaming?: boolean
+  allowStreaming: boolean
   requestSignal?: AbortSignal
-  requestHeaders?: Headers
+  requestHeaders?: OrchestrationRequestContext['headers']
 }
 
 export type ResumeWorkflowExecutionResult =
@@ -157,7 +158,7 @@ export async function executeResumeWorkflow({
   resumeInput,
   isApiCaller,
   pollingSurface,
-  allowStreaming = true,
+  allowStreaming,
   requestSignal,
   requestHeaders,
 }: ExecuteResumeWorkflowOptions): Promise<ResumeWorkflowExecutionResult> {

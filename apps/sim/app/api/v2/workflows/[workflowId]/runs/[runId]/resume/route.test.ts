@@ -109,6 +109,7 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
         runId: RUN_ID,
         contextId: 'context-1',
         resumeInput: { approved: true },
+        surface: 'v2',
       },
       request,
     })

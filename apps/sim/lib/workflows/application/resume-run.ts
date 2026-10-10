@@ -9,6 +9,13 @@ export interface ResumeWorkflowRunInput {
   runId: string
   contextId: string
   resumeInput: unknown
+  /**
+   * The calling surface's response contract. `legacy` may answer with a stream
+   * and polls async resumes by job id; `v2` answers JSON only, so a run that
+   * would stream is queued, and its async job id is derived from the resume
+   * entry so a retried dispatch is deduplicated.
+   */
+  surface: 'legacy' | 'v2'
 }
 
 export const resumeWorkflowRun = defineAuthorizedWorkflowUseCase({
@@ -18,7 +25,7 @@ export const resumeWorkflowRun = defineAuthorizedWorkflowUseCase({
       runId: input.runId,
       assertedWorkflowId: input.workflowId,
     }),
-  async execute({ principal, input, context }) {
+  async execute({ principal, input, context, request }) {
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
@@ -29,9 +36,11 @@ export const resumeWorkflowRun = defineAuthorizedWorkflowUseCase({
       workspaceId: context.workspaceId,
       userId: attribution.attributedUserId,
       resumeInput: input.resumeInput,
-      isApiCaller: true,
-      pollingSurface: 'v2',
-      allowStreaming: false,
+      isApiCaller: principal.kind !== 'session',
+      pollingSurface: input.surface,
+      allowStreaming: input.surface === 'legacy',
+      requestSignal: request?.signal,
+      requestHeaders: request?.headers,
     })
   },
 })
