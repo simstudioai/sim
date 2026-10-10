@@ -731,7 +731,7 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
 
 export const GlasserBlockMeta = {
   tags: ['enrichment', 'seo', 'web-scraping'],
-  url: 'https://glasser.ai',
+  url: 'https://glasser.ai/?utm_source=sim&utm_medium=integration',
   templates: [
     {
       icon: GlasserIcon,
