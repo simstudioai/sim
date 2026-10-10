@@ -10,6 +10,7 @@ import {
 } from '@sim/db/maintenance/project-backfill'
 import { enforceProjectMembership } from '@sim/db/maintenance/project-enforcement'
 import { countPendingProjectArchiveRepairs } from '@sim/db/maintenance/project-repairs'
+import { switchProjectMembershipAuthority } from '@sim/db/maintenance/project-rollout'
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
 import { describeError, getTransientDatabaseFailure } from '@sim/utils/errors'
@@ -46,6 +47,8 @@ export const projectMembershipMigration: ScriptMigration = {
     }
     try {
       await assertProjectBackfillDatabase(sql, true)
+      await switchProjectMembershipAuthority(sql)
+      await assertSession()
       if (await countPendingProjectArchiveRepairs(sql)) {
         throw new Error(
           'Project archive cleanup is incomplete; resume repair with the original manifest before retrying'

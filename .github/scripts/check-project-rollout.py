@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Read-only, fail-closed ECS retirement check for the Project column contract migration.
 
-The expected digest acknowledges fully deployed #8830 column-only creation/reassignment
-and retirement of pre-8830 servers and relevant old worker jobs. Every live and supported
+The expected digest acknowledges fully deployed #8830 transaction-barrier and durable-authority support
+and retirement of every incompatible server and relevant old worker job before switching. Every live and supported
 rollback application must tolerate project_workspace being absent.
 AWS checks below independently verify ECS retirement, not worker drainage.
 """
@@ -43,7 +43,7 @@ def matches_release(execution, digest):
 
 def verify(environment, region, digest):
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
-        raise RuntimeError('Set the environment-specific PROJECT_COLUMN_ENFORCEMENT_READY_IMAGE_DIGEST after verifying #8830 connector-independent readers, column-only writers and pre-8830 server/worker drainage')
+        raise RuntimeError('Set the environment-specific PROJECT_COLUMN_ENFORCEMENT_READY_IMAGE_DIGEST after verifying #8830 authority-aware readers/writers, transaction barriers and all incompatible server/worker drainage')
     pipeline = f'sim-{environment}-{region}-app-deployment'
     execution = latest_execution(region, pipeline)
     if not matches_release(execution, digest):

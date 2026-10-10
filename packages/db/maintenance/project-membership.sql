@@ -4,6 +4,12 @@ COMMIT;
 SET statement_timeout = '60s';
 --> statement-breakpoint
 DO $$ BEGIN
+  IF to_regclass('public.project_membership_rollout') IS NULL THEN
+    RAISE EXCEPTION 'Project membership rollout marker is missing' USING ERRCODE = '55000';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.project_membership_rollout WHERE id = 'membership' AND phase = 'column') THEN
+    RAISE EXCEPTION 'Project membership authority must switch before enforcement' USING ERRCODE = '55000';
+  END IF;
   IF NOT pg_try_advisory_lock(hashtextextended('sim:project-backfill-operator', 0)) THEN
     RAISE EXCEPTION 'Project preparation is still running; finish it before enforcement' USING ERRCODE = '55000';
   END IF;

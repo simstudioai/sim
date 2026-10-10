@@ -1,3 +1,4 @@
+import { readProjectMembershipPhase } from '@sim/db/maintenance/project-rollout'
 import journal from '@sim/db/migrations/meta/_journal.json'
 import { projectMembershipMigration } from '@sim/db/script-migrations/0031_project_membership'
 import { createLogger } from '@sim/logger'
@@ -37,6 +38,14 @@ try {
     if (!applied?.expanded || !applied.columnExists) {
       throw new Error('Deploy the workspace Project column expansion before enforcing membership')
     }
+    const phase = await readProjectMembershipPhase(sql)
+    if (phase === 'connector') {
+      const [state] = await sql`SELECT
+        to_regclass('public.project_workspace') IS NOT NULL AS connector,
+        EXISTS (SELECT 1 FROM public.workspace WHERE project_id IS NOT NULL) AS populated`
+      if (!state?.connector || state.populated)
+        throw new Error('Connector authority has inconsistent membership; reconcile before rollout')
+    }
     const [scripts] =
       await sql`SELECT to_regclass('public.script_migrations') IS NOT NULL AS present`
     if (scripts.present) {
@@ -49,7 +58,7 @@ try {
         to_regclass('public.project_workspace') IS NULL AS retired,
         EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'workspace'::regclass
           AND attname = 'project_id' AND attnotnull AND NOT attisdropped) AS enforced`
-      if (!state.retired || !state.enforced)
+      if (phase !== 'column' || !state.retired || !state.enforced)
         throw new Error('Project migration receipt disagrees with the physical schema')
     }
   }

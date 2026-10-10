@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 import { createHash } from 'node:crypto'
 import { link, open, readFile, rename, stat, unlink } from 'node:fs/promises'
 import { resolve } from 'node:path'
@@ -13,6 +14,7 @@ import {
   readProjectGroupingReviews,
   verifyProjectBackfill,
 } from '@sim/db/maintenance/project-backfill'
+import { assertProjectColumnAuthority } from '@sim/db/maintenance/project-rollout'
 import { withUtcTimestamps } from '@sim/db/timestamps'
 import { createLogger } from '@sim/logger'
 import { describeError, getTransientDatabaseFailure } from '@sim/utils/errors'
@@ -168,7 +170,7 @@ on an authorized operator host with that private manifest. Direct invocation doe
 AWS preflight: freshly verify the compatible deployed release, old app/worker drainage and release
 coordination first. Prior failed CI is not continuing proof if deployment state changed. Once the
 runner succeeds and writes its normal receipt, the ordinary deployment retry needs no local file.
-The registered migration backfills remaining assignments, verifies, then enforces.\nExit: 0 complete, 2 running/paused/incomplete, 1 failure. Use db:migrate for routine backfill and enforcement after writer drainage.\n`)
+The registered migration first commits the durable column-authority switch after draining incompatible writers, then backfills remaining assignments, verifies, and enforces. A failed migration never returns to connector mode. Run db:migrate once before repair/apply; its committed switch remains effective if discovery requires remediation.\nExit: 0 complete, 2 running/paused/incomplete, 1 failure. Use db:migrate for routine backfill and enforcement after writer drainage.\n`)
     return
   }
   const [command] = positionals
@@ -242,6 +244,7 @@ The registered migration backfills remaining assignments, verifies, then enforce
       await sql`SELECT pg_try_advisory_lock(hashtextextended('sim:project-backfill-operator',0)) AS held, pg_backend_pid() AS pid`
     if (!lock.held) throw new Error('Another Project preparation or enforcement runner is active')
     lockPid = lock.pid
+    if (live) await assertProjectColumnAuthority(sql)
     if (command === 'plan') {
       if (!manifestPath) throw new Error('plan requires --manifest')
       const reviews = values.review
@@ -293,6 +296,11 @@ The registered migration backfills remaining assignments, verifies, then enforce
       .update(
         await readFile(
           new URL('../../../packages/db/maintenance/project-backfill.ts', import.meta.url)
+        )
+      )
+      .update(
+        await readFile(
+          new URL('../../../packages/db/maintenance/project-rollout.ts', import.meta.url)
         )
       )
       .update(await readFile(new URL('../lib/projects/backfill-repair.ts', import.meta.url)))

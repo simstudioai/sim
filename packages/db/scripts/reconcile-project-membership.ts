@@ -1,4 +1,5 @@
 import { enforceProjectMembership } from '@sim/db/maintenance/project-enforcement'
+import { bootstrapProjectColumnAuthority } from '@sim/db/maintenance/project-rollout'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import postgres from 'postgres'
@@ -24,6 +25,7 @@ try {
   }
   if (!process.argv.includes('--prepare') && state.workspace && state.project) {
     // Drizzle cannot express lifecycle triggers; fresh push uses the same enforcement as migrations.
+    await bootstrapProjectColumnAuthority(sql)
     await enforceProjectMembership(sql)
     logger.info('Project membership validation and lifecycle enforcement completed')
   }

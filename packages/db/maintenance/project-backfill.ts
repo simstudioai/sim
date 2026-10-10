@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { countPendingProjectArchiveRepairs } from '@sim/db/maintenance/project-repairs'
+import { assertProjectColumnAuthority } from '@sim/db/maintenance/project-rollout'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
@@ -471,6 +472,7 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
     await tx`SET LOCAL statement_timeout = '3s'`
     await tx`SET LOCAL lock_timeout = '250ms'`
     const legacy = await hasLegacyMemberships(tx)
+    await assertProjectColumnAuthority(tx)
     const roots = families.map((f) => f.rootId).sort(compareStrings)
     const expected = families.flatMap((f) => f.members).sort((a, b) => compareStrings(a.id, b.id))
     const ids = expected.map((row) => row.id)

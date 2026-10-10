@@ -76,10 +76,11 @@ jobs:
           role-to-assume: ${{ inputs.environment == 'production' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ inputs.environment == 'production' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
 
-      # Acknowledge #8830 only after connector-independent readers and column-only writers deploy and
-      # pre-8830 servers and relevant old Trigger.dev runs have drained. The registered Project migration backfills, validates, and removes the connector.
+      # Acknowledge #8830 only after authority-aware readers/writers deploy and all incompatible
+      # servers and relevant old Trigger.dev runs drain. The runner commits the column-authority
+      # switch before backfill, validation, and connector retirement; retries never revert it.
       # The preflight independently checks ECS retirement; it does not inspect worker runs.
-      - name: Require completed column-only rollout before Project enforcement
+      - name: Require completed authority-aware rollout before Project cutover
         if: steps.project-contract.outputs.required == 'true'
         env:
           ENVIRONMENT: ${{ inputs.environment }}

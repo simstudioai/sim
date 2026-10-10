@@ -54,6 +54,13 @@ async function database(run: (sql: Sql, url: string) => Promise<void>) {
       await readFile(new URL('../migrations/0394_project_foundation.sql', import.meta.url), 'utf8')
     )
     await applyMigration(sql, expansion)
+    /** These reconciliation fixtures model the already committed column-authority phase. */
+    await sql.unsafe(`CREATE TABLE IF NOT EXISTS project_membership_rollout (
+      id text PRIMARY KEY CHECK (id = 'membership'),
+      phase text NOT NULL DEFAULT 'connector' CONSTRAINT project_membership_rollout_phase CHECK (phase IN ('connector', 'column'))
+    )`)
+    await sql`INSERT INTO project_membership_rollout (id, phase) VALUES ('membership', 'column')
+      ON CONFLICT (id) DO UPDATE SET phase = 'column'`
     await run(sql, url.toString())
   } finally {
     await sql.end({ timeout: 2 })
@@ -1044,6 +1051,15 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       await sql`INSERT INTO drizzle.__drizzle_migrations VALUES (${expanded.when})`
       await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('legacy','Legacy','owner')`
       expect((await run()).stdout.trim()).toBe('required=true')
+      await sql`DELETE FROM project_membership_rollout`
+      await expect(run()).rejects.toMatchObject({ code: 1 })
+      await sql`INSERT INTO project_membership_rollout (id, phase) VALUES ('membership', 'connector')`
+      expect((await run()).stdout.trim()).toBe('required=true')
+      await sql`INSERT INTO project (id,name,owner_id) VALUES ('gate','Gate','owner')`
+      await sql`UPDATE workspace SET project_id = 'gate' WHERE id = 'legacy'`
+      await expect(run()).rejects.toMatchObject({ code: 1 })
+      await sql`UPDATE workspace SET project_id = NULL WHERE id = 'legacy'`
+      await sql`DELETE FROM project WHERE id = 'gate'`
       await sql`ALTER TABLE workspace DROP COLUMN project_id CASCADE`
       await expect(run()).rejects.toMatchObject({ code: 1 })
       await applyMigration(sql, expansion)

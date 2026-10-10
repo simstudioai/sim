@@ -10,6 +10,7 @@ import {
   completeProjectArchiveRepair,
   ensureProjectArchiveRepairJournal,
 } from '@sim/db/maintenance/project-repairs'
+import { assertProjectColumnAuthority } from '@sim/db/maintenance/project-rollout'
 import * as schema from '@sim/db/schema'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -31,6 +32,7 @@ export async function repairArchivedProjectEnvironment(
   repair: ProjectArchiveRepair,
   requestId: string
 ): Promise<void> {
+  await assertProjectColumnAuthority(client)
   await ensureProjectArchiveRepairJournal(client)
   const connection = drizzle({ client, schema })
   const effects = await connection.transaction(async (tx) => {
@@ -146,6 +148,7 @@ export async function repairProjectGrouping(
   client: Sql,
   review: ProjectGroupingReview
 ): Promise<void> {
+  await assertProjectColumnAuthority(client)
   const rootId = review.detachRootId
   if (
     review.decision !== 'detach' ||
