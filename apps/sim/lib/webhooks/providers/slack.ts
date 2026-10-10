@@ -409,11 +409,12 @@ async function downloadSlackFiles(
 }
 
 /**
- * Webhooks whose bot reported `missing_scope` on `reactions.get`. A bot without
+ * Webhooks whose bot already reported `missing_scope` on `reactions.get`. A bot without
  * `reactions:read` fails every reaction event identically until it is reinstalled, so the
- * call is skipped (and the configuration problem logged once) for the rest of the window.
+ * configuration problem is logged once per webhook per window rather than per event. The call
+ * itself still runs, so a reinstalled bot gets message text back immediately.
  */
-const reactionsScopeMissing = new LRUCache<string, true>({
+const reactionsMissingScopeLogged = new LRUCache<string, true>({
   max: 10_000,
   ttl: 60 * 60 * 1000,
 })
@@ -424,7 +425,6 @@ async function fetchSlackMessageText(
   botToken: string,
   webhookId: string
 ): Promise<string> {
-  if (reactionsScopeMissing.has(webhookId)) return ''
   try {
     const params = new URLSearchParams({ channel, timestamp: messageTs })
     const response = await fetch(`https://slack.com/api/reactions.get?${params}`, {
@@ -439,11 +439,13 @@ async function fetchSlackMessageText(
     }
     if (!data.ok) {
       if (data.error === 'missing_scope') {
-        reactionsScopeMissing.set(webhookId, true)
-        logger.info('Slack bot lacks a scope for reactions.get — reaction message text omitted', {
-          webhookId,
-          needed: data.needed,
-        })
+        if (!reactionsMissingScopeLogged.has(webhookId)) {
+          reactionsMissingScopeLogged.set(webhookId, true)
+          logger.info('Slack bot lacks a scope for reactions.get — reaction message text omitted', {
+            webhookId,
+            needed: data.needed,
+          })
+        }
         return ''
       }
       logger.warn('Slack reactions.get failed — message text unavailable', {
