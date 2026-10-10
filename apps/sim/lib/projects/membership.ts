@@ -146,6 +146,7 @@ export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: strin
       .select({
         project: {
           id: project.id,
+          name: project.name,
           ownerId: project.ownerId,
           organizationId: project.organizationId,
           archivedAt: project.archivedAt,

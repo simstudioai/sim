@@ -803,6 +803,13 @@ describe('Project foundation at the database and application boundary', () => {
     expect(rows.map((row) => row.archivedAt)).not.toContain(null)
     const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
     expect(record.archivedAt).not.toBeNull()
+    expect(
+      results.flatMap((result) =>
+        result.status === 'fulfilled' && result.value.archivedProject
+          ? [result.value.archivedProject]
+          : []
+      )
+    ).toEqual([{ id: record.id, name: record.name }])
   })
 
   check('removing one of several environments keeps the Project active', async () => {
