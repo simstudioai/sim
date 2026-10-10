@@ -612,7 +612,7 @@
     "apps/sim/tools/incidentio/severities_list.ts": 1,
     "apps/sim/tools/incidentio/users_list.ts": 1,
     "apps/sim/tools/index.test.ts": 55,
-    "apps/sim/tools/index.ts": 25,
+    "apps/sim/tools/index.ts": 24,
     "apps/sim/tools/intercom/assign_conversation.ts": 3,
     "apps/sim/tools/intercom/attach_contact_to_company.ts": 2,
     "apps/sim/tools/intercom/close_conversation.ts": 3,
