@@ -204,8 +204,10 @@ The registered migration first commits the durable column-authority switch after
   const maxBatches = boundedInteger(values['max-batches'], 100, 10000)
   const seconds = boundedInteger(values.seconds, 60, 3600)
   const pauseMs = boundedInteger(values['pause-ms'], 100, 60000)
+  /** URL startup parameters override driver options; pin the operator on every connection. */
+  url.searchParams.set('search_path', 'public, pg_temp')
   const sql = postgres(
-    rawUrl,
+    url.toString(),
     withUtcTimestamps({
       max: 1,
       idle_timeout: 0,
@@ -434,6 +436,7 @@ The registered migration first commits the durable column-authority switch after
               error: describeError(error),
             })
           }
+          await sleep(pauseMs)
         }
       } else {
         for (let position = 0; position < pending.length; ) {

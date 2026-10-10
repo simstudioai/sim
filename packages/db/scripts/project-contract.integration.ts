@@ -629,6 +629,67 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   })
 
+  it('keeps operator discovery, assignment and verification on public under a shadow URL search path', async () => {
+    await database(async (sql, url) => {
+      const directory = await mkdtemp(join(tmpdir(), 'project-operator-shadow-'))
+      const manifest = join(directory, 'manifest.json')
+      const report = join(directory, 'report.json')
+      const scopedUrl = new URL(url)
+      scopedUrl.searchParams.set('search_path', 'shadow,public')
+      const run = (command: string) =>
+        promisify(execFile)(
+          'bun',
+          [
+            '--no-env-file',
+            'scripts/backfill-projects.ts',
+            command,
+            '--manifest',
+            manifest,
+            ...(command === 'plan'
+              ? []
+              : ['--report', report, '--ack-release-drained', '--pause-ms', '1']),
+          ],
+          {
+            cwd: new URL('../../../apps/sim/', import.meta.url),
+            env: { ...process.env, MIGRATION_DATABASE_URL: scopedUrl.toString() },
+            timeout: 30000,
+          }
+        )
+      try {
+        await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('public-env','Public','owner')`
+        await sql`CREATE SCHEMA shadow`
+        for (const name of [
+          'workspace',
+          'project',
+          'workflow',
+          'user',
+          'organization',
+          'project_workspace',
+        ]) {
+          await sql`CREATE TABLE ${sql(`shadow.${name}`)} (LIKE ${sql(`public.${name}`)} INCLUDING ALL)`
+        }
+        await sql`INSERT INTO shadow.workspace (id,name,owner_id) VALUES ('shadow-env','Untouched','owner')`
+        await run('plan')
+        const plan = JSON.parse(await readFile(manifest, 'utf8'))
+        expect(plan.families.map((family: { rootId: string }) => family.rootId)).toEqual([
+          'public-env',
+        ])
+        await run('apply')
+        expect(await sql`SELECT id,project_id FROM public.workspace`).toEqual([
+          { id: 'public-env', project_id: expect.any(String) },
+        ])
+        expect(await sql`SELECT count(*)::int AS count FROM public.project`).toEqual([{ count: 1 }])
+        await run('verify')
+        expect(await sql`SELECT id,project_id FROM shadow.workspace`).toEqual([
+          { id: 'shadow-env', project_id: null },
+        ])
+        expect(await sql`SELECT count(*)::int AS count FROM shadow.project`).toEqual([{ count: 0 }])
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+  })
+
   it('runs the real operator CLI read-only, resumes bounded batches and survives a lost checkpoint', async () => {
     await database(async (sql, url) => {
       const directory = await mkdtemp(join(tmpdir(), 'project-operator-test-'))
