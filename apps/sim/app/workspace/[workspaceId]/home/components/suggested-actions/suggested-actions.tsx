@@ -26,7 +26,7 @@ import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
+import { useOAuthConnections } from '@/hooks/queries/oauth/connections'
 import { useTablesList } from '@/hooks/queries/tables'
 
 /** Lookup integration slug by OAuth service display name (case-insensitive). */

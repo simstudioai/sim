@@ -45,7 +45,7 @@ Allowlist when the safe posture is "only what the admin named" and the member se
 
 **Is the decision knowable from the config alone?** A rule needing a request value (an auth mode, a connector id) is *parameterized* and cannot be declared on an operation — see Step 3.
 
-**Is it a gate or a projection?** A key that withholds *fields from a response* rather than the response is a projection. `hideTraceSpans` and `hideCostInfo` work this way: the logs routes declare `capability: 'none'` and strip fields, because refusing the read would withhold the status and error message too. Projections have one owner — `lib/logs/log-projection.ts` (`resolveLogFieldProjection`, `projectExecutionData`, `projectCostTotal`), carrying the `permission-group-enforced:` annotations. Add yours there; two copies of a redaction rule is how one of them stops redacting. Corollary: refuse the query that *selects on* a withheld field — otherwise the projection is a filter oracle; `logQuerySelectsCost` / `assertLogCostQueryAllowed` in that same module are the shape.
+**Is it a gate or a projection?** A key that withholds *fields from a response* rather than the response is a projection. `hideTraceSpans` and `hideCostInfo` work this way: the logs routes declare `capability: 'none'` and strip fields, because refusing the read would withhold the status and error message too. Projections have one owner — `lib/logs/projection.ts` (`resolveLogFieldProjection`, `projectExecutionData`, `projectCostTotal`), carrying the `permission-group-enforced:` annotations. Add yours there; two copies of a redaction rule is how one of them stops redacting. Corollary: refuse the query that *selects on* a withheld field — otherwise the projection is a filter oracle; `logQuerySelectsCost` / `assertLogCostQueryAllowed` in that same module are the shape.
 
 ## Step 1: Append the field entry — never insert
 
@@ -255,7 +255,7 @@ What a run *does* is still governed by `assertPermissionsAllowed`. An item that 
 ## Checklist Before Finishing
 
 - [ ] Kind and `enforcement` chosen deliberately; `ui-only` justified in writing if used
-- [ ] It is a gate, not a projection — a projection belongs in `lib/logs/log-projection.ts` with `capability: 'none'` on the routes, and still refuses queries that select on the withheld field
+- [ ] It is a gate, not a projection — a projection belongs in `lib/logs/projection.ts` with `capability: 'none'` on the routes, and still refuses queries that select on the withheld field
 - [ ] Entry **appended** to `PERMISSION_GROUP_FIELDS`, permissive default, restriction-phrased name
 - [ ] Category present in `PLATFORM_CATEGORY_ORDER`, named after what is withheld
 - [ ] `hint` says what access is revoked, never "hide" — it is also the active-restriction prose

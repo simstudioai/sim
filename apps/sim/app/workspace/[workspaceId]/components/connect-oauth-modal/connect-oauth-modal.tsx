@@ -37,11 +37,11 @@ import {
 } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal/microsoft-dataverse-environment'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { useCreateCredentialDraft } from '@/hooks/queries/credentials'
+import { useConnectOAuthService } from '@/hooks/queries/oauth/connections'
 import {
   assertMicrosoftDataverseWebOAuthAvailable,
   useConnectMicrosoftDataverseOAuthService,
 } from '@/hooks/queries/oauth/microsoft-dataverse-connections'
-import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
 import { useScopedCredentials } from '@/hooks/queries/scoped-credentials'
 
 const logger = createLogger('ConnectOAuthModal')

@@ -84,7 +84,7 @@ export const estimateNoteBlockHeight = (content: string) => {
  * A container's box, and the gutter it keeps around the blocks inside it.
  *
  * The single source for both halves of that: the layout math that sizes a
- * container and clamps its children, and the card's own DOM. `subflow-node-view`
+ * container and clamps its children, and the card's own DOM. `subflow/node-view`
  * renders its header and content box straight from these, so the gap the
  * geometry reserves is the gap the container actually paints. They used to be
  * separate — the same four numbers as Tailwind literals in the view — and had
@@ -113,7 +113,7 @@ export const CONTAINER_DIMENSIONS = {
 } as const
 
 /**
- * Handle position constants - must match CSS in workflow-block-view.tsx,
+ * Handle position constants - must match CSS in workflow-block/block-view.tsx,
  * sub-block-row-view.tsx, and subflow-node.tsx
  */
 export const HANDLE_POSITIONS = {
