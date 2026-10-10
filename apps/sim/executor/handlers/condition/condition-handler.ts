@@ -40,7 +40,14 @@ type ConditionEvaluation =
   | { status: 'matched'; index: number }
   | { status: 'no-match' }
   | { status: 'expression-threw'; index: number; message: string }
-  | { status: 'no-verdict'; message: string; retryable: boolean; timedOut: boolean }
+  | {
+      status: 'no-verdict'
+      message: string
+      retryable: boolean
+      timedOut: boolean
+      /** The failed tool result's output, so a terminal error carries its logged mark. */
+      output?: unknown
+    }
 
 /**
  * Wraps one expression as a boolean test, on its own line so a trailing line
@@ -173,6 +180,7 @@ async function runConditionCode(
         userId: ctx.userId,
         isDeployedContext: ctx.isDeployedContext,
         enforceCredentialAccess: ctx.enforceCredentialAccess,
+        blockId: currentNodeId,
       },
     },
     { executionContext: ctx }
@@ -215,6 +223,7 @@ async function evaluateConditionList(
       message,
       retryable: result.retryable !== false,
       timedOut: isTimeoutFailure(result.error),
+      output: result.output,
     }
   }
 
@@ -515,8 +524,11 @@ export class ConditionBlockHandler implements BlockHandler {
         )
       case 'no-verdict':
         if (!evaluation.retryable) {
-          throw new NonRetryableExecutionError(
-            `Evaluation error in condition "${conditions[0].title}": ${evaluation.message}`
+          throw adoptToolFailure(
+            new NonRetryableExecutionError(
+              `Evaluation error in condition "${conditions[0].title}": ${evaluation.message}`
+            ),
+            evaluation
           )
         }
         // Retrying one branch at a time is what recovers a batch the sandbox
@@ -526,7 +538,7 @@ export class ConditionBlockHandler implements BlockHandler {
         // failure as it stands. The whole list was one call, so no single
         // branch owns that failure; name the first, where evaluation started.
         if (evaluation.timedOut || ctx.abortSignal?.aborted) {
-          throw conditionError(conditions[0], evaluation.message)
+          throw adoptToolFailure(conditionError(conditions[0], evaluation.message), evaluation)
         }
         logger.warn('Batched condition evaluation produced no verdict, retrying one at a time', {
           conditionCount: conditions.length,

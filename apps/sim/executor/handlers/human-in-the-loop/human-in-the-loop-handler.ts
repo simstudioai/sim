@@ -561,6 +561,10 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
           const durationMs = Date.now() - startTime
 
           if (!result.success) {
+            logger.warn('Notification tool execution failed', {
+              toolId,
+              error: result.error,
+            })
             return {
               toolId,
               title: toolConfig.title,

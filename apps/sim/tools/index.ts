@@ -1156,12 +1156,13 @@ async function readToolResponseBody(
  * is logged: an internal operation's or a Function's body carries the author's data, stdout, and
  * source lines.
  */
-const externalHttpFailures = new WeakSet<Error>()
+const externalHttpFailures = new WeakSet<object>()
 
 function createExternalHttpFailure(errorInfo?: ErrorInfo, extractorId?: string): Error {
   const failure = createTransformedErrorFromErrorInfo(errorInfo, extractorId)
   externalHttpFailures.add(failure)
-  return failure
+  /** An error payload on a 2xx carries no status but is still the provider refusing. */
+  return errorInfo?.status === undefined ? markFailureKind(failure, 'third_party_client') : failure
 }
 
 /**
@@ -2338,9 +2339,7 @@ async function executeToolImplementation(
               : {
                   error: normalizedError.message,
                   stack: error instanceof Error ? error.stack : undefined,
-                  ...(error instanceof Error && externalHttpFailures.has(error)
-                    ? { errorData: error.data }
-                    : {}),
+                  ...(externalHttpFailures.has(error) ? { errorData: error.data } : {}),
                 }),
           },
           resolvedSecretTraceRegistry,
@@ -2843,6 +2842,11 @@ async function executeDeclaredInternalOperation({
   }
 }
 
+/** A tool or proxy URL the author configured that Sim refuses to call; the author's to fix. */
+function invalidToolTarget(message: string): Error {
+  return markFailureKind(new Error(message), 'user')
+}
+
 /** Executes one external tool request with DNS validation and IP pinning. */
 async function executeToolRequest(
   toolId: string,
@@ -2860,7 +2864,7 @@ async function executeToolRequest(
     const targetsThisSimInstance = isSelfOriginUrl(fullUrl)
 
     if (targetsThisSimInstance && tool.request.allowSameOrigin !== true) {
-      throw new Error(SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE)
+      throw invalidToolTarget(SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE)
     }
 
     if (targetsThisSimInstance) {
@@ -2892,14 +2896,14 @@ async function executeToolRequest(
       try {
         const urlValidation = await validateUrlWithDNS(fullUrl, 'toolUrl', 'requestTarget')
         if (!urlValidation.isValid) {
-          throw new Error(`Invalid tool URL: ${urlValidation.error}`)
+          throw invalidToolTarget(`Invalid tool URL: ${urlValidation.error}`)
         }
 
         let proxyOption: string | undefined
         if (requestParams.proxyUrl) {
           const proxyValidation = await validateAndPinProxyUrl(requestParams.proxyUrl)
           if (!proxyValidation.isValid) {
-            throw new Error(`Invalid proxy URL: ${proxyValidation.error}`)
+            throw invalidToolTarget(`Invalid proxy URL: ${proxyValidation.error}`)
           }
           proxyOption = proxyValidation.pinnedProxyUrl
         }
@@ -2920,7 +2924,7 @@ async function executeToolRequest(
               ? undefined
               : (redirectUrl) => {
                   if (isSelfOriginUrl(redirectUrl)) {
-                    throw new Error(SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE)
+                    throw invalidToolTarget(SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE)
                   }
                 },
         })
@@ -3314,6 +3318,13 @@ async function executeMcpTool(
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - new Date(actualStartTime).getTime()
 
+    /** These lines replace the block executor's, so they carry the run identity themselves. */
+    const blockId = toRecord(params._context).blockId
+    const runIdentity = {
+      workflowId: context?.workflowId,
+      executionId: context?.executionId,
+      blockId: typeof blockId === 'string' ? blockId : undefined,
+    }
     const errorMsg = toError(error).message
     if (isBodySizeLimitError(errorMsg)) {
       const failure = bodySizeLimitError()
@@ -3322,14 +3333,14 @@ async function executeMcpTool(
         `[${actualRequestId}] Request body size limit exceeded for mcp:${toolId}:`,
         failure,
         {
-          metadata: () =>
-            projectToolLogMetadata(
+          metadata: () => ({
+            ...runIdentity,
+            ...projectToolLogMetadata(
               { originalError: errorMsg },
               context?.resolvedSecretTraceRegistry,
-              {
-                hasOriginalError: errorMsg.length > 0,
-              }
+              { hasOriginalError: errorMsg.length > 0 }
             ),
+          }),
         }
       )
       return {
@@ -3346,8 +3357,9 @@ async function executeMcpTool(
 
     const normalizedError = toError(error)
     logFailureOnce(logger, `[${actualRequestId}] Error executing MCP tool ${toolId}:`, error, {
-      metadata: () =>
-        projectToolLogMetadata(
+      metadata: () => ({
+        ...runIdentity,
+        ...projectToolLogMetadata(
           {
             error: normalizedError.message,
             stack: error instanceof Error ? error.stack : undefined,
@@ -3358,6 +3370,7 @@ async function executeMcpTool(
             hasStack: Boolean(error instanceof Error && error.stack),
           }
         ),
+      }),
     })
 
     const errorMessage = getErrorMessage(error, `Failed to execute MCP tool ${toolId}`)

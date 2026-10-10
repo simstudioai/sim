@@ -5,7 +5,7 @@
  * security-sensitive details.
  */
 
-import { adoptToolFailure } from '@/lib/core/errors/failure-log'
+import { classifyFailure, markFailureKind } from '@/lib/core/errors/failure-log'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { PI_EVENT_FILTER_PATH } from '@/executor/handlers/pi/cloud/event-filter-source'
@@ -224,9 +224,13 @@ export function scrubGitSecrets(text: string, token: string): string {
 }
 
 /**
- * The error a backend throws for a failed GitHub tool call. Carries the tool layer's marks so the
- * failure `executeTool` already logged is not logged again at error.
+ * The error a backend throws for a failed GitHub tool call. Carries the tool layer's attribution
+ * but not its logged mark: these calls carry no run identity, so the block executor's line, which
+ * does, must still be written.
  */
 export function toolResultError(label: string, result: ToolResponse): Error {
-  return adoptToolFailure(new Error(`${label}: ${result.error ?? 'unknown error'}`), result)
+  return markFailureKind(
+    new Error(`${label}: ${result.error ?? 'unknown error'}`),
+    classifyFailure(result.output)
+  )
 }
