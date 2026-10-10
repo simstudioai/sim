@@ -18,7 +18,7 @@ vi.mock('@/providers', () => providersMock)
 
 vi.mock('@/providers/utils', () => providersUtilsMock)
 
-import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
+import { validateHallucination } from '@/lib/guardrails/validate-hallucination'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mockExecuteProviderRequest = providersMockFns.mockExecuteProviderRequest

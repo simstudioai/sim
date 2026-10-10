@@ -7,7 +7,7 @@ argument-hint: "[scope] [fix=true|false]"
 # EMCN Design Review
 
 Arguments:
-- scope: what to review (default: your current changes). Examples: "diff to main", "PR #123", "src/components/", "whole codebase"
+- scope: what to review (default: your current changes). Examples: "diff to staging", "PR #123", "src/components/", "whole codebase"
 - fix: whether to apply fixes (default: true). Set to false to only propose changes.
 
 User arguments: $ARGUMENTS
@@ -44,7 +44,7 @@ Use CSS variable pattern (`text-[var(--text-body)]`), never Tailwind semantics (
 
 ## Buttons and chips
 
-Header/action chrome is `Chip`/`ChipLink` (variants `primary`, `destructive`, `outline`, `border`, `border-shadow`, bare). Selection and toggles use the `active` prop, never a variant. A single-resource Delete is a plain chip behind `ChipConfirmModal`; `destructive` is only for at-scale actions (`.claude/rules/sim-settings-pages.md` "Deleting a resource"). `Button` is only for icon-only toolbar controls (`ghost`/`quiet`, `size='icon'`).
+Header/action chrome is `Chip`/`ChipLink` (variants `primary`, `destructive`, `outline`, `border`, `border-shadow`; omit `variant` for the bare chip, and `filled` is reserved for chip fields and triggers). Selection and toggles use the `active` prop, never a variant. A single-resource Delete is a plain chip behind `ChipConfirmModal`; `destructive` is only for at-scale actions (`.claude/rules/sim-settings-pages.md` "Deleting a resource"). `Button` is only for icon-only toolbar controls (`ghost`/`quiet`, `size='icon'`).
 
 ## Delete/Remove Confirmations
 

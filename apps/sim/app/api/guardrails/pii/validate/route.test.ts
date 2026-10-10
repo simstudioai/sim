@@ -5,7 +5,7 @@ const { mockValidatePII } = vi.hoisted(() => ({
   mockValidatePII: vi.fn(),
 }))
 
-vi.mock('@/lib/guardrails/validate_pii', () => ({
+vi.mock('@/lib/guardrails/validate-pii', () => ({
   validatePII: mockValidatePII,
 }))
 

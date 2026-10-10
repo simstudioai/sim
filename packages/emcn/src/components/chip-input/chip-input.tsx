@@ -28,7 +28,7 @@
  */
 import * as React from 'react'
 import { cn } from '../../lib/cn'
-import { chipFieldSurfaceClass, chipFieldTextClass, chipGeometryClass } from '../chip/chip-chrome'
+import { chipFieldSurfaceClass, chipFieldTextClass, chipGeometryClass } from '../chip/chrome'
 
 type ChipInputIcon = React.ComponentType<{ className?: string }>
 

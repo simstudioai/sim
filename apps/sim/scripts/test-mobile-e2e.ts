@@ -552,6 +552,91 @@ async function exerciseViewport(
       })
     }
 
+    if (viewport.name === 'desktop') {
+      for (const width of [390, viewport.width]) {
+        await check(
+          `${prefix}/${width}px draft scroll boundaries preserve the surrounding page`,
+          page,
+          async () => {
+            await visit(page, 'home')
+            const composer = page.getByRole('textbox', { name: 'Message', exact: true })
+            const heading = page.getByRole('heading', { level: 1 })
+            const readScroll = () =>
+              composer.evaluate((element) => {
+                let ancestor = element.parentElement
+                while (ancestor) {
+                  if (
+                    ancestor.scrollHeight > ancestor.clientHeight &&
+                    getComputedStyle(ancestor).overflowY === 'auto'
+                  ) {
+                    const bounds = ancestor.getBoundingClientRect()
+                    return {
+                      top: ancestor.scrollTop,
+                      max: ancestor.scrollHeight - ancestor.clientHeight,
+                      x: bounds.x + bounds.width / 2,
+                      y: bounds.y + bounds.height / 2,
+                    }
+                  }
+                  ancestor = ancestor.parentElement
+                }
+                throw new Error('The long draft must have a scrollable editor')
+              })
+            const settle = () =>
+              page.evaluate(
+                () =>
+                  new Promise<void>((resolve) =>
+                    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+                  )
+              )
+            try {
+              await page.setViewportSize({ width, height: 520 })
+              await composer.fill('A draft line\n'.repeat(30))
+              const editor = await readScroll()
+              assert(editor.max > 100, 'The draft must overflow its editor')
+              await page.mouse.move(editor.x, editor.y)
+              await page.mouse.wheel(0, 10_000)
+              await expect
+                .poll(
+                  async () => {
+                    const scroll = await readScroll()
+                    return Math.abs(scroll.top - scroll.max)
+                  },
+                  { message: 'The draft must reach its lower scroll boundary' }
+                )
+                .toBeLessThanOrEqual(1)
+              const before = await heading.boundingBox()
+              assert(before)
+              await page.mouse.wheel(0, 600)
+              await settle()
+              const after = await heading.boundingBox()
+              assert(after)
+              if (width < 768) {
+                assert(
+                  Math.abs(after.y - before.y) <= 1,
+                  'Scrolling past a mobile draft must not move Home'
+                )
+                await page.mouse.move(width - 2, 300)
+                await page.mouse.wheel(0, 600)
+                await expect
+                  .poll(async () => (await heading.boundingBox())?.y ?? before.y)
+                  .toBeLessThan(before.y - 10)
+              } else {
+                await expect
+                  .poll(async () => (await heading.boundingBox())?.y ?? before.y, {
+                    message: 'Desktop scroll handoff must remain unchanged',
+                  })
+                  .toBeLessThan(before.y - 10)
+              }
+              await capture(page, `${browserName}-${width}-draft-scroll`)
+            } finally {
+              await composer.fill('')
+              await page.setViewportSize({ width: viewport.width, height: viewport.height })
+            }
+          }
+        )
+      }
+    }
+
     if (viewport.width < 768) {
       await check(
         `${prefix}/navigation opens, dismisses, and preserves desktop preferences`,

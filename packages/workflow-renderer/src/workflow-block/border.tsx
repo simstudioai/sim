@@ -23,7 +23,7 @@ const SAMPLE_SPACING_PX = 1
 const PERIMETER_CURSOR_EPSILON_PX = 0.0001
 /**
  * How far every connection knob stands off the card edge. Edges anchor exactly
- * this far out (the `-7px` handle outsets in workflow-block-view), so the two
+ * this far out (the `-7px` handle outsets in block-view), so the two
  * must stay equal or the line detaches from the knob.
  */
 export const CONNECTION_KNOB_PEAK_PX = 7

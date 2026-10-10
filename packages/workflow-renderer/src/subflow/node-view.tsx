@@ -18,18 +18,18 @@ import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, HANDLE_POSITIONS } from '../dim
 import { OverflowSpan } from '../lib/overflow-span'
 import type { DiffStatus } from '../types'
 import {
-  getCursorBranchSourceHandleId,
-  getCursorSourceHandleId,
-  getCursorSourceHandlePosition,
-} from '../workflow-block/source-handle'
-import { useActionMenuSwell } from '../workflow-block/use-action-menu-swell'
-import {
   CONNECTION_KNOB_PEAK_PX,
   CURSOR_SWELL_LENGTH_PX,
   WorkflowBlockBorder,
   type WorkflowBorderCursorHandle,
   type WorkflowBorderPort,
-} from '../workflow-block/workflow-block-border'
+} from '../workflow-block/border'
+import {
+  getCursorBranchSourceHandleId,
+  getCursorSourceHandleId,
+  getCursorSourceHandlePosition,
+} from '../workflow-block/source-handle'
+import { useActionMenuSwell } from '../workflow-block/use-action-menu-swell'
 
 /** Data attached to loop/parallel container nodes. */
 export interface SubflowNodeData extends Record<string, unknown> {
