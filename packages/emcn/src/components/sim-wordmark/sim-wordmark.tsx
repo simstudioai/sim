@@ -7,18 +7,22 @@ const WORDMARK_FILLS = {
   'muted-inverse': 'var(--text-muted-inverse)',
 } as const
 
+const WORDMARK_SIZES = {
+  nav: { width: 37, height: 18, className: '-translate-y-[1.5px] h-[18px] w-auto' },
+  tag: { width: 21, height: 10, className: 'h-[10px] w-auto' },
+  loading: { width: 67, height: 32, className: 'h-8 w-auto' },
+} as const
+
 export interface SimWordmarkProps {
-  /** Navbar mark or compact mark sized for a 20px ChipTag. */
-  size?: 'nav' | 'tag'
+  /** Navbar, compact 20px ChipTag, or centered application loading mark. */
+  size?: keyof typeof WORDMARK_SIZES
   /** Body ink, inherited foreground, muted brand ink, or light ink for inverse surfaces. */
   tone?: keyof typeof WORDMARK_FILLS
 }
 
 /** Canonical Sim logotype, shared by browser and bundled desktop pages. */
 export function SimWordmark({ size = 'nav', tone = 'body' }: SimWordmarkProps) {
-  const compact = size === 'tag'
-  const width = compact ? 21 : 37
-  const height = compact ? 10 : 18
+  const { width, height, className } = WORDMARK_SIZES[size]
   const fill = WORDMARK_FILLS[tone]
 
   return (
@@ -28,7 +32,7 @@ export function SimWordmark({ size = 'nav', tone = 'body' }: SimWordmarkProps) {
       height={height}
       fill='none'
       aria-hidden='true'
-      className={compact ? 'h-[10px] w-auto' : '-translate-y-[1.5px] h-[18px] w-auto'}
+      className={className}
     >
       <g fill={fill}>
         {WORDMARK_PATHS.map((d) => (
