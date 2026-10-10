@@ -100,6 +100,8 @@ describe('OAuth Utils', () => {
     }
 
     it('locks per installation and refreshes with the freshest sibling refresh token', async () => {
+      // The leader rereads the row under the lock.
+      mockSelectChain([])
       mockSelectOrderedChain([
         { accessToken: 'stale-at', refreshToken: 'live-rt', accessTokenExpiresAt: past },
       ])
@@ -127,6 +129,8 @@ describe('OAuth Utils', () => {
     })
 
     it('returns the freshest sibling token without refreshing when it is still valid', async () => {
+      // The leader rereads the row under the lock.
+      mockSelectChain([])
       mockSelectOrderedChain([
         { accessToken: 'sibling-at', refreshToken: 'live-rt', accessTokenExpiresAt: future },
       ])
@@ -148,6 +152,8 @@ describe('OAuth Utils', () => {
         del: vi.fn().mockResolvedValue(1),
       }
       redisConfigMockFns.mockGetRedisClient.mockReturnValue(fakeRedis)
+      // The leader rereads the row under the lock.
+      mockSelectChain([])
       mockSelectOrderedChain([
         { accessToken: 'stale-at', refreshToken: 'live-rt', accessTokenExpiresAt: past },
       ])
@@ -177,6 +183,8 @@ describe('OAuth Utils', () => {
         del: vi.fn().mockResolvedValue(1),
       }
       redisConfigMockFns.mockGetRedisClient.mockReturnValue(fakeRedis)
+      // The leader rereads the row under the lock.
+      mockSelectChain([])
       mockSelectOrderedChain([
         { accessToken: 'stale-at', refreshToken: 'live-rt', accessTokenExpiresAt: past },
       ])

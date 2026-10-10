@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
-import { and, desc, eq, isNotNull } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { env } from '@/lib/core/config/env'
@@ -48,6 +48,10 @@ import {
   getOAuthRefreshCoordinationIdentity,
 } from '@/lib/oauth/refresh-coordination'
 import {
+  isCredentialRevocationError,
+  isTerminalRefreshError,
+} from '@/lib/oauth/refresh-error-codes'
+import {
   getShopifyRefreshScope,
   refreshShopifyInstallation,
 } from '@/lib/oauth/shopify-installation'
@@ -59,12 +63,7 @@ import {
   installationFilter,
   isSlackProvider,
 } from '@/lib/oauth/slack'
-import {
-  getRecentTerminalError,
-  isCredentialRevocationError,
-  isTerminalRefreshError,
-  markCredentialDead,
-} from '@/lib/oauth/terminal-errors'
+import { getRecentTerminalError, markCredentialDead } from '@/lib/oauth/terminal-errors'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
@@ -919,7 +918,7 @@ function refreshTokenFingerprint(refreshToken: string): string {
  * marker left behind by an older chain fingerprints a token no longer stored, so a reconnect or a
  * rotation by any writer supersedes it without having to clear it.
  */
-function recordedRevocationCode(chain: RevocableChain | undefined): string | null {
+function recordedRevocationCode(chain: RevocableChain | null | undefined): string | null {
   if (!chain?.refreshToken || !chain.refreshRevokedCode || !chain.refreshRevokedTokenHash) {
     return null
   }
@@ -928,7 +927,7 @@ function recordedRevocationCode(chain: RevocableChain | undefined): string | nul
     : null
 }
 
-function isRevocationReprobeDue(chain: RevocableChain | undefined): boolean {
+function isRevocationReprobeDue(chain: RevocableChain | null | undefined): boolean {
   const revokedAt = chain?.refreshRevokedAt
   return !revokedAt || Date.now() - revokedAt.getTime() >= REVOKED_REFRESH_REPROBE_INTERVAL_MS
 }
@@ -952,15 +951,17 @@ function chainRowsFilter(accountId: string, slackTeamId: string | null) {
 }
 
 /**
- * Records that the provider revoked `rejectedRefreshToken`, only on rows that still hold it: a
- * refresh that lost a race to a reconnect or a newer rotation matches nothing and cannot mark the
- * live chain revoked. Leaves `updated_at` alone, which Slack reads as the chain version. Recording
- * again restarts the re-probe window.
+ * Records that the provider revoked `rejectedRefreshToken`, only on rows that still hold it and
+ * that no writer touched since `chainVersion` was read: a refresh that lost a race to a reconnect
+ * (which may keep the same refresh token) or a newer rotation matches nothing and cannot mark the
+ * live chain revoked. Leaves `updated_at` alone, so it stays the chain version. Recording again
+ * restarts the re-probe window.
  */
 async function recordRefreshRevocation(
   scope: { accountId: string; slackTeamId: string | null },
   rejectedRefreshToken: string,
-  errorCode: string
+  errorCode: string,
+  chainVersion: Date | undefined
 ): Promise<boolean> {
   const marked = await db
     .update(account)
@@ -972,7 +973,13 @@ async function recordRefreshRevocation(
     .where(
       and(
         chainRowsFilter(scope.accountId, scope.slackTeamId),
-        eq(account.refreshToken, rejectedRefreshToken)
+        eq(account.refreshToken, rejectedRefreshToken),
+        // Raw sql params skip drizzle's column mapping, so the Date is serialized explicitly;
+        // truncation keeps a version read back at millisecond precision comparable. A row that
+        // vanished before it could be read has no version and matches nothing anyway.
+        chainVersion
+          ? sql`date_trunc('milliseconds', ${account.updatedAt}) <= ${chainVersion.toISOString()}`
+          : undefined
       )
     )
     .returning({ id: account.id })
@@ -1101,10 +1108,10 @@ export async function clearOAuthRefreshFailure(accountId: string): Promise<void>
   ])
 }
 
-interface StoredChain {
+interface StoredChain extends RevocableChain {
   accessToken: string | null
   accessTokenExpiresAt: Date | null
-  refreshToken: string | null
+  updatedAt: Date
 }
 
 /** The chain an account row holds now, or nothing when the account is gone. */
@@ -1114,6 +1121,8 @@ async function readStoredChain(accountId: string): Promise<StoredChain | undefin
       accessToken: account.accessToken,
       accessTokenExpiresAt: account.accessTokenExpiresAt,
       refreshToken: account.refreshToken,
+      updatedAt: account.updatedAt,
+      ...refreshRevocationColumns,
     })
     .from(account)
     .where(eq(account.id, accountId))
@@ -1184,6 +1193,17 @@ async function performCoalescedRefresh({
       maxWaitMs: REFRESH_FOLLOWER_MAX_WAIT_MS,
       onLeader: async () => {
         try {
+          /**
+           * Reread under the lock: another process may have recorded a revocation after the
+           * caller read the row, and the version guards the record against a reconnect that
+           * lands while the provider call is in flight.
+           */
+          const current = await readStoredChain(accountId)
+          const recordedMeanwhile = recordedRevocationCode(current)
+          if (recordedMeanwhile && !isRevocationReprobeDue(current)) {
+            return revokedOutcome(recordedMeanwhile)
+          }
+          let chainVersion = current?.updatedAt
           let refreshTokenToUse = refreshToken
           let slackChainVersion: Date | null = null
           if (slackTeamId) {
@@ -1194,6 +1214,7 @@ async function performCoalescedRefresh({
               )
             }
             slackChainVersion = freshest.chainVersion
+            chainVersion = freshest.chainVersion
             if (
               freshest.accessToken &&
               freshest.accessTokenExpiresAt &&
@@ -1259,7 +1280,14 @@ async function performCoalescedRefresh({
                 await markCredentialDead(scopeKey, errorCode)
                 return null
               }
-              if (!(await recordRefreshRevocation(chainScope, refreshTokenToUse, errorCode))) {
+              if (
+                !(await recordRefreshRevocation(
+                  chainScope,
+                  refreshTokenToUse,
+                  errorCode,
+                  chainVersion
+                ))
+              ) {
                 logger.info('Skipping revocation record: chain moved during refresh', logContext)
                 return null
               }
@@ -1270,11 +1298,16 @@ async function performCoalescedRefresh({
               })
               return revokedOutcome(errorCode)
             }
-            // A re-probe that fails for a passing reason keeps the revocation and its window.
-            if (recordedCode) {
-              await recordRefreshRevocation(chainScope, refreshTokenToUse, recordedCode)
-            }
-            return revokedOutcome(recordedCode)
+            // A re-probe that fails for a passing reason keeps the revocation, unless the chain moved.
+            const stillRevoked =
+              recordedCode !== null &&
+              (await recordRefreshRevocation(
+                chainScope,
+                refreshTokenToUse,
+                recordedCode,
+                chainVersion
+              ))
+            return stillRevoked ? revokedOutcome(recordedCode) : null
           }
 
           const accessTokenExpiresAt = new Date(Date.now() + result.expiresIn * 1000)
@@ -1287,7 +1320,7 @@ async function performCoalescedRefresh({
                 refreshToken: result.refreshToken || refreshTokenToUse,
                 accessTokenExpiresAt,
               },
-              { ifChainUnchangedSince: slackChainVersion ?? undefined }
+              { ifChainUnchangedSince: slackChainVersion ?? undefined, freshlyIssued: true }
             )
           } else {
             const updateData: Record<string, unknown> = {

@@ -560,11 +560,15 @@ export const auth = betterAuth({
                 // proves the installation has live tokens, and a fan-out
                 // failure must not leave the hour-long flag blocking refreshes.
                 await clearOAuthRefreshDeadFlag(`slack:${teamId}`)
-                await fanOutSlackTokenChain(teamId, {
-                  accessToken: account.accessToken,
-                  refreshToken: account.refreshToken ?? null,
-                  accessTokenExpiresAt: account.accessTokenExpiresAt ?? null,
-                })
+                await fanOutSlackTokenChain(
+                  teamId,
+                  {
+                    accessToken: account.accessToken,
+                    refreshToken: account.refreshToken ?? null,
+                    accessTokenExpiresAt: account.accessTokenExpiresAt ?? null,
+                  },
+                  { freshlyIssued: true }
+                )
                 logger.info('[account.create.after] Propagated Slack installation token chain', {
                   userId: account.userId,
                   teamId,
@@ -711,15 +715,9 @@ export const auth = betterAuth({
         after: async (account, context) => {
           const path = context?.path
           if (!path?.startsWith('/oauth2/callback/') && !path?.startsWith('/callback/')) return
-          try {
-            await clearOAuthRefreshFailure(account.id)
-          } catch (error) {
-            logger.error('[account.update.after] Failed to clear recorded refresh failures', {
-              accountId: account.id,
-              providerId: account.providerId,
-              error,
-            })
-          }
+          // Fails the callback like the draft hooks do, so a reconnect never reports success
+          // while the old revocation still blocks the credential.
+          await clearOAuthRefreshFailure(account.id)
         },
       },
     },

@@ -332,6 +332,31 @@ describe('OAuth refresh-token revocation against PostgreSQL and Redis', () => {
     expect(providerRequests).toBe(2)
   })
 
+  it('keeps a reconnect that lands while a rejected refresh is in flight', async () => {
+    pausedProvider = { reached: createDeferred<void>(), release: createDeferred<void>() }
+    const inFlight = resolveToken().catch((error: unknown) => error)
+    await pausedProvider.reached.promise
+    await db
+      .update(account)
+      .set({
+        accessToken: 'relinked-access',
+        accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
+        updatedAt: new Date(),
+      })
+      .where(eq(account.id, accountId))
+    await handleReconnectCredential({
+      draft: { credentialId },
+      newAccountId: accountId,
+      workspaceId,
+      userId,
+      now: new Date(),
+    })
+    pausedProvider.release.resolve()
+
+    expect(await inFlight).not.toBeInstanceOf(CredentialRevokedError)
+    expect((await storedAccount()).refreshRevokedAt).toBeNull()
+  })
+
   it('answers a waiting refresh from the revocation another process recorded', async () => {
     await expect(resolveToken()).rejects.toBeInstanceOf(CredentialRevokedError)
     const { refreshRevokedAt, refreshRevokedCode, refreshRevokedTokenHash } = await storedAccount()

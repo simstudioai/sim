@@ -96,7 +96,7 @@ import {
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { getCredentialTerminalRefreshError } from '@/lib/oauth/credential-service'
-import { isCredentialRevocationError } from '@/lib/oauth/terminal-errors'
+import { isCredentialRevocationError } from '@/lib/oauth/refresh-error-codes'
 import { connectorHasAuthSource } from '@/connectors/auth'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
@@ -823,19 +823,15 @@ async function resolveAccessToken(
       connectorConfig.auth.mode === 'oauth' && connector.credentialId
         ? await getCredentialRevocationError(connector.credentialId)
         : null
-    const logContext = {
+    // executeSync logs the revocation once when it unschedules the connector.
+    if (revocationError && connector.credentialId) {
+      throw new ConnectorCredentialRevokedError(connector.credentialId, revocationError)
+    }
+    logger.error(`[${requestId}] Connector credential resolved no access token`, {
       credentialId: connector.credentialId,
       userId,
       authMode: connectorConfig.auth.mode,
-    }
-    if (revocationError && connector.credentialId) {
-      logger.warn(`[${requestId}] Connector credential was revoked by the source`, {
-        ...logContext,
-        errorCode: revocationError,
-      })
-      throw new ConnectorCredentialRevokedError(connector.credentialId, revocationError)
-    }
-    logger.error(`[${requestId}] Connector credential resolved no access token`, logContext)
+    })
     throw new Error(`Failed to obtain access token for credential ${connector.credentialId}`)
   }
 

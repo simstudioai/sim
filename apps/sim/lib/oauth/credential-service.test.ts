@@ -57,9 +57,12 @@ vi.mock('@/lib/oauth/slack', () => ({
 
 vi.mock('@/lib/oauth/terminal-errors', () => ({
   getRecentTerminalError: hoisted.getRecentTerminalError,
+  markCredentialDead: vi.fn(),
+}))
+
+vi.mock('@/lib/oauth/refresh-error-codes', () => ({
   isCredentialRevocationError: vi.fn(() => false),
   isTerminalRefreshError: vi.fn(() => false),
-  markCredentialDead: vi.fn(),
 }))
 
 import {
@@ -74,8 +77,9 @@ import {
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import { isMicrosoftProvider } from '@/lib/oauth/microsoft'
 import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
+import { isTerminalRefreshError } from '@/lib/oauth/refresh-error-codes'
 import { fanOutSlackTokenChain } from '@/lib/oauth/slack'
-import { isTerminalRefreshError, markCredentialDead } from '@/lib/oauth/terminal-errors'
+import { markCredentialDead } from '@/lib/oauth/terminal-errors'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 const serviceLogger = getMockLogger('OAuthCredentialService')
@@ -505,6 +509,7 @@ describe('OAuth access-token refresh headroom', () => {
   it('returns no token when the rotation write finds the account gone', async () => {
     queueCredentialAccount(createOAuthAccount())
     dbChainMockFns.returning.mockResolvedValueOnce([])
+    queueTableRows(account, [createOAuthAccount()])
     queueTableRows(account, [])
     await expect(
       resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
@@ -515,6 +520,7 @@ describe('OAuth access-token refresh headroom', () => {
     queueCredentialAccount(createOAuthAccount())
     vi.mocked(isTerminalRefreshError).mockReturnValue(true)
     mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_client' })
+    queueTableRows(account, [createOAuthAccount()])
     queueTableRows(account, [
       {
         ...createOAuthAccount(3_600_000),
@@ -533,6 +539,7 @@ describe('OAuth access-token refresh headroom', () => {
     vi.mocked(isTerminalRefreshError).mockReturnValue(true)
     mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_client' })
     queueTableRows(account, [createOAuthAccount()])
+    queueTableRows(account, [createOAuthAccount()])
     await expect(
       resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
     ).resolves.toBeNull()
@@ -543,6 +550,7 @@ describe('OAuth access-token refresh headroom', () => {
     queueCredentialAccount(createOAuthAccount())
     /** Another writer rotated first: no row still holds the token this refresh started from. */
     dbChainMockFns.returning.mockResolvedValueOnce([])
+    queueTableRows(account, [createOAuthAccount()])
     queueTableRows(account, [{ ...createOAuthAccount(3_600_000), accessToken: 'winner-token' }])
     await expect(
       resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
@@ -578,7 +586,9 @@ describe('OAuth access-token refresh headroom', () => {
         expect.objectContaining({
           accessToken: refresh ? 'refreshed-access-token' : 'installation-access-token',
         }),
-        { ifChainUnchangedSince: chainVersion }
+        refresh
+          ? { ifChainUnchangedSince: chainVersion, freshlyIssued: true }
+          : { ifChainUnchangedSince: chainVersion }
       )
     }
   )

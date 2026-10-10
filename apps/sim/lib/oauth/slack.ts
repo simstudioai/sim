@@ -53,6 +53,11 @@ interface FanOutOptions {
    * definition the newest.
    */
   ifChainUnchangedSince?: Date
+  /**
+   * The provider just issued this chain (a refresh or a connect), so a revocation recorded
+   * against the installation no longer holds. Omit when re-spreading a chain already stored.
+   */
+  freshlyIssued?: boolean
 }
 
 /**
@@ -73,8 +78,7 @@ export async function fanOutSlackTokenChain(
       accessToken: chain.accessToken,
       accessTokenExpiresAt: chain.accessTokenExpiresAt,
       ...(chain.refreshToken ? { refreshToken: chain.refreshToken } : {}),
-      // A chain just issued or refreshed is live, whatever an older refresh recorded.
-      ...CLEARED_REFRESH_REVOCATION,
+      ...(options?.freshlyIssued ? CLEARED_REFRESH_REVOCATION : {}),
       updatedAt: new Date(),
     })
     .where(
