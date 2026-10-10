@@ -421,7 +421,7 @@ async function processChanges(
       )
       processedCount++
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError) throw error
+      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(
         `[${requestId}] Error processing change for file ${change.fileId}:`,

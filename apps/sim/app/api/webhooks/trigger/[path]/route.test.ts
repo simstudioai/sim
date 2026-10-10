@@ -742,6 +742,49 @@ describe('Webhook Trigger API Route', () => {
     expect(response.status).toBe(503)
   })
 
+  it('answers with a failing target rather than a missing block so the sender retries', async () => {
+    testData.webhooks.push(
+      {
+        id: 'missing-block-webhook',
+        provider: 'generic',
+        path: 'mixed-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      },
+      {
+        id: 'failing-webhook',
+        provider: 'generic',
+        path: 'mixed-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      }
+    )
+    dispatchResolvedWebhookTargetMock
+      .mockResolvedValueOnce({
+        outcome: 'ignored',
+        reason: 'block-missing',
+        response: new NextResponse('Trigger block not found in deployment', {
+          status: 404,
+          headers: { 'x-slack-no-retry': '1' },
+        }),
+      })
+      .mockResolvedValueOnce({
+        outcome: 'failed',
+        reason: 'queue-failed',
+        response: new NextResponse(null, { status: 500 }),
+      })
+
+    const response = await POST(
+      createMockRequest('POST', { event: 'x' }),
+      createRouteContext({ path: 'mixed-path' })
+    )
+
+    expect(response.status).toBe(500)
+    expect(response.headers.get('x-slack-no-retry')).toBeNull()
+  })
+
   it('tells Slack not to redeliver a POST to a path with no webhook', async () => {
     const req = createMockRequest('POST', { type: 'event_callback' })
 

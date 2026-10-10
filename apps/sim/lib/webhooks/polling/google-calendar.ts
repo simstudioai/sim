@@ -354,7 +354,7 @@ async function processEvents(
       )
       processedCount++
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError) throw error
+      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(`[${requestId}] Error processing event ${event.id}:`, errorMessage)
       failedCount++

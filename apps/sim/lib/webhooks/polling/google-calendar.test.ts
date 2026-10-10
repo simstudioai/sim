@@ -98,4 +98,15 @@ describe('Google Calendar polling when execution admission refuses events', () =
     expect(cursorUpdates).toEqual([])
     expect(mockMarkFailed).not.toHaveBeenCalled()
   })
+
+  it('saves the completed work as before when a refusal follows a completed event', async () => {
+    mockProcessEvent.mockResolvedValueOnce({ success: true, executionId: 'execution-1' })
+
+    expect(await googleCalendarPollingHandler.pollWebhook(context())).not.toBe('skipped')
+
+    const cursorUpdates = mockUpdateConfig.mock.calls.filter(
+      ([, update]) => 'lastCheckedTimestamp' in (update as Record<string, unknown>)
+    )
+    expect(cursorUpdates).toHaveLength(1)
+  })
 })

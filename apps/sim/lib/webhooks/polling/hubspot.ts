@@ -467,7 +467,7 @@ async function pollListMembership(
       )
       processedCount++
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError) throw error
+      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       failedCount++
       logger.error(
         `[${requestId}] Error processing HubSpot list membership ${member.recordId}:`,
@@ -854,7 +854,7 @@ async function processRecords(
           snapshot.values.set(record.id, propertyValue ?? null)
         }
       } catch (error) {
-        if (error instanceof PollAdmissionRefusedError) throw error
+        if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
         failedCount++
         cursorFrozen = true
         logger.error(

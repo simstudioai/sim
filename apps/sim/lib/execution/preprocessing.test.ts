@@ -1039,7 +1039,7 @@ describe('preprocessExecution admission rejection codes and blocked-run log thro
     expect(result).toMatchObject({ success: false, error: expected })
   })
 
-  it('leaves an unreadable usage ledger untagged and retryable', async () => {
+  it('leaves an unreadable usage ledger untagged so unattended senders retry', async () => {
     mockCheckAttributedUsageLimits.mockResolvedValue({
       isExceeded: true,
       reason: 'usage_unavailable',
@@ -1049,7 +1049,7 @@ describe('preprocessExecution admission rejection codes and blocked-run log thro
 
     const result = await refuse('workflow-1')
 
-    expect(result).toMatchObject({ success: false, error: { statusCode: 402, retryable: true } })
+    expect(result).toMatchObject({ success: false, error: { statusCode: 402 } })
     expect(result.success === false && result.error.code).toBeUndefined()
   })
 

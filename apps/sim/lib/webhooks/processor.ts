@@ -1046,26 +1046,20 @@ export async function processPolledWebhookEvent(
         statusCode,
         error: errorMessage,
       })
-      const { admissionRejectionCode, transientAdmissionFailure } = preprocessResult
+      const { admissionRejectionCode } = preprocessResult
       if (admissionRejectionCode) {
         if (foundWorkflow.workspaceId) await recordPollAdmissionRefusal(foundWorkflow.workspaceId)
-        return {
-          success: false,
-          error: errorMessage,
-          statusCode,
-          code: admissionRejectionCode,
-          retryable: false,
-        }
+        return { success: false, error: errorMessage, statusCode, code: admissionRejectionCode }
       }
       return {
         success: false,
         error: errorMessage,
         statusCode,
-        ...(transientAdmissionFailure
+        ...(preprocessResult.transientAdmissionFailure
           ? {
-              code: transientAdmissionFailure.code,
-              retryable: transientAdmissionFailure.retryable,
-              retryAfterSeconds: transientAdmissionFailure.retryAfterSeconds,
+              code: preprocessResult.transientAdmissionFailure.code,
+              retryable: preprocessResult.transientAdmissionFailure.retryable,
+              retryAfterSeconds: preprocessResult.transientAdmissionFailure.retryAfterSeconds,
             }
           : {}),
       }

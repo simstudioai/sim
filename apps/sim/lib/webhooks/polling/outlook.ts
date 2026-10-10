@@ -485,7 +485,7 @@ async function processOutlookEmails(
       )
       processedCount++
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError) throw error
+      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       logger.error(`[${requestId}] Error processing email ${email.id}:`, error)
       failedCount++
     }

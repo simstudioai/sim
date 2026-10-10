@@ -58,7 +58,7 @@ describe('poll source backoff', () => {
 
   beforeEach(() => {
     resetDbChainMock()
-    vi.useFakeTimers({ now: pollStartedAt + minutes(5) })
+    vi.useFakeTimers({ now: pollStartedAt + 30_000 })
   })
 
   afterEach(() => {
@@ -108,9 +108,9 @@ describe('poll source backoff', () => {
     expect(isPollBackedOff(stored, until)).toBe(false)
   })
 
-  it('waits out a Retry-After longer than the failure backoff', async () => {
+  it("waits out a Retry-After longer than the failure backoff, counted from the source's answer", async () => {
     const stored = await failOnce(0, new PollFetchError('rate limited', 429, minutes(10)))
-    expect(Date.parse(String(stored.pollBackoffUntil))).toBe(pollStartedAt + minutes(10))
+    expect(Date.parse(String(stored.pollBackoffUntil))).toBe(Date.now() + minutes(10))
   })
 
   it('ignores a missing or malformed window', () => {

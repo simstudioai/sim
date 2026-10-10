@@ -448,7 +448,7 @@ describe('deterministic admission rejections', () => {
     },
     {
       name: 'unreadable usage ledger',
-      error: { message: 'Usage unavailable', statusCode: 402, retryable: true },
+      error: { message: 'Usage unavailable', statusCode: 402 },
     },
     { name: 'uncoded failure', error: { message: 'Internal error', statusCode: 500 } },
   ])('still fails a $name for an opted-in provider so the sender retries', async ({ error }) => {
@@ -507,7 +507,6 @@ describe('deterministic admission rejections', () => {
       success: false,
       statusCode: 402,
       code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED,
-      retryable: false,
     })
   })
 })

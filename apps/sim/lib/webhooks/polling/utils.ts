@@ -45,8 +45,10 @@ export function isPollBackedOff(providerConfig: unknown, now: number): boolean {
  * Stops a poller's batch when execution admission refused an item for a reason
  * that holds until a person acts (`lib/core/admission/rejection`). Thrown from
  * inside the item's idempotency callback, so the refused item is not recorded as
- * processed; the poller returns `skipped` without advancing its cursor or
- * counting a failure, and items that already ran replay as idempotent no-ops.
+ * processed. A poller rethrows it out of its batch only while no item in the
+ * batch has completed, then returns `skipped` without advancing its cursor or
+ * counting a failure. Once an item has completed, the refusal is handled as an
+ * ordinary item failure, so the poller saves the completed work exactly as before.
  */
 export class PollAdmissionRefusedError extends Error {
   constructor(result: Pick<PolledWebhookEventResult, 'statusCode' | 'error'>) {
@@ -88,6 +90,7 @@ export class PollFetchError extends Error {
   }
 }
 
+/** The wait a rate-limited source asked for, from `Retry-After` or a `FLOOD_WAIT_<seconds>` body. */
 export function readPollRetryAfterMs(retryAfterHeader: string | null, body: string): number | null {
   const fromHeader = parseRetryAfter(retryAfterHeader, POLL_RETRY_AFTER_MAX_MS)
   if (fromHeader !== null) return fromHeader
@@ -95,14 +98,22 @@ export function readPollRetryAfterMs(retryAfterHeader: string | null, body: stri
   return floodWait ? Math.min(Number(floodWait[1]) * 1000, POLL_RETRY_AFTER_MAX_MS) : null
 }
 
+/** Config updates that clear a recorded source backoff once a fetch succeeds. */
+export function clearPollBackoff(providerConfig: unknown): Record<string, undefined> {
+  const config = toRecord(providerConfig)
+  return POLL_SOURCE_FAILURES_KEY in config || POLL_BACKOFF_UNTIL_KEY in config
+    ? { [POLL_SOURCE_FAILURES_KEY]: undefined, [POLL_BACKOFF_UNTIL_KEY]: undefined }
+    : {}
+}
+
 /**
  * Records a poll whose source fetch failed: logs it once (a source's own 4xx at
  * `warn`, anything else at `error`) and counts the failure. The next fetch waits
- * about 2^(n-1) minutes after n consecutive source failures, capped at an hour,
- * or longer when the source asked for it, measured from the failed poll's start
- * so a slow poll does not also cost the next tick. Skipped polls do not count
- * toward `MAX_CONSECUTIVE_FAILURES`, so a source failing nonstop reaches the
- * auto-disable after roughly four days instead of about 100 minutes.
+ * about 2^(n-1) minutes after n consecutive source failures, capped at an hour and
+ * measured from the failed poll's start so a slow poll does not also cost the next
+ * tick, or longer when the source's `Retry-After`, counted from its answer, asks.
+ * Skipped polls do not count toward `MAX_CONSECUTIVE_FAILURES`, so a source failing
+ * nonstop reaches the auto-disable after roughly four days instead of 100 minutes.
  */
 export async function recordPollSourceFailure(
   webhookData: Pick<WebhookRecord, 'id' | 'providerConfig'>,
@@ -128,13 +139,12 @@ export async function recordPollSourceFailure(
     baseMs: POLL_BACKOFF_BASE_MS,
     maxMs: POLL_BACKOFF_MAX_MS,
   })
+  const backoffUntil = Math.max(pollStartedAt + backoffMs, Date.now() + (retryAfterMs ?? 0))
   await updateWebhookProviderConfig(
     webhookData.id,
     {
       [POLL_SOURCE_FAILURES_KEY]: failures,
-      [POLL_BACKOFF_UNTIL_KEY]: new Date(
-        pollStartedAt + Math.max(backoffMs, retryAfterMs ?? 0)
-      ).toISOString(),
+      [POLL_BACKOFF_UNTIL_KEY]: new Date(backoffUntil).toISOString(),
     },
     logger
   )
@@ -173,14 +183,13 @@ export async function markWebhookFailed(webhookId: string, logger: Logger): Prom
   }
 }
 
-/** Reset the webhook's failure count and any source backoff on a successful poll. */
+/** Reset the webhook's failure count on successful poll. */
 export async function markWebhookSuccess(webhookId: string, logger: Logger): Promise<void> {
   try {
     await db
       .update(webhook)
       .set({
         failedCount: 0,
-        providerConfig: sql`(COALESCE(${webhook.providerConfig}::jsonb, '{}'::jsonb) - ${POLL_BACKOFF_UNTIL_KEY}::text - ${POLL_SOURCE_FAILURES_KEY}::text)::json`,
         updatedAt: new Date(),
       })
       .where(

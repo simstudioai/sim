@@ -767,7 +767,7 @@ export async function preprocessExecution(
                 statusCode: 402,
                 // An unreadable ledger fails closed; that is no verdict on the payer, so senders retry.
                 ...(usageCheck.reason === 'usage_unavailable'
-                  ? { retryable: true }
+                  ? {}
                   : { code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED }),
               },
             },

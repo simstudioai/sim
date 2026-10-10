@@ -265,6 +265,8 @@ async function handleWebhookDelivery(
    */
   const responses: NextResponse[] = []
   const failures: NextResponse[] = []
+  /** Kept apart so a missing block's no-retry 404 never stands in for a target that must retry. */
+  const blockMissingResponses: NextResponse[] = []
   let hasDroppedTarget = false
   for (const dispatchResult of legacySlackDispatchResults) {
     if (dispatchResult.outcome === 'failed') {
@@ -348,7 +350,11 @@ async function handleWebhookDelivery(
           `[${requestId}] Webhook dispatch failed for ${foundWebhook.id}, continuing to next`,
           { reason: dispatchResult.reason, status: dispatchResult.response.status }
         )
-        failures.push(dispatchResult.response)
+        if (dispatchResult.outcome === 'failed') {
+          failures.push(dispatchResult.response)
+        } else {
+          blockMissingResponses.push(dispatchResult.response)
+        }
         continue
       }
       return dispatchResult.response
@@ -360,6 +366,9 @@ async function handleWebhookDelivery(
   if (responses.length === 0) {
     if (failures.length > 0) {
       return failures[0]
+    }
+    if (blockMissingResponses.length > 0) {
+      return blockMissingResponses[0]
     }
     if (hasDroppedTarget) {
       return new NextResponse(null, { status: 200 })

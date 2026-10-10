@@ -9,9 +9,11 @@ import {
 import {
   getProviderConfig,
   type PollingProviderHandler,
+  type PollOutcome,
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
+  clearPollBackoff,
   markWebhookFailed,
   markWebhookSuccess,
   PollAdmissionRefusedError,
@@ -95,7 +97,7 @@ export const rssPollingHandler: PollingProviderHandler = {
   provider: 'rss',
   label: 'RSS',
 
-  async pollWebhook(ctx: PollWebhookContext) {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
     const pollStartedAt = Date.now()
@@ -210,6 +212,7 @@ async function updateRssState(
     {
       lastCheckedTimestamp: timestamp,
       lastSeenGuids: allGuids,
+      ...clearPollBackoff(config),
       ...(etag !== undefined ? { etag } : {}),
       ...(lastModified !== undefined ? { lastModified } : {}),
     },
