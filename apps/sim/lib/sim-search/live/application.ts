@@ -777,7 +777,7 @@ function liveReadFailure(error: unknown, provider: string, deadline?: AbortSigna
       )
     if (error.status === 'rate_limited')
       return new LiveReadError(error.message, true, error.retryAfterSeconds)
-    if (error.status === 'timeout')
+    if (error.status === 'timeout' || error.httpStatus === 408)
       return new LiveReadError(`${name} timed out reading this document. Try again.`, true)
     if (error.httpStatus === 404 || error.httpStatus === 410)
       return new OrchestrationError(

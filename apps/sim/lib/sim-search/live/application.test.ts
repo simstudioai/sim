@@ -797,6 +797,11 @@ describe('authorized live retrieval', () => {
       { retryable: true, message: expect.stringContaining('took too long') },
     ],
     [
+      'a provider request timeout response',
+      new NativeSearchError('unavailable', 'Provider request failed (408).', undefined, 408),
+      { retryable: true, message: expect.stringContaining('timed out') },
+    ],
+    [
       'a native request socket timeout',
       Object.assign(new Error('Request timed out after 10000ms'), { code: 'ETIMEDOUT' }),
       { retryable: true, message: expect.stringContaining('Try again') },
