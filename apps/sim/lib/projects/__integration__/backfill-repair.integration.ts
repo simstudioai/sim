@@ -102,7 +102,9 @@ describeWithRedis('Operator archive repair against the full compatible schema', 
       import { migrate } from 'drizzle-orm/postgres-js/migrator';
       import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations/index';
       const sql = postgres(process.env.MIGRATION_DATABASE_URL,{max:1,onnotice:()=>{}});
-      try { await migrate(drizzle(sql),{migrationsFolder:process.env.FIXTURE_MIGRATIONS}); await runScriptMigrations(sql, scriptMigrations.filter((item) => item.name !== '0031_project_membership')); }
+      const membershipIndex = scriptMigrations.findIndex((item) => item.name === '0031_project_membership');
+      if (membershipIndex < 0) throw new Error('Missing membership script migration');
+      try { await migrate(drizzle(sql),{migrationsFolder:process.env.FIXTURE_MIGRATIONS}); await runScriptMigrations(sql, scriptMigrations.slice(0, membershipIndex)); }
       finally { await sql.end(); }
     `,
       ],
