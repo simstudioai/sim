@@ -24,7 +24,7 @@ const WORKSPACE_UPLOAD_OPERATIONS = [
 ] as const
 const PROJECT_UPLOAD_OPERATIONS = [
   'createProjectFileUpload',
-  'createProjectFileUploadPartUrls',
+  'getProjectFileUploadPartUrls',
   'completeProjectFileUpload',
   'abortProjectFileUpload',
 ] as const
