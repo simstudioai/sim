@@ -44,6 +44,7 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
+import { useHydrated } from '@/hooks/use-hydrated'
 import { isMobileViewport } from '@/hooks/use-is-mobile'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useVoiceInput } from '@/hooks/use-voice-input'
@@ -104,9 +105,11 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { userId, onContextAdd, onContextRemove } = useChatSurface()
+  // Server HTML cannot see the stored draft; hydration renders without it and the mount restore applies it.
+  const canReadStoredDraft = useHydrated()
   const [initialValue] = useState(() => {
     if (defaultValue) return defaultValue
-    if (!draftScopeKey) return ''
+    if (!canReadStoredDraft || !draftScopeKey) return ''
     const text = useMothershipDraftsStore.getState().drafts[draftScopeKey]?.text
     return typeof text === 'string' ? text : ''
   })
@@ -200,7 +203,10 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     }
     if (restoredContexts) editor.setContexts(restoredContexts)
     if (restoredFiles) files.restoreAttachedFiles(restoredFiles)
-    if (caretText !== null) {
+    // Text typed before hydration wins over the saved draft, caret included.
+    const typedBeforeHydration = initialValue === '' && editor.getValue() !== ''
+    if (caretText !== null && !typedBeforeHydration) {
+      if (initialValue === '') editor.setValue(caretText, { seed: true })
       const textarea = textareaRef.current
       if (textarea) {
         if (!isMobileViewport()) textarea.focus()
