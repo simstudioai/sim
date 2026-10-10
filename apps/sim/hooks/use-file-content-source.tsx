@@ -91,6 +91,7 @@ function inlineImageSource(
   owner?: EditableFileOwner
 ): FileContentSource {
   return {
+    owner,
     buildUrl,
     resolveImageSrc: (src) => {
       if (!src) return src

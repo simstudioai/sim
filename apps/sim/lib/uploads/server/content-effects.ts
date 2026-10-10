@@ -14,7 +14,17 @@ export async function finishFileContentEffects(
   await processWorkspaceFileStorageCleanupsNow(effects.cleanupIds, logContext)
   if (!effects.liveDocEventId) return
   if (reconciliationFailure === 'propagate') {
-    await processFileLiveDocReconciliationNow(effects.liveDocEventId)
+    const result = await processFileLiveDocReconciliationNow(effects.liveDocEventId)
+    if (result === 'dead_letter' || result === 'not_found') {
+      throw new Error(`Live document reconciliation could not complete: ${result}`)
+    }
+    if (result !== 'completed') {
+      logger.warn('Live document reconciliation remains pending', {
+        ...logContext,
+        eventId: effects.liveDocEventId,
+        result,
+      })
+    }
     return
   }
   const context = { ...logContext, eventId: effects.liveDocEventId }

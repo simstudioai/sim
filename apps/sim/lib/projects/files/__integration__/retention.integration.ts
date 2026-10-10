@@ -478,6 +478,50 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
     }
   )
 
+  check(
+    'folder retention deduplicates more than one file batch before deleting its parent',
+    async () => {
+      const f = await fixture()
+      const folderId = generateId()
+      await db.insert(folder).values({
+        id: folderId,
+        projectId: f.projectId,
+        userId: f.ownerId,
+        resourceType: 'file',
+        name: 'Expired parent',
+        deletedAt: new Date(Date.now() - 40 * 24 * HOUR),
+      })
+      const files = Array.from({ length: 502 }, (_, index) => ({
+        id: generateId(),
+        projectId: f.projectId,
+        userId: f.ownerId,
+        context: 'project',
+        key: `project/${f.projectId}/batch-${index}`,
+        originalName: `batch-${index}.md`,
+        contentType: 'text/markdown',
+        sizeBytes: 0,
+        folderId,
+      }))
+      await db.insert(workspaceFiles).values(files)
+      await db.insert(workspaceFiles).values({
+        ...files[0],
+        id: generateId(),
+        key: `project/${f.projectId}/root`,
+        folderId: null,
+      })
+      await runCleanupSoftDeletes(payload(f.projectId), createCleanupBudgets({ folders: 1 }))
+      expect(await db.select().from(folder).where(eq(folder.id, folderId))).toEqual([])
+      const retained = await db
+        .select()
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.projectId, f.projectId))
+      expect(retained).toHaveLength(503)
+      expect(retained.every((file) => file.folderId === null)).toBe(true)
+      expect(new Set(retained.map((file) => file.originalName)).size).toBe(503)
+      expect(retained.find((file) => file.id === files[0].id)?.originalName).not.toBe('batch-0.md')
+    }
+  )
+
   check('workspace file folder deletion failure rolls back child locations and names', async () => {
     const f = await fixture()
     const parentId = generateId()

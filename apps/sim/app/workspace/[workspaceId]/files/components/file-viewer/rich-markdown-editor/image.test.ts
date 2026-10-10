@@ -23,4 +23,10 @@ describe('content-source resolveImageSrc', () => {
       '/api/files/public/tok_1/inline?fileId=wf_abc'
     )
   })
+  it('preserves the canonical Project owner on public sources', () => {
+    const owner = { entityType: 'project', entityId: 'project-1' } as const
+    const source = createPublicFileContentSource('tok_1', '/api/files/public/tok_1/content', owner)
+    expect(source.owner).toEqual(owner)
+    expect(source.buildUrl('ignored')).toBe('/api/files/public/tok_1/content')
+  })
 })
