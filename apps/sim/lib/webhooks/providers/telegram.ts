@@ -31,6 +31,9 @@ function readSecretToken(providerConfig: Record<string, unknown>): string | null
 }
 
 export const telegramHandler: WebhookProviderHandler = {
+  /** Telegram resends a non-2xx update until it is acknowledged or 24 hours pass. */
+  acknowledgeAdmissionRejections: true,
+
   /**
    * Telegram echoes the `secret_token` registered via `setWebhook` in the
    * `X-Telegram-Bot-Api-Secret-Token` header. Webhooks registered before Sim

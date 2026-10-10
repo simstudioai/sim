@@ -130,8 +130,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   slack_app: slackHandler,
   stripe: stripeHandler,
   table: tableProviderHandler,
-  /** Telegram resends a non-2xx update until it is acknowledged or 24 hours pass. */
-  telegram: { ...telegramHandler, acknowledgeAdmissionRejections: true },
+  telegram: telegramHandler,
   tiktok: tiktokHandler,
   twilio: twilioHandler,
   twilio_voice: twilioVoiceHandler,
