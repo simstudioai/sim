@@ -17,17 +17,16 @@ const name = `project_repair_test_${generateId().replaceAll('-', '')}`
 const url = new URL(readTestDatabaseUrl())
 url.pathname = `/${name}`
 const client = postgres(url.toString(), { max: 1, onnotice: () => {} })
-const directory = await mkdtemp(join(tmpdir(), 'project-repair-test-'))
-const manifest = join(directory, 'manifest.json')
-const report = join(directory, 'report.json')
+let directory: string
+let manifest: string
+let report: string
 const redisUrl = readTestRedisUrl()
-if (!redisUrl) throw new Error('Archive repair integration requires TEST_REDIS_URL')
-const cache = new Redis(redisUrl)
-const subscriber = new Redis(redisUrl)
+const describeWithRedis = describe.runIf(Boolean(redisUrl))
+let cache: Redis
+let subscriber: Redis
 const mcpServerId = generateId()
 const cacheKey = `mcp:tools:workspace:env:server:${mcpServerId}`
 const published: unknown[] = []
-subscriber.on('message', (_channel, message) => published.push(JSON.parse(message)))
 const releaseNotifications = createDeferred<void>()
 let tailNotified = false
 const realtime = createServer(async (request, response) => {
@@ -64,63 +63,69 @@ const run = (command: string, artifacts = { manifest, report }) =>
     }
   )
 
-beforeAll(async () => {
-  await new Promise<void>((resolve) => realtime.listen(0, '127.0.0.1', resolve))
-  const address = realtime.address()
-  if (!address || typeof address === 'string') throw new Error('Realtime fixture failed to bind')
-  environment.SOCKET_SERVER_URL = `http://127.0.0.1:${address.port}`
-  await subscriber.subscribe('mcp:workflow_tools_changed')
-  await admin.unsafe(`CREATE DATABASE "${name}"`)
-  await client.unsafe(
-    'CREATE EXTENSION vector; CREATE EXTENSION btree_gin; CREATE EXTENSION pg_trgm'
-  )
-  const folder = join(directory, 'migrations')
-  await mkdir(join(folder, 'meta'), { recursive: true })
-  const expansion = journal.entries.find((entry) => entry.tag === '0404_workspace_project_column')
-  if (!expansion) throw new Error('Missing expansion migration')
-  const entries = journal.entries.filter((entry) => entry.when <= expansion.when)
-  const source = new URL('../../../../../packages/db/migrations/', import.meta.url)
-  for (const entry of entries)
-    await copyFile(new URL(`${entry.tag}.sql`, source), join(folder, `${entry.tag}.sql`))
-  await writeFile(join(folder, 'meta/_journal.json'), JSON.stringify({ ...journal, entries }))
-  await execute(
-    'bun',
-    [
-      '--no-env-file',
-      '-e',
-      `
-    import postgres from 'postgres';
-    import { drizzle } from 'drizzle-orm/postgres-js';
-    import { migrate } from 'drizzle-orm/postgres-js/migrator';
-    import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations/index';
-    const sql = postgres(process.env.MIGRATION_DATABASE_URL,{max:1,onnotice:()=>{}});
-    try { await migrate(drizzle(sql),{migrationsFolder:process.env.FIXTURE_MIGRATIONS}); await runScriptMigrations(sql, scriptMigrations.filter((item) => item.name !== '0031_project_membership')); }
-    finally { await sql.end(); }
-  `,
-    ],
-    {
-      cwd: new URL('../../../../../packages/db/', import.meta.url),
-      env: { ...environment, FIXTURE_MIGRATIONS: folder },
-      timeout: 120000,
-    }
-  )
-}, 120000)
+describeWithRedis('Operator archive repair against the full compatible schema', () => {
+  beforeAll(async () => {
+    directory = await mkdtemp(join(tmpdir(), 'project-repair-test-'))
+    manifest = join(directory, 'manifest.json')
+    report = join(directory, 'report.json')
+    cache = new Redis(redisUrl!)
+    subscriber = new Redis(redisUrl!)
+    subscriber.on('message', (_channel, message) => published.push(JSON.parse(message)))
+    await new Promise<void>((resolve) => realtime.listen(0, '127.0.0.1', resolve))
+    const address = realtime.address()
+    if (!address || typeof address === 'string') throw new Error('Realtime fixture failed to bind')
+    environment.SOCKET_SERVER_URL = `http://127.0.0.1:${address.port}`
+    await subscriber.subscribe('mcp:workflow_tools_changed')
+    await admin.unsafe(`CREATE DATABASE "${name}"`)
+    await client.unsafe(
+      'CREATE EXTENSION vector; CREATE EXTENSION btree_gin; CREATE EXTENSION pg_trgm'
+    )
+    const folder = join(directory, 'migrations')
+    await mkdir(join(folder, 'meta'), { recursive: true })
+    const expansion = journal.entries.find((entry) => entry.tag === '0404_workspace_project_column')
+    if (!expansion) throw new Error('Missing expansion migration')
+    const entries = journal.entries.filter((entry) => entry.when <= expansion.when)
+    const source = new URL('../../../../../packages/db/migrations/', import.meta.url)
+    for (const entry of entries)
+      await copyFile(new URL(`${entry.tag}.sql`, source), join(folder, `${entry.tag}.sql`))
+    await writeFile(join(folder, 'meta/_journal.json'), JSON.stringify({ ...journal, entries }))
+    await execute(
+      'bun',
+      [
+        '--no-env-file',
+        '-e',
+        `
+      import postgres from 'postgres';
+      import { drizzle } from 'drizzle-orm/postgres-js';
+      import { migrate } from 'drizzle-orm/postgres-js/migrator';
+      import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations/index';
+      const sql = postgres(process.env.MIGRATION_DATABASE_URL,{max:1,onnotice:()=>{}});
+      try { await migrate(drizzle(sql),{migrationsFolder:process.env.FIXTURE_MIGRATIONS}); await runScriptMigrations(sql, scriptMigrations.filter((item) => item.name !== '0031_project_membership')); }
+      finally { await sql.end(); }
+    `,
+      ],
+      {
+        cwd: new URL('../../../../../packages/db/', import.meta.url),
+        env: { ...environment, FIXTURE_MIGRATIONS: folder },
+        timeout: 120000,
+      }
+    )
+  }, 120000)
 
-afterAll(async () => {
-  releaseNotifications.resolve()
-  await new Promise<void>((resolve, reject) => {
-    realtime.close((error) => (error ? reject(error) : resolve()))
-    realtime.closeAllConnections()
+  afterAll(async () => {
+    releaseNotifications.resolve()
+    await new Promise<void>((resolve, reject) => {
+      realtime.close((error) => (error ? reject(error) : resolve()))
+      realtime.closeAllConnections()
+    })
+    await cache.del(cacheKey)
+    await Promise.all([cache.quit(), subscriber.quit()])
+    await client.end({ timeout: 2 })
+    await admin.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`)
+    await admin.end()
+    await rm(directory, { recursive: true, force: true })
   })
-  await cache.del(cacheKey)
-  await Promise.all([cache.quit(), subscriber.quit()])
-  await client.end({ timeout: 2 })
-  await admin.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`)
-  await admin.end()
-  await rm(directory, { recursive: true, force: true })
-})
 
-describe('Operator archive repair against the full compatible schema', () => {
   it.each(['workspace', 'project', 'row'] as const)(
     'defers a busy %s lock, repairs unrelated environments and resumes without losing progress',
     async (lock) => {
