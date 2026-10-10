@@ -3,7 +3,6 @@
 import { memo, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
-  Button,
   Checkbox,
   ChipCombobox,
   ChipInput,
@@ -15,10 +14,8 @@ import {
   ChipModalHeader,
   ChipTextarea,
   type ComboboxOption,
-  cn,
   toast,
 } from '@sim/emcn'
-import { Loader, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
@@ -33,6 +30,7 @@ import {
 } from '@/lib/uploads/client/admission'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { KnowledgeUploadRow } from '@/app/workspace/[workspaceId]/knowledge/components/knowledge-upload-row'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 
@@ -526,42 +524,15 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                   const isProcessing = fileStatus?.status === 'uploading'
 
                   return (
-                    <div
+                    <KnowledgeUploadRow
                       key={`${file.name}-${file.size}`}
-                      className={cn(
-                        'flex items-center gap-2 rounded-sm border p-2',
-                        isFailed && 'border-[var(--text-error)]'
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'min-w-0 flex-1 truncate text-caption',
-                          isFailed && 'text-[var(--text-error)]'
-                        )}
-                        title={file.name}
-                      >
-                        {file.name}
-                      </span>
-                      <span className='shrink-0 text-[var(--text-muted)] text-xs'>
-                        {formatFileSize(file.size)}
-                      </span>
-                      <div className='flex shrink-0 items-center gap-1'>
-                        {isProcessing ? (
-                          <Loader className='size-4 text-[var(--text-muted)]' animate />
-                        ) : (
-                          <Button
-                            aria-label='Remove file'
-                            type='button'
-                            variant='ghost'
-                            className='size-4 p-0'
-                            onClick={() => removeFile(index)}
-                            disabled={isUploading}
-                          >
-                            <X className='size-3.5' />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
+                      name={file.name}
+                      size={formatFileSize(file.size)}
+                      error={isFailed}
+                      processing={isProcessing}
+                      disabled={isUploading}
+                      onRemove={() => removeFile(index)}
+                    />
                   )
                 })}
               </div>
