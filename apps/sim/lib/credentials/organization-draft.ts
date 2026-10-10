@@ -10,6 +10,7 @@ import { deleteOrphanedOAuthAccount } from '@/lib/credentials/deletion'
 import { getCredentialCreationOrganizationContext } from '@/lib/credentials/organization'
 import { resumeConnectorsAfterCredentialReconnect } from '@/lib/knowledge/connectors/credential-recovery'
 import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
+import { rememberShopifyCredentialScope } from '@/lib/shopify/privacy/installation-scopes'
 
 /** Completes the exact draft bound to the authenticated provider callback, rechecking current ownership under membership locks. */
 export async function completeOrganizationCredentialDraft(input: {
@@ -115,6 +116,9 @@ export async function completeOrganizationCredentialDraft(input: {
         createdAt: now,
         updatedAt: now,
       })
+    }
+    if (input.providerId === 'shopify') {
+      await rememberShopifyCredentialScope(input.accountId, credentialId, tx)
     }
     await tx.delete(pendingCredentialDraft).where(eq(pendingCredentialDraft.id, draft.id))
     return {

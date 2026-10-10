@@ -84,7 +84,11 @@ export function isOAuthAuthorizationCallback(callbackUrl: string, origin: string
   if (!callbackUrl) return false
   try {
     const callback = new URL(callbackUrl, origin)
-    return callback.origin === origin && callback.pathname === '/api/auth/oauth2/authorize'
+    return (
+      callback.origin === origin &&
+      (callback.pathname === '/api/auth/oauth2/authorize' ||
+        callback.pathname === '/oauth/shopify/connect')
+    )
   } catch {
     return false
   }

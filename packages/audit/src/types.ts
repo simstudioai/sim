@@ -191,6 +191,8 @@ export const AuditAction = {
   PERMISSION_ACCESS_REQUEST_CLOSED: 'permission_access_request.closed',
   PERMISSION_ACCESS_REQUEST_SETTINGS_CHANGED: 'permission_access_request.settings_changed',
 
+  PRIVACY_REQUEST_REVIEWED: 'privacy_request.reviewed',
+
   PROJECT_CREATED: 'project.created',
   PROJECT_UPDATED: 'project.updated',
   PROJECT_ARCHIVED: 'project.archived',
@@ -294,6 +296,7 @@ export const AuditResourceType = {
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   PERMISSION_ACCESS_REQUEST: 'permission_access_request',
+  PRIVACY_REQUEST: 'privacy_request',
   PROJECT: 'project',
   SANDBOX: 'sandbox',
   SCHEDULE: 'schedule',

@@ -250,6 +250,8 @@ function requireSessionScope(value: string | null, label = 'scope'): string {
 
 async function principalUserId(principal: Principal, workspaceId?: string): Promise<string> {
   switch (principal.kind) {
+    case 'shopify_privacy':
+      throw new UploadSessionError('forbidden', 'Privacy webhook authority cannot create uploads')
     case 'slack_app':
     case 'slack_installation':
       throw new UploadSessionError('forbidden', 'Slack installations cannot create uploads')

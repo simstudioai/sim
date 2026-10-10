@@ -10,6 +10,15 @@ export type Principal =
   | ScimConnectionPrincipal
   | SlackInstallationPrincipal
   | SlackAppPrincipal
+  | ShopifyPrivacyPrincipal
+
+/** App-level privacy receipt authority established by the original body signature. */
+export interface ShopifyPrivacyPrincipal {
+  kind: 'shopify_privacy'
+  clientId: string
+  payloadHash: string
+  receivedAt: Date
+}
 
 /** Verified app-wide ingress authority; installation lookup grants no human access. */
 interface SlackAppPrincipal {
@@ -572,6 +581,7 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
 }
 
 export type PrincipalActor =
+  | Omit<ShopifyPrivacyPrincipal, 'receivedAt'>
   | Omit<SlackAppPrincipal, 'receivedAt'>
   | {
       kind: 'organization_delegated'
@@ -669,12 +679,19 @@ export function resolvePrincipalSubject(principal: Principal): PrincipalSubject 
     case 'scim_connection':
     case 'slack_installation':
     case 'slack_app':
+    case 'shopify_privacy':
       return null
   }
 }
 
 export function toPrincipalActor(principal: Principal): PrincipalActor {
   switch (principal.kind) {
+    case 'shopify_privacy':
+      return {
+        kind: principal.kind,
+        clientId: principal.clientId,
+        payloadHash: principal.payloadHash,
+      }
     case 'slack_app':
       return { kind: principal.kind, appId: principal.appId, appRevision: principal.appRevision }
     case 'slack_installation':
@@ -800,6 +817,8 @@ export function resolvePrincipalAuditAttribution(principal: Principal): Principa
       return { actor, actorId: null, actorName: 'Slack Search' }
     case 'slack_app':
       return { actor, actorId: null, actorName: 'Slack app' }
+    case 'shopify_privacy':
+      return { actor, actorId: null, actorName: 'Shopify privacy webhook' }
   }
 }
 
@@ -841,6 +860,7 @@ export function resolvePrincipalAttribution(
     case 'scim_connection':
     case 'slack_installation':
     case 'slack_app':
+    case 'shopify_privacy':
       throw new PrincipalSubjectUserRequiredError(actor.kind)
   }
 }

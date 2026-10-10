@@ -11,6 +11,7 @@ import { type ProcessOutboxResult, processOutboxEvents } from '@/lib/core/outbox
 import { DeadlineExceededError } from '@/lib/core/utils/deadline'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { recoverKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-recovery'
+import { maintainShopifyPrivacy } from '@/lib/shopify/privacy/outbox'
 import { reapStaleBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
 
 const logger = createLogger('OutboxProcessor')
@@ -61,6 +62,12 @@ export async function runOutboxProcessor(): Promise<OutboxProcessorResult> {
     prunedEvents = await pruneCompletedOutboxEvents()
   } catch (error) {
     logger.error('Completed outbox pruning failed', { error: toError(error).message })
+  }
+
+  try {
+    await maintainShopifyPrivacy()
+  } catch {
+    logger.error('Shopify privacy maintenance failed')
   }
 
   const summary = {

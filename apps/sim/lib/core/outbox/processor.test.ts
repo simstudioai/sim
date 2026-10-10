@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   recover: vi.fn(),
   reap: vi.fn(),
   prune: vi.fn(),
+  privacy: vi.fn(),
 }))
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 vi.mock('@/lib/core/outbox/retention', () => ({ pruneCompletedOutboxEvents: mocks.prune }))
@@ -18,6 +19,7 @@ vi.mock('@/lib/knowledge/connectors/connector-error', () => ({
   getConnectorFailureDiagnostic: () => undefined,
 }))
 vi.mock('@/lib/core/outbox/handlers', () => ({ OUTBOX_HANDLER_GROUPS: [] }))
+vi.mock('@/lib/shopify/privacy/outbox', () => ({ maintainShopifyPrivacy: mocks.privacy }))
 
 import { runOutboxProcessor } from '@/lib/core/outbox/processor'
 
@@ -40,6 +42,7 @@ describe('outbox processor recovery', () => {
     mocks.recover.mockResolvedValue(2)
     mocks.reap.mockResolvedValue(3)
     mocks.prune.mockResolvedValue(4)
+    mocks.privacy.mockResolvedValue(undefined)
   })
   afterEach(() => vi.useRealTimers())
 
@@ -70,6 +73,16 @@ describe('outbox processor recovery', () => {
       recoveredDocuments: 2,
       reapedBackgroundWork: 3,
       prunedEvents: 0,
+    })
+  })
+
+  it('retains completed delivery results when privacy maintenance fails', async () => {
+    mocks.privacy.mockRejectedValueOnce(new Error('privacy database unavailable'))
+    await expect(runOutboxProcessor()).resolves.toEqual({
+      result,
+      recoveredDocuments: 2,
+      reapedBackgroundWork: 3,
+      prunedEvents: 4,
     })
   })
 

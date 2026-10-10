@@ -30,6 +30,7 @@ afterAll(() => {
 
 describe('getOrgMemberUsageForBillingPeriod', () => {
   it('counts immutable new rows plus bounded legacy rows exactly once', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now())
     const billingPeriod = {
       start: new Date('2026-06-01T00:00:00.000Z'),
       end: new Date('2026-07-01T00:00:00.000Z'),
