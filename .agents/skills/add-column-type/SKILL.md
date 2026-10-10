@@ -98,7 +98,7 @@ The three that are easy to get wrong:
 
 Add the entry to `COLUMN_TYPE_REGISTRY` in `registry.ts` **and** `COLUMN_TYPE_SERVER_REGISTRY` in `registry.server.ts`.
 
-`COLUMN_TYPES` is declared in `types.ts` (not derived from the registry — the registry is annotated `Record<ColumnType, …>` against it, which is the gate). `constants.ts` re-exports it, so `columnTypeSchema = z.enum(COLUMN_TYPES)` picks your type up with no edit. **Type-specific metadata does not** — see the next step.
+`COLUMN_TYPES` is declared in `types.ts` (not derived from the registry — the registry is annotated `Record<ColumnType, …>` against it, which is the gate). `columnTypeSchema` in `lib/api/contracts/tables.ts` is `z.enum(COLUMN_TYPES)`, so it picks your type up with no edit. **Type-specific metadata does not** — see the next step.
 
 ## Step 5: Migrations (only if the stored bytes change)
 
@@ -131,6 +131,7 @@ Registering the *type* is compiler-enforced. Registering its *metadata* is not, 
 | `lib/table/types.ts` `ColumnDefinition` | (this one DOES fail — the ownership loop indexes it) |
 | `column-types/types.ts` `TYPE_SPECIFIC_COLUMN_KEYS` | it is never stripped on conversion, and poisons the target type |
 | `lib/api/contracts/tables.ts` — the schema slot in all three column schemas, plus `refineColumnOptions` | zod strips it at the boundary; silently never saved |
+| `lib/api/contracts/v2/tables.ts` and `lib/table/application/columns.ts` — the same slots for the v2 API and its use cases | the v2 API silently drops it |
 | `columns/service.ts` `addTableColumn` param type | callers cannot pass it |
 | A metadata-only update in `lib/table/columns/service.ts` (`updateColumnCurrency` is the model) + a branch in `performUpdateTableColumn` in `lib/table/orchestration/columns.ts` | changing it on an existing column is a silent 200 no-op |
 | `column-config-sidebar.tsx` | no UI to set it |
