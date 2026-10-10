@@ -1056,6 +1056,15 @@ export function usePromptEditor({
     setValueState(textarea.value)
   }, [])
 
+  // Keystrokes typed into the server-rendered textarea before hydration never
+  // reach React. Compared with the mounted value: `valueRef` leads the DOM
+  // while an edit made during mount is still uncommitted.
+  const mountedValueRef = useRef(initialValue)
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea && textarea.value !== mountedValueRef.current) adoptDomValue(textarea)
+  }, [textareaRef, adoptDomValue])
+
   // Selection one change ago, used to infer which edge of a range moved. Kept
   // current by the `selectionchange` listener below — which fires on EVERY
   // caret/selection change (typing, arrows, clicks, programmatic), unlike
