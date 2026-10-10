@@ -58,7 +58,7 @@ import {
 } from '@/lib/folders/queries'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import { normalizeVfsSegment } from '@/lib/mothership/vfs/normalize-segment'
-import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
+import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import type { WorkspaceFileFolderRecord } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -100,7 +100,7 @@ import {
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
-import { displaySegmentPattern } from '@/lib/vfs/path'
+import { decodeVfsPathSegments, displaySegmentPattern } from '@/lib/vfs/path'
 import {
   OWNED_FILE_CONTEXTS,
   type OwnedFileContext,

@@ -15,7 +15,7 @@ import {
 import { buildChatDeploymentUrl } from '@/lib/chat-deployments/urls'
 import { createInternalChatDeploymentErrorPolicy } from '@/app/api/chat/error-policy'
 import { toChatDetailResponse } from '@/app/api/chat/presenters'
-import { createErrorResponse } from '@/app/api/workflows/utils'
+import { createCodedErrorResponse } from '@/app/api/workflows/utils'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -58,7 +58,7 @@ export const PATCH = defineInternalJsonRoute({
      * "Validation error" and demotes the specifics to `details`.
      */
     validationErrorResponse: (error) =>
-      createErrorResponse(getValidationErrorMessage(error), 400, 'VALIDATION_ERROR'),
+      createCodedErrorResponse(getValidationErrorMessage(error), 400, 'VALIDATION_ERROR'),
   },
   mapInput: ({ params, body }) => ({ chatDeploymentId: params.id, ...body }),
   useCase: updateChatDeployment,

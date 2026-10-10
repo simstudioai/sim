@@ -539,5 +539,5 @@ registered `InternalToolConfig.operation`; a `directExecution` property fails
 - [ ] Manually verify output keys match trigger `outputs` keys
 - [ ] Trigger UI shows correctly in the block
 - [ ] Ran `bun run scripts/generate-docs.ts` and committed the refreshed pages — trigger sections
-      render into the owning integration's docs page, and CI's `bun run docs:check` fails on stale
+      render into the owning integration's docs page, and CI's `bun run check:docs` fails on stale
       pages
