@@ -126,7 +126,7 @@ function isGeneralFormat(format: unknown): boolean {
  * Elapsed-time formats (`[h]:mm`, `[mm]:ss`) are durations, not moments;
  * `cellDates` still parses them into a `Date`, so their `w` (`30:00`) is kept.
  *
- * A date whose format is longer than Excel allows is treated as unformatted.
+ * A date whose format is longer than Excel allows is rendered as unformatted.
  *
  * A number with no format at all is treated as General too. Every other
  * number keeps the text the file rendered for it, so a LibreOffice workbook
@@ -154,12 +154,12 @@ export function normalizeSheetDisplayText(
       if (!cell) continue
 
       if (cell.t === 'd' && cell.v instanceof Date) {
-        const format =
-          typeof cell.z === 'string' && cell.z.length <= MAX_NUMBER_FORMAT_LENGTH
-            ? cell.z
-            : undefined
+        const format = typeof cell.z === 'string' ? cell.z : undefined
         if (format !== undefined && ELAPSED_TOKEN.test(format)) continue
-        cell.w = isoDateText(cell.v, format)
+        cell.w = isoDateText(
+          cell.v,
+          format !== undefined && format.length <= MAX_NUMBER_FORMAT_LENGTH ? format : undefined
+        )
       } else if (cell.t === 'n' && typeof cell.v === 'number' && isGeneralFormat(cell.z)) {
         cell.w = generalNumberText(cell.v)
       }
