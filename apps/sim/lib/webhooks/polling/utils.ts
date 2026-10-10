@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { account, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import type { Logger } from '@sim/logger'
 import { toNumberOrNull } from '@sim/utils/coerce'
-import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm'
@@ -56,7 +55,6 @@ export class PollFetchError extends Error {
   }
 }
 
-/** Reads the wait a rate-limited response asked for, in milliseconds. */
 export function readPollRetryAfterMs(retryAfterHeader: string | null, body: string): number | null {
   const fromHeader = parseRetryAfter(retryAfterHeader, POLL_RETRY_AFTER_MAX_MS)
   if (fromHeader !== null) return fromHeader
@@ -88,7 +86,7 @@ export async function recordPollSourceFailure(
       ...(retryAfterMs !== null ? { retryAfterMs } : {}),
     })
   } else {
-    logger.error(message, { error: getErrorMessage(error, 'Unknown error') })
+    logger.error(message, error)
   }
 
   const failures =

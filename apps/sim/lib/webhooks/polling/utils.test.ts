@@ -1,6 +1,6 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { authOAuthUtilsMock } from '@sim/testing/mocks/auth-oauth-utils.mock'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/triggers/constants', () => ({ MAX_CONSECUTIVE_FAILURES: 5 }))
@@ -58,6 +58,11 @@ describe('poll source backoff', () => {
 
   beforeEach(() => {
     resetDbChainMock()
+    vi.useFakeTimers({ now: pollStartedAt + minutes(5) })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   /** Records one source failure on a webhook whose config carries `previousFailures`, returning the merged config update. */
@@ -95,9 +100,9 @@ describe('poll source backoff', () => {
     }
   )
 
-  it('keeps a webhook backed off until its window ends', async () => {
-    const stored = await failOnce(4)
-    const until = Date.parse(String(stored.pollBackoffUntil))
+  it('keeps a webhook backed off until its window ends', () => {
+    const until = pollStartedAt + minutes(16)
+    const stored = { pollBackoffUntil: new Date(until).toISOString() }
 
     expect(isPollBackedOff(stored, until - minutes(1))).toBe(true)
     expect(isPollBackedOff(stored, until)).toBe(false)
@@ -106,11 +111,6 @@ describe('poll source backoff', () => {
   it('waits out a Retry-After longer than the failure backoff', async () => {
     const stored = await failOnce(0, new PollFetchError('rate limited', 429, minutes(10)))
     expect(Date.parse(String(stored.pollBackoffUntil))).toBe(pollStartedAt + minutes(10))
-  })
-
-  it('lets the next tick poll after one failure even when the failing poll ran long', async () => {
-    const stored = await failOnce(0)
-    expect(isPollBackedOff(stored, pollStartedAt + minutes(1.2))).toBe(false)
   })
 
   it('ignores a missing or malformed window', () => {

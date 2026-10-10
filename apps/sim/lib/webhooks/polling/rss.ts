@@ -285,10 +285,7 @@ async function fetchNewRssItems(
       return false
     }
 
-    /**
-     * A cached feed can reveal an item after its publication time. Only the fixed
-     * subscription boundary excludes history; the last poll time is not a delivery cursor.
-     */
+    // Cached feeds reveal items late; only the subscription boundary excludes history, never the last poll.
     if (item.isoDate) {
       const itemDate = new Date(item.isoDate)
       if (itemDate <= subscriptionStartedAt) {

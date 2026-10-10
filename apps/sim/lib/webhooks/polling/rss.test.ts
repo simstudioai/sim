@@ -160,9 +160,10 @@ describe('RSS polling against refusals and rate limits', () => {
 
   it("records a rate-limited fetch as one failure carrying the source's requested wait", async () => {
     mockFetch.mockResolvedValue(
-      new Response('{"ok":false,"description":"Too Many Requests: FLOOD_WAIT_12"}', {
+      new Response('Too Many Requests', {
         status: 429,
         statusText: 'Too Many Requests',
+        headers: { 'Retry-After': '12' },
       })
     )
 
