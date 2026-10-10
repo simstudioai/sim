@@ -50,7 +50,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
-import { ProjectConflictError } from '@/lib/projects/membership'
+import { ProjectConflictError } from '@/lib/projects/errors'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
@@ -402,7 +402,7 @@ export const DELETE = withRouteHandler(
         }
         return true
       })
-      if (!removed) return notFoundResponse('Workspace member')
+      if (!removed) return adminNotFoundResponse('Workspace member')
 
       logger.info(`Admin API: Removed user ${userId} from workspace ${workspaceId}`)
 
@@ -419,7 +419,7 @@ export const DELETE = withRouteHandler(
 
       return singleResponse({ removed: true, userId, workspaceId })
     } catch (error) {
-      if (error instanceof ProjectConflictError) return conflictResponse(error.message)
+      if (error instanceof ProjectConflictError) return adminConflictResponse(error.message)
       if (error instanceof WorkspaceBillingAccountRemovalError) {
         return adminBadRequestResponse(error.message)
       }
