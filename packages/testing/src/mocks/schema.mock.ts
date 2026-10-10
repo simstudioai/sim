@@ -83,6 +83,8 @@ export const schemaMock = {
    * shape keep working.
    */
   foldedEmail: (column: unknown) => column,
+  /** The schema's display-name expression; returns its column, like {@link foldedEmail}. */
+  displaySegmentKey: (column: unknown) => column,
   /** Custom column type for tsvector. */
   tsvector: 'tsvector',
   /** Custom column type for bytea. */

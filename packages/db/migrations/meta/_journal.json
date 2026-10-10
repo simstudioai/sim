@@ -2843,6 +2843,13 @@
       "when": 1791594144265,
       "tag": "0406_workspace_project_column",
       "breakpoints": true
+    },
+    {
+      "idx": 407,
+      "version": "7",
+      "when": 1791671263222,
+      "tag": "0407_workspace_files_display_name_index",
+      "breakpoints": true
     }
   ]
 }

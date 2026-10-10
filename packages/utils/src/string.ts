@@ -14,6 +14,14 @@
  */
 const NUL_CHARACTER = '\u0000'
 
+/**
+ * The characters JavaScript's `\s` and `trim()` treat as whitespace, spelled out as a bracket
+ * expression both JavaScript and PostgreSQL regular expressions accept, so a SQL expression can
+ * normalize whitespace exactly as its TypeScript twin does.
+ */
+export const WHITESPACE_CHARACTER_CLASS =
+  '[ \\t\\n\\v\\f\\r\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]'
+
 /** Reports whether `value` carries a `U+0000`. See {@link NUL_CHARACTER}. */
 export function containsNulCharacter(value: string): boolean {
   return value.includes(NUL_CHARACTER)
