@@ -54,8 +54,9 @@ interface FanOutOptions {
    */
   ifChainUnchangedSince?: Date
   /**
-   * The provider just issued this chain (a refresh or a connect), so a revocation recorded
-   * against the installation no longer holds. Omit when re-spreading a chain already stored.
+   * The provider just issued this chain in a refresh, so a revocation recorded against the
+   * installation no longer holds. Omit when re-spreading a chain already stored; a connect's
+   * credential draft clears the installation's record itself.
    */
   freshlyIssued?: boolean
 }

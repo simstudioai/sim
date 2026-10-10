@@ -560,15 +560,11 @@ export const auth = betterAuth({
                 // proves the installation has live tokens, and a fan-out
                 // failure must not leave the hour-long flag blocking refreshes.
                 await clearOAuthRefreshDeadFlag(`slack:${teamId}`)
-                await fanOutSlackTokenChain(
-                  teamId,
-                  {
-                    accessToken: account.accessToken,
-                    refreshToken: account.refreshToken ?? null,
-                    accessTokenExpiresAt: account.accessTokenExpiresAt ?? null,
-                  },
-                  { freshlyIssued: true }
-                )
+                await fanOutSlackTokenChain(teamId, {
+                  accessToken: account.accessToken,
+                  refreshToken: account.refreshToken ?? null,
+                  accessTokenExpiresAt: account.accessTokenExpiresAt ?? null,
+                })
                 logger.info('[account.create.after] Propagated Slack installation token chain', {
                   userId: account.userId,
                   teamId,

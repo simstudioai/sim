@@ -7,7 +7,7 @@ import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-await vi.hoisted(async () => {
+const { redisUrl } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
   const redisUrl = readTestRedisUrl()
   if (redisUrl) process.env.REDIS_URL = redisUrl
@@ -15,6 +15,7 @@ await vi.hoisted(async () => {
   process.env.GOOGLE_CLIENT_SECRET = 'revocation-integration-secret'
   process.env.SLACK_CLIENT_ID = 'revocation-integration-slack-client'
   process.env.SLACK_CLIENT_SECRET = 'revocation-integration-slack-secret'
+  return { redisUrl }
 })
 
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
@@ -357,29 +358,33 @@ describe('OAuth refresh-token revocation against PostgreSQL and Redis', () => {
     expect((await storedAccount()).refreshRevokedAt).toBeNull()
   })
 
-  it('answers a waiting refresh from the revocation another process recorded', async () => {
-    await expect(resolveToken()).rejects.toBeInstanceOf(CredentialRevokedError)
-    const { refreshRevokedAt, refreshRevokedCode, refreshRevokedTokenHash } = await storedAccount()
-    await db.update(account).set(CLEARED_REFRESH_REVOCATION).where(eq(account.id, accountId))
-    await expireRedisFlags()
+  it.skipIf(!redisUrl)(
+    'answers a waiting refresh from the revocation another process recorded',
+    async () => {
+      await expect(resolveToken()).rejects.toBeInstanceOf(CredentialRevokedError)
+      const { refreshRevokedAt, refreshRevokedCode, refreshRevokedTokenHash } =
+        await storedAccount()
+      await db.update(account).set(CLEARED_REFRESH_REVOCATION).where(eq(account.id, accountId))
+      await expireRedisFlags()
 
-    const redis = getRedisClient()
-    if (!redis) throw new Error('This check needs TEST_REDIS_URL')
-    const lockKey = `oauth:refresh:${getOAuthRefreshCoordinationIdentity(accountId)}`
-    await redis.set(lockKey, 'another-process', 'EX', 60)
-    try {
-      const staleRow = await storedAccount()
-      const follower = refreshTokenIfNeeded('revocation-integration', staleRow, accountId)
-      await db
-        .update(account)
-        .set({ refreshRevokedAt, refreshRevokedCode, refreshRevokedTokenHash })
-        .where(eq(account.id, accountId))
-      await expect(follower).rejects.toBeInstanceOf(CredentialRevokedError)
-    } finally {
-      await redis.del(lockKey)
+      const redis = getRedisClient()
+      if (!redis) throw new Error('This check needs TEST_REDIS_URL')
+      const lockKey = `oauth:refresh:${getOAuthRefreshCoordinationIdentity(accountId)}`
+      await redis.set(lockKey, 'another-process', 'EX', 60)
+      try {
+        const staleRow = await storedAccount()
+        const follower = refreshTokenIfNeeded('revocation-integration', staleRow, accountId)
+        await db
+          .update(account)
+          .set({ refreshRevokedAt, refreshRevokedCode, refreshRevokedTokenHash })
+          .where(eq(account.id, accountId))
+        await expect(follower).rejects.toBeInstanceOf(CredentialRevokedError)
+      } finally {
+        await redis.del(lockKey)
+      }
+      expect(providerRequests).toBe(1)
     }
-    expect(providerRequests).toBe(1)
-  })
+  )
 
   it('records a Slack revocation for the whole installation until a connect fans out', async () => {
     await insertSlackInstallation()
