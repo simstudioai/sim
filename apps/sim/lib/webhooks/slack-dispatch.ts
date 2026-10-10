@@ -72,10 +72,17 @@ export function getSlackDispatchFailureResponse(result: WebhookDispatchResult): 
   return result.response
 }
 
-/** Reduces a Slack fan-out to one provider acknowledgment or retry response. */
+/**
+ * Reduces a Slack fan-out to one provider acknowledgment or retry response. A
+ * target that dropped the delivery (block missing, acknowledged admission
+ * refusal) never masks another target's retryable failure.
+ */
 export function getSlackDispatchResponse(results: WebhookDispatchResult[]): NextResponse {
   const acknowledged = results.some(
-    (result) => result.outcome !== 'failed' && result.reason !== 'block-missing'
+    (result) =>
+      result.outcome !== 'failed' &&
+      result.reason !== 'block-missing' &&
+      result.reason !== 'admission-rejected'
   )
   if (acknowledged) {
     return new NextResponse(null, { status: 200 })

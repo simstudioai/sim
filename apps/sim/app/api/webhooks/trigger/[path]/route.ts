@@ -264,14 +264,21 @@ async function handleWebhookDelivery(
    */
   const responses: NextResponse[] = []
   const failures: NextResponse[] = []
-  let hasPermanentlyIgnoredLegacyTarget = false
+  /**
+   * A target that dropped the delivery for good (block missing, admission refusal acknowledged)
+   * answers 200 only when no other target needs the sender to retry.
+   */
+  let hasDroppedTarget = false
   for (const dispatchResult of legacySlackDispatchResults) {
     if (dispatchResult.outcome === 'failed') {
       failures.push(getSlackDispatchFailureResponse(dispatchResult))
       continue
     }
-    if (dispatchResult.reason === 'block-missing') {
-      hasPermanentlyIgnoredLegacyTarget = true
+    if (
+      dispatchResult.reason === 'block-missing' ||
+      dispatchResult.reason === 'admission-rejected'
+    ) {
+      hasDroppedTarget = true
       continue
     }
     responses.push(dispatchResult.response)
@@ -336,6 +343,11 @@ async function handleWebhookDelivery(
       continue
     }
 
+    if (dispatchResult.reason === 'admission-rejected') {
+      hasDroppedTarget = true
+      continue
+    }
+
     if (dispatchResult.outcome === 'failed' || dispatchResult.reason === 'block-missing') {
       if (dispatchTargetCount > 1) {
         logger.warn(
@@ -355,7 +367,7 @@ async function handleWebhookDelivery(
     if (failures.length > 0) {
       return failures[0]
     }
-    if (hasPermanentlyIgnoredLegacyTarget) {
+    if (hasDroppedTarget) {
       return new NextResponse(null, { status: 200 })
     }
     return new NextResponse('No webhooks processed successfully', { status: 500 })

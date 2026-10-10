@@ -703,6 +703,45 @@ describe('Webhook Trigger API Route', () => {
     })
   })
 
+  it('does not let an acknowledged admission refusal mask another target that must retry', async () => {
+    testData.webhooks.push(
+      {
+        id: 'refused-webhook',
+        provider: 'generic',
+        path: 'fan-out-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      },
+      {
+        id: 'failing-webhook',
+        provider: 'generic',
+        path: 'fan-out-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      }
+    )
+    dispatchResolvedWebhookTargetMock
+      .mockResolvedValueOnce({
+        outcome: 'ignored',
+        reason: 'admission-rejected',
+        response: new NextResponse(null, { status: 200 }),
+      })
+      .mockResolvedValueOnce({
+        outcome: 'failed',
+        reason: 'preprocessing',
+        response: new NextResponse(null, { status: 503 }),
+      })
+
+    const response = await POST(
+      createMockRequest('POST', { event: 'x' }),
+      createRouteContext({ path: 'fan-out-path' })
+    )
+
+    expect(response.status).toBe(503)
+  })
+
   it('tells Slack not to redeliver a POST to a path with no webhook', async () => {
     const req = createMockRequest('POST', { type: 'event_callback' })
 
