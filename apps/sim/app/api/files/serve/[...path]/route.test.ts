@@ -214,7 +214,7 @@ describe('File Serve API Route', () => {
     mockCreateConditionalFileResponse.mockImplementation((file: unknown) =>
       mockCreateFileResponse(file)
     )
-    mockFileErrorResponse.mockImplementation((error: Error) => {
+    mockFileErrorResponse.mockImplementation((error: Error, status = 500) => {
       return new Response(JSON.stringify({ error: error.name, message: error.message }), {
         status: error.name === 'FileNotFoundError' ? 404 : status,
         headers: { 'Content-Type': 'application/json' },
