@@ -100,12 +100,15 @@ async function insertSlackInstallation() {
   )
 }
 
-/** Lapses the hour-long Redis flags, leaving only what the database recorded. */
+/** Lapses this fixture's hour-long Redis flags, leaving only what the database recorded. */
 async function expireRedisFlags() {
   const redis = getRedisClient()
   if (!redis) return
-  const keys = await redis.keys('oauth:dead:*')
-  if (keys.length > 0) await redis.del(...keys)
+  await redis.del(
+    ...[accountId, `slack:${SLACK_TEAM_ID}`].map(
+      (scope) => `oauth:dead:${getOAuthRefreshCoordinationIdentity(scope)}`
+    )
+  )
 }
 
 beforeAll(async () => {
