@@ -110,25 +110,26 @@ Our maintainers will review your pull request and provide feedback. We aim to ma
 We follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/#specification) standard. Your commit messages should have the following format:
 
 ```
-<type>[optional scope]: <description>
+<type>(<scope>): <description>
 ```
+
+The scope is optional (`docs: …`).
 
 - **Types** may include:
   - `feat` – a new feature
   - `fix` – a bug fix
+  - `improvement` – an improvement to existing behavior
   - `docs` – documentation changes
-  - `style` – code style changes (formatting, missing semicolons, etc.)
   - `refactor` – code changes that neither fix a bug nor add a feature
+  - `perf` – a performance improvement
   - `test` – adding or correcting tests
+  - `ci` – CI workflow changes
   - `chore` – changes to tooling, build process, etc.
-  - `high priority` – a high priority feature or fix
-  - `high risk` – a high risk feature or fix
-  - `improvement` – an improvement to the codebase
 
 _Examples:_
 
-- `feat[auth]: add social login integration`
-- `fix[ui]: correct misaligned button on homepage`
+- `feat(auth): add social login integration`
+- `fix(ui): correct misaligned button on homepage`
 - `docs: update installation instructions`
 
 Using clear and consistent commit messages makes it easier for everyone to understand the project history and aids in automating changelog generation.

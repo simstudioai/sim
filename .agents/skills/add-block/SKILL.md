@@ -615,7 +615,7 @@ tools: {
 
 ## Outputs Definition
 
-**IMPORTANT:** Block outputs have a simpler schema than tool outputs. Block outputs do NOT support:
+Block outputs have a simpler schema than tool outputs. They do not support:
 - `optional: true` - This is only for tool outputs
 - `items` property - This is only for tool outputs with array types
 
@@ -729,7 +729,7 @@ export const ServiceBlock: BlockConfig = {
   longDescription: 'Full description for documentation...',
   docsLink: 'https://docs.sim.ai/integrations/service',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
+  integrationType: IntegrationType.DevOps,
   bgColor: '#FF6B6B',
   icon: ServiceIcon,
   authMode: AuthMode.OAuth,

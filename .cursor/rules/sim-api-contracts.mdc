@@ -10,7 +10,7 @@ globs: ["apps/sim/app/api/**","apps/sim/lib/api/**","apps/sim/lib/**/application
 Boundary HTTP request and response shapes for all routes under `apps/sim/app/api/**` live in `apps/sim/lib/api/contracts/**` (one file per resource family — `folders.ts`, `chats.ts`, `knowledge.ts`, etc.). Routes never define route-local boundary Zod schemas, and clients never define ad-hoc wire types — both sides consume the same contract.
 
 - Each contract is built with `defineRouteContract({ method, path, params?, query?, body?, headers?, response: { mode: 'json', schema } })` from `@/lib/api/contracts`.
-- Contracts export named schemas (e.g., `createFolderBodySchema`) AND named TypeScript type aliases (e.g., `export type CreateFolderBody = z.input<typeof createFolderBodySchema>`). Clients (hooks, utilities, components) import the named aliases; they never write `z.input<...>` / `z.output<...>` themselves.
+- Export the contract. Export a named schema (e.g., `createFolderBodySchema`) or type alias (e.g., `export type CreateFolderBody = z.input<typeof createFolderBodySchema>`) only when another module imports it; `check:unused-exports` fails on an export nothing imports. Clients (hooks, utilities, components) import the named aliases; they never write `z.input<...>` / `z.output<...>` themselves.
 - Shared identifier schemas live in `apps/sim/lib/api/contracts/primitives.ts` (e.g., `workspaceIdSchema`, `workflowIdSchema`). Reuse these instead of redefining string-based ID schemas.
 - Domain validators that are not HTTP boundaries — tools, blocks, triggers, connectors, realtime handlers, and internal helpers — may still use Zod directly. The contract rule is boundary-only.
 
@@ -96,7 +96,7 @@ Every same-origin JSON call goes through `requestJson(contract, ...)` from `@/li
 
 Follow this order; each step has one place it lives.
 
-1. **Author the contract first** in `apps/sim/lib/api/contracts/<domain>.ts` (or a subdirectory for large domains: `knowledge/`, `selectors/`, `tools/`). One schema per request slice (`params`, `query`, `body`, `headers`) and one for the response, wrapped with `defineRouteContract`. Export named type aliases (`z.input` for inputs, `z.output` for outputs).
+1. **Author the contract first** in `apps/sim/lib/api/contracts/<domain>.ts` (or a subdirectory for large domains: `knowledge/`, `selectors/`, `tools/`). One schema per request slice (`params`, `query`, `body`, `headers`) and one for the response, wrapped with `defineRouteContract`. Export the type aliases clients import (`z.input` for inputs, `z.output` for outputs).
 2. **Define the semantic operation and application use case** under `apps/sim/lib/<domain>/application/`. The use case owns canonical loading, asserted-scope checks, current authorization, business behavior, semantic audit, and shared domain effects. Use the `migrate-application-operation` skill.
 3. **Implement the route adapter** in `apps/sim/app/api/<path>/route.ts` with the appropriate shared builder: auth, operation, rate policy, error policy, input mapping, use case, and presenter. Auth always runs **before** parsing.
 4. **Add the React Query hook** in `apps/sim/hooks/queries/<domain>.ts`, calling `requestJson(contract, input)` with a hierarchical key factory.

@@ -216,9 +216,9 @@ If none apply, you don't need a handler. The default handler provides bearer tok
 ### Example Handler
 
 ```typescript
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import type { EventMatchContext, FormatInputContext, FormatInputResult, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
@@ -226,8 +226,7 @@ const logger = createLogger('WebhookProvider:{Service}')
 
 function validate{Service}Signature(secret: string, signature: string, body: string): boolean {
   if (!secret || !signature || !body) return false
-  const computed = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
-  return safeCompare(computed, signature)
+  return safeCompare(hmacSha256Hex(body, secret), signature)
 }
 
 export const {service}Handler: WebhookProviderHandler = {
@@ -299,6 +298,7 @@ If they differ: the tag dropdown shows fields that don't exist, or actual data h
 If the service API supports programmatic webhook creation, implement `createSubscription` and `deleteSubscription` on the handler. The orchestration layer calls these automatically — **no code touches `route.ts`, `provider-subscriptions.ts`, or `deploy.ts`**.
 
 ```typescript
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type { DeleteSubscriptionContext, SubscriptionContext, SubscriptionResult } from '@/lib/webhooks/providers/types'
 
@@ -315,7 +315,10 @@ export const {service}Handler: WebhookProviderHandler = {
     })
 
     if (!res.ok) throw new Error(`{Service} error: ${res.status}`)
-    const { id } = (await res.json()) as { id: string }
+    const { id } = await readResponseJsonWithLimit<{ id: string }>(res, {
+      maxBytes: 1024 * 1024,
+      label: '{Service} webhook creation response',
+    })
     return { providerConfigUpdates: { externalId: id } }
   },
 
@@ -342,6 +345,7 @@ export const {service}Handler: WebhookProviderHandler = {
 Trigger outputs use the same schema as block outputs (NOT tool outputs).
 
 **Supported:** `type` + `description` for leaf fields, nested objects for complex data.
+**Also supported:** `nullable: true` and `condition` (`TriggerOutput` in `triggers/types.ts`).
 **NOT supported:** `optional: true`, `items` (those are tool-output-only features).
 
 ```typescript
@@ -377,7 +381,7 @@ apps/sim/lib/webhooks/polling/
 
 ```typescript
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import type { PollingProviderHandler, PollOutcome, PollWebhookContext } from '@/lib/webhooks/polling/types'
 import { markWebhookFailed, markWebhookSuccess, resolveOAuthCredential, updateWebhookProviderConfig } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
 
@@ -385,7 +389,7 @@ export const {service}PollingHandler: PollingProviderHandler = {
   provider: '{service}',
   label: '{Service}',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
 

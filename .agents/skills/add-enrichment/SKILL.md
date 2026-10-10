@@ -37,7 +37,7 @@ For each output the enrichment produces, decide which existing tool provides it.
 - Its `params` accept what you can derive from table columns (read the tool's `params`).
 - Its `outputs` / `transformResponse` actually expose the field you need (read the real output shape — don't assume).
 
-Order providers **cheapest / most-likely-to-hit first**; the cascade stops at the first non-empty result. Apollo / LinkedIn are not hosted-safe (ToS) — don't use them.
+Order providers **cheapest / most-likely-to-hit first**; the cascade stops at the first non-empty result. Apollo and LinkedIn APIs are not hosted-safe (ToS) — never call them as providers.
 
 ## Step 2: Verify hosted-key support — chain to `/add-hosted-key` if missing
 
@@ -109,7 +109,7 @@ export { myEnrichment } from './my-enrichment'
 ```
 
 Rules:
-- Keep the file **client-safe**: import only `@sim/emcn/icons`, `@sim/utils/*`, `@/enrichments/providers`, and the types. **Never import `@/tools`** here — the runner does the tool call.
+- Keep the file **client-safe**: import only `@sim/emcn/icons`, `@sim/utils/*`, `@/enrichments/providers`, `@/enrichments/provider-failures/*`, and the types. **Never import `@/tools`** here — the runner does the tool call.
 - `buildParams` returns `null` when inputs are insufficient (provider skipped). `mapOutput` returns `null`/empty for a miss (falls through). Use `filterUndefined` when assembling optional tool params; coerce numbers explicitly (don't pass `''` to number outputs).
 - Output `id`s are the keys `mapOutput` returns; output `name`s are the default column names (the user can rename them in the config).
 
