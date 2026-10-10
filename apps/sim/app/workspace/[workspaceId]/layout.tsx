@@ -60,7 +60,11 @@ interface WorkspaceContentProps {
   session: NonNullable<Awaited<ReturnType<typeof getSession>>>
   queryClient: QueryClient
   hostContext: WorkspaceHostContext
-  initialOrgSettings: OrganizationWhitelabelSettings | null
+  orgSettings: Promise<OrganizationWhitelabelSettings | null>
+}
+
+interface WorkspaceLoadingProps {
+  orgSettings: Promise<OrganizationWhitelabelSettings | null>
 }
 
 export default async function WorkspaceLayout({ children, params }: WorkspaceLayoutProps) {
@@ -76,24 +80,28 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
     return <WorkspaceAccessDenied />
   }
 
-  const initialOrgSettings = hostContext.hostOrganizationId
-    ? await getOrgWhitelabelSettings(hostContext.hostOrganizationId)
-    : null
-  const brand = mergeOrgBrandConfig(initialOrgSettings, getBrandConfig())
+  const orgSettings = hostContext.hostOrganizationId
+    ? getOrgWhitelabelSettings(hostContext.hostOrganizationId)
+    : Promise.resolve(null)
 
   return (
-    <Suspense fallback={<ApplicationLoading brand={brand} />}>
+    <Suspense fallback={<WorkspaceLoading orgSettings={orgSettings} />}>
       <WorkspaceContent
         workspaceId={workspaceId}
         session={session}
         queryClient={queryClient}
         hostContext={hostContext}
-        initialOrgSettings={initialOrgSettings}
+        orgSettings={orgSettings}
       >
         {children}
       </WorkspaceContent>
     </Suspense>
   )
+}
+
+async function WorkspaceLoading({ orgSettings }: WorkspaceLoadingProps) {
+  const brand = mergeOrgBrandConfig(await orgSettings, getBrandConfig())
+  return <ApplicationLoading brand={brand} />
 }
 
 async function WorkspaceContent({
@@ -102,7 +110,7 @@ async function WorkspaceContent({
   session,
   queryClient,
   hostContext,
-  initialOrgSettings,
+  orgSettings,
 }: WorkspaceContentProps) {
   const activeOrganizationId = getActiveOrganizationId(session)
   const principal = {
@@ -112,6 +120,7 @@ async function WorkspaceContent({
   } as const
   const [
     cookieStore,
+    initialOrgSettings,
     ,
     modelSelectorEnabled,
     planModeEnabled,
@@ -122,6 +131,7 @@ async function WorkspaceContent({
     desktopExecutorRegistered,
   ] = await Promise.all([
     cookies(),
+    orgSettings,
     prefetchWorkspaceSidebar(
       queryClient,
       workspaceId,
