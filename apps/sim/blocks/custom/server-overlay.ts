@@ -5,7 +5,7 @@ import { registerBlockOverlayResolver } from '@/blocks/custom/overlay'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
 
 /** A row for the overlay, optionally carrying live-derived Start input fields. */
-type CustomBlockOverlayRow = CustomBlockRow & {
+export type CustomBlockOverlayRow = CustomBlockRow & {
   inputFields?: WorkflowInputField[]
   /** When `false`, the block resolves but is hidden from the palette (disabled). */
   enabled?: boolean

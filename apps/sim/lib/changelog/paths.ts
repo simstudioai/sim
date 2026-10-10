@@ -1,4 +1,4 @@
-import { decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
+import { decodeVfsPathSegments } from '@/lib/vfs/path'
 
 /** Release bodies live flat in this namespace as `changelog/<releaseId>.md`. */
 const CHANGELOG_FILE_PREFIX = 'changelog/'

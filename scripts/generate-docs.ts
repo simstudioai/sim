@@ -506,7 +506,7 @@ interface IconRef {
 /**
  * Check mode (`--check`): render every generated artifact in memory and compare
  * it against the committed file instead of writing, so CI can fail on docs
- * drift the same way `tool-metadata:check` fails on stale tool metadata. Check
+ * drift the same way `check:tool-metadata` fails on stale tool metadata. Check
  * mode performs no filesystem mutations.
  *
  * The pipeline writes some pages twice per run — the block pass writes the base

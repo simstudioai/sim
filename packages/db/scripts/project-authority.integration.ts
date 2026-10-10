@@ -29,7 +29,7 @@ async function database(run: (sql: Sql, runner: Sql, url: string) => Promise<voi
       await readFile(new URL('../migrations/0394_project_foundation.sql', import.meta.url), 'utf8')
     )
     const expansion = await readFile(
-      new URL('../migrations/0405_workspace_project_column.sql', import.meta.url),
+      new URL('../migrations/0406_workspace_project_column.sql', import.meta.url),
       'utf8'
     )
     for (const statement of expansion.split('--> statement-breakpoint')) await sql.unsafe(statement)

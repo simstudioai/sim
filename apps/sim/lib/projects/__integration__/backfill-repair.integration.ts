@@ -84,7 +84,7 @@ describeWithRedis('Operator archive repair against the full compatible schema', 
     )
     const folder = join(directory, 'migrations')
     await mkdir(join(folder, 'meta'), { recursive: true })
-    const expansion = journal.entries.find((entry) => entry.tag === '0405_workspace_project_column')
+    const expansion = journal.entries.find((entry) => entry.tag === '0406_workspace_project_column')
     if (!expansion) throw new Error('Missing expansion migration')
     const entries = journal.entries.filter((entry) => entry.when <= expansion.when)
     const source = new URL('../../../../../packages/db/migrations/', import.meta.url)

@@ -12,19 +12,24 @@ import { cursorSlot } from '#sim-cli/runtime/request'
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 
-/** Read the actual producer, including command aliases and generated API documents. */
-function inventory(): {
+interface InventoryEntry {
   path: string[]
   shape?: string
   body?: string
   mothershipUnavailable?: true
-}[] {
-  return JSON.parse(
+}
+
+let produced: InventoryEntry[] | undefined
+
+/** Read the actual producer, including command aliases and generated API documents. */
+function inventory(): InventoryEntry[] {
+  produced ??= JSON.parse(
     execFileSync('bun', ['run', 'packages/sim-cli/scripts/print-command-inventory.ts'], {
       cwd: ROOT,
       encoding: 'utf8',
     })
-  )
+  ) as InventoryEntry[]
+  return produced
 }
 
 function document(schema: ReferenceSchema): ReferenceDocument {
@@ -51,6 +56,7 @@ describe('CLI reference producer', () => {
     }
     expect(find('tables create').shape).toContain('id:string')
     expect(find('workflows create').shape).toContain('blocks:')
+    expect(find('credentials create').shape).toContain('id:string')
     const rows = find('tables rows create')
     expect(rows.body).toBe('{rows:object[]}|{data:object}')
     expect(rows.shape).toContain('id:string')
@@ -67,12 +73,28 @@ describe('CLI reference producer', () => {
     expect(find('files share get').shape).toContain('|{data:null}')
   })
 
+  it('describes each command by the operation it runs, not one whose route derives the same name', () => {
+    // `undeployWorkflow`, `deleteTableRows` and `deleteKnowledgeTagDefinitions` derive the
+    // path their sibling owns; a lookup by path described the sibling with their output.
+    const commands = inventory()
+    const shape = (path: string) => commands.find((entry) => entry.path.join(' ') === path)?.shape
+    expect(shape('workflows deploy')).toContain('lint:')
+    expect(shape('workflows deploy')).not.toContain('archivedMcpTools')
+    expect(shape('workflows undeploy')).toContain('archivedMcpTools')
+    expect(shape('tables rows delete')).toContain('deleted:true')
+    expect(shape('tables rows batch-delete')).toContain('deletedCount:')
+    expect(shape('knowledge tags delete')).toContain('tagSlot:')
+    expect(shape('knowledge tags cleanup')).toContain('unused:')
+    expect(shape('workflows mv')).toContain('folderPath:')
+  })
+
   it('marks every command that calls a route Mothership is refused', () => {
     const commands = inventory()
     const flag = (path: string) =>
       commands.find((entry) => entry.path.join(' ') === path)?.mothershipUnavailable
     expect(flag('meta status')).toBe(true)
     expect(flag('whoami')).toBe(true)
+    expect(flag('profiles add')).toBe(true)
     expect(flag('files versions download')).toBe(true)
     expect(flag('chat')).toBe(true)
     expect(flag('workflows run')).toBeUndefined()

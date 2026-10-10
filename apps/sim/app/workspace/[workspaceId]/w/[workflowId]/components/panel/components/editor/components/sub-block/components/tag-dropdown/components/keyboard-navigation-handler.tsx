@@ -188,7 +188,6 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
     if (!visible || visibleIndices.length === 0) return
 
     setSelectedIndex(visibleIndices[0])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, isInFolder, currentFolder, nestedPathLength])
 
   const handleKeyboardEvent = useEffectEvent((e: KeyboardEvent) => {

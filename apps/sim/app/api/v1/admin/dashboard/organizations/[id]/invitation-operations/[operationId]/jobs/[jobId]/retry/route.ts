@@ -5,8 +5,8 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -34,7 +34,9 @@ export const POST = withRouteHandler(
         )
       )
     } catch (error) {
-      return badRequestResponse(getErrorMessage(error, 'Failed to retry invitation operation job'))
+      return adminBadRequestResponse(
+        getErrorMessage(error, 'Failed to retry invitation operation job')
+      )
     }
   })
 )

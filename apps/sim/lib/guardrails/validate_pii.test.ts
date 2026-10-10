@@ -28,6 +28,11 @@ function emailSpans(text: string, entities: string[] | undefined): Span[] {
   return idx === -1 ? [] : [{ entity_type: 'EMAIL_ADDRESS', start: idx, end: idx + 7, score: 0.9 }]
 }
 
+/** False for a string with an unpaired surrogate: it has no UTF-8 encoding to round-trip. */
+function encodesAsUtf8(text: string): boolean {
+  return Buffer.from(text, 'utf8').toString('utf8') === text
+}
+
 describe('validate_pii (Presidio service)', () => {
   let analyzeBodies: Array<{ text: string; language: string; entities?: string[] }>
   let fetchMock: ReturnType<typeof vi.fn>
@@ -36,6 +41,11 @@ describe('validate_pii (Presidio service)', () => {
     analyzeBodies = []
     fetchMock = vi.fn(async (url: string, init: { body: string }) => {
       const body = JSON.parse(init.body)
+      // Presidio analyzes such text, then fails encoding the response that echoes it.
+      const sentTexts: string[] = body.texts ?? (body.text === undefined ? [] : [body.text])
+      if (!sentTexts.every(encodesAsUtf8)) {
+        return new Response('Internal Server Error', { status: 500 })
+      }
       if (url.includes('/redact_batch')) {
         for (const text of body.texts as string[]) {
           analyzeBodies.push({ text, language: body.language, entities: body.entities })
@@ -78,6 +88,14 @@ describe('validate_pii (Presidio service)', () => {
       const out = await maskPIIBatch(['email a@b.com', 'nothing here'], [])
       expect(out[0]).toBe('email <EMAIL_ADDRESS>')
       expect(out[1]).toBe('nothing here')
+    })
+
+    it('masks a batch holding half an emoji instead of failing the whole chunk', async () => {
+      const halfEmoji = '😀'.slice(0, 1)
+
+      const out = await maskPIIBatch([`cut ${halfEmoji} a@b.com`, 'whole 😀'], [])
+
+      expect(out).toEqual(['cut \uFFFD <EMAIL_ADDRESS>', 'whole 😀'])
     })
 
     it('throws on a service failure so the caller can scrub', async () => {
@@ -126,6 +144,16 @@ describe('validate_pii (Presidio service)', () => {
           abortSignal: controller.signal,
         })
       ).rejects.toMatchObject({ name: 'AbortError' })
+    })
+
+    it('masks text holding half an emoji, keeping detected spans on the original', async () => {
+      const text = `${'😀'.slice(0, 1)} mail a@b.com`
+
+      const res = await validatePII({ text, entityTypes: [], mode: 'mask', requestId: 'half' })
+
+      expect(res.passed).toBe(true)
+      expect(res.maskedText).toBe('\uFFFD mail <EMAIL_ADDRESS>')
+      expect(res.detectedEntities.map((e) => e.text)).toEqual(['a@b.com'])
     })
 
     it('block mode fails with a summary when PII is detected', async () => {

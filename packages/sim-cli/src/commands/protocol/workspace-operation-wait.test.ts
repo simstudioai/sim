@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { GetWorkspaceOperationResponse } from '../../generated/v2-api'
 import { SimApiError, SimClient } from '../../http/client'
+import { OperationClient } from '../../runtime/called-operations'
 import { assertWorkspaceOperationOutcome, waitWorkspaceOperation } from './workspace-operation-wait'
 
 const report: GetWorkspaceOperationResponse['data'] = {
@@ -14,8 +15,8 @@ const report: GetWorkspaceOperationResponse['data'] = {
   issues: [],
 }
 
-function fixtureClient() {
-  return new SimClient({
+function fixtureClient(): OperationClient<'getWorkspaceOperation'> {
+  const http = new SimClient({
     name: 'fixture',
     endpoint: 'https://fixture.invalid',
     authProfile: 'fixture',
@@ -25,6 +26,11 @@ function fixtureClient() {
     output: 'json',
     sources: { endpoint: 'default', credential: 'env', workspaceId: 'env', output: 'default' },
   })
+  return new OperationClient(
+    http,
+    new Set(['getWorkspaceOperation']),
+    'sim workspaces operations wait'
+  )
 }
 
 afterEach(() => {

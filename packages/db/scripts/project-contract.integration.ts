@@ -30,7 +30,7 @@ const migration = await readFile(
 )
 
 const expansion = await readFile(
-  new URL('../migrations/0405_workspace_project_column.sql', import.meta.url),
+  new URL('../migrations/0406_workspace_project_column.sql', import.meta.url),
   'utf8'
 )
 
@@ -1091,9 +1091,9 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       await expect(run()).rejects.toMatchObject({ code: 1 })
       await sql`CREATE SCHEMA drizzle`
       await sql`CREATE TABLE drizzle.__drizzle_migrations (created_at bigint)`
-      const expanded = journal.entries.find((item) => item.tag === '0405_workspace_project_column')
+      const expanded = journal.entries.find((item) => item.tag === '0406_workspace_project_column')
       const entry = journal.entries.find(
-        (item) => item.tag === '0406_project_membership_enforcement'
+        (item) => item.tag === '0407_project_membership_enforcement'
       )
       if (!expanded || !entry) throw new Error('Missing Project migration metadata')
       await sql`INSERT INTO drizzle.__drizzle_migrations VALUES (${expanded.when - 1})`
@@ -1130,11 +1130,11 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     const directory = await mkdtemp(join(tmpdir(), 'project-contract-runner-'))
     try {
       await mkdir(join(directory, 'meta'))
-      await writeFile(join(directory, '0405_workspace_project_column.sql'), expansion)
+      await writeFile(join(directory, '0406_workspace_project_column.sql'), expansion)
       await writeFile(
-        join(directory, '0406_project_membership_enforcement.sql'),
+        join(directory, '0407_project_membership_enforcement.sql'),
         await readFile(
-          new URL('../migrations/0406_project_membership_enforcement.sql', import.meta.url),
+          new URL('../migrations/0407_project_membership_enforcement.sql', import.meta.url),
           'utf8'
         )
       )
@@ -1144,8 +1144,8 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           ...journal,
           entries: journal.entries.filter(
             (entry) =>
-              entry.tag === '0405_workspace_project_column' ||
-              entry.tag === '0406_project_membership_enforcement'
+              entry.tag === '0406_workspace_project_column' ||
+              entry.tag === '0407_project_membership_enforcement'
           ),
         })
       )

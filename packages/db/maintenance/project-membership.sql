@@ -236,7 +236,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 --> statement-breakpoint
--- migration-safe: contract of #8830, gated on its column-only release being fully deployed and all pre-8830 servers/workers having drained; the validated check proves existing rows.
+-- migration-safe: contract of #8830, gated on its authority-aware release being fully deployed, incompatible app/worker versions having drained, and the column-authority switch being committed; the validated check proves existing rows.
 ALTER TABLE workspace ALTER COLUMN project_id SET NOT NULL;
 -- migration-safe: the required column now enforces the validated helper check's invariant.
 ALTER TABLE workspace DROP CONSTRAINT IF EXISTS workspace_project_id_present;
@@ -256,7 +256,7 @@ CREATE CONSTRAINT TRIGGER project_contract_check AFTER INSERT OR UPDATE OF id, p
 DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION project_contract_after_write();
 --> statement-breakpoint
 DROP TRIGGER IF EXISTS workspace_sync_project_membership ON workspace;
--- migration-safe: contract of #8830, gated on its column-only release being fully deployed and all pre-8830 servers/workers having drained; no supported application reader or writer then needs this connector.
+-- migration-safe: contract of #8830, gated on its authority-aware release being fully deployed, incompatible app/worker versions having drained, and the column-authority switch being committed; no supported application reader or writer then needs this connector.
 DROP TABLE IF EXISTS project_workspace;
 DROP FUNCTION IF EXISTS workspace_sync_project_membership_fn();
 DROP FUNCTION IF EXISTS project_workspace_sync_column_fn();

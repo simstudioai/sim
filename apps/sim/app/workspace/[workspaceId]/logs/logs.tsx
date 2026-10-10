@@ -604,25 +604,20 @@ export default function Logs() {
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to stop run'))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextMenuLog, userPermissions.canEdit])
 
-  const retryLog = useCallback(
-    async (log: WorkflowLogRow | null) => {
-      const workflowId = log?.workflow?.id || log?.workflowId
-      const executionId = log?.executionId
-      if (!workflowId || !executionId) return
+  const retryLog = useCallback(async (log: WorkflowLogRow | null) => {
+    const workflowId = log?.workflow?.id || log?.workflowId
+    const executionId = log?.executionId
+    if (!workflowId || !executionId) return
 
-      try {
-        await retryExecution.mutateAsync({ workflowId, executionId })
-        toast.success('Retry started')
-      } catch {
-        toast.error('Failed to retry execution')
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  )
+    try {
+      await retryExecution.mutateAsync({ workflowId, executionId })
+      toast.success('Retry started')
+    } catch {
+      toast.error('Failed to retry execution')
+    }
+  }, [])
 
   const handleRetryExecution = useCallback(() => {
     retryLog(contextMenuLog)

@@ -15,11 +15,8 @@ import {
   clearOAuthRefreshDeadFlag,
   getOAuthRefreshCoordinationIdentity,
 } from '@/lib/oauth/refresh-coordination'
-import {
-  getRecentTerminalError,
-  isTerminalRefreshError,
-  markCredentialDead,
-} from '@/lib/oauth/terminal-errors'
+import { isTerminalRefreshError } from '@/lib/oauth/refresh-error-codes'
+import { getRecentTerminalError, markCredentialDead } from '@/lib/oauth/terminal-errors'
 import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 
 const logger = createLogger('ShopifyInstallation')

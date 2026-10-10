@@ -1,4 +1,21 @@
 #!/usr/bin/env bun
+/**
+ * Fails when any file under `packages/*` imports from `apps/*`.
+ *
+ * Dependencies point toward shared code: apps consume packages, never the reverse. A package
+ * that reaches into an app drags that app's module graph (Next.js, the block and tool
+ * registries, the executor) into every other consumer, including `apps/realtime`, and couples
+ * the package to an app's internal layout.
+ *
+ * Flagged, including type-only imports, re-exports, `import()` and `require()`: an `@/…` or
+ * `apps/…` specifier, an app's package name (or a subpath of it), and a relative path that
+ * resolves into `apps/`.
+ *
+ * Fix a finding by moving the shared code into a package that both sides import, or by keeping
+ * the code that needs it in the app. There is no allowlist.
+ *
+ * Run: `bun run check:boundaries`
+ */
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import ts from '@typescript/typescript6'

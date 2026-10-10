@@ -1,6 +1,6 @@
 {
-  "id": "7575a355-a608-4f08-b3bb-7f22ef176275",
-  "prevId": "155ddb55-55f3-4a4b-8681-9768740ef57a",
+  "id": "155ddb55-55f3-4a4b-8681-9768740ef57a",
+  "prevId": "fc0c21f2-3b7d-4138-adba-5eb844f037a9",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -230,6 +230,24 @@
         },
         "oauth_config": {
           "name": "oauth_config",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_revoked_at": {
+          "name": "refresh_revoked_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_revoked_code": {
+          "name": "refresh_revoked_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_revoked_token_hash": {
+          "name": "refresh_revoked_token_hash",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -17488,39 +17506,76 @@
       },
       "isRLSEnabled": false
     },
-    "public.project_membership_rollout": {
-      "name": "project_membership_rollout",
+    "public.project_workspace": {
+      "name": "project_workspace",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "phase": {
-          "name": "phase",
+        "project_id": {
+          "name": "project_id",
           "type": "text",
           "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
           "notNull": true,
-          "default": "'connector'"
+          "default": "now()"
         }
       },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "indexes": {
+        "project_workspace_workspace_id_unique": {
+          "name": "project_workspace_workspace_id_unique",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_workspace_project_id_project_id_fk": {
+          "name": "project_workspace_project_id_project_id_fk",
+          "tableFrom": "project_workspace",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "project_workspace_workspace_id_workspace_id_fk": {
+          "name": "project_workspace_workspace_id_workspace_id_fk",
+          "tableFrom": "project_workspace",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "project_workspace_project_id_workspace_id_pk": {
+          "name": "project_workspace_project_id_workspace_id_pk",
+          "columns": ["project_id", "workspace_id"]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "project_membership_rollout_singleton": {
-          "name": "project_membership_rollout_singleton",
-          "value": "\"project_membership_rollout\".\"id\" = 'membership'"
-        },
-        "project_membership_rollout_phase": {
-          "name": "project_membership_rollout_phase",
-          "value": "\"project_membership_rollout\".\"phase\" IN ('connector', 'column')"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.public_share": {
@@ -27246,7 +27301,7 @@
           "name": "project_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "workspace_mode": {
           "name": "workspace_mode",
@@ -30576,6 +30631,41 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_membership_rollout": {
+      "name": "project_membership_rollout",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "phase": {
+          "name": "phase",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'connector'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_membership_rollout_singleton": {
+          "name": "project_membership_rollout_singleton",
+          "value": "\"project_membership_rollout\".\"id\" = 'membership'"
+        },
+        "project_membership_rollout_phase": {
+          "name": "project_membership_rollout_phase",
+          "value": "\"project_membership_rollout\".\"phase\" IN ('connector', 'column')"
+        }
+      },
       "isRLSEnabled": false
     }
   },

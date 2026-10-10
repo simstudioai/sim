@@ -1,8 +1,6 @@
 import { generateRandomString } from '@sim/utils/random'
 import type { BlockData, BlockOutput, Position } from '../types'
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 /**
  * Options for creating a mock block.
  * All fields are optional - sensible defaults are provided.

@@ -29,8 +29,8 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
-  internalErrorResponse,
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   listResponse,
 } from '@/app/api/v1/admin/responses'
 import type { WorkflowExportPayload, WorkflowExportState } from '@/app/api/v1/admin/types'
@@ -49,7 +49,7 @@ export const POST = withRouteHandler(
       const workflows = await db.select().from(workflow).where(inArray(workflow.id, body.ids))
 
       if (workflows.length === 0) {
-        return badRequestResponse('No workflows found with the provided IDs')
+        return adminBadRequestResponse('No workflows found with the provided IDs')
       }
 
       const workflowExports: WorkflowExportPayload[] = []
@@ -149,7 +149,7 @@ export const POST = withRouteHandler(
       })
     } catch (error) {
       logger.error('Admin API: Failed to export workflows', { error, ids: body.ids })
-      return internalErrorResponse('Failed to export workflows')
+      return adminInternalErrorResponse('Failed to export workflows')
     }
   })
 )

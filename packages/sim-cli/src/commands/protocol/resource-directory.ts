@@ -1,5 +1,4 @@
 import { type Command, Option } from 'commander'
-import { clientFrom } from '../../context'
 import {
   type ListFileFoldersResponse,
   type ListFilesResponse,
@@ -10,10 +9,10 @@ import {
   type ListWorkflowFoldersResponse,
   type ListWorkflowsResponse,
   V2_OPERATIONS,
-  type V2OperationName,
 } from '../../generated/v2-api'
-import { requestAllPages, SimApiError, type SimClient, type V2Page } from '../../http/client'
+import { SimApiError, type V2Page } from '../../http/client'
 import { type Column, printList, text, timestamp } from '../../output/render'
+import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { DEFAULT_PAGE_SIZE } from '../../runtime/options'
 import { encodeFolderPath } from '../../runtime/request'
 import { decodeFolderPath, renderResult } from '../../runtime/result'
@@ -92,12 +91,10 @@ const COLUMNS: Column<DirectoryEntry>[] = [
   { header: 'updated', value: (entry) => timestamp(entry.updatedAt) },
 ]
 
-function operationPath(operation: V2OperationName): string {
-  return V2_OPERATIONS[operation].path
-}
+type ListingOperation = ResourceDirectoryConfig['resources'] | FolderListOperation
 
 async function listResources(
-  client: SimClient,
+  client: OperationClient<ListingOperation>,
   config: ResourceDirectoryConfig,
   workspaceId: string,
   folderPath: string,
@@ -105,15 +102,14 @@ async function listResources(
   limit: number
 ): Promise<DirectoryResource[]> {
   const query = { workspaceId, folderPath, search, sortBy: 'name', sortOrder: 'asc' }
-  const path = operationPath(config.resources)
   const paginated = 'cursor' in V2_OPERATIONS[config.resources].query
 
   if (!paginated) {
-    const page = await client.request<V2Page<DirectoryResource>>(path, { query })
+    const page = await client.request<V2Page<DirectoryResource>>(config.resources, { query })
     return page.data.slice(0, limit)
   }
 
-  return requestAllPages<DirectoryResource>(client, path, {
+  return client.requestAllPages<DirectoryResource>(config.resources, {
     query,
     pageSize: DEFAULT_PAGE_SIZE,
     limit,
@@ -121,13 +117,13 @@ async function listResources(
 }
 
 async function listFolders(
-  client: SimClient,
+  client: OperationClient<ListingOperation>,
   operation: FolderListOperation,
   workspaceId: string,
   parentPath: string,
   search: string | undefined
 ): Promise<DirectoryFolder[]> {
-  const page = await client.request<V2Page<DirectoryFolder>>(operationPath(operation), {
+  const page = await client.request<V2Page<DirectoryFolder>>(operation, {
     query: { workspaceId, parentPath, search, sortBy: 'name', sortOrder: 'asc' },
   })
   return page.data
@@ -163,16 +159,15 @@ export function attachResourceDirectoryCommands(
   group: Command,
   config: ResourceDirectoryConfig
 ): void {
-  group
-    .command('ls')
-    .argument('[path]', 'Folder path to list; defaults to the root folder')
+  const [ls, connectLs] = apiCommand(group, 'ls', [config.resources, config.folders])
+  ls.argument('[path]', 'Folder path to list; defaults to the root folder')
     .allowExcessArguments(false)
     .description(`List ${config.kind} resources and child folders together`)
     .option('--search <text>', 'Filter folders and resources by name')
     .addOption(
       new Option('--limit <n>', 'Maximum combined items to return (0 for everything)').default('0')
     )
-    .action(async (path: string | undefined, options: ListOptions, command: Command) => {
+    .action(async (path: string | undefined, options: ListOptions) => {
       const rawLimit = Number(options.limit)
       if (!Number.isSafeInteger(rawLimit) || rawLimit < 0) {
         throw new SimApiError('--limit must be a whole number of 0 or more (0 for everything)', 0)
@@ -183,7 +178,7 @@ export function attachResourceDirectoryCommands(
       // applies to every contract-driven folder flag has to be applied here too
       // — otherwise `--folder '/Folder 1'` works and `ls '/Folder 1'` does not.
       const folderPath = encodeFolderPath(path ?? '/')
-      const { client, profile } = clientFrom(command)
+      const { client, profile } = connectLs()
       const workspaceId = client.requireWorkspace()
       const [folders, resources] = await Promise.all([
         listFolders(client, config.folders, workspaceId, folderPath, options.search),
@@ -194,16 +189,14 @@ export function attachResourceDirectoryCommands(
       printList(profile.output, shown, COLUMNS)
     })
 
-  group
-    .command('mkdir')
+  const [mkdir, connectMkdir] = apiCommand(group, 'mkdir', [config.createFolder])
+  mkdir
     .argument('<path>', 'Folder path to create; the leading / is optional')
     .allowExcessArguments(false)
     .description(`Create a ${config.kind} directory at a path`)
-    .action(async (path: string, _options: Record<string, never>, command: Command) => {
-      const { client, profile } = clientFrom(command)
-      const operation = V2_OPERATIONS[config.createFolder]
-      const result = await client.request<{ data?: unknown }>(operation.path, {
-        method: operation.method,
+    .action(async (path: string) => {
+      const { client, profile } = connectMkdir()
+      const result = await client.request<{ data?: unknown }>(config.createFolder, {
         body: { workspaceId: client.requireWorkspace(), path: encodeFolderPath(path) },
       })
       renderResult(config.createFolder, profile.output, result.data ?? result, {})

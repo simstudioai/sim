@@ -50,7 +50,7 @@ Choose a few relevant links instead of repeating every destination in a separate
 
 ## Search and answer-engine visibility
 
-Keep each summary independently useful: name Sim and the feature, explain the new capability, and state material availability limits in the article. Put setup steps and demonstration explanations in server-rendered text alongside the media. Do not leave important facts only inside a screenshot or video.
+Keep each summary independently useful: name Sim and the feature, explain the new capability, and state material availability limits in the article. Write a short announcement of what changed and why it is useful, with a contextual setup link. Keep capture notes and review evidence in the production brief, out of public prose and media descriptions. Do not leave important facts only inside a screenshot or video.
 
 The index and archive use real links, semantic lists, and CollectionPage/ItemList data matching the visible entries. Articles keep their own canonical URLs, BlogPosting data, authorship metadata, original publication dates, and substantive correction dates. Public articles appear in the sitemap and RSS; previews stay noindex and drafts stay out of public routes. Preserve these properties when changing the layout. If the archive eventually needs pagination, use server-rendered pages with real next/previous links and a self-canonical URL for each page; do not make older entries accessible only through a JavaScript button.
 
@@ -61,11 +61,11 @@ After deployment, verify a representative article and the archive with Search Co
 ## Artifact delivery
 
 - Record one complete action and its visible result with sample data in a dedicated demo workspace. Verify the feature and permissions in that environment first. Use the product's normal theme and typography. Keep the cursor and text readable; crop around the relevant controls while preserving enough context to understand the action.
-- Export an H.264 MP4 at a readable resolution, usually 1280×720 or 1920×1080. Keep it about 20–45 seconds and optimize it for web playback with `+faststart`. Prefer a focused demonstration with native playback controls over a decorative loop. Check the final crop on a 390px-wide screen.
-- Take screenshots and the poster from the reviewed product capture. Choose a frame that shows the announced result, with a legible 16:9 crop for the story card. A separate 1200×630 share image can use the same frame with enough safe area for cropping. Keep the headline and benefit in the page's HTML rather than baking them into the image. Compress local JPEG, WebP, or PNG assets and retain actual screenshot dimensions in MDX.
+- Export an H.264 MP4 at a readable resolution, usually 1280×720 or 1920×1080. Keep it about 20–45 seconds and optimize it for web playback with `+faststart`. The article shows the reviewed poster; playback starts only after opening the shared lightbox, which provides pause, seeking, and zoom controls. Spoken recordings include captions and an unmute control. Check the preview and expanded recording on a 390px-wide screen.
+- Take screenshots and the poster from the reviewed product capture. Choose a frame that shows the announced result. Preserve the capture's aspect ratio and provide its actual width and height in MDX for both screenshots and videos. A separate 1200×630 share image can use the same frame with enough safe area for cropping. Keep the headline and benefit in the page's HTML rather than baking them into the image. Compress local JPEG, WebP, or PNG assets.
 - Use immutable, versioned media filenames, such as `compare-workflow-deployments-v1.mp4`. Upload recordings and spoken captions under `changelog/` in the existing public Academy asset store: `https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com`. Put the returned public URLs in the entry. The app CSP and content audit explicitly allow this origin for recordings and captions. Small optimized walkthroughs under 1 MiB can live in `public/changelog/` and deploy atomically with their entry. Use the CDN for larger recordings. The component does not upload or proxy videos.
 - Serve MP4s as `video/mp4` and spoken captions as `text/vtt`. The existing CDN supports HTTP Range requests, cross-origin playback, and caching. Use a new filename for every revision and verify those response headers on the uploaded asset. Do not overwrite an existing recording URL.
-- In the deployment preview, check playback, seeking, captions, poster loading, and mobile readability. A silent recording uses the component's muted default. Spoken recordings need a WebVTT file.
+- In the deployment preview, check opening and closing the lightbox, playback, pause, seeking, zoom, captions, poster loading, and mobile readability. Recordings start muted; spoken recordings need a WebVTT file and expose an unmute control.
 - Generate social and email drafts from the reviewed product story: capability, practical benefit, and one link to the canonical entry. Use the same claims and restrictions everywhere. Keep distribution manual until the format and review process are established.
 
 AI can prepare storyboards, copy, captions, and clearly labeled conceptual diagrams. Screenshots and feature recordings must come from the real product. Do not generate fictional controls, results, performance numbers, or before-and-after evidence. Label a walkthrough assembled from still captures as a step-by-step walkthrough; do not describe it as a continuous recording. Keep its UI frames unmodified and record the assembly method in the production brief.
@@ -101,6 +101,8 @@ release:
 <ChangelogVideo
   src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/changelog/demo-v1.mp4"
   poster="/changelog/your-update-poster.jpg"
+  width="1280"
+  height="720"
   caption="Describe the action and result shown in the demo."
   captionsSrc="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/changelog/demo-v1.vtt"
 />
