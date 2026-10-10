@@ -18,6 +18,14 @@ on:
         required: false
       STAGING_MIGRATION_DATABASE_URL:
         required: false
+      AWS_ROLE_TO_ASSUME:
+        required: false
+      STAGING_AWS_ROLE_TO_ASSUME:
+        required: false
+      AWS_REGION:
+        required: false
+      STAGING_AWS_REGION:
+        required: false
   workflow_dispatch:
     inputs:
       environment:
@@ -31,6 +39,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   migrate:
@@ -50,6 +59,33 @@ jobs:
         with:
           provider: ${{ vars.CI_PROVIDER }}
           node-version: ''
+
+      - name: Check Project column expansion and whether enforcement needs rollout evidence
+        id: project-contract
+        if: inputs.environment != 'dev'
+        working-directory: ./packages/db
+        env:
+          DATABASE_URL: ${{ inputs.environment == 'production' && secrets.DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_DATABASE_URL || '' }}
+          MIGRATION_DATABASE_URL: ${{ inputs.environment == 'production' && secrets.MIGRATION_DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_MIGRATION_DATABASE_URL || '' }}
+        run: bun --no-env-file scripts/project-contract-required.ts >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS for Project connector retirement verification
+        if: steps.project-contract.outputs.required == 'true'
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b
+        with:
+          role-to-assume: ${{ inputs.environment == 'production' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ inputs.environment == 'production' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+
+      # Acknowledge #8830 only after authority-aware readers/writers deploy and all incompatible
+      # servers and relevant old Trigger.dev runs drain. The runner commits the column-authority
+      # switch before backfill, validation, and connector retirement; retries never revert it.
+      # The preflight independently checks ECS retirement; it does not inspect worker runs.
+      - name: Require completed authority-aware rollout before Project cutover
+        if: steps.project-contract.outputs.required == 'true'
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.environment == 'production' && vars.PROJECT_COLUMN_ENFORCEMENT_READY_IMAGE_DIGEST_PRODUCTION || inputs.environment == 'staging' && vars.PROJECT_COLUMN_ENFORCEMENT_READY_IMAGE_DIGEST_STAGING || '' }}
+        run: python3 .github/scripts/check-project-rollout.py --environment "$ENVIRONMENT" --region "$AWS_REGION" --expected-image-digest "$EXPECTED_IMAGE_DIGEST"
 
       # The expression maps the explicit environment input to exactly one repo
       # secret, so the job never holds another environment's database URL. An

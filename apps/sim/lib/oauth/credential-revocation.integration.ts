@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { db } from '@sim/db'
 import { account, credential, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred, type Deferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
@@ -121,7 +122,7 @@ beforeAll(async () => {
     createdAt: new Date(),
     updatedAt: new Date(),
   })
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: workspaceId,
     name: 'Revocation fixture',
     ownerId: userId,
@@ -187,7 +188,7 @@ afterEach((context) => {
 afterAll(async () => {
   globalThis.fetch = originalFetch
   await expireRedisFlags()
-  await db.delete(workspace).where(eq(workspace.id, workspaceId))
+  await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(user).where(eq(user.id, userId))
   await closeRedisConnection()
   const reportPath =

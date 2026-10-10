@@ -29,6 +29,7 @@ interface ArchiveWorkflowOptions {
   requestId: string
   notifySocket?: boolean
   archivedAt?: Date
+  strictExternalCleanup?: boolean
 }
 
 async function notifyWorkflowArchived(workflowId: string, requestId: string): Promise<void> {
@@ -54,7 +55,8 @@ async function notifyWorkflowArchived(workflowId: string, requestId: string): Pr
 
 async function cleanupExternalWebhooksForWorkflow(
   workflowId: string,
-  requestId: string
+  requestId: string,
+  strict = false
 ): Promise<void> {
   try {
     const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
@@ -73,8 +75,11 @@ async function cleanupExternalWebhooksForWorkflow(
 
     for (const webhookData of webhooksToCleanup) {
       try {
-        await cleanupExternalWebhook(webhookData.webhook, webhookData.workflow, requestId)
+        await cleanupExternalWebhook(webhookData.webhook, webhookData.workflow, requestId, {
+          throwOnError: strict,
+        })
       } catch (error) {
+        if (strict) throw error
         logger.warn(
           `[${requestId}] Failed to cleanup external webhook ${webhookData.webhook.id} for workflow ${workflowId}`,
           { error }
@@ -82,6 +87,7 @@ async function cleanupExternalWebhooksForWorkflow(
       }
     }
   } catch (error) {
+    if (strict) throw error
     logger.warn(`[${requestId}] Error during external webhook cleanup for workflow ${workflowId}`, {
       error,
     })
@@ -406,11 +412,22 @@ export async function finishWorkflowArchive(
     await notifyWorkflowArchived(workflowId, options.requestId)
   }
 
-  await cleanupExternalWebhooksForWorkflow(workflowId, options.requestId)
+  await cleanupExternalWebhooksForWorkflow(
+    workflowId,
+    options.requestId,
+    options.strictExternalCleanup
+  )
 
   if (workspaceId && mcpPubSub) {
     for (const serverId of new Set(serverIds)) {
-      mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+      try {
+        mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+      } catch (error) {
+        logger.warn(
+          `[${options.requestId}] MCP tools-changed publish failed for server ${serverId}`,
+          { error }
+        )
+      }
     }
   }
 }

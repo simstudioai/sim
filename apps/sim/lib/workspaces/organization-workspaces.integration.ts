@@ -33,8 +33,6 @@ beforeAll(async () => {
       organization_id text REFERENCES organization(id) ON DELETE RESTRICT,
       updated_at timestamp
     );
-    CREATE TABLE project_membership_rollout (id text PRIMARY KEY, phase text NOT NULL);
-    INSERT INTO project_membership_rollout VALUES ('membership', 'column');
     CREATE TABLE permission_group (
       id text PRIMARY KEY, organization_id text, config jsonb, updated_at timestamp
     );

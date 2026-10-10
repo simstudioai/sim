@@ -43,18 +43,28 @@ async function seedRelease(deletedAt: string | null, sizeBytes: number, patch: n
 
 describe('Retention cleanup of deleted owned bodies', () => {
   beforeAll(async () => {
-    await control`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
-      VALUES (${userId}, 'Test cleanup fixture', ${`${userId}@example.test`}, true, now(), now())`
-    await control`INSERT INTO user_stats (id, user_id, storage_used_bytes)
-      VALUES (${generateId()}, ${userId}, 100)`
-    await control`INSERT INTO workspace (id, name, owner_id, billed_account_user_id, storage_used_bytes)
-      VALUES (${workspaceId}, 'Test cleanup fixtures', ${userId}, ${userId}, 100)`
+    await control.begin(async (tx) => {
+      await tx`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
+        VALUES (${userId}, 'Test cleanup fixture', ${`${userId}@example.test`}, true, now(), now())`
+      await tx`INSERT INTO user_stats (id, user_id, storage_used_bytes)
+        VALUES (${generateId()}, ${userId}, 100)`
+      await tx`INSERT INTO project (id, name, owner_id)
+        VALUES (${workspaceId}, 'Test cleanup project', ${userId})`
+      await tx`INSERT INTO workspace (id, project_id, name, owner_id, billed_account_user_id, storage_used_bytes)
+        VALUES (${workspaceId}, ${workspaceId}, 'Test cleanup fixtures', ${userId}, ${userId}, 100)`
+    })
   })
 
   afterAll(async () => {
-    await control`DELETE FROM workspace WHERE id = ${workspaceId}`
-    await control`DELETE FROM "user" WHERE id = ${userId}`
-    await control.end()
+    try {
+      await control.begin(async (tx) => {
+        await tx`DELETE FROM workspace WHERE id = ${workspaceId}`
+        await tx`DELETE FROM project WHERE id = ${workspaceId} AND owner_id = ${userId}`
+        await tx`DELETE FROM "user" WHERE id = ${userId}`
+      })
+    } finally {
+      await control.end()
+    }
   })
 
   it('purges an expired test with its source and releases the source bytes', async () => {

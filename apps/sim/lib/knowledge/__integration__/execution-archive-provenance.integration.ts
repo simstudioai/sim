@@ -16,6 +16,7 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
@@ -239,7 +240,7 @@ afterAll(async () => {
       for (const ids of fixtures) {
         await db.delete(auditLog).where(eq(auditLog.workspaceId, ids.workspaceId))
         await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-        await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+        await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
         await db.delete(organization).where(eq(organization.id, ids.organizationId))
         await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
       }

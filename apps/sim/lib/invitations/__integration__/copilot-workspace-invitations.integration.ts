@@ -11,6 +11,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -86,7 +87,7 @@ describe('chat-delegated workspace invitations', () => {
         createdAt: now,
       }))
     )
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Invitation fixture',
       ownerId: adminId,
@@ -131,7 +132,7 @@ describe('chat-delegated workspace invitations', () => {
       .delete(invitation)
       .where(inArray(invitation.email, [newInvitee, pendingInvitee, writerInvitee]))
     await db.delete(auditLog).where(eq(auditLog.workspaceId, workspaceId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(organization).where(eq(organization.id, organizationId))
     await db.delete(user).where(inArray(user.id, [adminId, writerId]))
   })

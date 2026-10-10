@@ -109,8 +109,11 @@ describe.skipIf(!migrated)('Expiration with real PostgreSQL transactions', () =>
   beforeAll(async () => {
     await control`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
       VALUES (${userId}, 'Expiration integration fixture', ${`${userId}@example.test`}, true, now(), now())`
-    await control`INSERT INTO workspace (id, name, owner_id, billed_account_user_id)
-      VALUES (${workspaceId}, 'Expiration integration fixtures', ${userId}, ${userId})`
+    await control.begin(async (tx) => {
+      await tx`INSERT INTO project (id, name, owner_id) VALUES (${workspaceId}, 'Fixture project', ${userId})`
+      await tx`INSERT INTO workspace (id, project_id, name, owner_id, billed_account_user_id)
+        VALUES (${workspaceId}, ${workspaceId}, 'Expiration integration fixtures', ${userId}, ${userId})`
+    })
   })
 
   beforeEach(async () => {
@@ -124,7 +127,10 @@ describe.skipIf(!migrated)('Expiration with real PostgreSQL transactions', () =>
   })
 
   afterAll(async () => {
-    await control`DELETE FROM workspace WHERE id = ${workspaceId}`
+    await control.begin(async (tx) => {
+      await tx`DELETE FROM workspace WHERE id = ${workspaceId}`
+      await tx`DELETE FROM project WHERE id = ${workspaceId}`
+    })
     await control`DELETE FROM "user" WHERE id = ${userId}`
     writeFileSync(
       join(tmpdir(), 'expiration-qa-measurements.json'),

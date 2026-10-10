@@ -1,8 +1,8 @@
-import { permissionGroup, project, projectWorkspace, workspace } from '@sim/db/schema'
+import { permissionGroup, project, workspace } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { compareStrings, truncateAtCodePoint } from '@sim/utils/string'
-import { and, asc, eq, inArray, isNotNull, isNull, notInArray, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, notInArray, type SQL, sql } from 'drizzle-orm'
 import {
   acquireAdvisoryXactLock,
   acquireAdvisoryXactLocks,
@@ -11,11 +11,6 @@ import {
 import { textArrayLiteral } from '@/lib/db/arrays'
 import type { DbTransaction } from '@/lib/db/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
-import {
-  getProjectEnvironmentSource,
-  getProjectMembershipPhase,
-  lockProjectMembershipBarrier,
-} from '@/lib/projects/environment-source'
 import { ProjectConflictError } from '@/lib/projects/errors'
 
 const PROJECT_LOCK_TIMEOUT_MS = 5_000
@@ -30,7 +25,6 @@ async function withProjectLockTimeout<T>(
   message: string,
   acquire: () => Promise<T>
 ): Promise<T> {
-  await lockProjectMembershipBarrier(tx)
   const [setting] = await tx.execute<{ previous: string }>(
     sql`SELECT current_setting('lock_timeout') AS previous`
   )
@@ -52,7 +46,7 @@ async function withProjectLockTimeout<T>(
  * assigns it; writers take it shared. Every holder locks in code-unit order of workspace id
  * (`ORDER BY id COLLATE "C"` in SQL) so the two sides cannot deadlock.
  */
-export function projectBackfillLockKey(workspaceId: string): string {
+function projectBackfillLockKey(workspaceId: string): string {
   return `project-backfill:${workspaceId}`
 }
 
@@ -66,7 +60,7 @@ function acquireBackfillWriteLocks(tx: DbTransaction, workspaceIds: string[]) {
   return acquireAdvisoryXactLocks(tx, 'project_backfill', locks)
 }
 
-/** Shared per-environment gate keeps membership absence reads stable during backfill. */
+/** Shared per-environment gate keeps membership absence reads stable during SQL backfill. */
 export async function lockProjectBackfillWrites(
   tx: DbTransaction,
   workspaceIds: string[]
@@ -105,15 +99,13 @@ function generatedProjectName(workspaceName: string): string {
 }
 
 /** Selects `workspaceId` and every fork descendant, archived ones included, as `descendants`. */
-async function forkSubtree(tx: DbTransaction, workspaceId: string): Promise<SQL> {
-  const environments = await getProjectEnvironmentSource(tx)
+function forkSubtree(workspaceId: string): SQL {
   return sql`
     WITH RECURSIVE descendants AS (
-      SELECT id, name, owner_id, archived_at, project_id FROM ${environments} WHERE id = ${workspaceId}
+      SELECT id, name, owner_id, archived_at, project_id FROM workspace WHERE id = ${workspaceId}
       UNION
-      SELECT ${environments.id}, ${environments.name}, ${environments.ownerId},
-        ${environments.archivedAt}, ${environments.projectId}
-      FROM ${environments} JOIN descendants d ON ${environments.parentId} = d.id
+      SELECT w.id, w.name, w.owner_id, w.archived_at, w.project_id
+      FROM workspace w JOIN descendants d ON w.forked_from_workspace_id = d.id
     )`
 }
 
@@ -127,7 +119,6 @@ export async function createProjectRecord(
     projectName?: string
   }
 ): Promise<string> {
-  await getProjectMembershipPhase(tx)
   const id = generateId()
   await tx.insert(project).values({
     id,
@@ -138,23 +129,32 @@ export async function createProjectRecord(
   return id
 }
 
-/** Returns null only when neither the column nor legacy connector assigns a Project. */
+/** Locks and rechecks the workspace’s Project; null means the workspace no longer exists. */
 export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: string) {
   return withProjectLockTimeout(tx, PROJECT_CHANGING, async () => {
     await acquireBackfillWriteLocks(tx, [workspaceId])
-    const environments = await getProjectEnvironmentSource(tx)
     const [membership] = await tx
-      .select({ projectId: environments.projectId })
-      .from(environments)
-      .where(eq(environments.id, workspaceId))
+      .select({ projectId: workspace.projectId })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
       .limit(1)
-    if (!membership?.projectId) return null
+    if (!membership) return null
+    if (!membership.projectId)
+      throw new ProjectConflictError('Project membership needs reconciliation')
     await acquireAdvisoryXactLock(tx, 'project', projectLockKey(membership.projectId))
     const [current] = await tx
-      .select({ project })
-      .from(environments)
-      .innerJoin(project, eq(project.id, environments.projectId))
-      .where(eq(environments.id, workspaceId))
+      .select({
+        project: {
+          id: project.id,
+          name: project.name,
+          ownerId: project.ownerId,
+          organizationId: project.organizationId,
+          archivedAt: project.archivedAt,
+        },
+      })
+      .from(workspace)
+      .innerJoin(project, eq(project.id, workspace.projectId))
+      .where(eq(workspace.id, workspaceId))
       .limit(1)
     if (!current || current.project.id !== membership.projectId) {
       throw new ProjectConflictError('Project membership changed; retry the operation')
@@ -163,36 +163,12 @@ export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: strin
   })
 }
 
-/**
- * Locks the parent's Project for a new fork; null means a legacy parent awaiting
- * backfill whose subtree must still be unassigned. Refuses an archived Project.
- */
+/** Locks the parent's Project for a new fork and refuses an archived Project. */
 export async function requireForkProject(tx: DbTransaction, parentWorkspaceId: string) {
   const parent = await lockWorkspaceProject(tx, parentWorkspaceId)
-  if (!parent) {
-    await requireUnassignedForkSubtree(tx, parentWorkspaceId)
-    return null
-  }
+  if (!parent) throw new ProjectConflictError('Source workspace no longer exists')
   if (parent.archivedAt) throw new ProjectConflictError('Cannot fork an archived Project')
   return parent
-}
-
-/** Legacy fallback must not hide partially assigned descendants. Caller holds the lineage lock. */
-async function requireUnassignedForkSubtree(tx: DbTransaction, workspaceId: string): Promise<void> {
-  const descendants = await tx.execute<{ id: string }>(
-    sql`${await forkSubtree(tx, workspaceId)} SELECT id FROM descendants`
-  )
-  if (!descendants.length) return
-  const ids = descendants.map((row) => row.id)
-  await lockProjectBackfillWrites(tx, ids)
-  const environments = await getProjectEnvironmentSource(tx)
-  const rows = await tx
-    .select({ id: environments.id })
-    .from(environments)
-    .where(and(inArray(environments.id, ids), isNotNull(environments.projectId)))
-    .limit(1)
-  if (rows.length)
-    throw new ProjectConflictError('Fork descendants need Project membership reconciliation')
 }
 
 /**
@@ -205,7 +181,6 @@ export async function archiveProjectWithLastEnvironment(
   workspaceId: string,
   now: Date
 ): Promise<boolean> {
-  const environments = await getProjectEnvironmentSource(tx)
   const archived = await tx
     .update(project)
     .set({ archivedAt: now, updatedAt: now })
@@ -214,10 +189,10 @@ export async function archiveProjectWithLastEnvironment(
         eq(project.id, projectId),
         isNull(project.archivedAt),
         sql`NOT EXISTS (
-          SELECT 1 FROM ${environments}
-          WHERE ${environments.projectId} = ${projectId}
-            AND ${environments.id} <> ${workspaceId}
-            AND ${environments.archivedAt} IS NULL
+          SELECT 1 FROM ${workspace}
+          WHERE ${workspace.projectId} = ${projectId}
+            AND ${workspace.id} <> ${workspaceId}
+            AND ${workspace.archivedAt} IS NULL
         )`
       )
     )
@@ -226,26 +201,24 @@ export async function archiveProjectWithLastEnvironment(
 }
 
 /**
- * Moves the detached subtree into a new Project and returns its id; null for a legacy
- * unassigned subtree. Called before clearing the edge, under the existing lineage lock.
+ * Moves the detached subtree into a new Project and returns its id. Called before
+ * clearing the edge, under the existing lineage lock.
  */
 export async function splitForkProject(
   tx: DbTransaction,
-  workspaceId: string
-): Promise<string | null> {
+  workspaceId: string,
+  newProjectId = generateId()
+): Promise<string> {
   const owner = await lockWorkspaceProject(tx, workspaceId)
-  if (!owner) {
-    await requireUnassignedForkSubtree(tx, workspaceId)
-    return null
-  }
+  if (!owner) throw new ProjectConflictError('Workspace no longer exists')
   if (owner.archivedAt) throw new ProjectConflictError('Cannot disconnect an archived Project')
   const rows = await tx.execute<{
     id: string
     name: string
     owner_id: string
     archived_at: Date | null
-    project_id: string | null
-  }>(sql`${await forkSubtree(tx, workspaceId)} SELECT * FROM descendants`)
+    project_id: string
+  }>(sql`${forkSubtree(workspaceId)} SELECT * FROM descendants`)
   if (rows.some((row) => row.project_id !== owner.id))
     throw new ProjectConflictError(
       'Fork descendants need Project membership reconciliation before disconnecting'
@@ -254,15 +227,14 @@ export async function splitForkProject(
   if (!root || rows.every((row) => row.archived_at))
     throw new ProjectConflictError('A new Project needs an active environment')
   const ids = rows.map((row) => row.id)
-  const environments = await getProjectEnvironmentSource(tx)
   const [remaining] = await tx
-    .select({ id: environments.id })
-    .from(environments)
+    .select({ id: workspace.id })
+    .from(workspace)
     .where(
       and(
-        eq(environments.projectId, owner.id),
-        isNull(environments.archivedAt),
-        notInArray(environments.id, ids)
+        eq(workspace.projectId, owner.id),
+        isNull(workspace.archivedAt),
+        notInArray(workspace.id, ids)
       )
     )
     .limit(1)
@@ -270,7 +242,7 @@ export async function splitForkProject(
     throw new ProjectConflictError(
       'Disconnecting would remove the last active environment from this Project'
     )
-  const id = generateId()
+  const id = newProjectId
   await tx.insert(project).values({
     id,
     name: generatedProjectName(root.name),
@@ -284,14 +256,7 @@ export async function splitForkProject(
       .where(inArray(workspace.id, ids))
       .orderBy(asc(workspace.id))
       .for('no key update')
-    if ((await getProjectMembershipPhase(tx)) === 'connector') {
-      await tx
-        .update(projectWorkspace)
-        .set({ projectId: id })
-        .where(inArray(projectWorkspace.workspaceId, ids))
-    } else {
-      await tx.update(workspace).set({ projectId: id }).where(inArray(workspace.id, ids))
-    }
+    await tx.update(workspace).set({ projectId: id }).where(inArray(workspace.id, ids))
   })
   if (owner.organizationId) {
     await acquirePermissionGroupOrgLock(tx, owner.organizationId)
@@ -319,20 +284,19 @@ export async function transferWorkspaceProjects(
 ): Promise<void> {
   if (!workspaceIds.length) return
   await lockProjectBackfillWrites(tx, workspaceIds)
-  const environments = await getProjectEnvironmentSource(tx)
   const owners = await tx
-    .selectDistinct({ id: environments.projectId })
-    .from(environments)
-    .where(inArray(environments.id, workspaceIds))
-    .orderBy(asc(environments.projectId))
-  const projectIds = owners.flatMap((row) => (row.id ? [row.id] : []))
-  if (!projectIds.length) return
+    .selectDistinct({ id: workspace.projectId })
+    .from(workspace)
+    .where(inArray(workspace.id, workspaceIds))
+    .orderBy(asc(workspace.projectId))
+  if (!owners.length) return
+  const projectIds = owners.map((row) => row.id)
   await tryLockProjects(tx, projectIds)
   const selected = new Set(workspaceIds)
   const members = await tx
-    .select({ id: environments.id })
-    .from(environments)
-    .where(inArray(environments.projectId, projectIds))
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(inArray(workspace.projectId, projectIds))
   if (members.some((row) => !selected.has(row.id))) {
     throw new ProjectConflictError(
       'Move all environments in the Project together, or disconnect the fork first'

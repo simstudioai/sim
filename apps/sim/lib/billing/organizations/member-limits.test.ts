@@ -6,7 +6,7 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing/mocks/database.mock'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 
 vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
@@ -21,7 +21,12 @@ const mockGetOrganizationSubscription = billingCoreMockFns.mockGetOrganizationSu
 const { eq: mockEq, gte: mockGte, isNull: mockIsNull, lt: mockLt, or: mockOr } = drizzleOrmMock
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
   resetDbChainMock()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 afterAll(() => {

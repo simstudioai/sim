@@ -19,6 +19,7 @@ import {
 } from '@sim/db/schema'
 import { installProjectionSourceAcl } from '@sim/db/script-migrations/0021_embedding_search_connector'
 import { installKnowledgeProjectionAsync } from '@sim/db/script-migrations/0024_knowledge_projection_async'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import postgres from 'postgres'
@@ -141,7 +142,7 @@ describe('connector lease ACL pages in PostgreSQL', () => {
     await db.execute(sql`DROP TRIGGER IF EXISTS fail_after_acl_writes ON document`)
     await db.execute(sql`DELETE FROM lease_page_acl_writes`)
     await db.execute(sql`DELETE FROM lease_page_projection_writes`)
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   })

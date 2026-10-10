@@ -4,6 +4,7 @@ import {
   member,
   organization,
   outboxEvent,
+  project,
   subscription,
   workspace,
 } from '@sim/db/schema'
@@ -154,6 +155,7 @@ vi.mock('@/lib/workspaces/admin-move-source-impact', () => ({
 
 const movedWorkspace = {
   id: 'workspace-1',
+  projectId: 'project-1',
   name: 'Already moved',
   ownerId: 'workspace-owner',
   ownerName: 'Workspace Owner',
@@ -191,13 +193,18 @@ const destination = {
 }
 
 /**
- * Queues the optimistic scope, locked workspace, optional unassigned Project projection,
- * and summary reads. An already completed move skips the Project transfer.
+ * Queues the optimistic scope, locked workspace, Project transfer and summary reads. An already completed move skips the Project transfer.
  */
 function queueMoveSelects(workspaceRow: Record<string, unknown>) {
   queueTableRows(workspace, [workspaceRow])
   queueTableRows(workspace, [workspaceRow])
-  if (workspaceRow.organizationId !== destination.id) queueTableRows(workspace, [{ id: null }])
+  if (workspaceRow.organizationId !== destination.id) {
+    queueTableRows(workspace, [{ id: workspaceRow.projectId }])
+    queueTableRows(workspace, [{ id: workspaceRow.id }])
+    queueTableRows(project, [
+      { id: workspaceRow.projectId, organizationId: workspaceRow.organizationId },
+    ])
+  }
   queueTableRows(workspace, [workspaceRow])
   queueTableRows(organization, [destination])
 }
@@ -230,9 +237,7 @@ afterAll(resetDbChainMock)
 
 beforeEach(() => {
   resetDbChainMock()
-  /** Real Drizzle SQL bypasses the shared fragment mock; model the expansion schema explicitly. */
-  dbChainMockFns.execute.mockResolvedValue([{ marker: true, complete: false }])
-  dbChainMockFns.as.mockReturnValue(workspace)
+  dbChainMockFns.execute.mockResolvedValue([{ acquired: true }])
   isInvitationExpired.mockReturnValue(false)
   /**
    * `vi.clearAllMocks` clears call records but keeps implementations, so a
@@ -666,7 +671,9 @@ describe('moveWorkspaceToOrganization retries', () => {
     queueTableRows(workspace, [organizationWorkspace])
     queueTableRows(workspace, [{ ...organizationWorkspace, organizationId: 'org-moved' }])
     queueTableRows(workspace, [{ ...organizationWorkspace, organizationId: 'org-moved' }])
-    queueTableRows(workspace, [{ id: null }])
+    queueTableRows(workspace, [{ id: organizationWorkspace.projectId }])
+    queueTableRows(workspace, [{ id: organizationWorkspace.id }])
+    queueTableRows(project, [{ id: organizationWorkspace.projectId, organizationId: 'org-moved' }])
     queueTableRows(workspace, [{ ...organizationWorkspace, organizationId: 'org-moved' }])
     queueTableRows(organization, [destination])
 

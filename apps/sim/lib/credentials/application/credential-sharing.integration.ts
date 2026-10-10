@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -49,7 +50,7 @@ describe('Credential sharing through user-held API credentials in PostgreSQL', (
       role: 'admin',
       createdAt: new Date(),
     })
-    await db.insert(schema.workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Sharing test',
       ownerId: actorId,
@@ -85,7 +86,7 @@ describe('Credential sharing through user-held API credentials in PostgreSQL', (
   afterAll(async () => {
     if (!runtime) return
     const { db, schema, eq, inArray } = runtime
-    await db.delete(schema.workspace).where(eq(schema.workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(schema.workspace.id, workspaceId))
     await db.delete(schema.organization).where(eq(schema.organization.id, organizationId))
     await db
       .delete(schema.user)

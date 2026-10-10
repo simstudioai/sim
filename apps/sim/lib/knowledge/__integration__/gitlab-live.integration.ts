@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * Opt-in self-hosted GitLab test. GITLAB_LIVE_FIXTURE_FILE contains {url, token,
  * auditorToken?} for a disposable localhost HTTPS instance. The administrator
@@ -430,7 +431,7 @@ describe.skipIf(!fixtureFile)('live self-hosted GitLab ingestion and permission 
                 throw error
             }
           }
-          await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+          await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
           await db.delete(organization).where(eq(organization.id, ids.organizationId))
           await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId, ...extraSimIds]))
         }

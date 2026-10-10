@@ -152,8 +152,10 @@ async function signIn(existing?: Desktop): Promise<Desktop> {
       await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
         values (${userId}, 'Desktop inbox E2E', ${email}, ${email}, true, now(), now())`
       await tx`insert into user_stats (id, user_id) values (${generateId()}, ${userId})`
-      await tx`insert into workspace (id, name, owner_id, billed_account_user_id)
-        values (${workspaceId}, 'Desktop inbox E2E', ${userId}, ${userId})`
+      await tx`insert into project (id, name, owner_id)
+        values (${workspaceId}, 'E2E fixture project', ${userId})`
+      await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id)
+        values (${workspaceId}, ${workspaceId}, 'Desktop inbox E2E', ${userId}, ${userId})`
       await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
         values (${generateId()}, ${userId}, 'workspace', ${workspaceId}, 'admin')`
     }
@@ -672,8 +674,11 @@ async function cleanup() {
   if (userIds.length === 0) return
   await sql`delete from copilot_chats where user_id = any(${userIds})`
   await sql`delete from desktop_devices where user_id = any(${userIds})`
-  await sql`delete from workspace where owner_id = any(${userIds})`
-  await sql`delete from "user" where id = any(${userIds})`
+  await sql.begin(async (tx) => {
+    await tx`delete from workspace where owner_id = any(${userIds})`
+    await tx`delete from project where owner_id = any(${userIds})`
+    await tx`delete from "user" where id = any(${userIds})`
+  })
 }
 
 try {

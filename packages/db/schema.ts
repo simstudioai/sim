@@ -2027,8 +2027,13 @@ export const workspace = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'set null',
     }),
-    /** Legacy memberships remain nullable until the registered Project backfill completes. */
-    projectId: text('project_id').references(() => project.id, { onDelete: 'restrict' }),
+    /** Encodes nullable organization identity for the composite membership foreign key. */
+    organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(
+      sql`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END`
+    ),
+    projectId: text('project_id')
+      .notNull()
+      .references((): AnyPgColumn => project.id, { onDelete: 'restrict' }),
     workspaceMode: workspaceModeEnum('workspace_mode').notNull().default('grandfathered_shared'),
     billedAccountUserId: text('billed_account_user_id')
       .notNull()
@@ -2068,6 +2073,19 @@ export const workspace = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    idProjectUnique: unique('workspace_id_project_unique').on(table.id, table.projectId),
+    /** Maintenance installs these two composite checks as DEFERRABLE INITIALLY DEFERRED. */
+    projectOrganizationFk: foreignKey({
+      name: 'workspace_project_organization_fk',
+      columns: [table.projectId, table.organizationScopeKey],
+      foreignColumns: [project.id, project.organizationScopeKey],
+    }),
+    /** The existing parent FK clears only the parent pointer on deletion. */
+    forkProjectFk: foreignKey({
+      name: 'workspace_fork_project_fk',
+      columns: [table.forkedFromWorkspaceId, table.projectId],
+      foreignColumns: [table.id, table.projectId],
+    }),
     ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
     organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
     projectIdIdx: index('workspace_project_id_id_idx').on(table.projectId, table.id).concurrently(),
@@ -2100,6 +2118,10 @@ export const project = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'restrict',
     }),
+    /** Encodes nullable organization identity for the composite membership foreign key. */
+    organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(
+      sql`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END`
+    ),
     /** Lifecycle owner for personal and organization Projects; never an implicit access grant. */
     ownerId: text('owner_id')
       .notNull()
@@ -2109,6 +2131,10 @@ export const project = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    organizationScopeUnique: unique('project_id_organization_scope_unique').on(
+      table.id,
+      table.organizationScopeKey
+    ),
     nameLength: check(
       'project_name_length',
       sql`char_length(btrim(${table.name})) BETWEEN 1 AND 100`
@@ -2119,46 +2145,6 @@ export const project = pgTable(
       table.id
     ),
     ownerIdx: index('project_owner_archive_id_idx').on(table.ownerId, table.archivedAt, table.id),
-  })
-)
-
-/** contract-pending(after #8830 is fully deployed): #8590 drops this with the connector; readers recognize the completed schema. */
-export const projectMembershipRollout = pgTable(
-  'project_membership_rollout',
-  {
-    id: text('id').primaryKey(),
-    phase: text('phase', { enum: ['connector', 'column'] })
-      .notNull()
-      .default('connector'),
-  },
-  (table) => ({
-    singleton: check('project_membership_rollout_singleton', sql`${table.id} = 'membership'`),
-    phase: check(
-      'project_membership_rollout_phase',
-      sql`${table.phase} IN ('connector', 'column')`
-    ),
-  })
-)
-
-// contract-pending(after project writers are fully deployed and backfill validates): enforce exactly-one membership and active Project environment minimums at commit.
-export const projectWorkspace = pgTable(
-  'project_workspace',
-  {
-    // contract-pending(after #8830 is fully deployed and pre-8830 servers/workers drain): retire this table in #8590 — the durable authority marker has switched to column and compatibility readers tolerate its absence.
-    /** @deprecated Use the phase-aware membership helpers; retained for pre-8830 binaries during rollout. */
-    projectId: text('project_id')
-      .notNull()
-      .references(() => project.id, { onDelete: 'restrict' }),
-    /** @deprecated Use workspace.id. */
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    /** @deprecated Membership is stored on workspace. */
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.projectId, table.workspaceId] }),
-    workspaceUnique: uniqueIndex('project_workspace_workspace_id_unique').on(table.workspaceId),
   })
 )
 

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { enforceProjectMembership } from '@sim/db/maintenance/project-enforcement'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import postgres from 'postgres'
@@ -17,34 +17,15 @@ try {
       EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('public.workspace')
         AND attname = 'project_id' AND NOT attisdropped AND attnotnull) AS required
   `
-  if (state.workspace && state.required && !state.connector) {
+  if (state.workspace && (state.connector || !state.required || !state.project)) {
     throw new Error(
-      'Project membership is already contracted; schema push from the compatibility release is unsupported. Use the current release for schema changes'
+      'Existing Project databases must complete the Project script migration 0031 before schema push. Use the phased migration path for retained data; schema push cannot bypass the writer-drain requirement'
     )
   }
-  if (!process.argv.includes('--prepare') && state.workspace && state.project && state.connector) {
-    // Reuse additive DDL so schema push preserves the same legacy membership state as upgrades.
-    const source = await readFile(
-      new URL('../migrations/0406_workspace_project_column.sql', import.meta.url),
-      'utf8'
-    )
-    const connection = await sql.reserve()
-    try {
-      for (const statement of source.split('--> statement-breakpoint')) {
-        if (statement.includes('DROP INDEX CONCURRENTLY IF EXISTS "workspace_project_id_id_idx"')) {
-          // Migration retries rebuild interrupted indexes; routine push keeps healthy indexes intact.
-          const [index] = await connection<{ healthy: boolean }[]>`
-            SELECT indisvalid AND indisready AS healthy FROM pg_index
-            WHERE indexrelid = to_regclass('public.workspace_project_id_id_idx')
-          `
-          if (index?.healthy) continue
-        }
-        if (statement.trim()) await connection.unsafe(statement)
-      }
-    } finally {
-      connection.release()
-    }
-    logger.info('Nullable Project membership column prepared')
+  if (!process.argv.includes('--prepare') && state.workspace && state.project) {
+    /** Drizzle cannot express deferred FK timing; fresh push shares the migration finalizer. */
+    await enforceProjectMembership(sql)
+    logger.info('Project membership validation and native constraints completed')
   }
 } catch (error) {
   logger.error('Project schema push stopped; resolve the error and retry', {

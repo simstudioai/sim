@@ -11,7 +11,7 @@ import {
   organization,
   outboxEvent,
   permissions,
-  projectMembershipRollout,
+  project,
   subscription as subscriptionTable,
   user,
   userStats,
@@ -183,19 +183,19 @@ describe('workspace payer-change transaction lock ordering', () => {
     const ops: Array<{ op: 'lock' | 'payer-transfer' | 'update'; table: unknown }> = []
     let memberSelectCount = 0
     const rowsForTable = (table: unknown, fields?: Record<string, unknown>): unknown[] => {
-      if (table === projectMembershipRollout) return [{ phase: 'column' }]
       if (table === workspace) {
-        if (fields?.id === workspace.projectId) return [{ id: null }]
+        if (fields?.id === workspace.projectId) return [{ id: 'project-1' }]
         return [
           {
             id: 'workspace-1',
-            projectId: null,
+            projectId: 'project-1',
             billedAccountUserId: 'user-1',
             organizationId: null,
             storageUsedBytes: 128,
           },
         ]
       }
+      if (table === project) return [{ id: 'project-1', organizationId: null }]
       if (table === permissions) return [{ userId: 'user-1' }]
       if (table === member) {
         memberSelectCount += 1
@@ -220,9 +220,6 @@ describe('workspace payer-change transaction lock ordering', () => {
         orderBy() {
           return chain
         },
-        as() {
-          return table
-        },
         for() {
           ops.push({ op: 'lock', table })
           return chain
@@ -235,7 +232,7 @@ describe('workspace payer-change transaction lock ordering', () => {
       return chain
     }
     const tx = {
-      execute: async () => [{ marker: true, complete: false }],
+      execute: async () => [{ acquired: true }],
       select,
       selectDistinct: select,
       insert: () => ({
