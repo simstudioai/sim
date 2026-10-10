@@ -82,7 +82,7 @@ function applicationViolation(
 
 /**
  * Runtime (non-type) names an import/export declaration binds: `'all'` for a
- * namespace, default, star or side-effect edge, `[]` for one the compiler erases.
+ * namespace, default, star, empty-clause or side-effect edge, `[]` for one the compiler erases.
  */
 function runtimeBindings(node: ts.ImportDeclaration | ts.ExportDeclaration): string[] | 'all' {
   if (ts.isImportDeclaration(node)) {
@@ -92,14 +92,14 @@ function runtimeBindings(node: ts.ImportDeclaration | ts.ExportDeclaration): str
     if (clause.name) return 'all'
     const named = clause.namedBindings
     if (!named) return []
-    if (ts.isNamespaceImport(named)) return 'all'
+    if (ts.isNamespaceImport(named) || named.elements.length === 0) return 'all'
     return named.elements
       .filter((element) => !element.isTypeOnly)
       .map((element) => (element.propertyName ?? element.name).text)
   }
   if (node.isTypeOnly) return []
   const clause = node.exportClause
-  if (!clause || ts.isNamespaceExport(clause)) return 'all'
+  if (!clause || ts.isNamespaceExport(clause) || clause.elements.length === 0) return 'all'
   return clause.elements
     .filter((element) => !element.isTypeOnly)
     .map((element) => (element.propertyName ?? element.name).text)

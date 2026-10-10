@@ -118,3 +118,23 @@ describe('aliased contract imports', () => {
     expect(failures[0]).toContain('which declares PATCH /api/things')
   })
 })
+
+describe('HEAD handlers', () => {
+  const route = {
+    relative: 'route.ts',
+    bindings: importedNames(`import { readContract } from '@/lib/api/contracts/things'`),
+    expectedPath: '/api/things',
+  }
+  const loadModule = () => Promise.resolve({ readContract: { method: 'GET', path: '/api/things' } })
+
+  it('accepts a HEAD handler on a GET contract, as methodMatchesContract does', async () => {
+    const failures: string[] = []
+    await checkSite(route, 'raw', 'HEAD', 'readContract', failures, false, loadModule)
+    expect(failures).toEqual([])
+  })
+  it('still rejects any other verb on a GET contract', async () => {
+    const failures: string[] = []
+    await checkSite(route, 'raw', 'POST', 'readContract', failures, false, loadModule)
+    expect(failures).toHaveLength(1)
+  })
+})

@@ -429,7 +429,8 @@ export async function checkSite(
     kind === 'builder'
       ? `export const ${verb} is built from \`${identifier}\``
       : `export const ${verb} parses with \`${identifier}\``
-  if (contract.method.toUpperCase() !== verb) {
+  const method = contract.method.toUpperCase()
+  if (method !== verb && !(verb === 'HEAD' && method === 'GET')) {
     failures.push(
       kind === 'builder'
         ? `${relative}: ${subject}, which declares ${contract.method} ${contract.path}. Next routes by the exported symbol, so ${verb} requests 500 and ${contract.method} requests 404.`
