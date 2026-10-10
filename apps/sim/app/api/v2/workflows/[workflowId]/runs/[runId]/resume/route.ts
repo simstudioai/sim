@@ -86,6 +86,7 @@ export const POST = withRouteHandler(
           runId,
           contextId,
           resumeInput: input === undefined ? {} : input,
+          surface: 'v2',
         },
         request,
       })
