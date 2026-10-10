@@ -146,6 +146,27 @@ const ready = {
 }
 
 describe('isSearchConnectorAvailable', () => {
+  it('enables a source through a configured personal client without enabling other services', () => {
+    const context = {
+      ...ready,
+      oauthServiceAvailability: new Map([['onedrive-personal', true]]),
+    }
+    expect(
+      isSearchConnectorAvailable(
+        { type: 'onedrive', blockType: 'onedrive', providerId: 'onedrive' },
+        new Map(),
+        context
+      )
+    ).toBe(true)
+    expect(
+      isSearchConnectorAvailable(
+        { type: 'outlook', blockType: 'outlook', providerId: 'outlook' },
+        new Map(),
+        context
+      )
+    ).toBe(false)
+  })
+
   it('refuses unknown or unconfigured OAuth services even when the workflow block is ready', () => {
     const jira = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira')!
     const blockAvailability = new Map([['jira', { oauthAvailable: true }]])

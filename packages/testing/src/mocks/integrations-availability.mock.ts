@@ -1,6 +1,7 @@
 import { vi } from 'vitest'
 
 const mockIsOAuthServiceDeploymentAvailable = vi.fn((_serviceId: string): boolean => true)
+const mockIsOAuthProviderDeploymentAvailable = vi.fn((_providerId: string): boolean => true)
 
 /**
  * Controllable mock functions for `@/lib/integrations/availability.server`.
@@ -8,9 +9,9 @@ const mockIsOAuthServiceDeploymentAvailable = vi.fn((_serviceId: string): boolea
  * Defaults: every integration and OAuth service is available in the deployment.
  * - `mockGetIntegrationAvailability` returns `[]`.
  * - `mockIsIntegrationDeploymentAvailable`, `mockIsIntegrationDeploymentAvailableForVisibility`,
- *   `mockIsOAuthServiceDeploymentAvailable` return `true`.
+ *   `mockIsOAuthServiceDeploymentAvailable`, and `mockIsOAuthProviderDeploymentAvailable` return `true`.
  * - `mockGetOAuthServiceAvailability` is the real projection: keeps `authType === 'oauth'`
- *   services and asks `mockIsOAuthServiceDeploymentAvailable` for each.
+ *   services and asks `mockIsOAuthProviderDeploymentAvailable` for each provider option.
  *
  * @example
  * ```ts
@@ -25,20 +26,27 @@ export const integrationsAvailabilityMockFns = {
   mockGetIntegrationAvailability: vi.fn((): unknown[] => []),
   mockGetOAuthServiceAvailability: vi.fn(
     (
-      services: readonly { providerId: string; authType?: string }[]
+      services: readonly {
+        providerId: string
+        additionalProviderIds?: readonly string[]
+        authType?: string
+      }[]
     ): { providerId: string; available: boolean }[] =>
       services
         .filter((service) => service.authType === 'oauth')
-        .map((service) => ({
-          providerId: service.providerId,
-          available: mockIsOAuthServiceDeploymentAvailable(service.providerId),
-        }))
+        .flatMap((service) =>
+          [service.providerId, ...(service.additionalProviderIds ?? [])].map((providerId) => ({
+            providerId,
+            available: mockIsOAuthProviderDeploymentAvailable(providerId),
+          }))
+        )
   ),
   mockIsIntegrationDeploymentAvailable: vi.fn((_blockType: string): boolean => true),
   mockIsIntegrationDeploymentAvailableForVisibility: vi.fn(
     (_blockType: string, _visibility: unknown): boolean => true
   ),
   mockIsOAuthServiceDeploymentAvailable,
+  mockIsOAuthProviderDeploymentAvailable,
 }
 
 /**
@@ -58,4 +66,6 @@ export const integrationsAvailabilityMock = {
     integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility,
   isOAuthServiceDeploymentAvailable:
     integrationsAvailabilityMockFns.mockIsOAuthServiceDeploymentAvailable,
+  isOAuthProviderDeploymentAvailable:
+    integrationsAvailabilityMockFns.mockIsOAuthProviderDeploymentAvailable,
 }

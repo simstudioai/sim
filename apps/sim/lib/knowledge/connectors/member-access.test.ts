@@ -307,6 +307,28 @@ describe('knowledge connector member access', () => {
     }
     const group = { status: 'active' as const, options: [driveOption] }
 
+    it.each([
+      { provider: 'onedrive-personal', scopes: ['Files.Read'], denial: null },
+      { provider: 'outlook-personal', scopes: ['Files.Read'], denial: 'needs onedrive' },
+      { provider: 'onedrive-personal', scopes: [], denial: 'every permission' },
+    ])(
+      'validates a $provider member grant without relaxing source permissions',
+      ({ provider, scopes, denial }) => {
+        const result = validateKnowledgeConnectorMembersBinding({
+          connectorMeta: {
+            ...driveMeta,
+            name: 'OneDrive',
+            auth: { mode: 'oauth', provider: 'onedrive', requiredScopes: ['Files.Read'] },
+          },
+          group: { ...group, options: [{ ...driveOption, provider, requiredScopes: scopes }] },
+          credentialGroupOptionId: driveOption.id,
+          sourceConfig: {},
+        })
+        expect(result.ok).toBe(denial === null)
+        if (!result.ok) expect(result.message).toContain(denial)
+      }
+    )
+
     describe('a Slack option, whose members authorize through the workspace custom app', () => {
       const slackMeta = {
         name: 'Slack',

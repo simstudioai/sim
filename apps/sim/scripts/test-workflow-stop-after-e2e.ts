@@ -338,6 +338,22 @@ async function run(
   return data
 }
 
+/** Source runs must finish deferred log persistence before a later run can reuse their state. */
+async function waitForPersistedRun(workflowId: string, runId: string): Promise<void> {
+  const deadline = performance.now() + REQUEST_TIMEOUT_MS
+  while (performance.now() < deadline) {
+    const [saved] = await sql`
+      select status, ended_at from workflow_execution_logs
+      where workflow_id = ${workflowId} and execution_id = ${runId}
+    `
+    if (saved?.status === 'completed' && saved.ended_at) return
+    assert.notEqual(saved?.status, 'failed', `Source run ${runId} failed while persisting`)
+    assert.notEqual(saved?.status, 'cancelled', `Source run ${runId} was cancelled`)
+    await sleep(100)
+  }
+  throw new Error(`Source run ${runId} did not persist within ${REQUEST_TIMEOUT_MS} ms`)
+}
+
 async function pause(fixture: PipelineFixture, stopAfterBlockId?: string) {
   const result = v2ExecuteWorkflowDataSchema.parse(
     record(
@@ -525,6 +541,7 @@ try {
       `a full run must include Slow's ${SLOW_MS} ms, took ${full.durationMs} ms`
     )
     sourceRunId = full.runId
+    await waitForPersistedRun(pipeline.workflowId, sourceRunId)
   })
 
   await check(
@@ -798,6 +815,7 @@ try {
 
   await check('a source run from another workflow is not accepted', async () => {
     const foreign = await run(otherPipeline.workflowId, { run: { source: 'manual' } })
+    await waitForPersistedRun(otherPipeline.workflowId, foreign.runId)
     await expectBadRequest(
       pipeline.workflowId,
       {

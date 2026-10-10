@@ -46,6 +46,7 @@ import {
   connectorIsLive,
   MEMBER_LOCKABLE_CONNECTOR_STATUSES,
 } from '@/lib/knowledge/connectors/sync-lock'
+import { providerIdsForService } from '@/lib/oauth/utils'
 import {
   CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
   type ResourcePolicyBindingFor,
@@ -558,7 +559,9 @@ export function validateKnowledgeConnectorMembersBinding(input: {
   }
   if (
     !isCredentialGroupProvider(option.provider) ||
-    getCredentialGroupProviderId(option.provider) !== connectorMeta.auth.provider
+    !providerIdsForService(connectorMeta.auth.provider).includes(
+      getCredentialGroupProviderId(option.provider)
+    )
   ) {
     return {
       ok: false,

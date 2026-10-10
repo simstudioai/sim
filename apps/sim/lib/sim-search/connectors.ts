@@ -7,6 +7,7 @@ import {
   getServiceConfigByProviderId,
   getServiceConfigByServiceId,
 } from '@/lib/oauth'
+import { providerIdsForService } from '@/lib/oauth/utils'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
@@ -193,5 +194,7 @@ export function isSearchConnectorAvailable(
   if (connector.type === 'slack') {
     return availability?.state === 'ready' || availability?.state === 'limited'
   }
-  return context.oauthServiceAvailability.get(connector.providerId.toLowerCase()) === true
+  return providerIdsForService(connector.providerId.toLowerCase()).some(
+    (providerId) => context.oauthServiceAvailability.get(providerId) === true
+  )
 }

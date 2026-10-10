@@ -516,6 +516,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Microsoft Word',
         description: 'Connect to Microsoft Word and manage documents.',
         providerId: 'microsoft-word',
+        additionalProviderIds: ['microsoft-word-personal'],
+        providerIdLabels: {
+          'microsoft-word': 'Work or school account',
+          'microsoft-word-personal': 'Personal Microsoft account',
+        },
         icon: MicrosoftWordIcon,
         baseProviderIcon: MicrosoftIcon,
         /**
@@ -547,6 +552,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Outlook',
         description: 'Connect to Outlook and manage emails and calendar events.',
         providerId: 'outlook',
+        additionalProviderIds: ['outlook-personal'],
+        providerIdLabels: {
+          outlook: 'Work or school account',
+          'outlook-personal': 'Personal Microsoft account',
+        },
         icon: OutlookIcon,
         baseProviderIcon: MicrosoftIcon,
         /**
@@ -585,6 +595,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'OneDrive',
         description: 'Connect to OneDrive and manage files.',
         providerId: 'onedrive',
+        additionalProviderIds: ['onedrive-personal'],
+        providerIdLabels: {
+          onedrive: 'Work or school account',
+          'onedrive-personal': 'Personal Microsoft account',
+        },
         icon: MicrosoftOneDriveIcon,
         baseProviderIcon: MicrosoftIcon,
         scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
@@ -1889,6 +1904,22 @@ function getProviderAuthConfig(
         useBasicAuth: true,
         supportsRefreshTokenRotation: true,
         useJsonBody: true,
+      }
+    }
+    case 'onedrive-personal':
+    case 'outlook-personal':
+    case 'microsoft-word-personal': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'microsoft-personal',
+        'MICROSOFT_PERSONAL_CLIENT_ID',
+        'MICROSOFT_PERSONAL_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'microsoft':

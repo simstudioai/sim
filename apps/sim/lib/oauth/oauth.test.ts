@@ -813,3 +813,54 @@ describe('OAuth Token Refresh', () => {
     })
   })
 })
+
+describe('Microsoft account client isolation', () => {
+  const cases = [['microsoft-word', 'microsoft_client_id', 'microsoft_client_secret']] as const
+
+  it.each(cases)(
+    'redeems %s refresh tokens with their issuing client',
+    async (providerId, clientId, clientSecret) => {
+      setEnv({
+        MICROSOFT_PERSONAL_CLIENT_ID: 'personal-client',
+        MICROSOFT_PERSONAL_CLIENT_SECRET: 'personal-secret',
+      })
+      vi.stubGlobal('fetch', async (_input: unknown, init?: RequestInit) => {
+        const body = new URLSearchParams(String(init?.body))
+        const accepted =
+          body.get('client_id') === clientId &&
+          body.get('client_secret') === clientSecret &&
+          body.get('refresh_token') === 'issued-refresh'
+        return new Response(
+          JSON.stringify(
+            accepted
+              ? {
+                  access_token: 'renewed-access',
+                  refresh_token: 'rotated-refresh',
+                  expires_in: 3600,
+                }
+              : { error: 'invalid_client' }
+          ),
+          { status: accepted ? 200 : 400 }
+        )
+      })
+      await expect(refreshOAuthToken(providerId, 'issued-refresh')).resolves.toMatchObject({
+        ok: true,
+        accessToken: 'renewed-access',
+        refreshToken: 'rotated-refresh',
+      })
+    }
+  )
+
+  it('does not redeem personal tokens through the enterprise client when personal configuration is missing', async () => {
+    setEnv({ MICROSOFT_PERSONAL_CLIENT_ID: undefined, MICROSOFT_PERSONAL_CLIENT_SECRET: undefined })
+    let requestMade = false
+    vi.stubGlobal('fetch', async () => {
+      requestMade = true
+      throw new Error('A token must never be sent to another client')
+    })
+    await expect(refreshOAuthToken('onedrive-personal', 'issued-refresh')).resolves.toMatchObject({
+      ok: false,
+    })
+    expect(requestMade).toBe(false)
+  })
+})

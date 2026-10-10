@@ -1,4 +1,5 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { isMicrosoftPersonalProvider } from '@sim/deployment-config/env-capabilities'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -39,10 +40,14 @@ function resolveRequestedProvider(
   const requested = providerName.toLowerCase().trim()
   if (!requested) throw new OrchestrationError('validation', 'OAuth provider is required')
 
+  const exactProvider = providers.find((entry) =>
+    entry.authorizationOptions.some((option) => option.providerId.toLowerCase() === requested)
+  )
+  if (isMicrosoftPersonalProvider(requested) && !exactProvider) {
+    throw new OrchestrationError('conflict', 'Personal Microsoft accounts are not configured')
+  }
   const provider =
-    providers.find((entry) =>
-      entry.authorizationOptions.some((option) => option.providerId.toLowerCase() === requested)
-    ) ??
+    exactProvider ??
     providers.find(
       (entry) =>
         entry.serviceId.toLowerCase() === requested || entry.name.toLowerCase() === requested
@@ -132,7 +137,10 @@ export const prepareCredentialConnection = defineAuthorizedWorkspaceUseCase({
       )
     ).filter((entry): entry is OAuthCredentialProviderCatalogEntry => entry.type === 'oauth')
     const requestedProvider = resolveRequestedProvider(providers, input.providerName)
-    const requestedProviderId = requestedProvider.authorizationOptions[0]?.providerId
+    const requestedProviderId =
+      requestedProvider.authorizationOptions.find(
+        (option) => option.providerId.toLowerCase() === input.providerName.toLowerCase().trim()
+      )?.providerId ?? requestedProvider.authorizationOptions[0]?.providerId
     if (!requestedProviderId) {
       throw new Error(`OAuth provider ${requestedProvider.serviceId} has no authorization option`)
     }
@@ -192,7 +200,7 @@ export const prepareCredentialConnection = defineAuthorizedWorkspaceUseCase({
     })
     if (
       !credentialProviderMatchesService(target.providerId, {
-        providerId: requestedProviderId,
+        providerId: requestedProvider.authorizationOptions[0].providerId,
         additionalProviderIds: requestedProvider.authorizationOptions
           .slice(1)
           .map((option) => option.providerId),

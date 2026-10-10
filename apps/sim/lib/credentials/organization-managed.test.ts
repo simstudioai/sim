@@ -1,6 +1,6 @@
 import { credential, credentialGroup, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   resourceScopeCondition,
@@ -50,7 +50,7 @@ describe('own organization managed browsing credentials', () => {
         eq(credential.createdBy, 'user-1'),
         eq(user.id, 'user-1'),
         eq(user.emailVerified, true),
-        eq(credential.providerId, 'jira'),
+        inArray(credential.providerId, ['jira']),
         undefined
       )
     )

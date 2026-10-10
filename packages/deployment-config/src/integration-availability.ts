@@ -1,9 +1,13 @@
 import {
+  type EnvCapabilityValues,
+  inspectOAuthClientCapability,
+  MICROSOFT_PERSONAL_PROVIDERS,
+  resolveOAuthClientCapabilityId,
+} from '@sim/deployment-config/env-capabilities'
+import {
   INTEGRATION_METADATA,
   type IntegrationMetadata,
 } from '@sim/deployment-config/integration-metadata'
-import type { EnvCapabilityValues } from './env-capabilities'
-import { inspectOAuthClientCapability, resolveOAuthClientCapabilityId } from './env-capabilities'
 import { getServiceAccountMetadata } from './service-account-metadata'
 import { CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS } from './service-account-providers.generated'
 
@@ -118,8 +122,16 @@ function resolveOAuthIntegrationAvailability(
     )
   }
 
-  const oauth = inspectOAuthClientCapability(capabilityId, values)
-  const setupCommand = `npx sim-setup add integration ${capabilityId}`
+  let oauth = inspectOAuthClientCapability(capabilityId, values)
+  if (
+    oauth.state !== 'ready' &&
+    Object.values(MICROSOFT_PERSONAL_PROVIDERS).some((serviceId) => serviceId === oauthServiceId)
+  ) {
+    const personal = inspectOAuthClientCapability('microsoft-personal', values)
+    if (personal.state === 'ready' || (oauth.state === 'absent' && personal.state !== 'absent')) {
+      oauth = personal
+    }
+  }
   const serviceAccountAvailable = Boolean(
     serviceAccount &&
       serviceAccount.deploymentRequirement !== 'preview-gated' &&
@@ -142,7 +154,7 @@ function resolveOAuthIntegrationAvailability(
     oauthAvailable: oauth.state === 'ready',
     serviceAccountAvailable,
     missingFields: oauth.missingFields,
-    setupCommand,
+    setupCommand: oauth.setupCommand,
   }
 }
 

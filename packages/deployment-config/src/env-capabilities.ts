@@ -1473,6 +1473,20 @@ export const KNOWLEDGE_EMBEDDINGS_CAPABILITY = defineCapability({
   ],
 } as const)
 
+/** Separate provider ids keep personal grants bound to their issuing Microsoft OAuth app. */
+export const MICROSOFT_PERSONAL_PROVIDERS = {
+  'onedrive-personal': 'onedrive',
+  'outlook-personal': 'outlook',
+  'microsoft-word-personal': 'microsoft-word',
+} as const
+
+/** Checks whether the exact provider ID belongs to the separate personal Microsoft app. */
+export function isMicrosoftPersonalProvider(
+  providerId: string
+): providerId is keyof typeof MICROSOFT_PERSONAL_PROVIDERS {
+  return Object.hasOwn(MICROSOFT_PERSONAL_PROVIDERS, providerId)
+}
+
 export const OAUTH_CLIENT_CAPABILITIES = {
   google: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
   x: ['X_CLIENT_ID', 'X_CLIENT_SECRET'],
@@ -1485,6 +1499,7 @@ export const OAUTH_CLIENT_CAPABILITIES = {
   'github-repositories': ['GITHUB_APP_CLIENT_ID', 'GITHUB_APP_CLIENT_SECRET'],
   notion: ['NOTION_CLIENT_ID', 'NOTION_CLIENT_SECRET'],
   microsoft: ['MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET'],
+  'microsoft-personal': ['MICROSOFT_PERSONAL_CLIENT_ID', 'MICROSOFT_PERSONAL_CLIENT_SECRET'],
   clickup: ['CLICKUP_CLIENT_ID', 'CLICKUP_CLIENT_SECRET'],
   linear: ['LINEAR_CLIENT_ID', 'LINEAR_CLIENT_SECRET'],
   attio: ['ATTIO_CLIENT_ID', 'ATTIO_CLIENT_SECRET'],
@@ -1622,6 +1637,9 @@ export function resolveOAuthClientCapabilityId(serviceId: string): OAuthClientCa
   const normalized = serviceId.toLowerCase().replace(/_/g, '-')
   if (GOOGLE_OAUTH_SERVICES.has(normalized)) return 'google'
   if (MICROSOFT_OAUTH_SERVICES.has(normalized)) return 'microsoft'
+  if (isMicrosoftPersonalProvider(normalized)) {
+    return 'microsoft-personal'
+  }
   if (normalized === 'zoho') return 'zoho-desk'
   // ServiceDesk Plus Cloud authenticates through Zoho. Scopes are chosen per
   // authorization request rather than per API-console client, so the same

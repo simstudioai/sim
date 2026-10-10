@@ -23,6 +23,7 @@ import {
 import { getCredentialGroupProviderAdapterByProviderId } from '@/lib/credential-groups/provider-registry'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import { providerIdsForService } from '@/lib/oauth/utils'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const logger = createLogger('ManagedOAuthCredential')
@@ -219,7 +220,7 @@ async function assertManagedCredentialUsable(
   expectedProviderId: string,
   requiredScopes: string[]
 ): Promise<CredentialGroupProviderAdapter> {
-  if (row.providerId !== expectedProviderId) {
+  if (!row.providerId || !providerIdsForService(expectedProviderId).includes(row.providerId)) {
     throw new ManagedOAuthCredentialError(
       'MANAGED_CREDENTIAL_PROVIDER_MISMATCH',
       'Managed credential belongs to a different provider',
@@ -320,7 +321,8 @@ export async function rejectManagedOAuthToken(input: {
   const current = await getManagedCredential(db, input.credentialId, input)
   if (
     !current ||
-    current.providerId !== input.expectedProviderId ||
+    !current.providerId ||
+    !providerIdsForService(input.expectedProviderId).includes(current.providerId) ||
     current.managedOauthStatus !== 'active' ||
     !current.encryptedOauthTokenSet
   )
@@ -339,7 +341,7 @@ export async function rejectManagedOAuthToken(input: {
       and(
         eq(credential.id, current.id),
         resourceScopeCondition(credential, resourceScopeFromOwner(input)),
-        eq(credential.providerId, input.expectedProviderId),
+        eq(credential.providerId, current.providerId),
         eq(credential.managedOauthStatus, 'active'),
         eq(credential.encryptedOauthTokenSet, current.encryptedOauthTokenSet)
       )

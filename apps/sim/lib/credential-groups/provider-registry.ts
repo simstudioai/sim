@@ -21,6 +21,10 @@ const CREDENTIAL_GROUP_PROVIDER_ADAPTERS: Record<
   'microsoft-teams': createStandardOAuthCredentialGroupProviderAdapter('microsoft-teams'),
   outlook: createStandardOAuthCredentialGroupProviderAdapter('outlook'),
   onedrive: createStandardOAuthCredentialGroupProviderAdapter('onedrive'),
+  'onedrive-personal': createStandardOAuthCredentialGroupProviderAdapter('onedrive-personal'),
+  'outlook-personal': createStandardOAuthCredentialGroupProviderAdapter('outlook-personal'),
+  'microsoft-word-personal':
+    createStandardOAuthCredentialGroupProviderAdapter('microsoft-word-personal'),
   sharepoint: createStandardOAuthCredentialGroupProviderAdapter('sharepoint'),
   'microsoft-excel': createStandardOAuthCredentialGroupProviderAdapter('microsoft-excel'),
   confluence: createStandardOAuthCredentialGroupProviderAdapter('confluence'),

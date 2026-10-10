@@ -16,7 +16,7 @@ import {
   organizationAuthorizationMock,
   organizationAuthorizationMockFns,
 } from '@sim/testing/mocks/organization-authorization.mock'
-import { and, eq, isNull, or } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -151,7 +151,7 @@ describe('organization connection application boundary', () => {
           and(eq(credential.type, 'oauth'), eq(credential.createdBy, 'admin-1'))
         ),
         eq(credential.type, 'oauth'),
-        eq(credential.providerId, 'google-drive')
+        inArray(credential.providerId, ['google-drive'])
       )
     )
   })

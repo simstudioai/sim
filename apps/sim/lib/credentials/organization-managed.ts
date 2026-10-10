@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
 import { credential, credentialGroup, credentialGroupEnrollment, user } from '@sim/db/schema'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import {
   resourceScopeCondition,
   sameResourceScopeCondition,
 } from '@/lib/core/resource-scope.server'
 import { isManagedCredentialGroupBindingLive } from '@/lib/credential-groups/credentials'
+import { providerIdsForService } from '@/lib/oauth/utils'
 
 /** Lists only a verified person's currently usable organization grants, without token material. */
 export async function getOwnOrganizationManagedOAuthCredentials(input: {
@@ -44,7 +45,9 @@ export async function getOwnOrganizationManagedOAuthCredentials(input: {
         eq(credential.createdBy, input.userId),
         eq(user.id, input.userId),
         eq(user.emailVerified, true),
-        input.providerId ? eq(credential.providerId, input.providerId) : undefined,
+        input.providerId
+          ? inArray(credential.providerId, providerIdsForService(input.providerId))
+          : undefined,
         input.credentialId ? eq(credential.id, input.credentialId) : undefined
       )
     )
