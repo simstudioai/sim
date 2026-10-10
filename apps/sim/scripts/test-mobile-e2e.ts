@@ -204,8 +204,10 @@ async function seed(): Promise<string> {
     await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
       values (${ownerId}, 'Mobile E2E', ${email}, ${email}, true, now(), now())`
     await tx`insert into user_stats (id, user_id) values (${generateId()}, ${ownerId})`
-    await tx`insert into workspace (id, name, owner_id, billed_account_user_id)
-      values (${workspaceId}, 'Mobile E2E workspace', ${ownerId}, ${ownerId})`
+    await tx`insert into project (id, name, owner_id)
+      values (${workspaceId}, 'Mobile E2E project', ${ownerId})`
+    await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id)
+      values (${workspaceId}, ${workspaceId}, 'Mobile E2E workspace', ${ownerId}, ${ownerId})`
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
       values (${generateId()}, ${ownerId}, 'workspace', ${workspaceId}, 'admin')`
     await tx`insert into session (id, token, user_id, expires_at, created_at, updated_at)
@@ -1071,9 +1073,16 @@ try {
     await sql.begin(async (tx) => {
       await tx`delete from permissions where entity_type = 'workspace' and entity_id = ${workspaceId}`
       await tx`delete from workspace where id = ${workspaceId}`
+      await tx`delete from project where id = ${workspaceId} and owner_id = ${ownerId}`
       await tx`delete from workflow_execution_snapshots where id = ${snapshotId}`
       await tx`delete from "user" where id = ${ownerId}`
     })
+    const [remaining] = await sql`select
+      exists(select 1 from "user" where id = ${ownerId}) as owner,
+      exists(select 1 from workspace where id = ${workspaceId}) as workspace,
+      exists(select 1 from project where id = ${workspaceId}) as project,
+      exists(select 1 from workflow_execution_snapshots where id = ${snapshotId}) as snapshot`
+    assert.deepEqual(remaining, { owner: false, workspace: false, project: false, snapshot: false })
   })
   await sql.end()
   await check('same-origin HTTP responses succeed', undefined, async () => {

@@ -11,9 +11,8 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
-import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({ dispatch: vi.fn() }))
@@ -95,12 +94,12 @@ describe('Search source identity and concurrent creation', () => {
   })
 
   afterAll(async () => {
-    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
-    await deleteWorkspaceFixture(db, eq(workspace.id, other.workspaceId))
-    for (const id of [ids.aliceId, ids.bobId, other.aliceId, other.bobId]) {
-      await db.delete(project).where(eq(project.ownerId, id))
-      await db.delete(user).where(eq(user.id, id))
-    }
+    const userIds = [ids.aliceId, ids.bobId, other.aliceId, other.bobId]
+    await db.transaction(async (tx) => {
+      await tx.delete(workspace).where(inArray(workspace.ownerId, userIds))
+      await tx.delete(project).where(inArray(project.ownerId, userIds))
+      await tx.delete(user).where(inArray(user.id, userIds))
+    })
   })
 
   async function createSource(folderId: string) {
@@ -179,8 +178,18 @@ describe('Search source identity and concurrent creation', () => {
         .where(eq(resourcePolicy.workspaceId, created.id))
       expect(policies).toHaveLength(0)
     } finally {
-      await db.delete(permissions).where(eq(permissions.entityId, created.id))
-      await deleteWorkspaceFixture(db, eq(workspace.id, created.id))
+      await db.transaction(async (tx) => {
+        await tx.delete(permissions).where(eq(permissions.entityId, created.id))
+        const [removed] = await tx
+          .delete(workspace)
+          .where(eq(workspace.id, created.id))
+          .returning({ projectId: workspace.projectId })
+        if (removed) {
+          await tx
+            .delete(project)
+            .where(and(eq(project.id, removed.projectId), eq(project.ownerId, ids.aliceId)))
+        }
+      })
     }
   })
 
