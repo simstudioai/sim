@@ -13,7 +13,6 @@ import { finishFileContentEffects } from '@/lib/uploads/server/content-effects'
 const effects = { cleanupIds: [], liveDocEventId: 'event-1' }
 describe('committed file reconciliation policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.cleanup.mockResolvedValue(undefined)
   })
   it.each(['completed', 'pending', 'processing', 'lease_lost'])(
