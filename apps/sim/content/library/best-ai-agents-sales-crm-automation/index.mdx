@@ -122,7 +122,7 @@ faq:
   - q: "Can an AI agent qualify inbound sales leads automatically?"
     a: "Sim can qualify inbound sales leads automatically by checking deterministic criteria, summarizing unstructured responses, assigning a documented score or route, and escalating uncertain or high-impact decisions to a person."
   - q: "Can an AI agent stop a follow-up sequence when a prospect replies?"
-    a: "Sim can stop or redirect a follow-up sequence when a reply enters through an application trigger or webhook and a downstream condition routes the workflow based on that event."
+    a: "Sim can stop or redirect follow-up when a reply handler updates shared state that the sequence checks before its next send, or explicitly cancels the existing run. A reply entering through an application trigger or webhook starts a separate run; a downstream Condition in that run does not stop an already-waiting sequence."
   - q: "Can an AI agent approve sales emails before they are sent?"
     a: "Sim can pause a sales workflow with Human in the Loop, collect an approve-or-reject field, and use a downstream Condition to decide whether the message is sent, revised, or discarded."
   - q: "Is Sim or Zapier better for CRM automation?"
