@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
@@ -420,7 +421,7 @@ vi.mock('@/tools/utils.server', async (importOriginal) => {
 })
 
 import type { QueryClient } from '@tanstack/react-query'
-import { adoptToolFailure, classifyFailure, wasFailureLogged } from '@/lib/core/errors/failure-log'
+import { adoptToolFailure, classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
 import { ApiBlockHandler } from '@/executor/handlers/api/api-handler'
 import { buildBlockExecutionError } from '@/executor/utils/errors'
@@ -5923,7 +5924,7 @@ describe('Centralized Error Handling', () => {
       async (status, kind) => {
         const blockError = await failApiBlock(jsonResponse({ error: 'rejected' }, status))
         expect(classifyFailure(blockError)).toBe(kind)
-        expect(wasFailureLogged(blockError)).toBe(true)
+        expect(logFailureOnce(createLogger('OuterBoundary'), 'probe', blockError)).toBeUndefined()
       }
     )
 
@@ -5942,7 +5943,7 @@ describe('Centralized Error Handling', () => {
       try {
         const blockError = await failApiBlock(jsonResponse({ ok: false }))
         expect(classifyFailure(blockError)).toBe(kind)
-        expect(wasFailureLogged(blockError)).toBe(true)
+        expect(logFailureOnce(createLogger('OuterBoundary'), 'probe', blockError)).toBeUndefined()
       } finally {
         tools.http_request.transformResponse = originalTransform
       }

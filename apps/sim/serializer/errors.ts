@@ -4,6 +4,5 @@ import { UserFailure } from '@/lib/core/errors/user-failure'
 export class MissingRequiredFieldsError extends UserFailure {
   constructor(blockName: string, missingFields: string[]) {
     super(`${blockName} is missing required fields: ${missingFields.join(', ')}`)
-    this.name = 'MissingRequiredFieldsError'
   }
 }

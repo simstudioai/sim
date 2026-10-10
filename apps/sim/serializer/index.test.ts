@@ -369,8 +369,10 @@ describe('Serializer', () => {
       } catch (error) {
         refusal = error
       }
-      expect(refusal).toBeInstanceOf(Error)
-      expect((refusal as Error).message).toBe('Test Jina Block is missing required fields: API Key')
+      expect(refusal).toMatchObject({
+        name: 'Error',
+        message: 'Test Jina Block is missing required fields: API Key',
+      })
       /** The author's configuration, so execution logs it at info rather than paging at error. */
       expect(classifyFailure(refusal)).toBe('user')
     })

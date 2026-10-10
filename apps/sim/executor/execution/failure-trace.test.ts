@@ -1,6 +1,7 @@
+import { createLogger } from '@sim/logger'
 import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
 import { describe, expect, it, vi } from 'vitest'
-import { classifyFailure, wasFailureLogged } from '@/lib/core/errors/failure-log'
+import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { DAGExecutor } from '@/executor/execution/executor'
 import { hasExecutionResult } from '@/executor/utils/errors'
@@ -87,7 +88,7 @@ describe('failed run trace', () => {
      * The block executor logged it; the block wrap and the engine's rethrow must keep that
      * visible so execution-core and the trigger surfaces do not log it again.
      */
-    expect(wasFailureLogged(thrown)).toBe(true)
+    expect(logFailureOnce(createLogger('OuterBoundary'), 'probe', thrown)).toBeUndefined()
     expect(classifyFailure(thrown)).toBe('user')
   })
 })

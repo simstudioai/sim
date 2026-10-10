@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { encryptionMockFns, environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
@@ -18,7 +19,7 @@ import {
 import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
 import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { classifyFailure, wasFailureLogged } from '@/lib/core/errors/failure-log'
+import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBlock } from '@/blocks/registry'
@@ -382,7 +383,7 @@ describe('WorkflowBlockHandler', () => {
 
       expect(thrown).toBeInstanceOf(Error)
       /** Logged here, the block executor would skip its log carrying block, run, and stack. */
-      expect(wasFailureLogged(thrown)).toBe(false)
+      expect(logFailureOnce(createLogger('OuterBoundary'), 'probe', thrown)).toBe('internal')
       expect(classifyFailure(thrown)).toBe('internal')
     })
 

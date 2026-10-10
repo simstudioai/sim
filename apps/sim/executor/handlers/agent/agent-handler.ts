@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { isPlainRecord, omit } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike, omit } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { markFailureKind } from '@/lib/core/errors/failure-log'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
@@ -328,7 +328,7 @@ function describeProviderTransportFailure(error: Error): string | null {
 }
 
 function isProviderKeyRejection(error: unknown): boolean {
-  const status = (error as { status?: unknown } | null)?.status
+  const status = isRecordLike(error) ? error.status : undefined
   return status === 401 || status === 402 || status === 403
 }
 

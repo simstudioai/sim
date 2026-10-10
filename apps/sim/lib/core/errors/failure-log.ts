@@ -16,9 +16,9 @@ import { HttpError } from '@/lib/core/utils/http-error'
  *   in-process operations are attributed explicitly at their boundary and never land here.
  * - `internal`: Sim's own fault, or a cause nothing attributed. Always logged at error.
  */
-export type FailureKind = 'user' | 'third_party_client' | 'third_party_server' | 'internal'
+type FailureKind = 'user' | 'third_party_client' | 'third_party_server' | 'internal'
 
-/** Mirrors the cause depth `describeError` and `readStatusCode` follow. */
+/** Same bound `readStatusCode` puts on its cause walk. */
 const MAX_CAUSE_DEPTH = 8
 
 /**
@@ -45,7 +45,7 @@ function causeChain(error: unknown): object[] {
   let current = error
   while (isKeyable(current) && chain.length < MAX_CAUSE_DEPTH && !chain.includes(current)) {
     chain.push(current)
-    current = (current as { cause?: unknown }).cause
+    current = 'cause' in current ? current.cause : undefined
   }
   return chain
 }
@@ -75,7 +75,7 @@ export function classifyFailure(error: unknown): FailureKind {
       return link.statusCode >= 400 && link.statusCode < 500 ? 'user' : 'internal'
     }
 
-    const status = (link as { status?: unknown }).status
+    const status = 'status' in link ? link.status : undefined
     if (typeof status === 'number' && status >= 400 && status < 600) {
       return status >= 500 ? 'third_party_server' : 'third_party_client'
     }
@@ -119,11 +119,11 @@ export function adoptToolFailure<T>(error: T, result: { output?: unknown }): T {
  * Whether a boundary already logged this failure: a logged carrier anywhere in the cause chain,
  * or, given `executionId`, a raw value that boundary logged during this same execution.
  */
-export function wasFailureLogged(error: unknown, executionId?: string): boolean {
+function wasFailureLogged(error: unknown, executionId?: string): boolean {
   return causeChain(error).some(
     (link) =>
       loggedCarriers.has(link) ||
-      (executionId !== undefined && loggedInExecution.get(link) === executionId)
+      (Boolean(executionId) && loggedInExecution.get(link) === executionId)
   )
 }
 
@@ -159,10 +159,11 @@ export function logFailureOnce(
   const failureKind = classifyFailure(error)
   const fields = typeof metadata === 'function' ? metadata() : metadata
   logger[LOG_LEVEL_BY_KIND[failureKind]](message, {
-    ...(executionId !== undefined ? { executionId } : {}),
+    ...(executionId ? { executionId } : {}),
     ...fields,
     failureKind,
   })
-  if (executionId !== undefined && isKeyable(error)) loggedInExecution.set(error, executionId)
+  /** An empty id (a request that failed before minting one) scopes nothing. */
+  if (executionId && isKeyable(error)) loggedInExecution.set(error, executionId)
   return failureKind
 }

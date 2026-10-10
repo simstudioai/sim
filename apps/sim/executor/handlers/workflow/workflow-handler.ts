@@ -1575,7 +1575,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflowSnapshotId,
         childWorkflowInstanceId: instanceId,
       })
-      /** The child run logged its own failure; the warning above names it for this run. */
+      /** The warning above is this failure's log line. */
       markFailureLogged(childFailure)
       throw childFailure
     }

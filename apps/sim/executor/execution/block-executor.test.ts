@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { loggerMock } from '@sim/testing'
 import { maskClientMock, maskClientMockFns } from '@sim/testing/mocks/mask-client.mock'
 import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
@@ -5,7 +6,7 @@ import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { classifyFailure, wasFailureLogged } from '@/lib/core/errors/failure-log'
+import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { createLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
@@ -500,7 +501,7 @@ describe('BlockExecutor', () => {
     expect(JSON.stringify(logged)).not.toContain('owner-secret-id')
     /** Logged here at error, so the engine and the run surfaces must see it as already logged. */
     expect(classifyFailure(thrown)).toBe('internal')
-    expect(wasFailureLogged(thrown)).toBe(true)
+    expect(logFailureOnce(createLogger('OuterBoundary'), 'probe', thrown)).toBeUndefined()
   })
 
   it('fires block completion callbacks for pausing blocks so clients receive pause output', async () => {

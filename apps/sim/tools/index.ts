@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { isLoopbackIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { describeError, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { isPlainRecord, isRecordLike } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike, toRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -2311,11 +2311,11 @@ async function executeToolImplementation(
     const normalizedError = toError(error)
     const databaseQueryError = findDatabaseQueryError(error)
     const databaseErrorCause = databaseQueryError ? describeError(error) : undefined
-    const upstreamStatus = (error as { status?: unknown } | null)?.status
+    const upstreamStatus: unknown = error?.status
     const hostedKeyFailure = hostedKeyForMetrics ? classifyHostedKeyFailure(error) : undefined
     /** Sim's own hosted key being refused or throttled is Sim's fault and Sim's capacity. */
     if (hostedKeyFailure && hostedKeyFailure !== 'other') markFailureKind(error, 'internal')
-    const toolContext = params._context as Record<string, unknown> | undefined
+    const toolContext = toRecord(params._context)
     const loggedKind = logFailureOnce(
       logger,
       `[${requestId}] Error executing tool ${toolId}:`,
@@ -2325,7 +2325,7 @@ async function executeToolImplementation(
           toolId,
           workflowId: executionContext?.workflowId ?? undefined,
           executionId: executionContext?.executionId,
-          blockId: typeof toolContext?.blockId === 'string' ? toolContext.blockId : undefined,
+          blockId: typeof toolContext.blockId === 'string' ? toolContext.blockId : undefined,
           ...(typeof upstreamStatus === 'number' ? { status: upstreamStatus } : {}),
           ...projectToolLogMetadata(
             {
@@ -2335,7 +2335,7 @@ async function executeToolImplementation(
                     error: normalizedError.message,
                     stack: error instanceof Error ? error.stack : undefined,
                     ...(error instanceof Error && externalHttpFailures.has(error)
-                      ? { errorData: (error as { data?: unknown }).data }
+                      ? { errorData: error.data }
                       : {}),
                   }),
             },

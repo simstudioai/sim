@@ -7,11 +7,17 @@ import {
   logFailureOnce,
   markFailureKind,
   markFailureLogged,
-  wasFailureLogged,
 } from '@/lib/core/errors/failure-log'
 import { RetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import { UserFailure } from '@/lib/core/errors/user-failure'
 import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
+
+const logger = createLogger('FailureLogTest')
+
+/** What an outer boundary does with the failure: the kind it logs at, or undefined when it skips. */
+function outerBoundary(error: unknown, executionId?: string) {
+  return logFailureOnce(logger, 'probe', error, { executionId })
+}
 
 describe('classifyFailure', () => {
   it('keeps a database failure internal even beneath a user mark', () => {
@@ -52,8 +58,7 @@ describe('classifyFailure', () => {
     const first = new Error('first')
     const second = new Error('second', { cause: first })
     Object.assign(first, { cause: second })
-    expect(classifyFailure(first)).toBe('internal')
-    expect(wasFailureLogged(first)).toBe(false)
+    expect(outerBoundary(first)).toBe('internal')
   })
 })
 
@@ -62,37 +67,35 @@ describe('inheritFailureMarks', () => {
     const logged = new Error('child failed')
     markFailureLogged(logged)
     const boundary = inheritFailureMarks(new Error('Custom block execution failed'), logged)
-    expect(wasFailureLogged(boundary)).toBe(true)
+    expect(outerBoundary(boundary)).toBeUndefined()
     expect(classifyFailure(boundary)).toBe('internal')
 
     const authored = inheritFailureMarks(new Error('wrapped'), new UserFailure('missing input'))
-    expect(wasFailureLogged(authored)).toBe(false)
-    expect(classifyFailure(authored)).toBe('user')
+    expect(outerBoundary(authored)).toBe('user')
   })
 })
 
-describe('wasFailureLogged', () => {
+describe('logFailureOnce', () => {
   it('marks a frozen error, which a property write would throw on', () => {
     const frozen = Object.freeze(new Error('frozen'))
     markFailureLogged(frozen)
     markFailureKind(frozen, 'user')
-    expect(wasFailureLogged(frozen)).toBe(true)
+    expect(outerBoundary(frozen)).toBeUndefined()
     expect(classifyFailure(frozen)).toBe('user')
   })
 
   it('does not treat an unrelated error as logged', () => {
     markFailureLogged(new Error('logged elsewhere'))
-    expect(wasFailureLogged(new Error('fresh'))).toBe(false)
+    expect(outerBoundary(new Error('fresh'))).toBe('internal')
   })
 
   it('scopes a raw value logged at an execution boundary to that execution only', () => {
     const persistentFault = new Error('module failed to load')
-    logFailureOnce(createLogger('FailureLogTest'), 'Execution failed', persistentFault, {
-      executionId: 'exec-1',
-    })
+    expect(outerBoundary(persistentFault, 'exec-1')).toBe('internal')
 
-    expect(wasFailureLogged(persistentFault, 'exec-1')).toBe(true)
-    expect(wasFailureLogged(persistentFault, 'exec-2')).toBe(false)
-    expect(wasFailureLogged(persistentFault)).toBe(false)
+    expect(outerBoundary(persistentFault, 'exec-1')).toBeUndefined()
+    expect(outerBoundary(persistentFault, 'exec-2')).toBe('internal')
+    expect(outerBoundary(persistentFault)).toBe('internal')
+    expect(outerBoundary(persistentFault, '')).toBe('internal')
   })
 })
