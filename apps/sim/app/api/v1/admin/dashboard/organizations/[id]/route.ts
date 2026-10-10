@@ -10,11 +10,11 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getAdminAuditActor } from '@/app/api/v1/admin/dashboard/actor'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -28,10 +28,10 @@ export const GET = withRouteHandler(
     if (!parsed.success) return parsed.response
     try {
       const organization = await getDashboardOrganization(parsed.data.params.id, parsed.data.query)
-      return organization ? singleResponse(organization) : notFoundResponse('Organization')
+      return organization ? singleResponse(organization) : adminNotFoundResponse('Organization')
     } catch (error) {
       logger.error('Failed to get dashboard organization', { error })
-      return internalErrorResponse('Failed to get organization')
+      return adminInternalErrorResponse('Failed to get organization')
     }
   })
 )
@@ -51,7 +51,7 @@ export const PATCH = withRouteHandler(
       )
       return singleResponse({ success: true as const })
     } catch (error) {
-      return badRequestResponse(getErrorMessage(error, 'Failed to rename organization'))
+      return adminBadRequestResponse(getErrorMessage(error, 'Failed to rename organization'))
     }
   })
 )

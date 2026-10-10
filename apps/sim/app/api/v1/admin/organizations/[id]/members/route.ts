@@ -54,12 +54,12 @@ import {
 } from '@/lib/workspaces/organization-workspaces'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
   listResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import {
@@ -104,7 +104,7 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!orgData) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       const [countResult, membersData] = await Promise.all([
@@ -156,7 +156,7 @@ export const GET = withRouteHandler(
       return listResponse(data, pagination)
     } catch (error) {
       logger.error('Admin API: Failed to list organization members', { error, organizationId })
-      return internalErrorResponse('Failed to list organization members')
+      return adminInternalErrorResponse('Failed to list organization members')
     }
   })
 )
@@ -181,7 +181,7 @@ export const POST = withRouteHandler(
         .limit(1)
 
       if (!orgData) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       const [userData] = await db
@@ -191,7 +191,7 @@ export const POST = withRouteHandler(
         .limit(1)
 
       if (!userData) {
-        return notFoundResponse('User')
+        return adminNotFoundResponse('User')
       }
 
       const [existingMember] = await db
@@ -208,7 +208,7 @@ export const POST = withRouteHandler(
       if (existingMember) {
         if (existingMember.organizationId === organizationId) {
           if (existingMember.role === 'owner') {
-            return badRequestResponse(
+            return adminBadRequestResponse(
               'Cannot change the owner role via this endpoint. Use POST /api/v1/admin/organizations/[id]/transfer-ownership instead.'
             )
           }
@@ -267,7 +267,7 @@ export const POST = withRouteHandler(
           })
         }
 
-        return badRequestResponse(
+        return adminBadRequestResponse(
           `User is already a member of another organization. Users can only belong to one organization at a time.`
         )
       }
@@ -355,10 +355,10 @@ export const POST = withRouteHandler(
       })
 
       if (!result.membership.success || !result.membership.memberId) {
-        return badRequestResponse(result.membership.error || 'Failed to add member')
+        return adminBadRequestResponse(result.membership.error || 'Failed to add member')
       }
       if (result.membership.alreadyMember) {
-        return badRequestResponse('User is already a member of this organization')
+        return adminBadRequestResponse('User is already a member of this organization')
       }
 
       /**
@@ -444,12 +444,12 @@ export const POST = withRouteHandler(
       })
     } catch (error) {
       if (error instanceof WorkspaceSetChangedDuringAddError) {
-        return badRequestResponse(
+        return adminBadRequestResponse(
           "The user's workspaces changed while adding them — retry the add."
         )
       }
       logger.error('Admin API: Failed to add organization member', { error, organizationId })
-      return internalErrorResponse('Failed to add organization member')
+      return adminInternalErrorResponse('Failed to add organization member')
     }
   })
 )

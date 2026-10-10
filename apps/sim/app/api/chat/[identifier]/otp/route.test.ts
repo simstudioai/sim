@@ -75,7 +75,7 @@ const {
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 const mockGetEnv = envMockFns.getEnv
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
-const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
+const mockCreateCodedErrorResponse = workflowsApiUtilsMockFns.mockCreateCodedErrorResponse
 
 vi.mock('@/lib/core/storage', () => ({
   getStorageMethod: mockGetStorageMethod,
@@ -196,7 +196,7 @@ describe('Chat OTP API Route', () => {
       json: () => Promise.resolve(data),
       status: 200,
     }))
-    mockCreateErrorResponse.mockImplementation((message: string, status: number) => ({
+    mockCreateCodedErrorResponse.mockImplementation((message: string, status: number) => ({
       json: () => Promise.resolve({ error: message }),
       status,
     }))
@@ -230,7 +230,7 @@ describe('Chat OTP API Route', () => {
       })
 
       const headerSet = vi.fn()
-      mockCreateErrorResponse.mockImplementationOnce((message: string, status: number) => ({
+      mockCreateCodedErrorResponse.mockImplementationOnce((message: string, status: number) => ({
         json: () => Promise.resolve({ error: message }),
         status,
         headers: { set: headerSet },
@@ -334,7 +334,7 @@ describe('Chat OTP API Route', () => {
 
       await PUT(request, createRouteContext({ identifier: mockIdentifier }))
 
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+      expect(mockCreateCodedErrorResponse).toHaveBeenCalledWith(
         'This chat does not use email authentication',
         400
       )
@@ -354,7 +354,7 @@ describe('Chat OTP API Route', () => {
 
       await PUT(request, createRouteContext({ identifier: mockIdentifier }))
 
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Email not authorized', 403)
+      expect(mockCreateCodedErrorResponse).toHaveBeenCalledWith('Email not authorized', 403)
       expect(mockRedisGet).not.toHaveBeenCalled()
       expect(mockSetChatAuthCookie).not.toHaveBeenCalled()
     })
@@ -378,7 +378,7 @@ describe('Chat OTP API Route', () => {
 
       await PUT(request, createRouteContext({ identifier: mockIdentifier }))
 
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+      expect(mockCreateCodedErrorResponse).toHaveBeenCalledWith(
         'No verification code found, request a new one',
         400
       )
@@ -410,7 +410,7 @@ describe('Chat OTP API Route', () => {
         `otp:${mockEmail}:${mockChatId}`,
         5
       )
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Invalid verification code', 400)
+      expect(mockCreateCodedErrorResponse).toHaveBeenCalledWith('Invalid verification code', 400)
     })
 
     it('should invalidate OTP and return 429 after max failed attempts', async () => {
@@ -428,7 +428,7 @@ describe('Chat OTP API Route', () => {
       await PUT(request, createRouteContext({ identifier: mockIdentifier }))
 
       expect(mockRedisEval).toHaveBeenCalled()
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+      expect(mockCreateCodedErrorResponse).toHaveBeenCalledWith(
         'Too many failed attempts. Please request a new code.',
         429
       )

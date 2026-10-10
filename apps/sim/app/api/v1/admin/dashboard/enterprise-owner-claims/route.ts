@@ -15,10 +15,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getAdminAuditActor } from '@/app/api/v1/admin/dashboard/actor'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
   listResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
@@ -45,7 +45,7 @@ export const GET = withRouteHandler(
       })
     } catch (error) {
       logger.error('Failed to list Enterprise owner claims', { error })
-      return internalErrorResponse(getErrorMessage(error, 'Failed to list owner invitations'))
+      return adminInternalErrorResponse(getErrorMessage(error, 'Failed to list owner invitations'))
     }
   })
 )
@@ -76,9 +76,12 @@ export const POST = withRouteHandler(
         })
       )
     } catch (error) {
-      if (error instanceof EnterpriseProvisioningError) return badRequestResponse(error.message)
+      if (error instanceof EnterpriseProvisioningError)
+        return adminBadRequestResponse(error.message)
       logger.error('Failed to create Enterprise owner claim', { error })
-      return internalErrorResponse(getErrorMessage(error, 'Failed to invite the Enterprise owner'))
+      return adminInternalErrorResponse(
+        getErrorMessage(error, 'Failed to invite the Enterprise owner')
+      )
     }
   })
 )

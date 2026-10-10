@@ -18,7 +18,7 @@ import { adminV1ListWorkflowsContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
-import { internalErrorResponse, listResponse } from '@/app/api/v1/admin/responses'
+import { adminInternalErrorResponse, listResponse } from '@/app/api/v1/admin/responses'
 import { type AdminWorkflow, createPaginationMeta, toAdminWorkflow } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkflowsAPI')
@@ -62,7 +62,7 @@ export const GET = withRouteHandler(
       return listResponse(data, pagination)
     } catch (error) {
       logger.error('Admin API: Failed to list workflows', { error })
-      return internalErrorResponse('Failed to list workflows')
+      return adminInternalErrorResponse('Failed to list workflows')
     }
   })
 )
