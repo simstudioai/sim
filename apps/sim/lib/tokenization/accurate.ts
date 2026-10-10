@@ -25,11 +25,16 @@ const logger = createLogger('TokenizationAccurate')
 /** Keyed by encoding, not model: each instance holds a full rank table, so models share one. */
 const encodingCache = new Map<TiktokenEncoding, Tiktoken>()
 
+/** Memory backstop for {@link encodingNameByModel}; model ids are caller-supplied strings. */
+const ENCODING_NAME_CACHE_MAX_MODELS = 1_000
+
 /**
  * Model id → encoding name, so a non-OpenAI model does not throw and catch inside
- * `getEncodingNameForModel` on every count. Model ids are caller-supplied, hence the ceiling.
+ * `getEncodingNameForModel` on every count.
  */
-const encodingNameByModel = new LRUCache<string, TiktokenEncoding>({ max: 1_000 })
+const encodingNameByModel = new LRUCache<string, TiktokenEncoding>({
+  max: ENCODING_NAME_CACHE_MAX_MODELS,
+})
 
 /** OpenAI families tokenized with `o200k_base` that `js-tiktoken`'s exact-name table may not list yet. */
 const O200K_MODEL_FAMILY = /^(?:gpt-(?:4o|4\.1|4\.5|5|6|oss)|chatgpt-4o|o\d)/

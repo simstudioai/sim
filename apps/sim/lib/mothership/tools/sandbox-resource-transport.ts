@@ -30,13 +30,18 @@ import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/
 
 const logger = createLogger('MothershipSandboxResourceTransport')
 
+/** How long one route's missing-provenance report suppresses repeats for that route. */
+const UNRECORDED_PROVENANCE_LOG_WINDOW_MS = 60 * 60 * 1000
+/** Memory backstop above the number of `method route` pairs the v2 route table can produce. */
+const UNRECORDED_PROVENANCE_LOG_MAX_ROUTES = 1_000
+
 /**
  * Data-bearing routes already reported as lacking a provenance producer. The gap is a
  * property of the route, not the request, so it is reported once per route per window.
  */
 const unrecordedProvenanceRoutesLogged = new LRUCache<string, true>({
-  max: 1_000,
-  ttl: 60 * 60 * 1000,
+  max: UNRECORDED_PROVENANCE_LOG_MAX_ROUTES,
+  ttl: UNRECORDED_PROVENANCE_LOG_WINDOW_MS,
 })
 
 /** Private callback observes the real authenticated v2 request without changing its body or API contract. */

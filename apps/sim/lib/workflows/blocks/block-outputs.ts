@@ -38,8 +38,6 @@ interface EffectiveOutputOptions {
   triggerMode?: boolean
   preferToolOutputs?: boolean
   includeHidden?: boolean
-  /** The block instance id, used only to attribute an unparseable response format. */
-  blockId?: string
 }
 
 type ConditionValue = string | number | boolean
@@ -434,7 +432,6 @@ export function getEffectiveBlockOutputs(
   const includeHidden = options?.includeHidden ?? false
 
   if (blockType === 'agent') {
-    const responseFormatBlockId = options?.blockId ?? blockType
     const model = subBlocks?.model?.value
     const mayEvaluate =
       typeof model === 'string' && (isEvaluationModel(model) || containsReference(model))
@@ -443,13 +440,11 @@ export function getEffectiveBlockOutputs(
       const answers = getJevAnswerOutput(subBlocks?.evaluationQuestions?.value)
       return {
         ...outputs,
-        ...(containsReference(model)
-          ? getResponseFormatOutputs(subBlocks, responseFormatBlockId)
-          : undefined),
+        ...(containsReference(model) ? getResponseFormatOutputs(subBlocks, 'agent') : undefined),
         ...(answers ? { answers } : undefined),
       }
     }
-    const responseFormatOutputs = getResponseFormatOutputs(subBlocks, responseFormatBlockId)
+    const responseFormatOutputs = getResponseFormatOutputs(subBlocks, 'agent')
     if (responseFormatOutputs) return responseFormatOutputs
   }
 

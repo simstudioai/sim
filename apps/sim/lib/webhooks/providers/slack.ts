@@ -408,6 +408,11 @@ async function downloadSlackFiles(
   return downloaded
 }
 
+/** How long a webhook's `missing_scope` report suppresses repeats of the same log line. */
+const MISSING_SCOPE_LOG_WINDOW_MS = 60 * 60 * 1000
+/** Memory backstop for {@link reactionsMissingScopeLogged}, far above live Slack webhooks. */
+const MISSING_SCOPE_LOG_MAX_WEBHOOKS = 10_000
+
 /**
  * Webhooks whose bot already reported `missing_scope` on `reactions.get`. A bot without
  * `reactions:read` fails every reaction event identically until it is reinstalled, so the
@@ -415,8 +420,8 @@ async function downloadSlackFiles(
  * itself still runs, so a reinstalled bot gets message text back immediately.
  */
 const reactionsMissingScopeLogged = new LRUCache<string, true>({
-  max: 10_000,
-  ttl: 60 * 60 * 1000,
+  max: MISSING_SCOPE_LOG_MAX_WEBHOOKS,
+  ttl: MISSING_SCOPE_LOG_WINDOW_MS,
 })
 
 async function fetchSlackMessageText(

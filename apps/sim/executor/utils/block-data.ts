@@ -45,7 +45,6 @@ function getRegistrySchema(block: SerializedBlock): OutputSchema | undefined {
     triggerMode,
     preferToolOutputs: !triggerMode,
     includeHidden: true,
-    blockId: block.id,
   }) as OutputSchema
 
   if (!outputs || Object.keys(outputs).length === 0) {

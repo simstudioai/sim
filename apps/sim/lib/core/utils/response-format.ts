@@ -78,8 +78,8 @@ export function parseResponseFormatSafely(
     }
     return responseFormatValue
   } catch (error) {
-    // An unparseable response format is user input that falls back to the block's default
-    // outputs; it is re-read on every output-schema derivation, so it is not warning-worthy.
+    // User configuration that falls back to the block's default outputs (the editor's lint
+    // reports it); every output-schema derivation re-reads it, so it is not warning-worthy.
     logger.debug('Failed to parse response format', { blockId, message: getErrorMessage(error) })
     return null
   }
