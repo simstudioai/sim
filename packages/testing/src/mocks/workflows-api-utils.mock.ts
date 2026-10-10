@@ -9,7 +9,7 @@ import { vi } from 'vitest'
  *
  * @example
  * ```ts
- * import { workflowsApiUtilsMockFns } from '@sim/testing'
+ * import { workflowsApiUtilsMockFns } from '@sim/testing/mocks/workflows-api-utils.mock'
  *
  * workflowsApiUtilsMockFns.mockVerifyWorkspaceMembership.mockResolvedValue('admin')
  * workflowsApiUtilsMockFns.mockCheckNeedsRedeployment.mockResolvedValue(true)

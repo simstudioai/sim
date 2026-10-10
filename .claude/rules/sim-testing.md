@@ -88,7 +88,8 @@ describe('GET /api/my-route', () => {
 
 `apps/sim/vitest.setup.ts` mocks the modules nearly every test touches. `@sim/testing` holds one
 central mock for every other module that more than a couple of tests mock. Never hand-roll a
-`vi.mock` factory for either — `bun run check:test-patterns` fails on a new one.
+`vi.mock` factory for either — `bun run check:test-patterns` fails on a new one (integration and
+`*.live.test.ts` files bind real boundaries and are exempt).
 
 - **Global module**: don't `vi.mock` it; drive it through its knobs (table below).
 - **Any other module**: find its central mock by copying an existing use —

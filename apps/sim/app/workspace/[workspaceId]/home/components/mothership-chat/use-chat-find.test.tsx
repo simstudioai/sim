@@ -95,7 +95,6 @@ beforeEach(() => {
 
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup()
-  vi.unstubAllGlobals()
   Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect')
 })
 

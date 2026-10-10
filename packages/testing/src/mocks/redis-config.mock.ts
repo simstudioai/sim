@@ -77,7 +77,7 @@ function describeRedisConnectionImpl() {
  *
  * @example
  * ```ts
- * import { redisConfigMockFns } from '@sim/testing'
+ * import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
  *
  * redisConfigMockFns.mockGetRedisClient.mockReturnValue(myFakeRedis)
  * ```
