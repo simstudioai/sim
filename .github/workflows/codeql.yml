@@ -85,7 +85,9 @@ jobs:
     # run, so 8 vCPU was 4x more machine than it ever used.
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || 'ubuntu-latest' }}
     timeout-minutes: 60
-    if: github.event.pull_request.draft != true
+    # Not on the staging -> main release pull request: every staging push re-syncs it with code the
+    # staging pull requests already ran this on, and main's push and schedule still run it.
+    if: github.event.pull_request.draft != true && github.head_ref != 'staging'
     permissions:
       security-events: write
       contents: read

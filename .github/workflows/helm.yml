@@ -24,9 +24,11 @@ on:
       - 'scripts/generate-image-manifest.ts'
       - 'package.json'
 
+# Pull requests cancel a superseded run; pushes never do, so a newer push cannot cut off a chart
+# publish already in flight.
 concurrency:
   group: helm-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -34,6 +36,9 @@ permissions:
 jobs:
   chart:
     name: chart
+    # Not on the staging -> main release pull request: every staging push re-syncs it with code the
+    # staging pull requests already ran this on, and main's push and schedule still run it.
+    if: github.head_ref != 'staging'
     runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
@@ -260,7 +265,8 @@ jobs:
       contents: read # Read the chart source.
       packages: write # Push the chart, its signature, and its attestations to GHCR.
       id-token: write # Sigstore signs against the runner's OIDC identity; no key material is stored.
-      attestations: write # Let actions/attest-build-provenance record the SLSA provenance.
+      attestations: write # Let actions/attest record the SLSA provenance.
+      artifact-metadata: write # And its artifact storage record.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
@@ -388,7 +394,7 @@ jobs:
       # attestation with it, rather than only being retrievable from GitHub.
       - name: Attest build provenance
         if: steps.exists.outputs.already == 'false'
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ steps.package.outputs.repository }}
           subject-digest: ${{ steps.push.outputs.digest }}

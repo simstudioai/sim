@@ -32,9 +32,41 @@ permissions:
   contents: read
 
 jobs:
+  # A release lands on main as a merge whose tree is identical to the staging head it merges, and
+  # that staging push already ran the checks on exactly this code. When a staging run of the merged
+  # parent passed `checks / ci`, main skips its own checks and the deploy chain gates on this proof
+  # instead. Any other shape, any error, or no green staging run falls back to the full checks.
+  proof:
+    name: proof
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    # Waits for a staging run still in progress for at most 40 minutes.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      proven: ${{ steps.proof.outputs.proven }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Look for a green staging run of this tree
+        id: proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/staging-proof.sh >> "$GITHUB_OUTPUT"
+
   checks:
     name: checks
-    if: github.ref != 'refs/heads/dev' || github.event_name == 'pull_request'
+    needs: [proof]
+    if: >-
+      !cancelled() &&
+      (github.ref != 'refs/heads/dev' || github.event_name == 'pull_request') &&
+      needs.proof.outputs.proven != 'true'
     uses: ./.github/workflows/checks.yml
 
   # Detect if this is a version release commit (e.g., "v0.5.24: ...")
@@ -42,7 +74,7 @@ jobs:
   # message, no checkout and no install.
   version:
     name: version
-    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: *runner-2vcpu
     timeout-minutes: 5
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     outputs:
@@ -114,14 +146,14 @@ jobs:
   # migration sidecar)
   migrate:
     name: migrate
-    needs: [checks]
+    needs: [proof, checks]
     # Explicit need results instead of the implicit success(): a skipped job
     # anywhere in the transitive needs chain silently fails implicit success()
     # and cascade-skips the deploy chain (migrate -> promote ->
     # CodeDeploy) — this bit us on 2026-07-23. State requirements explicitly.
     if: >-
       !cancelled() &&
-      needs.checks.result == 'success' &&
+      (needs.checks.result == 'success' || needs.proof.outputs.proven == 'true') &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/migrate.yml
@@ -564,7 +596,8 @@ jobs:
       needs.promote.result == 'success' &&
       needs.trigger-upload.result == 'success' &&
       needs.promote.outputs.promoted == 'true'
-    runs-on: *runner-4vcpu
+    # Mostly waiting on the ECS cutover after a dependency install: the smallest runner is enough.
+    runs-on: *runner-2vcpu
     # Leave setup/promotion headroom above the 70-minute cutover poll.
     timeout-minutes: 90
     permissions:
@@ -992,6 +1025,8 @@ jobs:
       # Sigstore signs against the runner's OIDC identity; no key material is stored.
       id-token: write
       attestations: write
+      # Records each attestation against the image as an artifact storage record.
+      artifact-metadata: write
     strategy:
       fail-fast: false
       matrix:
@@ -1031,7 +1066,7 @@ jobs:
 
       - name: Attest SBOM
         if: matrix.platform != 'index'
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ matrix.image }}
           subject-digest: ${{ matrix.digest }}
@@ -1041,7 +1076,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ matrix.image }}
           subject-digest: ${{ matrix.digest }}

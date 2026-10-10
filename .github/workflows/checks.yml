@@ -201,6 +201,14 @@ jobs:
         working-directory: packages/db
         run: bun run db:migrate
 
+      # One cache per group: each group's app runs under its own fixed NEXT_PUBLIC_* values.
+      - name: Mount Turbopack dev cache
+        uses: ./.github/actions/dev-cache
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          name: e2e-${{ matrix.group }}
+          env-hash: ${{ hashFiles('.github/scripts/http-e2e.sh') }}
+
       # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
       # short of writing its report.
       - name: Run end-to-end suites
@@ -216,9 +224,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Pull requests skip the live desktop suite only when every change is clearly unrelated to the
-  # app it drives (docs, other apps, published content). Anything else, and any failure to work
-  # out the diff, runs it: a pull request that skipped it wrongly would first fail on staging.
+  # Pull requests run the live desktop suite only when they touch a path it exercises (listed in
+  # desktop-live-changes.sh), or when the diff cannot be worked out. Pushes always run it, so a
+  # pull request that skipped it wrongly would first fail on staging, before anything deploys.
   desktop-changes:
     name: desktop-changes
     runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
@@ -293,21 +301,13 @@ jobs:
         run: bun run db:migrate
 
       # Turbopack's dev cache turns the spec's route warm-up from a cold compile (~4 min) into a
-      # restore. It is content-addressed, so a pull request's changed modules still recompile; the
-      # key carries the installed Next version so an upgrade starts from an empty cache, and the
-      # event and fork segments keep untrusted runs off the cache trusted runs read.
-      - name: Resolve Turbopack dev cache key
-        id: next-cache
-        run: echo "key=${GITHUB_REPOSITORY}-next-dev-desktop-live-${GITHUB_EVENT_NAME}${FORK_SUFFIX}-$(jq -r .version node_modules/next/package.json)" >> "$GITHUB_OUTPUT"
-        env:
-          FORK_SUFFIX: ${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
-
+      # restore.
       - name: Mount Turbopack dev cache
-        uses: ./.github/actions/cache
+        uses: ./.github/actions/dev-cache
         with:
           provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ steps.next-cache.outputs.key }}
-          path: ./apps/sim/.next/dev
+          name: desktop-live
+          env-hash: ${{ hashFiles('.github/workflows/checks.yml') }}
 
       # Chat switches, Stop, sign-out, approval, the dormant-executor round trip, and background
       # runs across a chat switch and a network cut. The spec runs the recording proxy (the app's

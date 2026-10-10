@@ -59,7 +59,9 @@ concurrency:
 jobs:
   e2e:
     name: e2e
-    if: github.event_name != 'schedule'
+    # Not on the staging -> main release pull request: every staging push re-syncs it with code the
+    # staging pull requests already ran this on, and main's push and schedule still run it.
+    if: github.event_name != 'schedule' && github.head_ref != 'staging'
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -180,7 +182,7 @@ jobs:
 
   package-smoke:
     name: package-smoke
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.head_ref != 'staging'
     runs-on: macos-26
     timeout-minutes: 20
     steps:
