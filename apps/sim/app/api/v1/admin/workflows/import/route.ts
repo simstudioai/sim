@@ -36,9 +36,9 @@ import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/
 import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
 } from '@/app/api/v1/admin/responses'
 import { extractWorkflowMetadata, type WorkflowImportRequest } from '@/app/api/v1/admin/types'
 
@@ -66,7 +66,7 @@ export const POST = withRouteHandler(
         .limit(1)
 
       if (!workspaceData) {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
 
       /**
@@ -92,7 +92,7 @@ export const POST = withRouteHandler(
       const { data: workflowData, errors } = parseWorkflowJson(workflowContent)
 
       if (!workflowData || errors.length > 0) {
-        return badRequestResponse(`Invalid workflow: ${errors.join(', ')}`)
+        return adminBadRequestResponse(`Invalid workflow: ${errors.join(', ')}`)
       }
 
       const parsedWorkflow =
@@ -146,7 +146,7 @@ export const POST = withRouteHandler(
       })
 
       if (!created.success) {
-        return internalErrorResponse(`Failed to save workflow state: ${created.error}`)
+        return adminInternalErrorResponse(`Failed to save workflow state: ${created.error}`)
       }
 
       logger.info(
@@ -162,16 +162,16 @@ export const POST = withRouteHandler(
       return NextResponse.json(response)
     } catch (error) {
       if (asOrchestrationError(error)?.code === 'not_found') {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
       if (error instanceof FolderNotFoundError) {
-        return badRequestResponse(error.message)
+        return adminBadRequestResponse(error.message)
       }
       if (error instanceof FolderLockedError) {
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
       logger.error('Admin API: Failed to import workflow', { error })
-      return internalErrorResponse('Failed to import workflow')
+      return adminInternalErrorResponse('Failed to import workflow')
     }
   })
 )

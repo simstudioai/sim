@@ -7,11 +7,11 @@ import {
   type LinearRegex,
   literalRegex,
 } from '@/lib/core/security/linear-regex'
-import { decodeVfsSegmentSafe } from '@/lib/mothership/vfs/path-utils'
 import {
   isNonGreppablePlaceholder,
   type PlaceholderKind,
 } from '@/lib/mothership/vfs/read-placeholders'
+import { decodeVfsSegmentSafe } from '@/lib/vfs/path'
 
 const logger = createLogger('VfsOperations')
 

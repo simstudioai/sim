@@ -17,8 +17,8 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  internalErrorResponse,
-  notFoundResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import type { WorkflowExportPayload, WorkflowExportState } from '@/app/api/v1/admin/types'
@@ -44,13 +44,13 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!workflowData) {
-        return notFoundResponse('Workflow')
+        return adminNotFoundResponse('Workflow')
       }
 
       const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
       if (!normalizedData) {
-        return notFoundResponse('Workflow state')
+        return adminNotFoundResponse('Workflow state')
       }
 
       const variables = parseWorkflowVariables(workflowData.variables)
@@ -86,7 +86,7 @@ export const GET = withRouteHandler(
       return singleResponse(exportPayload)
     } catch (error) {
       logger.error('Admin API: Failed to export workflow', { error, workflowId })
-      return internalErrorResponse('Failed to export workflow')
+      return adminInternalErrorResponse('Failed to export workflow')
     }
   })
 )

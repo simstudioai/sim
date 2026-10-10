@@ -11,7 +11,7 @@ import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess, verifyKBFileWriteAccess } from '@/app/api/files/authorization'
 import {
-  createErrorResponse,
+  createFileErrorResponse,
   createSuccessResponse,
   extractFilename,
   FileNotFoundError,
@@ -44,7 +44,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       {},
       {
         validationErrorResponse: (error) =>
-          createErrorResponse(
+          createFileErrorResponse(
             new InvalidRequestError(getValidationErrorMessage(error, 'Invalid request data'))
           ),
       }
@@ -100,16 +100,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       logger.error('Error deleting file:', error)
 
       if (error instanceof FileNotFoundError) {
-        return createErrorResponse(error)
+        return createFileErrorResponse(error)
       }
 
-      return createErrorResponse(
+      return createFileErrorResponse(
         error instanceof Error ? error : new Error('Failed to delete file')
       )
     }
   } catch (error) {
     logger.error('Error parsing request:', error)
-    return createErrorResponse(error instanceof Error ? error : new Error('Invalid request'))
+    return createFileErrorResponse(error instanceof Error ? error : new Error('Invalid request'))
   }
 })
 

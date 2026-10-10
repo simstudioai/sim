@@ -24,11 +24,11 @@ import { isBillingEnabled, isWhitelabelingEnabled } from '@/lib/core/config/env-
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminForbiddenResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  forbiddenResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -62,7 +62,7 @@ export const PATCH = withRouteHandler(
         .limit(1)
 
       if (!existing) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       /**
@@ -72,7 +72,7 @@ export const PATCH = withRouteHandler(
        */
       const entitled = await isOrganizationFeatureEntitled(organizationId, isWhitelabelingEnabled)
       if (!entitled) {
-        return forbiddenResponse(
+        return adminForbiddenResponse(
           isBillingEnabled
             ? 'Whitelabeling is available on Enterprise plans only'
             : 'Whitelabeling is disabled. Set ENTERPRISE_ENABLED or WHITELABELING_ENABLED to enable it.'
@@ -113,7 +113,7 @@ export const PATCH = withRouteHandler(
       return singleResponse({ success: true as const, organizationId })
     } catch (error) {
       logger.error('Admin API: Failed to update whitelabel settings', { error, organizationId })
-      return internalErrorResponse('Failed to update whitelabel settings')
+      return adminInternalErrorResponse('Failed to update whitelabel settings')
     }
   })
 )

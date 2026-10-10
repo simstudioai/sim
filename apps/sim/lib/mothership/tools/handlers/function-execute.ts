@@ -44,7 +44,6 @@ import {
   type MaterializedCopilotCodeSecrets,
   materializeCopilotCodeSecrets,
 } from '@/lib/mothership/tools/secret-mount-materializer.server'
-import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { readTableSnapshot } from '@/lib/table/application/read-table-snapshot'
 import {
@@ -54,6 +53,7 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { importWorkspaceFileSnapshotProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/vfs/path'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
