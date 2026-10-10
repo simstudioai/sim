@@ -95,6 +95,57 @@ const CONTRACT_KEY_RE = /\n\s{2}contract:\s*([A-Za-z0-9_$]+)\s*,/
 /** How far past the builder's `({` to look for the `contract:` key. */
 const OPTIONS_SCAN_CHARS = 4000
 
+type Statements = ReturnType<typeof parse>['program']['body']
+
+function isVerb(name: string): boolean {
+  return VERBS.some((verb) => verb === name)
+}
+
+/**
+ * A module's top-level functions and variables (name -> body or initialiser),
+ * and every local export as `{ exported, local }` — both an inline
+ * `export const GET = …` and an export list such as `export { handler as GET }`.
+ * A re-export from another module (`export { GET } from '…'`) binds no local
+ * and is left out.
+ */
+function topLevelBindings(statements: Statements): {
+  locals: Map<string, unknown>
+  exports: Array<{ exported: string; local: string }>
+} {
+  const locals = new Map<string, unknown>()
+  const exports: Array<{ exported: string; local: string }> = []
+  for (const statement of statements) {
+    const isExport = statement.type === 'ExportNamedDeclaration'
+    if (isExport && !statement.declaration && !statement.source) {
+      for (const specifier of statement.specifiers) {
+        if (specifier.type !== 'ExportSpecifier') continue
+        const exported =
+          specifier.exported.type === 'Identifier'
+            ? specifier.exported.name
+            : specifier.exported.value
+        exports.push({ exported, local: specifier.local.name })
+      }
+      continue
+    }
+    const declaration = isExport ? statement.declaration : statement
+    const named: Array<[string, unknown]> = []
+    if (declaration?.type === 'FunctionDeclaration' && declaration.id) {
+      named.push([declaration.id.name, declaration.body])
+    } else if (declaration?.type === 'VariableDeclaration') {
+      for (const declarator of declaration.declarations) {
+        if (declarator.id.type === 'Identifier' && declarator.init) {
+          named.push([declarator.id.name, declarator.init])
+        }
+      }
+    }
+    for (const [name, root] of named) {
+      locals.set(name, root)
+      if (isExport) exports.push({ exported: name, local: name })
+    }
+  }
+  return { locals, exports }
+}
+
 /** Resolves exported handler references and tracing callbacks without importing server code. */
 export function wrappedRouteSites(source: string): Array<{ verb: string; optionsStart: number }> {
   const statements = parse(source, { sourceType: 'module', plugins: ['typescript'] }).program.body
@@ -112,37 +163,28 @@ export function wrappedRouteSites(source: string): Array<{ verb: string; options
       }
     }
   }
+  const { locals, exports } = topLevelBindings(statements)
   const sites: Array<{ verb: string; optionsStart: number }> = []
-  for (const statement of statements) {
-    if (
-      statement.type !== 'ExportNamedDeclaration' ||
-      statement.declaration?.type !== 'VariableDeclaration'
-    )
-      continue
-    for (const declaration of statement.declaration.declarations) {
-      if (
-        declaration.id.type !== 'Identifier' ||
-        !VERBS.some((verb) => verb === declaration.id.name)
-      )
-        continue
-      const verb = declaration.id.name
-      const found = new Set<number>()
-      const visit = (value: unknown): void => {
-        if (!value || typeof value !== 'object') return
-        if (Array.isArray(value)) {
-          value.forEach(visit)
-          return
-        }
-        const node = value as Record<string, unknown>
-        if (node.type === 'Identifier' && typeof node.name === 'string') {
-          const start = handlers.get(node.name)
-          if (start !== undefined) found.add(start)
-        }
-        Object.values(node).forEach(visit)
+  for (const { exported: verb, local } of exports) {
+    if (!isVerb(verb)) continue
+    const found = new Set<number>()
+    const direct = handlers.get(local)
+    if (direct !== undefined) found.add(direct)
+    const visit = (value: unknown): void => {
+      if (!value || typeof value !== 'object') return
+      if (Array.isArray(value)) {
+        value.forEach(visit)
+        return
       }
-      visit(declaration.init)
-      for (const optionsStart of found) sites.push({ verb, optionsStart })
+      const node = value as Record<string, unknown>
+      if (node.type === 'Identifier' && typeof node.name === 'string') {
+        const start = handlers.get(node.name)
+        if (start !== undefined) found.add(start)
+      }
+      Object.values(node).forEach(visit)
     }
+    if (direct === undefined) visit(locals.get(local))
+    for (const optionsStart of found) sites.push({ verb, optionsStart })
   }
   return sites
 }
@@ -156,31 +198,13 @@ export function wrappedRouteSites(source: string): Array<{ verb: string; options
  */
 export function rawRouteContractSites(source: string): Array<{ verb: string; identifier: string }> {
   const statements = parse(source, { sourceType: 'module', plugins: ['typescript'] }).program.body
-  const locals = new Map<string, unknown>()
-  const exported = new Set<string>()
-  for (const statement of statements) {
-    const isExport = statement.type === 'ExportNamedDeclaration'
-    const declaration = isExport ? statement.declaration : statement
-    const named: Array<[string, unknown]> = []
-    if (declaration?.type === 'FunctionDeclaration' && declaration.id) {
-      named.push([declaration.id.name, declaration.body])
-    } else if (declaration?.type === 'VariableDeclaration') {
-      for (const declarator of declaration.declarations) {
-        if (declarator.id.type === 'Identifier' && declarator.init) {
-          named.push([declarator.id.name, declarator.init])
-        }
-      }
-    }
-    for (const [name, root] of named) {
-      locals.set(name, root)
-      if (isExport) exported.add(name)
-    }
-  }
+  const { locals, exports } = topLevelBindings(statements)
+  const exportedLocals = new Set(exports.map(({ local }) => local))
   const sites: Array<{ verb: string; identifier: string }> = []
-  for (const verb of exported) {
-    if (!VERBS.some((name) => name === verb)) continue
+  for (const { exported: verb, local } of exports) {
+    if (!isVerb(verb)) continue
     const identifiers = new Set<string>()
-    const followed = new Set(exported)
+    const followed = new Set(exportedLocals)
     const visit = (value: unknown): void => {
       if (!value || typeof value !== 'object') return
       if (Array.isArray(value)) {
@@ -217,7 +241,7 @@ export function rawRouteContractSites(source: string): Array<{ verb: string; ide
       }
       Object.values(node).forEach(visit)
     }
-    visit(locals.get(verb))
+    visit(locals.get(local))
     for (const identifier of identifiers) sites.push({ verb, identifier })
   }
   return sites
@@ -237,9 +261,15 @@ function listRouteFiles(dir: string, found: string[] = []): string[] {
   return found
 }
 
-/** Local binding name -> module specifier, from the file's import statements. */
-function importedNames(source: string): Map<string, string> {
-  const bindings = new Map<string, string>()
+/** Where an imported local binding comes from: its module and the name that module exports it as. */
+interface ImportedBinding {
+  specifier: string
+  exported: string
+}
+
+/** Local binding name -> its source module and exported name, from the file's import statements. */
+export function importedNames(source: string): Map<string, ImportedBinding> {
+  const bindings = new Map<string, ImportedBinding>()
   for (const match of source.matchAll(
     /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"]([^'"]+)['"]/g
   )) {
@@ -247,7 +277,7 @@ function importedNames(source: string): Map<string, string> {
       const clause = raw.trim().replace(/^type\s+/, '')
       if (!clause) continue
       const [original, alias] = clause.split(/\s+as\s+/).map((part) => part.trim())
-      bindings.set(alias ?? original, match[2])
+      bindings.set(alias ?? original, { specifier: match[2], exported: original })
     }
   }
   return bindings
@@ -274,6 +304,14 @@ function loadContractModule(file: string): Promise<Record<string, unknown>> {
   return loaded
 }
 
+/** Resolves and imports a contract module; null when the specifier resolves to no file. */
+type ContractModuleLoader = (specifier: string) => Promise<Record<string, unknown>> | null
+
+const loadContractSpecifier: ContractModuleLoader = (specifier) => {
+  const modulePath = resolveContractModule(specifier)
+  return modulePath ? loadContractModule(modulePath) : null
+}
+
 /** The URL Next.js actually serves this file at: its directory, minus route groups. */
 function derivedPath(file: string): string {
   const segments = path
@@ -289,8 +327,8 @@ type SiteKind = 'builder' | 'raw'
 /** One route file, as every site in it is checked against. */
 interface RouteFile {
   relative: string
-  /** Local binding name -> module specifier. */
-  bindings: Map<string, string>
+  /** Local binding name -> its source module and exported name. */
+  bindings: Map<string, ImportedBinding>
   /** The URL the file serves. */
   expectedPath: string
 }
@@ -317,24 +355,26 @@ function servesPath(kind: SiteKind, expectedPath: string, contractPath: string):
  * could not be resolved (a failure) or a raw route's non-contract argument (out
  * of scope).
  */
-async function checkSite(
+export async function checkSite(
   route: RouteFile,
   kind: SiteKind,
   verb: string,
   identifier: string,
   failures: string[],
-  verbose: boolean
+  verbose: boolean,
+  loadModule: ContractModuleLoader = loadContractSpecifier
 ): Promise<boolean> {
   const { relative, bindings, expectedPath } = route
-  const specifier = bindings.get(identifier)
-  if (kind === 'raw' && !specifier?.startsWith('@/lib/api/contracts')) return false
-  if (!specifier) {
+  const binding = bindings.get(identifier)
+  if (kind === 'raw' && !binding?.specifier.startsWith('@/lib/api/contracts')) return false
+  if (!binding) {
     failures.push(`${relative}: export const ${verb} uses \`${identifier}\`, which is not imported`)
     return false
   }
+  const { specifier, exported } = binding
 
-  const modulePath = resolveContractModule(specifier)
-  if (!modulePath) {
+  const loading = loadModule(specifier)
+  if (!loading) {
     failures.push(
       `${relative}: export const ${verb} imports \`${identifier}\` from '${specifier}', which does not resolve to a contract module`
     )
@@ -343,7 +383,7 @@ async function checkSite(
 
   let module: Record<string, unknown>
   try {
-    module = await loadContractModule(modulePath)
+    module = await loading
   } catch (error) {
     failures.push(
       `${relative}: export const ${verb} — importing '${specifier}' failed: ${(error as Error).message}`
@@ -351,7 +391,7 @@ async function checkSite(
     return false
   }
 
-  const contract = module[identifier] as RouteContract | undefined
+  const contract = module[exported] as RouteContract | undefined
   if (typeof contract?.method !== 'string' || typeof contract?.path !== 'string') {
     failures.push(
       `${relative}: export const ${verb} — \`${identifier}\` from '${specifier}' is not a route contract (no string \`method\`/\`path\`)`
