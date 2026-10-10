@@ -10,13 +10,13 @@ import type { SearchBlockItem, SearchToolOperationItem } from '@/stores/modals/s
  */
 export const SEARCH_SECTIONS = [
   'actions',
+  'workspaces',
   'blocks',
   'triggers',
   'tools',
   'toolOperations',
   'pages',
   'workflows',
-  'workspaces',
   'files',
   'tables',
   'knowledgeBases',

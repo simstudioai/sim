@@ -1255,10 +1255,14 @@ function SearchModalContent({
         entries: actionEntriesByLabel('Sim'),
       },
       ...(hoistedSection ? [entityGroup(hoistedSection)] : []),
+      entityGroup('workspaces'),
       ...CANVAS_SECTIONS.map(entityGroup),
       ...SEARCH_SECTIONS.filter(
         (section) =>
-          section !== 'actions' && section !== hoistedSection && !canvasSections.has(section)
+          section !== 'actions' &&
+          section !== 'workspaces' &&
+          section !== hoistedSection &&
+          !canvasSections.has(section)
       ).map(entityGroup),
     ]
 
