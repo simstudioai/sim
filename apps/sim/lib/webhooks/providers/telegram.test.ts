@@ -1,8 +1,16 @@
 import { webhook } from '@sim/db/schema'
 import { jsonResponse } from '@sim/testing/helpers/http'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
 import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+
 import { telegramHandler } from '@/lib/webhooks/providers/telegram'
 import type { AuthContext, SubscriptionContext } from '@/lib/webhooks/providers/types'
 
@@ -90,5 +98,58 @@ describe('telegramHandler.createSubscription', () => {
 
     expect(await verify(activeConfig, delivery)).toBeNull()
     expect(await verify(storedConfig, delivery)).toBeNull()
+  })
+})
+
+describe('Telegram bot tokens stored as environment variable references', () => {
+  const storedToken = '{{TELEGRAM_BOT_TOKEN}}'
+  const activeConfig = { botToken: storedToken, secretToken: 'active_deployment-secret' }
+  const workflow = { id: 'wf-1', userId: 'owner-1', workspaceId: 'ws-1' }
+  const resolvedWebhook = {
+    id: 'candidate-row',
+    workflowId: 'wf-1',
+    path: 'telegram-path',
+    providerConfig: { botToken: BOT_TOKEN },
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+    billingAttributionMockFns.mockGetWorkspaceBilledAccountUserId.mockResolvedValue('owner-1')
+    environmentUtilsMockFns.mockGetExecutionEnvironment.mockResolvedValue({
+      personalDecrypted: {},
+      workspaceDecrypted: { TELEGRAM_BOT_TOKEN: BOT_TOKEN },
+    })
+    queueTableRows(webhook, [{ id: 'active-row', providerConfig: activeConfig }])
+  })
+
+  it('reuses the active secret when the active row stores the token as a reference', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true, result: true }, 200))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await telegramHandler.createSubscription?.({
+      webhook: resolvedWebhook,
+      workflow,
+      userId: 'owner-1',
+      requestId: 'r1',
+      request: createMockRequest('POST', {}),
+    })
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(JSON.parse(init.body).secret_token).toBe(activeConfig.secretToken)
+  })
+
+  it('leaves the bot webhook in place when the active deployment uses the same referenced bot', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true, result: true }, 200))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await telegramHandler.deleteSubscription?.({
+      webhook: { ...resolvedWebhook, id: 'retired-row' },
+      workflow,
+      requestId: 'r1',
+      strict: true,
+    })
+
+    const telegramCalls = fetchMock.mock.calls.map(([url]) => String(url))
+    expect(telegramCalls.some((url) => url.endsWith('/deleteWebhook'))).toBe(false)
   })
 })

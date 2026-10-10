@@ -4,6 +4,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import {
+  resolveBackgroundWebhookEnv,
+  resolveWebhookProviderConfig,
+} from '@/lib/webhooks/env-resolver'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -217,8 +221,8 @@ export const telegramHandler: WebhookProviderHandler = {
       }
 
       const activeConfigs = await findActiveTelegramConfigsForBot(
-        ctx.webhook.workflowId,
         ctx.webhook.id,
+        ctx.workflow,
         botToken
       )
       if (activeConfigs.length > 0) {
@@ -273,8 +277,8 @@ async function resolveSubscriptionSecretToken(
   if (ownSecret) return ownSecret
 
   const activeConfigs = await findActiveTelegramConfigsForBot(
-    ctx.webhook.workflowId ?? ctx.workflow.id,
     ctx.webhook.id,
+    ctx.workflow,
     botToken
   )
   for (const activeConfig of activeConfigs) {
@@ -285,12 +289,18 @@ async function resolveSubscriptionSecretToken(
   return generateShortId(TELEGRAM_SECRET_TOKEN_LENGTH)
 }
 
-/** Provider configs of other active-deployment Telegram webhooks in the workflow using `botToken`. */
+/**
+ * Provider configs of other active-deployment Telegram webhooks in the workflow
+ * using `botToken`. Rows store the bot token as authored, often a `{{VAR}}`
+ * reference, while subscription callers hold it resolved, so each stored token
+ * is resolved against the same background env before comparing.
+ */
 async function findActiveTelegramConfigsForBot(
-  workflowId: unknown,
   webhookId: unknown,
+  workflowRecord: Record<string, unknown>,
   botToken: string
 ): Promise<Record<string, unknown>[]> {
+  const workflowId = workflowRecord.id
   if (typeof workflowId !== 'string' || typeof webhookId !== 'string') return []
 
   const activeWebhooks = await db
@@ -311,7 +321,24 @@ async function findActiveTelegramConfigsForBot(
       )
     )
 
-  return activeWebhooks
-    .map((activeWebhook) => getProviderConfig({ providerConfig: activeWebhook.providerConfig }))
-    .filter((activeConfig) => activeConfig.botToken === botToken)
+  const activeConfigs = activeWebhooks.map((activeWebhook) =>
+    getProviderConfig({ providerConfig: activeWebhook.providerConfig })
+  )
+  if (!activeConfigs.some((config) => String(config.botToken ?? '').includes('{{'))) {
+    return activeConfigs.filter((config) => config.botToken === botToken)
+  }
+
+  const ownerUserId = workflowRecord.userId
+  if (typeof ownerUserId !== 'string') return []
+  const workspaceId =
+    typeof workflowRecord.workspaceId === 'string' ? workflowRecord.workspaceId : undefined
+  const envVars = await resolveBackgroundWebhookEnv(ownerUserId, workspaceId)
+  const matches: Record<string, unknown>[] = []
+  for (const config of activeConfigs) {
+    const resolved = await resolveWebhookProviderConfig(config, ownerUserId, workspaceId, {
+      envVars,
+    })
+    if (resolved.botToken === botToken) matches.push(config)
+  }
+  return matches
 }
