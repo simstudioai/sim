@@ -158,8 +158,10 @@ describe('bounded live Search source configuration pagination', () => {
       connectorType: 'google_drive',
       approved: false,
     })
-    const owner = { organizationId: ids.organizationId }
-    const summary = await listSearchSources.execute({ principal: alice, input: owner })
+    const summary = await listSearchSources.execute({
+      principal: alice,
+      input: { organizationId: ids.organizationId, cursorRoute },
+    })
     expect(summary.sources[0]).toMatchObject({
       connectorId: approvalSourceId,
       approved: false,
