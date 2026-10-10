@@ -126,10 +126,13 @@ function methodNotAllowedResponse(): NextResponse {
  * existing callers see no change; anything else answers 405 uniformly, whether the path is
  * unknown, holds only non-path triggers, or holds a trigger that has not opted into the method —
  * so a probe cannot tell those apart.
+ *
+ * Every `POST` 404 carries `x-slack-no-retry`, which tells Slack not to redeliver an event to a
+ * deleted trigger. It is sent unconditionally, so it reveals nothing the 404 itself does not.
  */
 function notDeliverableResponse(method: string): NextResponse {
   return method === 'POST'
-    ? new NextResponse('Not Found', { status: 404 })
+    ? new NextResponse('Not Found', { status: 404, headers: { 'x-slack-no-retry': '1' } })
     : methodNotAllowedResponse()
 }
 
@@ -201,7 +204,7 @@ async function handleWebhookDelivery(
       return verificationResponse
     }
 
-    logger.warn(`[${requestId}] Webhook or workflow not found for path: ${path}`)
+    logger.debug(`[${requestId}] Webhook or workflow not found for path: ${path}`)
     return notDeliverableResponse(request.method)
   }
 

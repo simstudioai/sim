@@ -703,6 +703,15 @@ describe('Webhook Trigger API Route', () => {
     })
   })
 
+  it('tells Slack not to redeliver a POST to a path with no webhook', async () => {
+    const req = createMockRequest('POST', { type: 'event_callback' })
+
+    const response = await POST(req, createRouteContext({ path: 'deleted-path' }))
+
+    expect(response.status).toBe(404)
+    expect(response.headers.get('x-slack-no-retry')).toBe('1')
+  })
+
   describe('PUT, PATCH and DELETE deliveries', () => {
     /**
      * Every non-POST rejection is the same 405, whether the path is unknown, holds only
