@@ -11,7 +11,7 @@ describe('compiled document input identity', () => {
       sizeBytes: 1,
     }))
     const identity = fileDocumentInputIdentity(owner, files)
-    expect(fileDocumentInputIdentity(owner, files.toReversed())).toBe(identity)
+    expect(fileDocumentInputIdentity(owner, [...files].reverse())).toBe(identity)
     expect(
       fileDocumentInputIdentity(owner, [{ ...files[0], contentUpdatedAt: new Date(2) }, files[1]])
     ).not.toBe(identity)

@@ -10,8 +10,8 @@ export function fileDocumentInputIdentity(
   return files.length > 0
     ? JSON.stringify({
         version: 1,
-        inputs: files
-          .toSorted((left, right) => compareStrings(left.id, right.id))
+        inputs: [...files]
+          .sort((left, right) => compareStrings(left.id, right.id))
           .map((file) => ({
             fileId: file.id,
             key: file.key,
