@@ -115,14 +115,17 @@ describe('Telegram bot tokens stored as environment variable references', () => 
   beforeEach(() => {
     resetDbChainMock()
     billingAttributionMockFns.mockGetWorkspaceBilledAccountUserId.mockResolvedValue('owner-1')
-    environmentUtilsMockFns.mockGetExecutionEnvironment.mockResolvedValue({
-      personalDecrypted: {},
-      workspaceDecrypted: { TELEGRAM_BOT_TOKEN: BOT_TOKEN },
-    })
     queueTableRows(webhook, [{ id: 'active-row', providerConfig: activeConfig }])
   })
 
-  it('reuses the active secret when the active row stores the token as a reference', async () => {
+  it("reuses the active secret when the reference resolves in the deployer's env", async () => {
+    environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue({
+      TELEGRAM_BOT_TOKEN: BOT_TOKEN,
+    })
+    environmentUtilsMockFns.mockGetExecutionEnvironment.mockResolvedValue({
+      personalDecrypted: {},
+      workspaceDecrypted: {},
+    })
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true, result: true }, 200))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -139,6 +142,10 @@ describe('Telegram bot tokens stored as environment variable references', () => 
   })
 
   it('leaves the bot webhook in place when the active deployment uses the same referenced bot', async () => {
+    environmentUtilsMockFns.mockGetExecutionEnvironment.mockResolvedValue({
+      personalDecrypted: {},
+      workspaceDecrypted: { TELEGRAM_BOT_TOKEN: BOT_TOKEN },
+    })
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true, result: true }, 200))
     vi.stubGlobal('fetch', fetchMock)
 

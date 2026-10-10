@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { createWorkflowRecord } from '@sim/testing'
+import { createWorkflowRecord } from '@sim/testing/factories/permission.factory'
+import { idempotencyServiceMock } from '@sim/testing/mocks/idempotency-service.mock'
 import {
   inputValidationMock,
   inputValidationMockFns,
@@ -18,13 +19,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 const mockFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
 const mockValidateUrl = inputValidationMockFns.mockValidateUrlWithDNS
 
-vi.mock('@/lib/core/idempotency/service', () => ({
-  pollingIdempotency: {
-    executeWithIdempotency: vi.fn(
-      async (_provider: string, _key: string, execute: () => Promise<unknown>) => execute()
-    ),
-  },
-}))
+vi.mock('@/lib/core/idempotency/service', () => idempotencyServiceMock)
 
 vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 

@@ -1,5 +1,5 @@
 import { webhook } from '@sim/db/schema'
-import { createWorkflowRecord } from '@sim/testing'
+import { createWorkflowRecord } from '@sim/testing/factories/permission.factory'
 import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { createMockRedis } from '@sim/testing/mocks/redis.mock'

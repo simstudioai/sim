@@ -1,4 +1,4 @@
-import { loggingSessionMock, loggingSessionMockFns, workflowAuthzMockFns } from '@sim/testing'
+import { loggingSessionMock, workflowAuthzMockFns } from '@sim/testing'
 import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
 import {
   billingAttributionMock,
@@ -15,6 +15,7 @@ import {
   billingUsageReservationMockFns,
 } from '@sim/testing/mocks/billing-usage-reservation.mock'
 import { executionLimitsMock } from '@sim/testing/mocks/execution-limits.mock'
+import { loggingSessionMockFns } from '@sim/testing/mocks/logging-session.mock'
 import { createMockRedis } from '@sim/testing/mocks/redis.mock'
 import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing/mocks/redis-config.mock'
 import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'

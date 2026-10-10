@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { createWorkflowRecord } from '@sim/testing'
+import { createWorkflowRecord } from '@sim/testing/factories/permission.factory'
 import { jsonResponse } from '@sim/testing/helpers/http'
+import { idempotencyServiceMock } from '@sim/testing/mocks/idempotency-service.mock'
 import {
   webhooksPollingUtilsMock,
   webhooksPollingUtilsMockFns,
@@ -11,13 +12,7 @@ import {
 } from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/idempotency/service', () => ({
-  pollingIdempotency: {
-    executeWithIdempotency: vi.fn(
-      async (_provider: string, _key: string, execute: () => Promise<unknown>) => execute()
-    ),
-  },
-}))
+vi.mock('@/lib/core/idempotency/service', () => idempotencyServiceMock)
 
 vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 

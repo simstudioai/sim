@@ -376,6 +376,10 @@ export {
   resetIdMock,
 } from './id.mock'
 export {
+  idempotencyServiceMock,
+  idempotencyServiceMockFns,
+} from './idempotency-service.mock'
+export {
   inputValidationMock,
   inputValidationMockFns,
 } from './input-validation.mock'

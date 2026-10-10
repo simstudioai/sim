@@ -1,4 +1,5 @@
 import { dbChainMockFns } from '@sim/testing'
+import { idempotencyServiceMock } from '@sim/testing/mocks/idempotency-service.mock'
 import {
   webhooksPollingUtilsMock,
   webhooksPollingUtilsMockFns,
@@ -18,9 +19,7 @@ const {
   mockResolveImapConnectionForActor: vi.fn(),
 }))
 
-vi.mock('@/lib/core/idempotency/service', () => ({
-  pollingIdempotency: { executeWithIdempotency: vi.fn() },
-}))
+vi.mock('@/lib/core/idempotency/service', () => idempotencyServiceMock)
 
 vi.mock('@/lib/imap/connection.server', () => ({
   createSecureImapClient: mockCreateSecureImapClient,

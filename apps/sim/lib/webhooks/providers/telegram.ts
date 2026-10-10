@@ -4,6 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { resolveBackgroundWebhookEnv } from '@/lib/webhooks/env-resolver'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -221,7 +222,8 @@ export const telegramHandler: WebhookProviderHandler = {
       const activeConfigs = await findActiveTelegramConfigsForBot(
         ctx.webhook.id,
         ctx.workflow,
-        botToken
+        botToken,
+        () => backgroundEnvFor(ctx.workflow)
       )
       if (activeConfigs.length > 0) {
         logger.info(
@@ -274,10 +276,12 @@ async function resolveSubscriptionSecretToken(
   const ownSecret = readSecretToken(config)
   if (ownSecret) return ownSecret
 
+  const workspaceId = workspaceIdOf(ctx.workflow)
   const activeConfigs = await findActiveTelegramConfigsForBot(
     ctx.webhook.id,
     ctx.workflow,
-    botToken
+    botToken,
+    () => getEffectiveDecryptedEnv(ctx.userId, workspaceId)
   )
   for (const activeConfig of activeConfigs) {
     const activeSecret = readSecretToken(activeConfig)
@@ -287,16 +291,30 @@ async function resolveSubscriptionSecretToken(
   return generateShortId(TELEGRAM_SECRET_TOKEN_LENGTH)
 }
 
+function workspaceIdOf(workflowRecord: Record<string, unknown>): string | undefined {
+  return typeof workflowRecord.workspaceId === 'string' ? workflowRecord.workspaceId : undefined
+}
+
+/** The env cleanup resolves a stored config with (`cleanupExternalWebhook`). */
+async function backgroundEnvFor(workflowRecord: Record<string, unknown>) {
+  const ownerUserId = workflowRecord.userId
+  return typeof ownerUserId === 'string'
+    ? resolveBackgroundWebhookEnv(ownerUserId, workspaceIdOf(workflowRecord))
+    : {}
+}
+
 /**
  * Provider configs of other active-deployment Telegram webhooks in the workflow
  * using `botToken`. Rows store the bot token as authored, often a `{{VAR}}`
- * reference, while subscription callers hold it resolved, so each stored token
- * is resolved against the same background env before comparing.
+ * reference, while the caller holds it resolved, so each stored token is
+ * resolved with `loadEnv` — the same env the caller resolved its own token with —
+ * before comparing.
  */
 async function findActiveTelegramConfigsForBot(
   webhookId: unknown,
   workflowRecord: Record<string, unknown>,
-  botToken: string
+  botToken: string,
+  loadEnv: () => Promise<Record<string, string>>
 ): Promise<Record<string, unknown>[]> {
   const workflowId = workflowRecord.id
   if (typeof workflowId !== 'string' || typeof webhookId !== 'string') return []
@@ -325,14 +343,7 @@ async function findActiveTelegramConfigsForBot(
   const referencesEnv = activeConfigs.some((config) =>
     createEnvVarPattern().test(String(config.botToken ?? ''))
   )
-  const ownerUserId = workflowRecord.userId
-  const envVars =
-    referencesEnv && typeof ownerUserId === 'string'
-      ? await resolveBackgroundWebhookEnv(
-          ownerUserId,
-          typeof workflowRecord.workspaceId === 'string' ? workflowRecord.workspaceId : undefined
-        )
-      : {}
+  const envVars = referencesEnv ? await loadEnv() : {}
   return activeConfigs.filter(
     (config) => resolveEnvVarReferences(config.botToken, envVars) === botToken
   )
