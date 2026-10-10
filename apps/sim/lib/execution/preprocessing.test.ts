@@ -1065,6 +1065,16 @@ describe('preprocessExecution admission rejection codes and blocked-run log thro
     expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(2)
   })
 
+  it('writes a row for each gate whose check fails without a code', async () => {
+    const workflowId = 'workflow-1'
+    mockGetActivelyBannedUserIds.mockRejectedValueOnce(new Error('ban lookup failed'))
+    await refuse(workflowId, { throttleErrorLogs: true })
+    mockCheckAttributedUsageLimits.mockRejectedValueOnce(new Error('usage lookup failed'))
+    await refuse(workflowId, { throttleErrorLogs: true })
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(2)
+  })
+
   it('writes every row when the caller does not ask for throttling', async () => {
     const workflowId = 'workflow-1'
     await refuse(workflowId)

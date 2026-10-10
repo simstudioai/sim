@@ -382,8 +382,9 @@ export async function preprocessExecution(
   const isFailureLogSuppressed = (failure: PreprocessExecutionError): boolean =>
     suppressRetryableFailureLogs && failure.statusCode >= 500 && failure.retryable === true
 
-  /** Records an admission gate's error row, at most once per window when throttled. */
+  /** Records an admission gate's error row, at most once per gate and outcome per window when throttled. */
   const recordGateFailure = async (
+    gate: 'ban' | 'usage' | 'rate-limit' | 'reservation',
     failure: PreprocessExecutionError,
     record: Parameters<typeof logPreprocessingError>[0]
   ): Promise<void> => {
@@ -392,7 +393,7 @@ export async function preprocessExecution(
       throttleErrorLogs &&
       logPreprocessingErrors &&
       !providedLoggingSession &&
-      !(await claimBlockedRunLog(workflowId, failure.code ?? String(failure.statusCode)))
+      !(await claimBlockedRunLog(workflowId, `${gate}:${failure.code ?? failure.statusCode}`))
     ) {
       return
     }
@@ -919,7 +920,11 @@ export async function preprocessExecution(
   const readGateFailure = banFailure ?? usageResult.failure
   if (readGateFailure) {
     if (readGateFailure.recordError) {
-      await recordGateFailure(readGateFailure.response.error, readGateFailure.recordError)
+      await recordGateFailure(
+        banFailure ? 'ban' : 'usage',
+        readGateFailure.response.error,
+        readGateFailure.recordError
+      )
     }
     return readGateFailure.response
   }
@@ -927,7 +932,11 @@ export async function preprocessExecution(
   const rateLimitFailure = await runRateLimitGate()
   if (rateLimitFailure) {
     if (rateLimitFailure.recordError) {
-      await recordGateFailure(rateLimitFailure.response.error, rateLimitFailure.recordError)
+      await recordGateFailure(
+        'rate-limit',
+        rateLimitFailure.response.error,
+        rateLimitFailure.recordError
+      )
     }
     return rateLimitFailure.response
   }
@@ -993,7 +1002,7 @@ export async function preprocessExecution(
             constraint: reservation.reason,
           },
         }
-        await recordGateFailure(failure, {
+        await recordGateFailure('reservation', failure, {
           workflowId,
           executionId,
           triggerType,

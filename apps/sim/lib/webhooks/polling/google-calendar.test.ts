@@ -2,15 +2,14 @@ import { createLogger } from '@sim/logger'
 import { createWorkflowRecord } from '@sim/testing'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import {
+  webhooksPollingUtilsMock,
+  webhooksPollingUtilsMockFns,
+} from '@sim/testing/mocks/webhooks-polling-utils.mock'
+import {
   webhooksProcessorMock,
   webhooksProcessorMockFns,
 } from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockUpdateConfig, mockMarkFailed } = vi.hoisted(() => ({
-  mockUpdateConfig: vi.fn(),
-  mockMarkFailed: vi.fn(),
-}))
 
 vi.mock('@/lib/core/idempotency/service', () => ({
   pollingIdempotency: {
@@ -22,19 +21,18 @@ vi.mock('@/lib/core/idempotency/service', () => ({
 
 vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
-vi.mock('@/lib/webhooks/polling/utils', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/webhooks/polling/utils')>()),
-  resolveOAuthCredential: vi.fn().mockResolvedValue('access-token'),
-  markWebhookSuccess: vi.fn(),
-  markWebhookFailed: mockMarkFailed,
-  updateWebhookProviderConfig: mockUpdateConfig,
-}))
+vi.mock('@/lib/webhooks/polling/utils', () => webhooksPollingUtilsMock)
 
 import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import { googleCalendarPollingHandler } from '@/lib/webhooks/polling/google-calendar'
 import type { PollWebhookContext, WebhookRecord } from '@/lib/webhooks/polling/types'
 
 const mockProcessEvent = webhooksProcessorMockFns.mockProcessPolledWebhookEvent
+const {
+  mockUpdateWebhookProviderConfig: mockUpdateConfig,
+  mockMarkWebhookFailed: mockMarkFailed,
+  mockResolveOAuthCredential,
+} = webhooksPollingUtilsMockFns
 
 function context(): PollWebhookContext {
   const webhookData: WebhookRecord = {
@@ -72,6 +70,7 @@ function context(): PollWebhookContext {
 
 describe('Google Calendar polling when execution admission refuses events', () => {
   beforeEach(() => {
+    mockResolveOAuthCredential.mockResolvedValue('access-token')
     const events = ['event-1', 'event-2'].map((id) => ({
       id,
       status: 'confirmed',

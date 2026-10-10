@@ -1,4 +1,8 @@
 import { dbChainMockFns } from '@sim/testing'
+import {
+  webhooksPollingUtilsMock,
+  webhooksPollingUtilsMockFns,
+} from '@sim/testing/mocks/webhooks-polling-utils.mock'
 import { webhooksProcessorMock } from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,13 +10,11 @@ const {
   mockCreateSecureImapClient,
   mockHasImapEnvironmentReferences,
   mockLogger,
-  mockMarkWebhookFailed,
   mockResolveImapConnectionForActor,
 } = vi.hoisted(() => ({
   mockCreateSecureImapClient: vi.fn(),
   mockHasImapEnvironmentReferences: vi.fn(),
   mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-  mockMarkWebhookFailed: vi.fn(),
   mockResolveImapConnectionForActor: vi.fn(),
 }))
 
@@ -27,23 +29,18 @@ vi.mock('@/lib/imap/connection.server', () => ({
   resolveImapConnectionForActor: mockResolveImapConnectionForActor,
 }))
 
-vi.mock('@/lib/webhooks/polling/utils', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/webhooks/polling/utils')>()),
-  markWebhookFailed: mockMarkWebhookFailed,
-  markWebhookSuccess: vi.fn(),
-  updateWebhookProviderConfig: vi.fn(),
-}))
+vi.mock('@/lib/webhooks/polling/utils', () => webhooksPollingUtilsMock)
 
 vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
 import { imapPollingHandler } from '@/lib/webhooks/polling/imap'
 
 const mockDbSelect = dbChainMockFns.select
+const { mockMarkWebhookFailed } = webhooksPollingUtilsMockFns
 
 describe('IMAP runtime polling policy', () => {
   beforeEach(() => {
     mockHasImapEnvironmentReferences.mockReturnValue(true)
-    mockMarkWebhookFailed.mockResolvedValue(undefined)
   })
 
   it('fails closed before resolution, DNS, or ImapFlow when referenced auth has no deployment actor', async () => {

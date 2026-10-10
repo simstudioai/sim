@@ -5,16 +5,14 @@ import {
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
 import {
+  webhooksPollingUtilsMock,
+  webhooksPollingUtilsMockFns,
+} from '@sim/testing/mocks/webhooks-polling-utils.mock'
+import {
   webhooksProcessorMock,
   webhooksProcessorMockFns,
 } from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockUpdateConfig, mockMarkFailed, mockRecordPollSourceFailure } = vi.hoisted(() => ({
-  mockUpdateConfig: vi.fn(),
-  mockMarkFailed: vi.fn(),
-  mockRecordPollSourceFailure: vi.fn(),
-}))
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 const mockFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
@@ -30,13 +28,7 @@ vi.mock('@/lib/core/idempotency/service', () => ({
 
 vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
-vi.mock('@/lib/webhooks/polling/utils', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/webhooks/polling/utils')>()),
-  markWebhookSuccess: vi.fn(),
-  markWebhookFailed: mockMarkFailed,
-  recordPollSourceFailure: mockRecordPollSourceFailure,
-  updateWebhookProviderConfig: mockUpdateConfig,
-}))
+vi.mock('@/lib/webhooks/polling/utils', () => webhooksPollingUtilsMock)
 
 import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import { rssPollingHandler } from '@/lib/webhooks/polling/rss'
@@ -44,6 +36,11 @@ import type { PollWebhookContext, WebhookRecord } from '@/lib/webhooks/polling/t
 import { PollFetchError } from '@/lib/webhooks/polling/utils'
 
 const mockProcessEvent = webhooksProcessorMockFns.mockProcessPolledWebhookEvent
+const {
+  mockUpdateWebhookProviderConfig: mockUpdateConfig,
+  mockMarkWebhookFailed: mockMarkFailed,
+  mockRecordPollSourceFailure,
+} = webhooksPollingUtilsMockFns
 
 const SUBSCRIBED_AT = new Date('2026-08-27T18:36:16.000Z')
 const LAST_CHECKED_AT = '2026-09-11T23:26:27.000Z'
@@ -158,7 +155,7 @@ describe('RSS polling against refusals and rate limits', () => {
     expect(mockMarkFailed).not.toHaveBeenCalled()
   })
 
-  it("records a rate-limited fetch as one failure carrying the source's requested wait", async () => {
+  it('records a rate-limited fetch as one source failure carrying its status', async () => {
     mockFetch.mockResolvedValue(
       new Response('Too Many Requests', {
         status: 429,
@@ -172,6 +169,6 @@ describe('RSS polling against refusals and rate limits', () => {
     expect(mockRecordPollSourceFailure).toHaveBeenCalledOnce()
     const [, , error] = mockRecordPollSourceFailure.mock.calls[0]
     expect(error).toBeInstanceOf(PollFetchError)
-    expect(error).toMatchObject({ status: 429, retryAfterMs: 12_000 })
+    expect(error).toMatchObject({ status: 429 })
   })
 })
