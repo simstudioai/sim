@@ -20,8 +20,7 @@ import postgres from 'postgres'
  * Real browser coverage against a running local app and disposable PostgreSQL.
  * Requires MOBILE_E2E_BASE_URL, MOBILE_E2E_DATABASE_URL, MOBILE_E2E_AUTH_SECRET,
  * and MOBILE_E2E_REPORT_PATH. Install Chromium and WebKit with Playwright first.
- * MOBILE_E2E_BROWSER runs one browser (CI runs one process per browser, against one app), and
- * MOBILE_E2E_VIEWPORT narrows a diagnostic rerun.
+ * MOBILE_E2E_BROWSER and MOBILE_E2E_VIEWPORT narrow a diagnostic rerun.
  */
 const logger = createLogger('MobileE2E')
 const expect = browserExpect.configure({ timeout: 20_000 })

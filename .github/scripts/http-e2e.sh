@@ -201,27 +201,11 @@ case "$group" in
     export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=12288"
     bunx --no-install playwright install --with-deps chromium webkit
     start_app mobile 3024 'mobile browser' record-http-status
-    # Chromium and WebKit run as two processes against the one app, so WebKit no longer waits out
-    # Chromium's pass. Each process seeds and removes its own fixtures under fresh ids and writes
-    # its own report, so they share nothing but the server.
-    browser_pids=()
-    for browser in chromium webkit; do
-      MOBILE_E2E_BROWSER="$browser" \
-      MOBILE_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
-      MOBILE_E2E_DATABASE_URL="$DATABASE_URL" \
-      MOBILE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
-      MOBILE_E2E_REPORT_PATH="$report_dir/mobile-e2e-$browser-report.json" \
-        bun run test:mobile:e2e > "$report_dir/mobile-$browser.log" 2>&1 &
-      browser_pids+=("$!")
-    done
-    browsers_failed=0
-    for pid in "${browser_pids[@]}"; do wait "$pid" || browsers_failed=1; done
-    for browser in chromium webkit; do
-      echo "::group::Mobile checks: $browser"
-      cat "$report_dir/mobile-$browser.log"
-      echo "::endgroup::"
-    done
-    [ "$browsers_failed" = 0 ]
+    MOBILE_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+    MOBILE_E2E_DATABASE_URL="$DATABASE_URL" \
+    MOBILE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    MOBILE_E2E_REPORT_PATH="$report_dir/mobile-e2e-report.json" \
+      bun run test:mobile:e2e
     ;;
 
   *)
