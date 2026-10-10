@@ -1,4 +1,4 @@
-import { projectWorkspace, workspace } from '@sim/db/schema'
+import { workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { workflowsPersistenceUtilsMock } from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import {
@@ -140,8 +140,9 @@ function forkParams(selection?: {
 describe('createFork storage headroom gate', () => {
   beforeEach(() => {
     resetDbChainMock()
-    queueTableRows(projectWorkspace, [{ projectId: 'project-source' }])
-    queueTableRows(projectWorkspace, [
+    dbChainMockFns.as.mockReturnValue(workspace)
+    queueTableRows(workspace, [{ projectId: 'project-source' }])
+    queueTableRows(workspace, [
       { project: { id: 'project-source', organizationId: null, archivedAt: null } },
     ])
     /**
@@ -215,8 +216,9 @@ describe('createFork storage headroom gate', () => {
 
   it('refuses when the parent changed organizations after the policy was captured', async () => {
     resetDbChainMock()
-    queueTableRows(projectWorkspace, [{ projectId: 'project-source' }])
-    queueTableRows(projectWorkspace, [
+    dbChainMockFns.as.mockReturnValue(workspace)
+    queueTableRows(workspace, [{ projectId: 'project-source' }])
+    queueTableRows(workspace, [
       { project: { id: 'project-source', organizationId: null, archivedAt: null } },
     ])
     /**
@@ -243,8 +245,9 @@ describe('createFork storage headroom gate', () => {
    */
   it('gives the child the source workspace personal API-key and fork-sync policies', async () => {
     resetDbChainMock()
-    queueTableRows(projectWorkspace, [{ projectId: 'project-source' }])
-    queueTableRows(projectWorkspace, [
+    dbChainMockFns.as.mockReturnValue(workspace)
+    queueTableRows(workspace, [{ projectId: 'project-source' }])
+    queueTableRows(workspace, [
       { project: { id: 'project-source', organizationId: null, archivedAt: null } },
     ])
     queueTableRows(workspace, [{ organizationId: null, forkSyncNewWorkflowsExcluded: true }])

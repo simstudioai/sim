@@ -58,7 +58,7 @@ describe('patched Drizzle push against PostgreSQL', () => {
   async function schema(source: string) {
     await writeFile(
       join(directory, 'schema.ts'),
-      `import { pgTable, pgSchema, pgEnum, text, integer, bigint, boolean, check } from ${JSON.stringify(import.meta.resolve('drizzle-orm/pg-core'))}
+      `import { pgTable, pgSchema, pgEnum, text, integer, bigint, boolean, check, index } from ${JSON.stringify(import.meta.resolve('drizzle-orm/pg-core'))}
 import { sql } from ${JSON.stringify(import.meta.resolve('drizzle-orm'))}
 ${source}`
     )
@@ -78,6 +78,19 @@ ${source}`
       ],
       {
         env: { ...process.env, DATABASE_URL: fixtureUrl, SIM_DB_PUSH_RENAME_MODE: renameMode },
+        encoding: 'utf8',
+        timeout: 30_000,
+      }
+    )
+  }
+
+  function runPush(args: string[]) {
+    return spawnSync(
+      'bun',
+      ['--no-env-file', fileURLToPath(new URL('./push.ts', import.meta.url)), ...args],
+      {
+        cwd: directory,
+        env: { ...process.env, DATABASE_URL: fixtureUrl, MIGRATION_DATABASE_URL: fixtureUrl },
         encoding: 'utf8',
         timeout: 30_000,
       }
@@ -121,18 +134,6 @@ ${source}`
 export const knowledgeBases = pgTable('knowledge_base', {
       id: text('id').primaryKey(), isSearchIndex: boolean('is_search_index').notNull().default(false),
     })`)
-    function runPush(args: string[]) {
-      return spawnSync(
-        'bun',
-        ['--no-env-file', fileURLToPath(new URL('./push.ts', import.meta.url)), ...args],
-        {
-          cwd: directory,
-          env: { ...process.env, DATABASE_URL: fixtureUrl, MIGRATION_DATABASE_URL: fixtureUrl },
-          encoding: 'utf8',
-          timeout: 30_000,
-        }
-      )
-    }
     const denied = runPush([])
     expect(denied.error).toBeUndefined()
     expect(denied.status, denied.stdout + denied.stderr).toBe(1)
@@ -154,6 +155,155 @@ export const knowledgeBases = pgTable('knowledge_base', {
     expect(await sql`SELECT is_search_index FROM knowledge_base`).toEqual([
       { is_search_index: true },
     ])
+  }, 30_000)
+
+  it.each([false, true])(
+    'uses the direct migration connection for Project reconciliation (application URL present=%s)',
+    async (applicationUrlPresent) => {
+      const unavailable = new URL(fixtureUrl)
+      unavailable.port = '1'
+      const result = spawnSync(
+        'bun',
+        [
+          '--no-env-file',
+          fileURLToPath(new URL('./reconcile-project-membership.ts', import.meta.url)),
+          '--prepare',
+        ],
+        {
+          env: {
+            ...process.env,
+            DATABASE_URL: applicationUrlPresent ? unavailable.toString() : undefined,
+            MIGRATION_DATABASE_URL: fixtureUrl,
+          },
+          encoding: 'utf8',
+          timeout: 15_000,
+        }
+      )
+      expect(result.error).toBeUndefined()
+      expect(result.status, result.stdout + result.stderr).toBe(0)
+    },
+    30_000
+  )
+
+  it('preserves legacy assignments without copying or synchronizing through schema push and replay', async () => {
+    await sql`CREATE TABLE project (id text PRIMARY KEY)`
+    await sql`CREATE TABLE workspace (id text PRIMARY KEY, forked_from_workspace_id text)`
+    await sql`CREATE TABLE project_workspace (project_id text NOT NULL, workspace_id text NOT NULL CONSTRAINT project_workspace_workspace_id_unique UNIQUE)`
+    await sql`INSERT INTO project VALUES ('family'), ('singleton')`
+    await sql`INSERT INTO workspace VALUES ('root', NULL), ('fork', 'root'), ('standalone', NULL)`
+    await sql`INSERT INTO project_workspace VALUES ('family', 'root'), ('family', 'fork'), ('singleton', 'standalone')`
+    await schema(`export const projects = pgTable('project', { id: text('id').primaryKey() })
+export const workspaces = pgTable('workspace', {
+  id: text('id').primaryKey(), forkedFromWorkspaceId: text('forked_from_workspace_id'), projectId: text('project_id'),
+}, (table) => [index('workspace_project_id_id_idx').on(table.projectId, table.id).concurrently()])
+export const rollout = pgTable('project_membership_rollout', {
+  id: text('id').primaryKey(), phase: text('phase').notNull().default('connector'),
+}, (table) => [check('project_membership_rollout_singleton', sql\`\${table.id} = 'membership'\`), check('project_membership_rollout_phase', sql\`\${table.phase} IN ('connector', 'column')\`)])
+export const memberships = pgTable('project_workspace', {
+  projectId: text('project_id').notNull(), workspaceId: text('workspace_id').notNull().unique(),
+})`)
+    const first = runPush(['--force'])
+    expect(first.error, first.stderr).toBeUndefined()
+    // Other reconcilers require their own tables; their failure must not undo Project preparation.
+    expect(
+      await sql`SELECT id, project_id FROM workspace ORDER BY id`,
+      first.stdout + first.stderr
+    ).toEqual([
+      { id: 'fork', project_id: null },
+      { id: 'root', project_id: null },
+      { id: 'standalone', project_id: null },
+    ])
+    expect(await sql`SELECT phase FROM project_membership_rollout`).toEqual([
+      { phase: 'connector' },
+    ])
+    await sql`UPDATE project_membership_rollout SET phase = 'column' WHERE id = 'membership'`
+    await sql`UPDATE project_workspace SET project_id = 'singleton' WHERE workspace_id = 'fork'`
+    await sql`UPDATE workspace SET project_id = 'family' WHERE id = 'standalone'`
+    const indexBeforeReplay = await sql`SELECT indexrelid, indisvalid FROM pg_index
+      WHERE indexrelid = 'workspace_project_id_id_idx'::regclass`
+    expect(indexBeforeReplay).toEqual([{ indexrelid: expect.any(Number), indisvalid: true }])
+    /** Replay must restore real DDL, not pass from unchanged state after an early child failure. */
+    await sql`ALTER TABLE workspace DROP CONSTRAINT workspace_project_id_project_id_fk`
+    const repeated = runPush(['--force'])
+    expect(repeated.error, repeated.stderr).toBeUndefined()
+    /** This partial fixture reaches Project reconciliation, then lacks the next reconciler's tables. */
+    expect(repeated.status, repeated.stdout + repeated.stderr).toBe(1)
+    expect(
+      await sql`SELECT confdeltype, convalidated FROM pg_constraint
+      WHERE conrelid = 'workspace'::regclass AND conname = 'workspace_project_id_project_id_fk'`
+    ).toEqual([{ confdeltype: 'r', convalidated: false }])
+    expect(await sql`SELECT phase FROM project_membership_rollout`).toEqual([{ phase: 'column' }])
+    expect(
+      await sql`SELECT indexrelid, indisvalid FROM pg_index
+        WHERE indexrelid = 'workspace_project_id_id_idx'::regclass`
+    ).toEqual(indexBeforeReplay)
+    expect(
+      await sql`SELECT w.id, w.project_id, pw.project_id AS legacy FROM workspace w
+      JOIN project_workspace pw ON pw.workspace_id = w.id ORDER BY w.id`
+    ).toEqual([
+      { id: 'fork', project_id: null, legacy: 'singleton' },
+      { id: 'root', project_id: null, legacy: 'family' },
+      { id: 'standalone', project_id: 'family', legacy: 'singleton' },
+    ])
+  }, 60_000)
+
+  it('repairs an interrupted Project index build during schema-push reconciliation', async () => {
+    await sql`CREATE TABLE project (id text PRIMARY KEY)`
+    await sql`CREATE TABLE workspace (id text PRIMARY KEY, project_id text)`
+    await sql`CREATE TABLE project_workspace (project_id text NOT NULL, workspace_id text NOT NULL UNIQUE)`
+    await sql`INSERT INTO project VALUES ('family')`
+    await sql`CREATE TABLE project_membership_rollout (id text PRIMARY KEY, phase text NOT NULL)`
+    await sql`INSERT INTO project_membership_rollout VALUES ('membership', 'column')`
+    await sql`INSERT INTO workspace VALUES ('root', 'family'), ('fork', 'family')`
+    await expect(
+      sql`CREATE UNIQUE INDEX CONCURRENTLY workspace_project_id_id_idx ON workspace(project_id)`
+    ).rejects.toMatchObject({ code: '23505' })
+    expect(
+      await sql`SELECT indisvalid FROM pg_index WHERE indexrelid = 'workspace_project_id_id_idx'::regclass`
+    ).toEqual([{ indisvalid: false }])
+    const result = spawnSync(
+      'bun',
+      [
+        '--no-env-file',
+        fileURLToPath(new URL('./reconcile-project-membership.ts', import.meta.url)),
+      ],
+      {
+        env: { ...process.env, DATABASE_URL: fixtureUrl, MIGRATION_DATABASE_URL: fixtureUrl },
+        encoding: 'utf8',
+        timeout: 15_000,
+      }
+    )
+    expect(result.error).toBeUndefined()
+    expect(result.status, result.stdout + result.stderr).toBe(0)
+    expect(
+      await sql`SELECT indisvalid, indisunique FROM pg_index
+        WHERE indexrelid = 'workspace_project_id_id_idx'::regclass`
+    ).toEqual([{ indisvalid: true, indisunique: false }])
+    expect(await sql`SELECT id, project_id FROM workspace ORDER BY id`).toEqual([
+      { id: 'fork', project_id: 'family' },
+      { id: 'root', project_id: 'family' },
+    ])
+  })
+
+  it('refuses a schema downgrade before recreating the retired Project connector', async () => {
+    await sql`CREATE TABLE project (id text PRIMARY KEY)`
+    await sql`CREATE TABLE workspace (id text PRIMARY KEY, project_id text NOT NULL)`
+    await sql`INSERT INTO project VALUES ('retained')`
+    await sql`INSERT INTO workspace VALUES ('environment', 'retained')`
+    await schema(`export const projects = pgTable('project', { id: text('id').primaryKey() })
+export const workspaces = pgTable('workspace', { id: text('id').primaryKey(), projectId: text('project_id') })
+export const memberships = pgTable('project_workspace', {
+  projectId: text('project_id').notNull(), workspaceId: text('workspace_id').notNull().unique(),
+})`)
+    const result = runPush(['--force'])
+    expect(result.status, result.stdout + result.stderr).toBe(1)
+    expect(await sql`SELECT to_regclass('public.project_workspace') AS legacy`).toEqual([
+      { legacy: null },
+    ])
+    expect(
+      await sql`SELECT attnotnull FROM pg_attribute WHERE attrelid = 'workspace'::regclass AND attname = 'project_id'`
+    ).toEqual([{ attnotnull: true }])
+    expect(await sql`SELECT project_id FROM workspace`).toEqual([{ project_id: 'retained' }])
   }, 30_000)
 
   it('retires the legacy size bridge without losing bigint or unbackfilled values', async () => {

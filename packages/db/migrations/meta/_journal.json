@@ -2836,6 +2836,13 @@
       "when": 1791594144264,
       "tag": "0405_oauth_refresh_revoked",
       "breakpoints": true
+    },
+    {
+      "idx": 406,
+      "version": "7",
+      "when": 1791594144265,
+      "tag": "0406_workspace_project_column",
+      "breakpoints": true
     }
   ]
 }

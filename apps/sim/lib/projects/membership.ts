@@ -2,8 +2,7 @@ import { permissionGroup, project, projectWorkspace, workspace } from '@sim/db/s
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { compareStrings, truncateAtCodePoint } from '@sim/utils/string'
-import { and, asc, eq, inArray, isNull, notInArray, type SQL, sql } from 'drizzle-orm'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { and, asc, eq, inArray, isNotNull, isNull, notInArray, type SQL, sql } from 'drizzle-orm'
 import {
   acquireAdvisoryXactLock,
   acquireAdvisoryXactLocks,
@@ -12,16 +11,14 @@ import {
 import { textArrayLiteral } from '@/lib/db/arrays'
 import type { DbTransaction } from '@/lib/db/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
+import {
+  getProjectEnvironmentSource,
+  getProjectMembershipPhase,
+  lockProjectMembershipBarrier,
+} from '@/lib/projects/environment-source'
+import { ProjectConflictError } from '@/lib/projects/errors'
 
 const PROJECT_LOCK_TIMEOUT_MS = 5_000
-
-/** A Project lifecycle rule or lock refused the change; callers may map it to their own error. */
-export class ProjectConflictError extends OrchestrationError {
-  constructor(message: string) {
-    super('conflict', message)
-    this.name = 'ProjectConflictError'
-  }
-}
 
 /**
  * Waits in `acquire` are bounded by {@link PROJECT_LOCK_TIMEOUT_MS} and a timeout or
@@ -33,6 +30,7 @@ async function withProjectLockTimeout<T>(
   message: string,
   acquire: () => Promise<T>
 ): Promise<T> {
+  await lockProjectMembershipBarrier(tx)
   const [setting] = await tx.execute<{ previous: string }>(
     sql`SELECT current_setting('lock_timeout') AS previous`
   )
@@ -68,7 +66,7 @@ function acquireBackfillWriteLocks(tx: DbTransaction, workspaceIds: string[]) {
   return acquireAdvisoryXactLocks(tx, 'project_backfill', locks)
 }
 
-/** Shared per-environment gate keeps membership absence reads stable during SQL backfill. */
+/** Shared per-environment gate keeps membership absence reads stable during backfill. */
 export async function lockProjectBackfillWrites(
   tx: DbTransaction,
   workspaceIds: string[]
@@ -107,26 +105,29 @@ function generatedProjectName(workspaceName: string): string {
 }
 
 /** Selects `workspaceId` and every fork descendant, archived ones included, as `descendants`. */
-function forkSubtree(workspaceId: string): SQL {
+async function forkSubtree(tx: DbTransaction, workspaceId: string): Promise<SQL> {
+  const environments = await getProjectEnvironmentSource(tx)
   return sql`
     WITH RECURSIVE descendants AS (
-      SELECT id, name, owner_id, archived_at FROM workspace WHERE id = ${workspaceId}
+      SELECT id, name, owner_id, archived_at, project_id FROM ${environments} WHERE id = ${workspaceId}
       UNION
-      SELECT w.id, w.name, w.owner_id, w.archived_at
-      FROM workspace w JOIN descendants d ON w.forked_from_workspace_id = d.id
+      SELECT ${environments.id}, ${environments.name}, ${environments.ownerId},
+        ${environments.archivedAt}, ${environments.projectId}
+      FROM ${environments} JOIN descendants d ON ${environments.parentId} = d.id
     )`
 }
 
-export async function createProjectForWorkspace(
+/** Creates the Project before its first workspace; the caller links both in the same transaction. */
+export async function createProjectRecord(
   tx: DbTransaction,
   input: {
-    workspaceId: string
     name: string
     organizationId: string | null
     ownerId: string
     projectName?: string
   }
 ): Promise<string> {
+  await getProjectMembershipPhase(tx)
   const id = generateId()
   await tx.insert(project).values({
     id,
@@ -134,26 +135,26 @@ export async function createProjectForWorkspace(
     organizationId: input.organizationId,
     ownerId: input.ownerId,
   })
-  await tx.insert(projectWorkspace).values({ projectId: id, workspaceId: input.workspaceId })
   return id
 }
 
-/** Returns null only for a legacy workspace awaiting the SQL backfill. */
+/** Returns null only when neither the column nor legacy connector assigns a Project. */
 export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: string) {
   return withProjectLockTimeout(tx, PROJECT_CHANGING, async () => {
     await acquireBackfillWriteLocks(tx, [workspaceId])
+    const environments = await getProjectEnvironmentSource(tx)
     const [membership] = await tx
-      .select()
-      .from(projectWorkspace)
-      .where(eq(projectWorkspace.workspaceId, workspaceId))
+      .select({ projectId: environments.projectId })
+      .from(environments)
+      .where(eq(environments.id, workspaceId))
       .limit(1)
-    if (!membership) return null
+    if (!membership?.projectId) return null
     await acquireAdvisoryXactLock(tx, 'project', projectLockKey(membership.projectId))
     const [current] = await tx
       .select({ project })
-      .from(projectWorkspace)
-      .innerJoin(project, eq(project.id, projectWorkspace.projectId))
-      .where(eq(projectWorkspace.workspaceId, workspaceId))
+      .from(environments)
+      .innerJoin(project, eq(project.id, environments.projectId))
+      .where(eq(environments.id, workspaceId))
       .limit(1)
     if (!current || current.project.id !== membership.projectId) {
       throw new ProjectConflictError('Project membership changed; retry the operation')
@@ -179,15 +180,16 @@ export async function requireForkProject(tx: DbTransaction, parentWorkspaceId: s
 /** Legacy fallback must not hide partially assigned descendants. Caller holds the lineage lock. */
 async function requireUnassignedForkSubtree(tx: DbTransaction, workspaceId: string): Promise<void> {
   const descendants = await tx.execute<{ id: string }>(
-    sql`${forkSubtree(workspaceId)} SELECT id FROM descendants`
+    sql`${await forkSubtree(tx, workspaceId)} SELECT id FROM descendants`
   )
   if (!descendants.length) return
   const ids = descendants.map((row) => row.id)
   await lockProjectBackfillWrites(tx, ids)
+  const environments = await getProjectEnvironmentSource(tx)
   const rows = await tx
-    .select({ id: projectWorkspace.workspaceId })
-    .from(projectWorkspace)
-    .where(inArray(projectWorkspace.workspaceId, ids))
+    .select({ id: environments.id })
+    .from(environments)
+    .where(and(inArray(environments.id, ids), isNotNull(environments.projectId)))
     .limit(1)
   if (rows.length)
     throw new ProjectConflictError('Fork descendants need Project membership reconciliation')
@@ -203,6 +205,7 @@ export async function archiveProjectWithLastEnvironment(
   workspaceId: string,
   now: Date
 ): Promise<boolean> {
+  const environments = await getProjectEnvironmentSource(tx)
   const archived = await tx
     .update(project)
     .set({ archivedAt: now, updatedAt: now })
@@ -211,11 +214,10 @@ export async function archiveProjectWithLastEnvironment(
         eq(project.id, projectId),
         isNull(project.archivedAt),
         sql`NOT EXISTS (
-          SELECT 1 FROM ${projectWorkspace}
-          JOIN ${workspace} ON ${workspace.id} = ${projectWorkspace.workspaceId}
-          WHERE ${projectWorkspace.projectId} = ${projectId}
-            AND ${workspace.id} <> ${workspaceId}
-            AND ${workspace.archivedAt} IS NULL
+          SELECT 1 FROM ${environments}
+          WHERE ${environments.projectId} = ${projectId}
+            AND ${environments.id} <> ${workspaceId}
+            AND ${environments.archivedAt} IS NULL
         )`
       )
     )
@@ -243,9 +245,7 @@ export async function splitForkProject(
     owner_id: string
     archived_at: Date | null
     project_id: string | null
-  }>(sql`${forkSubtree(workspaceId)}
-    SELECT d.*, pw.project_id FROM descendants d LEFT JOIN project_workspace pw ON pw.workspace_id = d.id
-  `)
+  }>(sql`${await forkSubtree(tx, workspaceId)} SELECT * FROM descendants`)
   if (rows.some((row) => row.project_id !== owner.id))
     throw new ProjectConflictError(
       'Fork descendants need Project membership reconciliation before disconnecting'
@@ -254,15 +254,15 @@ export async function splitForkProject(
   if (!root || rows.every((row) => row.archived_at))
     throw new ProjectConflictError('A new Project needs an active environment')
   const ids = rows.map((row) => row.id)
+  const environments = await getProjectEnvironmentSource(tx)
   const [remaining] = await tx
-    .select({ id: workspace.id })
-    .from(projectWorkspace)
-    .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
+    .select({ id: environments.id })
+    .from(environments)
     .where(
       and(
-        eq(projectWorkspace.projectId, owner.id),
-        isNull(workspace.archivedAt),
-        notInArray(workspace.id, ids)
+        eq(environments.projectId, owner.id),
+        isNull(environments.archivedAt),
+        notInArray(environments.id, ids)
       )
     )
     .limit(1)
@@ -277,12 +277,22 @@ export async function splitForkProject(
     organizationId: owner.organizationId,
     ownerId: root.owner_id,
   })
-  await tx
-    .update(projectWorkspace)
-    .set({ projectId: id })
-    .where(
-      and(eq(projectWorkspace.projectId, owner.id), inArray(projectWorkspace.workspaceId, ids))
-    )
+  await withProjectLockTimeout(tx, PROJECT_CHANGING, async () => {
+    await tx
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(inArray(workspace.id, ids))
+      .orderBy(asc(workspace.id))
+      .for('no key update')
+    if ((await getProjectMembershipPhase(tx)) === 'connector') {
+      await tx
+        .update(projectWorkspace)
+        .set({ projectId: id })
+        .where(inArray(projectWorkspace.workspaceId, ids))
+    } else {
+      await tx.update(workspace).set({ projectId: id }).where(inArray(workspace.id, ids))
+    }
+  })
   if (owner.organizationId) {
     await acquirePermissionGroupOrgLock(tx, owner.organizationId)
     await tx.execute(sql`
@@ -309,19 +319,20 @@ export async function transferWorkspaceProjects(
 ): Promise<void> {
   if (!workspaceIds.length) return
   await lockProjectBackfillWrites(tx, workspaceIds)
+  const environments = await getProjectEnvironmentSource(tx)
   const owners = await tx
-    .selectDistinct({ id: projectWorkspace.projectId })
-    .from(projectWorkspace)
-    .where(inArray(projectWorkspace.workspaceId, workspaceIds))
-    .orderBy(asc(projectWorkspace.projectId))
-  if (!owners.length) return
-  const projectIds = owners.map((row) => row.id)
+    .selectDistinct({ id: environments.projectId })
+    .from(environments)
+    .where(inArray(environments.id, workspaceIds))
+    .orderBy(asc(environments.projectId))
+  const projectIds = owners.flatMap((row) => (row.id ? [row.id] : []))
+  if (!projectIds.length) return
   await tryLockProjects(tx, projectIds)
   const selected = new Set(workspaceIds)
   const members = await tx
-    .select({ id: projectWorkspace.workspaceId })
-    .from(projectWorkspace)
-    .where(inArray(projectWorkspace.projectId, projectIds))
+    .select({ id: environments.id })
+    .from(environments)
+    .where(inArray(environments.projectId, projectIds))
   if (members.some((row) => !selected.has(row.id))) {
     throw new ProjectConflictError(
       'Move all environments in the Project together, or disconnect the fork first'

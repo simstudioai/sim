@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
-import { permissions, type WorkspaceMode, workspace } from '@sim/db/schema'
+import { permissions, projectWorkspace, type WorkspaceMode, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbTransaction } from '@/lib/db/types'
-import { createProjectForWorkspace } from '@/lib/projects/membership'
+import { getProjectMembershipPhase } from '@/lib/projects/environment-source'
+import { createProjectRecord } from '@/lib/projects/membership'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -18,8 +19,9 @@ import {
   WorkspaceOwnerMissingError,
 } from '@/lib/workspaces/policy'
 
-/** Foreign keys from `workspace` to `user`; a violation means the acting user's row is gone. */
+/** Creation's foreign keys to `user`; a violation means the acting user's row is gone. */
 export const WORKSPACE_USER_FK_CONSTRAINTS = new Set([
+  'project_owner_id_user_id_fk',
   'workspace_owner_id_user_id_fk',
   'workspace_billed_account_user_id_user_id_fk',
 ])
@@ -105,6 +107,7 @@ export async function createWorkspaceWithProjectInTransaction(
     governingPermissionGroupOrganizationId,
   }: TransactionalCreateWorkspaceParams & { projectName?: string }
 ): Promise<{ projectId: string; workspace: CreatedWorkspace }> {
+  const phase = await getProjectMembershipPhase(tx)
   const workspaceId = generateId()
   const workflowId = generateId()
   const now = new Date()
@@ -121,8 +124,16 @@ export async function createWorkspaceWithProjectInTransaction(
       ? lockedCreationContext.billedAccountUserId
       : billedAccountUserId
 
+  const projectId = await createProjectRecord(tx, {
+    projectName,
+    name,
+    organizationId: organizationId ?? null,
+    ownerId: userId,
+  })
+
   await tx.insert(workspace).values({
     id: workspaceId,
+    projectId: phase === 'column' ? projectId : null,
     name,
     ownerId: userId,
     organizationId,
@@ -133,13 +144,9 @@ export async function createWorkspaceWithProjectInTransaction(
     updatedAt: now,
   })
 
-  const projectId = await createProjectForWorkspace(tx, {
-    projectName,
-    workspaceId,
-    name,
-    organizationId: organizationId ?? null,
-    ownerId: userId,
-  })
+  if (phase === 'connector') {
+    await tx.insert(projectWorkspace).values({ projectId, workspaceId })
+  }
 
   const permissionRows = [
     {
