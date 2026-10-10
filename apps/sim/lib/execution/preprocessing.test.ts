@@ -1023,16 +1023,6 @@ describe('preprocessExecution admission rejection codes and blocked-run log thro
       arrange: () => mockGetActivelyBannedUserIds.mockResolvedValue(['billed-account-1']),
       expected: { statusCode: 403, code: ADMISSION_REJECTION_CODE.ACCOUNT_SUSPENDED },
     },
-    {
-      gate: 'billing account',
-      arrange: () =>
-        mockResolveSystemBillingAttribution.mockImplementation((workspaceId: string) => ({
-          ...ORGANIZATION_ATTRIBUTION,
-          actorUserId: '',
-          workspaceId,
-        })),
-      expected: { statusCode: 500, code: ADMISSION_REJECTION_CODE.BILLING_ACCOUNT_REQUIRED },
-    },
   ])('tags a $gate refusal with its stable code', async ({ arrange, expected }) => {
     arrange()
     const result = await refuse('workflow-1')

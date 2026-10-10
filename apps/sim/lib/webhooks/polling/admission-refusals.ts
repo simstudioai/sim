@@ -7,8 +7,8 @@ const logger = createLogger('PollAdmissionRefusals')
 
 /**
  * How long a workspace's polls are skipped after execution admission refused a
- * polled event for a reason that holds until a person acts (usage limit,
- * suspended account, missing billing account). Polling resumes on its own after
+ * polled event for a reason that holds until a person acts (usage limit or a
+ * suspended account). Polling resumes on its own after
  * this window, so a raised limit takes effect within it.
  */
 const POLL_ADMISSION_REFUSAL_TTL_SECONDS = 5 * 60

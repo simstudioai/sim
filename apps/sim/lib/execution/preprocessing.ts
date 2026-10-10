@@ -579,12 +579,7 @@ export async function preprocessExecution(
         workspaceId,
       })
 
-      const failure: PreprocessExecutionError = {
-        message: 'Unable to resolve billing account',
-        statusCode: 500,
-        code: ADMISSION_REJECTION_CODE.BILLING_ACCOUNT_REQUIRED,
-      }
-      await recordGateFailure(failure, {
+      await recordPreprocessingError({
         workflowId,
         executionId,
         triggerType,
@@ -596,7 +591,13 @@ export async function preprocessExecution(
         triggerData,
       })
 
-      return { success: false, error: failure }
+      return {
+        success: false,
+        error: {
+          message: 'Unable to resolve billing account',
+          statusCode: 500,
+        },
+      }
     }
 
     if (!billingAttribution) {
