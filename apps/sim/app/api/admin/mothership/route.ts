@@ -61,12 +61,6 @@ async function getAuthorizedAdminUserId() {
   return authorized ? session.user.id : null
 }
 
-/** Logged so a misconfigured deployment is diagnosable rather than a bare 500. */
-function missingAdminKeyResponse(method: string) {
-  logger.error('MOTHERSHIP_API_ADMIN_KEY is not configured', { method })
-  return NextResponse.json({ error: 'MOTHERSHIP_API_ADMIN_KEY not configured' }, { status: 500 })
-}
-
 /** `undefined` when the body is not JSON. Only called on a non-empty body. */
 function parseJsonText(text: string): unknown {
   try {
@@ -84,13 +78,15 @@ function upstreamErrorMessage(data: unknown): string | undefined {
   return undefined
 }
 
+type ProxyMethod = 'GET' | 'POST' | 'DELETE'
+
 /**
  * Forwards to the mothership admin API. A 4xx passes through for the admin UI to show; an
  * upstream 5xx or unparseable body is a gateway failure, logged with its cause and answered
  * with 502 so it is not mistaken for a failure of this route.
  */
 async function forwardToMothership(params: {
-  method: 'GET' | 'POST' | 'DELETE'
+  method: ProxyMethod
   targetUrl: string
   adminKey: string
   environment: string
@@ -155,10 +151,10 @@ async function forwardToMothership(params: {
  *   env       - "dev" | "staging" | "prod"
  *   endpoint  - the admin endpoint path, e.g. "requests", "licenses", "traces"
  *
- * The request body (for POST) is forwarded as-is. Additional query params
- * (e.g. requestId for GET /traces) are forwarded.
+ * The request body (for POST) is forwarded as-is. For GET and DELETE, additional query
+ * params (e.g. requestId for GET /traces) are forwarded.
  */
-export const POST = withRouteHandler(async (req: NextRequest) => {
+async function proxyAdminRequest(req: NextRequest, method: ProxyMethod) {
   const userId = await getAuthorizedAdminUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -166,7 +162,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
   const adminKey = env.MOTHERSHIP_API_ADMIN_KEY
   if (!adminKey) {
-    return missingAdminKeyResponse('POST')
+    logger.error('MOTHERSHIP_API_ADMIN_KEY is not configured', { method })
+    return NextResponse.json({ error: 'MOTHERSHIP_API_ADMIN_KEY not configured' }, { status: 500 })
   }
 
   const { searchParams } = new URL(req.url)
@@ -186,96 +183,26 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
   }
 
-  const targetUrl = `${baseUrl}/api/admin/${endpoint}`
+  const forwardParams = new URLSearchParams()
+  if (method !== 'POST') {
+    searchParams.forEach((value, key) => {
+      if (key !== 'env' && key !== 'endpoint') {
+        forwardParams.set(key, value)
+      }
+    })
+  }
+  const qs = forwardParams.toString()
 
   return forwardToMothership({
-    method: 'POST',
-    targetUrl,
+    method,
+    targetUrl: `${baseUrl}/api/admin/${endpoint}${qs ? `?${qs}` : ''}`,
     adminKey,
     environment,
     endpoint,
-    body: await req.text(),
+    ...(method === 'POST' ? { body: await req.text() } : {}),
   })
-})
+}
 
-export const GET = withRouteHandler(async (req: NextRequest) => {
-  const userId = await getAuthorizedAdminUserId()
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const adminKey = env.MOTHERSHIP_API_ADMIN_KEY
-  if (!adminKey) {
-    return missingAdminKeyResponse('GET')
-  }
-
-  const { searchParams } = new URL(req.url)
-  const queryValidation = adminMothershipQuerySchema.safeParse(searchParamsToObject(searchParams))
-  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
-  const { env: environment, endpoint } = queryValidation.data
-
-  if (!isValidEndpoint(endpoint)) {
-    return NextResponse.json({ error: 'invalid endpoint' }, { status: 400 })
-  }
-
-  const baseUrl = await getMothershipUrl(environment, userId)
-  if (!baseUrl) {
-    return NextResponse.json(
-      { error: `No URL configured for environment: ${environment}` },
-      { status: 400 }
-    )
-  }
-
-  const forwardParams = new URLSearchParams()
-  searchParams.forEach((value, key) => {
-    if (key !== 'env' && key !== 'endpoint') {
-      forwardParams.set(key, value)
-    }
-  })
-
-  const qs = forwardParams.toString()
-  const targetUrl = `${baseUrl}/api/admin/${endpoint}${qs ? `?${qs}` : ''}`
-
-  return forwardToMothership({ method: 'GET', targetUrl, adminKey, environment, endpoint })
-})
-
-export const DELETE = withRouteHandler(async (req: NextRequest) => {
-  const userId = await getAuthorizedAdminUserId()
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const adminKey = env.MOTHERSHIP_API_ADMIN_KEY
-  if (!adminKey) {
-    return missingAdminKeyResponse('DELETE')
-  }
-
-  const { searchParams } = new URL(req.url)
-  const queryValidation = adminMothershipQuerySchema.safeParse(searchParamsToObject(searchParams))
-  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
-  const { env: environment, endpoint } = queryValidation.data
-
-  if (!isValidEndpoint(endpoint)) {
-    return NextResponse.json({ error: 'invalid endpoint' }, { status: 400 })
-  }
-
-  const baseUrl = await getMothershipUrl(environment, userId)
-  if (!baseUrl) {
-    return NextResponse.json(
-      { error: `No URL configured for environment: ${environment}` },
-      { status: 400 }
-    )
-  }
-
-  const forwardParams = new URLSearchParams()
-  searchParams.forEach((value, key) => {
-    if (key !== 'env' && key !== 'endpoint') {
-      forwardParams.set(key, value)
-    }
-  })
-
-  const qs = forwardParams.toString()
-  const targetUrl = `${baseUrl}/api/admin/${endpoint}${qs ? `?${qs}` : ''}`
-
-  return forwardToMothership({ method: 'DELETE', targetUrl, adminKey, environment, endpoint })
-})
+export const POST = withRouteHandler((req: NextRequest) => proxyAdminRequest(req, 'POST'))
+export const GET = withRouteHandler((req: NextRequest) => proxyAdminRequest(req, 'GET'))
+export const DELETE = withRouteHandler((req: NextRequest) => proxyAdminRequest(req, 'DELETE'))

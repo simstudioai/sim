@@ -79,7 +79,7 @@ export const listCatalogBlocks = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: { delegation: catalogDelegationPolicy },
   execute: async ({ principal, input, context }): Promise<ListCatalogBlocksResult> => {
     const search = normalizeCatalogSearch(input.search)
-    const gate = await resolveCatalogGate(principal, context)
+    const gate = await resolveCatalogGate(principal, context, { customBlockInputs: true })
 
     const summaries = await withCatalogBlockScope(gate, async () => [
       ...getAllBlocks()

@@ -13,7 +13,7 @@ import {
   type ActiveWorkspaceApplicationContext,
   loadActiveWorkspaceApplicationContext,
 } from '@/lib/workspaces/application/workspace-context'
-import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
+import { type CustomBlockOverlayRow, withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import type { BlockConfig } from '@/blocks/types'
 import { isHiddenUnder } from '@/blocks/visibility/context'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
@@ -31,15 +31,14 @@ export interface CatalogGate {
   /** Lowercased block types the workspace permits, or `null` when unrestricted. */
   allowedIntegrations: ReadonlySet<string> | null
   /** Workflows this workspace's organization has deployed as blocks. */
-  customBlockRows: Parameters<typeof withCustomBlockOverlay>[0]
+  customBlockRows: CustomBlockOverlayRow[]
 }
 
 export interface CatalogGateOptions {
   /**
    * Derive each custom block's input fields from its deployed Start, which loads every
-   * custom block's deployed workflow. Only block reads render those fields; tool scope
-   * needs just the block types, since every custom block exposes `workflow_executor`.
-   * Defaults to `true`.
+   * custom block's deployed workflow. Only reads that render block inputs ask for it; tool
+   * scope needs just the block types, since every custom block exposes `workflow_executor`.
    */
   customBlockInputs?: boolean
 }
@@ -66,9 +65,9 @@ export async function resolveCatalogGate(
       ...(userId ? { userId } : {}),
       ...(context.workspaceOrganizationId ? { orgId: context.workspaceOrganizationId } : {}),
     }),
-    options.customBlockInputs === false
-      ? getCustomBlockRowsForWorkspace(context.workspaceId)
-      : listCustomBlocksWithInputsForWorkspace(context.workspaceId),
+    options.customBlockInputs
+      ? listCustomBlocksWithInputsForWorkspace(context.workspaceId)
+      : getCustomBlockRowsForWorkspace(context.workspaceId),
   ])
   return { allowedIntegrations, visibility, customBlockRows }
 }

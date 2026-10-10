@@ -289,7 +289,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
     delegation: { audience: 'sim:tool-execution', isWithinScope: () => true },
   },
   execute: async ({ principal, input, context }): Promise<ExecuteToolResult> => {
-    const gate = await resolveCatalogGate(principal, context, { customBlockInputs: false })
+    const gate = await resolveCatalogGate(principal, context)
 
     /**
      * Resolved against an unrestricted gate so "no such tool" and "not permitted
