@@ -67,7 +67,7 @@ const SEED_IF_EMPTY_SCRIPT =
 
 /** Preserve a replacement identity even before its seed exists, fencing late seeds for the retired one. */
 const RETIRE_DOCUMENT_SCRIPT =
-  "local generation = redis.call('get', KEYS[2]); if generation ~= ARGV[1] then return false end; redis.call('set', KEYS[2], ARGV[2], 'EX', ARGV[3]); redis.call('del', KEYS[1], KEYS[4], KEYS[5]); redis.call('expire', KEYS[3], ARGV[3]); redis.call('expire', KEYS[6], ARGV[3]); return generation"
+  "local generation = redis.call('get', KEYS[2]); if generation and generation ~= ARGV[1] then return false end; redis.call('set', KEYS[2], ARGV[2], 'EX', ARGV[3]); redis.call('del', KEYS[1], KEYS[4], KEYS[5]); redis.call('expire', KEYS[3], ARGV[3]); redis.call('expire', KEYS[6], ARGV[3]); return generation or ARGV[1]"
 
 /** Orders a durable replacement with seeds and merges, and fences publishers in the same transaction. */
 const INVALIDATE_DOCUMENT_SCRIPT =
@@ -818,7 +818,8 @@ export class FileDocStore {
     if (!retiredDocId || !replacementDocId || retiredDocId === replacementDocId)
       throw new Error('Document retirement requires distinct identities')
     if (!this.enabled) {
-      if ((await this.getDocumentGeneration(name)) !== retiredDocId) return { status: 'stale' }
+      const generation = await this.getDocumentGeneration(name)
+      if (generation && generation !== retiredDocId) return { status: 'stale' }
       const previous = this.localInvalidations.get(name)
       this.localInvalidations.set(name, {
         version: previous?.version ?? 0,

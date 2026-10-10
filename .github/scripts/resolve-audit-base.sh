@@ -37,5 +37,6 @@ elif [ -n "${GITHUB_BEFORE:-}" ] &&
   git fetch --depth=1 origin "$GITHUB_BEFORE"
   echo "ref=$GITHUB_BEFORE" >> "$GITHUB_OUTPUT"
 else
+  git fetch --depth=2 origin "$GITHUB_SHA"
   echo 'ref=HEAD~1' >> "$GITHUB_OUTPUT"
 fi

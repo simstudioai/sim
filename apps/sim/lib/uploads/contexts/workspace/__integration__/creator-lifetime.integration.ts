@@ -165,6 +165,9 @@ it('partial departure retains Project attribution; successor handoff and prior-d
       context: 'project',
       folderId: projectFolderId,
     })
+    await expect(db.delete(user).where(eq(user.id, creatorId))).rejects.toMatchObject({
+      cause: { code: '23514', constraint_name: 'project_resource_creator_handoff' },
+    })
     await db.transaction((tx) =>
       changeProjectStoragePayersInTx(tx, [
         {

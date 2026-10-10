@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
@@ -121,6 +122,12 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         throw new OrchestrationError('validation', error.message)
       }
       /** Nothing is wrong with the query, so the caller is told to retry, not to rewrite it. */
+      if (['55P03', '25P04'].includes(getPostgresErrorCode(error) ?? '')) {
+        throw new OrchestrationError(
+          'locked',
+          'File search is briefly unavailable. Try again shortly.'
+        )
+      }
       if (error instanceof WorkspaceFileSearchUnavailableError) {
         throw new OrchestrationError('locked', error.message)
       }

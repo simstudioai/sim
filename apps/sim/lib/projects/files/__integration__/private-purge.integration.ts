@@ -1,5 +1,5 @@
 import { mkdtempSync } from 'node:fs'
-import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { db } from '@sim/db'
@@ -39,6 +39,7 @@ import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
 import { createProjectFileUploadSession } from '@/lib/projects/files/application/uploads'
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+import * as storageService from '@/lib/uploads/core/storage-service'
 import { UPLOAD_URL_TTL_MS } from '@/lib/uploads/upload-session/provider'
 import { PROJECT_FILE_UPLOAD_BINDING_KEY } from '@/lib/uploads/upload-session/types'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
@@ -673,7 +674,15 @@ describe('Private Project teardown and durable object cleanup', () => {
         await mkdir(prefix, { recursive: true })
         await writeFile(join(prefix, 'late.bin'), 'late')
       }
-      await chmod(obstructed, 0o000)
+      const deleteStoredFile = storageService.deleteFile
+      const deletion = vi.spyOn(storageService, 'deleteFile').mockImplementation((params) => {
+        if (params.key.startsWith(`project/${orphanIds[0]}/`)) {
+          return Promise.reject(
+            Object.assign(new Error('Fixture prefix deletion failed'), { code: 'EACCES' })
+          )
+        }
+        return deleteStoredFile(params)
+      })
       const { projectFilePrefixCleanupOutboxHandlers } = await import(
         '@/lib/projects/files/prefix-cleanup'
       )
@@ -718,7 +727,7 @@ describe('Private Project teardown and durable object cleanup', () => {
           })
         expect(await readFile(join(storageRoot, live.keys[0]), 'utf8')).toBe('new')
       } finally {
-        await chmod(obstructed, 0o755)
+        deletion.mockRestore()
       }
       expect(await readFile(join(obstructed, 'late.bin'), 'utf8')).toBe('late')
       await db

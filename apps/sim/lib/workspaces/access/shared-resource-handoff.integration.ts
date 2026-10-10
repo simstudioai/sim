@@ -281,6 +281,69 @@ describe('shared resource retention across workspace departure and account erasu
     }
   )
 
+  it('transfers a departing owner to the billed account without a preexisting grant', async () => {
+    const fixture = await seedResources(false)
+    await db
+      .update(workspace)
+      .set({ ownerId: fixture.departingId })
+      .where(eq(workspace.id, fixture.workspaceId))
+    await db
+      .delete(permissions)
+      .where(
+        and(eq(permissions.entityId, fixture.workspaceId), eq(permissions.userId, fixture.ownerId))
+      )
+    const result = await db.transaction((tx) =>
+      revokeWorkspaceAccessTx(tx, {
+        workspaceId: fixture.workspaceId,
+        userId: fixture.departingId,
+      })
+    )
+    expect(result).toEqual({ revoked: true, ownershipTransferred: true })
+    await assertTransferred(fixture)
+    expect(
+      await db
+        .select()
+        .from(permissions)
+        .where(
+          and(
+            eq(permissions.entityId, fixture.workspaceId),
+            eq(permissions.userId, fixture.ownerId)
+          )
+        )
+    ).toMatchObject([{ permissionType: 'admin' }])
+  })
+
+  it('previews a missing creator-only Project successor grant before deleting an account', async () => {
+    const fixture = await seedResources(false)
+    const [binding] = await db.select().from(workspace).where(eq(workspace.id, fixture.workspaceId))
+    const fileId = generateId()
+    projectFileIds.push(fileId)
+    await db.insert(workspaceFiles).values({
+      id: fileId,
+      userId: fixture.departingId,
+      projectId: binding.projectId,
+      context: 'project',
+      key: `project/${binding.projectId}/${fileId}`,
+      originalName: 'retained',
+      contentType: 'text/plain',
+      sizeBytes: 1,
+    })
+    await db
+      .update(permissions)
+      .set({ permissionType: 'read' })
+      .where(
+        and(eq(permissions.entityId, fixture.workspaceId), eq(permissions.userId, fixture.ownerId))
+      )
+    const plan = await getAccountDeletionPlan(fixture.departingId)
+    expect(plan.blockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: 'Project successor must administer every surviving environment',
+        }),
+      ])
+    )
+  })
+
   it('retains workspace-logo bindings after uploader departure and deletion', async () => {
     const fixture = await seedResources(false)
     const logoId = generateId()

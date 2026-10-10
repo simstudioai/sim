@@ -11,6 +11,7 @@ import { ProjectConflictError } from '@/lib/projects/errors'
 import { purgeProjectFilesInTx } from '@/lib/projects/files/purge'
 import { lockProjectBackfillWrites, lockProjects } from '@/lib/projects/membership'
 import {
+  assertProjectCreatorSuccessor,
   findProjectSuccessor,
   handoffProjectCreatorReferencesTx,
   listSharedResourceProjectIdsForUser,
@@ -115,6 +116,7 @@ export async function getProjectAccountDeletionBlockers(
   )
   const doomed = new Set(doomedWorkspaceIds)
   const blockers: string[] = []
+  const creatorProjects = new Set(await listSharedResourceProjectIdsForUser(db, userId))
   for (const record of records) {
     const decision = await planProjectDeletion(
       db,
@@ -124,7 +126,25 @@ export async function getProjectAccountDeletionBlockers(
       doomed,
       false
     )
-    if ('blocker' in decision) blockers.push(decision.blocker)
+    if ('blocker' in decision) {
+      blockers.push(decision.blocker)
+      continue
+    }
+    if ('remove' in decision || !creatorProjects.has(record.id)) continue
+    try {
+      await assertProjectCreatorSuccessor(
+        db,
+        { ...record, ownerId: decision.ownerId ?? record.ownerId },
+        userId,
+        (environments.get(record.id) ?? [])
+          .filter((row) => !doomed.has(row.id))
+          .map((row) => row.id),
+        false
+      )
+    } catch (error) {
+      if (!(error instanceof ProjectConflictError)) throw error
+      blockers.push(error.message)
+    }
   }
   return blockers
 }
