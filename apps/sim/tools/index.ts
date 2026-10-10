@@ -3059,7 +3059,11 @@ async function executeToolRequest(
         try {
           responseData = await response.json()
         } catch (jsonError) {
-          throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
+          /** The endpoint answered with a body that is not JSON; not Sim's fault. */
+          throw markFailureKind(
+            new Error(`Failed to parse response from ${toolId}: ${jsonError}`),
+            'third_party_server'
+          )
         }
       }
     }

@@ -111,4 +111,13 @@ describe('logFailureOnce', () => {
     expect(outerBoundary(persistentFault)).toBe('internal')
     expect(outerBoundary(persistentFault, '')).toBe('internal')
   })
+
+  it('logs one persistent value once in each of two overlapping executions', () => {
+    const persistentFault = new Error('module failed to load')
+    expect(outerBoundary(persistentFault, 'exec-a')).toBe('internal')
+    expect(outerBoundary(persistentFault, 'exec-b')).toBe('internal')
+
+    expect(outerBoundary(persistentFault, 'exec-a')).toBeUndefined()
+    expect(outerBoundary(persistentFault, 'exec-b')).toBeUndefined()
+  })
 })

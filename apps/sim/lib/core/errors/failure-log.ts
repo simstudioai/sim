@@ -30,11 +30,15 @@ const MAX_CAUSE_DEPTH = 8
  * tool failure's output, a block error, a handler's rebuilt error), never a raw thrown value: a
  * persistent fault can rethrow one object forever (a rejected dynamic `import()`, a memoized
  * rejected promise), and marking it would silence every later occurrence process-wide.
- * `loggedInExecution` scopes a raw value's mark to the one execution that logged it.
+ * `loggedInExecution` scopes a raw value's mark to the executions that logged it, so concurrent
+ * runs sharing one persistent rejection each log it once.
  */
 const failureKinds = new WeakMap<object, FailureKind>()
 const loggedCarriers = new WeakSet<object>()
-const loggedInExecution = new WeakMap<object, string>()
+const loggedInExecution = new WeakMap<object, Set<string>>()
+
+/** Bounds the executions remembered per raw value, which a persistent fault shares across runs. */
+const MAX_EXECUTIONS_PER_VALUE = 32
 
 function isKeyable(value: unknown): value is object {
   return (typeof value === 'object' || typeof value === 'function') && value !== null
@@ -126,7 +130,7 @@ function wasFailureLogged(error: unknown, executionId?: string): boolean {
   return causeChain(error).some(
     (link) =>
       loggedCarriers.has(link) ||
-      (Boolean(executionId) && loggedInExecution.get(link) === executionId)
+      (executionId !== undefined && loggedInExecution.get(link)?.has(executionId) === true)
   )
 }
 
@@ -167,6 +171,14 @@ export function logFailureOnce(
     failureKind,
   })
   /** An empty id (a request that failed before minting one) scopes nothing. */
-  if (executionId && isKeyable(error)) loggedInExecution.set(error, executionId)
+  if (executionId && isKeyable(error)) {
+    const executions = loggedInExecution.get(error) ?? new Set<string>()
+    if (executions.size >= MAX_EXECUTIONS_PER_VALUE) {
+      const oldest = executions.values().next().value
+      if (oldest !== undefined) executions.delete(oldest)
+    }
+    executions.add(executionId)
+    loggedInExecution.set(error, executions)
+  }
   return failureKind
 }
