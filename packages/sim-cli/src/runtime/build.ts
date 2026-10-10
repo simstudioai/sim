@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec, CommandVariantSpec } from '../contract/types'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
-import { runsOperation } from './called-operations'
+import { callsOperations } from './called-operations'
 import { deriveCommandPath } from './derive'
 import { executeOperation } from './execute'
 import { retypeApiError } from './naming'
@@ -249,7 +249,12 @@ function configureOperation(
   spec: CommandSpec
 ): Command {
   const operationSpec = V2_OPERATIONS[operation] as OperationSpec
-  runsOperation(command, operation)
+  // A workspace mutation is followed by reading its operation receipt under `--wait`.
+  callsOperations(
+    command,
+    spec.workspaceOperation ? [operation, 'getWorkspaceOperation'] : [operation],
+    { runs: operation }
+  )
   command.allowExcessArguments(false)
 
   for (const alias of spec.aliases ?? []) command.alias(alias)

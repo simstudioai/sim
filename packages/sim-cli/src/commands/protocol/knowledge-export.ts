@@ -1,10 +1,8 @@
 import { basename } from 'node:path'
 import type { Command } from 'commander'
-import { clientFrom } from '../../context'
 import { embedStore } from '../../embed-context'
-import { V2_OPERATIONS } from '../../generated/v2-api'
-import { resolvePath, SimApiError } from '../../http/client'
-import { callsOperations } from '../../runtime/called-operations'
+import { SimApiError } from '../../http/client'
+import { apiCommand } from '../../runtime/called-operations'
 import { isTerminalSafeContentType, saveToFile, streamToStdout } from './files-get'
 import { printProtocolResult } from './result'
 
@@ -45,8 +43,8 @@ function safeBaseName(name: string): string | null {
 }
 
 export function attachKnowledgeExport(knowledge: Command): void {
-  const exportCommand = knowledge
-    .command('export')
+  const [exportCommand, connectExport] = apiCommand(knowledge, 'export', ['exportKnowledgeBase'])
+  exportCommand
     .argument('<knowledgeBaseId>', 'Knowledge base to export')
     .allowExcessArguments(false)
     .description('Export a knowledge base as a .simkb.zip bundle')
@@ -59,17 +57,16 @@ export function attachKnowledgeExport(knowledge: Command): void {
       '--no-vectors',
       'Leave chunk vectors out of the bundle, so an import re-embeds every chunk'
     )
-    .action(async (knowledgeBaseId: string, options: KnowledgeExportOptions, command: Command) => {
+    .action(async (knowledgeBaseId: string, options: KnowledgeExportOptions) => {
       const writesToStdout = options.outputFile === '-'
       if (writesToStdout && options.force) {
         throw new SimApiError('--force requires --output-file <path>', 0)
       }
 
-      const { client, profile } = clientFrom(command)
+      const { client, profile } = connectExport()
       const workspaceId = client.requireWorkspace()
-      const operation = V2_OPERATIONS.exportKnowledgeBase
-      const response = await client.requestRaw(resolvePath(operation.path, { knowledgeBaseId }), {
-        method: operation.method,
+      const response = await client.requestRaw('exportKnowledgeBase', {
+        params: { knowledgeBaseId },
         query: { workspaceId, vectors: options.vectors },
       })
       if (!response.body) {
@@ -107,5 +104,4 @@ export function attachKnowledgeExport(knowledge: Command): void {
         vectors: options.vectors,
       })
     })
-  callsOperations(exportCommand, ['exportKnowledgeBase'])
 }

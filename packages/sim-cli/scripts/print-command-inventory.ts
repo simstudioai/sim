@@ -142,7 +142,7 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
     const reference = op
       ? commandReference(OPENAPI_DOCS, op, jsonFields, cursorSlot(op) !== null)
       : {}
-    const called = calledOperations(command) ?? (operation ? [operation] : [])
+    const called = calledOperations(command) ?? []
     return {
       path: cmdPath,
       description: command.description(),
