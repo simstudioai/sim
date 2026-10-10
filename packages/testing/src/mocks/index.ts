@@ -490,6 +490,7 @@ export {
   loggingSessionMock,
   loggingSessionMockFns,
 } from './logging-session.mock'
+export { maskClientMock, maskClientMockFns } from './mask-client.mock'
 // MCP OAuth mocks (for @/lib/mcp/oauth)
 export {
   McpOauthRedirectRequiredMock,
