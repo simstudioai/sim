@@ -24,14 +24,17 @@ vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 import { deleteColumn, updateColumnConstraints } from '@/lib/table/columns/service'
 import { getMaxRowSizeBytes } from '@/lib/table/constants'
 import { bulkInsertImportBatch, importAppendRows, importReplaceRows } from '@/lib/table/import-data'
+import { selectExportRowPage } from '@/lib/table/jobs/service'
 import type { DbTransaction } from '@/lib/table/planner'
 import { readCurrentRowsVersion } from '@/lib/table/row-changes'
+import { decodeCursor } from '@/lib/table/rows/cursor'
 import { lockLiveTableSchema } from '@/lib/table/rows/live-schema'
 import {
   batchInsertRows,
   batchUpdateRows,
   deleteRowsByFilter,
   insertRow,
+  queryRows,
   replaceTableRows,
   updateRow,
   updateRowsByFilter,
@@ -1935,6 +1938,55 @@ describe('table row writes against real PostgreSQL', () => {
       expect(snapshot.version).toBe(before + 1)
       expect(snapshot.key).toContain(`/v${before + 1}-`)
       expect(stored.get(snapshot.key)).toContain('during')
+    })
+  })
+
+  describe('keyset paging across the unkeyed tail', () => {
+    /**
+     * `order_key` is nullable and sorts LAST, so a seek past a keyed anchor has to reach the keyed
+     * rows after it and then every unkeyed row, and a compound cursor has to resume inside that
+     * unkeyed tail. Both page walkers must return each row exactly once, in the table's order.
+     */
+    it('pages keyed rows and then the unkeyed tail exactly once, in order', async () => {
+      const table = await createTable(textColumns('name'))
+      const id = (suffix: string) => `${table.id}-${suffix}`
+      await seedRows(table.id, [
+        { id: id('k0'), data: { name: 'k0' }, orderKey: 'a3' },
+        { id: id('u2'), data: { name: 'u2' }, orderKey: null },
+        { id: id('k1'), data: { name: 'k1' }, orderKey: 'a1' },
+        { id: id('k2'), data: { name: 'k2' }, orderKey: 'a2' },
+        { id: id('u0'), data: { name: 'u0' }, orderKey: null },
+        { id: id('k3'), data: { name: 'k3' }, orderKey: 'a2' },
+        { id: id('k4'), data: { name: 'k4' }, orderKey: 'a0' },
+        { id: id('u1'), data: { name: 'u1' }, orderKey: null },
+      ])
+      const expected = ['k4', 'k1', 'k2', 'k3', 'k0', 'u0', 'u1', 'u2'].map(id)
+
+      for (const limit of [1, 2, 3]) {
+        const paged: string[] = []
+        let cursor: ReturnType<typeof decodeCursor> | undefined
+        do {
+          const page = await queryRows(
+            table,
+            { ...cursor, limit, includeTotal: false, withExecutions: false },
+            'keyset-paging'
+          )
+          paged.push(...page.rows.map((row) => row.id))
+          cursor = page.nextCursor ? decodeCursor(page.nextCursor) : undefined
+        } while (cursor)
+        expect(paged).toEqual(expected)
+
+        const exported: string[] = []
+        let after: { orderKey: string | null; id: string } | null = null
+        while (true) {
+          const page = await selectExportRowPage(table, after, limit)
+          exported.push(...page.map((row) => row.id))
+          const last = page.at(-1)
+          if (!last || page.length < limit) break
+          after = { orderKey: last.orderKey, id: last.id }
+        }
+        expect(exported).toEqual(expected)
+      }
     })
   })
 })
