@@ -24,6 +24,15 @@ const GENERAL_SIGNIFICANT_DIGITS = 15
 const ELAPSED_TOKEN = /\[(h+|m+|s+)\]/i
 
 /**
+ * Excel rejects a custom number format longer than 255 characters, so a longer
+ * `cell.z` is not a real format. It comes verbatim from the workbook's
+ * `styles.xml`, and parsing it would let one cell cost unbounded CPU.
+ */
+const MAX_NUMBER_FORMAT_LENGTH = 255
+
+const TIME_SEPARATOR = /[:\s]/
+
+/**
  * Strips the parts of a number format that carry no date tokens: quoted
  * literals, backslash escapes, bracketed colour/condition/elapsed sections and
  * the AM/PM markers whose `m` is not a month.
@@ -48,12 +57,23 @@ export function isTimeOnlyFormat(format: string): boolean {
   if (/[yd]/.test(tokens)) return false
   if (!/[hms]/.test(tokens)) return false
   for (const match of tokens.matchAll(/m+/g)) {
-    const before = tokens.slice(0, match.index).replace(/[:\s]+$/, '')
-    const after = tokens.slice(match.index + match[0].length).replace(/^[:\s]+/, '')
-    const isMinutes = before.endsWith('h') || after.startsWith('s')
-    if (!isMinutes) return false
+    if (!isMinutesRun(tokens, match.index, match.index + match[0].length)) return false
   }
   return true
+}
+
+/**
+ * Whether the `m` run at `[start, end)` sits next to an hour or a seconds
+ * token, skipping `:` and whitespace. Each separator span is walked at most
+ * once from each neighbouring run, so classifying a whole format is linear.
+ */
+function isMinutesRun(tokens: string, start: number, end: number): boolean {
+  let before = start - 1
+  while (before >= 0 && TIME_SEPARATOR.test(tokens[before])) before--
+  if (tokens[before] === 'h') return true
+  let after = end
+  while (after < tokens.length && TIME_SEPARATOR.test(tokens[after])) after++
+  return tokens[after] === 's'
 }
 
 const MS_PER_SECOND = 1000
@@ -106,6 +126,8 @@ function isGeneralFormat(format: unknown): boolean {
  * Elapsed-time formats (`[h]:mm`, `[mm]:ss`) are durations, not moments;
  * `cellDates` still parses them into a `Date`, so their `w` (`30:00`) is kept.
  *
+ * A date whose format is longer than Excel allows is treated as unformatted.
+ *
  * A number with no format at all is treated as General too. Every other
  * number keeps the text the file rendered for it, so a LibreOffice workbook
  * indexes as LibreOffice showed it (`0,5` in a German locale).
@@ -132,7 +154,10 @@ export function normalizeSheetDisplayText(
       if (!cell) continue
 
       if (cell.t === 'd' && cell.v instanceof Date) {
-        const format = typeof cell.z === 'string' ? cell.z : undefined
+        const format =
+          typeof cell.z === 'string' && cell.z.length <= MAX_NUMBER_FORMAT_LENGTH
+            ? cell.z
+            : undefined
         if (format !== undefined && ELAPSED_TOKEN.test(format)) continue
         cell.w = isoDateText(cell.v, format)
       } else if (cell.t === 'n' && typeof cell.v === 'number' && isGeneralFormat(cell.z)) {

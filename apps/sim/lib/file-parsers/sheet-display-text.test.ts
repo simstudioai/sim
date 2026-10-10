@@ -230,4 +230,17 @@ describe('normalizeSheetDisplayText', () => {
     expect(inside.w).toBe('2026-03-04')
     expect(outside.w).toBe('3/5/2026')
   })
+
+  it('ignores a date format longer than Excel allows', () => {
+    const sheet = XLSX.utils.aoa_to_sheet([['a']])
+    const at = new Date(Date.UTC(2024, 2, 15, 14, 30))
+    sheet.A1 = { t: 'd', v: at, z: `h:mm:ss${'"x"'.repeat(100)}`, w: '14:30:00' }
+    sheet.B1 = { t: 'd', v: at, z: `h:mm:ss${'"x"'.repeat(80)}`, w: '14:30:00' }
+    sheet['!ref'] = 'A1:B1'
+
+    normalizeSheetDisplayText(sheet, XLSX.utils.decode_range('A1:B1'), XLSX.utils)
+
+    expect(sheet.A1.w).toBe('2024-03-15T14:30:00')
+    expect(sheet.B1.w).toBe('14:30:00')
+  })
 })
