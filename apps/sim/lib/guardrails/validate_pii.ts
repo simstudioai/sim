@@ -58,15 +58,13 @@ const CHUNK_CONCURRENCY = env.PII_SERVICE_CHUNK_CONCURRENCY ?? 4
 const PII_URL = env.PII_URL || 'http://localhost:5001'
 
 /**
- * Presidio refused the request itself (a 4xx other than 408/429) — an invalid
- * custom regex, or text it cannot process. The same input fails the same way on
- * every attempt, so callers must not retry it.
+ * Presidio refused the request itself (a 4xx other than those in
+ * {@link TRANSIENT_CLIENT_STATUSES}) — an invalid custom regex, or text it cannot
+ * process. The same input fails the same way on every attempt, so callers must
+ * not retry it.
  */
 export class PiiServiceRejectedError extends Error {
-  constructor(
-    message: string,
-    readonly status: number
-  ) {
+  constructor(message: string) {
     super(message)
     this.name = 'PiiServiceRejectedError'
   }
@@ -84,13 +82,17 @@ export class PiiServiceUnavailableError extends Error {
   }
 }
 
+/** Load balancer statuses for "no healthy Presidio target". */
 const UNAVAILABLE_STATUSES = new Set([502, 503, 504])
+
+/** 4xx statuses about timing (timeout, rate limit), not about the request itself. */
+const TRANSIENT_CLIENT_STATUSES = new Set([408, 429])
 
 function presidioFailure(operation: string, status: number, detail: string): Error {
   const message = `Presidio ${operation} failed (${status}): ${detail.slice(0, 200)}`
   if (UNAVAILABLE_STATUSES.has(status)) return new PiiServiceUnavailableError(message)
-  const rejected = status >= 400 && status < 500 && status !== 408 && status !== 429
-  return rejected ? new PiiServiceRejectedError(message, status) : new Error(message)
+  const rejected = status >= 400 && status < 500 && !TRANSIENT_CLIENT_STATUSES.has(status)
+  return rejected ? new PiiServiceRejectedError(message) : new Error(message)
 }
 
 /**

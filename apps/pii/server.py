@@ -311,21 +311,17 @@ def _analyze_many(
 app = FastAPI(title="Sim Presidio", docs_url=None, redoc_url=None)
 
 
-def _json_safe(part: Any) -> Any:
-    return part.encode("utf-8", "backslashreplace").decode("utf-8") if isinstance(part, str) else part
-
-
 @app.exception_handler(RequestValidationError)
 async def request_validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
     """422 without FastAPI's echo of each offending input value, which would copy
-    request text (possibly PII) into the error and can itself fail to encode."""
+    request text (possibly PII) into the error."""
     return JSONResponse(
         status_code=422,
         content={
             "detail": [
                 {
-                    "loc": [_json_safe(part) for part in error.get("loc", ())],
-                    "msg": _json_safe(error.get("msg", "")),
+                    "loc": list(error.get("loc", ())),
+                    "msg": error.get("msg", ""),
                     "type": error.get("type", ""),
                 }
                 for error in exc.errors()

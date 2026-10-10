@@ -94,7 +94,7 @@ function isOutageError(error: unknown): boolean {
   return isRetryableChunkError(error)
 }
 
-export interface MaskPIIBatchOptions {
+interface MaskPIIBatchOptions {
   /**
    * When set, a chunk that cannot be masked has each of its strings replaced with
    * this value instead of rejecting the call, so one bad chunk costs only its own
@@ -104,7 +104,7 @@ export interface MaskPIIBatchOptions {
   failedChunkPlaceholder?: string
 }
 
-export interface MaskPIIBatchResult {
+interface MaskPIIBatchResult {
   /** Masked strings, aligned 1:1 with the input. */
   masked: string[]
   /** How many of them are {@link MaskPIIBatchOptions.failedChunkPlaceholder} instead. */
