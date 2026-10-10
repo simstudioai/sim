@@ -7,7 +7,7 @@ import { getDesktopBridge } from '@/lib/desktop'
 import { reportClientToolCompletion } from '@/lib/mothership/tools/client/completion'
 import { executeNativeFileTool } from '@/lib/mothership/tools/client/native-files'
 import { isNativeFileTool, USER_LOCAL_VFS_ROOT } from '@/lib/mothership/tools/local-filesystem'
-import { encodeVfsSegment } from '@/lib/mothership/vfs/path-utils'
+import { encodeVfsSegment } from '@/lib/vfs/path'
 
 const logger = createLogger('CopilotLocalFilesystemTool')
 

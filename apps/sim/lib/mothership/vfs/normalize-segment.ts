@@ -1,4 +1,4 @@
-import { encodeVfsSegment } from '@/lib/mothership/vfs/path-utils'
+import { encodeVfsSegment } from '@/lib/vfs/path'
 
 /**
  * Normalize and encode a string for use as one canonical VFS path segment.

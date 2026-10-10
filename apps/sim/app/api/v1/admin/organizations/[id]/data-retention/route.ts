@@ -27,11 +27,11 @@ import { getForeignWorkspaceTargetsReason } from '@/lib/billing/retention'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -68,7 +68,7 @@ export const PATCH = withRouteHandler(
         .limit(1)
 
       if (!existing) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       const merged: DataRetentionSettings = { ...(existing.dataRetentionSettings ?? {}) }
@@ -100,7 +100,7 @@ export const PATCH = withRouteHandler(
         piiRedaction: body.piiRedaction,
       })
       if (foreignTargetsReason) {
-        return badRequestResponse(foreignTargetsReason)
+        return adminBadRequestResponse(foreignTargetsReason)
       }
 
       await db
@@ -127,7 +127,7 @@ export const PATCH = withRouteHandler(
       return singleResponse({ success: true as const, organizationId })
     } catch (error) {
       logger.error('Admin API: Failed to update data retention', { error, organizationId })
-      return internalErrorResponse('Failed to update data retention')
+      return adminInternalErrorResponse('Failed to update data retention')
     }
   })
 )

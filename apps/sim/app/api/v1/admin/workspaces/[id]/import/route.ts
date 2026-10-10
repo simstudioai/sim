@@ -51,10 +51,10 @@ import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
-  conflictResponse,
-  internalErrorResponse,
-  notFoundResponse,
+  adminBadRequestResponse,
+  adminConflictResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
 } from '@/app/api/v1/admin/responses'
 import type {
   ImportResult,
@@ -177,7 +177,7 @@ export const POST = withRouteHandler(
       const workspaceData = await getWorkspaceWithOwner(workspaceId)
 
       if (!workspaceData) {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
 
       const contentType = request.headers.get('content-type') || ''
@@ -190,12 +190,12 @@ export const POST = withRouteHandler(
           // Preserve the 413 for an oversized body; only invalid JSON maps to 400.
           return rawBody.reason === 'too_large'
             ? rawBody.response
-            : badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
+            : adminBadRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
         }
 
         const validation = adminV1WorkspaceImportBodySchema.safeParse(rawBody.data)
         if (!validation.success) {
-          return badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
+          return adminBadRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
         }
 
         const body = validation.data as WorkspaceImportRequest
@@ -215,7 +215,7 @@ export const POST = withRouteHandler(
           const file = formData.get('file') as File | null
 
           if (!file) {
-            return badRequestResponse('No file provided in form data. Use field name "file".')
+            return adminBadRequestResponse('No file provided in form data. Use field name "file".')
           }
 
           zipBuffer = await file.arrayBuffer()
@@ -229,13 +229,13 @@ export const POST = withRouteHandler(
         const { workflows } = await extractWorkflowsFromZip(file)
         workflowsToImport = workflows
       } else {
-        return badRequestResponse(
+        return adminBadRequestResponse(
           'Unsupported Content-Type. Use application/json or application/zip.'
         )
       }
 
       if (workflowsToImport.length === 0) {
-        return badRequestResponse('No workflows found to import')
+        return adminBadRequestResponse('No workflows found to import')
       }
 
       let rootFolderId: string | undefined
@@ -286,11 +286,11 @@ export const POST = withRouteHandler(
       const orchestrationError = asOrchestrationError(error)
       if (orchestrationError?.code === 'conflict') {
         logger.warn('Admin API: Import refused by the workspace folder limit', { workspaceId })
-        return conflictResponse(orchestrationError.message)
+        return adminConflictResponse(orchestrationError.message)
       }
 
       logger.error('Admin API: Failed to import into workspace', { error, workspaceId })
-      return internalErrorResponse('Failed to import workflows')
+      return adminInternalErrorResponse('Failed to import workflows')
     }
   })
 )

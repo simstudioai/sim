@@ -7,9 +7,9 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -33,7 +33,7 @@ export const POST = withRouteHandler(
       const workflowRecord = await getActiveWorkflowRecord(workflowId)
 
       if (!workflowRecord) {
-        return notFoundResponse('Workflow')
+        return adminNotFoundResponse('Workflow')
       }
 
       const result = await performActivateVersion({
@@ -45,9 +45,9 @@ export const POST = withRouteHandler(
       })
 
       if (!result.success) {
-        if (result.errorCode === 'not_found') return notFoundResponse('Deployment version')
-        if (result.errorCode === 'validation') return badRequestResponse(result.error!)
-        return internalErrorResponse(result.error || 'Failed to activate version')
+        if (result.errorCode === 'not_found') return adminNotFoundResponse('Deployment version')
+        if (result.errorCode === 'validation') return adminBadRequestResponse(result.error!)
+        return adminInternalErrorResponse(result.error || 'Failed to activate version')
       }
 
       logger.info(
@@ -67,7 +67,7 @@ export const POST = withRouteHandler(
         `[${requestId}] Admin API: Failed to activate version for workflow ${workflowId}`,
         { error }
       )
-      return internalErrorResponse('Failed to activate deployment version')
+      return adminInternalErrorResponse('Failed to activate deployment version')
     }
   })
 )
