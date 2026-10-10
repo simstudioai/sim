@@ -30,9 +30,10 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parse } from '@babel/parser'
 
-const ROOT = path.resolve(import.meta.dir, '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const BASELINE = path.join(ROOT, 'scripts/test-patterns-baseline.json')
 const SETUP = 'apps/sim/vitest.setup.ts'
 
@@ -75,8 +76,7 @@ function walk(node: unknown, visit: (node: Node) => void): void {
   }
 }
 
-function parseFile(file: string) {
-  const source = readFileSync(path.join(ROOT, file), 'utf8')
+export function parseSource(file: string, source: string) {
   return parse(source, {
     sourceType: 'module',
     plugins: [
@@ -87,6 +87,10 @@ function parseFile(file: string) {
     ],
     errorRecovery: true,
   }).program
+}
+
+function parseFile(file: string) {
+  return parseSource(file, readFileSync(path.join(ROOT, file), 'utf8'))
 }
 
 function isViCall(node: Node, method: string): boolean {
@@ -100,16 +104,99 @@ function isViCall(node: Node, method: string): boolean {
   )
 }
 
-/** The `vi.<method>` call at the root of a chain such as `vi.spyOn(a, 'b').mockReturnValue(c)`. */
+/** Wrappers that leave the wrapped expression's value unchanged. */
+const TRANSPARENT_WRAPPERS = new Set([
+  'AwaitExpression',
+  'ParenthesizedExpression',
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSNonNullExpression',
+  'TSTypeAssertion',
+])
+
+function unwrap(node: Node | undefined): Node | undefined {
+  let current = node
+  while (current && TRANSPARENT_WRAPPERS.has(current.type)) {
+    current = (current.type === 'AwaitExpression' ? current.argument : current.expression) as Node
+  }
+  return current
+}
+
+/**
+ * The `vi.<method>` call at the root of a chain such as `vi.spyOn(a, 'b').mockReturnValue(c)`,
+ * looking through awaits, parentheses and type assertions.
+ */
 function rootViMethod(node: Node | undefined, methods: string[]): string | undefined {
-  let current = node?.type === 'AwaitExpression' ? (node.argument as Node) : node
+  let current = unwrap(node)
   while (current?.type === 'CallExpression') {
     const method = methods.find((name) => isViCall(current as Node, name))
     if (method) return method
     const callee = current.callee as Node
-    current = callee.type === 'MemberExpression' ? (callee.object as Node) : undefined
+    current = callee.type === 'MemberExpression' ? unwrap(callee.object as Node) : undefined
   }
   return undefined
+}
+
+/**
+ * `module-scope-stub` and `redundant-hook` violations in one test file. Both depend only on the
+ * file itself, not on the setup file or central mocks.
+ */
+export function findStubAndHookViolations(
+  file: string,
+  program: ReturnType<typeof parseSource>
+): Violation[] {
+  const integration = file.endsWith('.integration.ts')
+  const violations: Violation[] = []
+
+  if (!integration) {
+    for (const topLevel of program.body as Node[]) {
+      const statement =
+        topLevel.type === 'ExportNamedDeclaration' && topLevel.declaration
+          ? (topLevel.declaration as Node)
+          : topLevel
+      const calls =
+        statement.type === 'ExpressionStatement'
+          ? [statement.expression as Node]
+          : statement.type === 'VariableDeclaration'
+            ? (statement.declarations as Node[]).map((declarator) => declarator.init as Node)
+            : []
+      for (const call of calls) {
+        const method = rootViMethod(call, UNDONE_STUB_CALLS)
+        if (method) violations.push({ file, rule: 'module-scope-stub', detail: `vi.${method}()` })
+      }
+    }
+  }
+
+  walk(program, (node) => {
+    if (
+      node.type !== 'CallExpression' ||
+      (node.callee as Node).type !== 'Identifier' ||
+      !['beforeEach', 'afterEach'].includes((node.callee as { name: string }).name)
+    ) {
+      return
+    }
+    const hook = (node.callee as { name: string }).name
+    const callback = (node.arguments as Node[])[0]
+    const body = callback?.body as Node | undefined
+    const calls =
+      body?.type === 'BlockStatement'
+        ? (body.body as Node[]).map((statement) => statement.expression as Node | undefined)
+        : [body]
+    for (const call of calls) {
+      const method = rootViMethod(
+        call,
+        integration ? INTEGRATION_CONFIG_HOOK_CALLS : CONFIG_HOOK_CALLS
+      )
+      if (method) {
+        violations.push({ file, rule: 'redundant-hook', detail: `vi.${method}()` })
+      } else if (hook === 'beforeEach') {
+        // Past the first setup statement a reset can be deliberate: it discards the calls or
+        // stubs that setup just made, which the config's earlier reset never saw.
+        break
+      }
+    }
+  })
+  return violations
 }
 
 function mockedId(node: Node): string | undefined {
@@ -253,28 +340,14 @@ function collect(globals: Set<string>, declaredCentralIds: Set<string>): Violati
 
   const violations: Violation[] = []
   for (const { file, program } of parsed) {
-    const integration = file.endsWith('.integration.ts')
-    const realBoundary = integration || file.endsWith('.live.test.ts')
+    const realBoundary = file.endsWith('.integration.ts') || file.endsWith('.live.test.ts')
     const imports = testingImportsByFile.get(file) ?? new Set<string>()
 
     if (/(^|\/)(__tests__|tests)\//.test(file)) {
       violations.push({ file, rule: 'test-dir', detail: path.dirname(file) })
     }
 
-    if (!integration) {
-      for (const statement of program.body as Node[]) {
-        const calls =
-          statement.type === 'ExpressionStatement'
-            ? [statement.expression as Node]
-            : statement.type === 'VariableDeclaration'
-              ? (statement.declarations as Node[]).map((declarator) => declarator.init as Node)
-              : []
-        for (const call of calls) {
-          const method = rootViMethod(call, UNDONE_STUB_CALLS)
-          if (method) violations.push({ file, rule: 'module-scope-stub', detail: `vi.${method}()` })
-        }
-      }
-    }
+    violations.push(...findStubAndHookViolations(file, program))
 
     walk(program, (node) => {
       const id = mockedId(node)
@@ -291,33 +364,6 @@ function collect(globals: Set<string>, declaredCentralIds: Set<string>): Violati
           canUseSharedMocks(file)
         ) {
           violations.push({ file, rule: 'local-factory', detail: id })
-        }
-      }
-
-      if (
-        node.type === 'CallExpression' &&
-        (node.callee as Node).type === 'Identifier' &&
-        ['beforeEach', 'afterEach'].includes((node.callee as { name: string }).name)
-      ) {
-        const hook = (node.callee as { name: string }).name
-        const callback = (node.arguments as Node[])[0]
-        const body = callback?.body as Node | undefined
-        const calls =
-          body?.type === 'BlockStatement'
-            ? (body.body as Node[]).map((statement) => statement.expression as Node | undefined)
-            : [body]
-        for (const call of calls) {
-          const method = rootViMethod(
-            call,
-            integration ? INTEGRATION_CONFIG_HOOK_CALLS : CONFIG_HOOK_CALLS
-          )
-          if (method) {
-            violations.push({ file, rule: 'redundant-hook', detail: `vi.${method}()` })
-          } else if (hook === 'beforeEach') {
-            // Past the first setup statement a reset can be deliberate: it discards the calls or
-            // stubs that setup just made, which the config's earlier reset never saw.
-            break
-          }
         }
       }
 
@@ -339,31 +385,11 @@ function key(violation: Violation): string {
   return `${violation.rule}\t${violation.file}\t${violation.detail}`
 }
 
-const globalIds = globalMockIds()
-const centralMocks = readCentralMocks()
-const deadMockTargets = [
-  ...centralMocks.unresolved,
-  ...[...globalIds]
-    .filter((id) => id.startsWith('@/') && !resolvesInSim(id))
-    .map((id) => `${SETUP}: ${id}`),
-]
-if (deadMockTargets.length) {
-  for (const entry of deadMockTargets) console.error(`✗ dead mock target: ${entry}`)
-  console.error(
-    '\nA shared mock mocks a module id that no longer resolves. Point it at the moved module, or ' +
-      'delete the mock if the module is gone.'
-  )
-  process.exit(1)
-}
-
-const violations = collect(globalIds, centralMocks.declared)
-const current = [...new Set(violations.map(key))].sort()
-
 /**
  * The committed baseline. A missing file fails closed: restore it from git. `--update --init`
  * is the only way to create one, and it accepts every current violation.
  */
-function readBaseline(): string[] {
+function readBaseline(current: string[]): string[] {
   if (existsSync(BASELINE)) return JSON.parse(readFileSync(BASELINE, 'utf8'))
   if (process.argv.includes('--update') && process.argv.includes('--init')) return current
   console.error(
@@ -398,32 +424,56 @@ function reportAdded(added: string[]): void {
   for (const rule of rules) console.error(`  ${rule}: ${FIX[rule]}`)
 }
 
-const baseline = new Set<string>(readBaseline())
-const added = current.filter((entry) => !baseline.has(entry))
-
-if (process.argv.includes('--update')) {
-  // Shrink-only: drop fixed entries, never admit a new one, and write nothing if refusing.
-  if (added.length) {
-    reportAdded(added)
+function main(): void {
+  const globalIds = globalMockIds()
+  const centralMocks = readCentralMocks()
+  const deadMockTargets = [
+    ...centralMocks.unresolved,
+    ...[...globalIds]
+      .filter((id) => id.startsWith('@/') && !resolvesInSim(id))
+      .map((id) => `${SETUP}: ${id}`),
+  ]
+  if (deadMockTargets.length) {
+    for (const entry of deadMockTargets) console.error(`✗ dead mock target: ${entry}`)
+    console.error(
+      '\nA shared mock mocks a module id that no longer resolves. Point it at the moved module, or ' +
+        'delete the mock if the module is gone.'
+    )
     process.exit(1)
   }
-  const kept = current.filter((entry) => baseline.has(entry))
-  writeFileSync(BASELINE, `${JSON.stringify(kept, null, 2)}\n`)
-  console.log(`Wrote ${kept.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
-  process.exit(0)
-}
-const currentSet = new Set(current)
-const stale = [...baseline].filter((entry) => !currentSet.has(entry))
 
-if (added.length || stale.length) {
-  if (added.length) reportAdded(added)
-  if (stale.length) {
-    console.error(
-      `\n${stale.length} baseline entr${stale.length === 1 ? 'y is' : 'ies are'} fixed — shrink the ` +
-        'baseline: bun run scripts/check-test-patterns.ts --update'
-    )
+  const violations = collect(globalIds, centralMocks.declared)
+  const current = [...new Set(violations.map(key))].sort()
+
+  const baseline = new Set<string>(readBaseline(current))
+  const added = current.filter((entry) => !baseline.has(entry))
+
+  if (process.argv.includes('--update')) {
+    // Shrink-only: drop fixed entries, never admit a new one, and write nothing if refusing.
+    if (added.length) {
+      reportAdded(added)
+      process.exit(1)
+    }
+    const kept = current.filter((entry) => baseline.has(entry))
+    writeFileSync(BASELINE, `${JSON.stringify(kept, null, 2)}\n`)
+    console.log(`Wrote ${kept.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
+    process.exit(0)
   }
-  process.exit(1)
+  const currentSet = new Set(current)
+  const stale = [...baseline].filter((entry) => !currentSet.has(entry))
+
+  if (added.length || stale.length) {
+    if (added.length) reportAdded(added)
+    if (stale.length) {
+      console.error(
+        `\n${stale.length} baseline entr${stale.length === 1 ? 'y is' : 'ies are'} fixed — shrink the ` +
+          'baseline: bun run scripts/check-test-patterns.ts --update'
+      )
+    }
+    process.exit(1)
+  }
+
+  console.log(`✓ test patterns (${current.length} baselined exceptions)`)
 }
 
-console.log(`✓ test patterns (${current.length} baselined exceptions)`)
+if (import.meta.main) main()
