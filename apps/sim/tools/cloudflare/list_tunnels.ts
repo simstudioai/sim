@@ -18,7 +18,7 @@ export const listTunnelsTool: ToolConfig<
   id: 'cloudflare_list_tunnels',
   name: 'Cloudflare List Tunnels',
   description:
-    'Lists the Cloudflare Tunnels (cloudflared) in an account, with their health status and active connections. Requires an API token with Account Cloudflare Tunnel Read.',
+    'Lists the Cloudflare Tunnels (cloudflared) in an account, with their health status. Connections are no longer included on list responses (Cloudflare API change 2026-10-05); use cloudflare_get_tunnel for a tunnel’s connections. Requires an API token with Account Cloudflare Tunnel Read.',
   version: '1.0.0',
 
   params: {
@@ -155,7 +155,7 @@ export const listTunnelsTool: ToolConfig<
           deleted_at: tunnel.deleted_at ?? null,
           conns_active_at: tunnel.conns_active_at ?? null,
           conns_inactive_at: tunnel.conns_inactive_at ?? null,
-          connections: tunnel.connections ?? null,
+          connections: null,
         })),
         total_count: data.result_info?.total_count ?? tunnels.length,
       },
@@ -215,7 +215,8 @@ export const listTunnelsTool: ToolConfig<
           },
           connections: {
             type: 'json',
-            description: 'Active connector connections for the tunnel',
+            description:
+              'Always null on list. Use cloudflare_get_tunnel to fetch active connections for a specific tunnel.',
             optional: true,
           },
         },
