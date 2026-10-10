@@ -5,7 +5,7 @@
  * timestamp for dates) are always available at the SQL builder layer — the
  * latent bug that PR #4657 was originally fixing.
  */
-import { dbChainMockFns, resetDbChainMock, setEnv } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock, setEnv } from '@sim/testing'
 import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-trigger.mock'
 import { tableWorkflowColumnsMock } from '@sim/testing/mocks/table-workflow-columns.mock'
 import { sql } from 'drizzle-orm'
@@ -224,14 +224,18 @@ describe('queryRows byte budget', () => {
     const largeRow = row(1, TABLE_LIMITS.MAX_ROW_SIZE_BYTES)
     const smallRow = row(2, 0)
     const state = { drainBatch: 0 }
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-    dbChainMockFns.limit.mockImplementation(async (ask: number) => {
+    const drainBatch = async (ask: number) => {
       state.drainBatch++
       if (state.drainBatch > 1001) return []
       const rows = Array.from({ length: ask }, () => smallRow)
       if (state.drainBatch === 1) rows[0] = largeRow
       return rows
-    })
+    }
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockImplementationOnce(drainBatch)
+    // Every later batch seeks past the last keyed row: its page is the outer `.limit()` of the
+    // keyed/unkeyed union.
+    dbChainMockFns.unionAll.mockImplementation(() => ({ orderBy: () => ({ limit: drainBatch }) }))
     return state
   }
 
@@ -300,35 +304,6 @@ describe('queryRows byte budget', () => {
     Math.floor((4 * TABLE_LIMITS.MAX_QUERY_RESULT_BYTES) / TABLE_LIMITS.MAX_ROW_SIZE_BYTES)
   )
 
-  /**
-   * The seek predicate that pages the drain. `order_key` is nullable (rows
-   * predating the backfill, forked rows), and a bare
-   * `(order_key, id) > (:k, :i)` evaluates to NULL for those rows, so WHERE drops
-   * them. Because NULLs sort last, the whole unkeyed tail then becomes
-   * unreachable and the drain reports `hasMore: false` — 52 of 121 rows returned
-   * with no error, reproduced against a real table.
-   */
-  it('seeks with a NULL-admitting comparison so unkeyed rows stay reachable', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-
-    await queryRows(
-      TABLE,
-      {
-        after: { orderKey: 'a5', id: 'row_5' },
-        limit: 10,
-        includeTotal: false,
-        withExecutions: false,
-      },
-      'req-1'
-    )
-
-    const seekWhere = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1))
-    expect(seekWhere).toMatch(/is null/i)
-    expect(seekWhere).toContain('a5')
-    expect(seekWhere).toContain('row_5')
-  })
-
   it('resumes exactly at the last returned row when the cursor is fed back', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
     // limit 2 + witness row_3 → page ends at row_2 with a resume cursor.
@@ -347,7 +322,7 @@ describe('queryRows byte budget', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValueOnce([])
-    dbChainMockFns.limit.mockResolvedValueOnce([row(3, 8), row(4, 8)])
+    queueTableRows(schemaMock.userTableRows, [row(3, 8), row(4, 8)])
 
     const page2 = await queryRows(
       TABLE,
@@ -357,7 +332,7 @@ describe('queryRows byte budget', () => {
 
     // No gap (row_3 is the first row past the anchor) and no duplicate of row_2.
     expect(page2.rows.map((r) => r.id)).toEqual(['row_3', 'row_4'])
-    const seekWhere = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1))
+    const seekWhere = JSON.stringify(dbChainMockFns.where.mock.calls)
     expect(seekWhere).toContain('a2')
     expect(seekWhere).toContain('row_2')
   })
@@ -392,14 +367,14 @@ describe('queryRows byte budget', () => {
     const batch1 = Array.from({ length: firstAsk }, (_, i) => row(i, 8))
     dbChainMockFns.limit.mockResolvedValueOnce([])
     dbChainMockFns.limit.mockResolvedValueOnce(batch1)
-    dbChainMockFns.limit.mockResolvedValueOnce([row(firstAsk, 8)])
+    queueTableRows(schemaMock.userTableRows, [row(firstAsk, 8)])
 
     const result = await queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')
 
     expect(result.rows).toHaveLength(firstAsk + 1)
     expect(result.nextCursor).toBeNull()
     const firstBatchAsk = (dbChainMockFns.limit.mock.calls[1] ?? [])[0] as number
-    const secondBatchAsk = (dbChainMockFns.limit.mock.calls[2] ?? [])[0] as number
+    const secondBatchAsk = (dbChainMockFns.limit.mock.calls.at(-1) ?? [])[0] as number
     expect(secondBatchAsk).toBeGreaterThan(firstBatchAsk)
   })
 
@@ -429,7 +404,7 @@ describe('queryRows byte budget', () => {
     const unkeyedRow = (i: number, blobBytes: number) => ({ ...row(i, blobBytes), orderKey: null })
     const perRow = Math.floor(TABLE_LIMITS.MAX_QUERY_RESULT_BYTES * 0.4)
     dbChainMockFns.limit.mockResolvedValueOnce([])
-    dbChainMockFns.limit.mockResolvedValueOnce([
+    queueTableRows(schemaMock.userTableRows, [
       unkeyedRow(6, perRow),
       unkeyedRow(7, perRow),
       unkeyedRow(8, perRow),

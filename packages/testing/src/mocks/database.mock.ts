@@ -182,6 +182,9 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
  * implementation returns a sentinel that the chain replaces with the
  * chain-local builder, while any `mock*` override on the spy wins verbatim.
  *
+ * `unionAll` resolves to the LEFT chain's rows (its own queued set or the outer
+ * `.limit` override); the right chain is never awaited, so it consumes nothing.
+ *
  * `for` mirrors drizzle's `.for('update')` — it returns a Promise with
  * `.limit` / `.orderBy` / `.returning` / `.groupBy` attached, so both
  * `await .where().for('update')` (terminal) and
@@ -233,6 +236,7 @@ const where = chainSpy()
 const limit = chainSpy()
 const offset = chainSpy()
 const orderBy = chainSpy()
+const unionAll = chainSpy()
 const groupBy = chainSpy()
 const having = chainSpy()
 const asAlias = chainSpy()
@@ -308,12 +312,13 @@ const lazyRowsThenable = (getRows: RowsSupplier): any => ({
 })
 
 // `.limit()` returns a builder that is awaitable and also exposes `.offset()`
-// for keyset/OFFSET paging (`.limit(n).offset(m)`) and `.for()` for drizzle's
-// `.limit(1).for('update')` row-lock form.
+// for keyset/OFFSET paging (`.limit(n).offset(m)`), `.for()` for drizzle's
+// `.limit(1).for('update')` row-lock form, and `.unionAll()` for a limited branch.
 const limitBuilder = (getRows: RowsSupplier, fields: SelectedFields = {}) => {
   const thenable = lazyRowsThenable(getRows)
   thenable.offset = spyOrDefault(offset, () => limitBuilder(getRows, fields))
   thenable.for = spyOrDefault(forClause, () => limitBuilder(getRows, fields))
+  thenable.unionAll = spyOrDefault(unionAll, () => terminalBuilder(getRows, fields))
   thenable.as = spyOrDefault(asAlias, (alias: string) => subqueryFields(fields, alias))
   return thenable
 }
@@ -322,6 +327,7 @@ const terminalBuilder = (getRows: RowsSupplier, fields: SelectedFields = {}): an
   const thenable = lazyRowsThenable(getRows)
   thenable.limit = spyOrDefault(limit, () => limitBuilder(getRows, fields))
   thenable.orderBy = spyOrDefault(orderBy, () => terminalBuilder(getRows, fields))
+  thenable.unionAll = spyOrDefault(unionAll, () => terminalBuilder(getRows, fields))
   thenable.as = spyOrDefault(asAlias, (alias: string) => subqueryFields(fields, alias))
   thenable.returning = returning
   thenable.groupBy = spyOrDefault(groupBy, () => {
@@ -371,6 +377,7 @@ export const dbChainMockFns = {
   limit,
   offset,
   orderBy,
+  unionAll,
   returning,
   innerJoin,
   leftJoin,
