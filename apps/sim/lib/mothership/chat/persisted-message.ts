@@ -5,6 +5,7 @@ import type {
   PersistedToolCall,
   PersistedToolState,
 } from '@/lib/api/contracts/copilot-messages'
+import { compactAsyncAgentLaunch } from '@/lib/mothership/chat/async-agent-display'
 import { buildMothershipErrorTag } from '@/lib/mothership/chat/error-tag'
 import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import {
@@ -127,8 +128,9 @@ export interface PersistedMessage {
 
 /**
  * Drop persisted tool outputs, keeping `success` and `error`. Bounded UI-state
- * exceptions preserve retrieval citations, watch-to-task identity, and the
- * browser takeover's answered question recap. Other outputs are never
+ * exceptions preserve retrieval citations, async agent launch names,
+ * watch-to-task identity, and the browser takeover's answered question recap.
+ * Other outputs are never
  * rendered or replayed to the model (the upstream service owns conversation
  * memory), so storing them only bloats
  * `copilot_messages.content` — a single `get_workflow_logs`/`run_workflow`
@@ -148,6 +150,7 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     if (!toolCall || !result || typeof result !== 'object' || !('output' in result)) return block
     const output = result.output
     const citations = result.success ? compactRetrievalCitations(toolCall.name, output) : undefined
+    const agentLaunch = result.success ? compactAsyncAgentLaunch(toolCall.name, output) : undefined
     const taskId =
       result.success && toolCall.name === 'watch' && isPlainRecord(output)
         ? output.taskId
@@ -174,6 +177,7 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     const strippedResult: { success: boolean; output?: unknown; error?: string } = {
       success: result.success,
       ...(citations ? { output: citations } : {}),
+      ...(agentLaunch ? { output: agentLaunch } : {}),
       ...(watchReceipt ? { output: watchReceipt } : {}),
       ...(normalizedInstruction ? { output: { userInstruction: normalizedInstruction } } : {}),
     }
