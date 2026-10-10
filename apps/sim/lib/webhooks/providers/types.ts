@@ -179,6 +179,12 @@ export interface WebhookProviderHandler {
   /** Extract unique identifier for idempotency dedup. */
   extractIdempotencyId?(body: unknown): string | null
 
+  /**
+   * Deliveries carry no identifier unless the user configures one (e.g. a generic webhook's
+   * idempotency field), so a delivery without a header or body id is expected, not anomalous.
+   */
+  deliveryIdOptional?: boolean
+
   /** Custom success response after queuing. Return null for default `{message: "Webhook processed"}`. */
   formatSuccessResponse?(providerConfig: Record<string, unknown>): NextResponse | null
 

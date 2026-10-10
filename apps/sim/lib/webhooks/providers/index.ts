@@ -18,11 +18,12 @@ export function extractProviderIdentifierFromBody(provider: string, body: unknow
 }
 
 /**
- * Whether a provider can name a delivery from its body. One that cannot (e.g. a generic
- * webhook without a configured idempotency field) dedupes only on a delivery header.
+ * Whether a delivery without a header or body identifier is expected for this provider.
+ * Every other provider normally names its deliveries (a delivery header or a body id), so a
+ * missing identifier there is an anomaly worth a warning.
  */
-export function providerExtractsIdempotencyId(provider: string): boolean {
-  return typeof getProviderHandler(provider).extractIdempotencyId === 'function'
+export function isDeliveryIdOptional(provider: string): boolean {
+  return getProviderHandler(provider).deliveryIdOptional === true
 }
 
 /**
