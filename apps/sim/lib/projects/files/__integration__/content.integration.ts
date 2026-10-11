@@ -80,7 +80,6 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
 beforeEach(() => {
   vi.restoreAllMocks()
   featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
-  vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
   vi.stubEnv('FREE_STORAGE_LIMIT_GB', '')
 })
 

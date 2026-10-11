@@ -1360,9 +1360,6 @@ describe('Project foundation at the database and application boundary', () => {
 })
 
 describe('Project discovery delegation', () => {
-  beforeEach(() => {
-    vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
-  })
   check(
     'binds organization discovery to the current owned chat and rechecks membership',
     async () => {

@@ -102,7 +102,6 @@ const environment: NodeJS.ProcessEnv = {
   SSO_ENABLED: 'true',
   NEXT_PUBLIC_SSO_ENABLED: 'true',
   PROJECT_API_ENABLED: 'true',
-  PROJECT_FILES_ENABLED: 'true',
   STORAGE_PROVIDER: 'local',
   EMAIL_VERIFICATION_ENABLED: 'false',
   NEXT_PUBLIC_CHAT_DISABLED: 'true',

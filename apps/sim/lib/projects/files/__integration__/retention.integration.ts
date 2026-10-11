@@ -19,6 +19,7 @@ import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -27,6 +28,7 @@ import postgres from 'postgres'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { type CleanupJobPayload, runCleanupWithLimits } from '@/lib/billing/cleanup-dispatcher'
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
@@ -71,6 +73,7 @@ function check(name: string, run: () => Promise<void>) {
 }
 
 beforeEach(() => {
+  featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
   setEnvFlags({ isBillingEnabled: true, isDataRetentionEnabled: true })
 })
 

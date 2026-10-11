@@ -73,7 +73,6 @@ function check(name: string, run: () => Promise<void>) {
 
 beforeEach(() => {
   featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
-  vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
 })
 
 async function seedUpload(f: { userId: string; projectId: string }, fileName: string) {

@@ -99,7 +99,7 @@ const FEATURE_FLAGS = {
   },
   projects: {
     description:
-      'Expose the Project APIs once the membership backfill has validated. Global on/off only; ' +
+      'Expose Projects and Project-scoped features, including files and memories. Global on/off only; ' +
       'workspace creation assigns Projects and lifecycle protections apply either way. ' +
       'Off-AppConfig falls back to PROJECT_API_ENABLED.',
     fallback: 'PROJECT_API_ENABLED',
