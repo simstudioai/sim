@@ -78,7 +78,6 @@ describe('createDetachedTouch', () => {
 
     touch('a')
     await flushMacrotask()
-    await sleep(5)
     touch('a')
     await flushMacrotask()
     expect(write).toHaveBeenCalledTimes(2)

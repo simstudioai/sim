@@ -59,6 +59,12 @@ export function createDetachedTouch({
     if (inFlight.has(key) || recent?.has(key)) return
     recent?.set(key, true)
     inFlight.add(key)
-    runDetached(label, () => write(key).finally(() => inFlight.delete(key)))
+    runDetached(label, async () => {
+      try {
+        await write(key)
+      } finally {
+        inFlight.delete(key)
+      }
+    })
   }
 }
