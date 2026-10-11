@@ -7,6 +7,7 @@
  */
 
 import { dbChainMockFns } from '@sim/testing'
+import { flushMacrotask } from '@sim/testing/helpers/async'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import {
@@ -99,7 +100,8 @@ describe('authenticateApiKeyFromHeader', () => {
 
 describe('updateApiKeyLastUsed', () => {
   it('only writes when the stored lastUsed is missing or stale', async () => {
-    await updateApiKeyLastUsed('key-1')
+    updateApiKeyLastUsed('key-1')
+    await flushMacrotask()
 
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ lastUsed: expect.any(Date) })
@@ -113,12 +115,12 @@ describe('updateApiKeyLastUsed', () => {
     })
   })
 
-  it('swallows database errors instead of failing the request', async () => {
+  it('logs database errors instead of failing the request', async () => {
     dbChainMockFns.update.mockImplementationOnce(() => {
       throw new Error('connection lost')
     })
 
-    await expect(updateApiKeyLastUsed('key-1')).resolves.toBeUndefined()
-    expect(serviceLogger.error).toHaveBeenCalled()
+    expect(() => updateApiKeyLastUsed('key-failing')).not.toThrow()
+    await vi.waitFor(() => expect(serviceLogger.error).toHaveBeenCalled())
   })
 })

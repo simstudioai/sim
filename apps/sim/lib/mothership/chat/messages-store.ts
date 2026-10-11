@@ -99,16 +99,26 @@ export async function appendCopilotChatMessages(
  * because the user deleted the conversation after asking — resurrecting it with
  * a reply would undo that deletion, and the caller still has its reply in the
  * response. Throws on a write failure.
+ *
+ * `scope.workspaceId` confines the write to a chat in that workspace; a chat
+ * elsewhere receives nothing, exactly like a deleted one.
  */
 export async function persistCopilotChatTurn(
   chatId: string,
-  messages: PersistedMessage[]
+  messages: PersistedMessage[],
+  scope?: { workspaceId: string }
 ): Promise<void> {
   await db.transaction(async (tx) => {
     const [updated] = await tx
       .update(copilotChats)
       .set({ updatedAt: new Date() })
-      .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.deletedAt)))
+      .where(
+        and(
+          eq(copilotChats.id, chatId),
+          isNull(copilotChats.deletedAt),
+          ...(scope ? [eq(copilotChats.workspaceId, scope.workspaceId)] : [])
+        )
+      )
       .returning({ model: copilotChats.model })
     if (!updated) return
     await appendCopilotChatMessages(chatId, messages, { chatModel: updated.model ?? null }, tx)

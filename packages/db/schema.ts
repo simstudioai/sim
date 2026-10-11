@@ -1,3 +1,4 @@
+import { WHITESPACE_CHARACTER_CLASS } from '@sim/utils/string'
 import { type SQL, sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
@@ -67,6 +68,19 @@ export const bytea = customType<{
  */
 export function foldedEmail(column: AnyPgColumn | SQL): SQL<string> {
   return sql<string>`lower(btrim(${column}))`
+}
+
+/**
+ * A file name reduced to the VFS path segment it displays as, in SQL: NFC-composed, trimmed,
+ * control characters removed, whitespace runs collapsed to one space. It is the exact
+ * expression `workspace_files_workspace_display_name_idx` indexes, so a predicate spelled any
+ * other way scans the workspace's files. The TypeScript twin is `normalizeDisplaySegment` in
+ * `apps/sim/lib/vfs/path.ts`; the two must apply the same steps in the same order. Constants
+ * are inlined with `sql.raw` because a bound parameter would not match the index expression.
+ */
+export function displaySegmentKey(column: AnyPgColumn | SQL): SQL<string> {
+  const ws = sql.raw(WHITESPACE_CHARACTER_CLASS)
+  return sql<string>`regexp_replace(regexp_replace(regexp_replace(normalize(${column}, NFC), '^${ws}+|${ws}+$', '', 'g'), '[\\x01-\\x1f\\x7f]', '', 'g'), '${ws}+', ' ', 'g')`
 }
 
 export const user = pgTable(
@@ -2027,6 +2041,8 @@ export const workspace = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'set null',
     }),
+    /** Legacy memberships remain nullable until the registered Project backfill completes. */
+    projectId: text('project_id').references(() => project.id, { onDelete: 'restrict' }),
     workspaceMode: workspaceModeEnum('workspace_mode').notNull().default('grandfathered_shared'),
     billedAccountUserId: text('billed_account_user_id')
       .notNull()
@@ -2068,6 +2084,7 @@ export const workspace = pgTable(
   (table) => ({
     ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
     organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
+    projectIdIdx: index('workspace_project_id_id_idx').on(table.projectId, table.id).concurrently(),
     nonNegativeStorage: check(
       'workspace_storage_used_bytes_non_negative',
       sql`${table.storageUsedBytes} >= 0`
@@ -2119,16 +2136,38 @@ export const project = pgTable(
   })
 )
 
+/** contract-pending(after #8830 is fully deployed): #8590 drops this with the connector; readers recognize the completed schema. */
+export const projectMembershipRollout = pgTable(
+  'project_membership_rollout',
+  {
+    id: text('id').primaryKey(),
+    phase: text('phase', { enum: ['connector', 'column'] })
+      .notNull()
+      .default('connector'),
+  },
+  (table) => ({
+    singleton: check('project_membership_rollout_singleton', sql`${table.id} = 'membership'`),
+    phase: check(
+      'project_membership_rollout_phase',
+      sql`${table.phase} IN ('connector', 'column')`
+    ),
+  })
+)
+
 // contract-pending(after project writers are fully deployed and backfill validates): enforce exactly-one membership and active Project environment minimums at commit.
 export const projectWorkspace = pgTable(
   'project_workspace',
   {
+    // contract-pending(after #8830 is fully deployed and pre-8830 servers/workers drain): retire this table in #8590 — the durable authority marker has switched to column and compatibility readers tolerate its absence.
+    /** @deprecated Use the phase-aware membership helpers; retained for pre-8830 binaries during rollout. */
     projectId: text('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'restrict' }),
+    /** @deprecated Use workspace.id. */
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** @deprecated Membership is stored on workspace. */
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
@@ -2776,6 +2815,13 @@ export const workspaceFiles = pgTable(
      */
     workspaceActiveKeysetIdx: index('workspace_files_workspace_active_keyset_idx')
       .on(table.workspaceId, table.id)
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
+    /** Serves name references that miss the exact-name lookup; see `displaySegmentKey`. */
+    workspaceDisplayNameIdx: index('workspace_files_workspace_display_name_idx')
+      .on(table.workspaceId, displaySegmentKey(table.originalName))
       .concurrently()
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`

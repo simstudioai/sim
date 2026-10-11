@@ -15,7 +15,7 @@ import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { escapeLikePattern } from '@sim/utils/string'
-import { and, asc, count, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   assertRowCapacity,
@@ -1492,24 +1492,45 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
     ask: number
   ) => {
     const buildQuery = (executor: DbExecutor) => {
-      // `order_key` is nullable (rows predating the backfill, and forked rows that
-      // inherit a NULL key). A bare row-constructor comparison evaluates to NULL for
-      // those rows, so they are dropped by WHERE — and because NULLs sort LAST under
-      // `ORDER BY order_key, id`, the entire unkeyed tail becomes unreachable and the
-      // drain terminates early reporting `hasMore: false`. Admitting NULLs keeps the
-      // seek set exactly "the tail after the anchor", which is also what the compound
-      // `{k,i,o}` cursor's `offsetFromAnchor` accounting assumes.
-      const seekWhere = batchSeek
-        ? and(
-            baseWhere,
-            sql`(${userTableRows.orderKey} IS NULL OR (${userTableRows.orderKey}, ${userTableRows.id}) > (${batchSeek.orderKey}, ${batchSeek.id}))`
-          )
-        : baseWhere
-      const query = executor
+      if (!batchSeek) {
+        const query = executor
+          .select()
+          .from(userTableRows)
+          .where(baseWhere)
+          .orderBy(orderBy)
+          .limit(ask)
+        return batchOffset > 0 ? query.offset(batchOffset) : query
+      }
+      // The seek set is "every row after the anchor in `(order_key, id)` order". `order_key` is
+      // nullable (rows predating the backfill, and forked rows that inherit a NULL key) and NULLs
+      // sort LAST, so that set is the keyed rows past the anchor followed by the whole unkeyed
+      // tail — the set the compound `{k,i,o}` cursor's `offsetFromAnchor` counts into. A bare
+      // row-constructor comparison is NULL for unkeyed rows and would drop that tail. Admitting it
+      // with `order_key IS NULL OR (...)` in one WHERE keeps the rows but defeats the
+      // `(table_id, order_key, id)` seek: the scan starts at the table's first key and filters out
+      // every row before the anchor. Each branch below is an index range on its own, each yields
+      // at most the rows the page can reach, and the planner merges the two ordered streams.
+      const reach = ask + batchOffset
+      const keyedPastAnchor = executor
         .select()
         .from(userTableRows)
-        .where(seekWhere)
+        .where(
+          and(
+            baseWhere,
+            sql`(${userTableRows.orderKey}, ${userTableRows.id}) > (${batchSeek.orderKey}, ${batchSeek.id})`
+          )
+        )
         .orderBy(orderBy)
+        .limit(reach)
+      const unkeyedTail = executor
+        .select()
+        .from(userTableRows)
+        .where(and(baseWhere, isNull(userTableRows.orderKey)))
+        .orderBy(orderBy)
+        .limit(reach)
+      const query = keyedPastAnchor
+        .unionAll(unkeyedTail)
+        .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
         .limit(ask)
       return batchOffset > 0 ? query.offset(batchOffset) : query
     }

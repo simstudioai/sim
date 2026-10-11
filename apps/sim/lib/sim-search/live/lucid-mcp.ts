@@ -322,23 +322,30 @@ function manifest(value: unknown, id: string, kind: string | undefined) {
   return { row, counts: counts as number[] }
 }
 
+/**
+ * Region fetches are independent provider reads; running them together keeps a full read inside
+ * the live read deadline. Validation walks them in page and region order, and a fetch is only
+ * scheduled once the region this many places before it has been validated, so a rejected or
+ * oversized document stops further reads and holds at most this many responses.
+ */
+const REGION_FETCH_CONCURRENCY = 4
+
 /** Complete, bounded provider pages preserve graph data; no returned URL is fetched. */
 export async function readLucidMcp(
   client: ManagedSearchMcpClient,
   reference: Pick<NativeDocument, 'id' | 'kind' | 'revision'>
 ): Promise<NativeDocument> {
-  const before = await metadata(client, reference.id)
+  const [before, initialRaw] = await Promise.all([
+    metadata(client, reference.id),
+    client.call('fetch', { id: reference.id, metadata_only: true }),
+  ])
   if (!before) invalid('Lucid document metadata is incomplete or no longer readable.')
   if (
     (reference.kind && reference.kind !== before.kind) ||
     (reference.revision && reference.revision !== before.revision)
   )
     invalid('Lucid document changed since this result was issued. Search again before reading.')
-  const initial = manifest(
-    await client.call('fetch', { id: before.id, metadata_only: true }),
-    before.id,
-    before.kind
-  )
+  const initial = manifest(initialRaw, before.id, before.kind)
   if (
     initial.counts.length !== before.accessMetadata?.pageCount ||
     initial.row.title !== before.title
@@ -346,20 +353,28 @@ export async function readLucidMcp(
     invalid('Lucid document coverage changed before reading. Search again.')
   const pages: Record<string, unknown>[] = []
   const output = () => JSON.stringify({ document_id: before.id, title: before.title, pages })
-  for (let pageIndex = 0; pageIndex < initial.counts.length; pageIndex++) {
-    const count = initial.counts[pageIndex]!
+  const requests = initial.counts.flatMap((count, pageIndex) =>
+    Array.from({ length: Math.max(1, count) }, (_, region) => ({
+      id: before.id,
+      page_index: pageIndex + 1,
+      ...(count ? { region_index: [region + 1] } : {}),
+    }))
+  )
+  const responses: Promise<unknown>[] = []
+  const schedule = (index: number) => {
+    if (index >= requests.length) return
+    const response = client.call('fetch', requests[index])
+    // An invalid earlier region abandons in-flight fetches; their rejections must not go unhandled.
+    response.catch(() => {})
+    responses[index] = response
+  }
+  for (let index = 0; index < REGION_FETCH_CONCURRENCY; index++) schedule(index)
+  let next = 0
+  for (const [pageIndex, count] of initial.counts.entries()) {
     let assembled: Record<string, unknown> | undefined
     const chunks: Record<string, unknown>[] = []
     for (let region = 0; region < Math.max(1, count); region++) {
-      const fetched = manifest(
-        await client.call('fetch', {
-          id: before.id,
-          page_index: pageIndex + 1,
-          ...(count ? { region_index: [region + 1] } : {}),
-        }),
-        before.id,
-        before.kind
-      )
+      const fetched = manifest(await responses[next], before.id, before.kind)
       if (
         fetched.counts.some((value, index) => value !== initial.counts[index]) ||
         fetched.counts.length !== initial.counts.length ||
@@ -404,6 +419,8 @@ export async function readLucidMcp(
       chunks.push(...returnedChunks)
       if (Buffer.byteLength(output(), 'utf8') > MAX_CONTENT_BYTES)
         invalid('Lucid document exceeds the 512 KiB complete-read limit. Open the source document.')
+      schedule(next + REGION_FETCH_CONCURRENCY)
+      next++
     }
   }
   const after = await metadata(client, before.id)

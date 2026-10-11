@@ -1,7 +1,8 @@
-import { project, projectWorkspace, workspace } from '@sim/db/schema'
-import { asc, eq } from 'drizzle-orm'
+import { project, workspace } from '@sim/db/schema'
+import { asc, eq, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
+import { getProjectEnvironmentSource } from '@/lib/projects/environment-source'
 import { lockProject } from '@/lib/projects/membership'
 import {
   archiveEnvironmentInTransaction,
@@ -18,13 +19,15 @@ export async function archiveProjectInTransaction(
   const [record] = await tx.select().from(project).where(eq(project.id, projectId))
   if (!record) throw new OrchestrationError('not_found', 'Project not found')
   const now = record.archivedAt ?? new Date()
+  const source = await getProjectEnvironmentSource(tx)
   const environments = await tx
     .select({ id: workspace.id })
-    .from(projectWorkspace)
-    .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
-    .where(eq(projectWorkspace.projectId, projectId))
+    .from(workspace)
+    .where(
+      sql`${workspace.id} IN (SELECT ${source.id} FROM ${source} WHERE ${source.projectId} = ${projectId})`
+    )
     .orderBy(asc(workspace.id))
-    .for('no key update', { of: workspace })
+    .for('no key update')
   const effects: EnvironmentArchiveEffects[] = []
   for (const { id } of environments)
     effects.push(await archiveEnvironmentInTransaction(tx, id, now))

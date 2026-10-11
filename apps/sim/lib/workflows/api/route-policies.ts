@@ -103,7 +103,7 @@ async function authenticateWorkflowApiKey(rawApiKey: string): Promise<WorkflowAp
   if (!result.success || !result.keyId || !result.keyType) {
     throw new InternalUnauthenticatedError('Unauthorized')
   }
-  await updateApiKeyLastUsed(result.keyId)
+  updateApiKeyLastUsed(result.keyId)
 
   if (result.keyType === 'workspace') {
     if (!result.workspaceId) throw new Error('Workspace API key is missing its workspace scope')
