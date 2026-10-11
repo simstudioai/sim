@@ -26,30 +26,36 @@ export { sortNodesParentsFirst } from './node-order'
 export {
   NoteBlockView,
   type NoteContentEditorProps,
-} from './note/note-block-view'
+} from './note/block-view'
 export {
   DEFAULT_NOTE_COLOR,
   isNoteColor,
   NOTE_COLOR_OPTIONS,
   type NoteColor,
-} from './note/note-colors'
-export { getNoteStringValue } from './note/note-content'
+} from './note/colors'
+export { getNoteStringValue } from './note/content'
 export {
   countNoteSearchOccurrencesBefore,
   forEachNoteSourceOccurrence,
   type NoteSearchHighlight,
   type NoteSearchRange,
-} from './note/note-search-highlight'
+} from './note/search-highlight'
 export {
   type SubflowNodeData,
   SubflowNodeView,
-} from './subflow/subflow-node-view'
+} from './subflow/node-view'
 export type {
   CodePreview,
   CodePreviewLanguage,
   EdgeDiffStatus,
 } from './types'
 export { useCanvasColorMode } from './use-canvas-color-mode'
+export { WorkflowBlockView } from './workflow-block/block-view'
+export {
+  CONNECTION_KNOB_PEAK_PX,
+  WorkflowBlockBorder,
+  type WorkflowBorderPort,
+} from './workflow-block/border'
 export {
   type CanvasSentenceSegment,
   CanvasSentenceView,
@@ -57,9 +63,3 @@ export {
 export { InlineChip } from './workflow-block/inline-chip'
 export { normalizeCursorSourceHandleId } from './workflow-block/source-handle'
 export { SubBlockRowView } from './workflow-block/sub-block-row-view'
-export {
-  CONNECTION_KNOB_PEAK_PX,
-  WorkflowBlockBorder,
-  type WorkflowBorderPort,
-} from './workflow-block/workflow-block-border'
-export { WorkflowBlockView } from './workflow-block/workflow-block-view'

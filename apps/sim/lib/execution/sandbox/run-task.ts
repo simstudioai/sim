@@ -22,6 +22,8 @@ export interface RunSandboxTaskOptions {
   signal?: AbortSignal
   /** Records canonical workspace files whose bytes were successfully read by a task broker. */
   onWorkspaceFileAccess?: SandboxBrokerContext['onWorkspaceFileAccess']
+  /** Run id that brokers see as `ctx.requestId`, for callers that keep per-run broker state. */
+  requestId?: string
 }
 
 /**
@@ -53,7 +55,7 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
   options: RunSandboxTaskOptions = {}
 ): Promise<Buffer> {
   const task = getSandboxTask(taskId)
-  const requestId = generateShortId(12)
+  const requestId = options.requestId ?? generateShortId(12)
 
   const brokerContext: SandboxBrokerContext = {
     workspaceId: input.workspaceId,
@@ -81,6 +83,14 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
       bootstrap: task.bootstrap,
       brokers: task.brokers.map((b) => b.name),
       finalize: task.finalize,
+      ...(task.userModules
+        ? {
+            userModule: {
+              filename: input.codeFilename ?? `${task.id}.js`,
+              modules: { ...task.userModules },
+            },
+          }
+        : {}),
     },
   }
 

@@ -9,12 +9,14 @@ import {
   GenerateImage,
   GenerateVideo,
 } from '@/lib/mothership/generated/tool-catalog-v1'
+import { withFileTabFlag } from '@/lib/mothership/resources/file-tabs'
 import { copilotToolCanWrite } from '@/lib/mothership/tools/permissions'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
+import { changelogServerTool } from '@/lib/mothership/tools/server/changelog'
 import { dashboardsServerTool } from '@/lib/mothership/tools/server/dashboards'
 import { searchDocsServerTool } from '@/lib/mothership/tools/server/docs/search-docs'
 import { editContentServerTool } from '@/lib/mothership/tools/server/files/edit-content'
@@ -32,6 +34,7 @@ import { openResourceServerTool } from '@/lib/mothership/tools/server/open-resou
 import { listProjectsServerTool } from '@/lib/mothership/tools/server/project-list'
 import { organizationSearchSourcesServerTool } from '@/lib/mothership/tools/server/search-sources'
 import { settingsServerTool } from '@/lib/mothership/tools/server/settings'
+import { testsServerTool } from '@/lib/mothership/tools/server/tests'
 import { getCredentialsServerTool } from '@/lib/mothership/tools/server/user/get-credentials'
 import { listWorkspacesServerTool } from '@/lib/mothership/tools/server/workspace-list'
 import { workspacesServerTool } from '@/lib/mothership/tools/server/workspaces'
@@ -63,6 +66,8 @@ function isWriteAction(toolName: string, action: string | undefined): boolean {
 /** Registry of all server tools. Tools self-declare their validation schemas. */
 const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [dashboardsServerTool.name]: dashboardsServerTool,
+  [changelogServerTool.name]: changelogServerTool,
+  [testsServerTool.name]: testsServerTool,
   [searchDocsServerTool.name]: searchDocsServerTool,
   [searchWorkspaceServerTool.name]: searchWorkspaceServerTool,
   [listWorkspacesServerTool.name]: listWorkspacesServerTool,
@@ -74,8 +79,8 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [readDocumentServerTool.name]: readDocumentServerTool,
   // The streamed file-writing pair: prepare opens the write (live preview),
   // apply continues it. The preview machinery keys off these exact names.
-  [workspaceFileServerTool.name]: workspaceFileServerTool,
-  [editContentServerTool.name]: editContentServerTool,
+  [workspaceFileServerTool.name]: withFileTabFlag(workspaceFileServerTool),
+  [editContentServerTool.name]: withFileTabFlag(editContentServerTool),
   [generateImageServerTool.name]: generateImageServerTool,
   [generateVideoServerTool.name]: generateVideoServerTool,
   [generateAudioServerTool.name]: generateAudioServerTool,

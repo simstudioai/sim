@@ -25,7 +25,7 @@ import {
   requireProjectFileOwnerRole,
 } from '@/lib/projects/files/application/authorization'
 import { lockProject, lockProjectBackfillWrites } from '@/lib/projects/membership'
-import { requireProjectFileApiEnabled } from '@/lib/projects/rollout.server'
+import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import {
   FILE_COPY_DELEGATION_TTL_MS,
   fileCopyOperation,
@@ -149,7 +149,7 @@ export async function createFileCopyAuthorizer(
   input: CopyFileItemsInput
 ): Promise<(tx: DbTransaction) => Promise<FileCopyAuthorizationContext>> {
   requireCopyPrincipal(principal, input)
-  await requireProjectFileApiEnabled()
+  await requireProjectApiEnabled()
   // actorless-unsupported: files.copy rejects executors and workspace keys; both owner policies require the acting human.
   const userId = await requireFileSubject(principal)
   const invocationScope =

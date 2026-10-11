@@ -1,4 +1,4 @@
-import { azureBlobDestination } from '@/lib/data-drains/destinations/azure_blob'
+import { azureBlobDestination } from '@/lib/data-drains/destinations/azure-blob'
 import { bigqueryDestination } from '@/lib/data-drains/destinations/bigquery'
 import { datadogDestination } from '@/lib/data-drains/destinations/datadog'
 import { gcsDestination } from '@/lib/data-drains/destinations/gcs'

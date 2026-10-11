@@ -146,8 +146,6 @@ function createEmbeddingFetchMock() {
   return vi.fn().mockResolvedValue(createEmbeddingResponse([0.1, 0.3], 'base64'))
 }
 
-vi.stubGlobal('fetch', createEmbeddingFetchMock())
-
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 
 describe('Knowledge Utils', () => {
@@ -156,8 +154,6 @@ describe('Knowledge Utils', () => {
     // The document claim gates on the row it writes back, so an unstubbed
     // `returning()` would abort processing before any completion write.
     dbChainMockFns.returning.mockResolvedValue([{ id: 'doc1' }])
-    // `unstubGlobals: true` removes the module-scope fetch stub after the
-    // first test in the worker; re-stub it per test.
     vi.stubGlobal('fetch', createEmbeddingFetchMock())
     // Under `isolate: false` the shared `@/lib/knowledge/embeddings` module may
     // be cached bound to the REAL env module, so reset the real `env` object

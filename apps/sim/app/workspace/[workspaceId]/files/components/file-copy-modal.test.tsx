@@ -55,15 +55,17 @@ afterEach(async () => {
   container.remove()
   vi.useRealTimers()
 })
-async function render(projects: boolean, projectFiles: boolean) {
+async function render(projects: boolean) {
   await act(async () =>
     root.render(
       <QueryClientProvider client={client}>
         <FeatureFlagsProvider
           flags={{
             projects,
-            'project-files': projectFiles,
+
             dashboards: false,
+            'workflow-tests': false,
+            changelog: false,
             'mothership-model-selector': false,
             'mothership-plan-mode': false,
           }}
@@ -82,16 +84,12 @@ async function render(projects: boolean, projectFiles: boolean) {
   )
 }
 
-it.each([
-  [false, true],
-  [true, false],
-  [false, false],
-])('stops Project destination reads after flags become %s/%s', async (projects, projectFiles) => {
-  await render(true, true)
+it.each([false])('stops Project destination reads after projects becomes %s', async (projects) => {
+  await render(true)
   await act(async () => vi.advanceTimersByTimeAsync(10))
   expect(requests.some((url) => url.startsWith('/api/projects'))).toBe(true)
   requests.length = 0
-  await render(projects, projectFiles)
+  await render(projects)
   await act(async () => client.invalidateQueries())
   expect(requests.filter((url) => url.startsWith('/api/projects'))).toEqual([])
 })

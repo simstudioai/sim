@@ -148,6 +148,16 @@ describe('proxy on the dedicated MCP host', () => {
   it('serves nothing else on the MCP host', () => {
     expect(proxy(mcpRequest('/login', 'GET')).status).toBe(404)
   })
+
+  it.each(['', 'python-requests/2.32.3'])(
+    'allows ownership verification with an automated user agent: %s',
+    (userAgent) => {
+      const request = mcpRequest('/.well-known/openai-apps-challenge', 'GET')
+      if (userAgent) request.headers.set('user-agent', userAgent)
+      expect(proxy(request).status).toBe(200)
+      expect(proxy(mcpRequest('/.well-known/openai-apps-challenge/other', 'GET')).status).toBe(404)
+    }
+  )
 })
 
 describe('proxy matcher', () => {

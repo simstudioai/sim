@@ -9,6 +9,7 @@ import { projectionAclSkipUnfilledMigration } from '@sim/db/script-migrations/00
 import { knowledgeProjectionAsyncMigration } from '@sim/db/script-migrations/0024_knowledge_projection_async'
 import { userTableSchemaForWriteMigration } from '@sim/db/script-migrations/0026_user_table_schema_for_write'
 import { retireKeywordWritersMigration } from '@sim/db/script-migrations/0030_retire_keyword_writers'
+import { projectMembershipMigration } from '@sim/db/script-migrations/0031_project_membership'
 import { validateFileOwnershipMigration } from '@sim/db/script-migrations/0031_validate_file_ownership'
 import { backfillPublicShareEntitiesMigration } from '@sim/db/script-migrations/0033_backfill_public_share_entities'
 import { validateFileWorkspaceBindingMigration } from '@sim/db/script-migrations/0034_validate_file_workspace_binding'
@@ -58,6 +59,7 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   /** 0026 installs the schema guard every table row write takes before it validates. */
   userTableSchemaForWriteMigration,
   retireKeywordWritersMigration,
+  projectMembershipMigration,
   /**
    * Search data retirement is an operator-run maintenance command, not a deploy step:
    * run `packages/db/scripts/retire-indexed-search.ts --help` for usage.

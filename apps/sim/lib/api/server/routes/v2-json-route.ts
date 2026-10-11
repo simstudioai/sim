@@ -4,7 +4,11 @@ import { setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
-import { copilotRequestPrincipal, isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
+import {
+  type CopilotRouteUseCase,
+  copilotRequestPrincipal,
+  isCopilotRequest,
+} from '@/lib/api/server/routes/copilot-request'
 import {
   methodMatchesContract,
   requireJsonRouteDefinition,
@@ -368,11 +372,6 @@ type V2AdmissionAuth =
       keyType?: undefined
       keyExpiresAt?: undefined
     }
-
-type CopilotRouteUseCase = Pick<
-  OperationUseCase<ApplicationOperation, unknown, unknown>,
-  'operation' | 'delegationAudience'
->
 
 async function admitRateLimitedV2Request(
   request: NextRequest,

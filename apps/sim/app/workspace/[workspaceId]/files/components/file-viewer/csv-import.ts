@@ -59,7 +59,6 @@ export function useCsvTruncationImport(
       }
     )
     // importFile.mutate and router are stable references
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, file.id, file.key, file.name])
 
   const notifiedKeyRef = useRef<string | null>(null)

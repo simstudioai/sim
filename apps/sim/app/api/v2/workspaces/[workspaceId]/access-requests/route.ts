@@ -7,10 +7,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2AccessRequestErrorPolicy } from '@/lib/api/server/routes/access-requests'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 import { accessRequestOperations } from '@/ee/access-requests/lib/application/operations'
-import {
-  createAccessRequest,
-  listMyAccessRequests,
-} from '@/ee/access-requests/lib/application/requests'
+import { workspaceAccessRequestUseCases } from '@/ee/access-requests/lib/application/requests'
 
 function cursorFilters(params: { workspaceId: string }, query: { status?: string }) {
   return cursorScopeKey(cursorRoute(v2ListMyWorkspaceAccessRequestsContract, params), {
@@ -40,7 +37,7 @@ export const GET = defineV2JsonRoute({
       ),
     },
   }),
-  useCase: listMyAccessRequests,
+  useCase: workspaceAccessRequestUseCases.listMine,
   present: ({ requests, nextCursorKeys }, { params, query }) => ({
     data: requests,
     nextCursor: writeSortedCursor(
@@ -62,6 +59,6 @@ export const POST = defineV2JsonRoute({
     ...body,
     scope: { kind: 'workspace' as const, workspaceId: params.workspaceId },
   }),
-  useCase: createAccessRequest,
+  useCase: workspaceAccessRequestUseCases.create,
   present: ({ request }) => ({ data: request }),
 })

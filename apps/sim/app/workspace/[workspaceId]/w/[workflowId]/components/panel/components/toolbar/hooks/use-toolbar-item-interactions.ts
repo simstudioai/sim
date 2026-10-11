@@ -65,7 +65,6 @@ export function useToolbarItemInteractions({
           dragPreviewRef.current = preview
 
           // Force browser to render the element by triggering reflow
-          // eslint-disable-next-line @typescript-eslint/no-unused-expressions
           preview.offsetHeight
 
           // Set the custom drag image with offset to center it on cursor

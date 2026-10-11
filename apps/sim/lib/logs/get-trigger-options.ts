@@ -33,6 +33,7 @@ export function getTriggerOptions(): TriggerOption[] {
     { value: 'mothership', label: 'Sim agent', color: '#ec4899' },
     { value: 'workflow', label: 'Workflow', color: '#0369a1' },
     { value: 'custom_block', label: 'Custom block', color: '#0369a1' },
+    { value: 'test', label: 'Test', color: '#4b5563' },
   ]
 
   for (const trigger of triggers) {

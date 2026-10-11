@@ -812,9 +812,7 @@ export function renderTextBody(
       // Gradient text fill: use background-clip to paint text with gradient
       if (runStyle.textGradientCss) {
         element.style.background = runStyle.textGradientCss
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ;(element.style as any).webkitBackgroundClip = 'text'
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ;(element.style as any).backgroundClip = 'text'
         element.style.color = 'transparent'
       }
@@ -826,36 +824,26 @@ export function renderTextBody(
           // Ghost text: no fill + gradient outline → show outline fading via mask
           const outlineColor = '#ffffff' // base stroke color (gradient applied via mask)
           element.style.color = 'transparent'
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(element.style as any).webkitTextStrokeWidth = `${strokeW}px`
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(element.style as any).webkitTextStrokeColor = outlineColor
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(element.style as any).paintOrder = 'stroke fill'
           // Use mask-image to apply the gradient fade to the entire text element
           const maskGrad = runStyle.textOutlineGradientCss
           element.style.maskImage = maskGrad
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(element.style as any).webkitMaskImage = maskGrad
         } else if (runStyle.textNoFill && runStyle.textOutlineColor) {
           // Ghost text with solid outline
           element.style.color = 'transparent'
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(element.style as any).webkitTextStrokeWidth = `${strokeW}px`
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(element.style as any).webkitTextStrokeColor = runStyle.textOutlineColor
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(element.style as any).paintOrder = 'stroke fill'
         } else if (runStyle.textNoFill) {
           // noFill with no outline — invisible text (but keep space)
           element.style.color = 'transparent'
         } else if (runStyle.textOutlineColor) {
           // Outline with normal fill
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(element.style as any).webkitTextStrokeWidth = `${strokeW}px`
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(element.style as any).webkitTextStrokeColor = runStyle.textOutlineColor
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(element.style as any).paintOrder = 'stroke fill'
         }
       }

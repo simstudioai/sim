@@ -19,9 +19,13 @@ import {
   billingUsageReservationMock,
   billingUsageReservationMockFns,
 } from '@sim/testing/mocks/billing-usage-reservation.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
+import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing/mocks/redis-config.mock'
 import { NextRequest, NextResponse } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import {
   ADMISSION_ERROR_CODE,
   ADMISSION_RETRY_AFTER_SECONDS,
@@ -105,6 +109,7 @@ vi.mock('@/triggers/jira/utils', () => ({
   isJiraEventMatch: vi.fn().mockReturnValue(true),
 }))
 
+import { findRecentlyRefusedWorkspaces } from '@/lib/webhooks/polling/admission-refusals'
 import {
   checkWebhookPreprocessing,
   dispatchResolvedWebhookTarget,
@@ -345,6 +350,165 @@ describe('webhook admission failures', () => {
       await expect(result.error?.json()).resolves.toEqual({ error: 'Admission denied' })
     }
   )
+})
+
+describe('deterministic admission rejections', () => {
+  const usageLimitRefusal = {
+    success: false,
+    error: {
+      message: 'Usage limit exceeded',
+      statusCode: 402,
+      code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED,
+    },
+  }
+
+  const dispatch = (provider: string) =>
+    dispatchResolvedWebhookTarget(
+      makeWebhookRecord({ path: 'incoming/bot', provider }),
+      makeWorkflowRecord({}),
+      { update_id: 1 },
+      createMockRequest('POST', { update_id: 1 }) as NextRequest,
+      { requestId: 'request-1', path: 'incoming/bot' }
+    )
+
+  beforeEach(() => {
+    mockGenerateId.mockReturnValue('generated-execution-id')
+    mockProviderHandler.current = {}
+  })
+
+  it.each([
+    { name: 'usage limit', error: usageLimitRefusal.error },
+    {
+      name: 'suspended account',
+      error: {
+        message: 'Account suspended',
+        statusCode: 403,
+        code: ADMISSION_REJECTION_CODE.ACCOUNT_SUSPENDED,
+      },
+    },
+  ])(
+    'acknowledges a $name refusal with an empty 200 for a provider that opts in',
+    async ({ error }) => {
+      mockProviderHandler.current = { acknowledgeAdmissionRejections: true }
+      mockPreprocessExecution.mockResolvedValueOnce({ success: false, error })
+
+      const result = await dispatch('telegram')
+
+      expect(result.outcome).toBe('ignored')
+      expect(result.response.status).toBe(200)
+      expect(await result.response.text()).toBe('')
+    }
+  )
+
+  it('keeps the 402 for a provider that does not opt in', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce(usageLimitRefusal)
+
+    const result = await dispatch('generic')
+
+    expect(result.outcome).toBe('failed')
+    expect(result.response.status).toBe(402)
+  })
+
+  it.each([
+    {
+      name: 'rate limit',
+      error: {
+        message: 'Rate limit exceeded',
+        statusCode: 429,
+        code: 'RATE_LIMIT_EXCEEDED',
+        retryAfterMs: 1000,
+      },
+    },
+    {
+      name: 'reservation outage',
+      error: {
+        message: 'Usage admission unavailable',
+        statusCode: 503,
+        code: ADMISSION_ERROR_CODE.RESERVATION_INFRASTRUCTURE,
+        retryable: true,
+      },
+    },
+    {
+      name: 'payer headroom',
+      error: {
+        message: 'No headroom',
+        statusCode: 402,
+        code: ADMISSION_ERROR_CODE.RESERVATION_PAYER_HEADROOM,
+        retryable: false,
+      },
+    },
+    {
+      name: 'member headroom',
+      error: {
+        message: 'No headroom',
+        statusCode: 402,
+        code: ADMISSION_ERROR_CODE.RESERVATION_MEMBER_HEADROOM,
+        retryable: false,
+      },
+    },
+    {
+      name: 'unreadable usage ledger',
+      error: { message: 'Usage unavailable', statusCode: 402 },
+    },
+    { name: 'uncoded failure', error: { message: 'Internal error', statusCode: 500 } },
+  ])('still fails a $name for an opted-in provider so the sender retries', async ({ error }) => {
+    mockProviderHandler.current = { acknowledgeAdmissionRejections: true }
+    mockPreprocessExecution.mockResolvedValueOnce({ success: false, error })
+
+    const result = await dispatch('telegram')
+
+    expect(result.outcome).toBe('failed')
+    expect(result.response.status).toBe(error.statusCode)
+  })
+
+  it('records a polled refusal so the next poll tick skips the workspace', async () => {
+    const store = new Map<string, string>()
+    const redis = createMockRedis()
+    redis.set.mockImplementation(async (key: string, value: string) => {
+      store.set(key, value)
+      return 'OK'
+    })
+    Object.assign(redis, {
+      mget: vi.fn(async (...keys: string[]) => keys.map((key) => store.get(key) ?? null)),
+    })
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
+    setEnvFlags({ isBillingEnabled: true })
+    mockPreprocessExecution.mockResolvedValueOnce(usageLimitRefusal)
+
+    try {
+      await processPolledWebhookEvent(
+        makeWebhookRecord({ provider: 'rss' }),
+        makeWorkflowRecord({ workspaceId: 'workspace-refused' }),
+        { item: {} },
+        'request-1'
+      )
+
+      expect(await findRecentlyRefusedWorkspaces(['workspace-refused', 'workspace-1'])).toEqual(
+        new Set(['workspace-refused'])
+      )
+    } finally {
+      resetEnvFlagsMock()
+      resetRedisConfigMock()
+    }
+  })
+
+  it('hands a poller the raw refusal and its code even when the provider acknowledges', async () => {
+    mockProviderHandler.current = { acknowledgeAdmissionRejections: true }
+    mockPreprocessExecution.mockResolvedValueOnce(usageLimitRefusal)
+
+    const result = await processPolledWebhookEvent(
+      makeWebhookRecord({ provider: 'rss' }),
+      makeWorkflowRecord({}),
+      { item: {} },
+      'request-1'
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      statusCode: 402,
+      code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED,
+    })
+  })
 })
 
 describe('webhook processor execution identity', () => {

@@ -2,7 +2,6 @@
 
 import { useId, useState } from 'react'
 import { ChevronRight } from '@sim/emcn/icons'
-import Script from 'next/script'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { cn } from '@/lib/utils'
 
@@ -91,7 +90,7 @@ export function FAQ({ items, title = 'Common Questions' }: FAQProps) {
 
   return (
     <div className='mt-12'>
-      <Script
+      <script
         id={`faq-json-ld-${structuredDataId}`}
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqSchema) }}

@@ -129,4 +129,32 @@ describe('dispatchSlackWebhooks', () => {
 
     expect(response.status).toBe(200)
   })
+  it('keeps a retryable failure when the other Slack target dropped an admission refusal', () => {
+    const response = getSlackDispatchResponse([
+      {
+        outcome: 'ignored',
+        response: new NextResponse(null, { status: 200 }),
+        reason: 'admission-rejected',
+      },
+      {
+        outcome: 'failed',
+        response: new NextResponse(null, { status: 503 }),
+        reason: 'preprocessing',
+      },
+    ])
+
+    expect(response.status).toBe(503)
+  })
+
+  it('acknowledges a fan-out whose only outcomes are admission refusals', () => {
+    const response = getSlackDispatchResponse([
+      {
+        outcome: 'ignored',
+        response: new NextResponse(null, { status: 200 }),
+        reason: 'admission-rejected',
+      },
+    ])
+
+    expect(response.status).toBe(200)
+  })
 })

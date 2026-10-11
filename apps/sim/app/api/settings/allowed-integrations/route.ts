@@ -1,24 +1,18 @@
-import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
-import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getAllowedIntegrationsContract } from '@/lib/api/contracts/common'
 import {
-  getIntegrationAvailability,
-  getOAuthServiceAvailability,
-} from '@/lib/integrations/availability.server'
-import { getAllOAuthServices } from '@/lib/oauth/utils'
+  defineInternalJsonRoute,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { readIntegrationAvailability } from '@/lib/integrations/application/read-availability'
 
-export const GET = withRouteHandler(async () => {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  return NextResponse.json({
-    allowedIntegrations: getAllowedIntegrationsFromEnv(),
-    integrationAvailability: getIntegrationAvailability().map(
-      ({ type, state, oauthAvailable }) => ({ type, state, oauthAvailable })
-    ),
-    oauthServiceAvailability: getOAuthServiceAvailability(getAllOAuthServices()),
-  })
+export const GET = defineInternalJsonRoute({
+  contract: getAllowedIntegrationsContract,
+  operation: readIntegrationAvailability.operation,
+  auth: internalSessionAuth,
+  rateLimit: internalRateLimits.none({ reason: 'Deployment capability reads are unmetered.' }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  mapInput: () => undefined,
+  useCase: readIntegrationAvailability,
 })

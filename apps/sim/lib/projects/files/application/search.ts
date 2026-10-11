@@ -1,3 +1,4 @@
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedProjectFileUseCase } from '@/lib/projects/files/application/authorized-use-case'
 import { listProjectFileFolders } from '@/lib/projects/files/application/folders'
@@ -59,15 +60,25 @@ export const searchProjectFileContent = defineAuthorizedProjectFileUseCase<
   },
   async execute({ tx, input, context, prepared, request }) {
     if (!prepared) throw new Error('Search snapshot is missing')
-    const folders =
-      input.folderPaths === undefined ? [] : await listFileFolders(context.owner, {}, tx)
-    const secretProvenance = await loadFileSearchDelivery(tx, {
-      owner: context.owner,
-      prepared,
-      scope: resolveFileSearchFolderScope(folders, input),
-      signal: input.signal ?? request?.signal,
-    })
-    return { ...prepared, secretProvenance }
+    try {
+      const folders =
+        input.folderPaths === undefined ? [] : await listFileFolders(context.owner, {}, tx)
+      const secretProvenance = await loadFileSearchDelivery(tx, {
+        owner: context.owner,
+        prepared,
+        scope: resolveFileSearchFolderScope(folders, input),
+        signal: input.signal ?? request?.signal,
+      })
+      return { ...prepared, secretProvenance }
+    } catch (error) {
+      if (['55P03', '25P04'].includes(getPostgresErrorCode(error) ?? '')) {
+        throw new OrchestrationError(
+          'locked',
+          'File search is briefly unavailable. Try again shortly.'
+        )
+      }
+      throw error
+    }
   },
   afterSuccess: ({ result }) => reportWorkspaceFileDelivery(result.secretProvenance),
 })

@@ -423,23 +423,29 @@ describe('FileDocStore', () => {
    * The loop must back off instead, and re-open a client that was closed rather than reading a dead one.
    */
   it('backs off and re-opens the reader when its connection is closed, instead of spinning', async () => {
-    const store = await newStore()
-    const doc = new Y.Doc()
-    await store.attachRoom(NAME, doc)
-    state.backing!.readerClosed = true
+    // Faked before `init` so the reader loop's first sleep already runs on the fake clock.
+    vi.useFakeTimers()
+    try {
+      const store = await newStore()
+      const doc = new Y.Doc()
+      await store.attachRoom(NAME, doc)
+      state.backing!.readerClosed = true
 
-    state.backing!.connects = 0 // ignore the two `init` connects; count only recovery attempts
-    const before = state.backing!.reads
-    await sleep(3000)
-    const attempts = state.backing!.reads - before
+      state.backing!.connects = 0 // ignore the two `init` connects; count only recovery attempts
+      const before = state.backing!.reads
+      await vi.advanceTimersByTimeAsync(3000)
+      const attempts = state.backing!.reads - before
 
-    // A fixed 500ms retry manages 6–7 attempts in this window; backing off (500 → 1s → 2s → …) manages
-    // about 3. Exact counts are timing-dependent, so assert the property — it slowed down — not a number.
-    expect(attempts).toBeGreaterThan(0)
-    expect(attempts).toBeLessThanOrEqual(4)
-    // …and it tried to bring the connection back rather than leaving the tailer dead forever.
-    expect(state.backing!.connects).toBeGreaterThan(0)
-    doc.destroy()
+      // A fixed 500ms retry manages 6 attempts in this window; backing off (500 → 1s → 2s → …)
+      // manages about 3. The ±20% jitter moves the exact count, so assert that it slowed down.
+      expect(attempts).toBeGreaterThan(0)
+      expect(attempts).toBeLessThanOrEqual(4)
+      // …and it tried to bring the connection back rather than leaving the tailer dead forever.
+      expect(state.backing!.connects).toBeGreaterThan(0)
+      doc.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('elects exactly one seeder across tasks (no split-brain seed)', async () => {

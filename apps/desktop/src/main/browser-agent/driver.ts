@@ -554,6 +554,7 @@ function recordNotice(notice: string): void {
 function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
   const issue = session.pageIssueForContents(contents)
   const mediaPermissionRequest = session.mediaPermissionRequestForContents(contents)
+  const dialog = session.pageDialogForContents(contents)
   return {
     scopeId: session.getBrowserScopeId(),
     tabId,
@@ -564,6 +565,7 @@ function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
     canGoForward: session.canGoForward(contents),
     ...(issue ? { issue } : {}),
     ...(mediaPermissionRequest ? { mediaPermissionRequest } : {}),
+    ...(dialog ? { dialog } : {}),
   }
 }
 
@@ -615,6 +617,10 @@ function instrumentTab(contents: WebContents): void {
         const requested = driverScopeState().dialogResponse
         return requested?.contents === contents ? requested.response : null
       }),
+    claimUserDialog: () =>
+      session.withBrowserScope(scopeId, () => session.claimUserDialog(contents)),
+    onDialogClosed: inScope(() => session.notePageDialogClosed(contents)),
+    claimUserLeave: () => session.withBrowserScope(scopeId, () => session.claimUserLeave(contents)),
   }
   void (async () => {
     let lastError: unknown
@@ -5221,6 +5227,14 @@ export async function executeTool(
       ) {
         throw new ToolError('This browser action was cancelled before it started.')
       }
+      session.withBrowserScope(resolvedScopeId, () => {
+        const automation = session.automationTab()
+        if (automation && session.hasPendingPageDialog(automation.view.webContents)) {
+          throw new ToolError(
+            'The user is answering a dialog on this page. Wait for their answer before using it.'
+          )
+        }
+      })
       state.activeToolCallId = toolCallId ?? null
       const executionController = new AbortController()
       let cancelActiveExecution: () => void = () => {}
@@ -5456,6 +5470,16 @@ export async function handlePanelAction(
       }
       return
     }
+    if (action.action === 'enable-page-dialogs') {
+      session.enablePageDialogs()
+      return
+    }
+    if (action.action === 'respond-dialog') {
+      if (typeof action.requestId === 'string' && typeof action.allowed === 'boolean') {
+        session.respondToPageDialog(action.requestId, action.allowed)
+      }
+      return
+    }
     if (action.action === 'respond-site-permission') {
       /** Older renderers can still send a response to the retired task-navigation prompt. */
       return
@@ -5471,8 +5495,11 @@ export async function handlePanelAction(
           action.url,
           { agentOwned: false }
         )
-        session.prepareExplicitNavigation(contents)
-        void contents.loadURL(action.url).catch(() => {})
+        const url = action.url
+        session.navigateForUser(contents, () => {
+          session.prepareExplicitNavigation(contents)
+          void contents.loadURL(url).catch(() => {})
+        })
         session.focusPageForUser(contents)
       }
       return
@@ -5495,13 +5522,13 @@ export async function handlePanelAction(
     const contents = tab.view.webContents
     switch (action.action) {
       case 'reload':
-        session.reloadPage(contents)
+        session.navigateForUser(contents, () => session.reloadPage(contents))
         return
       case 'back':
-        session.goBack(contents)
+        session.navigateForUser(contents, () => session.goBack(contents))
         return
       case 'forward':
-        session.goForward(contents)
+        session.navigateForUser(contents, () => session.goForward(contents))
         return
       case 'print':
         contents.print({ printBackground: true })

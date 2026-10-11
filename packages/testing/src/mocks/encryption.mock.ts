@@ -30,7 +30,7 @@ function generatePassword(length = 24): string {
  *
  * @example
  * ```ts
- * import { encryptionMockFns } from '@sim/testing'
+ * import { encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
  *
  * encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'my-secret' })
  * encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => ({ decrypted: value }))

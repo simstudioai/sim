@@ -30,6 +30,7 @@ import {
   permissionGroupsResolveMock,
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { simSearchConnectorsMock } from '@sim/testing/mocks/sim-search-connectors.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -50,7 +51,7 @@ vi.mock('@/lib/knowledge/application/knowledge-bases', () => knowledgeBaseUseCas
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 vi.mock('@/lib/sim-search/connectors', () => ({
-  SIM_SEARCH_KNOWLEDGE_BASE_NAME: 'Sim Search',
+  ...simSearchConnectorsMock,
   canConnectPersonally: (meta: { permissionScopedListing?: unknown }) =>
     Boolean(meta.permissionScopedListing),
 }))

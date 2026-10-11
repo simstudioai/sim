@@ -11,6 +11,7 @@ import { parseRequest } from '@/lib/api/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isDroppedDispatch } from '@/lib/webhooks/dispatch-result'
 import {
   dispatchResolvedWebhookTarget,
   findAllWebhooksForPath,
@@ -126,10 +127,13 @@ function methodNotAllowedResponse(): NextResponse {
  * existing callers see no change; anything else answers 405 uniformly, whether the path is
  * unknown, holds only non-path triggers, or holds a trigger that has not opted into the method —
  * so a probe cannot tell those apart.
+ *
+ * Every `POST` 404 carries `x-slack-no-retry`, which tells Slack not to redeliver an event to a
+ * deleted trigger. It is sent unconditionally, so it reveals nothing the 404 itself does not.
  */
 function notDeliverableResponse(method: string): NextResponse {
   return method === 'POST'
-    ? new NextResponse('Not Found', { status: 404 })
+    ? new NextResponse('Not Found', { status: 404, headers: { 'x-slack-no-retry': '1' } })
     : methodNotAllowedResponse()
 }
 
@@ -201,7 +205,7 @@ async function handleWebhookDelivery(
       return verificationResponse
     }
 
-    logger.warn(`[${requestId}] Webhook or workflow not found for path: ${path}`)
+    logger.debug(`[${requestId}] Webhook or workflow not found for path: ${path}`)
     return notDeliverableResponse(request.method)
   }
 
@@ -261,14 +265,16 @@ async function handleWebhookDelivery(
    */
   const responses: NextResponse[] = []
   const failures: NextResponse[] = []
-  let hasPermanentlyIgnoredLegacyTarget = false
+  /** Kept apart so a missing block's no-retry 404 never stands in for a target that must retry. */
+  const blockMissingResponses: NextResponse[] = []
+  let hasDroppedTarget = false
   for (const dispatchResult of legacySlackDispatchResults) {
     if (dispatchResult.outcome === 'failed') {
       failures.push(getSlackDispatchFailureResponse(dispatchResult))
       continue
     }
-    if (dispatchResult.reason === 'block-missing') {
-      hasPermanentlyIgnoredLegacyTarget = true
+    if (isDroppedDispatch(dispatchResult)) {
+      hasDroppedTarget = true
       continue
     }
     responses.push(dispatchResult.response)
@@ -333,13 +339,22 @@ async function handleWebhookDelivery(
       continue
     }
 
+    if (dispatchResult.reason === 'admission-rejected') {
+      hasDroppedTarget = true
+      continue
+    }
+
     if (dispatchResult.outcome === 'failed' || dispatchResult.reason === 'block-missing') {
       if (dispatchTargetCount > 1) {
         logger.warn(
           `[${requestId}] Webhook dispatch failed for ${foundWebhook.id}, continuing to next`,
           { reason: dispatchResult.reason, status: dispatchResult.response.status }
         )
-        failures.push(dispatchResult.response)
+        if (dispatchResult.outcome === 'failed') {
+          failures.push(dispatchResult.response)
+        } else {
+          blockMissingResponses.push(dispatchResult.response)
+        }
         continue
       }
       return dispatchResult.response
@@ -352,7 +367,10 @@ async function handleWebhookDelivery(
     if (failures.length > 0) {
       return failures[0]
     }
-    if (hasPermanentlyIgnoredLegacyTarget) {
+    if (blockMissingResponses.length > 0) {
+      return blockMissingResponses[0]
+    }
+    if (hasDroppedTarget) {
       return new NextResponse(null, { status: 200 })
     }
     return new NextResponse('No webhooks processed successfully', { status: 500 })

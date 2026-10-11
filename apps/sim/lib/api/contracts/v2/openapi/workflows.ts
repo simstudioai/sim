@@ -890,7 +890,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.deploy,
       operationId: 'deployWorkflow',
       summary: 'Deploy Workflow',
-      description: `Create and asynchronously activate a deployment version. Every call creates a new version; retrying after a timeout can create a duplicate. Read Get Workflow Deployment to check activation. A conflicting webhook path returns \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create and asynchronously activate a deployment version. Every call creates a new version; retrying after a timeout can create a duplicate. Read Get Workflow Deployment to check activation. \`lint\` reports advisory findings for the published version; they never block the deploy. A conflicting webhook path returns \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted deployment attempt.'),
     }),
@@ -924,6 +924,7 @@ const declaredRoutes = [
                 error: null,
               },
               version: 3,
+              lint: EMPTY_LINT_EXAMPLE,
             },
           },
         ]

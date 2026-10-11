@@ -12,7 +12,7 @@ export const IntuneBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/integrations/intune',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  bgColor: '#0078D4',
+  bgColor: '#FFFFFF',
   icon: IntuneIcon,
   authMode: AuthMode.OAuth,
   canvasPresentation: {

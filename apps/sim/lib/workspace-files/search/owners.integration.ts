@@ -73,7 +73,6 @@ const signal = new AbortController().signal
 
 beforeEach(() => {
   featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
-  vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
   vi.stubEnv('FREE_STORAGE_LIMIT_GB', '')
 })
 

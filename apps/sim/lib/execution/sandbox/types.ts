@@ -6,7 +6,7 @@
  * which host-side brokers to expose, and how to serialize the final result.
  */
 
-export type SandboxBundleName = 'pptxgenjs' | 'docx' | 'pdf-lib'
+export type SandboxBundleName = 'pptxgenjs' | 'docx' | 'pdf-lib' | 'vitest-expect'
 
 export interface SandboxBroker<TArgs = unknown, TResult = unknown> {
   /**
@@ -36,6 +36,8 @@ export interface SandboxBrokerContext {
 export interface SandboxTaskInput {
   workspaceId?: string
   code: string
+  /** Module filename for `code` when the task sets `userModules`; appears in stack traces. */
+  codeFilename?: string
 }
 
 export interface SandboxTask<TInput extends SandboxTaskInput = SandboxTaskInput> {
@@ -53,6 +55,11 @@ export interface SandboxTask<TInput extends SandboxTaskInput = SandboxTaskInput>
    * helper functions users expect (e.g. `getFileBase64`).
    */
   bootstrap: string
+  /**
+   * When set, user code runs as an ES module that may import only these modules
+   * (specifier -> module source). Each source reads what `bootstrap` installed.
+   */
+  userModules?: Readonly<Record<string, string>>
   /**
    * JS source that, when evaluated inside an async IIFE after user code, must
    * return a `Uint8Array`. The bytes are transferred out via `ExternalCopy`.

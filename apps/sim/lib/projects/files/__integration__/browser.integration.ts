@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { db } from '@sim/db'
-import { folder, permissions, user, workspace, workspaceFiles } from '@sim/db/schema'
+import { folder, permissions, project, user, workspace, workspaceFiles } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
@@ -27,7 +27,6 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
   []
 beforeEach(() => {
   featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
-  vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
 })
 function check(name: string, run: () => Promise<void>) {
   it(name, async () => {
@@ -169,6 +168,9 @@ afterAll(async () => {
                 )
           }
           await deleteWorkspaceFixture(tx, eq(workspace.id, fixture.workspaceId))
+          if (fixture.projectId) {
+            await tx.delete(project).where(eq(project.id, fixture.projectId))
+          }
           await tx.delete(user).where(inArray(user.id, fixture.users))
         })
         cleanup.push({ workspaceId: fixture.workspaceId, status: 'passed' })

@@ -7,7 +7,9 @@ import { usePanelStore } from '@/stores/panel'
  * floored at the minimum so a narrow viewport can never invert the clamp
  * and force the panel below {@link PANEL_WIDTH.MIN}.
  */
-function computePanelWidth(ev: PointerEvent): number {
+function computePanelWidth(ev: PointerEvent): number | null {
+  const panel = getPanelContainer()
+  if (panel && getComputedStyle(panel).position === 'absolute') return null
   const maxWidth = Math.max(PANEL_WIDTH.MIN, window.innerWidth * PANEL_WIDTH.MAX_PERCENTAGE)
   const newWidth = window.innerWidth - CONTENT_WINDOW_GAP - ev.clientX
   return Math.min(Math.max(newWidth, PANEL_WIDTH.MIN), maxWidth)
@@ -16,15 +18,6 @@ function computePanelWidth(ev: PointerEvent): number {
 /** The `.panel-container` element sizes itself from `--panel-width`. */
 function getPanelContainer(): HTMLElement | null {
   return document.querySelector<HTMLElement>('.panel-container')
-}
-
-/**
- * The toast stack also insets its right edge by `--panel-width`, but is
- * portalled to `<body>` and so shares no ancestor with the panel. See
- * `use-terminal-resize.ts` for why this is written alongside the primary.
- */
-function getToastViewport(): (HTMLElement | null)[] {
-  return [document.querySelector<HTMLElement>('[data-toast-viewport]')]
 }
 
 /**
@@ -43,8 +36,15 @@ export function usePanelResize() {
     cursor: 'ew-resize',
     cssVar: '--panel-width',
     getTarget: getPanelContainer,
-    getExtraTargets: getToastViewport,
     compute: computePanelWidth,
-    commit: setPanelWidth,
+    commit: (width) => {
+      const panel = getPanelContainer()
+      if (panel && getComputedStyle(panel).position === 'absolute') return
+      setPanelWidth(width)
+    },
+    onStart: () => {
+      const panel = getPanelContainer()
+      return Boolean(panel && getComputedStyle(panel).position !== 'absolute')
+    },
   })
 }

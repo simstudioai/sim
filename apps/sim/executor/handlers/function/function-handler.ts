@@ -1,3 +1,4 @@
+import { adoptToolFailure } from '@/lib/core/errors/failure-log'
 import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import {
   normalizeRecord,
@@ -106,6 +107,7 @@ export class FunctionBlockHandler implements BlockHandler {
         userId: ctx.userId,
         isDeployedContext: ctx.isDeployedContext,
         enforceCredentialAccess: ctx.enforceCredentialAccess,
+        blockId: block.id,
       },
     }
 
@@ -117,7 +119,7 @@ export class FunctionBlockHandler implements BlockHandler {
           ? new NonRetryableExecutionError(result.error || 'Function execution is indeterminate')
           : new Error(result.error || 'Function execution failed')
       attachTrustedExecutionCost(error, result.output?.cost)
-      throw error
+      throw adoptToolFailure(error, result)
     }
 
     mergeLargeValueKeys(ctx, result.largeValueKeys ?? [])

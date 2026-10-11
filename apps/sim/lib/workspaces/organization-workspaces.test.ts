@@ -54,6 +54,7 @@ idMockFns.mockGenerateShortId.mockReturnValue('short-id')
 describe('organization workspace helpers', () => {
   beforeEach(() => {
     resetDbChainMock()
+    dbChainMockFns.execute.mockResolvedValue([{ acquired: true }])
     mockEnsureUserInOrganizationTx.mockReset()
     mockChangeProjectAndWorkspaceStoragePayersInTx.mockReset()
     mockSyncUsageLimitsFromSubscription.mockResolvedValue(undefined)
@@ -191,6 +192,11 @@ describe('organization workspace helpers', () => {
         { id: 'ws-1', ownerId: 'creator-1', billedAccountUserId: 'old-owner' },
       ])
       queueTableRows(schemaMock.invitation, [{ id: 'invite-pending' }, { id: 'invite-terminal' }])
+      queueTableRows(schemaMock.workspace, [{ id: 'project-1' }])
+      queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
+      queueTableRows(schemaMock.project, [
+        { id: 'project-1', organizationId: 'org-1', ownerId: 'creator-1' },
+      ])
       queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
 
       const result =
@@ -227,7 +233,14 @@ describe('organization workspace helpers', () => {
       expect(mockChangeProjectAndWorkspaceStoragePayersInTx).toHaveBeenCalledWith(
         expect.anything(),
         {
-          projectChanges: [],
+          projectChanges: [
+            {
+              projectId: 'project-1',
+              organizationId: null,
+              ownerId: 'owner-1',
+              expectedCurrentOwner: { organizationId: 'org-1', ownerId: 'creator-1' },
+            },
+          ],
           workspaceChanges: [
             {
               workspaceId: 'ws-1',
@@ -247,7 +260,9 @@ describe('organization workspace helpers', () => {
           organizationAssignedAt: null,
         })
       )
-      expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.update.mock.calls.map(([table]) => table)).toEqual([
+        schemaMock.workspace,
+      ])
       expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
       expect(dbChainMockFns.values).toHaveBeenCalledWith([
         expect.objectContaining({ entityId: 'ws-1', userId: 'owner-1' }),
@@ -331,6 +346,11 @@ describe('organization workspace helpers', () => {
       { id: 'ws-2', ownerId: 'creator-2', billedAccountUserId: 'old-owner' },
     ])
     queueTableRows(schemaMock.invitation, [{ id: 'invite-2' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'project-2' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'ws-2' }])
+    queueTableRows(schemaMock.project, [
+      { id: 'project-2', organizationId: 'org-1', ownerId: 'creator-2' },
+    ])
     queueTableRows(schemaMock.workspace, [{ id: 'ws-2' }])
 
     const result = await detachOrganizationWorkspaces('org-1')
@@ -341,7 +361,14 @@ describe('organization workspace helpers', () => {
       workspaceIds: ['ws-1', 'ws-2'],
     })
     expect(mockChangeProjectAndWorkspaceStoragePayersInTx).toHaveBeenCalledWith(expect.anything(), {
-      projectChanges: [],
+      projectChanges: [
+        {
+          projectId: 'project-2',
+          organizationId: null,
+          ownerId: 'owner-1',
+          expectedCurrentOwner: { organizationId: 'org-1', ownerId: 'creator-2' },
+        },
+      ],
       workspaceChanges: [expect.objectContaining({ workspaceId: 'ws-2' })],
     })
   })

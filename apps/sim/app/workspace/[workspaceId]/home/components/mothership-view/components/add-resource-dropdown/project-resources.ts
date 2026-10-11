@@ -49,8 +49,8 @@ export function useAvailableProjectResources({
   project,
   enabled = true,
 }: UseAvailableProjectResourcesProps) {
-  const projectFilesEnabled = useFeatureFlag('project-files')
-  const active = enabled && projectFilesEnabled
+  const projectsEnabled = useFeatureFlag('projects')
+  const active = enabled && projectsEnabled
   const query = useProjectFileInventory(project.id, active)
   const items = active && !query.isError ? query.data : undefined
   const isHydrating = active && query.isPending
@@ -70,8 +70,8 @@ export function useAvailableProjectInventories({
   projects,
   enabled,
 }: UseAvailableProjectInventoriesProps): Record<string, AvailableResources> {
-  const projectFilesEnabled = useFeatureFlag('project-files')
-  const active = enabled && projectFilesEnabled
+  const projectsEnabled = useFeatureFlag('projects')
+  const active = enabled && projectsEnabled
   const queries = useProjectFileInventories(
     projects.map((project) => project.id),
     active

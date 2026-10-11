@@ -129,6 +129,7 @@ async function loadProjectMemberships(
   const grantsById = new Map(grants.map((row) => [row.id, row.permission]))
   const environmentsByProject = new Map<string, ProjectEnvironmentAccess[]>()
   for (const { projectId, ...row } of environments) {
+    if (!projectId) continue
     const access = { ...row, permission: grantsById.get(row.id) ?? null }
     const rows = environmentsByProject.get(projectId)
     if (rows) rows.push(access)

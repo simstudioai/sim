@@ -6,7 +6,6 @@ import { AgentPhoneBlock, AgentPhoneBlockMeta } from '@/blocks/blocks/agentphone
 import { AgiloftBlock, AgiloftBlockMeta } from '@/blocks/blocks/agiloft'
 import { AhrefsBlock, AhrefsBlockMeta } from '@/blocks/blocks/ahrefs'
 import { AirtableBlock, AirtableBlockMeta } from '@/blocks/blocks/airtable'
-import { AirweaveBlock, AirweaveBlockMeta } from '@/blocks/blocks/airweave'
 import { AlgoliaBlock, AlgoliaBlockMeta } from '@/blocks/blocks/algolia'
 import { AmplitudeBlock, AmplitudeBlockMeta } from '@/blocks/blocks/amplitude'
 import { ApiBlock } from '@/blocks/blocks/api'
@@ -35,6 +34,7 @@ import { CalComBlock, CalComBlockMeta } from '@/blocks/blocks/calcom'
 import { CalendlyBlock, CalendlyBlockMeta } from '@/blocks/blocks/calendly'
 import { CbInsightsBlock, CbInsightsBlockMeta } from '@/blocks/blocks/cbinsights'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
+import { CheckrBlock, CheckrBlockMeta } from '@/blocks/blocks/checkr'
 import { CirclebackBlock, CirclebackBlockMeta } from '@/blocks/blocks/circleback'
 import { ClayBlock, ClayBlockMeta } from '@/blocks/blocks/clay'
 import { ClerkBlock, ClerkBlockMeta } from '@/blocks/blocks/clerk'
@@ -399,7 +399,6 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   agiloft: AgiloftBlock,
   ahrefs: AhrefsBlock,
   airtable: AirtableBlock,
-  airweave: AirweaveBlock,
   algolia: AlgoliaBlock,
   amplitude: AmplitudeBlock,
   api: ApiBlock,
@@ -426,6 +425,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   calendly: CalendlyBlock,
   cbinsights: CbInsightsBlock,
   chat_trigger: ChatTriggerBlock,
+  checkr: CheckrBlock,
   circleback: CirclebackBlock,
   clay: ClayBlock,
   clerk: ClerkBlock,
@@ -778,7 +778,6 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   agiloft: AgiloftBlockMeta,
   ahrefs: AhrefsBlockMeta,
   airtable: AirtableBlockMeta,
-  airweave: AirweaveBlockMeta,
   algolia: AlgoliaBlockMeta,
   amplitude: AmplitudeBlockMeta,
   apify: ApifyBlockMeta,
@@ -801,6 +800,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   calcom: CalComBlockMeta,
   calendly: CalendlyBlockMeta,
   cbinsights: CbInsightsBlockMeta,
+  checkr: CheckrBlockMeta,
   circleback: CirclebackBlockMeta,
   clay: ClayBlockMeta,
   clerk: ClerkBlockMeta,

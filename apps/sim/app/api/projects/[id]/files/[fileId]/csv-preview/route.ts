@@ -10,6 +10,7 @@ import { readProjectFileCsvPreview } from '@/lib/projects/files/application'
 export const GET = defineInternalJsonRoute({
   contract: getProjectCsvPreviewContract,
   auth: internalSessionAuth,
+  staticResponseHeaders: { 'Cache-Control': 'private, no-store' },
   operation: readProjectFileCsvPreview.operation,
   rateLimit: internalRateLimits.user({ bucketName: 'project-files.csv-preview' }),
   errorPolicy: internalOrchestrationErrorPolicy,

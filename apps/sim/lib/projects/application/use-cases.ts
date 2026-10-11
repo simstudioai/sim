@@ -25,7 +25,13 @@ const READ_SNAPSHOT = { isolationLevel: 'repeatable read', accessMode: 'read onl
 
 function presentProject(context: AuthorizedProject) {
   return {
-    ...context.record,
+    id: context.record.id,
+    name: context.record.name,
+    organizationId: context.record.organizationId,
+    ownerId: context.record.ownerId,
+    archivedAt: context.record.archivedAt,
+    createdAt: context.record.createdAt,
+    updatedAt: context.record.updatedAt,
     environments: context.environments,
     capabilities: { administer: context.canAdminister, issues: context.canUseIssues },
   }
@@ -225,7 +231,7 @@ export const getWorkspaceProject: OperationUseCase<
         .from(workspace)
         .where(eq(workspace.id, input.workspaceId))
         .limit(1)
-      if (!membership) throw new OrchestrationError('not_found', 'Project not found')
+      if (!membership?.projectId) throw new OrchestrationError('not_found', 'Project not found')
       return {
         project: presentProject(
           await authorizeProject(

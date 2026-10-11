@@ -33,7 +33,7 @@ import { Plus, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
 import { Tooltip } from '../tooltip/tooltip'
-import { TabStripAction } from './tab-strip-action'
+import { TabStripAction } from './action'
 
 const DRAG_EDGE_ZONE = 40
 const DRAG_SCROLL_SPEED = 8

@@ -29,7 +29,7 @@ import {
   type ProjectFilePrincipal,
   projectFileOperations,
 } from '@/lib/projects/files/application/operations'
-import { requireProjectFileApiEnabled } from '@/lib/projects/rollout.server'
+import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import {
   requireCurrentFileSubject,
   requireFileSubject,
@@ -248,7 +248,7 @@ export async function createProjectFileAuthorizer(
   input: ProjectFileTarget
 ): Promise<(tx: DbTransaction) => Promise<ProjectFileAuthorizationContext>> {
   requirePrincipal(principal, operation, input)
-  await requireProjectFileApiEnabled()
+  await requireProjectApiEnabled()
   const userId = await requireFileSubject(principal)
   const invocationScope =
     principal.kind === 'resource_delegated' && principal.serviceId === 'copilot'

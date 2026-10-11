@@ -9,6 +9,7 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import type { StreamEvent, ToolCallResult } from '@/lib/mothership/request/types'
+import { findNonTabFileIds } from '@/lib/mothership/resources/file-tabs'
 import {
   extractDeletedResourcesFromToolResult,
   extractResourcesFromToolResult,
@@ -131,7 +132,7 @@ export async function handleResourceSideEffects(
             : isResourceToolName(toolName)
               ? extractResourcesFromToolResult(toolName, params, projectedResult.output)
               : []
-        const resources =
+        const paired =
           projectedResources.length === rawResources.length
             ? rawResources
                 .map((resource, index) => {
@@ -146,6 +147,12 @@ export async function handleResourceSideEffects(
                 })
                 .filter(hasValidChatResourceOwner)
             : []
+        const nonTabFileIds = await findNonTabFileIds(
+          paired.flatMap((resource) => (resource.type === 'file' ? [resource.id] : []))
+        )
+        const resources = paired.filter(
+          (resource) => resource.type !== 'file' || !nonTabFileIds.has(resource.id)
+        )
 
         if (resources.length > 0) {
           upsertedCount = resources.length

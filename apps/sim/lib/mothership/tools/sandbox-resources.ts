@@ -4,6 +4,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { z } from 'zod'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { getRedisClient } from '@/lib/core/config/redis'
 import type { SimToolExecutionOwner } from '@/lib/mothership/async-runs/execution-lease'
 import { isActiveSandboxResourceOwner } from '@/lib/mothership/async-runs/repository'
@@ -12,7 +13,6 @@ import { supportsFileOwnerProtocol } from '@/lib/mothership/request/lifecycle/fi
 import type { StreamEvent } from '@/lib/mothership/request/types'
 import { persistResourceEffect } from '@/lib/mothership/resources/persist-effect'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
-import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
 
 const logger = createLogger('MothershipSandboxResources')
 const CONTEXT_TTL_SECONDS = 600
@@ -92,7 +92,7 @@ export async function sandboxResourceEndpoint(
   const fileOwnerProtocolVersion =
     identity.resourceAdmitted &&
     identity.mothershipBaseURL &&
-    (await isProjectFileApiEnabled()) &&
+    (await isFeatureEnabled('projects')) &&
     (await supportsFileOwnerProtocol(identity.mothershipBaseURL))
       ? 1
       : undefined

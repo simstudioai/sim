@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Read-only, fail-closed ECS retirement check for the Project contract migration.
+"""Read-only, fail-closed ECS retirement check for the Project column contract migration.
 
-The expected digest is the operator's release-scoped acknowledgment that Project
-compatible writers are deployed and relevant old worker jobs are drained.
+The expected digest acknowledges fully deployed #8830 transaction-barrier and durable-authority support
+and retirement of every incompatible server and relevant old worker job before switching. Every live and supported
+rollback application must tolerate project_workspace being absent.
 AWS checks below independently verify ECS retirement, not worker drainage.
 """
 import argparse
@@ -42,7 +43,7 @@ def matches_release(execution, digest):
 
 def verify(environment, region, digest):
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
-        raise RuntimeError('Set the environment-specific PROJECT_ENFORCEMENT_READY_IMAGE_DIGEST after reviewing compatible rollout and worker-drain evidence')
+        raise RuntimeError('Set the environment-specific PROJECT_COLUMN_ENFORCEMENT_READY_IMAGE_DIGEST after verifying #8830 authority-aware readers/writers, transaction barriers and all incompatible server/worker drainage')
     pipeline = f'sim-{environment}-{region}-app-deployment'
     execution = latest_execution(region, pipeline)
     if not matches_release(execution, digest):
@@ -83,7 +84,7 @@ def verify(environment, region, digest):
     if latest.get('pipelineExecutionId') != execution_id or not matches_release(latest, digest):
         raise RuntimeError('Application deployment changed during preflight')
     print(json.dumps({'ecsRetired': True, 'expectedImageDigest': digest, 'pipelineExecutionId': execution_id,
-                      'operatorAcknowledgedCompatibleWritersAndWorkers': True}))
+                      'operatorAcknowledgedColumnWritersAndWorkers': True}))
 
 
 if __name__ == '__main__':
@@ -95,5 +96,5 @@ if __name__ == '__main__':
     try:
         verify(args.environment, args.region, args.expected_image_digest)
     except (RuntimeError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
-        print(f'Project rollout preflight refused: {error}', file=sys.stderr)
+        print(f'Project column rollout preflight refused: {error}', file=sys.stderr)
         sys.exit(1)

@@ -552,8 +552,9 @@ export function ProjectResourceSubmenu({
   subContentClassName,
 }: ProjectResourceSubmenuProps) {
   const [open, setOpen] = useState(false)
-  const projectFilesEnabled = useFeatureFlag('project-files')
-  const showFiles = projectFilesEnabled && !excludeTypes?.includes('file')
+
+  const projectsEnabled = useFeatureFlag('projects')
+  const showFiles = projectsEnabled && !excludeTypes?.includes('file')
   const inventory = useAvailableProjectResources({ project, enabled: open && showFiles })
   const sections = useResourceTreeSections(inventory)
   const fileNodes = sections.find((section) => section.type === 'file')?.nodes ?? []

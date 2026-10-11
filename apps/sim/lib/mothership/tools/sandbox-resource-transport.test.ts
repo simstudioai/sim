@@ -1,3 +1,4 @@
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
 import {
   mothershipWorkspaceTargetMock,
   mothershipWorkspaceTargetMockFns,
@@ -8,6 +9,10 @@ import { copilotRequestPrincipal, isCopilotRequest } from '@/lib/api/server/rout
 import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
+import {
+  reportWorkspaceFileDelivery,
+  requireCopilotWorkspaceFileDeliveryObserver,
+} from '@/lib/workspace-files/application/file-delivery-observer'
 
 const { readScope, recordEffects, fetcher, routeMatcher, recordInput } = vi.hoisted(() => ({
   readScope: vi.fn(),
@@ -302,6 +307,29 @@ it.each([
     expect(fetcher).not.toHaveBeenCalled()
   }
 )
+/**
+ * The file read and download use cases refuse a Chat principal that no delivery observer records,
+ * so the workbench's file reads depend on this proxy installing one around the route handler.
+ */
+it('dispatches a workbench file read under a delivery observer the Copilot guard admits', async () => {
+  routeMatcher.mockReturnValue({ params: { fileId: 'file' }, load: async () => ({ GET: fetcher }) })
+  fetcher.mockImplementation(async () => {
+    requireCopilotWorkspaceFileDeliveryObserver(createDelegatedPrincipal({ serviceId: 'copilot' }))
+    await reportWorkspaceFileDelivery({ status: 'exact', entries: [] })
+    return new Response('file text')
+  })
+  recordInput.mockResolvedValueOnce(undefined)
+
+  const response = await proxySandboxResourceRequest(
+    request('/api/v2/files/file/text?workspaceId=workspace'),
+    token
+  )
+
+  expect(response.status).toBe(200)
+  expect(await response.text()).toBe('file text')
+})
+
+vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: mint }))
 
 it('reconstructs Project authority from the admitted lease without borrowing its workspace', async () => {
   readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: 1 })

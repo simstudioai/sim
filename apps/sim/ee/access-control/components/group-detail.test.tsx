@@ -4,7 +4,8 @@ import { act, type ReactNode } from 'react'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
-import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
 import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -13,6 +14,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PermissionGroup } from '@/lib/api/contracts/permission-groups'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { AccessControl } from '@/ee/access-control/components/access-control'
 import { GroupDetail } from '@/ee/access-control/components/group-detail'
 import { allowedProvidersKeys } from '@/hooks/queries/allowed-providers'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
@@ -105,6 +107,62 @@ async function settle() {
     await vi.advanceTimersByTimeAsync(1)
   })
 }
+
+describe('permission group settings availability', () => {
+  it.each([{}, { workspaceId: 'workspace-1' }])(
+    'edits groups without reading billing and retains the draft through a failed refresh (%j)',
+    async (params) => {
+      setEnvFlags({ isHosted: true, isBillingEnabled: true, isAccessControlEnabled: false })
+      nextNavigationMockFns.mockUseParams.mockReturnValue(params)
+      client.setQueryData(permissionGroupKeys.list('org-1'), [group])
+      client.setQueryData(permissionGroupKeys.orgWorkspaces('org-1'), [])
+      client.setQueryData(allowedProvidersKeys.blacklisted(), { blacklistedProviders: [] })
+      const requests: string[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => {
+          requests.push(url)
+          return jsonResponse({ error: 'Service temporarily unavailable' }, 503)
+        })
+      )
+      act(() =>
+        root.render(
+          <QueryClientProvider client={client}>
+            <NuqsTestingAdapter hasMemory searchParams='?group-id=group-1&group-tab=providers'>
+              <AccessControl organizationId='org-1' isOrganizationAdmin requestsHref='/requests' />
+            </NuqsTestingAdapter>
+          </QueryClientProvider>
+        )
+      )
+      await settle()
+      const toggle = container.querySelector<HTMLButtonElement>('#provider-openai')
+      if (!toggle) throw new Error('Authorized group editor was blocked by an unrelated read')
+      act(() => toggle.click())
+      let left = false
+      act(() =>
+        useSettingsDirtyStore.getState().requestLeave(() => {
+          left = true
+        })
+      )
+      expect(left).toBe(false)
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: permissionGroupKeys.list('org-1') })
+      })
+      await settle()
+      const refreshedToggle = container.querySelector<HTMLButtonElement>('#provider-openai')
+      if (!refreshedToggle) throw new Error('Group editor disappeared after refresh')
+      expect(refreshedToggle.getAttribute('aria-checked')).toBe('false')
+      left = false
+      act(() =>
+        useSettingsDirtyStore.getState().requestLeave(() => {
+          left = true
+        })
+      )
+      expect(left).toBe(false)
+      expect(requests.some((url) => url.startsWith('/api/billing'))).toBe(false)
+    }
+  )
+})
 
 describe('provider permission policy availability', () => {
   it('stops warning after restoring the same provider membership in a different order', async () => {

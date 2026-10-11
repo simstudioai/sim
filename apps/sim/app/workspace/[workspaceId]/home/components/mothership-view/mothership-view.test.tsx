@@ -53,14 +53,9 @@ afterEach(async () => {
   document.body.innerHTML = ''
 })
 
-it.each([
-  [false, true],
-  [true, false],
-  [false, false],
-  [true, true],
-])(
-  'only activates a persisted Project tab when projects=%s and project-files=%s are both enabled',
-  async (projects, projectFiles) => {
+it.each([false, true])(
+  'only activates a persisted Project tab when projects=%s',
+  async (projects) => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const resource = {
       type: 'file' as const,
@@ -83,9 +78,10 @@ it.each([
           <FeatureFlagsProvider
             flags={{
               projects,
-              'project-files': projectFiles,
+
               dashboards: false,
-              'table-row-ttl': false,
+              'workflow-tests': false,
+              changelog: false,
               'mothership-model-selector': false,
               'mothership-plan-mode': false,
             }}
@@ -109,12 +105,8 @@ it.each([
         </QueryClientProvider>
       )
     )
-    expect(client.getQueryCache().find({ queryKey: options.queryKey })?.isActive()).toBe(
-      projects && projectFiles
-    )
-    expect(container.querySelector('[data-testid=private-file]') !== null).toBe(
-      projects && projectFiles
-    )
+    expect(client.getQueryCache().find({ queryKey: options.queryKey })?.isActive()).toBe(projects)
+    expect(container.querySelector('[data-testid=private-file]') !== null).toBe(projects)
     client.clear()
   }
 )

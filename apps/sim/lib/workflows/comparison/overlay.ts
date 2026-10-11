@@ -1,4 +1,4 @@
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer/dimensions'
 import {
   collectErrorSourceBlockIds,
   normalizeWorkflowEdgeHandles,

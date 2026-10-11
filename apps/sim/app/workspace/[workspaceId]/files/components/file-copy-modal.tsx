@@ -64,8 +64,8 @@ export function FileCopyModal({ source, onClose }: FileCopyModalProps) {
 function FileCopyDestinationPicker({ source, onClose }: FileCopyModalProps) {
   const workspaces = useWorkspacesQuery()
   const projectsEnabled = useFeatureFlag('projects')
-  const projectFilesEnabled = useFeatureFlag('project-files')
-  const projectDestinationsEnabled = projectsEnabled && projectFilesEnabled
+
+  const projectDestinationsEnabled = projectsEnabled
   const projects = useProjects(undefined, { enabled: projectDestinationsEnabled })
   const copy = useCopyFileItems()
   const [selection, setSelection] = useState('')

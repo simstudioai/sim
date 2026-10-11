@@ -52,7 +52,7 @@ import {
 } from '@/connectors/gitlab/permission-config/fields'
 import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
-import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
 

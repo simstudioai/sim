@@ -35,7 +35,7 @@ export function encodeVfsSegment(segment: string): string {
   return encodeURIComponent(normalized)
 }
 
-export function decodeVfsSegment(segment: string): string {
+function decodeVfsSegment(segment: string): string {
   try {
     const decoded = decodeURIComponent(segment)
     const normalized = normalizeDisplaySegment(decoded)
@@ -49,6 +49,10 @@ export function decodeVfsSegment(segment: string): string {
   }
 }
 
+/**
+ * Decodes a VFS path segment for display, falling back to the raw segment when
+ * it is not valid encoding (e.g. a literal "%" that was never encoded).
+ */
 export function decodeVfsSegmentSafe(segment: string): string {
   try {
     return decodeVfsSegment(segment)
@@ -65,8 +69,4 @@ export function decodeVfsPathSegments(path: string): string[] {
   const trimmed = path.trim().replace(/^\/+|\/+$/g, '')
   if (!trimmed) return []
   return trimmed.split('/').map(decodeVfsSegment)
-}
-
-export function canonicalizeVfsPath(path: string): string {
-  return encodeVfsPathSegments(decodeVfsPathSegments(path))
 }

@@ -12,7 +12,7 @@ export const openResourceInputSchema = z
     resources: z
       .array(
         z.strictObject({
-          type: z.enum(['workflow', 'table', 'knowledgebase', 'file', 'dashboard', 'log']),
+          type: z.enum(['workflow', 'table', 'knowledgebase', 'file', 'dashboard', 'log', 'test']),
           id: z.string().trim().min(1),
           owner: FileOperationOwner.optional(),
           viewId: z
@@ -44,7 +44,7 @@ export const openResourceInputSchema = z
 export const openResourceOutputSchema = z.object({
   resources: z.array(
     z.object({
-      type: z.enum(['workflow', 'table', 'knowledgebase', 'file', 'dashboard', 'log']),
+      type: z.enum(['workflow', 'table', 'knowledgebase', 'file', 'dashboard', 'log', 'test']),
       id: z.string(),
       title: z.string(),
       viewId: z.string().optional(),

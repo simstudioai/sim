@@ -201,9 +201,9 @@ export function ConnectorDocuments({
         </div>
       </div>
       {mutationError && (
-        <SettingsEmptyState variant='inline' tone='error'>
+        <p role='alert' className='py-4 text-center text-[var(--text-error)] text-sm'>
           {mutationError.message}
-        </SettingsEmptyState>
+        </p>
       )}
     </>
   )

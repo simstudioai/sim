@@ -134,6 +134,7 @@ import {
 import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { trackInputActivity } from '@/main/input-activity'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
+import { LocalFilePermissions } from '@/main/local-file-permissions'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { isLocalPageUrl } from '@/main/local-pages'
 import { TerminalRegistry } from '@/main/terminal/registry'
@@ -287,6 +288,9 @@ describe('registerIpcHandlers', () => {
     mockCoordinator.showChooser.mockClear()
     mockCoordinator.listFillOptions.mockClear()
     mockCoordinator.fillCredential.mockClear()
+    const localFilesystem = new LocalFilesystemService({
+      chooseDirectory: vi.fn(async () => null),
+    })
     deps = {
       appOrigin: () => APP,
       getExecutorDevice: () => null,
@@ -297,9 +301,8 @@ describe('registerIpcHandlers', () => {
       beginOAuthConnect: vi.fn(async () => true),
       prepareSourceConnect: vi.fn(() => 's'.repeat(32)),
       cancelSourceConnect: vi.fn(() => true),
-      localFilesystem: new LocalFilesystemService({
-        chooseDirectory: vi.fn(async () => null),
-      }),
+      localFilesystem,
+      localFilePermissions: new LocalFilePermissions(localFilesystem),
       terminal: new TerminalRegistry(),
       scopeEvents: {
         activateBrowser: vi.fn(),
@@ -311,6 +314,7 @@ describe('registerIpcHandlers', () => {
         getPreferences: vi.fn(() => DEFAULT_DESKTOP_PREFERENCES),
         setPreference: vi.fn(),
         setBrowserSearchSuggestionsEnabled: vi.fn(),
+        setFullFileAccess: vi.fn(),
         setPreventSleepWhileRunning: vi.fn(),
         setAppearancePreference: vi.fn(),
         setBrowserDefaultZoom: vi.fn(),
@@ -460,71 +464,6 @@ describe('registerIpcHandlers', () => {
       code: 'ACCESS_DENIED',
       error: expect.stringContaining('explicit user click'),
     })
-  })
-
-  it('reads a native file through canonical IPC arguments without folder grants or user activation', async () => {
-    const { invoke } = collectHandlers()
-    const handler = invoke.get('desktop:local-files')
-    const path = fileURLToPath(import.meta.url)
-    const fetchAuthorization = vi.fn(async () =>
-      Response.json({ chatId: 'chat-1', toolName: 'read_local_file', args: { path, limit: 64 } })
-    )
-    const authorizedEvent = {
-      senderFrame: { url: `${APP}/o/org/home` },
-      sender: { session: { fetch: fetchAuthorization } },
-    }
-    const mounts = vi.spyOn(deps.localFilesystem, 'handle')
-    expect(
-      await handler?.(authorizedEvent, {
-        operation: 'read',
-        toolCallId: 'tool-native',
-        path: '/not/the/canonical/path',
-      })
-    ).toMatchObject({
-      ok: true,
-      data: { kind: 'read', path, text: readFileSync(path, 'utf8').slice(0, 64) },
-    })
-    expect(mounts).not.toHaveBeenCalled()
-    expect(fetchAuthorization).toHaveBeenCalledWith(
-      `${APP}/api/desktop/tool/authorize`,
-      expect.objectContaining({ body: JSON.stringify({ toolCallId: 'tool-native', claim: true }) })
-    )
-    expect(
-      await handler?.(evilEvent, { operation: 'read', toolCallId: 'tool-native' })
-    ).toMatchObject({ ok: false })
-  })
-
-  it('claims native imports at IPC before traversal and rejects a replay', async () => {
-    const { invoke } = collectHandlers()
-    const handler = invoke.get('desktop:local-files')
-    const fetchAuthorization = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Response.json({
-          chatId: 'chat-1',
-          toolName: 'import_local_files',
-          args: { path: fileURLToPath(import.meta.url), targetWorkspaceId: 'workspace' },
-        })
-      )
-      .mockResolvedValueOnce(Response.json({ error: 'already started' }, { status: 409 }))
-    const event = {
-      senderFrame: { url: `${APP}/o/org/home` },
-      sender: { session: { fetch: fetchAuthorization } },
-    }
-    const request = { operation: 'manifest', toolCallId: 'tool-import' }
-    expect(await handler?.(event, request)).toMatchObject({
-      ok: true,
-      data: {
-        kind: 'manifest',
-        targetWorkspaceId: 'workspace',
-        entries: [{ relativePath: '', kind: 'file' }],
-      },
-    })
-    expect(fetchAuthorization).toHaveBeenCalledWith(
-      `${APP}/api/desktop/tool/authorize`,
-      expect.objectContaining({ body: JSON.stringify({ toolCallId: 'tool-import', claim: true }) })
-    )
-    expect(await handler?.(event, request)).toMatchObject({ ok: false, code: 'ALREADY_STARTED' })
   })
 
   it('requires server authorization for every privileged filesystem tool request', async () => {

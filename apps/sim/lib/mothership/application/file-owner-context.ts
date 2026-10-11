@@ -1,5 +1,6 @@
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { executeCopilotProjectDiscovery } from '@/lib/mothership/application/execute-project-use-case'
 import {
@@ -10,7 +11,6 @@ import { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners'
 import type { FileOwnerContext } from '@/lib/mothership/generated/file-owner'
 import { supportsFileOwnerProtocol } from '@/lib/mothership/request/lifecycle/file-owner-protocol'
 import { getCurrentWorkspaceProject } from '@/lib/projects/application'
-import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
 
 /** Adds current owner hints to admitted authoring turns using the worker's generated contract. */
 export async function withFileOwnerContext(
@@ -23,7 +23,7 @@ export async function withFileOwnerContext(
   if (
     !['/api/copilot', '/api/mothership'].includes(route) ||
     context.requestMode === 'assistant' ||
-    !(await isProjectFileApiEnabled()) ||
+    !(await isFeatureEnabled('projects')) ||
     !hasCopilotResourceAdmission(context) ||
     !(await supportsFileOwnerProtocol(baseURL))
   )

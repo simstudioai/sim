@@ -61,15 +61,17 @@ afterEach(async () => {
   container.remove()
   vi.useRealTimers()
 })
-async function render(projectFiles: boolean) {
+async function render(projects: boolean) {
   await act(async () =>
     root.render(
       <QueryClientProvider client={client}>
         <FeatureFlagsProvider
           flags={{
-            projects: true,
-            'project-files': projectFiles,
+            projects,
+
             dashboards: false,
+            'workflow-tests': false,
+            changelog: false,
             'mothership-model-selector': false,
             'mothership-plan-mode': false,
           }}
@@ -93,7 +95,7 @@ async function render(projectFiles: boolean) {
   )
   await act(async () => vi.advanceTimersByTimeAsync(10))
 }
-it('stops cached Project mention selection when Project files are disabled', async () => {
+it('stops cached Project mention selection when Projects are disabled', async () => {
   await render(true)
   await act(async () => handle.current?.open({ left: 0, top: 0 }, { mention: true }))
   await act(async () => handle.current?.selectActive())
@@ -104,7 +106,7 @@ it('stops cached Project mention selection when Project files are disabled', asy
   await act(async () => handle.current?.selectActive())
   expect(selected).toBeNull()
 })
-it('stops Project tagging through the browse submenu when Project files are disabled', async () => {
+it('stops Project tagging through the browse submenu when Projects are disabled', async () => {
   await render(true)
   await act(async () => handle.current?.open({ left: 0, top: 0 }))
   const selectProject = async () => {
@@ -119,7 +121,11 @@ it('stops Project tagging through the browse submenu when Project files are disa
   selected = null
   await render(false)
   await act(async () => handle.current?.open({ left: 0, top: 0 }))
-  await selectProject()
+  expect(
+    Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).some(
+      (item) => item.textContent === project.name
+    )
+  ).toBe(false)
   expect(selected).toBeNull()
 })
 

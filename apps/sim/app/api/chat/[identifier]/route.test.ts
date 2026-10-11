@@ -76,7 +76,7 @@ const { mockValidateChatAuth, mockSetChatAuthCookie } = vi.hoisted(() => ({
   mockSetChatAuthCookie: vi.fn(),
 }))
 
-const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
+const mockCreateCodedErrorResponse = workflowsApiUtilsMockFns.mockCreateCodedErrorResponse
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 
 vi.mock('@/app/api/chat/utils', () => ({
@@ -185,15 +185,17 @@ describe('Chat Identifier API Route', () => {
     mockEnforceIpRateLimit.mockResolvedValue(null)
     mockEnforceResourceRateLimit.mockResolvedValue(null)
     mockProcessChatFiles.mockResolvedValue([])
-    mockCreateErrorResponse.mockImplementation((message: string, status: number, code?: string) => {
-      return new Response(
-        JSON.stringify({
-          error: code || 'Error',
-          message,
-        }),
-        { status }
-      )
-    })
+    mockCreateCodedErrorResponse.mockImplementation(
+      (message: string, status: number, code?: string) => {
+        return new Response(
+          JSON.stringify({
+            error: code || 'Error',
+            message,
+          }),
+          { status }
+        )
+      }
+    )
     mockCreateSuccessResponse.mockImplementation((data: unknown) => {
       return new Response(JSON.stringify(data), { status: 200 })
     })

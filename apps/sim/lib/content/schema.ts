@@ -41,6 +41,13 @@ export const ContentFrontmatterSchema = z
       .optional(),
     draft: z.boolean().default(false),
     featured: z.boolean().default(false),
+    release: z
+      .object({
+        versions: z.array(z.string().min(1)).min(1),
+        url: z.string().url().optional(),
+      })
+      .strict()
+      .optional(),
     /**
      * Whether this post covers technical/developer content (architecture,
      * implementation, how-tos). Drives whether `TechArticle` is included
@@ -76,6 +83,7 @@ export interface ContentMeta {
   canonical: string
   draft: boolean
   featured: boolean
+  release?: { versions: string[]; url?: string }
   technical: boolean
 }
 

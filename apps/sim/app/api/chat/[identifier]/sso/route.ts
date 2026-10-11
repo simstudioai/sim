@@ -10,7 +10,7 @@ import { RateLimiter } from '@/lib/core/rate-limiter'
 import { isEmailAllowed } from '@/lib/core/security/deployment'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { createCodedErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatSSOAPI')
 
@@ -32,7 +32,7 @@ const SSO_RESOURCE_RATE_LIMIT: TokenBucketConfig = {
 }
 
 function rateLimited(retryAfterMs: number | undefined, fallbackMs: number) {
-  const response = createErrorResponse('Too many requests. Please try again later.', 429)
+  const response = createCodedErrorResponse('Too many requests. Please try again later.', 429)
   response.headers.set('Retry-After', String(Math.ceil((retryAfterMs ?? fallbackMs) / 1000)))
   return response
 }
@@ -73,11 +73,11 @@ export const POST = withRouteHandler(
 
     if (!deployment || !deployment.isActive) {
       logger.warn(`[${requestId}] SSO check on missing/inactive chat: ${identifier}`)
-      return createErrorResponse('Chat not found', 404)
+      return createCodedErrorResponse('Chat not found', 404)
     }
 
     if (deployment.authType !== 'sso') {
-      return createErrorResponse('Chat is not configured for SSO authentication', 400)
+      return createCodedErrorResponse('Chat is not configured for SSO authentication', 400)
     }
 
     const resourceRateLimit = await rateLimiter.checkRateLimitDirect(

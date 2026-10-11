@@ -236,7 +236,7 @@ export function SessionPolicySettings({ organizationId }: SessionPolicySettingsP
   if (!data) {
     return (
       <SettingsPanel>
-        <SettingsEmptyState tone='error'>
+        <SettingsEmptyState>
           {getErrorMessage(error, 'Failed to load session policy')}
         </SettingsEmptyState>
       </SettingsPanel>

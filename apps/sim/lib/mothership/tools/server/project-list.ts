@@ -2,6 +2,7 @@ import {
   type ListUserProjectsInput,
   listUserProjectsInputSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
 import { executeCopilotProjectFileUseCase } from '@/lib/mothership/application/execute-project-file-use-case'
@@ -9,7 +10,6 @@ import { executeCopilotProjectDiscovery } from '@/lib/mothership/application/exe
 import type { BaseServerTool } from '@/lib/mothership/tools/server/base-tool'
 import { listProjects } from '@/lib/projects/application'
 import { getProjectFileCapabilities } from '@/lib/projects/files/application'
-import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
 
 export const listProjectsServerTool: BaseServerTool<ListUserProjectsInput> = {
   name: 'list_user_projects',
@@ -21,7 +21,7 @@ export const listProjectsServerTool: BaseServerTool<ListUserProjectsInput> = {
         listProjects,
         listUserProjectsInputSchema.parse(raw)
       )
-      if (!(await isProjectFileApiEnabled())) return { success: true, ...result }
+      if (!(await isFeatureEnabled('projects'))) return { success: true, ...result }
       const fileOwnerCapabilities = []
       for (const project of result.projects) {
         try {

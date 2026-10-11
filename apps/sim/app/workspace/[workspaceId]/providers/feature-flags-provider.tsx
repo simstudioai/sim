@@ -4,8 +4,10 @@ import { createContext, type ReactNode, useContext } from 'react'
 
 export interface WorkspaceFeatureFlags {
   projects: boolean
-  'project-files': boolean
+
   dashboards: boolean
+  'workflow-tests': boolean
+  changelog: boolean
   'mothership-model-selector': boolean
   'mothership-plan-mode': boolean
 }

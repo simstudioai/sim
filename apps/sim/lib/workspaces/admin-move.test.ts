@@ -4,6 +4,7 @@ import {
   member,
   organization,
   outboxEvent,
+  project,
   subscription,
   workspace,
 } from '@sim/db/schema'
@@ -160,6 +161,7 @@ vi.mock('@/lib/workspaces/admin-move-source-impact', () => ({
 
 const movedWorkspace = {
   id: 'workspace-1',
+  projectId: 'project-1',
   name: 'Already moved',
   ownerId: 'workspace-owner',
   ownerName: 'Workspace Owner',
@@ -197,20 +199,18 @@ const destination = {
 }
 
 /**
- * The move flow reads the workspace three times in order: the optimistic
- * pre-transaction organization read that decides which organizations to lock,
- * the locked classification row, and the final summary reload. The workspace
- * queue therefore gets one set per read, in that order.
- *
- * Keep this comment in step with the reads — a stale count silently shifts
- * every later queue entry onto the wrong statement, which surfaces as an
- * unrelated "could not be reloaded" failure rather than a queueing error.
- *
- * All invitation/grant/permission selects resolve the queue-less empty default.
+ * Queues the optimistic scope, locked workspace, Project transfer and summary reads. An already completed move skips the Project transfer.
  */
 function queueMoveSelects(workspaceRow: Record<string, unknown>) {
   queueTableRows(workspace, [workspaceRow])
   queueTableRows(workspace, [workspaceRow])
+  if (workspaceRow.organizationId !== destination.id) {
+    queueTableRows(workspace, [{ id: workspaceRow.projectId }])
+    queueTableRows(workspace, [{ id: workspaceRow.id }])
+    queueTableRows(project, [
+      { id: workspaceRow.projectId, organizationId: workspaceRow.organizationId },
+    ])
+  }
   queueTableRows(workspace, [workspaceRow])
   queueTableRows(organization, [destination])
 }
@@ -243,6 +243,7 @@ afterAll(resetDbChainMock)
 
 beforeEach(() => {
   resetDbChainMock()
+  dbChainMockFns.execute.mockResolvedValue([{ acquired: true }])
   isInvitationExpired.mockReturnValue(false)
   /**
    * `vi.clearAllMocks` clears call records but keeps implementations, so a
@@ -680,6 +681,9 @@ describe('moveWorkspaceToOrganization retries', () => {
     queueTableRows(workspace, [organizationWorkspace])
     queueTableRows(workspace, [{ ...organizationWorkspace, organizationId: 'org-moved' }])
     queueTableRows(workspace, [{ ...organizationWorkspace, organizationId: 'org-moved' }])
+    queueTableRows(workspace, [{ id: organizationWorkspace.projectId }])
+    queueTableRows(workspace, [{ id: organizationWorkspace.id }])
+    queueTableRows(project, [{ id: organizationWorkspace.projectId, organizationId: 'org-moved' }])
     queueTableRows(workspace, [{ ...organizationWorkspace, organizationId: 'org-moved' }])
     queueTableRows(organization, [destination])
 

@@ -154,6 +154,20 @@ pricing: {
 
 **`getCost` must always throw** if it cannot determine cost. Never silently fall back to a default — this would hide billing inaccuracies.
 
+**When the provider charges a flat price per call** — use `per_request` instead of `getCost` (as `tools/brandfetch/get_brand.ts` does):
+
+```typescript
+pricing: {
+  type: 'per_request',
+  // $0.04 per call — from https://example.com/pricing
+  cost: 0.04,
+},
+```
+
+### Hosted Keys for Some Parameter Combinations
+
+When only some calls can use the hosted key (for example, one provider of several), gate the config with `enabled: hostedKeyEnabledWhen<Params>({ field: 'provider', operator: 'equals', value: 'falai' })` from `@/tools/hosting` (`operator: 'one_of'` takes `values`); `tools/image/generate.ts` is the reference.
+
 ### Capturing Cost Data from the API
 
 If the API returns cost info, capture it in `transformResponse` so `getCost` can read it from the output:

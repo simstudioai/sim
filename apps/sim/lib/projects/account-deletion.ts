@@ -7,13 +7,11 @@ import {
   changeProjectAndWorkspaceStoragePayersInTx,
 } from '@/lib/billing/storage/payer-transfer'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { ProjectConflictError } from '@/lib/projects/errors'
 import { purgeProjectFilesInTx } from '@/lib/projects/files/purge'
+import { lockProjectBackfillWrites, lockProjects } from '@/lib/projects/membership'
 import {
-  lockProjectBackfillWrites,
-  lockProjects,
-  ProjectConflictError,
-} from '@/lib/projects/membership'
-import {
+  assertProjectCreatorSuccessor,
   findProjectSuccessor,
   handoffProjectCreatorReferencesTx,
   listSharedResourceProjectIdsForUser,
@@ -29,6 +27,7 @@ async function loadRelatedProjects(executor: DbOrTx, userId: string, doomedWorks
         .from(workspace)
         .where(inArray(workspace.id, doomedWorkspaceIds))
     : []
+  const projectIds = doomedMemberships.flatMap((row) => (row.projectId ? [row.projectId] : []))
   return executor
     .select()
     .from(project)
@@ -36,12 +35,7 @@ async function loadRelatedProjects(executor: DbOrTx, userId: string, doomedWorks
       or(
         eq(project.ownerId, userId),
         creatorProjectIds.length ? inArray(project.id, creatorProjectIds) : undefined,
-        doomedMemberships.length
-          ? inArray(
-              project.id,
-              doomedMemberships.map((row) => row.projectId)
-            )
-          : undefined
+        projectIds.length ? inArray(project.id, projectIds) : undefined
       )
     )
     .orderBy(asc(project.id))
@@ -71,6 +65,7 @@ async function loadProjectEnvironments(executor: DbOrTx, projectIds: string[]) {
     : []
   const byProject = new Map<string, ProjectEnvironment[]>()
   for (const { projectId, ...environment } of rows) {
+    if (!projectId) continue
     const environments = byProject.get(projectId)
     if (environments) environments.push(environment)
     else byProject.set(projectId, [environment])
@@ -121,6 +116,7 @@ export async function getProjectAccountDeletionBlockers(
   )
   const doomed = new Set(doomedWorkspaceIds)
   const blockers: string[] = []
+  const creatorProjects = new Set(await listSharedResourceProjectIdsForUser(db, userId))
   for (const record of records) {
     const decision = await planProjectDeletion(
       db,
@@ -130,7 +126,25 @@ export async function getProjectAccountDeletionBlockers(
       doomed,
       false
     )
-    if ('blocker' in decision) blockers.push(decision.blocker)
+    if ('blocker' in decision) {
+      blockers.push(decision.blocker)
+      continue
+    }
+    if ('remove' in decision || !creatorProjects.has(record.id)) continue
+    try {
+      await assertProjectCreatorSuccessor(
+        db,
+        { ...record, ownerId: decision.ownerId ?? record.ownerId },
+        userId,
+        (environments.get(record.id) ?? [])
+          .filter((row) => !doomed.has(row.id))
+          .map((row) => row.id),
+        false
+      )
+    } catch (error) {
+      if (!(error instanceof ProjectConflictError)) throw error
+      blockers.push(error.message)
+    }
   }
   return blockers
 }
@@ -164,6 +178,7 @@ export async function prepareProjectsForAccountDeletion(
     records.map((record) => record.id)
   )
   const doomed = new Set(doomedWorkspaceIds)
+  const projectsToDelete: string[] = []
   const now = new Date()
   const projectChanges: ChangeProjectStoragePayerParams[] = []
   const projectRemovals: ProjectStorageOwnerSnapshot[] = []
@@ -183,6 +198,7 @@ export async function prepareProjectsForAccountDeletion(
         ownerId: record.ownerId,
         organizationId: record.organizationId,
       })
+      projectsToDelete.push(record.id)
       continue
     }
     if (decision.archive) {

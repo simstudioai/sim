@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Fails on the two comment patterns that are never documentation:
+ * Fails on the three comment patterns that are never documentation:
  *
  * - `banner`: a separator comment — `// ====`, `// --- Section ---`, `// ─── Title ───`,
  *   `/* ------ v2 ------ *\/`. The repo convention is "no separators": structure lives in the
@@ -8,10 +8,13 @@
  * - `commented-out-code`: a run of `//` lines whose text parses as TypeScript. Git is the
  *   history; dead code left in a comment rots, misleads readers and agents into thinking it
  *   is a live option, and survives every refactor of the code around it.
+ * - `eslint-directive`: an `eslint-disable` / `eslint-enable` comment. The repo lints with Biome
+ *   and nothing runs ESLint, so the directive suppresses nothing; it only misleads a reader into
+ *   thinking a rule is enforced and deliberately waived here. Biome's form is `// biome-ignore`.
  *
- * Both are detected conservatively so a hit is almost always real. Comments are read from the
- * Babel token stream, so `//` inside strings and template literals is never inspected. A
- * commented-out run only counts when it parses with no recovery errors, contains code
+ * Banners and commented-out code are detected conservatively so a hit is almost always real.
+ * Comments are read from the Babel token stream, so `//` inside strings and template literals is
+ * never inspected. A commented-out run only counts when it parses with no recovery errors, contains code
  * punctuation, and is not a lone label (`firstRow: bold`), literal, or `a = b` gloss; prose
  * lines inside a comment group split it into separate runs. Change-history phrasing
  * ("previously", "no longer", "used to") was measured and left out: most hits describe live
@@ -20,8 +23,8 @@
  * A legitimate exception (a code sample that must stay a line comment) takes
  * `// comment-hygiene-allow: <reason>` anywhere in the same comment group.
  *
- * The tree was swept clean when this landed (236 banners, 9 commented-out blocks), so there is
- * no baseline: every hit fails.
+ * The tree was swept clean when each rule landed (236 banners, 9 commented-out blocks, 89
+ * ESLint directives), so there is no baseline: every hit fails.
  *
  * Run: `bun run check:comment-hygiene`
  */
@@ -38,7 +41,7 @@ const ALLOW = 'comment-hygiene-allow:'
 /** Vendored or generated sources whose comments are not ours to edit. */
 const EXCLUDED = [/\.d\.ts$/, /(^|\/)bundles\//, /(^|\/)node_modules\//]
 
-export type Rule = 'banner' | 'commented-out-code'
+export type Rule = 'banner' | 'commented-out-code' | 'eslint-directive'
 
 export interface Violation {
   rule: Rule
@@ -48,6 +51,9 @@ export interface Violation {
 
 /** Comment text that opens with a run of separator characters. */
 const BANNER = /^(?:={3,}|-{3,}|─{3,}|━{3,}|\*{3,}|~{3,})/
+
+/** Comment text that is an ESLint suppression directive. */
+const ESLINT_DIRECTIVE = /^eslint-(?:disable|enable)\b/
 
 /** At least one token that ordinary prose does not contain. */
 const CODE_PUNCTUATION = /[;{}]|=>|\b(?:const|let|return|await|import|export)\s|\w\.\w+\(/
@@ -154,13 +160,14 @@ function firstCodeSpan(run: LineComment[], jsx: boolean): LineComment | undefine
 }
 
 /**
- * A superset of every hit: a separator right after a comment opener, or a `//` line holding a
- * {@link CODE_PUNCTUATION} token. Files without one skip the parse, which dominates the run.
+ * A superset of every hit: a separator or ESLint directive right after a comment opener, or a
+ * `//` line holding a {@link CODE_PUNCTUATION} token. Files without one skip the parse, which
+ * dominates the run.
  */
 const MAY_VIOLATE =
-  /\/[/*][*\s]*(?:={3}|-{3}|─{3}|━{3}|\*{3}|~{3})|\/\/[^\n]*(?:[;{}]|=>|\b(?:const|let|return|await|import|export)\b|\w\.\w+\()/
+  /\/[/*][*\s]*(?:={3}|-{3}|─{3}|━{3}|\*{3}|~{3}|eslint-(?:disable|enable))|\/\/[^\n]*(?:[;{}]|=>|\b(?:const|let|return|await|import|export)\b|\w\.\w+\()/
 
-/** Every banner and commented-out-code hit in one source file. */
+/** Every comment-hygiene hit in one source file. */
 export function findViolations(file: string, source: string): Violation[] {
   if (!MAY_VIOLATE.test(source)) return []
   const jsx = /\.[jt]sx$/.test(file)
@@ -183,6 +190,12 @@ export function findViolations(file: string, source: string): Violation[] {
 
   for (const comment of comments) {
     const line = comment.loc?.start.line ?? 0
+    const directive = comment.value.replace(/^\*+/, '').trim()
+    if (ESLINT_DIRECTIVE.test(directive)) {
+      violations.push({ rule: 'eslint-directive', line, text: directive })
+      previous = undefined
+      continue
+    }
     if (comment.type === 'CommentBlock') {
       const singleLine = comment.loc?.start.line === comment.loc?.end.line
       const text = comment.value.replace(/^\*+/, '').trim()
@@ -253,6 +266,9 @@ const FIX: Record<Rule, string> = {
   'commented-out-code':
     'delete the commented-out code — git keeps the history. If it is a deliberate code sample, ' +
     'put it in a TSDoc `@example` or add `// comment-hygiene-allow: <reason>` to the group',
+  'eslint-directive':
+    'delete it — nothing runs ESLint. Keep any reason it carried as a plain `// ...` why; ' +
+    'to waive a Biome rule, use `// biome-ignore <rule>: <reason>`',
 }
 
 function main(): void {
@@ -270,7 +286,7 @@ function main(): void {
   }
 
   if (hits.length === 0) {
-    console.log('✓ comment hygiene (no banners or commented-out code)')
+    console.log('✓ comment hygiene (no banners, commented-out code, or ESLint directives)')
     return
   }
   console.error(hits.join('\n'))

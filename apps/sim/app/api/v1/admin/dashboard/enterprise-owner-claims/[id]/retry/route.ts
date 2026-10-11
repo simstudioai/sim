@@ -7,9 +7,9 @@ import { EnterpriseProvisioningError } from '@/lib/billing/enterprise-provisioni
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -27,9 +27,10 @@ export const POST = withRouteHandler(
     try {
       return singleResponse(await retryEnterpriseOwnerClaim(parsed.data.params.id))
     } catch (error) {
-      if (error instanceof EnterpriseProvisioningError) return badRequestResponse(error.message)
+      if (error instanceof EnterpriseProvisioningError)
+        return adminBadRequestResponse(error.message)
       logger.error('Failed to retry Enterprise owner invitation', { error })
-      return internalErrorResponse(getErrorMessage(error, 'Failed to retry owner invitation'))
+      return adminInternalErrorResponse(getErrorMessage(error, 'Failed to retry owner invitation'))
     }
   })
 )

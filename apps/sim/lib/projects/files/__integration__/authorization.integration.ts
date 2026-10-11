@@ -113,7 +113,6 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
 
 beforeEach(() => {
   featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
-  vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
 })
 
 function check(name: string, run: () => Promise<void>) {
@@ -251,12 +250,22 @@ afterAll(async () => {
     await db.delete(workspaceFiles).where(inArray(workspaceFiles.projectId, projectIds))
     await db.delete(folder).where(inArray(folder.projectId, projectIds))
     await deleteWorkspaceFixture(db, inArray(workspace.id, f.workspaces))
+    await db.delete(project).where(inArray(project.id, projectIds))
     await db.delete(organization).where(eq(organization.id, f.organizationId))
     await db.delete(user).where(inArray(user.id, f.users))
   }
 })
 
 describe('Project file authority at the database boundary', () => {
+  check('Project files follow the projects flag without a separate readiness switch', async () => {
+    const f = await fixture()
+    const request = { principal: f.reader, input: { projectId: f.projectId } }
+    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
+    await expect(readAccess.execute(request)).rejects.toMatchObject({ statusCode: 503 })
+    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
+    await expect(readAccess.execute(request)).resolves.toMatchObject({ projectId: f.projectId })
+  })
+
   check(
     'folder writes preserve hierarchy and attribution while enforcing writer authority',
     async () => {

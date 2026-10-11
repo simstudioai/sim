@@ -18,6 +18,7 @@ import type { Project } from '@/lib/api/contracts/projects'
 import { getChatResourceKey } from '@/lib/mothership/resources/types'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import {
+  COMPOSER_EXCLUDED_TYPES,
   ProjectResourceSubmenu,
   ResourceMenuSections,
   resourceFromItem,
@@ -89,11 +90,12 @@ function candidateKey({ type, item }: MentionCandidate): string {
 const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
 
 /**
- * Families an organization chat's workspace submenus leave out: the mention-only
- * ones, plus Browser and Terminal, which belong to this desktop rather than to a
- * workspace and so sit once after the workspaces.
+ * Families an organization chat's workspace submenus leave out: the composer's
+ * exclusions, the mention-only ones, plus Browser and Terminal, which belong to
+ * this desktop rather than to a workspace and so sit once after the workspaces.
  */
 const WORKSPACE_SUBMENU_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
+  ...COMPOSER_EXCLUDED_TYPES,
   ...MENTION_ONLY_RESOURCE_TYPES,
   'browser',
   'terminal',
@@ -167,10 +169,11 @@ export const PlusMenuDropdown = React.memo(
     const workspaceInventory = useAvailableResources(organizationId ? '' : workspaceId, {
       enabled: inventoryEnabled,
       includeFolderMentions: true,
+      excludeTypes: COMPOSER_EXCLUDED_TYPES,
     })
     const projectsEnabled = useFeatureFlag('projects')
-    const projectFilesEnabled = useFeatureFlag('project-files')
-    const projectSelectionEnabled = projectsEnabled && projectFilesEnabled
+
+    const projectSelectionEnabled = projectsEnabled
     const projectQuery = useProjectInventory(organizationId, inventoryEnabled && projectsEnabled)
     const projects =
       projectsEnabled && !projectQuery.isError
@@ -455,6 +458,7 @@ export const PlusMenuDropdown = React.memo(
             <OrganizationResourceInventory
               key={workspace.id}
               workspaceId={workspace.id}
+              excludeTypes={COMPOSER_EXCLUDED_TYPES}
               onChange={receiveInventory}
             />
           ))}

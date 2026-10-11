@@ -11,12 +11,8 @@ import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { changeProjectStoragePayersInTx } from '@/lib/billing/storage/payer-transfer'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import {
-  lockProjectBackfillWrites,
-  lockProjects,
-  ProjectConflictError,
-  tryLockProjects,
-} from '@/lib/projects/membership'
+import { ProjectConflictError } from '@/lib/projects/errors'
+import { lockProjectBackfillWrites, lockProjects, tryLockProjects } from '@/lib/projects/membership'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 
 /**
@@ -90,25 +86,23 @@ export async function listSharedResourceProjectIdsForUser(executor: DbOrTx, user
 }
 
 /** Validates the canonical Project owner rather than borrowing an environment's payer. */
-export async function handoffProjectCreatorReferencesTx(
-  tx: DbTransaction,
+export async function assertProjectCreatorSuccessor(
+  executor: DbOrTx,
   record: typeof project.$inferSelect,
   departingUserId: string,
-  environmentIds: string[]
+  environmentIds: string[],
+  hold: boolean
 ) {
   const successorId = record.ownerId
   if (successorId === departingUserId)
     throw new ProjectConflictError(
       'Project resources need a successor before this account can leave'
     )
-  const [successor] = await tx
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.id, successorId))
-    .for('key share')
+  const successorQuery = executor.select({ id: user.id }).from(user).where(eq(user.id, successorId))
+  const [successor] = await (hold ? successorQuery.for('key share') : successorQuery)
   if (!successor) throw new ProjectConflictError('Project successor changed; retry the operation')
-  const [admin] = record.organizationId
-    ? await tx
+  const adminQuery = record.organizationId
+    ? executor
         .select({ id: member.id })
         .from(member)
         .where(
@@ -118,11 +112,11 @@ export async function handoffProjectCreatorReferencesTx(
             inArray(member.role, ORG_ADMIN_ROLES)
           )
         )
-        .for('share')
-    : []
+    : null
+  const [admin] = adminQuery ? await (hold ? adminQuery.for('share') : adminQuery) : []
   if (!admin) {
-    const grants = environmentIds.length
-      ? await tx
+    const grantQuery = environmentIds.length
+      ? executor
           .select({ id: permissions.entityId })
           .from(permissions)
           .where(
@@ -133,13 +127,24 @@ export async function handoffProjectCreatorReferencesTx(
               inArray(permissions.entityId, environmentIds)
             )
           )
-          .for('share')
-      : []
+      : null
+    const grants = grantQuery ? await (hold ? grantQuery.for('share') : grantQuery) : []
     if (!environmentIds.length || grants.length !== environmentIds.length)
       throw new ProjectConflictError(
         'Project successor must administer every surviving environment'
       )
   }
+}
+
+/** Transfers creator references only after the canonical successor is held and validated. */
+export async function handoffProjectCreatorReferencesTx(
+  tx: DbTransaction,
+  record: typeof project.$inferSelect,
+  departingUserId: string,
+  environmentIds: string[]
+) {
+  await assertProjectCreatorSuccessor(tx, record, departingUserId, environmentIds, true)
+  const successorId = record.ownerId
   await handoffFileCreatorsInTx(
     tx,
     and(eq(workspaceFiles.projectId, record.id), eq(workspaceFiles.userId, departingUserId)),

@@ -880,7 +880,7 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
       {/* Surface a failed/pending fetch so the page never renders blank below the direction. */}
       {detailsError ? (
         <SettingsSection label='Sync details'>
-          <div className='text-[var(--text-error)] text-small'>{detailsError}</div>
+          <div className='text-[var(--text-muted)] text-small'>{detailsError}</div>
         </SettingsSection>
       ) : !controller.hasDiff ? (
         <div className='text-[var(--text-muted)] text-small'>Loading sync details…</div>

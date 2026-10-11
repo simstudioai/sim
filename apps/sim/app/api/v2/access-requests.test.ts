@@ -30,6 +30,12 @@ vi.mock('@/ee/access-requests/lib/application/requests', () => ({
   },
   createAccessRequest: { operation: { id: 'access_requests.create' }, execute: mocks.create },
   cancelAccessRequest: { operation: { id: 'access_requests.cancel' }, execute: mocks.cancel },
+  workspaceAccessRequestUseCases: {
+    discover: { operation: { id: 'access_requests.discover' }, execute: mocks.discover },
+    listMine: { operation: { id: 'access_requests.list_mine' }, execute: mocks.listMine },
+    create: { operation: { id: 'access_requests.create' }, execute: mocks.create },
+    cancel: { operation: { id: 'access_requests.cancel' }, execute: mocks.cancel },
+  },
   listOrganizationAccessRequests: {
     operation: { id: 'access_requests.list_organization' },
     execute: mocks.listOrganization,

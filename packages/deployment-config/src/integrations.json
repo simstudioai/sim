@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-08",
+  "updatedAt": "2026-10-09",
   "integrations": [
     {
       "type": "onepassword",
@@ -836,29 +836,6 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["spreadsheet", "automation"]
-    },
-    {
-      "type": "airweave",
-      "slug": "airweave",
-      "name": "Airweave",
-      "description": "Search your synced data collections",
-      "longDescription": "Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.",
-      "bgColor": "#6366F1",
-      "iconName": "AirweaveIcon",
-      "docsUrl": "https://docs.sim.ai/integrations/airweave",
-      "operations": [
-        {
-          "name": "Airweave Search",
-          "description": "Search your synced data collections using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results."
-        }
-      ],
-      "operationCount": 1,
-      "triggers": [],
-      "triggerCount": 0,
-      "authType": "api-key",
-      "category": "tools",
-      "integrationType": "search",
-      "tags": ["vector-search", "knowledge-base"]
     },
     {
       "type": "algolia",
@@ -4200,6 +4177,405 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "data-analytics"]
+    },
+    {
+      "type": "checkr",
+      "slug": "checkr",
+      "name": "Checkr",
+      "description": "Run and manage background checks with Checkr",
+      "longDescription": "Integrate Checkr into the workflow. Create and update candidates, send background check invitations, order and upgrade reports, read screening results and assessments, manage report tags, run the adverse action process, schedule recurring checks and continuous monitoring, look up packages, geos, nodes, programs, documents, and users, and react to report, invitation, candidate, verification, adverse action, and continuous check webhooks.",
+      "bgColor": "#009BB5",
+      "iconName": "CheckrIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/checkr",
+      "operations": [
+        {
+          "name": "List Candidates",
+          "description": "List candidates, optionally filtered by email, name, custom ID, adjudication, dates, geo, or program. Candidates with non-US work locations are not returned."
+        },
+        {
+          "name": "Get Candidate",
+          "description": "Retrieve a candidate by ID, including their report and geo IDs."
+        },
+        {
+          "name": "Create Candidate",
+          "description": "Create a candidate to screen. Only email is required when the candidate will be invited; ordering a report directly also needs name, date of birth, and the PII its package requires."
+        },
+        {
+          "name": "Update Candidate",
+          "description": "Update a candidate. Once a report is ordered only empty fields can change, except email, phone, previous driver license, copy requested, custom ID, and geo IDs."
+        },
+        {
+          "name": "Delete Candidate PII",
+          "description": "Request removal of a candidate's personally identifiable information. Fails if PII was already removed."
+        },
+        {
+          "name": "Invite Candidate",
+          "description": "Invite a candidate to complete a background check through the Checkr-hosted apply flow. Checkr emails the candidate a link to provide their information and consent."
+        },
+        {
+          "name": "List Invitations",
+          "description": "List invitations, optionally filtered by candidate or status."
+        },
+        {
+          "name": "Get Invitation",
+          "description": "Retrieve an invitation by ID, including its status and invitation URL."
+        },
+        {
+          "name": "Cancel Invitation",
+          "description": "Cancel a pending invitation so the candidate can no longer complete it."
+        },
+        {
+          "name": "Order Report",
+          "description": "Order a background check report for a candidate using a package. Use only when you collect the candidate’s PII and consent yourself; otherwise create an invitation. Packages with international screenings must use invitations."
+        },
+        {
+          "name": "Get Report",
+          "description": "Retrieve a report by ID, including its status, result, adjudication, and the IDs of each screening it ran."
+        },
+        {
+          "name": "Update Report",
+          "description": "Upgrade a report to a different package or mark it as engaged. Provide a package, an adjudication, or both."
+        },
+        {
+          "name": "Complete Report",
+          "description": "Complete a report now, canceling any pending or suspended screenings. Canceled screenings record a cancellation reason."
+        },
+        {
+          "name": "Get Report ETA",
+          "description": "Retrieve the estimated completion date for a report."
+        },
+        {
+          "name": "Get Report Checkpoints",
+          "description": "Retrieve checkpoint progress for an Enterprise Progressive report, including which checkpoint is waiting on a review action."
+        },
+        {
+          "name": "Apply Report Review Action",
+          "description": "Continue or skip the remaining screenings on a report that is paused awaiting a review action."
+        },
+        {
+          "name": "Get Report Tags",
+          "description": "List the tags on a report."
+        },
+        {
+          "name": "Add Report Tag",
+          "description": "Add a tag to a report, keeping its existing tags."
+        },
+        {
+          "name": "Set Report Tags",
+          "description": "Replace all tags on a report with the given list. Pass [] to remove every tag."
+        },
+        {
+          "name": "Remove Report Tag",
+          "description": "Remove a tag from a report."
+        },
+        {
+          "name": "List Adverse Items",
+          "description": "List the adverse items on a report that can be cited in an adverse action. The report must have a consider result and no active adverse action."
+        },
+        {
+          "name": "List Assessments",
+          "description": "List the Assess results for a report, including the ruleset applied and which rule flagged each record. Requires Checkr Assess."
+        },
+        {
+          "name": "List Verifications",
+          "description": "List the verifications on a report, such as requests for the candidate to confirm their SSN or upload an ID."
+        },
+        {
+          "name": "Get Verification",
+          "description": "Retrieve a verification by ID."
+        },
+        {
+          "name": "List Report Addresses",
+          "description": "List the address history found for a report."
+        },
+        {
+          "name": "Get Screening",
+          "description": "Retrieve the results of one screening in a report, such as an SSN trace, county criminal search, or motor vehicle report. Get the screening ID from the report."
+        },
+        {
+          "name": "Create Adverse Action",
+          "description": "Start the adverse action process on a report by sending the pre-adverse action notice. The report must have a consider result and no active adverse action."
+        },
+        {
+          "name": "List Adverse Actions",
+          "description": "List the adverse actions for a report, optionally filtered by context."
+        },
+        {
+          "name": "Get Adverse Action",
+          "description": "Retrieve an adverse action by ID, including its status and notice delivery state."
+        },
+        {
+          "name": "Cancel Adverse Action",
+          "description": "Cancel an adverse action so the post-adverse action notice is not sent."
+        },
+        {
+          "name": "List Packages",
+          "description": "List the background check packages on the account, with their slugs, prices, and included screenings."
+        },
+        {
+          "name": "Get Package",
+          "description": "Retrieve a package by ID, including its slug, price, and screenings."
+        },
+        {
+          "name": "List Geos",
+          "description": "List geos (work locations used for compliance), optionally filtered by name or state."
+        },
+        {
+          "name": "Get Geo",
+          "description": "Retrieve a geo by ID."
+        },
+        {
+          "name": "Create Geo",
+          "description": "Create a geo to group candidates by work location. A geo with the same name and state already existing returns an error."
+        },
+        {
+          "name": "Update Geo",
+          "description": "Add a city to a geo. A geo’s city can only be set once."
+        },
+        {
+          "name": "Delete Geo",
+          "description": "Delete a geo."
+        },
+        {
+          "name": "List Nodes",
+          "description": "List the nodes in the account hierarchy. Hierarchy-enabled accounts need a node custom ID to order reports and invitations."
+        },
+        {
+          "name": "Get Node",
+          "description": "Retrieve an account hierarchy node by its custom ID."
+        },
+        {
+          "name": "List Programs",
+          "description": "List programs, which group packages and geos, optionally filtered by name."
+        },
+        {
+          "name": "Get Program",
+          "description": "Retrieve a program by ID, including its package and geo IDs."
+        },
+        {
+          "name": "List Counties",
+          "description": "List US counties for one or more states, with their FIPS codes. Use the county names in report self-disclosures."
+        },
+        {
+          "name": "Schedule Recurring Check",
+          "description": "Schedule a recurring background check for a candidate, running a package every interval starting on a date."
+        },
+        {
+          "name": "List Subscriptions",
+          "description": "List recurring check subscriptions, optionally filtered by candidate, status, or creation date."
+        },
+        {
+          "name": "Get Subscription",
+          "description": "Retrieve a subscription by ID, including its schedule and next occurrence."
+        },
+        {
+          "name": "Update Subscription",
+          "description": "Change the package, schedule, node, or work locations of a subscription."
+        },
+        {
+          "name": "Cancel Subscription",
+          "description": "Cancel a subscription so no further recurring checks run."
+        },
+        {
+          "name": "Create Continuous Check",
+          "description": "Enroll a candidate in continuous criminal or motor vehicle monitoring so new records trigger a report."
+        },
+        {
+          "name": "List Continuous Checks",
+          "description": "List the continuous checks a candidate is enrolled in."
+        },
+        {
+          "name": "Get Continuous Check",
+          "description": "Retrieve a continuous check by ID."
+        },
+        {
+          "name": "Update Continuous Check",
+          "description": "Change the node or work locations of a continuous check."
+        },
+        {
+          "name": "Cancel Continuous Check",
+          "description": "Cancel a continuous check to stop monitoring the candidate."
+        },
+        {
+          "name": "List Candidate Documents",
+          "description": "List documents a candidate provided, such as driver licenses and consent forms. Download links expire after 15 minutes."
+        },
+        {
+          "name": "Get Document",
+          "description": "Retrieve a report or candidate document by ID, including a download link valid for 15 minutes."
+        },
+        {
+          "name": "Get Account",
+          "description": "Retrieve the authenticated Checkr account, including whether it is authorized to order checks and which screenings are available."
+        },
+        {
+          "name": "List Users",
+          "description": "List the users on the Checkr account and their roles."
+        }
+      ],
+      "operationCount": 56,
+      "triggers": [
+        {
+          "id": "checkr_report_completed",
+          "name": "Checkr Report Completed",
+          "description": "Trigger workflow when a report is completed"
+        },
+        {
+          "id": "checkr_report_created",
+          "name": "Checkr Report Created",
+          "description": "Trigger workflow when a report is created"
+        },
+        {
+          "id": "checkr_report_updated",
+          "name": "Checkr Report Updated",
+          "description": "Trigger workflow when a report is updated, such as an ETA change or drug screening update"
+        },
+        {
+          "id": "checkr_report_upgraded",
+          "name": "Checkr Report Upgraded",
+          "description": "Trigger workflow when a report is upgraded to another package"
+        },
+        {
+          "id": "checkr_report_suspended",
+          "name": "Checkr Report Suspended",
+          "description": "Trigger workflow when a report is suspended awaiting candidate documentation"
+        },
+        {
+          "id": "checkr_report_resumed",
+          "name": "Checkr Report Resumed",
+          "description": "Trigger workflow when a suspended report resumes"
+        },
+        {
+          "id": "checkr_report_paused",
+          "name": "Checkr Report Paused",
+          "description": "Trigger workflow when a report pauses awaiting a review action"
+        },
+        {
+          "id": "checkr_report_canceled",
+          "name": "Checkr Report Canceled",
+          "description": "Trigger workflow when a report is canceled"
+        },
+        {
+          "id": "checkr_report_disputed",
+          "name": "Checkr Report Disputed",
+          "description": "Trigger workflow when a candidate disputes a report"
+        },
+        {
+          "id": "checkr_report_dispute_completed",
+          "name": "Checkr Report Dispute Completed",
+          "description": "Trigger workflow when a report dispute is resolved"
+        },
+        {
+          "id": "checkr_report_engaged",
+          "name": "Checkr Report Engaged",
+          "description": "Trigger workflow when a report is adjudicated as engaged"
+        },
+        {
+          "id": "checkr_invitation_created",
+          "name": "Checkr Invitation Created",
+          "description": "Trigger workflow when an invitation is created"
+        },
+        {
+          "id": "checkr_invitation_completed",
+          "name": "Checkr Invitation Completed",
+          "description": "Trigger workflow when a candidate completes an invitation"
+        },
+        {
+          "id": "checkr_invitation_expired",
+          "name": "Checkr Invitation Expired",
+          "description": "Trigger workflow when an invitation expires"
+        },
+        {
+          "id": "checkr_invitation_deleted",
+          "name": "Checkr Invitation Canceled",
+          "description": "Trigger workflow when an invitation is canceled"
+        },
+        {
+          "id": "checkr_candidate_created",
+          "name": "Checkr Candidate Created",
+          "description": "Trigger workflow when a candidate is created"
+        },
+        {
+          "id": "checkr_candidate_updated",
+          "name": "Checkr Candidate Updated",
+          "description": "Trigger workflow when a candidate is updated"
+        },
+        {
+          "id": "checkr_adverse_action_created",
+          "name": "Checkr Adverse Action Created",
+          "description": "Trigger workflow when an adverse action is created"
+        },
+        {
+          "id": "checkr_adverse_action_completed",
+          "name": "Checkr Adverse Action Completed",
+          "description": "Trigger workflow when the post-adverse action notice is sent"
+        },
+        {
+          "id": "checkr_adverse_action_canceled",
+          "name": "Checkr Adverse Action Canceled",
+          "description": "Trigger workflow when an adverse action is canceled"
+        },
+        {
+          "id": "checkr_adverse_action_notice_not_delivered",
+          "name": "Checkr Adverse Action Notice Not Delivered",
+          "description": "Trigger workflow when an adverse action notice cannot be delivered"
+        },
+        {
+          "id": "checkr_verification_created",
+          "name": "Checkr Verification Created",
+          "description": "Trigger workflow when a candidate is asked to verify information or upload a document"
+        },
+        {
+          "id": "checkr_verification_completed",
+          "name": "Checkr Verification Completed",
+          "description": "Trigger workflow when a candidate completes a verification"
+        },
+        {
+          "id": "checkr_verification_processed",
+          "name": "Checkr Verification Processed",
+          "description": "Trigger workflow when a verification is processed and a decision is made"
+        },
+        {
+          "id": "checkr_continuous_check_subscription_error",
+          "name": "Checkr Continuous Check Enrollment Error",
+          "description": "Trigger workflow when enrolling a candidate in Continuous MVR fails"
+        },
+        {
+          "id": "checkr_continuous_check_confirmation_required",
+          "name": "Checkr Continuous Check Confirmation Required",
+          "description": "Trigger workflow when a candidate is unenrolled from Continuous MVR and must be re-enrolled"
+        },
+        {
+          "id": "checkr_report_pre_adverse_action",
+          "name": "Checkr Report Pre-Adverse Action Sent",
+          "description": "Trigger workflow when the pre-adverse action notice for a report is sent"
+        },
+        {
+          "id": "checkr_report_post_adverse_action",
+          "name": "Checkr Report Post-Adverse Action Sent",
+          "description": "Trigger workflow when the post-adverse action notice for a report is sent"
+        },
+        {
+          "id": "checkr_adverse_action_paused",
+          "name": "Checkr Adverse Action Paused",
+          "description": "Trigger workflow when delivery of a post-adverse action notice is paused"
+        },
+        {
+          "id": "checkr_adverse_action_resumed",
+          "name": "Checkr Adverse Action Resumed",
+          "description": "Trigger workflow when a paused adverse action resumes"
+        },
+        {
+          "id": "checkr_webhook",
+          "name": "Checkr All Events",
+          "description": "Trigger workflow on any Checkr event"
+        }
+      ],
+      "triggerCount": 31,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "hr",
+      "tags": ["hiring", "identity", "webhooks"]
     },
     {
       "type": "circleback",
@@ -15708,7 +16084,7 @@
       "name": "Microsoft Intune",
       "description": "Manage devices, application inventory, and compliance with Microsoft Intune",
       "longDescription": "Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account and an active Intune tenant license. Remote actions depend on device platform and the connected administrator’s Intune permissions.",
-      "bgColor": "#0078D4",
+      "bgColor": "#FFFFFF",
       "iconName": "IntuneIcon",
       "docsUrl": "https://docs.sim.ai/integrations/intune",
       "operations": [
@@ -23423,7 +23799,7 @@
       "slug": "shopify",
       "name": "Shopify",
       "description": "Manage products, orders, customers, and inventory in your Shopify store",
-      "longDescription": "Integrate Shopify into your workflow. Manage products, orders, customers, and inventory. Create, read, update, and delete products. List and manage orders. Handle customer data and adjust inventory levels.",
+      "longDescription": "Manage Shopify products and variants, orders, customers, inventory, collections, and merchant-managed fulfillment using Admin GraphQL API 2026-10. Discover fulfillment orders, ship selected items, update tracking, and check cancellation jobs. Continue list and nested results with the returned cursors. Product activation does not publish to sales channels. Orders normally cover the last 60 days; older orders and protected customer fields require Shopify approval and access. Expanded list details are optional and use smaller pages to stay within query-cost limits. Expanded order-update responses are opt-in and require product, protected-address, and fulfillment access.",
       "bgColor": "#FFFFFF",
       "iconName": "ShopifyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/shopify",
@@ -23502,18 +23878,46 @@
         },
         {
           "name": "Create Fulfillment",
-          "description": "Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (get this from the order details)."
+          "description": "Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (use List Fulfillment Orders to find it)."
         },
         {
           "name": "List Collections",
           "description": "List product collections from your Shopify store. Filter by title, type (custom/smart), or handle."
         },
         {
+          "name": "List Fulfillment Orders",
+          "description": "Find fulfillment order IDs and remaining items for an order at merchant-managed locations"
+        },
+        {
+          "name": "Get Fulfillment Order",
+          "description": "Read a fulfillment order and one page of line items for partial fulfillment"
+        },
+        {
+          "name": "Get Job",
+          "description": "Read Shopify job progress or the outcome and errors of an order cancellation"
+        },
+        {
+          "name": "Create Product Variants",
+          "description": "Create product variants with pricing, options, inventory attributes, and metafields"
+        },
+        {
+          "name": "Update Product Variants",
+          "description": "Update product variants with pricing, options, inventory attributes, and metafields"
+        },
+        {
+          "name": "Get Fulfillment",
+          "description": "Read shipment tracking and one page of fulfilled line items"
+        },
+        {
+          "name": "Update Fulfillment Tracking",
+          "description": "Update tracking numbers, URLs, or carrier for an existing fulfillment"
+        },
+        {
           "name": "Get Collection",
           "description": "Get a specific collection by ID, including its products. Use this to retrieve products within a collection."
         }
       ],
-      "operationCount": 21,
+      "operationCount": 28,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

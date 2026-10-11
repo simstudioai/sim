@@ -402,12 +402,16 @@ export const v2CreateCredentialConnectionContract = defineRouteContract({
   },
 })
 
+const MAX_SERVICE_ACCOUNT_JSON_CHARS = 2 * 1024 * 1024
+// JSON escaping can double the configuration; retain room for the other credential fields.
+const MAX_CREDENTIALS_JSON_CHARS = 2 * MAX_SERVICE_ACCOUNT_JSON_CHARS + 128 * 1024
+
 const v2ServiceAccountCredentialFieldsSchema = z
   .object({
     serviceAccountJson: z
       .string()
       .min(1)
-      .max(2 * 1024 * 1024)
+      .max(MAX_SERVICE_ACCOUNT_JSON_CHARS)
       .optional()
       .describe(
         'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
@@ -501,7 +505,10 @@ type V2ServiceAccountCredentialFields = z.output<typeof v2ServiceAccountCredenti
 const v2ServiceAccountCredentialsJsonSchema = z
   .string({ error: missingFieldError('credentials is required') })
   .min(1, 'credentials cannot be empty')
-  .max(131_072, 'credentials must be at most 131072 characters')
+  .max(
+    MAX_CREDENTIALS_JSON_CHARS,
+    `credentials must be at most ${MAX_CREDENTIALS_JSON_CHARS} characters`
+  )
   .describe(
     'Write-only JSON object string containing the fields declared by credential-provider discovery.'
   )
@@ -674,7 +681,7 @@ const v2ServiceAccountSecretFieldsShape = {
   serviceAccountJson: z
     .string()
     .min(1)
-    .max(2 * 1024 * 1024)
+    .max(MAX_SERVICE_ACCOUNT_JSON_CHARS)
     .optional()
     .describe(
       'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'

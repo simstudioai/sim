@@ -4,7 +4,8 @@
 import { act, type ReactNode } from 'react'
 import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createRoot, type Root } from 'react-dom/client'
+import { createRoot, hydrateRoot, type Root } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
@@ -31,6 +32,26 @@ function selectionPayload(context: ChatContext, sourceWorkspaceId = 'ws-1'): str
  * `textareaRef` so selection/caret-driven behavior (`handleSelectAdjust`,
  * `syncMentionState`) runs exactly as it does in the rendered `PromptEditor`.
  */
+function Wrapper({ children, queryClient }: { children: ReactNode; queryClient: QueryClient }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <FeatureFlagsProvider
+        flags={{
+          projects: false,
+
+          dashboards: false,
+          'workflow-tests': false,
+          changelog: false,
+          'mothership-model-selector': false,
+          'mothership-plan-mode': false,
+        }}
+      >
+        {children}
+      </FeatureFlagsProvider>
+    </QueryClientProvider>
+  )
+}
+
 function renderPromptEditor(props: UsePromptEditorProps) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const container = document.createElement('div')
@@ -46,28 +67,9 @@ function renderPromptEditor(props: UsePromptEditorProps) {
     return null
   }
 
-  function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <FeatureFlagsProvider
-          flags={{
-            projects: false,
-            'project-files': false,
-            dashboards: false,
-            'table-row-ttl': false,
-            'mothership-model-selector': false,
-            'mothership-plan-mode': false,
-          }}
-        >
-          {children}
-        </FeatureFlagsProvider>
-      </QueryClientProvider>
-    )
-  }
-
   act(() => {
     root.render(
-      <Wrapper>
+      <Wrapper queryClient={queryClient}>
         <Probe />
       </Wrapper>
     )
@@ -477,5 +479,101 @@ it('inserts a canonical built-in skill globally without inheriting a workspace',
     ])
   } finally {
     unmount()
+  }
+})
+
+it('keeps text typed into the server-rendered textarea before hydration', () => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  let latest: ReturnType<typeof usePromptEditor> | undefined
+  function Editor({ revision }: { revision: number }) {
+    const editor = usePromptEditor({ workspaceId: 'ws-1' })
+    latest = editor
+    return (
+      <textarea
+        ref={editor.textareaRef}
+        value={editor.value}
+        onChange={editor.handleInputChange}
+        data-revision={revision}
+      />
+    )
+  }
+  const container = document.createElement('div')
+  container.innerHTML = renderToString(
+    <Wrapper queryClient={queryClient}>
+      <Editor revision={0} />
+    </Wrapper>
+  )
+  document.body.appendChild(container)
+  const textarea = container.querySelector('textarea')
+  if (!textarea) throw new Error('The server must render the textarea')
+  textarea.value = 'Typed while the page loaded'
+  let root: Root | undefined
+  try {
+    act(() => {
+      root = hydrateRoot(
+        container,
+        <Wrapper queryClient={queryClient}>
+          <Editor revision={0} />
+        </Wrapper>
+      )
+    })
+    act(() =>
+      root?.render(
+        <Wrapper queryClient={queryClient}>
+          <Editor revision={1} />
+        </Wrapper>
+      )
+    )
+    expect(latest?.getValue()).toBe('Typed while the page loaded')
+    expect(textarea.value).toBe('Typed while the page loaded')
+  } finally {
+    act(() => root?.unmount())
+    container.remove()
+  }
+})
+
+it('re-chipifies a seeded draft once skills load', () => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  const skill = {
+    id: 'review',
+    workspaceId: 'ws-1',
+    userId: null,
+    name: 'Review',
+    description: '',
+    content: '',
+    canEdit: false,
+    createdAt: '',
+    updatedAt: '',
+  }
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  let latest: ReturnType<typeof usePromptEditor> | undefined
+  function Editor({ skills }: { skills: (typeof skill)[] }) {
+    latest = usePromptEditor({ workspaceId: 'ws-1', availableSkills: skills })
+    return null
+  }
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    act(() =>
+      root.render(
+        <Wrapper queryClient={queryClient}>
+          <Editor skills={[]} />
+        </Wrapper>
+      )
+    )
+    act(() => latest?.setValue('/Review the draft', { seed: true }))
+    act(() =>
+      root.render(
+        <Wrapper queryClient={queryClient}>
+          <Editor skills={[skill]} />
+        </Wrapper>
+      )
+    )
+    expect(latest?.getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'review', label: 'Review' },
+    ])
+  } finally {
+    act(() => root.unmount())
   }
 })

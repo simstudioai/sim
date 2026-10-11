@@ -16,7 +16,7 @@ import {
   logProjectionSubjectUserId,
   projectCostTotal,
   resolveLogFieldProjection,
-} from '@/lib/logs/log-projection'
+} from '@/lib/logs/projection'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   type ActiveWorkspaceApplicationContext,

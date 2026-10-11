@@ -4,7 +4,7 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowUtils')
 
-export function createErrorResponse(error: string, status: number, code?: string) {
+export function createCodedErrorResponse(error: string, status: number, code?: string) {
   return NextResponse.json(
     {
       error,

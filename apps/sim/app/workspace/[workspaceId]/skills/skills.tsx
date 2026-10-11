@@ -102,7 +102,7 @@ export function Skills() {
 
           <div className='flex flex-col gap-7'>
             {error ? (
-              <SettingsEmptyState variant='inline' tone='error'>
+              <SettingsEmptyState variant='inline'>
                 {getErrorMessage(error, 'Failed to load skills')}
               </SettingsEmptyState>
             ) : filteredSkills.length > 0 ? (

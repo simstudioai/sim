@@ -96,11 +96,12 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
         ended_at timestamp, seats integer, trial_start timestamp, trial_end timestamp,
         billing_interval text, stripe_schedule_id text, metadata json, last_closed_period_start timestamp);
       CREATE TABLE project (id text PRIMARY KEY, owner_id text NOT NULL, organization_id text,
+        organization_scope_key text GENERATED ALWAYS AS (CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END) STORED,
         name text NOT NULL DEFAULT 'Project', created_at timestamp NOT NULL DEFAULT now(),
         archived_at timestamp, updated_at timestamp NOT NULL DEFAULT now());
       CREATE TABLE workspace (id text PRIMARY KEY, billed_account_user_id text NOT NULL,
         owner_id text NOT NULL DEFAULT 'user-a', archived_at timestamp, updated_at timestamp DEFAULT now(),
-        organization_id text, project_id text NOT NULL REFERENCES project(id), storage_used_bytes bigint NOT NULL DEFAULT 0);
+        project_id text NOT NULL REFERENCES project(id), organization_id text, storage_used_bytes bigint NOT NULL DEFAULT 0);
       CREATE TABLE permissions (id text PRIMARY KEY, user_id text NOT NULL, entity_type text NOT NULL,
         entity_id text NOT NULL, permission_type text NOT NULL);
       CREATE TABLE permission_group (id text PRIMARY KEY, organization_id text,
@@ -137,8 +138,8 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
     await sql`INSERT INTO user_stats (id, user_id) VALUES ('stats-a', 'user-a'), ('stats-b', 'user-b')`
     await sql`INSERT INTO project (id, owner_id, organization_id)
       VALUES ('project-a', 'user-a', 'organization-a'), ('project-b', 'user-a', 'organization-a')`
-    await sql`INSERT INTO workspace (id, project_id, billed_account_user_id, organization_id)
-      VALUES ('workspace-a', 'project-a', 'user-a', 'organization-a')`
+    await sql`INSERT INTO workspace (id, billed_account_user_id, project_id, organization_id)
+      VALUES ('workspace-a', 'user-a', 'project-a', 'organization-a')`
   })
 
   afterAll(async () => {
@@ -616,7 +617,6 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
   check(
     'a workspace payer transfer waits for prepared finalization and moves its committed head once',
     async () => {
-      await sql`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('project-a', 'workspace-a')`
       const written = createDeferred<void>()
       const release = createDeferred<void>()
       const waiting = createDeferred<number>()

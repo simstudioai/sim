@@ -21,9 +21,9 @@ export function isStorableImportName(name: string): boolean {
   )
 }
 
-/** Native desktop file operations use OS permissions and canonical pending chat calls. */
+/** Native desktop file operations require local consent and canonical pending chat calls. */
 export type DesktopLocalFileRequest =
-  | { operation: 'read' | 'manifest'; toolCallId: string }
+  | { operation: 'read' | 'manifest' | 'cancel'; toolCallId: string }
   | {
       operation: 'chunk'
       toolCallId: string

@@ -25,7 +25,6 @@ import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/st
 const mocks = vi.hoisted(() => ({
   plan: false,
   projects: true,
-  projectFiles: true,
   resourcePanel: vi.fn(),
   chat: vi.fn(),
   composer: vi.fn(),
@@ -43,13 +42,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
   useFeatureFlag: (name: string) =>
-    name === 'mothership-plan-mode'
-      ? mocks.plan
-      : name === 'projects'
-        ? mocks.projects
-        : name === 'project-files'
-          ? mocks.projectFiles
-          : false,
+    name === 'mothership-plan-mode' ? mocks.plan : name === 'projects' ? mocks.projects : false,
 }))
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
@@ -116,7 +109,6 @@ let container: HTMLDivElement
 beforeEach(() => {
   useMothershipDraftsStore.setState({ drafts: {} })
   mocks.projects = true
-  mocks.projectFiles = true
   mocks.plan = false
   mocks.activeResource = null
   mockSession.mockReturnValue({ data: { user: { id: 'reader' } } })
@@ -239,35 +231,27 @@ it('isolates saved drafts by user, organization, and conversation', async () => 
   expect(composerProps().value).toBe('')
 })
 
-it.each([
-  [false, true],
-  [true, false],
-  [false, false],
-])(
-  'does not look up saved Project references with flags projects=%s, files=%s',
-  async (projects, projectFiles) => {
-    mocks.projects = projects
-    mocks.projectFiles = projectFiles
-    vi.spyOn(toast, 'error').mockReturnValue('lookup-error')
-    const requests: unknown[] = []
-    const resources: unknown[] = []
-    vi.stubGlobal('fetch', async (input: unknown) => {
-      requests.push(input)
-      throw new Error('Project lookup is disabled')
+it.each([false])('does not look up saved Project references with projects=%s', async (projects) => {
+  mocks.projects = projects
+  vi.spyOn(toast, 'error').mockReturnValue('lookup-error')
+  const requests: unknown[] = []
+  const resources: unknown[] = []
+  vi.stubGlobal('fetch', async (input: unknown) => {
+    requests.push(input)
+    throw new Error('Project lookup is disabled')
+  })
+  mocks.addResource.mockImplementation((resource: unknown) => resources.push(resource))
+  await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
+  const selectResource = mocks.renderer.mock.lastCall?.[0].onWorkspaceResourceSelect
+  if (!selectResource) throw new Error('Chat resource selection is unavailable')
+  await act(async () =>
+    selectResource({
+      type: 'file',
+      id: 'file-a',
+      title: 'Saved Project file',
+      owner: { entityType: 'project', entityId: 'project-a' },
     })
-    mocks.addResource.mockImplementation((resource: unknown) => resources.push(resource))
-    await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
-    const selectResource = mocks.renderer.mock.lastCall?.[0].onWorkspaceResourceSelect
-    if (!selectResource) throw new Error('Chat resource selection is unavailable')
-    await act(async () =>
-      selectResource({
-        type: 'file',
-        id: 'file-a',
-        title: 'Saved Project file',
-        owner: { entityType: 'project', entityId: 'project-a' },
-      })
-    )
-    expect(requests).toEqual([])
-    expect(resources).toEqual([])
-  }
-)
+  )
+  expect(requests).toEqual([])
+  expect(resources).toEqual([])
+})

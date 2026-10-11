@@ -18,6 +18,7 @@ import { useLogsList } from '@/hooks/queries/logs'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useProjectFileInventory, useWorkspaceProject } from '@/hooks/queries/project-files'
 import { useTablesList } from '@/hooks/queries/tables'
+import { useWorkflowTests } from '@/hooks/queries/workflow-tests'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
@@ -30,6 +31,12 @@ export const BROWSER_LAUNCHER_ID = 'browser'
 
 /** Placeholder id for the Terminal launcher row; the shell the desktop app opens becomes the tab. */
 export const TERMINAL_LAUNCHER_ID = 'terminal'
+
+/**
+ * Families the chat composer cannot attach: they open as resource tabs but have no chat
+ * context. Sim reads a test through its file, `tests/<name>.test.js`.
+ */
+export const COMPOSER_EXCLUDED_TYPES: readonly MothershipResourceType[] = ['test']
 
 export interface AvailableItemsByType {
   type: MothershipResourceType
@@ -100,11 +107,12 @@ export function useAvailableResources(
   options?: UseAvailableResourcesOptions
 ): AvailableResources {
   const dashboardsEnabled = useFeatureFlag('dashboards')
-  const projectFilesEnabled = useFeatureFlag('project-files')
+  const projectsEnabled = useFeatureFlag('projects')
+  const testsEnabled = useFeatureFlag('workflow-tests')
   const enabled = options?.enabled ?? true
   const excludeTypes = options?.excludeTypes
   const projectEnabled =
-    projectFilesEnabled &&
+    projectsEnabled &&
     enabled &&
     options?.includeProjectFiles !== false &&
     Boolean(workspaceId) &&
@@ -135,6 +143,9 @@ export function useAvailableResources(
   })
   const { data: dashboardData, isPending: dashboardsPending } = useWorkspaceDashboard(workspaceId, {
     enabled: enabled && dashboardsEnabled && !excludeTypes?.includes('dashboard'),
+  })
+  const { data: tests, isPending: testsPending } = useWorkflowTests(workspaceId, {
+    enabled: enabled && testsEnabled && !excludeTypes?.includes('test'),
   })
   const { data: files, isPending: filesPending } = useWorkspaceFiles(workspaceId, 'active', {
     enabled: enabled && Boolean(workspaceId),
@@ -188,6 +199,7 @@ export function useAvailableResources(
       filesPending ||
       (projectEnabled && (parent.isPending || (Boolean(project) && projectInventory.isPending))) ||
       (dashboardsEnabled && !excludeTypes?.includes('dashboard') && dashboardsPending) ||
+      (testsEnabled && !excludeTypes?.includes('test') && testsPending) ||
       knowledgeBasesPending ||
       foldersPending ||
       (options?.includeFolderMentions &&
@@ -201,6 +213,7 @@ export function useAvailableResources(
     if (!enabled) return NO_RESOURCE_GROUPS
     const excluded = new Set<MothershipResourceType>(excludeTypes ?? [])
     if (!dashboardsEnabled) excluded.add('dashboard')
+    if (!testsEnabled) excluded.add('test')
     const groups: AvailableItemsByType[] = [
       {
         type: 'workflow' as const,
@@ -233,6 +246,10 @@ export function useAvailableResources(
         items: dashboardData?.dashboard
           ? [{ id: dashboardData.dashboard.id, name: dashboardData.dashboard.name, folderId: null }]
           : [],
+      },
+      {
+        type: 'test' as const,
+        items: (tests ?? []).map((test) => ({ id: test.name, name: test.title, folderId: null })),
       },
       {
         type: 'file' as const,
@@ -343,11 +360,13 @@ export function useAvailableResources(
     projectItems,
     projectRootId,
     dashboardData,
+    tests,
     knowledgeBases,
     tasks,
     logs,
     excludeTypes,
     dashboardsEnabled,
+    testsEnabled,
   ])
 
   /**

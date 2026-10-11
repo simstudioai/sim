@@ -1,10 +1,10 @@
 import { notFound, redirect } from 'next/navigation'
 import { internalSessionAuth } from '@/lib/api/server/routes'
 import { getSession } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { getProject } from '@/lib/projects/application/use-cases'
 import { getProjectFileMetadata } from '@/lib/projects/files/application'
-import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
 
 interface ProjectFilePageProps {
   params: Promise<{ projectId: string; fileId: string }>
@@ -12,7 +12,7 @@ interface ProjectFilePageProps {
 
 /** Resolves a durable Project link into an environment the current viewer can access. */
 export default async function ProjectFilePage({ params }: ProjectFilePageProps) {
-  if (!(await isProjectFileApiEnabled())) notFound()
+  if (!(await isFeatureEnabled('projects'))) notFound()
   const { projectId, fileId } = await params
   if (!(await getSession())?.user) {
     const destination = `/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(fileId)}`

@@ -3,11 +3,8 @@ import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { toRecord } from '@sim/utils/object'
 import { and, desc, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
-import {
-  listSearchSourcesContract,
-  searchSourceCursorSchema,
-} from '@/lib/api/contracts/knowledge/connectors'
-import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
+import { searchSourceCursorSchema } from '@/lib/api/contracts/knowledge/connectors'
+import { type CursorScopeRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
@@ -24,6 +21,8 @@ import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { getConnectorMeta } from '@/connectors/registry'
 
 export interface ListSearchSourcesInput extends ResourceOwner {
+  /** The list endpoint the adapter's cursors belong to; binds every cursor to it. */
+  cursorRoute: CursorScopeRoute
   cursor?: string
   connectorId?: string
   connectorType?: string
@@ -41,7 +40,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
     const search = input.search?.trim().toLowerCase() ?? ''
     const connectorType = input.connectorType?.trim()
     const excludeConnectorType = input.excludeConnectorType?.trim()
-    const cursorScope = cursorScopeKey(cursorRoute(listSearchSourcesContract), {
+    const cursorScope = cursorScopeKey(input.cursorRoute, {
       workspaceId: context.workspaceId,
       organizationId: context.organizationId,
       userId: userId,

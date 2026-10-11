@@ -206,10 +206,9 @@ describe('table row writes against real PostgreSQL', () => {
     await control`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
       VALUES (${userId}, 'Row write fixture', ${`${userId}@example.test`}, true, now(), now())`
     await control.begin(async (tx) => {
-      await tx`INSERT INTO workspace (id, name, owner_id, billed_account_user_id)
-      VALUES (${workspaceId}, 'Row write fixtures', ${userId}, ${userId})`
       await tx`INSERT INTO project (id, name, owner_id) VALUES (${workspaceId}, 'Fixture project', ${userId})`
-      await tx`INSERT INTO project_workspace (project_id, workspace_id) VALUES (${workspaceId}, ${workspaceId})`
+      await tx`INSERT INTO workspace (id, project_id, name, owner_id, billed_account_user_id)
+        VALUES (${workspaceId}, ${workspaceId}, 'Row write fixtures', ${userId}, ${userId})`
     })
   })
 

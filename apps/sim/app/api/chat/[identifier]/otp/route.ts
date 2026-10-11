@@ -26,7 +26,7 @@ import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { setChatAuthCookie } from '@/app/api/chat/utils'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { createCodedErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatOtpAPI')
 
@@ -93,7 +93,10 @@ export const POST = withRouteHandler(
           const retryAfter = Math.ceil(
             (ipRateLimit.retryAfterMs ?? OTP_IP_RATE_LIMIT.refillIntervalMs) / 1000
           )
-          const response = createErrorResponse('Too many requests. Please try again later.', 429)
+          const response = createCodedErrorResponse(
+            'Too many requests. Please try again later.',
+            429
+          )
           response.headers.set('Retry-After', String(retryAfter))
           return response
         }
@@ -101,7 +104,7 @@ export const POST = withRouteHandler(
 
       const parsed = await parseRequest(requestChatEmailOtpContract, request, context, {
         validationErrorResponse: (error) =>
-          createErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
+          createCodedErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
       })
       if (!parsed.success) return parsed.response
       const email = normalizeEmail(parsed.data.body.email)
@@ -121,13 +124,13 @@ export const POST = withRouteHandler(
 
       if (deploymentResult.length === 0) {
         logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
-        return createErrorResponse('Chat not found', 404)
+        return createCodedErrorResponse('Chat not found', 404)
       }
 
       const deployment = deploymentResult[0]
 
       if (deployment.authType !== 'email') {
-        return createErrorResponse('This chat does not use email authentication', 400)
+        return createCodedErrorResponse('This chat does not use email authentication', 400)
       }
 
       const allowedEmails: string[] = Array.isArray(deployment.allowedEmails)
@@ -142,7 +145,7 @@ export const POST = withRouteHandler(
       return otpRequestAccepted()
     } catch (error) {
       logger.error(`[${requestId}] Error processing OTP request:`, error)
-      return createErrorResponse('Failed to process request', 500)
+      return createCodedErrorResponse('Failed to process request', 500)
     }
   }
 )
@@ -155,7 +158,7 @@ export const PUT = withRouteHandler(
     try {
       const parsed = await parseRequest(verifyChatEmailOtpContract, request, context, {
         validationErrorResponse: (error) =>
-          createErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
+          createCodedErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
       })
       if (!parsed.success) return parsed.response
       const { otp } = parsed.data.body
@@ -182,21 +185,21 @@ export const PUT = withRouteHandler(
 
       if (deploymentResult.length === 0) {
         logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
-        return createErrorResponse('Chat not found', 404)
+        return createCodedErrorResponse('Chat not found', 404)
       }
 
       const deployment = deploymentResult[0]
 
       if (deployment.authType !== 'email') {
-        return createErrorResponse('This chat does not use email authentication', 400)
+        return createCodedErrorResponse('This chat does not use email authentication', 400)
       }
       if (!isEmailAllowed(email, deployment.allowedEmails)) {
-        return createErrorResponse('Email not authorized', 403)
+        return createCodedErrorResponse('Email not authorized', 403)
       }
 
       const storedValue = await getOTP('chat', deployment.id, email)
       if (!storedValue) {
-        return createErrorResponse('No verification code found, request a new one', 400)
+        return createCodedErrorResponse('No verification code found, request a new one', 400)
       }
 
       const { otp: storedOTP, attempts } = decodeOTPValue(storedValue)
@@ -204,16 +207,19 @@ export const PUT = withRouteHandler(
       if (attempts >= MAX_OTP_ATTEMPTS) {
         await deleteOTP('chat', deployment.id, email)
         logger.warn(`[${requestId}] OTP already locked out for ${email}`)
-        return createErrorResponse('Too many failed attempts. Please request a new code.', 429)
+        return createCodedErrorResponse('Too many failed attempts. Please request a new code.', 429)
       }
 
       if (storedOTP !== otp) {
         const result = await incrementOTPAttempts('chat', deployment.id, email, storedValue)
         if (result === 'locked') {
           logger.warn(`[${requestId}] OTP invalidated after max failed attempts for ${email}`)
-          return createErrorResponse('Too many failed attempts. Please request a new code.', 429)
+          return createCodedErrorResponse(
+            'Too many failed attempts. Please request a new code.',
+            429
+          )
         }
-        return createErrorResponse('Invalid verification code', 400)
+        return createCodedErrorResponse('Invalid verification code', 400)
       }
 
       await deleteOTP('chat', deployment.id, email)
@@ -233,7 +239,7 @@ export const PUT = withRouteHandler(
       return response
     } catch (error) {
       logger.error(`[${requestId}] Error verifying OTP:`, error)
-      return createErrorResponse('Failed to process request', 500)
+      return createCodedErrorResponse('Failed to process request', 500)
     }
   }
 )

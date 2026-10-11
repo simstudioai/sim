@@ -3,7 +3,6 @@ import { decodeJwt } from 'jose'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }))
-vi.stubGlobal('fetch', fetchMock)
 
 import { snowflakeDestination } from '@/lib/data-drains/destinations/snowflake'
 

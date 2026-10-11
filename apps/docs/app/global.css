@@ -1641,7 +1641,7 @@ main article tbody tr:last-child td {
    Vertical margin is deliberately not set here: prose fences want `my-4` (the component
    supplies it) and API samples sit flush inside their panel with `my-0`.
 
-   @see packages/emcn/src/components/chip/chip-chrome.ts — `chipFieldSurfaceClass`, the constant
+   @see packages/emcn/src/components/chip/chrome.ts — `chipFieldSurfaceClass`, the constant
    this mirrors. Keep the two in step by hand. */
 figure.shiki,
 div:has(> [role="tablist"]):has(> div > figure.shiki) {

@@ -15,9 +15,9 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import { toAdminUser } from '@/app/api/v1/admin/types'
@@ -41,7 +41,7 @@ export const GET = withRouteHandler(
       const [userData] = await db.select().from(user).where(eq(user.id, userId)).limit(1)
 
       if (!userData) {
-        return notFoundResponse('User')
+        return adminNotFoundResponse('User')
       }
 
       const data = toAdminUser(userData)
@@ -51,7 +51,7 @@ export const GET = withRouteHandler(
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to get user', { error, userId })
-      return internalErrorResponse('Failed to get user')
+      return adminInternalErrorResponse('Failed to get user')
     }
   })
 )

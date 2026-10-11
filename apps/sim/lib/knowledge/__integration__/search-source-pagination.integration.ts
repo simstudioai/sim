@@ -24,7 +24,8 @@ const sourceIds = Array.from({ length: 105 }, () => generateId())
   .sort()
   .reverse()
 const olderSourceId = generateId()
-const input = { workspaceId: ids.workspaceId }
+const cursorRoute = { method: 'GET', path: '/api/knowledge/sim-search/sources' }
+const input = { workspaceId: ids.workspaceId, cursorRoute }
 
 beforeAll(async () => {
   await seedKnowledgeAclFixture(ids)
@@ -158,8 +159,10 @@ describe('bounded live Search source configuration pagination', () => {
       connectorType: 'google_drive',
       approved: false,
     })
-    const owner = { organizationId: ids.organizationId }
-    const summary = await listSearchSources.execute({ principal: alice, input: owner })
+    const summary = await listSearchSources.execute({
+      principal: alice,
+      input: { organizationId: ids.organizationId, cursorRoute },
+    })
     expect(summary.sources[0]).toMatchObject({
       connectorId: approvalSourceId,
       approved: false,

@@ -1,6 +1,6 @@
-import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import type { ShopifyGetOrderParams, ShopifyOrderResponse } from '@/tools/shopify/types'
 import { ORDER_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
+import { getShopifyHeaders, getShopifyPageSize, getShopifyUrl } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const shopifyGetOrderTool: ToolConfig<ShopifyGetOrderParams, ShopifyOrderResponse> = {
@@ -12,12 +12,32 @@ export const shopifyGetOrderTool: ToolConfig<ShopifyGetOrderParams, ShopifyOrder
   oauth: {
     required: true,
     provider: 'shopify',
+    authoritativeParams: ['domain', 'idToken'],
   },
 
   params: {
-    shopDomain: {
+    accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
+      description: 'Shopify Admin API token supplied by the connected credential',
+    },
+    lineItemsFirst: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum lineItems in this page (default 50, max 50)',
+    },
+    lineItemsAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor from lineItems.pageInfo.endCursor for the next page',
+    },
+
+    shopDomain: {
+      type: 'string',
+      required: false,
       visibility: 'user-only',
       description: 'Your Shopify store domain (e.g., mystore.myshopify.com)',
     },
@@ -30,26 +50,17 @@ export const shopifyGetOrderTool: ToolConfig<ShopifyGetOrderParams, ShopifyOrder
   },
 
   request: {
-    url: (params) =>
-      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+    url: getShopifyUrl,
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for Shopify API request')
-      }
-      return {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': params.accessToken,
-      }
-    },
+    headers: getShopifyHeaders,
     body: (params) => {
-      if (!params.orderId) {
+      if (!params.orderId?.trim()) {
         throw new Error('Order ID is required')
       }
 
       return {
         query: `
-          query getOrder($id: ID!) {
+          query getOrder($id: ID!, $lineItemsFirst: Int!, $lineItemsAfter: String) {
             order(id: $id) {
               id
               name
@@ -61,8 +72,17 @@ export const shopifyGetOrderTool: ToolConfig<ShopifyGetOrderParams, ShopifyOrder
               closedAt
               displayFinancialStatus
               displayFulfillmentStatus
+              poNumber
+              customAttributes {
+                key
+                value
+              }
               totalPriceSet {
                 shopMoney {
+                  amount
+                  currencyCode
+                }
+                presentmentMoney {
                   amount
                   currencyCode
                 }
@@ -72,15 +92,27 @@ export const shopifyGetOrderTool: ToolConfig<ShopifyGetOrderParams, ShopifyOrder
                   amount
                   currencyCode
                 }
+                presentmentMoney {
+                  amount
+                  currencyCode
+                }
               }
               totalTaxSet {
                 shopMoney {
                   amount
                   currencyCode
                 }
+                presentmentMoney {
+                  amount
+                  currencyCode
+                }
               }
               totalShippingPriceSet {
                 shopMoney {
+                  amount
+                  currencyCode
+                }
+                presentmentMoney {
                   amount
                   currencyCode
                 }
@@ -94,7 +126,13 @@ export const shopifyGetOrderTool: ToolConfig<ShopifyGetOrderParams, ShopifyOrder
                 lastName
                 phone
               }
-              lineItems(first: 50) {
+              lineItems(first: $lineItemsFirst, after: $lineItemsAfter) {
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
                 edges {
                   node {
                     id
@@ -104,16 +142,38 @@ export const shopifyGetOrderTool: ToolConfig<ShopifyGetOrderParams, ShopifyOrder
                       id
                       title
                       price
+                      compareAtPrice
+                      inventoryQuantity
                       sku
+                      barcode
+                      taxable
+                      inventoryPolicy
+                      inventoryItem {
+                        id
+                        sku
+                        tracked
+                      }
+                      selectedOptions {
+                        name
+                        value
+                      }
                     }
                     originalTotalSet {
                       shopMoney {
                         amount
                         currencyCode
                       }
+                      presentmentMoney {
+                        amount
+                        currencyCode
+                      }
                     }
                     discountedTotalSet {
                       shopMoney {
+                        amount
+                        currencyCode
+                      }
+                      presentmentMoney {
                         amount
                         currencyCode
                       }
@@ -160,9 +220,12 @@ export const shopifyGetOrderTool: ToolConfig<ShopifyGetOrderParams, ShopifyOrder
               }
             }
           }
+
         `,
         variables: {
-          id: params.orderId,
+          lineItemsFirst: getShopifyPageSize(params.lineItemsFirst ?? 50, 50),
+          lineItemsAfter: params.lineItemsAfter?.trim() || null,
+          id: params.orderId.trim(),
         },
       }
     },
@@ -171,10 +234,10 @@ export const shopifyGetOrderTool: ToolConfig<ShopifyGetOrderParams, ShopifyOrder
   transformResponse: async (response) => {
     const data = await response.json()
 
-    if (data.errors) {
+    if (!response.ok || data.errors?.length) {
       return {
         success: false,
-        error: data.errors[0]?.message || 'Failed to get order',
+        error: data.errors?.[0]?.message || 'Failed to get order',
         output: {},
       }
     }

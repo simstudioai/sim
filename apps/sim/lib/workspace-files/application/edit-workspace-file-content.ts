@@ -1,5 +1,6 @@
 import { isUtf8 } from 'node:buffer'
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -19,6 +20,7 @@ import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/appl
 import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { prepareOwnedFileContentWrite } from '@/lib/workspace-files/application/owned-file-content'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import {
   applyWorkspaceFileContentEdit,
@@ -73,8 +75,13 @@ export interface EditWorkspaceFileContentResult {
  */
 export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateContent,
-  resolveContext: ({ input }: { input: EditWorkspaceFileContentInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: EditWorkspaceFileContentInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
   async execute({ principal, input, context }): Promise<EditWorkspaceFileContentResult> {
     const lockKey = `file-edit:${context.workspaceId}:${context.fileId}`
     const lockValue = `${Date.now()}-${generateShortId()}`
@@ -92,7 +99,9 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
     }
 
     try {
-      const file = await getWorkspaceFileWithCurrentVersion(context.workspaceId, context.fileId)
+      const file = await getWorkspaceFileWithCurrentVersion(context.workspaceId, context.fileId, {
+        includeOwnedFiles: true,
+      })
       if (!file) throw new OrchestrationError('not_found', 'File not found')
       if (!file.contentUpdatedAt) {
         throw new OrchestrationError(
@@ -174,6 +183,7 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         )
       }
 
+      const commitOwner = await prepareOwnedFileContentWrite(context, content)
       const attribution = resolvePrincipalAttribution(principal, {
         workspaceBillingOwnerUserId: context.billedAccountUserId,
       })
@@ -191,6 +201,7 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
              * The caller's own revision when it sent one, so the guard covers everything since
              * the content it read — not merely since this use case loaded the file.
              */
+            commitOwner,
             expectedUpdatedAt: input.expectedRevision
               ? parseWorkspaceFileRevision(input.expectedRevision, context.fileId)
               : file.contentUpdatedAt,

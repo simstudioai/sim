@@ -1,5 +1,5 @@
 import { Chip, cn } from '@sim/emcn'
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from '@sim/emcn/icons'
+import { ChevronLeft, ChevronRight, RefreshCw, ZoomIn, ZoomOut } from '@sim/emcn/icons'
 
 interface PreviewNavigationControls {
   current: number
@@ -30,18 +30,16 @@ export function PreviewToolbar({ navigation, zoom, className }: PreviewToolbarPr
   return (
     <div
       className={cn(
-        // Matches the resource tab strip stacked directly above it: a 40px
-        // content box over a 1px border. `py-1` around a 30px chip came to 39px,
-        // near enough to read as a mistake rather than as a different bar, and
-        // the chips themselves still sat taller than the 26px tabs.
-        'flex h-[41px] shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)] px-2',
+        'flex h-[41px] shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)] px-2 max-md:h-auto max-md:min-h-[45px] max-md:flex-wrap max-md:gap-x-2',
         className
       )}
     >
       <div className='flex items-center gap-1'>
         {navigation && <PreviewNavigationControls {...navigation} />}
       </div>
-      <div className='flex items-center gap-1'>{zoom && <PreviewZoomControls {...zoom} />}</div>
+      <div className='flex items-center gap-1 max-md:ml-auto'>
+        {zoom && <PreviewZoomControls {...zoom} />}
+      </div>
     </div>
   )
 }
@@ -87,7 +85,7 @@ function PreviewZoomControls({
   return (
     <>
       {onReset && (
-        <Chip onClick={onReset} aria-label='Reset zoom'>
+        <Chip leftIcon={RefreshCw} mobileIconOnly onClick={onReset} aria-label='Reset zoom'>
           Reset
         </Chip>
       )}

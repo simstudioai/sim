@@ -1,6 +1,6 @@
 import { dbFor } from '@sim/db'
 import { folder, workspaceFiles } from '@sim/db/schema'
-import { and, asc, eq, isNotNull, isNull, lt } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import {
   consumeRowBudget,
   DEFAULT_MAX_BATCHES_PER_TABLE,
@@ -68,19 +68,35 @@ export async function cleanupExpiredFileFolderInTx(
       .limit(FILES_PER_QUERY)
       .for('update')
     if (!children.length) break
+    const candidateNames = new Set(children.map(({ name }) => name))
+    const rootFiles = await tx
+      .select({ name: workspaceFiles.originalName })
+      .from(workspaceFiles)
+      .where(
+        and(
+          fileOwnerCondition(owner),
+          workspaceFileNameFolderCondition(null),
+          isNull(workspaceFiles.deletedAt),
+          inArray(workspaceFiles.originalName, [...candidateNames])
+        )
+      )
+    const rootNames = new Set(rootFiles.map(({ name }) => name))
+    const renamed: { id: string; name: string }[] = []
     for (const child of children) {
-      const originalName = await generateRestoreName(
+      const name = await generateRestoreName(
         child.name,
-        async (name) => {
+        async (candidate) => {
+          if (rootNames.has(candidate)) return true
+          if (candidateNames.has(candidate)) return false
           const [existing] = await tx
             .select({ id: workspaceFiles.id })
             .from(workspaceFiles)
             .where(
               and(
                 fileOwnerCondition(owner),
-                eq(workspaceFiles.originalName, name),
                 workspaceFileNameFolderCondition(null),
-                isNull(workspaceFiles.deletedAt)
+                isNull(workspaceFiles.deletedAt),
+                eq(workspaceFiles.originalName, candidate)
               )
             )
             .limit(1)
@@ -88,11 +104,28 @@ export async function cleanupExpiredFileFolderInTx(
         },
         { hasExtension: true }
       )
-      await tx
-        .update(workspaceFiles)
-        .set({ folderId: null, originalName, updatedAt: new Date() })
-        .where(and(fileOwnerCondition(owner), eq(workspaceFiles.id, child.id)))
+      rootNames.add(name)
+      renamed.push({ id: child.id, name })
     }
+    await tx
+      .update(workspaceFiles)
+      .set({
+        folderId: null,
+        originalName: sql`CASE ${workspaceFiles.id} ${sql.join(
+          renamed.map(({ id, name }) => sql`WHEN ${id} THEN ${name}`),
+          sql` `
+        )} END`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          fileOwnerCondition(owner),
+          inArray(
+            workspaceFiles.id,
+            renamed.map(({ id }) => id)
+          )
+        )
+      )
   }
   await tx.delete(folder).where(and(folderScope, eq(folder.id, expired.id)))
   return 1

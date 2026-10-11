@@ -895,8 +895,10 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       await tx.delete(user).where(eq(user.id, userId))
     } catch (error) {
       if (
-        getPostgresErrorCode(error) === '23503' &&
-        getPostgresConstraintName(error) === 'project_owner_id_user_id_fk'
+        (getPostgresErrorCode(error) === '23503' &&
+          getPostgresConstraintName(error) === 'project_owner_id_user_id_fk') ||
+        (getPostgresErrorCode(error) === '23514' &&
+          getPostgresConstraintName(error) === 'project_resource_creator_handoff')
       ) {
         throw new AccountDeletionBlockedError([
           {

@@ -45,16 +45,13 @@ import {
   useWorkspaceCredentials,
   type WorkspaceCredential,
 } from '@/hooks/queries/credentials'
+import { useConnectOAuthService, useOAuthConnections } from '@/hooks/queries/oauth/connections'
+import { useOAuthCredentialDetail } from '@/hooks/queries/oauth/credentials'
 import {
   assertMicrosoftDataverseReconnectAvailable,
   useConnectMicrosoftDataverseOAuthService,
   useMicrosoftDataverseCredentialBinding,
 } from '@/hooks/queries/oauth/microsoft-dataverse-connections'
-import {
-  useConnectOAuthService,
-  useOAuthConnections,
-} from '@/hooks/queries/oauth/oauth-connections'
-import { useOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
 const logger = createLogger('ConnectedCredentialDetail')

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs one end-to-end suite group over real HTTP, each against its own `next dev` app.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -17,7 +17,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=300
 mkdir -p "$report_dir"
@@ -102,7 +102,6 @@ case "$group" in
   # because they finish in seconds. Self-hosted without billing: hosted billing admits runs through
   # Redis, which the CLI app is not given.
   cli)
-    GOOGLE_ADS_REPORT_PATH="$report_dir/google-ads.json" bun scripts/test-google-ads-e2e.ts
     for search in google-content lucid zoom google-meet; do
       report_var="SEARCH_$(echo "$search" | tr 'a-z-' 'A-Z_')_REPORT_PATH"
       env NEXT_PUBLIC_APP_URL=http://127.0.0.1:3040 NEXT_PUBLIC_FORCE_HOSTED=false \
@@ -111,7 +110,11 @@ case "$group" in
     done
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export INTERNAL_API_SECRET=cli-http-ci-local-secret-at-least-32-characters
+    export SIM_MCP_URL=http://mcp.sim.test/mcp
     start_app cli 3018 CLI
+    MCP_HOST_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+    MCP_HOST_E2E_REPORT_PATH="$report_dir/mcp-host-e2e-report.json" \
+      bun --no-env-file scripts/test-mcp-host-e2e.ts
     CLI_LATENCY_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     CLI_LATENCY_E2E_DATABASE_URL="$DATABASE_URL" \
     CLI_LATENCY_E2E_RUNS=3 \
@@ -159,6 +162,19 @@ case "$group" in
     PROJECT_FILES_E2E_RELAY_URL=http://127.0.0.1:3052 \
     PROJECT_FILES_E2E_REPORT_PATH="$report_dir/project-files/orchestration.json" \
       bun --no-env-file scripts/test-project-files-e2e.ts
+    ;;
+
+  mobile)
+    export NEXT_PUBLIC_FORCE_HOSTED=false
+    export INTERNAL_API_SECRET=mobile-http-ci-local-secret-at-least-32-characters
+    export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=12288"
+    bunx --no-install playwright install --with-deps chromium webkit
+    start_app mobile 3024 'mobile browser' record-http-status
+    MOBILE_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+    MOBILE_E2E_DATABASE_URL="$DATABASE_URL" \
+    MOBILE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    MOBILE_E2E_REPORT_PATH="$report_dir/mobile-e2e-report.json" \
+      bun run test:mobile:e2e
     ;;
 
   *)

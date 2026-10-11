@@ -1,6 +1,8 @@
 import { openAsBlob } from 'node:fs'
 import { type EmbeddedFileSnapshot, embeddedProfile, embedStore } from '../embed-context'
+import type { V2OperationName } from '../generated/v2-api'
 import { SimApiError, SimClient } from '../http/client'
+import type { OperationClient } from '../runtime/called-operations'
 import { embeddedFileKey } from './local-file'
 import { StreamingUpload } from './streaming-upload'
 
@@ -22,9 +24,11 @@ export type UploadTransfer =
       partCount: number
     }
 
-export interface UploadSession {
-  basePath: string
-  query?: Record<string, string>
+export interface UploadSession<Operation extends V2OperationName> {
+  /** The operations that drive this kind of session past its creation. */
+  operations: { parts: Operation; complete: Operation; abort: Operation }
+  /** The path parameters that address the session. */
+  params: Record<string, string>
   uploadToken: string
   transfer: UploadTransfer
   size: number
@@ -61,9 +65,10 @@ async function uploadBytes(
   if (file instanceof StreamingUpload) file.assertConsumed(end)
 }
 
-async function uploadParts(
-  client: SimClient,
-  session: UploadSession,
+async function uploadParts<Operation extends V2OperationName>(
+  client: OperationClient<Operation>,
+  workspaceId: string | undefined,
+  session: UploadSession<Operation>,
   transfer: Extract<UploadTransfer, { method: 'multipart' }>,
   file: Blob | StreamingUpload
 ): Promise<void> {
@@ -87,10 +92,10 @@ async function uploadParts(
     }
 
     const signed = await client.request<{ data: { parts: UploadPartUrl[] } }>(
-      `${session.basePath}/parts`,
+      session.operations.parts,
       {
-        method: 'POST',
-        query: session.query,
+        params: session.params,
+        query: workspaceId ? { workspaceId } : undefined,
         headers: { 'upload-token': session.uploadToken },
         body: { partNumbers },
       }
@@ -119,9 +124,10 @@ async function uploadParts(
 }
 
 /** Uploads and completes a signed transfer, aborting its session if the transfer fails. */
-export async function finishUploadSession<T>(
-  client: SimClient,
-  session: UploadSession,
+export async function finishUploadSession<T, Operation extends V2OperationName>(
+  client: OperationClient<Operation>,
+  workspaceId: string | undefined,
+  session: UploadSession<Operation>,
   path: string
 ): Promise<T> {
   let snapshot: EmbeddedFileSnapshot | undefined
@@ -157,15 +163,15 @@ export async function finishUploadSession<T>(
         'Upload'
       )
     } else {
-      await uploadParts(client, session, session.transfer, file)
+      await uploadParts(client, workspaceId, session, session.transfer, file)
     }
     await streamed?.verifyComplete()
     await streamed?.close()
     await snapshot?.dispose().catch(() => {})
 
-    const completed = await client.request<{ data: T }>(`${session.basePath}/complete`, {
-      method: 'POST',
-      query: session.query,
+    const completed = await client.request<{ data: T }>(session.operations.complete, {
+      params: session.params,
+      query: workspaceId ? { workspaceId } : undefined,
       headers: { 'upload-token': session.uploadToken },
     })
     return completed.data
@@ -174,12 +180,12 @@ export async function finishUploadSession<T>(
     /** Stop cancels transfer work, but cleanup needs its own short-lived request signal. */
     const profile = embeddedProfile()
     const cleanupClient = profile
-      ? new SimClient({ ...profile, signal: AbortSignal.timeout(5_000) })
+      ? client.over(new SimClient({ ...profile, signal: AbortSignal.timeout(5_000) }))
       : client
     await cleanupClient
-      .request(session.basePath, {
-        method: 'DELETE',
-        query: session.query,
+      .request(session.operations.abort, {
+        params: session.params,
+        query: workspaceId ? { workspaceId } : undefined,
         headers: { 'upload-token': session.uploadToken },
       })
       .catch(() => undefined)

@@ -40,6 +40,5 @@ export function useBlockDimensions({
       updateBlockLayoutMetrics(blockId, dimensions)
       updateNodeInternals(blockId)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blockId, updateBlockLayoutMetrics, updateNodeInternals, ...dependencies])
 }

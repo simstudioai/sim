@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
@@ -50,6 +50,7 @@ import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { getProjectFileQueryOptions } from '@/hooks/queries/project-files'
 import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/utils/workspace-file-query'
+import { useHydrated } from '@/hooks/use-hydrated'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 import type { ChatContext } from '@/stores/panel'
@@ -60,15 +61,11 @@ interface OrganizationHomeProps {
   requestMode?: ChatRequestMode
 }
 
-const subscribeToClient = () => () => {}
-const clientSnapshot = () => true
-const serverSnapshot = () => false
-
 /** Home chooses the conversation mode before its first message. */
 export function OrganizationHome(props: OrganizationHomeProps) {
   const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
   const { data: session } = useSession()
-  const isClient = useSyncExternalStore(subscribeToClient, clientSnapshot, serverSnapshot)
+  const isClient = useHydrated()
   const isRestoredChatEntry = useRestoredChatEntry({ chatId: props.chatId })
   if (!mothershipAvailable || (!canBuild && !searchAccess.memberScoped)) return null
   /** Preferences are browser-persisted and keyed by user; never paint a guessed mode first. */
@@ -98,7 +95,7 @@ function OrganizationHomeContent({
   const [selectedMode, setSelectedMode] = useState<ChatRequestMode | null>(null)
   const planEnabled = useFeatureFlag('mothership-plan-mode')
   const projectsEnabled = useFeatureFlag('projects')
-  const projectFilesEnabled = useFeatureFlag('project-files')
+
   const requestMode =
     selectedMode ??
     (urlSearchLevel && searchAccess.memberScoped && !chatId ? 'assistant' : undefined) ??
@@ -177,7 +174,7 @@ function OrganizationHomeContent({
     async (ref: WorkspaceResourceRef) => {
       try {
         if (ref.type === 'file' && ref.owner?.entityType === 'project') {
-          if (!projectsEnabled || !projectFilesEnabled) return
+          if (!projectsEnabled) return
           if (!ref.id) throw new Error('Missing Project file identity')
           await requestJson(getProjectContract, {
             params: { id: ref.owner.entityId },
@@ -220,7 +217,7 @@ function OrganizationHomeContent({
         toast.error(`Couldn't open "${ref.title}". Check your access and try again.`)
       }
     },
-    [queryClient, addResource, organization.id, projectsEnabled, projectFilesEnabled]
+    [queryClient, addResource, organization.id, projectsEnabled]
   )
   const files = useFileAttachments({
     userId: session?.user?.id,
@@ -358,7 +355,7 @@ function OrganizationHomeContent({
     )
 
   const content = (
-    <div className='flex h-full min-h-0 min-w-[min(480px,100%)] flex-1 flex-col bg-[var(--bg)]'>
+    <div className='flex h-full min-h-0 @max-[960px]/chat-panel:min-w-0 min-w-0 flex-1 flex-col bg-[var(--bg)] md:min-w-[min(480px,100%)]'>
       {hasChat ? (
         <MothershipChat
           onViewSources={(messageId, requestId) =>
@@ -413,7 +410,7 @@ function OrganizationHomeContent({
           chatId={chat.resolvedChatId}
           composer={composer}
           onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
-          initialScrollBlocked={chat.resources.length > 0 && panel.isResourceCollapsed}
+          initialScrollBlocked={panel.initialScrollBlocked}
         />
       ) : (
         <OrganizationLanding
@@ -426,7 +423,7 @@ function OrganizationHomeContent({
           }
         >
           {composer}
-          <div className='absolute inset-x-0 top-full'>
+          <div className='relative md:absolute md:inset-x-0 md:top-full'>
             {requestMode === 'agent' ? (
               <SuggestedActions
                 organizationId={organization.id}

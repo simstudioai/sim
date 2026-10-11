@@ -53,8 +53,17 @@ function getRegistrySchema(block: SerializedBlock): OutputSchema | undefined {
   return outputs
 }
 
+/**
+ * A serialized block is immutable for the life of an execution, but its schema is
+ * re-derived for every block on each condition, function, and reference evaluation.
+ */
+const blockSchemaCache = new WeakMap<SerializedBlock, OutputSchema | undefined>()
+
 export function getBlockSchema(block: SerializedBlock): OutputSchema | undefined {
-  return getRegistrySchema(block)
+  if (blockSchemaCache.has(block)) return blockSchemaCache.get(block)
+  const schema = getRegistrySchema(block)
+  blockSchemaCache.set(block, schema)
+  return schema
 }
 
 export function collectBlockData(

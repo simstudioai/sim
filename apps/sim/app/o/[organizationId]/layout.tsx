@@ -4,12 +4,13 @@ import { redirect } from 'next/navigation'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
+import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
@@ -18,7 +19,10 @@ import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
-import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
+import {
+  WorkspaceChrome,
+  WorkspaceViewport,
+} from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 
@@ -63,7 +67,8 @@ export default async function OrganizationLayout({
     planModeEnabled,
     dashboardsEnabled,
     projectsEnabled,
-    projectFilesEnabled,
+    workflowTestsEnabled,
+    changelogEnabled,
   ] = await Promise.all([
     prefetchOrganizationSidebar(
       queryClient,
@@ -75,7 +80,8 @@ export default async function OrganizationLayout({
     isPlanModeEnabled(),
     isDashboardsEnabled(organizationId),
     isFeatureEnabled('projects'),
-    isProjectFileApiEnabled(),
+    isWorkflowTestsEnabled(organizationId),
+    isChangelogEnabled(organizationId),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
@@ -84,15 +90,17 @@ export default async function OrganizationLayout({
       <FeatureFlagsProvider
         flags={{
           projects: projectsEnabled,
-          'project-files': projectFilesEnabled,
+
           dashboards: dashboardsEnabled,
+          'workflow-tests': workflowTestsEnabled,
+          changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
         }}
       >
         <OrganizationProvider context={context}>
           <GlobalCommandsProvider>
-            <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
+            <WorkspaceViewport className='workspace-root'>
               <ImpersonationBanner />
               <SessionExpired />
               <SettingsNavigationProvider>
@@ -103,7 +111,7 @@ export default async function OrganizationLayout({
                   {children}
                 </WorkspaceChrome>
               </SettingsNavigationProvider>
-            </div>
+            </WorkspaceViewport>
           </GlobalCommandsProvider>
         </OrganizationProvider>
       </FeatureFlagsProvider>

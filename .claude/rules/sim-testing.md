@@ -19,7 +19,7 @@ What already catches bugs, in the order to reach for it:
 
 | Layer | What it proves | Where |
 |---|---|---|
-| Type-check, `next build` | shapes, imports, wiring | `bunx turbo run type-check`, CI build |
+| Type-check, `next build` | shapes, imports, wiring (not apps/sim test files) | `bun run type-check`, CI build |
 | Repo audits | registry consistency, API contract boundaries, tool/block/icon invariants, migrations | `bun run check:audits` |
 | E2E / integration | real Postgres/Redis, real HTTP, packaged desktop app | `*.integration.ts`, `apps/sim/scripts/test-*-e2e.ts`, `apps/desktop/e2e/*.spec.ts` |
 | Unit | one isolated unit's listed failure modes | `*.test.ts(x)` |
@@ -32,9 +32,9 @@ contracts, and demonstrated regressions.
 
 | Suffix | Needs | Run with | In CI |
 |--------|-------|----------|-------|
-| `*.test.ts(x)` | nothing; global mocks from `vitest.setup.ts` | `vitest run` | `test` jobs (sharded) |
-| `*.integration.ts` | real PostgreSQL (`TEST_DATABASE_URL`), optionally Redis (`TEST_REDIS_URL`) | `vitest run --mode integration` | `integration` jobs, by glob (sharded per provisioning path) |
-| `*.live.test.ts` | provider APIs, hosted sandboxes, local runtimes, or sibling checkouts | `vitest run --mode live <file>` (apps/sim) | never |
+| `*.test.ts(x)` | nothing; global mocks from `vitest.setup.ts` | `bun run --cwd <workspace> test` | `test` jobs |
+| `*.integration.ts` | real PostgreSQL (`TEST_DATABASE_URL`), optionally Redis (`TEST_REDIS_URL`) | `bun run --cwd <workspace> test --mode integration` | `integration` jobs, by glob (sharded per provisioning path) |
+| `*.live.test.ts` | provider APIs, hosted sandboxes, local runtimes, or sibling checkouts | `bun run --cwd apps/sim test --mode live <file>` | never |
 | `apps/desktop/e2e/*.spec.ts` | the packaged Electron app | Playwright | desktop E2E workflow |
 | `apps/sim/scripts/test-*-e2e.ts` | a running app over HTTP | its `package.json` script when one exists (`bun run test:scim:e2e`; `test:workflow-version-compare:e2e` adds `--no-env-file`), else `bun scripts/test-<suite>-e2e.ts` from apps/sim | `e2e` jobs (`.github/scripts/http-e2e.sh`) |
 
@@ -47,9 +47,9 @@ contracts, and demonstrated regressions.
   (`sim_test`); `TEST_REDIS_URL` must be loopback. `packages/db/testing/test-infrastructure.ts` owns
   those checks. Isolate with a unique schema or generated IDs, and clean up in `afterAll`.
 - Integration files run one at a time against one shared database. A new `*.integration.ts` is
-  picked up by CI with no workflow change. By default, each workspace writes its generated report
-  to `<workspace>/test-results/integration.json`, which CI uploads. Never add a passing suite to the
-  quarantine list in `apps/sim/vitest.config.ts`.
+  picked up by CI with no workflow change, and the run writes the JSON report configured in
+  `vitest.shared.ts`, which CI uploads. Never add a passing suite to the quarantine list in
+  `apps/sim/vitest.config.ts`.
 - `bun run test:integration` starts disposable Postgres and Redis containers, provisions the schema,
   and runs both workspaces; pass filenames to narrow the `apps/sim` run.
 
@@ -88,7 +88,8 @@ describe('GET /api/my-route', () => {
 
 `apps/sim/vitest.setup.ts` mocks the modules nearly every test touches. `@sim/testing` holds one
 central mock for every other module that more than a couple of tests mock. Never hand-roll a
-`vi.mock` factory for either — `bun run check:test-patterns` fails on a new one.
+`vi.mock` factory for either — `bun run check:test-patterns` fails on a new one (integration and
+`*.live.test.ts` files bind real boundaries and are exempt).
 
 - **Global module**: don't `vi.mock` it; drive it through its knobs (table below).
 - **Any other module**: find its central mock by copying an existing use —
@@ -147,7 +148,9 @@ stubbed globals are reset before every test (`clearMocks`, `restoreMocks`, `unst
 hooks. Create `vi.spyOn`/`vi.stubEnv`/`vi.stubGlobal` in `beforeEach` or the test — one made at
 module scope or in `beforeAll` is undone before the first test. Integration mode keeps per-file
 fixtures (restore/unstub off). Node is the default environment — add
-`/** @vitest-environment jsdom */` only when the test needs the DOM.
+`/** @vitest-environment jsdom */` only when the test needs the DOM. A source that needs both
+node and jsdom tests keeps them in `x.test.ts` and `x.dom.test.ts(x)`; the docblock, not the
+suffix, sets the environment.
 
 Those resets clear call history and undo spies, but not an implementation you install on a central
 mock's `vi.fn`: `xMockFns.mockFoo.mockReturnValue(...)` carries into later tests in the file. Prefer
@@ -161,7 +164,8 @@ The suite's wall time is bound by the single Vite server thread that serves ever
 
 1. `vi.hoisted()` + `vi.mock()` + static imports. Never `vi.resetModules()` + `vi.doMock()` +
    dynamic `import()`, except for a module that caches a singleton at module scope.
-2. Never `vi.importActual()`/`importOriginal` to build a partial mock — use the central mock.
+2. Never `vi.importActual()`/`importOriginal` to build a partial mock of a module that has a central
+   mock — use the central mock.
 3. Mock heavy graphs a test does not need and the setup does not already mock: `@/blocks`,
    `@/triggers/registry`, `@/tools/generated/*`.
 4. No real timers: `vi.useFakeTimers()`, `flushMicrotasks()`, or `flushMacrotask()`.

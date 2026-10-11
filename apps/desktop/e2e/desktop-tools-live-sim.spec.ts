@@ -245,6 +245,12 @@ test.describe('desktop tools against a live Sim', () => {
     })
     const page = await app.firstWindow({ timeout })
     pageErrors = []
+    app.on('window', (permission) => {
+      void permission
+        .getByRole('button', { name: 'Allow folder', exact: true })
+        .click({ timeout: 10_000 })
+        .catch((error) => pageErrors.push(`Folder approval failed: ${String(error)}`))
+    })
     page.on('pageerror', (error) => pageErrors.push(error.message))
     page.on('console', (message) => {
       if (message.type() === 'error') pageErrors.push(message.text())

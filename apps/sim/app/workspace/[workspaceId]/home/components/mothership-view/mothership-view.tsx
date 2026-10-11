@@ -135,11 +135,10 @@ export const MothershipView = memo(
     ref
   ) {
     const projectsEnabled = useFeatureFlag('projects')
-    const projectFilesEnabled = useFeatureFlag('project-files')
-    const resources =
-      projectsEnabled && projectFilesEnabled
-        ? persistedResources
-        : persistedResources.filter((resource) => resource.owner?.entityType !== 'project')
+
+    const resources = projectsEnabled
+      ? persistedResources
+      : persistedResources.filter((resource) => resource.owner?.entityType !== 'project')
     const active = resources.find((r) => getChatResourceSelectionId(r) === activeResourceId) ?? null
     const activeProjectId =
       active?.type === 'file' && active.owner?.entityType === 'project'
@@ -228,7 +227,7 @@ export const MothershipView = memo(
         : undefined
     const isActiveCsv = active?.type === 'file' && getFileExtension(active.title) === 'csv'
 
-    const isActivePreviewable =
+    const isActiveFilePreviewable =
       canEdit &&
       active?.type === 'file' &&
       // Dashboards store extensionless names, so the record's type decides once it loads.
@@ -246,6 +245,8 @@ export const MothershipView = memo(
       // A Sim page is locked to its rendered view (the pdf model — the raw
       // source is not a mode this surface offers), so no toggle either.
       activeFile?.type !== SIM_PAGE_CONTENT_TYPE
+    // A test shows its source, its results, or both, like an HTML file; the viewer enforces edits.
+    const isActivePreviewable = isActiveFilePreviewable || active?.type === 'test'
 
     return (
       <ChatPanelContent

@@ -10,6 +10,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,7 +32,7 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { deferConnectorSync } from '@/lib/knowledge/connectors/sync-deferral'
 import { completeSuccessfulSync } from '@/lib/knowledge/connectors/sync-engine'
-import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
+import { createContentSyncLease, SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import { sweepStuckDocuments } from '@/lib/knowledge/connectors/sync-primitives'
 import { deleteKnowledgeBase } from '@/lib/knowledge/service'
 import { GitHubRequestDeferredError } from '@/connectors/github/request'
@@ -40,14 +41,6 @@ import type { SyncResult } from '@/connectors/types'
 const WAIT_OPTIONS = { interval: 5, timeout: 5000 }
 const ACTIONS = ['complete', 'defer', 'recover'] as const
 type Action = (typeof ACTIONS)[number]
-
-function deferred() {
-  let resolve!: () => void
-  const promise = new Promise<void>((ready) => {
-    resolve = ready
-  })
-  return { promise, resolve }
-}
 
 function emptyResult(): SyncResult {
   return {
@@ -157,29 +150,37 @@ describe('source lifecycle KB guards', () => {
   }
 
   function holdCommit(action: Action) {
-    const gate = { pid: undefined as number | undefined, release: deferred() }
+    const gate = {
+      pid: undefined as number | undefined,
+      release: createDeferred<void>(),
+      resumeAfterCommit: createDeferred<void>(),
+    }
     const transaction = db.transaction.bind(db)
-    vi.spyOn(db, 'transaction').mockImplementation((callback, config) =>
-      transaction(async (tx) => {
+    vi.spyOn(db, 'transaction').mockImplementation(async (callback, config) => {
+      let heldCommit = false
+      const result = await transaction(async (tx) => {
         await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
         await tx.execute(sql`SET LOCAL idle_in_transaction_session_timeout = '15s'`)
         const result = await callback(tx)
         if (gate.pid === undefined && (await wrote(action, tx))) {
           const [backend] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
           gate.pid = backend.pid
+          heldCommit = true
           await gate.release.promise
         }
         return result
       }, config)
-    )
+      if (heldCommit && action === 'recover') await gate.resumeAfterCommit.promise
+      return result
+    })
     return gate
   }
 
   it.each(ACTIONS)(
     '%s can commit while an unrelated embedding holds the KB key-share lock',
     async (action) => {
-      const release = deferred()
-      const acquired = deferred()
+      const release = createDeferred<void>()
+      const acquired = createDeferred<void>()
       const holding = db.transaction(async (tx) => {
         await tx.execute(sql`SET LOCAL idle_in_transaction_session_timeout = '15s'`)
         await tx
@@ -229,8 +230,15 @@ describe('source lifecycle KB guards', () => {
         .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
       expect(active.deletedAt).toBeNull()
       gate.release.resolve()
-      expect(await completed).toMatchObject([{ status: 'fulfilled' }])
       expect(await deleted).toMatchObject([{ status: 'fulfilled' }])
+      gate.resumeAfterCommit.resolve()
+      if (action === 'recover') {
+        expect(await completed).toMatchObject([
+          { status: 'rejected', reason: expect.any(SyncLockLostException) },
+        ])
+      } else {
+        expect(await completed).toMatchObject([{ status: 'fulfilled' }])
+      }
       const [archived] = await db
         .select({ id: document.id })
         .from(document)
@@ -238,6 +246,7 @@ describe('source lifecycle KB guards', () => {
       expect(archived?.id).toBe(retryDocumentId)
     } finally {
       gate.release.resolve()
+      gate.resumeAfterCommit.resolve()
       await completed
       await deleted
     }

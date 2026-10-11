@@ -462,6 +462,7 @@ export async function launch(
   app.context().pages().forEach(leaveDialogsToDesktop)
   app.context().on('page', leaveDialogsToDesktop)
   const window = await app.firstWindow()
+  await window.waitForURL((url) => url.origin === sim.origin, { waitUntil: 'load' })
   return { app, window }
 }
 

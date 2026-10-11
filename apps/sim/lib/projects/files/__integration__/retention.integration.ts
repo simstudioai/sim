@@ -19,6 +19,7 @@ import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -27,6 +28,7 @@ import postgres from 'postgres'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { type CleanupJobPayload, runCleanupWithLimits } from '@/lib/billing/cleanup-dispatcher'
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
@@ -71,6 +73,7 @@ function check(name: string, run: () => Promise<void>) {
 }
 
 beforeEach(() => {
+  featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
   setEnvFlags({ isBillingEnabled: true, isDataRetentionEnabled: true })
 })
 
@@ -475,6 +478,50 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
         .from(userStats)
         .where(eq(userStats.userId, f.ownerId))
       expect(usage.bytes).toBe(10)
+    }
+  )
+
+  check(
+    'folder retention deduplicates more than one file batch before deleting its parent',
+    async () => {
+      const f = await fixture()
+      const folderId = generateId()
+      await db.insert(folder).values({
+        id: folderId,
+        projectId: f.projectId,
+        userId: f.ownerId,
+        resourceType: 'file',
+        name: 'Expired parent',
+        deletedAt: new Date(Date.now() - 40 * 24 * HOUR),
+      })
+      const files = Array.from({ length: 502 }, (_, index) => ({
+        id: generateId(),
+        projectId: f.projectId,
+        userId: f.ownerId,
+        context: 'project',
+        key: `project/${f.projectId}/batch-${index}`,
+        originalName: `batch-${index}.md`,
+        contentType: 'text/markdown',
+        sizeBytes: 0,
+        folderId,
+      }))
+      await db.insert(workspaceFiles).values(files)
+      await db.insert(workspaceFiles).values({
+        ...files[0],
+        id: generateId(),
+        key: `project/${f.projectId}/root`,
+        folderId: null,
+      })
+      await runCleanupSoftDeletes(payload(f.projectId), createCleanupBudgets({ folders: 1 }))
+      expect(await db.select().from(folder).where(eq(folder.id, folderId))).toEqual([])
+      const retained = await db
+        .select()
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.projectId, f.projectId))
+      expect(retained).toHaveLength(503)
+      expect(retained.every((file) => file.folderId === null)).toBe(true)
+      expect(new Set(retained.map((file) => file.originalName)).size).toBe(503)
+      expect(retained.find((file) => file.id === files[0].id)?.originalName).not.toBe('batch-0.md')
     }
   )
 

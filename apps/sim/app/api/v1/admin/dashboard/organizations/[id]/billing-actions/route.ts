@@ -6,8 +6,8 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -23,7 +23,7 @@ export const GET = withRouteHandler(
       return singleResponse(await getDashboardSubscriptionBillingActions(parsed.data.params.id))
     } catch (error) {
       logger.warn('Could not load organization billing actions', { error })
-      return badRequestResponse(getErrorMessage(error, 'Could not load billing actions'))
+      return adminBadRequestResponse(getErrorMessage(error, 'Could not load billing actions'))
     }
   })
 )

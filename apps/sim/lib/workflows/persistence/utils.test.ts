@@ -49,7 +49,6 @@ function asAppBlocks<T>(blocks: T): Record<string, AppBlockState> {
  * These tests intentionally use old SubBlockTypes (textarea, select, messages-input, input)
  * to verify the migration logic converts them to new types.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function legacySubBlocks(subBlocks: Record<string, any>): any {
   return subBlocks
 }

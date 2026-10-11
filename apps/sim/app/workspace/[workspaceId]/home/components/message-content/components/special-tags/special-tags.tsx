@@ -2027,8 +2027,8 @@ function ProjectFileResourceDisplay({
   onSelect,
 }: ProjectFileResourceDisplayProps) {
   const projectsEnabled = useFeatureFlag('projects')
-  const projectFilesEnabled = useFeatureFlag('project-files')
-  const enabled = projectsEnabled && projectFilesEnabled
+
+  const enabled = projectsEnabled
   const { data, isError } = useProjectFile(enabled ? projectId : undefined, fileId)
   const file = data?.file
   const label = file?.name ?? title ?? 'File'
@@ -3394,7 +3394,8 @@ export function CredentialDisplay(props: Parameters<typeof CredentialDisplayCont
     (item) =>
       item.type === 'link' ||
       item.type === 'service_account' ||
-      item.type === 'sim_key' ||
+      // A masked key has nothing to copy, so only a revealed one needs its workspace.
+      (item.type === 'sim_key' && item.value !== undefined) ||
       (item.type === 'secret_input' && (!item.scope || item.scope === 'workspace'))
   )
   const targets = new Set(targeted.map((item) => item.workspaceId).filter(Boolean))

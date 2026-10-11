@@ -65,6 +65,7 @@ import {
   updateProjectFileContent,
 } from '@/lib/projects/files/application/content'
 import { createProjectFileFolder } from '@/lib/projects/files/application/folders'
+import { searchProjectFileContent } from '@/lib/projects/files/application/search'
 import { revertProjectFileVersion } from '@/lib/projects/files/application/versions'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import * as storageCleanup from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
@@ -74,6 +75,7 @@ import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import * as heic from '@/lib/uploads/server/heic'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
+import * as searchDelivery from '@/lib/workspace-files/search/delivery'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -93,7 +95,6 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
 beforeEach(() => {
   vi.restoreAllMocks()
   featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
-  vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
   vi.stubEnv('FREE_STORAGE_LIMIT_GB', '')
 })
 
@@ -196,6 +197,27 @@ async function rows(projectId: string) {
 
 describe('Project file content against PostgreSQL and the local object store', () => {
   for (const mutation of ['upload', 'update'] as const) {
+    for (const code of ['55P03', '25P04']) {
+      check(`Project search classifies delivery contention ${code} as retryable`, async () => {
+        const f = await fixture()
+        const delivery = vi
+          .spyOn(searchDelivery, 'loadFileSearchDelivery')
+          .mockRejectedValueOnce(
+            new Error('Failed query', { cause: Object.assign(new Error('lock timeout'), { code }) })
+          )
+        try {
+          await expect(
+            searchProjectFileContent.execute({
+              principal: f.principal,
+              input: { projectId: f.projectId, query: 'needle', mode: 'exact', maxResults: 10 },
+            })
+          ).rejects.toMatchObject({ code: 'locked' })
+        } finally {
+          delivery.mockRestore()
+        }
+      })
+    }
+
     check(
       `workspace ${mutation} waits for Project authority before locking shared file resources`,
       async () => {
@@ -3162,7 +3184,8 @@ describe.skipIf(!redisUrl)('authenticated workbench copy callback', () => {
           .set({ organizationId: f.organizationId, workspaceId: null })
           .where(eq(copilotRuns.id, scope.runId))
         await redis.set(`${prefix}:context`, JSON.stringify(scope), 'EX', 120)
-        vi.stubEnv('PROJECT_FILES_ENABLED', 'false')
+        vi.stubEnv('PROJECTS', 'false')
+        featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
         expect((await callback()).status).toBe(503)
         const deniedProjectRead = await proxySandboxResourceRequest(
           new Request(
@@ -3177,7 +3200,10 @@ describe.skipIf(!redisUrl)('authenticated workbench copy callback', () => {
           token
         )
         expect(deniedProjectRead.status).toBe(503)
-        vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
+        vi.stubEnv('PROJECTS', 'true')
+        featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+          async (flag) => flag === 'projects'
+        )
         expect((await callback()).status).toBe(201)
         const baseline = await destinationRows()
         const invalidHeaders: Record<string, string>[] = [

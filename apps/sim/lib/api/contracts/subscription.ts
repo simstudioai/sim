@@ -247,19 +247,6 @@ export const getUserBillingContract = defineRouteContract({
   },
 })
 
-export const getOrganizationBillingContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/billing',
-  query: billingQuerySchema.extend({
-    context: z.literal('organization'),
-    id: z.string().min(1),
-  }),
-  response: {
-    mode: 'json',
-    schema: organizationBillingApiResponseSchema,
-  },
-})
-
 export const getUsageLimitContract = defineRouteContract({
   method: 'GET',
   path: '/api/usage',
@@ -394,7 +381,6 @@ export const billingUpdateCostContract = defineRouteContract({
 export type BillingUsageData = z.infer<typeof billingUsageDataSchema>
 export type SubscriptionBillingData = z.infer<typeof subscriptionBillingDataSchema>
 export type SubscriptionApiResponse = z.infer<typeof subscriptionApiResponseSchema>
-export type OrganizationBillingApiResponse = z.infer<typeof organizationBillingApiResponseSchema>
 export type UsageLimitApiResponse = z.infer<typeof usageLimitApiResponseSchema>
 export type InvoiceItem = z.infer<typeof invoiceItemSchema>
 export type InvoicesApiResponse = z.infer<typeof invoicesApiResponseSchema>

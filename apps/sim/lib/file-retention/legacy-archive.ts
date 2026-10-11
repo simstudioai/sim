@@ -1,5 +1,5 @@
 import { db, dbFor } from '@sim/db'
-import { workspaceFile, workspaceFiles } from '@sim/db/schema'
+import { changelogRelease, workflowTest, workspaceFile, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm'
@@ -17,6 +17,7 @@ import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 const logger = createLogger('FileArchiveCleanup')
 /** Billing deletion retains the default pool; selection and unbilled cleanup use the cleanup pool. */
 const cleanupDb = dbFor('cleanup')
+const BILLED_FILE_CONTEXTS: readonly StorageContext[] = ['workspace', 'test', 'changelog']
 
 interface WorkspaceFileScope {
   /** Rows from `workspace_file` (singular, legacy workspace-context only). */
@@ -128,7 +129,7 @@ async function cleanupWorkspaceFileStorage(
   const candidatesByContext = new Map<StorageContext, WorkspaceFileScope['multiContextRows']>()
   result.legacyRows = scope.legacyRows
   for (const row of scope.multiContextRows) {
-    if (row.context === 'workspace') {
+    if (BILLED_FILE_CONTEXTS.includes(row.context)) {
       result.multiContextRows.push(row)
       continue
     }
@@ -205,7 +206,7 @@ async function deleteExpiredUnbilledWorkspaceFileRows(
   const result = { deleted: 0, failed: 0 }
   const rowsByContext = new Map<StorageContext, WorkspaceFileScope['multiContextRows']>()
   for (const row of rows) {
-    if (row.context === 'workspace') continue
+    if (BILLED_FILE_CONTEXTS.includes(row.context)) continue
     const bucket = rowsByContext.get(row.context)
     if (bucket) bucket.push(row)
     else rowsByContext.set(row.context, [row])
@@ -247,7 +248,7 @@ async function deleteExpiredBillableWorkspaceFileRows(
   const result = { deleted: 0, failed: 0 }
   const rowsByWorkspace = new Map<string, WorkspaceFileScope['multiContextRows']>()
   for (const row of rows) {
-    if (row.context !== 'workspace') continue
+    if (!BILLED_FILE_CONTEXTS.includes(row.context)) continue
     if (!row.workspaceId) {
       result.failed++
       logger.error(`[${label}/workspaceFiles] Billable row has no workspace attribution`, {
@@ -268,6 +269,31 @@ async function deleteExpiredBillableWorkspaceFileRows(
             entityType: 'workspace',
             entityId: workspaceId,
           })
+          const fileIds = batch.map(({ id }) => id)
+          await tx
+            .delete(workflowTest)
+            .where(
+              and(
+                inArray(workflowTest.bodyFileId, fileIds),
+                isNotNull(workflowTest.deletedAt),
+                lt(workflowTest.deletedAt, retentionDate)
+              )
+            )
+          await tx.delete(changelogRelease).where(
+            inArray(
+              changelogRelease.bodyFileId,
+              tx
+                .select({ id: workspaceFiles.id })
+                .from(workspaceFiles)
+                .where(
+                  and(
+                    inArray(workspaceFiles.id, fileIds),
+                    isNotNull(workspaceFiles.deletedAt),
+                    lt(workspaceFiles.deletedAt, retentionDate)
+                  )
+                )
+            )
+          )
           await releaseWorkspaceFileVersionsForPurgeInTx(
             tx,
             batch.map(({ id }) => id),
@@ -282,7 +308,7 @@ async function deleteExpiredBillableWorkspaceFileRows(
                   batch.map(({ id }) => id)
                 ),
                 eq(workspaceFiles.workspaceId, workspaceId),
-                eq(workspaceFiles.context, 'workspace'),
+                inArray(workspaceFiles.context, BILLED_FILE_CONTEXTS),
                 isNotNull(workspaceFiles.deletedAt),
                 lt(workspaceFiles.deletedAt, retentionDate)
               )

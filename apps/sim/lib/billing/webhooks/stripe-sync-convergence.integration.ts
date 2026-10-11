@@ -15,6 +15,7 @@ import {
   type InMemoryStripe,
   stripeClientMock,
 } from '@sim/testing/mocks/stripe.mock'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { type BetterAuthOptions, betterAuth } from 'better-auth'
 import { createAuthMiddleware } from 'better-auth/api'
@@ -57,6 +58,7 @@ vi.mock('@sim/db', () => ({
 vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
+import { ADMIN_MEMBER_OPERATION_EVENT_TYPE } from '@/lib/admin/member-operation-event'
 import { requestDashboardSubscriptionCancellation } from '@/lib/admin/subscription-lifecycle'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import { CREDIT_TIERS } from '@/lib/billing/constants'
@@ -76,8 +78,13 @@ import {
   reconcileSubscriptionSyncFromStripe,
   recordCustomerRestoreAfterHook,
 } from '@/lib/billing/webhooks/subscription-sync'
-import { enqueueOutboxEvent, processOutboxEventById } from '@/lib/core/outbox/service'
+import {
+  enqueueOutboxEvent,
+  findDeadLetteredEvents,
+  processOutboxEventById,
+} from '@/lib/core/outbox/service'
 import { POST as requeueOutboxEvent } from '@/app/api/v1/admin/outbox/[id]/requeue/route'
+import { POST as resolveOutboxEvent } from '@/app/api/v1/admin/outbox/[id]/resolve/route'
 
 const schemaName = `stripe_sync_${generateId().replaceAll('-', '')}`
 const connection = postgres(
@@ -370,7 +377,11 @@ type TestTransaction = Parameters<Parameters<typeof testDatabase.transaction>[0]
 
 /**
  * Starts a transaction that takes its locks in `holdLocks`, then parks until released and runs
- * `finish`. `untilBlocking` resolves once another backend is waiting on one of its locks.
+ * `finish`. `locked` resolves once those locks are held: start the contending work after it, or the
+ * contender can take the lock first and nothing ever waits on the parked transaction.
+ * `untilBlocking` resolves once another backend is waiting on one of its locks; if none does within
+ * the deadline it releases the transaction before throwing, so a failure never leaves it holding
+ * locks that the suite's teardown then waits on.
  */
 function startParkedTransaction(
   holdLocks: (tx: TestTransaction) => Promise<void>,
@@ -393,16 +404,18 @@ function startParkedTransaction(
   })
   async function untilBlocking() {
     const pid = await holderPid
-    for (let attempt = 0; attempt < 200; attempt++) {
+    const deadline = Date.now() + 10_000
+    while (Date.now() < deadline) {
       const [row] = await connection<{ blocked: number }[]>`
         select count(*)::int as blocked from pg_stat_activity
         where ${pid}::int = any(pg_blocking_pids(pid))`
       if (row.blocked > 0) return
-      await new Promise<void>((resolve) => setImmediate(resolve))
+      await sleep(10)
     }
+    release()
     throw new Error('No transaction ever waited on the parked one')
   }
-  return { done, release, untilBlocking }
+  return { done, release, locked: holderPid.then(() => undefined), untilBlocking }
 }
 
 describe('cancel_at_period_end sync', () => {
@@ -1031,6 +1044,7 @@ describe('Team activation', () => {
         reason: 'admin-cancel-at-period-end',
       })
     })
+    await cancelling.locked
     const activating = testDatabase.transaction((tx) =>
       ensureTeamOrganizationForAcceptance({
         billingOwnerUserId: owner.id,
@@ -1082,6 +1096,7 @@ describe('operator retry', () => {
         })
       }
     )
+    await writing.locked
     const requeuing = requeueFromAdminApi(pauseSync)
     await writing.untilBlocking()
     writing.release()
@@ -1123,6 +1138,7 @@ describe('operator retry', () => {
         })
       }
     )
+    await writing.locked
     const retrying = requestDashboardSubscriptionCancellation({
       organizationId: org.organizationId,
       operationId,
@@ -1444,5 +1460,141 @@ describe('webhook reconcile cost', () => {
       expect(plan['Shared Hit Blocks'] + plan['Shared Read Blocks']).toBeLessThan(200)
       if (/^select/i.test(query)) expect(plan['Actual Rows']).toBeLessThanOrEqual(1)
     }
+  })
+})
+
+async function storedOutboxEvent(eventId: string) {
+  const [row] = await testDatabase
+    .select({ status: outboxEvent.status, lastError: outboxEvent.lastError })
+    .from(outboxEvent)
+    .where(eq(outboxEvent.id, eventId))
+  if (!row) throw new Error(`Outbox event ${eventId} not found`)
+  return row
+}
+
+/** A Team organization whose seat sync (1 → 2 seats) is enqueued and not yet run. */
+async function createPendingSeatSync() {
+  const [owner, joiner] = await Promise.all([createUser('owner'), createUser('joiner')])
+  const org = await createOrganizationWithPlan('team', 1)
+  await addMember(org.organizationId, owner.id, 'owner')
+  await addMember(org.organizationId, joiner.id)
+  await reconcileOrganizationSeats({ organizationId: org.organizationId, reason: 'member-added' })
+  const seatSync = await latestOutboxEventId(
+    OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
+    org.subscriptionId
+  )
+  return { org, seatSync }
+}
+
+describe('operator resolve', () => {
+  beforeAll(() => setEnvFlags({ isBillingEnabled: true }))
+
+  function resolveFromAdminApi(
+    eventId: string,
+    body: unknown,
+    headers: Record<string, string> = { 'x-admin-key': ADMIN_API_KEY }
+  ) {
+    return resolveOutboxEvent(
+      new NextRequest(`http://localhost:3000/api/v1/admin/outbox/${eventId}/resolve`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify(body),
+      }),
+      { params: Promise.resolve({ id: eventId }) }
+    )
+  }
+
+  const resolution = { reason: 'Reconciled the subscription by hand', resolvedBy: 'billing-oncall' }
+
+  it('closes a dead-lettered sync so it never runs again or reaches the reconcile report', async () => {
+    const { org, seatSync } = await createPendingSeatSync()
+    await deadLetter(seatSync)
+
+    const response = await resolveFromAdminApi(seatSync, resolution)
+
+    expect(response.status).toBe(200)
+    const event = await storedOutboxEvent(seatSync)
+    expect(event.status).toBe('completed')
+    expect(event.lastError).toBe(
+      'Resolved by billing-oncall: Reconciled the subscription by hand | last failure: Stripe is unavailable'
+    )
+    const reported = await findDeadLetteredEvents([
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
+    ])
+    expect(reported.map(({ id }) => id)).not.toContain(seatSync)
+    await expect(processEvent(seatSync)).resolves.toBe('completed')
+    expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].quantity).toBe(1)
+  })
+
+  it('reports a resolved dashboard cancellation as resolved, not applied', async () => {
+    const org = await createOrganizationWithPlan('team')
+    const operationId = generateId()
+    const request = {
+      organizationId: org.organizationId,
+      operationId,
+      timing: 'period_end' as const,
+      actor: { id: null, name: 'Admin', email: null },
+    }
+    await requestDashboardSubscriptionCancellation(request)
+    const cancelSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      org.subscriptionId
+    )
+    await deadLetter(cancelSync)
+    expect((await resolveFromAdminApi(cancelSync, resolution)).status).toBe(200)
+
+    await expect(requestDashboardSubscriptionCancellation(request)).resolves.toMatchObject({
+      status: 'resolved',
+    })
+  })
+
+  it('refuses an event that is not dead-lettered and leaves it to run', async () => {
+    const { seatSync } = await createPendingSeatSync()
+
+    const response = await resolveFromAdminApi(seatSync, resolution)
+
+    expect(response.status).toBe(404)
+    expect(await storedOutboxEvent(seatSync)).toMatchObject({ status: 'pending', lastError: null })
+  })
+
+  it('refuses a dead letter that is not a billing Stripe event', async () => {
+    const eventId = await testDatabase.transaction((tx) =>
+      enqueueOutboxEvent(tx, ADMIN_MEMBER_OPERATION_EVENT_TYPE, { operationId: generateId() })
+    )
+    await testDatabase
+      .update(outboxEvent)
+      .set({ status: 'dead_letter', lastError: 'failed' })
+      .where(eq(outboxEvent.id, eventId))
+
+    const response = await resolveFromAdminApi(eventId, resolution)
+
+    expect(response.status).toBe(404)
+    expect((await storedOutboxEvent(eventId)).status).toBe('dead_letter')
+  })
+
+  it('rejects a resolve whose reason is only whitespace', async () => {
+    const { seatSync } = await createPendingSeatSync()
+    await deadLetter(seatSync)
+
+    const response = await resolveFromAdminApi(seatSync, {
+      reason: '   ',
+      resolvedBy: 'billing-oncall',
+    })
+
+    expect(response.status).toBe(400)
+    expect((await storedOutboxEvent(seatSync)).status).toBe('dead_letter')
+  })
+
+  it.each([
+    ['no admin key', {}],
+    ['a wrong admin key', { 'x-admin-key': 'not-the-admin-key' }],
+  ])('denies a resolve with %s', async (_case, headers) => {
+    const { seatSync } = await createPendingSeatSync()
+    await deadLetter(seatSync)
+
+    const response = await resolveFromAdminApi(seatSync, resolution, headers)
+
+    expect(response.status).toBe(401)
+    expect((await storedOutboxEvent(seatSync)).status).toBe('dead_letter')
   })
 })

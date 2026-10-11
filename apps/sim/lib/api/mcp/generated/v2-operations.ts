@@ -1258,7 +1258,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2DeployWorkflowContract,
     summary: 'Deploy Workflow',
     description:
-      'Create and asynchronously activate a deployment version. Every call creates a new version; retrying after a timeout can create a duplicate. Read Get Workflow Deployment to check activation. A conflicting webhook path returns `409`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Create and asynchronously activate a deployment version. Every call creates a new version; retrying after a timeout can create a duplicate. Read Get Workflow Deployment to check activation. `lint` reports advisory findings for the published version; they never block the deploy. A conflicting webhook path returns `409`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/deploy/route').then((route) => route.POST),

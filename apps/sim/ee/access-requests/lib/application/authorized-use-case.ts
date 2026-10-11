@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import {
@@ -13,14 +13,17 @@ import {
   type AccessRequestContext,
   authorizeAccessRequestScope,
 } from '@/ee/access-requests/lib/application/authorization'
-import type {
-  AccessRequestOperation,
-  AccessRequestPrincipal,
+import {
+  ACCESS_REQUEST_DELEGATION_AUDIENCE,
+  type AccessRequestOperation,
+  type AccessRequestPrincipal,
 } from '@/ee/access-requests/lib/application/operations'
 import type { AccessRequestScope } from '@/ee/access-requests/lib/targets'
 
 interface AccessRequestPreparationArgs<I> {
   principal: AccessRequestPrincipal
+  /** The person acting: the caller, or the member Chat acts for. */
+  actorUserId: string
   input: I
   context: AccessRequestContext
 }
@@ -107,7 +110,8 @@ export function defineAuthorizedAccessRequestUseCase<I, R, P = undefined>(
       const scope = definition.scope(input)
       const initial = await authorizeAccessRequestScope(principal, definition.operation, scope)
       return runWithOutboundOrganization(initial.organizationId, async () => {
-        const preparation = { principal, input, context: initial }
+        const actorUserId = requirePrincipalSubjectUserId(principal)
+        const preparation = { principal, actorUserId, input, context: initial }
         let context = initial
         let result: R
         if (definition.mutation) {
@@ -124,11 +128,11 @@ export function defineAuthorizedAccessRequestUseCase<I, R, P = undefined>(
               true,
               initial
             )
-            return execute({ principal, input, context, executor })
+            return execute({ principal, actorUserId, input, context, executor })
           })
         } else {
           const execute = await prepareExecution(definition, preparation)
-          result = await execute({ principal, input, context, executor: db })
+          result = await execute({ principal, actorUserId, input, context, executor: db })
         }
         if (definition.projectAudit) {
           recordProjectedUseCaseAuditEntries(
@@ -136,7 +140,14 @@ export function defineAuthorizedAccessRequestUseCase<I, R, P = undefined>(
             context.workspaceId,
             principal,
             request,
-            definition.projectAudit({ principal, input, context, executor: db, result }),
+            definition.projectAudit({
+              principal,
+              actorUserId,
+              input,
+              context,
+              executor: db,
+              result,
+            }),
             context.organizationId ?? undefined
           )
         }
@@ -144,4 +155,15 @@ export function defineAuthorizedAccessRequestUseCase<I, R, P = undefined>(
       })
     },
   }
+}
+
+/**
+ * The workspace routes' copy of a member use case. Declaring the audience admits Chat acting for
+ * the requester, pinned to its own workspace; the organization routes keep the shared use case,
+ * so Chat never reaches them.
+ */
+export function admitWorkspaceDelegation<I, R>(
+  useCase: OperationUseCase<AccessRequestOperation, I, R>
+): OperationUseCase<AccessRequestOperation, I, R> {
+  return Object.freeze({ ...useCase, delegationAudience: ACCESS_REQUEST_DELEGATION_AUDIENCE })
 }

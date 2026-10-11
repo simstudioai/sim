@@ -21,16 +21,16 @@ import {
 import { useWorkspaceProject } from '@/hooks/queries/project-files'
 
 interface FilesBrowserProps {
-  projectFilesEnabled: boolean
+  projectsEnabled: boolean
 }
 
-export function FilesBrowser({ projectFilesEnabled }: FilesBrowserProps) {
+export function FilesBrowser({ projectsEnabled }: FilesBrowserProps) {
   const { workspaceId, fileId } = useParams<{ workspaceId: string; fileId?: string }>()
   const [{ owner, projectId }] = useQueryStates(fileOwnerParsers)
-  const parent = useWorkspaceProject(workspaceId, projectFilesEnabled)
+  const parent = useWorkspaceProject(workspaceId, projectsEnabled)
   const project = parent.data?.project
 
-  if (owner === 'project' && (!projectFilesEnabled || parent.error)) {
+  if (owner === 'project' && (!projectsEnabled || parent.error)) {
     return (
       <div role='status' className='p-6 text-small'>
         Project files are unavailable.
@@ -58,7 +58,7 @@ export function FilesBrowser({ projectFilesEnabled }: FilesBrowserProps) {
       fileId={fileId ?? null}
     >
       <div className='flex h-full min-h-0 flex-col'>
-        {project && projectFilesEnabled && (
+        {project && projectsEnabled && (
           <FileOwnerTabs owner={fileOwner} projectId={project.id} workspaceId={workspaceId} />
         )}
         <div className='min-h-0 flex-1'>

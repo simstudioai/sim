@@ -55,6 +55,8 @@ interface UseEditableFileContentOptions {
   onDirtyChange?: (isDirty: boolean) => void
   /** `retry` is this instance's own `saveImmediately`, passed alongside an `'error'` status so a caller-side retry never depends on a shared, remount-able ref. */
   onSaveStatusChange?: (status: SaveStatus, retry?: () => Promise<void>) => void
+  /** Receives why a save was refused, for callers whose server checks the content itself. */
+  onSaveError?: (error: unknown) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   /** Bridges an imperative "discard the current draft" command up to the caller, mirroring `saveRef`. */
   discardRef?: React.MutableRefObject<(() => void) | null>
@@ -166,6 +168,7 @@ export function useEditableFileContent({
   isAgentEditing,
   onDirtyChange,
   onSaveStatusChange,
+  onSaveError,
   saveRef,
   discardRef,
   normalizeBaseline,
@@ -174,6 +177,7 @@ export function useEditableFileContent({
   const { owner } = useFileContentSource()
   const onDirtyChangeRef = useRef(onDirtyChange)
   const onSaveStatusChangeRef = useRef(onSaveStatusChange)
+  const onSaveErrorRef = useRef(onSaveError)
 
   /**
    * Mirrors the reducer's `reconciling` phase (assigned below the reducer hook; read here through a
@@ -295,6 +299,7 @@ export function useEditableFileContent({
     everStreamedRef.current = everStreamed
     onDirtyChangeRef.current = onDirtyChange
     onSaveStatusChangeRef.current = onSaveStatusChange
+    onSaveErrorRef.current = onSaveError
     updateContentRef.current = updateContent
     streamActiveRef.current = isAgentStreamActive
     contentRef.current = content
@@ -343,6 +348,7 @@ export function useEditableFileContent({
           conflictRef.current = true
           markConflict()
         }
+        onSaveErrorRef.current?.(error)
         throw error
       }
     },

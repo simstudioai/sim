@@ -126,7 +126,3 @@ resource keys (for example, workspace A to workspace B); an explicit loading sta
 If a continuity-focused surface intentionally omits `loading.tsx` so the current view remains
 mounted until its peer is ready, the intent path must warm both the full route and its critical
 data. Otherwise keep the loading boundary so dynamic navigation remains responsive.
-
-## Local feature barrels are the convention — do not "fix" them
-
-Tooling (e.g. react-doctor's `no-barrel-import`) will flag imports from local `index.ts` barrels as a bundle cost. In this repo that is a **false positive**: barrel imports for 3+ export folders are mandated by `.claude/rules/sim-imports.md`. Leave them.

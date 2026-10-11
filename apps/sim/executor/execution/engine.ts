@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'
 import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
 import { BlockType, EDGE } from '@/executor/constants'
@@ -196,10 +197,11 @@ export class ExecutionEngine {
       this.finalizeIncompleteLogs()
 
       const errorMessage = normalizeError(error)
-      this.execLogger.error(
-        'Execution failed',
-        projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry)
-      )
+      logFailureOnce(this.execLogger, 'Execution failed', error, {
+        metadata: () =>
+          projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry),
+        executionId: this.context.executionId,
+      })
 
       const executionResult: ExecutionResult = {
         success: false,
@@ -477,11 +479,20 @@ export class ExecutionEngine {
         })
       }
     } catch (error) {
-      this.execLogger.error('Node execution failed', {
-        nodeId,
-        ...projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry),
+      /**
+       * Block failures were logged by the block executor. This catches a completion-handling
+       * fault, which only this frame sees when a concurrent failure already won `executionError`.
+       * Normalized first, as `trackExecution` would, so `run()` sees the mark on the same object.
+       */
+      const failure = toError(error)
+      logFailureOnce(this.execLogger, 'Node execution failed', failure, {
+        metadata: () =>
+          projectResolvedSecretDiagnosticError(failure, this.context.resolvedSecretTraceRegistry, {
+            nodeId,
+          }),
+        executionId: this.context.executionId,
       })
-      throw error
+      throw failure
     }
   }
 

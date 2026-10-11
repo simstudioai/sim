@@ -5,18 +5,22 @@ import {
   useAvailableResources,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/available-resources'
 import { resourceFromItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-from-item'
+import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 
 /** Reuses each workspace's canonical inventory without introducing another picker. */
 export function OrganizationResourceInventory({
   workspaceId,
+  excludeTypes,
   onChange,
 }: {
   workspaceId: string
+  excludeTypes?: readonly MothershipResourceType[]
   onChange: (workspaceId: string, inventory: AvailableResources) => void
 }) {
   const inventory = useAvailableResources(workspaceId, {
     includeFolderMentions: true,
     includeProjectFiles: false,
+    excludeTypes,
   })
   useEffect(() => {
     onChange(workspaceId, inventory)

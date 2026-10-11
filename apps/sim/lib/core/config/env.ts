@@ -424,7 +424,7 @@ export const env = createEnv({
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE:    z.string().optional().default('5400'),  // 90 minutes
 
     // Agent Tool-Call Loop
-    MAX_TOOL_ITERATIONS:                   z.string().optional(),                  // Max model round trips per Agent block tool-call loop (default 20)
+    MAX_TOOL_ITERATIONS:                   z.string().optional(),                  // Max model round trips per Agent block tool-call loop (unbounded when unset)
 
     // Isolated-VM Worker Pool Configuration
     IVM_POOL_SIZE:                         z.string().optional().default('4'),      // Max worker processes in pool
@@ -588,7 +588,9 @@ export const env = createEnv({
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
     MSHIP_PLAN_MODE: z.boolean().optional(),
     DASHBOARDS: z.boolean().optional(),
-    PROJECT_API_ENABLED:                   z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
+    PROJECTS:                   z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
+    WORKFLOW_TESTS:                        z.boolean().optional(),                 // Fallback for the `workflow-tests` feature flag off AppConfig
+    CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
     SANDBOXES_ENABLED:                     z.boolean().optional(),                 // Enable custom sandboxes on self-hosted (bypasses hosted requirements)
@@ -657,7 +659,6 @@ export const env = createEnv({
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
-    PROJECT_FILES_ENABLED:                z.boolean().optional(),                 // Enable Project files after entity-aware workers and storage consumers are deployed
     /** Trust administrator domain claims without DNS proof on self-hosted deployments only. */
     SSO_SKIP_DOMAIN_VERIFICATION:          z.boolean().optional(),
     SCIM_ENABLED:                          z.boolean().optional(),                 // Enable SCIM directory provisioning
