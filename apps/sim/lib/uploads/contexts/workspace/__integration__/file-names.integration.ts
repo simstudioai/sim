@@ -7,9 +7,16 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { db, dbFor } from '@sim/db'
-import { copilotChats, organization, user, workspace, workspaceFiles } from '@sim/db/schema'
+import {
+  copilotChats,
+  displaySegmentKey,
+  organization,
+  user,
+  workspace,
+  workspaceFiles,
+} from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
@@ -21,6 +28,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
 
 import { fileParseBodySchema } from '@/lib/api/contracts/storage-transfer'
 import * as inputValidation from '@/lib/core/security/input-validation.server'
+import { textArrayLiteral } from '@/lib/db/arrays'
 import { executeFileParserOperation } from '@/lib/internal/file/parser'
 import {
   createKnowledgeAclFixtureIds,
@@ -39,6 +47,7 @@ import {
   uploadWorkspaceFile,
   workspaceFileVfsPath,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { normalizeDisplaySegment } from '@/lib/vfs/path'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 
 describe('workspace file names in PostgreSQL', () => {
@@ -194,6 +203,83 @@ describe('workspace file names in PostgreSQL', () => {
       expect(scan).toContain('workspace_files_workspace_folder_name_active_unique')
       expect(scan).toMatch(/"Index Cond":"[^"]*COALESCE\(folder_id/)
     }
+  })
+
+  // Names stored before upload normalization: U+202F before AM/PM, doubled and edge whitespace,
+  // a decomposed accent, a control character, and a BOM.
+  const unnormalizedNames = [
+    'Screenshot 2026-01-15 at 9.41.07\u202fAM.png',
+    'Quarterly  Report.pdf',
+    ' padded.txt\t',
+    'Cafe\u0301 menu.png',
+    'ring\u0007ing.png',
+    '\ufeffbom.md',
+  ]
+
+  it('normalizes a display name in SQL exactly as normalizeDisplaySegment does', async () => {
+    const rows = await db.execute<{ name: string; key: string }>(
+      sql`SELECT name, ${displaySegmentKey(sql`name`)} AS key FROM unnest(${textArrayLiteral(unnormalizedNames)}) AS name`
+    )
+    expect(rows).toHaveLength(unnormalizedNames.length)
+    for (const row of rows) expect(row.key).toBe(normalizeDisplaySegment(row.name))
+  })
+
+  it('resolves a stored name that differs from its VFS path through the display-name index', async () => {
+    const fixture = await seedWorkspace()
+    const folder = await createWorkspaceFileFolder({
+      workspaceId: fixture.workspaceId,
+      userId: fixture.aliceId,
+      name: 'Reports',
+    })
+
+    const files = unnormalizedNames.map((name, n) => ({
+      name,
+      id: `wf_legacy_${n}_${fixture.workspaceId}`,
+      folderId: n === 0 ? folder.id : null,
+    }))
+    for (const file of files) {
+      await db.execute(sql`
+        INSERT INTO ${workspaceFiles} (id, key, user_id, workspace_id, folder_id, context, original_name, content_type, size_bytes)
+        VALUES (${file.id}, ${`legacy/${file.id}`}, ${fixture.aliceId}, ${fixture.workspaceId},
+          ${file.folderId}, 'workspace', ${file.name}, 'text/plain', 1)`)
+    }
+    await db.execute(sql`
+      INSERT INTO ${workspaceFiles} (id, key, user_id, workspace_id, context, original_name, content_type)
+      SELECT 'wf_pad_' || n || '_' || ${fixture.workspaceId}, 'pad/' || n || '/' || ${fixture.workspaceId},
+        ${fixture.aliceId}, ${fixture.workspaceId}, 'workspace', 'pad-' || n || '.txt', 'text/plain'
+      FROM generate_series(1, 2000) AS n`)
+    await db.execute(sql`ANALYZE ${workspaceFiles}`)
+
+    for (const file of files) {
+      const vfsPath = workspaceFileVfsPath({
+        folderPath: file.folderId ? 'Reports' : null,
+        name: file.name,
+      })
+      const displayed = normalizeDisplaySegment(file.name)
+      for (const reference of [vfsPath, displayed]) {
+        expect((await resolveWorkspaceFileReference(fixture.workspaceId, reference))?.id).toBe(
+          file.id
+        )
+      }
+    }
+    expect(await resolveWorkspaceFileReference(fixture.workspaceId, 'brand-new.txt')).toBeNull()
+
+    // The resolver's candidate query for a miss: the id arm, the display-name arm, its order.
+    const plan = await db.execute(
+      sql`EXPLAIN (FORMAT JSON) SELECT id, original_name, folder_id, uploaded_at
+        FROM ${workspaceFiles} WHERE ${and(
+          eq(workspaceFiles.workspaceId, fixture.workspaceId),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt),
+          or(
+            inArray(workspaceFiles.id, ['brand-new.txt']),
+            eq(displaySegmentKey(workspaceFiles.originalName), 'brand-new.txt')
+          )
+        )} ORDER BY ${workspaceFiles.uploadedAt}`
+    )
+    const scan = JSON.stringify(plan[0]['QUERY PLAN'])
+    expect(scan).toContain('workspace_files_workspace_display_name_idx')
+    expect(scan).not.toContain('workspace_files_workspace_active_keyset_idx')
   })
 
   it('falls back to a short-id suffix after 20 numbered copies, including under concurrency', async () => {
