@@ -68,7 +68,7 @@ describe('getFeatureFlags', () => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.AGENT_MEMORY_HISTORY = undefined
     envRef.DASHBOARDS = undefined
-    envRef.PROJECT_API_ENABLED = undefined
+    envRef.PROJECTS = undefined
   })
 
   it('rolls dashboards out globally or by organization and defaults off locally', async () => {
@@ -86,16 +86,16 @@ describe('getFeatureFlags', () => {
     envRef.DASHBOARDS = undefined
   })
 
-  it('uses the projects AppConfig flag with PROJECT_API_ENABLED only as an off-AppConfig fallback', async () => {
+  it('uses the projects AppConfig flag with PROJECTS only as an off-AppConfig fallback', async () => {
     expect(await isFeatureEnabled('projects')).toBe(false)
-    envRef.PROJECT_API_ENABLED = true
+    envRef.PROJECTS = true
     expect(await isFeatureEnabled('projects')).toBe(true)
     withAppConfig({ projects: { enabled: false } })
     expect(await isFeatureEnabled('projects')).toBe(false)
-    envRef.PROJECT_API_ENABLED = false
+    envRef.PROJECTS = false
     withAppConfig({ projects: { enabled: true } })
     expect(await isFeatureEnabled('projects')).toBe(true)
-    envRef.PROJECT_API_ENABLED = undefined
+    envRef.PROJECTS = undefined
   })
 
   it('rolls Agent history out by workspace and retains a global capture switch', async () => {

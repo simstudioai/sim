@@ -588,7 +588,7 @@ export const env = createEnv({
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
     MSHIP_PLAN_MODE: z.boolean().optional(),
     DASHBOARDS: z.boolean().optional(),
-    PROJECT_API_ENABLED:                   z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
+    PROJECTS:                   z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
     WORKFLOW_TESTS:                        z.boolean().optional(),                 // Fallback for the `workflow-tests` feature flag off AppConfig
     CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),
