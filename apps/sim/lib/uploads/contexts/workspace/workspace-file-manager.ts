@@ -1844,7 +1844,7 @@ async function listWorkspaceFileReferenceCandidates(
         )
       )
     )
-    .orderBy(workspaceFiles.uploadedAt)
+    .orderBy(workspaceFiles.uploadedAt, workspaceFiles.id)
   return hydrateWorkspaceFilePaths(rows, workspaceId)
 }
 
