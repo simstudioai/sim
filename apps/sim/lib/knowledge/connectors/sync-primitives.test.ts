@@ -16,6 +16,7 @@ vi.hoisted(() => {
 })
 
 const hoisted = vi.hoisted(() => ({
+  resolveKey: vi.fn(),
   add: vi.fn(),
   update: vi.fn(),
   persistHashes: vi.fn(),
@@ -36,11 +37,14 @@ vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   resolveSourceMetadataFields: hoisted.sourceMetadata,
 }))
 vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/embeddings/keys', () => ({ resolveProviderKey: hoisted.resolveKey }))
 vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
 
+import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
 import { SyncLockLostException, stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import {
   classifyExternalDoc,
+  classifyListing,
   createSyncRunState,
   type DocOp,
   loadPageCorpus,
@@ -393,17 +397,19 @@ describe('loadPageCorpus read recovery', () => {
 })
 
 describe('processDocOps image extraction cap', () => {
-  function imageOp(externalId: string): DocOp {
-    return {
-      type: 'add',
-      extDoc: {
-        ...sourceDocument(externalId),
-        title: `${externalId}.png`,
-        mimeType: 'image/png',
-        content: '',
-        contentDeferred: true,
-      },
+  beforeEach(() => {
+    mocks.resolveKey.mockResolvedValue({ apiKey: 'gemini-key', isBYOK: false })
+  })
+
+  function imageOp(externalId: string, type: 'add' | 'update' = 'add'): DocOp {
+    const extDoc: ExternalDocument = {
+      ...sourceDocument(externalId),
+      title: `${externalId}.png`,
+      mimeType: 'image/png',
+      content: '',
+      contentDeferred: true,
     }
+    return type === 'add' ? { type, extDoc } : { type, existingId: `doc-${externalId}`, extDoc }
   }
 
   it('admits new images up to the cap and leaves the rest unfetched for the next sync', async () => {
@@ -441,5 +447,72 @@ describe('processDocOps image extraction cap', () => {
 
     expect(input.hydration.getDocument).toHaveBeenCalledWith('image-1')
     expect(input.imageAdmission).toEqual({ imageExtractionsAdmitted: 500, imagesDeferred: false })
+  })
+
+  it('spends the budget on changed images too, and reports the held-back ones as still listed', async () => {
+    const input = inputFor(0)
+    input.pendingOps = [imageOp('image-1', 'update'), imageOp('image-2', 'update')]
+    input.hydration.getDocument = vi.fn(async (externalId) => sourceDocument(externalId))
+    input.imageAdmission = { imageExtractionsAdmitted: 499, imagesDeferred: false }
+    const heldBack: string[] = []
+    input.onBatchComplete = async (_documents, heldBackExisting) => {
+      heldBack.push(...heldBackExisting.map((document) => document.externalId))
+    }
+
+    await expect(processDocOps(input)).resolves.toBe(true)
+
+    expect(vi.mocked(input.hydration.getDocument).mock.calls.map(([id]) => id)).toEqual(['image-1'])
+    expect(heldBack).toEqual(['image-2'])
+    expect(input.imageAdmission).toEqual({ imageExtractionsAdmitted: 500, imagesDeferred: true })
+  })
+
+  it('leaves images unfetched, without a deferral, when no Gemini key can read them', async () => {
+    mocks.resolveKey.mockRejectedValue(new EmbeddingConfigurationError())
+    const input = inputFor(1)
+    input.pendingOps = [imageOp('image-1'), ...input.pendingOps]
+    input.hydration.getDocument = vi.fn(async (externalId) => sourceDocument(externalId))
+    input.imageAdmission = { imageExtractionsAdmitted: 0, imagesDeferred: false }
+
+    await expect(processDocOps(input)).resolves.toBe(true)
+
+    expect(vi.mocked(input.hydration.getDocument).mock.calls.map(([id]) => id)).toEqual([
+      'source-1',
+    ])
+    expect(input.imageAdmission).toEqual({ imageExtractionsAdmitted: 0, imagesDeferred: false })
+  })
+})
+
+describe('classifyListing on a full resync', () => {
+  it('re-reads deferred pages but not unchanged vision images', () => {
+    const stored = (externalId: string) => ({
+      id: `doc-${externalId}`,
+      externalId,
+      contentHash: `hash:${externalId}`,
+      storageKey: `kb/${externalId}`,
+      userExcluded: false,
+      sourceSeenAt: null,
+    })
+    const page = { ...sourceDocument('page-1'), content: '', contentDeferred: true }
+    const image = {
+      ...sourceDocument('image-1'),
+      mimeType: 'image/png',
+      content: '',
+      contentDeferred: true,
+    }
+    const ops = classifyListing({
+      externalDocs: [page, image],
+      corpus: {
+        excludedExternalIds: new Set(),
+        priorByExternalId: new Map([
+          ['page-1', stored('page-1')],
+          ['image-1', stored('image-1')],
+        ]),
+      },
+      forceRehydrate: true,
+      state: createSyncRunState(inputFor(0).state.result),
+      imagePolicy: 'semantic',
+    })
+
+    expect(ops.map((op) => [op.type, op.extDoc.externalId])).toEqual([['update', 'page-1']])
   })
 })

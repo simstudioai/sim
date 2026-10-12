@@ -46,6 +46,7 @@ import {
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import type { ImageAdmissionState } from '@/lib/knowledge/connectors/image-admission'
 import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import {
   beginListingCheckpoint,
@@ -1740,7 +1741,10 @@ async function syncDedicatedMemberContent(input: {
       })
       .where(stillHoldsMemberSyncLock(run.connectorId, run.runId))
   })
-  return { complete: pass.complete }
+  return {
+    complete: pass.complete,
+    imageExtractionsAdmitted: pass.checkpoint.imageExtractionsAdmitted ?? 0,
+  }
 }
 
 async function completeMemberSync(
@@ -2198,7 +2202,7 @@ export async function executeMemberSync(
               kbOwner,
               billingAttribution,
             })
-          : { complete: true }
+          : { complete: true, imageExtractionsAdmitted: 0 }
         : undefined
       /**
        * Anyone who joined the workspace since the last run is invited now, so
@@ -2248,6 +2252,14 @@ export async function executeMemberSync(
         sourceConfig,
       })
 
+      /**
+       * One image budget for the whole run, not one per member listing, seeded by what
+       * the service-account pass already read.
+       */
+      const imageAdmission: ImageAdmissionState = {
+        imageExtractionsAdmitted: serviceContent?.imageExtractionsAdmitted ?? 0,
+        imagesDeferred: false,
+      }
       while (Date.now() < run.deadlineAt) {
         const member = await claimNextMember(run)
         if (!member) break
@@ -2404,13 +2416,16 @@ export async function executeMemberSync(
               lease: run.lease,
               documentAccess: 'members',
               deadlineAt: durableCheckpoint ? run.deadlineAt : undefined,
-              imageAdmission: checkpoint,
-              onBatchComplete: async (attempted) => {
+              imageAdmission,
+              onBatchComplete: async (attempted, heldBackExisting) => {
                 result.docsHydratedOnce += attempted.filter((item) => item.contentDeferred).length
-                await persistAttempted(attempted)
+                await persistAttempted([...attempted, ...heldBackExisting])
               },
             })
-            if (checkpoint.imagesDeferred) result.listingIncomplete = true
+            if (imageAdmission.imagesDeferred) {
+              checkpoint.imagesDeferred = true
+              result.listingIncomplete = true
+            }
             if (rejectedCredentialError) throw rejectedCredentialError
             if (!finished) return false
           } else {

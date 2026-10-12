@@ -590,6 +590,13 @@ export interface ConnectorConfig extends ConnectorMeta {
   matchContentHash?: (candidate: string, stored: string) => 'current' | 'equivalent' | 'stale'
 
   /**
+   * Whether this source's settings still index images, for a connector whose meta
+   * declares `imageExtraction`. When it returns false the sync removes the images
+   * already indexed, as a setting change rather than a source deletion.
+   */
+  imageExtractionEnabled?: (sourceConfig: Record<string, unknown>) => boolean
+
+  /**
    * External-ID prefixes of everything the caller can still read, when access is
    * granted to whole containers (a Slack channel) rather than item by item. A
    * members-mode crawl renews the caller's observations under these prefixes

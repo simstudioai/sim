@@ -202,8 +202,11 @@ describe('completed listing removal counts', () => {
     fullSync?: boolean
     updated?: { id: string }[]
     revoked?: AbsentDocument[]
+    /** Image Attachments turned off, with the image rows each removal page reads. */
+    disabledImagePages?: { id: string }[][]
   }) {
     resetDbChainMock()
+    for (const page of options.disabledImagePages ?? []) queueTableRows(schemaMock.document, page)
     const soft = options.soft ?? []
     const hard = options.hard ?? []
     const checkpoint = {
@@ -267,7 +270,9 @@ describe('completed listing removal counts', () => {
         listingCheckpoint: checkpoint,
       },
       connectorConfig: confluenceConnector,
-      sourceConfig: SOURCE_CONFIG,
+      sourceConfig: options.disabledImagePages
+        ? { ...SOURCE_CONFIG, imageAttachments: 'off' }
+        : SOURCE_CONFIG,
       syncContext: {},
       kbOwner: { workspaceId: 'workspace', userId: 'owner' },
       billingAttribution: BILLING,
@@ -309,6 +314,18 @@ describe('completed listing removal counts', () => {
 
     const resumed = await reconcile({})
     expect(resumed.docsDeleted).toBe(0)
+  })
+
+  it('removes indexed images outright once Image Attachments is turned off', async () => {
+    mocks.hardDelete.mockResolvedValueOnce(2)
+    const result = await reconcile({ disabledImagePages: [[{ id: 'img-1' }, { id: 'img-2' }], []] })
+    expect(mocks.hardDelete).toHaveBeenCalledWith(['img-1', 'img-2'], 'run', 'connector', 'kb', {
+      connectorId: 'connector',
+      knowledgeBaseId: 'kb',
+      syncLockToken: 'run',
+      lease: 'content',
+    })
+    expect(result.docsDeleted).toBe(2)
   })
 
   it('counts only rows the guarded soft-delete update actually changed', async () => {

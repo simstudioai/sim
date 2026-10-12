@@ -1,3 +1,4 @@
+import { parseRetryAfter } from '@sim/utils/retry'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { readBoundedHttpErrorPayload } from '@/lib/knowledge/documents/utils'
 
@@ -21,7 +22,7 @@ export class GeminiImageExtractionError extends Error {
   constructor(
     readonly status: number,
     readonly retryAfterMs: number | undefined,
-    detail: string
+    readonly detail: string
   ) {
     super(`Gemini image extraction failed (${status}): ${detail}`)
     this.name = 'GeminiImageExtractionError'
@@ -36,13 +37,6 @@ export interface GeminiImageExtractionResponse {
   inputTokens: number
   /** Billed output, which for Gemini includes thinking tokens. */
   outputTokens: number
-}
-
-function retryAfterMs(response: Response): number | undefined {
-  const value = response.headers.get('retry-after')
-  if (!value) return undefined
-  const seconds = Number(value)
-  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined
 }
 
 /**
@@ -96,7 +90,7 @@ export async function requestGeminiImageExtraction(input: {
     const payload = await readBoundedHttpErrorPayload(response)
     throw new GeminiImageExtractionError(
       response.status,
-      retryAfterMs(response),
+      parseRetryAfter(response.headers.get('retry-after')) ?? undefined,
       payload.ok ? payload.body.slice(0, 500) : 'no readable error body'
     )
   }

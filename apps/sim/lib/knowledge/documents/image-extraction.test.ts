@@ -14,7 +14,8 @@ const { mockRequest, mockResolveKey, mockAdmission, mockLoad, mockSave, GeminiEr
     GeminiError: class GeminiImageExtractionError extends Error {
       constructor(
         readonly status: number,
-        readonly retryAfterMs: number | undefined
+        readonly retryAfterMs: number | undefined,
+        readonly detail = ''
       ) {
         super(`Gemini image extraction failed (${status})`)
       }
@@ -86,7 +87,6 @@ async function extract(width = 400, height = 300, extra: Record<string, unknown>
 
 describe('extractImageText', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockLoad.mockResolvedValue(null)
     mockSave.mockResolvedValue(undefined)
     mockAdmission.mockResolvedValue(undefined)
@@ -182,6 +182,11 @@ describe('extractImageText', () => {
     await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_invalid' })
   })
 
+  it('fails a response cut off at the token limit instead of paying for retries', async () => {
+    respond('{"kind": "table", "rendered_text": "Region: EMEA', 'MAX_TOKENS')
+    await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_invalid' })
+  })
+
   it('defers on throttling and fails on a rejected key or image', async () => {
     mockRequest.mockRejectedValueOnce(new GeminiError(429, 5000))
     await expect(extract()).rejects.toMatchObject({ reason: 'rate_limit', retryAfterMs: 5000 })
@@ -192,6 +197,14 @@ describe('extractImageText', () => {
     mockRequest.mockRejectedValueOnce(new GeminiError(400, undefined))
     await expect(extract()).rejects.toMatchObject({ code: 'invalid_file' })
 
+    mockRequest.mockRejectedValueOnce(
+      new GeminiError(400, undefined, '"reason": "API_KEY_INVALID"')
+    )
+    await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_unavailable' })
+
+    mockRequest.mockRejectedValueOnce(new GeminiError(404, undefined))
+    await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_unavailable' })
+
     const serverError = new GeminiError(500, undefined)
     mockRequest.mockRejectedValueOnce(serverError)
     await expect(extract()).rejects.toBe(serverError)
@@ -201,6 +214,28 @@ describe('extractImageText', () => {
     await expect(extract(400, 300, { deadlineAt: Date.now() + 10_000 })).rejects.toBeInstanceOf(
       ProviderCapacityDeferredError
     )
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('keeps the post-call reserve when the admission wait eats into the budget', async () => {
+    const deadlineAt = Date.now() + 200_000
+    mockAdmission.mockImplementationOnce(async () => {
+      vi.setSystemTime(Date.now() + 10_000)
+    })
+    await expect(extract(400, 300, { deadlineAt })).rejects.toBeInstanceOf(
+      ProviderCapacityDeferredError
+    )
+    expect(mockAdmission.mock.calls[0][0].maxWaitMs).toBeLessThanOrEqual(5_000)
+    expect(mockRequest).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('fails an image whose pixel data cannot be decoded as invalid', async () => {
+    const valid = await png(3000, 3000)
+    const corrupt = Buffer.concat([valid.subarray(0, 64), Buffer.alloc(valid.length - 64, 7)])
+    await expect(
+      extractImageText({ source: corrupt, filename: 'broken.png', workspaceId: 'ws-1' })
+    ).rejects.toMatchObject({ code: 'invalid_file' })
     expect(mockRequest).not.toHaveBeenCalled()
   })
 
@@ -216,10 +251,13 @@ describe('resolveImageExtractionModel', () => {
     Object.assign(env, { KB_IMAGE_EXTRACTION_MODEL: undefined })
   })
 
-  it.each(['not-a-model', 'gpt-5.4-mini'])('falls back to the default for %s', (model) => {
-    Object.assign(env, { KB_IMAGE_EXTRACTION_MODEL: model })
-    expect(resolveImageExtractionModel()).toBe(DEFAULT_IMAGE_EXTRACTION_MODEL)
-  })
+  it.each(['not-a-model', 'gpt-5.4-mini', 'gemini-does-not-exist'])(
+    'falls back to the default for %s',
+    (model) => {
+      Object.assign(env, { KB_IMAGE_EXTRACTION_MODEL: model })
+      expect(resolveImageExtractionModel()).toBe(DEFAULT_IMAGE_EXTRACTION_MODEL)
+    }
+  )
 
   it('uses a configured Gemini model', () => {
     Object.assign(env, { KB_IMAGE_EXTRACTION_MODEL: 'gemini-3.1-pro-preview' })

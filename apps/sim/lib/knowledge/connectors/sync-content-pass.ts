@@ -12,6 +12,7 @@ import {
   GOOGLE_COMPANY_PERMISSION_REFRESH_MS,
   isGoogleCompanySource,
 } from '@/lib/knowledge/connectors/google-company-scheduler'
+import { imageExtractionPolicyFor } from '@/lib/knowledge/connectors/image-admission'
 import {
   beginListingCheckpoint,
   type ListingCheckpoint,
@@ -58,6 +59,7 @@ import {
   storedHashIsCurrent,
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { hasVisibleUserDocuments } from '@/lib/knowledge/connectors/user-document-visibility'
+import { SEMANTIC_IMAGE_MIME_TYPES } from '@/lib/knowledge/documents/image-extraction-policy'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { googleCompanyUserContextSchema } from '@/connectors/google-workspace/company-work'
@@ -268,6 +270,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         forceRehydrate: !page.permissionsOnly && cycle.forceRehydrate,
         state,
         matchContentHash,
+        imagePolicy: imageExtractionPolicyFor(input.connector.connectorType),
       })
       const pendingIds = new Set(pendingOps.map((op) => op.extDoc.externalId))
       await persistAttempted(remaining.filter((item) => !pendingIds.has(item.externalId)))
@@ -279,9 +282,9 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         forceRehydrate: !page.permissionsOnly && cycle.forceRehydrate,
         matchContentHash,
         imageAdmission: cycle,
-        onBatchComplete: async (attempted) => {
+        onBatchComplete: async (attempted, heldBackExisting) => {
           hydratedCount += attempted.filter((item) => item.contentDeferred).length
-          await persistAttempted(attempted)
+          await persistAttempted([...attempted, ...heldBackExisting])
         },
       })
       if (!finished) return false
@@ -341,6 +344,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
       company?.didCommit(next.cursor)
     },
   })
+  const imagesRemoved = await removeDisabledImages(input)
   const reconciliation = checkpoint.complete
     ? await reconcileCompletedListing(input, checkpoint, withLease, withAclPage)
     : { finished: false, notice: null }
@@ -356,13 +360,55 @@ export async function runConnectorContentPass(input: ContentPassInput) {
       .join('\n') || null
   return {
     checkpoint,
-    complete: checkpoint.complete && reconciliation.finished,
+    complete: checkpoint.complete && reconciliation.finished && imagesRemoved,
     holdNotice,
     hydratedCount,
   }
 }
 
 /** Reconciles absence only after EOF, with bounded queries and the existing deletion guards. */
+/**
+ * Removes a connector's indexed vision images once its settings stop indexing
+ * images. Turning images off is a setting change, not a source deletion, so it
+ * skips the soft-delete and the mass-deletion hold that guard a listing which
+ * suddenly lost documents; switching back reads the images again.
+ */
+async function removeDisabledImages(input: ContentPassInput): Promise<boolean> {
+  const enabled = input.connectorConfig.imageExtractionEnabled
+  if (!enabled || enabled(input.sourceConfig)) return true
+  if (imageExtractionPolicyFor(input.connector.connectorType) !== 'semantic') return true
+  while (Date.now() < input.deadlineAt) {
+    await input.lease.beatIfDue()
+    const rows = await db
+      .select({ id: document.id })
+      .from(document)
+      .where(
+        and(
+          eq(document.connectorId, input.connectorId),
+          inArray(document.mimeType, [...SEMANTIC_IMAGE_MIME_TYPES])
+        )
+      )
+      .limit(25)
+    if (rows.length === 0) return true
+    const removed = await hardDeleteDocuments(
+      rows.map((row) => row.id),
+      input.runId,
+      input.connectorId,
+      input.connector.knowledgeBaseId,
+      {
+        connectorId: input.connectorId,
+        knowledgeBaseId: input.connector.knowledgeBaseId,
+        syncLockToken: input.runId,
+        lease: input.leaseKind,
+      }
+    )
+    /** Nothing removable is left, e.g. a row detached from this connector mid-walk. */
+    if (removed === 0) return true
+    input.result.docsDeleted += removed
+  }
+  return false
+}
+
 async function reconcileCompletedListing(
   input: ContentPassInput,
   checkpoint: ListingCheckpoint,

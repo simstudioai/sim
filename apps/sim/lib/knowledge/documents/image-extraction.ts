@@ -24,7 +24,7 @@ import {
 } from '@/lib/knowledge/documents/vision-checkpoints'
 import { assertKnowledgeOpaqueModelInputSafe } from '@/lib/knowledge/model-input-provenance'
 import { sniffImageContentType } from '@/lib/uploads/utils/validation'
-import { findProviderFromModel, INLINE_ATTACHMENT_MAX_BYTES } from '@/providers/models'
+import { getProviderModels, INLINE_ATTACHMENT_MAX_BYTES } from '@/providers/models'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('KnowledgeImageExtraction')
@@ -174,13 +174,17 @@ const DECORATIVE: ImageExtractionResult = { decorative: true, renderedText: '' }
 
 /**
  * The model from `KB_IMAGE_EXTRACTION_MODEL`, or the default when it is unset or
- * not a Gemini model in the catalog (the extractor speaks Gemini's API only).
+ * not a Gemini model in the catalog (the extractor speaks Gemini's API only, and
+ * only catalog models carry the pricing that bills each image).
  * Never throws: a bad value must not stop indexing.
  */
 export function resolveImageExtractionModel(): string {
   const configured = env.KB_IMAGE_EXTRACTION_MODEL?.trim()
   if (!configured) return DEFAULT_IMAGE_EXTRACTION_MODEL
-  if (findProviderFromModel(configured) === 'google') return configured
+  const catalogModel = getProviderModels('google').find(
+    (id) => id.toLowerCase() === configured.toLowerCase()
+  )
+  if (catalogModel) return catalogModel
   logger.warn(
     `KB_IMAGE_EXTRACTION_MODEL="${configured}" is not a supported Gemini model, falling back to ${DEFAULT_IMAGE_EXTRACTION_MODEL}`
   )
@@ -202,9 +206,13 @@ async function resolveGeminiKey(
   }
 }
 
+/** Gemini 400 reasons caused by the deployment's key or region, never by the image. */
+const GEMINI_CONFIGURATION_REASONS = ['API_KEY_INVALID', 'API_KEY_EXPIRED', 'FAILED_PRECONDITION']
+
 /**
  * Maps a Gemini failure onto processing outcomes: throttling and overload defer
- * the pass, a rejected key or image fails the document, anything else retries.
+ * the pass, a rejected key, model or region fails the document as unavailable,
+ * a rejected image fails it as invalid, anything else retries.
  */
 function toProcessingError(error: GeminiImageExtractionError, model: string): Error {
   if (error.status === 429 || error.status === 503) {
@@ -214,10 +222,22 @@ function toProcessingError(error: GeminiImageExtractionError, model: string): Er
       cause: error,
     })
   }
-  if (error.status === 401 || error.status === 403) {
+  if (
+    error.status === 401 ||
+    error.status === 403 ||
+    (error.status === 400 &&
+      GEMINI_CONFIGURATION_REASONS.some((reason) => error.detail.includes(reason)))
+  ) {
     return new PermanentDocumentProcessingError(
       'image_extraction_unavailable',
       `Gemini rejected the API key used for ${model}. Check the workspace or deployment Gemini key, then retry.`,
+      error
+    )
+  }
+  if (error.status === 404) {
+    return new PermanentDocumentProcessingError(
+      'image_extraction_unavailable',
+      `Gemini does not serve the model ${model}. Set KB_IMAGE_EXTRACTION_MODEL to an available Gemini model, then retry.`,
       error
     )
   }
@@ -271,9 +291,18 @@ async function prepareModelImage(
       fit: 'inside',
       withoutEnlargement: true,
     })
-  const png = await resized().png().toBuffer()
-  if (png.length <= INLINE_ATTACHMENT_MAX_BYTES) return { bytes: png, mimeType: 'image/png' }
-  return { bytes: await resized().jpeg({ quality: 85 }).toBuffer(), mimeType: 'image/jpeg' }
+  try {
+    const png = await resized().png().toBuffer()
+    if (png.length <= INLINE_ATTACHMENT_MAX_BYTES) return { bytes: png, mimeType: 'image/png' }
+    return { bytes: await resized().jpeg({ quality: 85 }).toBuffer(), mimeType: 'image/jpeg' }
+  } catch (error) {
+    /** The header decoded but the pixel data did not, so every retry would fail the same way. */
+    throw new PermanentDocumentProcessingError(
+      'invalid_file',
+      'This image could not be decoded. Replace the attachment with a valid PNG, JPEG, WebP or GIF image, then retry.',
+      error
+    )
+  }
 }
 
 function parseExtraction(content: string): z.infer<typeof extractionSchema> {
@@ -337,12 +366,14 @@ export async function extractImageText(input: {
   if (cached) return cached
 
   const deadlineAt = input.deadlineAt ?? Number.POSITIVE_INFINITY
-  if (Date.now() + EXTRACTION_TIMEOUT_MS + POST_EXTRACTION_RESERVE_MS >= deadlineAt) {
-    throw new ProviderCapacityDeferredError('processing_budget', {
+  /** Time left for the admission wait once the call and the post-call work are reserved. */
+  const spareMs = () => deadlineAt - Date.now() - EXTRACTION_TIMEOUT_MS - POST_EXTRACTION_RESERVE_MS
+  const deferForBudget = () =>
+    new ProviderCapacityDeferredError('processing_budget', {
       providerId: 'google',
       retryAfterMs: 1000,
     })
-  }
+  if (spareMs() <= 0) throw deferForBudget()
   assertKnowledgeOpaqueModelInputSafe()
   const key = await resolveGeminiKey(workspaceId)
   const image = await prepareModelImage(source, mimeType, dimensions)
@@ -351,11 +382,9 @@ export async function extractImageText(input: {
     credentialFingerprint: sha256Hex(key.apiKey),
     operation: 'ocr',
     signal,
-    maxWaitMs: Math.max(
-      0,
-      Math.min(EXTRACTION_TIMEOUT_MS, deadlineAt - Date.now() - EXTRACTION_TIMEOUT_MS)
-    ),
+    maxWaitMs: Math.max(0, Math.min(EXTRACTION_TIMEOUT_MS, spareMs())),
   })
+  if (spareMs() <= 0) throw deferForBudget()
 
   const timeout = AbortSignal.timeout(EXTRACTION_TIMEOUT_MS)
   let response: Awaited<ReturnType<typeof requestGeminiImageExtraction>>
@@ -381,6 +410,13 @@ export async function extractImageText(input: {
     throw error instanceof GeminiImageExtractionError ? toProcessingError(error, model) : error
   }
 
+  if (response.finishReason === 'MAX_TOKENS') {
+    /** Deterministic for this image and model, so a retry would pay for the same cut-off. */
+    throw new PermanentDocumentProcessingError(
+      'image_extraction_invalid',
+      'The image holds more text than one extraction can return. Split it into smaller images, then retry.'
+    )
+  }
   if (!response.text.trim()) {
     throw new PermanentDocumentProcessingError(
       'image_extraction_invalid',

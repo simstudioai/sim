@@ -61,7 +61,6 @@ function process(policy: ImageExtractionPolicy | undefined, mimeType = 'image/pn
 
 describe('image document routing', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     Object.assign(env, { OCR_PROVIDER: undefined, MISTRAL_API_KEY: undefined })
     fileUtilsServerMockFns.mockDownloadFileFromUrl.mockResolvedValue(IMAGE_BYTES)
     authInternalMockFns.mockGenerateInternalToken.mockResolvedValue('internal-token')

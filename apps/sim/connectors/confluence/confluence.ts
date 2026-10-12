@@ -838,6 +838,8 @@ export const confluenceConnector: ConnectorConfig = {
     error instanceof Error && 'status' in error && error.status === 401,
   ...confluenceConnectorMeta,
 
+  imageExtractionEnabled: confluenceImagesEnabled,
+
   listDocuments: async (accessToken, sourceConfig, cursor, syncContext) => {
     const selectionError = getSourceSelectionError(sourceConfig.spaceKey)
     if (selectionError) throw new Error(selectionError)

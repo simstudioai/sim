@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   GeminiImageExtractionError,
   requestGeminiImageExtraction,
@@ -26,10 +26,6 @@ describe('requestGeminiImageExtraction', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('sends the image inline with a JSON-schema response and reads text and billed tokens', async () => {
