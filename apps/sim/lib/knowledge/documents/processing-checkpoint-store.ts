@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
+import { isRecordLike } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { deferOutboxHandler, type OutboxHandler } from '@/lib/core/outbox/service'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -76,7 +77,7 @@ export async function readFramedCheckpoint(
   } catch {
     return null
   }
-  if (!header || typeof header !== 'object' || Array.isArray(header)) return null
+  if (!isRecordLike(header)) return null
   const body = encoded.subarray(separator + 1)
   if (
     !('version' in header) ||

@@ -2265,6 +2265,7 @@ export async function executeMemberSync(
 
       /** A content pass that ran already removed disabled images; otherwise it happens here. */
       if (!(connector.credentialId && contentDue)) {
+        const deletedBefore = result.docsDeleted
         await removeDisabledImages({
           connectorId,
           connector,
@@ -2276,6 +2277,8 @@ export async function executeMemberSync(
           deadlineAt: run.deadlineAt,
           result,
         })
+        /** Image removals are purges too, so the run log counts them with the lifecycle's. */
+        result.docsPurged += result.docsDeleted - deletedBefore
       }
       /**
        * One image budget for the whole run, not one per member listing, seeded by what
@@ -2569,8 +2572,8 @@ export async function executeMemberSync(
         })
         result.docsTombstoned += lifecycle.tombstoned
         result.docsResurrected += lifecycle.resurrected
-        result.docsPurged = lifecycle.purged
-        result.docsDeleted = lifecycle.purged
+        result.docsPurged += lifecycle.purged
+        result.docsDeleted += lifecycle.purged
         result.membersRemaining = !lifecycle.finished
       }
 

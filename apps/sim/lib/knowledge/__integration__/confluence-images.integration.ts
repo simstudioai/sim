@@ -77,6 +77,7 @@ vi.mock('@/connectors/registry.server', async () => {
       confluence: {
         ...confluenceConnectorMeta,
         imageExtractionEnabled: enabled,
+        validateConfig: async () => ({ valid: true }),
         listDocuments: async (_token: string, config: Record<string, unknown>) => ({
           documents: enabled(config) ? [...fixture.images.keys()].map(stub) : [],
           hasMore: false,
@@ -105,6 +106,7 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
+import { createKnowledgeConnector } from '@/lib/knowledge/application/connectors'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
 import { IMAGES_DEFERRED_NOTICE } from '@/lib/knowledge/connectors/sync-limits'
@@ -286,4 +288,29 @@ describe('Confluence image attachments through sync, indexing and reconciliation
     expect(await images()).toEqual([])
     expect(fixture.extractions).toEqual([])
   })
+
+  it.each([
+    [{}, 'semantic'],
+    [{ imageAttachments: 'off' }, 'off'],
+  ] as const)(
+    'saves a new connector with Image Attachments on unless the request chose otherwise (%o)',
+    async (chosen, saved) => {
+      const created = await createKnowledgeConnector.execute({
+        principal: { kind: 'session', userId: ids.aliceId, sessionId: 'confluence-images' },
+        input: {
+          knowledgeBaseId: ids.knowledgeBaseId,
+          connectorType: 'confluence',
+          credentialId: ids.credentialId,
+          sourceConfig: { domain: 'fixture.atlassian.net', spaceKey: 'ENG', ...chosen },
+          syncIntervalMinutes: 1440,
+        },
+      })
+      const [row] = await db
+        .select({ sourceConfig: knowledgeConnector.sourceConfig })
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, created.connector.id))
+      expect(row?.sourceConfig).toMatchObject({ imageAttachments: saved })
+      await db.delete(knowledgeConnector).where(eq(knowledgeConnector.id, created.connector.id))
+    }
+  )
 })

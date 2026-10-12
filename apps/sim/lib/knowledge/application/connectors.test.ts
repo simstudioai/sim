@@ -216,34 +216,6 @@ describe('knowledge connector application use cases', () => {
     )
   })
 
-  it.each([
-    [{ domain: 'example.atlassian.net', spaceKey: 'ENG' }, 'semantic'],
-    [{ domain: 'example.atlassian.net', spaceKey: 'ENG', imageAttachments: 'off' }, 'off'],
-  ])(
-    'writes a new connector its default settings unless the request chose them',
-    async (sourceConfig, imageAttachments) => {
-      mocks.createConnector.mockResolvedValueOnce({
-        success: true,
-        connector: { id: 'new-connector', connectorType: 'confluence', accessMode: 'workspace' },
-      })
-      await createKnowledgeConnector.execute({
-        principal: patPrincipal,
-        input: {
-          knowledgeBaseId: 'knowledge-b',
-          connectorType: 'confluence',
-          credentialId: 'credential-1',
-          sourceConfig,
-          syncIntervalMinutes: 1440,
-        },
-      })
-      expect(mocks.createConnector).toHaveBeenCalledWith(
-        expect.objectContaining({
-          sourceConfig: expect.objectContaining({ ...sourceConfig, imageAttachments }),
-        })
-      )
-    }
-  )
-
   it('checks workspace write permission before resolving a secret', async () => {
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     await expect(

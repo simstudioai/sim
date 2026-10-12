@@ -429,6 +429,8 @@ export async function extractImageText(input: {
     response: GeminiImageExtractionResponse
     extraction: z.infer<typeof extractionSchema>
   }
+  /** Every attempt that returned a reply was billed by Gemini, including malformed ones. */
+  const spent = { inputTokens: 0, outputTokens: 0 }
   try {
     reply = await retryWithExponentialBackoff(
       async (attemptSignal) => {
@@ -442,6 +444,8 @@ export async function extractImageText(input: {
           maxOutputTokens: MAX_OUTPUT_TOKENS,
           signal: attemptSignal,
         })
+        spent.inputTokens += response.inputTokens
+        spent.outputTokens += response.outputTokens
         return { response, extraction: readExtraction(response) }
       },
       {
@@ -477,15 +481,15 @@ export async function extractImageText(input: {
     throw error instanceof GeminiImageExtractionError ? toProcessingError(error, model) : error
   }
 
-  const { response, extraction } = reply
+  const { extraction } = reply
   const decorative = extraction.kind === 'decorative'
   const costMultiplier = getCostMultiplier()
   const cost = key.isBYOK
     ? 0
     : calculateCost(
         model,
-        response.inputTokens,
-        response.outputTokens,
+        spent.inputTokens,
+        spent.outputTokens,
         false,
         costMultiplier,
         costMultiplier
@@ -496,8 +500,8 @@ export async function extractImageText(input: {
     usage: {
       model,
       cost,
-      inputTokens: response.inputTokens,
-      outputTokens: response.outputTokens,
+      inputTokens: spent.inputTokens,
+      outputTokens: spent.outputTokens,
     },
   }
   try {

@@ -188,7 +188,11 @@ describe('extractImageText', () => {
       const pending = extract()
       await vi.waitFor(() => expect(mockRequest).toHaveBeenCalledTimes(1))
       await vi.advanceTimersByTimeAsync(10_000)
-      await expect(pending).resolves.toMatchObject({ decorative: false })
+      /** Both replies were billed by Gemini, so the usage covers both. */
+      await expect(pending).resolves.toMatchObject({
+        decorative: false,
+        usage: { inputTokens: 2400, outputTokens: 600 },
+      })
       expect(mockRequest).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
