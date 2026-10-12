@@ -34,6 +34,8 @@ Email body:
 
 These are drafts, not sent announcements.
 
-## Editorial expansion
+## Editorial revision
 
-Expanded October 12, 2026, with supported capabilities, a practical example, and a short path to getting started. Copy was checked against the existing feature evidence and linked documentation. Original publication dates, release references, RSS identities, and reviewed media are unchanged; the article’s `updated` timestamp records this substantive copy revision. Browser and CI evidence belongs in the expansion PR.
+Revised October 12, 2026, to clarify supported behavior and include selected changes from the same technical release where useful. Every public sentence describes a capability, a meaningful change, or necessary access information. Original dates, release references, RSS identities, and reviewed media are preserved. The `updated` timestamp records the substantive revision. Browser and CI evidence belongs in the revision PR.
+
+Additional v0.9.12 coverage: [You.com, #8584](https://github.com/simstudioai/sim/pull/8584) and [Lucid/Notion browsing, #8579](https://github.com/simstudioai/sim/pull/8579). The technical release includes both; current setup guides establish the supported operations and account requirements.

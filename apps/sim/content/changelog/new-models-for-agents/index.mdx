@@ -21,8 +21,8 @@ release:
   height="720"
 />
 
-[GPT-6.1 Sol](/models/openai/gpt-6-1-sol), [Claude Haiku 5.5](/models/anthropic/claude-haiku-5-5), and [Grok 4.7](/models/xai/grok-4-7) are now available in Sim’s Agent block. Select any of them in an existing agent while keeping your prompts, connected integrations, and workflow structure.
+[GPT-6.1 Sol](/models/openai/gpt-6-1-sol), [Claude Haiku 5.5](/models/anthropic/claude-haiku-5-5), and [Grok 4.7](/models/xai/grok-4-7) are now available in Sim’s Agent block. Switch models while keeping your prompts, connected integrations, and workflow structure. [Configure an Agent block](https://docs.sim.ai/workflows/blocks/agent).
 
-This makes it easier to try a new model on the work your agent already handles. For a support agent, run the same sample request with each model and review the response, tool choices, and output format. For an agent that processes documents, try a representative input before changing the model used by a deployed workflow.
+### Also in v0.9.15
 
-Open the Agent block, choose the model in **Model**, and review its settings before running your draft. Available settings and supported input types depend on the model. The linked model pages explain each option; the [Agent block guide](https://docs.sim.ai/workflows/blocks/agent) covers connecting a provider, configuring messages, and using the response in later steps.
+- **Agent defaults:** Organization admins can choose a default model in a permission group. Newly created Agent blocks use that allowed default; explicitly selected models stay as they are. Available with [permission groups](https://docs.sim.ai/platform/enterprise/access-control) on Sim Cloud Enterprise and configured self-hosted deployments.

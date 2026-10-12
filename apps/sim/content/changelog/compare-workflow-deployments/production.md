@@ -37,6 +37,8 @@ Email body:
 
 These are drafts, not sent announcements.
 
-## Editorial expansion
+## Editorial revision
 
-Expanded October 12, 2026, with supported capabilities, a practical example, and a short path to getting started. Copy was checked against the existing feature evidence and linked documentation. Original publication dates, release references, RSS identities, and reviewed media are unchanged; the article’s `updated` timestamp records this substantive copy revision. Browser and CI evidence belongs in the expansion PR.
+Revised October 12, 2026, to clarify supported behavior and include selected changes from the same technical release where useful. Every public sentence describes a capability, a meaningful change, or necessary access information. Original dates, release references, RSS identities, and reviewed media are preserved. The `updated` timestamp records the substantive revision. Browser and CI evidence belongs in the revision PR.
+
+Additional v0.9.10 coverage: [file diff rendering, #8543](https://github.com/simstudioai/sim/pull/8543) and [remembered resource-panel widths, #8531](https://github.com/simstudioai/sim/pull/8531). The technical release includes both; source and current documentation were reviewed.

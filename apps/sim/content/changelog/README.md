@@ -107,7 +107,7 @@ release:
   captionsSrc="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/changelog/demo-v1.vtt"
 />
 
-Explain where to find the feature and give one concrete example.
+Explain the behavior that changed and link to the relevant guide. Add selected release changes only when they have verified source and release evidence.
 
 ### Improvements
 

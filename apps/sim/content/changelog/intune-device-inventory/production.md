@@ -24,6 +24,8 @@ Bring Microsoft Intune device inventory into your agents in Sim. Read managed de
 
 Draft only; no announcement has been sent.
 
-## Editorial expansion
+## Editorial revision
 
-Expanded October 12, 2026, with supported capabilities, a practical example, and a short path to getting started. Copy was checked against the existing feature evidence and linked documentation. Original publication dates, release references, RSS identities, and reviewed media are unchanged; the article’s `updated` timestamp records this substantive copy revision. Browser and CI evidence belongs in the expansion PR.
+Revised October 12, 2026, to clarify supported behavior and include selected changes from the same technical release where useful. Every public sentence describes a capability, a meaningful change, or necessary access information. Original dates, release references, RSS identities, and reviewed media are preserved. The `updated` timestamp records the substantive revision. Browser and CI evidence belongs in the revision PR.
+
+Additional v0.9.15 coverage: [Plane, #8660](https://github.com/simstudioai/sim/pull/8660) and [Buffer expansion, #8779](https://github.com/simstudioai/sim/pull/8779). The technical release includes both. Buffer schedule preservation requires the documented keep-current selections; Plane self-hosted support varies by version and action. Ramp remains outside this article pending its separate credential changes.

@@ -24,6 +24,8 @@ Choose GPT-6.1 Sol, Claude Haiku 5.5, or Grok 4.7 for an Agent block in Sim. Kee
 
 Draft only; no announcement has been sent.
 
-## Editorial expansion
+## Editorial revision
 
-Expanded October 12, 2026, with supported capabilities, a practical example, and a short path to getting started. Copy was checked against the existing feature evidence and linked documentation. Original publication dates, release references, RSS identities, and reviewed media are unchanged; the article’s `updated` timestamp records this substantive copy revision. Browser and CI evidence belongs in the expansion PR.
+Revised October 12, 2026, to clarify supported behavior and include selected changes from the same technical release where useful. Every public sentence describes a capability, a meaningful change, or necessary access information. Original dates, release references, RSS identities, and reviewed media are preserved. The `updated` timestamp records the substantive revision. Browser and CI evidence belongs in the revision PR.
+
+Additional v0.9.15 coverage: [permission-group Agent defaults, #8771](https://github.com/simstudioai/sim/pull/8771). The technical release includes the change. Access remains governed by the existing Enterprise entitlement or self-hosted configuration; explicit model choices are preserved.
