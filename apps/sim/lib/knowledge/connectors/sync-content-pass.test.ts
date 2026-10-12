@@ -94,7 +94,12 @@ interface StoredPage {
   sourceSeenAt: Date | null
 }
 
-const SOURCE_CONFIG = { domain: 'fixture.atlassian.net', spaceKey: 'ENG' }
+/** Images on, as for a new connector, so only the image opt-out test runs its removal. */
+const SOURCE_CONFIG = {
+  domain: 'fixture.atlassian.net',
+  spaceKey: 'ENG',
+  imageAttachments: 'semantic',
+}
 const EXISTING: StoredPage = {
   id: 'document',
   externalId: 'page',

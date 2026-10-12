@@ -142,6 +142,11 @@ export async function runConnectorContentPass(input: ContentPassInput) {
     })
   }
   let hydratedCount = 0
+  /** The image count last written to the stored checkpoint. */
+  let storedImageCount = {
+    imageExtractionsAdmitted: checkpoint.imageExtractionsAdmitted,
+    imagesDeferred: checkpoint.imagesDeferred,
+  }
   const syncIntervalMinutes = effectiveConnectorSyncIntervalMinutes(
     input.documentAccess,
     input.connector.syncIntervalMinutes ?? SIM_SEARCH_SYNC_INTERVAL_MINUTES
@@ -262,6 +267,26 @@ export async function runConnectorContentPass(input: ContentPassInput) {
                 )
               )
           }
+          const imageCount = {
+            imageExtractionsAdmitted: cycle.imageExtractionsAdmitted,
+            imagesDeferred: cycle.imagesDeferred,
+          }
+          if (
+            imageCount.imageExtractionsAdmitted !== storedImageCount.imageExtractionsAdmitted ||
+            imageCount.imagesDeferred !== storedImageCount.imagesDeferred
+          ) {
+            /**
+             * Merged into the stored checkpoint with the batch's seen stamps, so a restart in the
+             * middle of this page still counts the images it already read.
+             */
+            await tx
+              .update(knowledgeConnector)
+              .set({
+                listingCheckpoint: sql`${knowledgeConnector.listingCheckpoint} || ${JSON.stringify(imageCount)}::jsonb`,
+              })
+              .where(input.lease.stillHeld())
+            storedImageCount = imageCount
+          }
         })
       }
       const pendingOps = classifyListing({
@@ -373,7 +398,20 @@ export async function runConnectorContentPass(input: ContentPassInput) {
  * skips the soft-delete and the mass-deletion hold that guard a listing which
  * suddenly lost documents; switching back reads the images again.
  */
-async function removeDisabledImages(input: ContentPassInput): Promise<boolean> {
+export async function removeDisabledImages(
+  input: Pick<
+    ContentPassInput,
+    | 'connectorId'
+    | 'connector'
+    | 'connectorConfig'
+    | 'sourceConfig'
+    | 'lease'
+    | 'leaseKind'
+    | 'runId'
+    | 'deadlineAt'
+    | 'result'
+  >
+): Promise<boolean> {
   const enabled = input.connectorConfig.imageExtractionEnabled
   if (!enabled || enabled(input.sourceConfig)) return true
   if (imageExtractionPolicyFor(input.connector.connectorType) !== 'semantic') return true
@@ -385,7 +423,9 @@ async function removeDisabledImages(input: ContentPassInput): Promise<boolean> {
       .where(
         and(
           eq(document.connectorId, input.connectorId),
-          inArray(document.mimeType, [...SEMANTIC_IMAGE_MIME_TYPES])
+          inArray(document.mimeType, [...SEMANTIC_IMAGE_MIME_TYPES]),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt)
         )
       )
       .limit(25)

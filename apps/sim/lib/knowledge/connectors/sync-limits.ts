@@ -158,7 +158,7 @@ export const SOURCE_CONTENT_ERROR =
 
 /** The per-sync image cap held some new images back; nothing failed. */
 export const IMAGES_DEFERRED_NOTICE =
-  'Some new images were left for the next scheduled sync to keep this sync within its image extraction limit.'
+  'Some new or changed images were left for the next scheduled sync to keep this sync within its image extraction limit.'
 
 /**
  * Documents whose permission evidence is refreshed per statement. Documents are

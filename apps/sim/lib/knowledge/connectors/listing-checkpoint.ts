@@ -136,6 +136,7 @@ export async function runResumableListing(input: {
         input.connectorConfig.isListingCursorInvalidError?.(error) !== true
       )
         throw error
+      /** A restarted generation is still the same sync, so it keeps the image count and deferral. */
       checkpoint = {
         ...checkpoint,
         generationId: generateId(),
@@ -147,8 +148,6 @@ export async function runResumableListing(input: {
         contentFailures: false,
         permissionFailures: false,
         listingFailures: null,
-        imageExtractionsAdmitted: 0,
-        imagesDeferred: false,
       }
       await input.saveCheckpoint(checkpoint)
       cursors.clear()

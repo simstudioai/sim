@@ -386,6 +386,12 @@ export interface ConnectorMeta {
    * knowledge-base connectors ignore these defaults.
    */
   searchDefaultSourceConfig?: Readonly<Record<string, string>>
+  /**
+   * Settings written into every new connector when the request leaves them unset,
+   * from any surface. Existing connectors are never back-filled, so an unset value
+   * keeps meaning what it meant before the default existed.
+   */
+  defaultSourceConfig?: Readonly<Record<string, string>>
   /** Unique connector identifier, e.g. 'confluence', 'google_drive', 'notion' */
   id: string
   /** Human-readable name, e.g. 'Confluence', 'Google Drive' */

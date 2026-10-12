@@ -74,7 +74,10 @@ import {
   tombstoneDocumentsObservedOnlyBy,
 } from '@/lib/knowledge/connectors/member-observations'
 import { inviteWorkspaceMembersToCredentialGroup } from '@/lib/knowledge/connectors/member-provisioning'
-import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
+import {
+  removeDisabledImages,
+  runConnectorContentPass,
+} from '@/lib/knowledge/connectors/sync-content-pass'
 import { resolveDatabaseRetryDelayMs } from '@/lib/knowledge/connectors/sync-database-retry'
 import {
   deferConnectorSync,
@@ -86,6 +89,7 @@ import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   connectorFailureBackoffMinutes,
+  IMAGES_DEFERRED_NOTICE,
   MAX_CONSECUTIVE_FAILURES,
   MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES,
   MEMBER_FULL_RECRAWL_MINUTES,
@@ -212,6 +216,8 @@ interface MemberListingOutcome {
   resumable: boolean
   suspect: boolean
   contentFailures: boolean
+  /** Images this listing held back for the per-sync cap; the next listing must be full to offer them again. */
+  imagesDeferred: boolean
   /** Cursor to store when this outcome lands: a value, null to close the feed, undefined to leave it. */
   changeCursor: string | null | undefined
   checkpoint?: ListingCheckpoint
@@ -1331,6 +1337,7 @@ async function listForMember(input: {
     connectorConfig.supportsChangeFeed?.(sourceConfig) === false ||
     Boolean(member.listingCheckpoint) ||
     member.lastError === SOURCE_CONTENT_ERROR ||
+    member.lastError === IMAGES_DEFERRED_NOTICE ||
     input.forceFull === true ||
     shouldListFully(
       member.memberSyncedThrough,
@@ -1580,7 +1587,11 @@ async function applyMemberListing(
       .update(knowledgeConnectorMember)
       .set({
         consecutiveFailures: 0,
-        lastError: outcome.contentFailures ? SOURCE_CONTENT_ERROR : null,
+        lastError: outcome.contentFailures
+          ? SOURCE_CONTENT_ERROR
+          : outcome.imagesDeferred
+            ? IMAGES_DEFERRED_NOTICE
+            : null,
         ...(outcome.mode === 'full' &&
         (!outcome.checkpoint || (outcome.checkpoint.complete && !outcome.checkpoint.unsafe))
           ? { lastListedCount: outcome.listedCount }
@@ -2252,6 +2263,20 @@ export async function executeMemberSync(
         sourceConfig,
       })
 
+      /** A service-account pass already removed disabled images; member listings do it here. */
+      if (!serviceContent) {
+        await removeDisabledImages({
+          connectorId,
+          connector,
+          connectorConfig,
+          sourceConfig,
+          lease: run.lease,
+          leaseKind: 'member',
+          runId,
+          deadlineAt: run.deadlineAt,
+          result,
+        })
+      }
       /**
        * One image budget for the whole run, not one per member listing, seeded by what
        * the service-account pass already read.
@@ -2272,6 +2297,8 @@ export async function executeMemberSync(
           ...PER_MEMBER_LISTING_CONTEXT,
         }
         let contentFailures = false
+        let imagesDeferred = false
+        imageAdmission.imagesDeferred = false
         const processPage = async (
           documents: ExternalDocument[],
           checkpoint: ListingCheckpoint,
@@ -2424,6 +2451,7 @@ export async function executeMemberSync(
             })
             if (imageAdmission.imagesDeferred) {
               checkpoint.imagesDeferred = true
+              imagesDeferred = true
               result.listingIncomplete = true
             }
             if (rejectedCredentialError) throw rejectedCredentialError
@@ -2493,6 +2521,8 @@ export async function executeMemberSync(
            */
           contentFailures:
             contentFailures || (!listed.resumable && Boolean(listed.checkpoint?.contentFailures)),
+          imagesDeferred:
+            imagesDeferred || (!listed.resumable && Boolean(listed.checkpoint?.imagesDeferred)),
           changeCursor: suspect ? undefined : listed.changeCursor,
           checkpoint: listed.checkpoint,
           observationRunId: listed.observationRunId,

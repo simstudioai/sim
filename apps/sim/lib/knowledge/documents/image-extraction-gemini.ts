@@ -1,4 +1,5 @@
 import { parseRetryAfter } from '@sim/utils/retry'
+import { z } from 'zod'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { readBoundedHttpErrorPayload } from '@/lib/knowledge/documents/utils'
 
@@ -17,7 +18,11 @@ interface GeminiGenerateContentResponse {
   }
 }
 
-/** Gemini answered with an HTTP failure; `status` drives retry and deferral. */
+/**
+ * Gemini answered with an HTTP failure; `status` drives retry and deferral. `detail`
+ * holds only Gemini's error status and reason codes, never the response body, which
+ * may echo request content.
+ */
 export class GeminiImageExtractionError extends Error {
   constructor(
     readonly status: number,
@@ -37,6 +42,34 @@ export interface GeminiImageExtractionResponse {
   inputTokens: number
   /** Billed output, which for Gemini includes thinking tokens. */
   outputTokens: number
+}
+
+/** Gemini error bodies carry `error.status` and `error.details[].reason` codes. */
+const geminiErrorBodySchema = z.object({
+  error: z.object({
+    status: z.string().max(64).optional(),
+    details: z
+      .array(z.object({ reason: z.string().max(64).optional() }).passthrough())
+      .max(20)
+      .optional(),
+  }),
+})
+
+/** The machine-readable codes of a Gemini error body, such as `INVALID_ARGUMENT API_KEY_INVALID`. */
+function geminiErrorCodes(body: string): string {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    return 'unparseable error body'
+  }
+  const result = geminiErrorBodySchema.safeParse(parsed)
+  if (!result.success) return 'unrecognized error body'
+  const { status, details } = result.data.error
+  const codes = [status, ...(details ?? []).map((detail) => detail.reason)].filter(
+    (code): code is string => Boolean(code) && /^[A-Z0-9_]+$/.test(code as string)
+  )
+  return codes.length > 0 ? codes.join(' ') : 'no error code'
 }
 
 /**
@@ -91,7 +124,7 @@ export async function requestGeminiImageExtraction(input: {
     throw new GeminiImageExtractionError(
       response.status,
       parseRetryAfter(response.headers.get('retry-after')) ?? undefined,
-      payload.ok ? payload.body.slice(0, 500) : 'no readable error body'
+      payload.ok ? geminiErrorCodes(payload.body) : 'no readable error body'
     )
   }
   const json = await readResponseJsonWithLimit<GeminiGenerateContentResponse>(response, {

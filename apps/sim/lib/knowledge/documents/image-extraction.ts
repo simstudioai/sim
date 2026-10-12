@@ -16,8 +16,10 @@ import {
 import {
   IMAGE_EXTRACTION_REPRESENTATION_VERSION,
   SEMANTIC_IMAGE_MIME_TYPES,
+  SEMANTIC_IMAGE_MIN_BYTES,
 } from '@/lib/knowledge/documents/image-extraction-policy'
 import type { OcrCheckpointContext } from '@/lib/knowledge/documents/ocr-checkpoints'
+import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import {
   createVisionCheckpoint,
   type VisionExtractionCheckpoint,
@@ -38,7 +40,14 @@ const MAX_IMAGE_EDGE_PX = 2048
 const MAX_INPUT_PIXELS = 268_402_689
 /** Dense tables truncated at 4,096 output tokens and parsed as nothing. */
 const MAX_OUTPUT_TOKENS = 32_768
+/** Covers every attempt of one extraction, retry waits included. */
 const EXTRACTION_TIMEOUT_MS = 120_000
+/**
+ * Gemini failures worth an immediate retry inside one extraction: transient server
+ * errors, which Gemini does not bill. Throttling (429) and overload (503) defer the
+ * pass through provider admission instead.
+ */
+const RETRYABLE_GEMINI_STATUSES = new Set([500, 502, 504])
 /** Time left after the call for the checkpoint write, embedding and the index swap. */
 const POST_EXTRACTION_RESERVE_MS = 75_000
 
@@ -182,7 +191,7 @@ export function resolveImageExtractionModel(): string {
   const configured = env.KB_IMAGE_EXTRACTION_MODEL?.trim()
   if (!configured) return DEFAULT_IMAGE_EXTRACTION_MODEL
   const catalogModel = getProviderModels('google').find(
-    (id) => id.toLowerCase() === configured.toLowerCase()
+    (id) => id.toLowerCase() === configured.toLowerCase() && id.toLowerCase().startsWith('gemini-')
   )
   if (catalogModel) return catalogModel
   logger.warn(
@@ -348,6 +357,8 @@ export async function extractImageText(input: {
       `${filename} is not a PNG, JPEG, WebP or GIF image. Replace the attachment, then retry.`
     )
   }
+  /** Listing drops these by reported size; this catches a source that reported none. */
+  if (source.length < SEMANTIC_IMAGE_MIN_BYTES) return DECORATIVE
   const dimensions = await readDimensions(source)
   if (dimensions.width < MIN_IMAGE_EDGE_PX || dimensions.height < MIN_IMAGE_EDGE_PX) {
     return DECORATIVE
@@ -386,22 +397,35 @@ export async function extractImageText(input: {
   })
   if (spareMs() <= 0) throw deferForBudget()
 
-  const timeout = AbortSignal.timeout(EXTRACTION_TIMEOUT_MS)
   let response: Awaited<ReturnType<typeof requestGeminiImageExtraction>>
   try {
-    response = await requestGeminiImageExtraction({
-      model,
-      apiKey: key.apiKey,
-      systemPrompt: IMAGE_EXTRACTION_SYSTEM_PROMPT,
-      userText: `Attachment title: ${filename}\nMedia type: ${image.mimeType}\n\nExtract this image according to the schema.`,
-      image,
-      responseJsonSchema: IMAGE_EXTRACTION_RESPONSE_SCHEMA,
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-    })
+    response = await retryWithExponentialBackoff(
+      (attemptSignal) =>
+        requestGeminiImageExtraction({
+          model,
+          apiKey: key.apiKey,
+          systemPrompt: IMAGE_EXTRACTION_SYSTEM_PROMPT,
+          userText: `Attachment title: ${filename}\nMedia type: ${image.mimeType}\n\nExtract this image according to the schema.`,
+          image,
+          responseJsonSchema: IMAGE_EXTRACTION_RESPONSE_SCHEMA,
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+          signal: attemptSignal,
+        }),
+      {
+        maxRetries: 3,
+        initialDelayMs: 1000,
+        maxDelayMs: 10_000,
+        retryBudgetMs: EXTRACTION_TIMEOUT_MS,
+        retryCondition: (error) =>
+          error instanceof GeminiImageExtractionError
+            ? RETRYABLE_GEMINI_STATUSES.has(error.status)
+            : isRetryableError(error),
+        signal,
+      }
+    )
   } catch (error) {
     signal?.throwIfAborted()
-    if (timeout.aborted) {
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
       throw new ProviderCapacityDeferredError('provider_timeout', {
         providerId: 'google',
         cause: error,

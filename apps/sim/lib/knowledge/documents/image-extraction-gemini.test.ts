@@ -85,4 +85,22 @@ describe('requestGeminiImageExtraction', () => {
     await expect(failure).rejects.toBeInstanceOf(GeminiImageExtractionError)
     await expect(failure).rejects.toMatchObject({ status: 429, retryAfterMs: 7000 })
   })
+
+  it('keeps only the error codes from a failure body, never its text', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json(
+        {
+          error: {
+            status: 'INVALID_ARGUMENT',
+            message: 'Echoed request content',
+            details: [{ reason: 'API_KEY_INVALID' }],
+          },
+        },
+        { status: 400 }
+      )
+    )
+    const failure = await call().catch((error: unknown) => error)
+    expect(failure).toMatchObject({ status: 400, detail: 'INVALID_ARGUMENT API_KEY_INVALID' })
+    expect(String(failure)).not.toContain('Echoed request content')
+  })
 })

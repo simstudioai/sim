@@ -69,10 +69,17 @@ function respond(body: unknown, finishReason = 'STOP') {
   })
 }
 
+/** A noisy image, so it stays over the byte floor at any tested size. */
 async function png(width: number, height: number): Promise<Buffer> {
-  return sharp({
-    create: { width, height, channels: 3, background: { r: 240, g: 240, b: 240 } },
-  })
+  const pixels = Buffer.alloc(width * height * 3)
+  let seed = 0x2545f491
+  for (let index = 0; index < pixels.length; index++) {
+    seed ^= seed << 13
+    seed ^= seed >>> 17
+    seed ^= seed << 5
+    pixels[index] = seed & 0xff
+  }
+  return sharp(pixels, { raw: { width, height, channels: 3 } })
     .png()
     .toBuffer()
 }
@@ -205,9 +212,25 @@ describe('extractImageText', () => {
     mockRequest.mockRejectedValueOnce(new GeminiError(404, undefined))
     await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_unavailable' })
 
-    const serverError = new GeminiError(500, undefined)
-    mockRequest.mockRejectedValueOnce(serverError)
-    await expect(extract()).rejects.toBe(serverError)
+    const unexpected = new GeminiError(501, undefined)
+    mockRequest.mockRejectedValueOnce(unexpected)
+    await expect(extract()).rejects.toBe(unexpected)
+    /** One call per failure above: none of them is retried within the extraction. */
+    expect(mockRequest).toHaveBeenCalledTimes(6)
+  })
+
+  it('retries a transient Gemini server error within the same extraction', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      mockRequest.mockRejectedValueOnce(new GeminiError(500, undefined))
+      const pending = extract()
+      await vi.waitFor(() => expect(mockRequest).toHaveBeenCalledTimes(1))
+      await vi.advanceTimersByTimeAsync(10_000)
+      await expect(pending).resolves.toMatchObject({ decorative: false })
+      expect(mockRequest).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('yields to the next pass instead of starting a call that would overrun the deadline', async () => {
@@ -228,6 +251,19 @@ describe('extractImageText', () => {
     expect(mockAdmission.mock.calls[0][0].maxWaitMs).toBeLessThanOrEqual(5_000)
     expect(mockRequest).not.toHaveBeenCalled()
     vi.useRealTimers()
+  })
+
+  it('treats an image under the byte floor as decorative without a call', async () => {
+    const tiny = await sharp({
+      create: { width: 200, height: 200, channels: 3, background: { r: 255, g: 255, b: 255 } },
+    })
+      .png()
+      .toBuffer()
+    expect(tiny.length).toBeLessThan(2048)
+    await expect(
+      extractImageText({ source: tiny, filename: 'spacer.png', workspaceId: 'ws-1' })
+    ).resolves.toEqual({ decorative: true, renderedText: '' })
+    expect(mockRequest).not.toHaveBeenCalled()
   })
 
   it('fails an image whose pixel data cannot be decoded as invalid', async () => {

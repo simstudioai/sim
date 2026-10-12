@@ -19,6 +19,7 @@ vi.mock('@/lib/knowledge/documents/secure-fetch.server', async (importOriginal) 
 }))
 
 const CONFIG = { domain: 'example.atlassian.net', spaceKey: 'ENG' }
+const IMAGES_ON = { ...CONFIG, imageAttachments: 'semantic' }
 const CONTEXT = { cloudId: 'cloud', spaceId: '1' }
 const INPUT = { accessToken: 'token', cloudId: 'cloud', domain: CONFIG.domain, includeImages: true }
 const fetchMock = vi.fn<typeof fetch>()
@@ -460,7 +461,7 @@ describe('Confluence image attachments', () => {
   it('hydrates a listed image with its bytes and the same media type', async () => {
     fixture(file({ title: 'Quarterly schedule', mediaType: 'image/png', fileSize: 40_000 }))
     secureDownload.mockResolvedValue(new Response('png bytes'))
-    const hydrated = await get()
+    const hydrated = await get('attachment:page:p1:att123', IMAGES_ON)
     expect(hydrated?.skippedReason).toBeUndefined()
     expect(hydrated?.sourceFile).toMatchObject({
       fileName: 'Quarterly schedule',
@@ -492,8 +493,8 @@ describe('Confluence image attachments', () => {
     expect(hydrated?.skippedExistingDisposition).toBe('replace')
   })
 
-  it('treats a connector created before the setting existed as on', () => {
-    expect(confluenceImagesEnabled({})).toBe(true)
+  it('keeps images off for a connector created before the setting existed', () => {
+    expect(confluenceImagesEnabled({})).toBe(false)
     expect(confluenceImagesEnabled({ imageAttachments: 'semantic' })).toBe(true)
     expect(confluenceImagesEnabled({ imageAttachments: 'off' })).toBe(false)
   })

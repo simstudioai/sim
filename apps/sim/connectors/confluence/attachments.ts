@@ -108,11 +108,12 @@ interface AttachmentRequest {
 }
 
 /**
- * The connector's "Image attachments" setting. Unset means on, so connectors
- * created before the setting existed index images on their next sync.
+ * The connector's "Image attachments" setting. New connectors are created with it
+ * on; unset means off, so a connector created before the setting existed only
+ * reads images once its owner turns them on.
  */
 export function confluenceImagesEnabled(sourceConfig: Record<string, unknown>): boolean {
-  return sourceConfig.imageAttachments !== 'off'
+  return sourceConfig.imageAttachments === 'semantic'
 }
 
 class ConfluenceAttachmentScopeError extends Error {
