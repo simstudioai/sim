@@ -5,6 +5,7 @@ import {
   v2DownloadFileContract,
   v2ListFileFoldersContract,
   v2ReadFileTextContract,
+  v2SearchFileContentContract,
 } from '@/lib/api/contracts/v2/files'
 import {
   authenticateV2ApiKey,
@@ -54,6 +55,8 @@ export function createFileReadTransport(context: {
     `${basePath}${v2ListFileFoldersContract.path}`,
     `${basePath}${v2BulkDownloadFilesContract.path}`,
   ])
+  /** Search results quote file text but name no file provenance, so Chat cannot admit them. */
+  const searchPath = `${basePath}${v2SearchFileContentContract.path}`
   /**
    * Admits one delivery's classification into the invocation registry. A delivery it refuses is
    * either withheld (text and forwarded responses reach only the model, so refusing them is enough)
@@ -134,6 +137,18 @@ export function createFileReadTransport(context: {
       collectionPaths.has(url.pathname)
     ) {
       return forward(input, init)
+    }
+    if (url.pathname === searchPath) {
+      return Response.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message:
+              'files search is unavailable in Chat. Search file contents with grep <pattern> --scope files.',
+          },
+        },
+        { status: 403 }
+      )
     }
     const match = /^([^/]+)(\/text)?$/.exec(url.pathname.slice(prefix.length))
     if (!match) return forward(input, init)

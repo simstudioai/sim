@@ -497,6 +497,15 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     )
   })
 
+  it('answers files search as a search, refused until its results report provenance', async () => {
+    const result = await runCli({ kind: 'cli', argv: ['files', 'search', '--query', 'CANARY'] })
+    expect(result.success).toBe(false)
+    expect(JSON.stringify(result)).toContain('grep <pattern> --scope files')
+    expect(mocks.reference).not.toHaveBeenCalled()
+    expect(mocks.file).not.toHaveBeenCalled()
+    expect(mocks.stream).not.toHaveBeenCalled()
+  })
+
   it('refuses an unknown file through the actual CLI text read without loading its bytes', async () => {
     classify('unknown')
     const result = await runCli(readFile)
