@@ -12,6 +12,7 @@ SET lock_timeout = '100ms';--> statement-breakpoint
 -- The lock spans the backfill and SET NOT NULL so a fork copying a legacy null row cannot land between them.
 BEGIN;--> statement-breakpoint
 SET LOCAL lock_timeout = '100ms';--> statement-breakpoint
+SET LOCAL statement_timeout = '5s';--> statement-breakpoint
 LOCK TABLE "chat" IN ACCESS EXCLUSIVE MODE NOWAIT;--> statement-breakpoint
 ALTER TABLE "chat" ALTER COLUMN "include_tool_calls" SET DEFAULT false;--> statement-breakpoint
 UPDATE "chat" SET "include_tool_calls" = false WHERE "include_tool_calls" IS NULL;--> statement-breakpoint
