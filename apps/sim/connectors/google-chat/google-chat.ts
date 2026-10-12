@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import {
+  readResponseJsonWithLimit,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import {
@@ -10,18 +14,27 @@ import {
   SPACES_PAGE_SIZE,
 } from '@/connectors/google-chat/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { BoundedLines, CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, parseTagDate } from '@/connectors/utils'
+import {
+  BoundedLines,
+  CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
+  parseOptionalUnlimitedSafeInteger,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('GoogleChatConnector')
 
 const CHAT_API_BASE = 'https://chat.googleapis.com/v1'
 const MS_PER_DAY = 24 * 60 * 60 * 1000
+const MAX_MESSAGE_PAGES = 200
+const MAX_MESSAGE_RESPONSE_BYTES = 32 * 1024 * 1024
+const MAX_SPACE_RESPONSE_BYTES = 8 * 1024 * 1024
 
 /** `syncContext` key holding the spaces this run listed, keyed by resource name. */
 const SPACE_CACHE_KEY = 'googleChatSpaces'
 
 /** `syncContext` key holding this run's fallback activity token. */
 const ACTIVITY_TOKEN_KEY = 'googleChatActivityToken'
+const LOOKBACK_CUTOFF_KEY = 'googleChatLookbackCutoff'
 
 /**
  * A Google Chat space as returned by `spaces.list` / `spaces.get`. Only the
@@ -45,20 +58,7 @@ interface SpacesListResponse {
   nextPageToken?: string
 }
 
-/**
- * The author of a message.
- *
- * This connector authenticates as a user, and the User reference states that
- * "if your Chat app authenticates as a user, the output for a User resource
- * only populates the user's `name` and `type`" — so `displayName` is expected
- * to be absent here and `name` (a `users/{id}` resource name) is the label that
- * actually reaches the transcript. Resolving human names would need
- * `spaces.members.list` and the `chat.memberships.readonly` scope, which this
- * connector does not request. `displayName` is still read first so the
- * transcript improves for free if a call ever does carry it.
- *
- * https://developers.google.com/workspace/chat/api/reference/rest/v1/User
- */
+/** Message authors can omit display names; retain the stable resource name as a fallback. */
 interface ChatUser {
   name?: string
   displayName?: string
@@ -112,21 +112,26 @@ function buildSpacesFilter(sourceConfig: Record<string, unknown>): string | unde
   return 'spaceType = "SPACE"'
 }
 
-/**
- * Resolves the per-space message window, falling back to the default for
- * missing, non-numeric, or non-positive values. `validateConfig` rejects those
- * inputs, but a config saved before validation existed would otherwise yield
- * `NaN` and index nothing.
- */
-function resolveMaxMessages(value: unknown): number {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_MAX_MESSAGES
+function resolvePositiveInteger(value: unknown, fallback: number, label: string): number {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return fallback
+  const error = `${label} must be a positive whole number`
+  const parsed = parseOptionalUnlimitedSafeInteger(value, error)
+  if (parsed === 0) throw new Error(error)
+  return parsed
 }
 
-/** Resolves the lookback window in days, or 0 when unset/invalid (no cutoff). */
-function resolveLookbackDays(value: unknown): number {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0
+/** One cutoff per run keeps hydration consistent while inactive spaces age out on later syncs. */
+function lookbackCutoff(days: number, syncContext?: Record<string, unknown>): string | undefined {
+  if (days === 0) return undefined
+  const key = `${LOOKBACK_CUTOFF_KEY}:${days}`
+  const cached = syncContext?.[key]
+  if (typeof cached === 'string') return cached
+  const date = new Date(Date.now() - days * MS_PER_DAY)
+  if (!Number.isFinite(date.getTime()))
+    throw new Error('Lookback window is outside the supported date range')
+  const cutoff = date.toISOString()
+  if (syncContext) syncContext[key] = cutoff
+  return cutoff
 }
 
 /**
@@ -181,11 +186,11 @@ function activityToken(space: Space, syncContext?: Record<string, unknown>): str
 function buildContentHash(
   space: Space,
   maxMessages: number,
-  lookbackDays: number,
+  cutoff: string | undefined,
   syncContext?: Record<string, unknown>
 ): string {
   const token = activityToken(space, syncContext)
-  return `gchat:v1:${space.name}:${token}:${maxMessages}:${lookbackDays}`
+  return `gchat:v2:${space.name}:${token}:${maxMessages}:${cutoff ?? 'all'}`
 }
 
 /** Records the spaces a listing page returned so `getDocument` can reuse them. */
@@ -211,7 +216,7 @@ function cachedSpace(name: string, syncContext?: Record<string, unknown>): Space
 function spaceToStub(
   space: Space,
   maxMessages: number,
-  lookbackDays: number,
+  cutoff: string | undefined,
   syncContext?: Record<string, unknown>
 ): ExternalDocument {
   return {
@@ -222,7 +227,7 @@ function spaceToStub(
     estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
     mimeType: 'text/plain',
     sourceUrl: space.spaceUri,
-    contentHash: buildContentHash(space, maxMessages, lookbackDays, syncContext),
+    contentHash: buildContentHash(space, maxMessages, cutoff, syncContext),
     metadata: {
       spaceName: spaceTitle(space),
       spaceType: space.spaceType,
@@ -241,19 +246,10 @@ async function fetchSpace(accessToken: string, name: string): Promise<Space | nu
     if (response.status === 404) return null
     throw new Error(`Failed to fetch Google Chat space: ${response.status}`)
   }
-  return (await response.json()) as Space
-}
-
-/**
- * An RFC-3339 timestamp without fractional seconds, matching the form every
- * example in the `spaces.messages.list` filter reference uses. `toISOString()`
- * alone emits milliseconds, and the API rejects a filter it cannot parse with
- * `INVALID_ARGUMENT` rather than ignoring it.
- *
- * https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages/list
- */
-function rfc3339(date: Date): string {
-  return `${date.toISOString().slice(0, 19)}Z`
+  return readResponseJsonWithLimit<Space>(response, {
+    maxBytes: MAX_SPACE_RESPONSE_BYTES,
+    label: 'Google Chat space response',
+  })
 }
 
 /**
@@ -269,19 +265,22 @@ async function fetchSpaceMessages(
   accessToken: string,
   spaceName: string,
   maxMessages: number,
-  lookbackDays: number
+  cutoff: string | undefined
 ): Promise<ChatMessage[]> {
-  const filter =
-    lookbackDays > 0
-      ? `createTime > "${rfc3339(new Date(Date.now() - lookbackDays * MS_PER_DAY))}"`
-      : undefined
+  const filter = cutoff ? `createTime > "${cutoff}"` : undefined
+  const pageSize = Math.min(MESSAGES_PAGE_SIZE, maxMessages)
 
   const collected: ChatMessage[] = []
   let pageToken: string | undefined
+  const seenPageTokens = new Set<string>()
 
+  let remainingBytes = MAX_MESSAGE_RESPONSE_BYTES
+  let pages = 0
   while (collected.length < maxMessages) {
+    if (pages >= MAX_MESSAGE_PAGES) throw new Error('Google Chat message page limit exceeded')
+    pages++
     const params = new URLSearchParams({
-      pageSize: String(Math.min(MESSAGES_PAGE_SIZE, maxMessages - collected.length)),
+      pageSize: String(pageSize),
       orderBy: 'createTime DESC',
     })
     if (filter) params.set('filter', filter)
@@ -292,17 +291,23 @@ async function fetchSpaceMessages(
       { method: 'GET', headers: chatHeaders(accessToken) }
     )
     if (!response.ok) {
-      if (response.status === 404) break
       throw new Error(`Failed to list Google Chat messages: ${response.status}`)
     }
 
-    const data = (await response.json()) as MessagesListResponse
+    const buffer = await readResponseToBufferWithLimit(response, {
+      maxBytes: remainingBytes,
+      label: 'Google Chat messages response',
+    })
+    remainingBytes -= buffer.byteLength
+    const data = JSON.parse(buffer.toString('utf8')) as MessagesListResponse
     const messages = data.messages ?? []
-    if (messages.length === 0) break
     collected.push(...messages)
 
     pageToken = data.nextPageToken?.trim() || undefined
     if (!pageToken) break
+    if (seenPageTokens.has(pageToken))
+      throw new Error('Google Chat returned a repeated message page token')
+    seenPageTokens.add(pageToken)
   }
 
   return collected.slice(0, maxMessages).reverse()
@@ -361,9 +366,17 @@ export const googleChatConnector: ConnectorConfig = {
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const maxSpaces = sourceConfig.maxSpaces ? Number(sourceConfig.maxSpaces) : 0
-    const maxMessages = resolveMaxMessages(sourceConfig.maxMessages)
-    const lookbackDays = resolveLookbackDays(sourceConfig.lookbackDays)
+    const maxSpaces = parseOptionalUnlimitedSafeInteger(
+      sourceConfig.maxSpaces,
+      'Max spaces must be a non-negative whole number'
+    )
+    const maxMessages = resolvePositiveInteger(
+      sourceConfig.maxMessages,
+      DEFAULT_MAX_MESSAGES,
+      'Max messages per space'
+    )
+    const lookbackDays = resolvePositiveInteger(sourceConfig.lookbackDays, 0, 'Lookback window')
+    const cutoff = lookbackCutoff(lookbackDays, syncContext)
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
     const pageSize =
@@ -394,7 +407,10 @@ export const googleChatConnector: ConnectorConfig = {
       throw new Error(`Failed to list Google Chat spaces: ${response.status}`)
     }
 
-    const data = (await response.json()) as SpacesListResponse
+    const data = await readResponseJsonWithLimit<SpacesListResponse>(response, {
+      maxBytes: MAX_SPACE_RESPONSE_BYTES,
+      label: 'Google Chat spaces response',
+    })
     const spaces = (data.spaces ?? []).filter((space) => Boolean(space.name))
     const nextPageToken = data.nextPageToken?.trim() || undefined
 
@@ -408,9 +424,7 @@ export const googleChatConnector: ConnectorConfig = {
 
     cacheSpaces(spaces, syncContext)
 
-    const allDocuments = spaces.map((space) =>
-      spaceToStub(space, maxMessages, lookbackDays, syncContext)
-    )
+    const allDocuments = spaces.map((space) => spaceToStub(space, maxMessages, cutoff, syncContext))
 
     let documents = allDocuments
     if (maxSpaces > 0) {
@@ -460,9 +474,14 @@ export const googleChatConnector: ConnectorConfig = {
     const space = cachedSpace(spaceName, syncContext) ?? (await fetchSpace(accessToken, spaceName))
     if (!space) return null
 
-    const maxMessages = resolveMaxMessages(sourceConfig.maxMessages)
-    const lookbackDays = resolveLookbackDays(sourceConfig.lookbackDays)
-    const messages = await fetchSpaceMessages(accessToken, spaceName, maxMessages, lookbackDays)
+    const maxMessages = resolvePositiveInteger(
+      sourceConfig.maxMessages,
+      DEFAULT_MAX_MESSAGES,
+      'Max messages per space'
+    )
+    const lookbackDays = resolvePositiveInteger(sourceConfig.lookbackDays, 0, 'Lookback window')
+    const cutoff = lookbackCutoff(lookbackDays, syncContext)
+    const messages = await fetchSpaceMessages(accessToken, spaceName, maxMessages, cutoff)
 
     /**
      * A space with no messages in the window is still a live space, so it is
@@ -473,7 +492,7 @@ export const googleChatConnector: ConnectorConfig = {
      * or `lookbackDays` was tightened past every message.
      */
     const { content, messageCount } = formatSpaceContent(space, messages)
-    const stub = spaceToStub(space, maxMessages, lookbackDays, syncContext)
+    const stub = spaceToStub(space, maxMessages, cutoff, syncContext)
 
     return {
       ...stub,
@@ -487,19 +506,16 @@ export const googleChatConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const maxMessages = sourceConfig.maxMessages as string | undefined
-    if (maxMessages && (Number.isNaN(Number(maxMessages)) || Number(maxMessages) <= 0)) {
-      return { valid: false, error: 'Max messages per space must be a positive number' }
-    }
-
-    const maxSpaces = sourceConfig.maxSpaces as string | undefined
-    if (maxSpaces && (Number.isNaN(Number(maxSpaces)) || Number(maxSpaces) <= 0)) {
-      return { valid: false, error: 'Max spaces must be a positive number' }
-    }
-
-    const lookbackDays = sourceConfig.lookbackDays as string | undefined
-    if (lookbackDays && (Number.isNaN(Number(lookbackDays)) || Number(lookbackDays) <= 0)) {
-      return { valid: false, error: 'Lookback window must be a positive number of days' }
+    try {
+      resolvePositiveInteger(
+        sourceConfig.maxMessages,
+        DEFAULT_MAX_MESSAGES,
+        'Max messages per space'
+      )
+      resolvePositiveInteger(sourceConfig.maxSpaces, 0, 'Max spaces')
+      lookbackCutoff(resolvePositiveInteger(sourceConfig.lookbackDays, 0, 'Lookback window'))
+    } catch (error) {
+      return { valid: false, error: getErrorMessage(error) }
     }
 
     const spaceTypes = sourceConfig.spaceTypes
