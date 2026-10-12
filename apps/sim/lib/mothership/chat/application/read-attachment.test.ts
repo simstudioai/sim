@@ -24,7 +24,7 @@ vi.mock('@/lib/uploads/contexts/organization-assistant/application', () => ({
 
 import { readChatAttachment } from './read-attachment'
 
-const mockLoadCopilotChatMessages = mothershipChatLifecycleMockFns.mockLoadCopilotChatMessages
+const mockLoadAttachments = mothershipChatLifecycleMockFns.mockLoadChatFileAttachmentsNamed
 
 const principal = { kind: 'session', userId: 'user', sessionId: 'session' } as const
 const file = {
@@ -41,7 +41,7 @@ beforeEach(() => {
     userId: 'user',
     role: 'member',
   })
-  mockLoadCopilotChatMessages.mockResolvedValue([{ fileAttachments: [file] }])
+  mockLoadAttachments.mockResolvedValue([file])
   mocks.read.mockResolvedValue({ buffer: Buffer.from('a,b'), name: 'a.csv' })
 })
 describe('organization chat upload references', () => {
@@ -49,7 +49,7 @@ describe('organization chat upload references', () => {
     'reads %s only through a saved attachment in the owned chat',
     async (reference) => {
       await readChatAttachment.execute({ principal, input: { chatId: 'chat', reference } })
-      expect(mockLoadCopilotChatMessages).toHaveBeenCalledWith('chat')
+      expect(mockLoadAttachments).toHaveBeenCalledWith('chat', reference.slice('uploads/'.length))
       expect(mocks.read).toHaveBeenCalledWith({
         principal,
         organizationId: 'org',
@@ -59,7 +59,8 @@ describe('organization chat upload references', () => {
       })
     }
   )
-  it('refuses a file from another chat before storage', async () => {
+  it('refuses a reference with no saved attachment before storage', async () => {
+    mockLoadAttachments.mockResolvedValue([])
     await expect(
       readChatAttachment.execute({
         principal,
@@ -69,9 +70,9 @@ describe('organization chat upload references', () => {
     expect(mocks.read).not.toHaveBeenCalled()
   })
   it('requires an ID for ambiguous filenames while repeated mentions of one attachment remain readable', async () => {
-    mockLoadCopilotChatMessages.mockResolvedValue([
-      { fileAttachments: [file, file, { ...file, id: 'upload-b', key: 'other' }] },
-    ])
+    mockLoadAttachments
+      .mockResolvedValueOnce([file, file, { ...file, id: 'upload-b', key: 'other' }])
+      .mockResolvedValueOnce([file, file])
     await expect(
       readChatAttachment.execute({
         principal,
@@ -95,7 +96,7 @@ describe('organization chat upload references', () => {
         input: { chatId: 'chat', reference: 'uploads/a.csv' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mockLoadCopilotChatMessages).not.toHaveBeenCalled()
+    expect(mockLoadAttachments).not.toHaveBeenCalled()
   })
   it('propagates revoked membership before transcript or byte access', async () => {
     organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockRejectedValue(
@@ -107,7 +108,7 @@ describe('organization chat upload references', () => {
         input: { chatId: 'chat', reference: 'uploads/a.csv' },
       })
     ).rejects.toThrow('membership revoked')
-    expect(mockLoadCopilotChatMessages).not.toHaveBeenCalled()
+    expect(mockLoadAttachments).not.toHaveBeenCalled()
     expect(mocks.read).not.toHaveBeenCalled()
   })
 })

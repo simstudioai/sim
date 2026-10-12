@@ -16,6 +16,7 @@ import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import { observeSandboxSessionInputs } from '@/lib/execution/remote-sandbox/execution-observer'
 import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
+import { collectDescendantFolderIdsFrom, indexFolderChildren } from '@/lib/folders/subtree'
 import {
   createSandboxMountBudget,
   MAX_INLINE_MOUNT_FILE_BYTES,
@@ -47,7 +48,6 @@ import {
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { readTableSnapshot } from '@/lib/table/application/read-table-snapshot'
 import {
-  findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
   parseChatUploadReference,
   type WorkspaceFileRecord,
@@ -55,7 +55,10 @@ import {
 import { importWorkspaceFileSnapshotProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/vfs/path'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
-import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
+import {
+  findActiveWorkspaceFilesByReference,
+  queryWorkspaceFilePage,
+} from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileMount } from '@/lib/workspace-files/application/read-workspace-file-mount'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
@@ -191,12 +194,11 @@ function refField(ref: unknown, key: 'path' | 'tableId' | 'sandboxPath'): string
  * is the honest not-found rather than a hint to go looking elsewhere.
  */
 async function resolveMountableWorkspaceFile(
-  allFiles: WorkspaceFileRecord[],
+  listed: WorkspaceFileRecord | null | undefined,
   filePath: string,
   workspaceId: string,
   principal: Principal
 ): Promise<WorkspaceFileRecord> {
-  const listed = findWorkspaceFileRecord(allFiles, filePath)
   if (listed) return listed
 
   if (parseChatUploadReference(filePath) !== null) {
@@ -306,15 +308,18 @@ export async function resolveInputFiles(
         `Too many input files (${inputFiles.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount fewer files.`
       )
     }
-    const { files: allFiles } = await listAllWorkspaceFiles.execute({
+    const { files: listedFiles } = await findActiveWorkspaceFilesByReference.execute({
       principal: filePrincipal,
-      input: { workspaceId, scope: 'active' },
+      input: {
+        workspaceId,
+        references: inputFiles.flatMap((fileRef) => refField(fileRef, 'path') ?? []),
+      },
     })
     for (const fileRef of inputFiles) {
       const filePath = refField(fileRef, 'path')
       if (!filePath) continue
       const record = await resolveMountableWorkspaceFile(
-        allFiles,
+        listedFiles.get(filePath),
         filePath,
         workspaceId,
         filePrincipal
@@ -341,10 +346,7 @@ export async function resolveInputFiles(
       principal: filePrincipal,
       input: { workspaceId },
     })
-    const { files: allFiles } = await listAllWorkspaceFiles.execute({
-      principal: filePrincipal,
-      input: { workspaceId, scope: 'active' },
-    })
+    const childrenByParent = indexFolderChildren(folders)
     for (const dirRef of inputDirectories) {
       const dirPath = refField(dirRef, 'path')
       if (!dirPath) continue
@@ -362,13 +364,25 @@ export async function resolveInputFiles(
       const mountRoot =
         refField(dirRef, 'sandboxPath') ??
         `/home/user/files/${encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(folder.path))}`
-      const descendants = allFiles.filter((file) => {
-        if (!file.folderPath) return false
-        return file.folderPath === folder.path || file.folderPath.startsWith(`${folder.path}/`)
+      const { files: descendants, nextKeys } = await queryWorkspaceFilePage.execute({
+        principal: filePrincipal,
+        input: {
+          workspaceId,
+          folderScope: {
+            folderIds: new Set([
+              folder.id,
+              ...collectDescendantFolderIdsFrom(childrenByParent, folder.id),
+            ]),
+            includeRootItems: false,
+          },
+          sortBy: 'uploadedAt',
+          sortOrder: 'asc',
+          limit: MAX_MOUNTED_FILES,
+        },
       })
-      if (descendants.length > MAX_MOUNTED_FILES) {
+      if (nextKeys) {
         throw new Error(
-          `Input directory contains too many files (${descendants.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount a smaller directory or individual files.`
+          `Input directory contains more than ${MAX_MOUNTED_FILES} files. Mount a smaller directory or individual files.`
         )
       }
       logger.info('Mounting workspace directory for run_function', {
