@@ -51,7 +51,6 @@ function modelView(text: string, registry: ResolvedSecretTraceRegistry) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => {
     const plaintext = value.slice('enc:'.length)
     if (!plaintext) throw new Error('decryption failed')
@@ -132,6 +131,11 @@ describe('createRegistryContentGate', () => {
     expect(await gate.admit([item('tainted', { status: 'unknown' })])).toEqual([true])
     expect(registry.isPermanentlyIncomplete()).toBe(true)
     expect(modelView('anything at all', registry)).toBeUndefined()
+  })
+
+  it('refuses an unknown item under taint when no registry could withhold the output', async () => {
+    const gate = createRegistryContentGate({ actorUserId: 'user-1', unknown: 'taint' })
+    expect(await gate.admit([item('tainted', { status: 'unknown' })])).toEqual([false])
   })
 
   it('refuses only the item whose secrets cannot be imported, keeping the rest of the call', async () => {

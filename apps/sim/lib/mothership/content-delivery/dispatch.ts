@@ -1,5 +1,6 @@
 import {
   type ContentDeliveryGate,
+  ContentGateFailure,
   type ContentProvenance,
   observeContentDelivery,
   trackContentDelivery,
@@ -14,6 +15,22 @@ import { v2Error } from '@/app/api/v2/lib/response'
 const UNCLASSIFIED_CONTENT_MESSAGE =
   'This result cannot be returned to Chat because its content was not checked for secret values.'
 
+const committedWrites = new WeakSet<Response>()
+
+/**
+ * Whether a refused or failed response answers a write that committed: the change happened even
+ * though its result is withheld, so what it changed still needs refreshing.
+ */
+export function isCommittedWriteResponse(response: Response): boolean {
+  return committedWrites.has(response)
+}
+
+/** Marks a response a transport built itself for a write that committed; see above. */
+export function markCommittedWriteResponse(response: Response): Response {
+  committedWrites.add(response)
+  return response
+}
+
 /**
  * Dispatches one Chat request under `gate`, whatever its method. A successful response from an
  * operation declared to return stored content that never classified it is replaced by a `403`, so
@@ -25,13 +42,14 @@ export async function dispatchUnderContentGate(
   dispatch: () => Promise<Response>
 ): Promise<{ response: Response; admitted: readonly ContentProvenance[] }> {
   const record = await observeContentDelivery(gate, () => trackContentDelivery(dispatch))
+  if (record.committedWrite) committedWrites.add(record.result)
   /**
    * A gate that failed to decide is the transport's to answer, not the route's: the route mapped
    * it to a generic error, and a write it interrupted may already have committed.
    */
   if (record.gateFailure !== undefined) {
     await record.result.body?.cancel().catch(() => {})
-    throw record.gateFailure
+    throw new ContentGateFailure(record.gateFailure, record.committedWrite)
   }
   if (record.unaccounted && record.result.ok) {
     await record.result.body?.cancel().catch(() => {})

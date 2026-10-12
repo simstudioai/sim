@@ -1,12 +1,17 @@
 ---
 description: How stored content (workspace files, run files, knowledge, table rows) reaches Chat's model, and the per-path policy. Read before changing a use case, route or Chat surface that returns such content.
 paths:
-  - "apps/sim/lib/core/application/content-delivery.ts"
+  - "apps/sim/lib/core/application/**"
   - "apps/sim/lib/mothership/content-delivery/**"
-  - "apps/sim/lib/**/application/admit-*.ts"
+  - "apps/sim/lib/workspace-files/application/**"
+  - "apps/sim/lib/knowledge/application/**"
+  - "apps/sim/lib/table/application/**"
+  - "apps/sim/lib/workflows/application/**"
+  - "apps/sim/lib/mothership/chat/application/**"
   - "apps/sim/lib/**/application/operations.ts"
   - "apps/sim/lib/mothership/agent-cli/**"
-  - "apps/sim/lib/mothership/tools/sandbox-resource-transport.ts"
+  - "apps/sim/lib/mothership/tools/**"
+  - "apps/sim/app/api/v2/**"
 ---
 
 # Sim Content Delivery to Chat

@@ -1,9 +1,11 @@
+import { isCopilotPrincipal } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { admitWorkspaceFileIdentities } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
+import { FILE_SEARCH_MAX_RESULTS } from '@/lib/workspace-files/search/constants'
 import { WorkspaceFileSearchUnavailableError } from '@/lib/workspace-files/search/errors'
 import {
   compileFileSearchPattern,
@@ -62,10 +64,15 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
     signal?.throwIfAborted()
 
     try {
+      /**
+       * Chat drops matches from files it may not read, so it fetches the most the index returns
+       * and keeps its own limit afterwards: refused matches never take an admitted match's place.
+       */
+      const classified = isCopilotPrincipal(principal)
       const found = await searchWorkspaceFileIndex({
         workspaceId: context.workspaceId,
         pattern: compileFileSearchPattern(input.query, input.mode),
-        maxResults: input.maxResults,
+        maxResults: classified ? FILE_SEARCH_MAX_RESULTS : input.maxResults,
         folderScope,
         signal,
       })
@@ -80,12 +87,20 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         found.sources.map((source) => source.identity),
         'opaque'
       )
-      if (admitted.size === found.sources.length) return found
-      const results = found.results.filter((result) => admitted.has(result.fileId))
+      if (!classified) return found
+      const matches = found.results.filter((result) => admitted.has(result.fileId))
+      const results = matches.slice(0, input.maxResults)
       return {
         ...found,
         results,
         count: results.length,
+        /**
+         * Derived from admitted matches only, so a refused match is never signalled. Matches past
+         * the index's own cap are unknown; they are reported only when this page is full anyway.
+         */
+        truncated:
+          matches.length > input.maxResults ||
+          (found.truncated && matches.length >= input.maxResults),
         sources: found.sources.filter((source) => admitted.has(source.identity.fileId)),
       }
     } catch (error) {

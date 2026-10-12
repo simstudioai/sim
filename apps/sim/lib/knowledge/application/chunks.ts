@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { ContentRefusedError } from '@/lib/core/application/content-delivery'
+import { ContentRefusedError, isCopilotPrincipal } from '@/lib/core/application/content-delivery'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -159,9 +159,17 @@ export const listKnowledgeChunks = defineAuthorizedKnowledgeUseCase({
         value: chunk,
       }))
     )
+    const chunks = result.chunks.filter((chunk) => admitted.has(chunk.id))
     return {
       ...result,
-      chunks: result.chunks.filter((chunk) => admitted.has(chunk.id)),
+      chunks,
+      /**
+       * A search total counts every matching chunk, refused ones included, so for Chat it would
+       * say whether withheld text matched. Chat sees only the matches it was given.
+       */
+      ...(filters.search && isCopilotPrincipal(principal)
+        ? { pagination: { ...result.pagination, total: result.pagination.offset + chunks.length } }
+        : {}),
       workspaceId: context.workspaceId,
       documentId,
     }

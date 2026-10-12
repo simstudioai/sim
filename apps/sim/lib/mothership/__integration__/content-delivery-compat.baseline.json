@@ -615,7 +615,7 @@
           "maxRows": 9007199254740991,
           "name": "content_fixture",
           "ownerEmail": "<alice>@fixture.test",
-          "rowCount": 0,
+          "rowCount": "<minted>",
           "schema": {
             "columns": [
               {

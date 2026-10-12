@@ -2,18 +2,20 @@
  * @vitest-environment node
  */
 import type { Principal } from '@sim/auth/principal'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const provenance = vi.hoisted(() => ({ getStoredFileSecretProvenanceByKey: vi.fn() }))
 vi.mock(
   '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
-  async (importOriginal) => ({
-    ...(await importOriginal<
-      typeof import('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance')
-    >()),
-    getStoredFileSecretProvenanceByKey: provenance.getStoredFileSecretProvenanceByKey,
-  })
+  () => workspaceFileSecretProvenanceMock
 )
+const provenance = {
+  getStoredFileSecretProvenanceByKey:
+    workspaceFileSecretProvenanceMockFns.mockGetStoredFileSecretProvenanceByKey,
+}
 
 import {
   type ContentDeliveryGate,
@@ -77,7 +79,6 @@ function runFile(name: string, extra: Partial<UserFile> = {}): UserFile {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   provenance.getStoredFileSecretProvenanceByKey.mockImplementation(
     async (_workspaceId: string, keys: readonly string[]) =>
       new Map(keys.filter((key) => STORED.has(key)).map((key) => [key, STORED.get(key)]))
@@ -189,7 +190,7 @@ describe('inlinesRunFiles', () => {
       expect(inlinesRunFiles(CHAT, true, 'stream')).toBe(false)
       expect(inlinesRunFiles(CHAT, true, undefined)).toBe(false)
       expect(inlinesRunFiles(CHAT, true, 'sync')).toBe(true)
-      expect(inlinesRunFiles(CHAT, undefined, 'stream')).toBeUndefined()
+      expect(inlinesRunFiles(CHAT, undefined, 'stream')).toBe(false)
     })
     expect(inlinesRunFiles(EXECUTOR, true, 'stream')).toBe(true)
   })

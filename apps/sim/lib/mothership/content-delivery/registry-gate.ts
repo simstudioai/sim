@@ -39,8 +39,9 @@ export function createRegistryContentGate(scope: RegistryContentGateScope): Cont
   ): Promise<boolean> => {
     const { provenance } = source
     if (provenance.status === 'unknown') {
-      if (scope.unknown !== 'taint') return refuse(source, 'unknown')
-      scope.registry?.markIncomplete('workspace-file-provenance-unknown')
+      /** Taint needs a registry to latch; without one the bytes would reach the model as is. */
+      if (scope.unknown !== 'taint' || !scope.registry) return refuse(source, 'unknown')
+      scope.registry.markIncomplete('workspace-file-provenance-unknown')
       return true
     }
     if (provenance.status === 'unrecorded') {

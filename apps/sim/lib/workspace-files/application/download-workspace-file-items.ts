@@ -232,7 +232,13 @@ async function executeDownloadWorkspaceFileItems({
     throw new ContentRefusedError('workspace-file')
   }
 
-  return { filesToZip, folderPaths, renderedDocuments, declaredBytes }
+  return {
+    filesToZip,
+    folderPaths,
+    renderedDocuments,
+    /** Counted over what is zipped, after any rendered document whose contributors were refused. */
+    declaredBytes: filesToZip.reduce((sum, file) => sum + file.size, 0),
+  }
 }
 
 async function resolveDownloadContext({ input }: { input: DownloadWorkspaceFileItemsInput }) {

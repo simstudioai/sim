@@ -27,7 +27,11 @@ const {
   mockLoadExecutionsForRow,
   mockLoadEnrichmentDetail,
   mockRowProvenance,
+  mockFindRowMatches,
+  mockClassifyColumns,
 } = vi.hoisted(() => ({
+  mockFindRowMatches: vi.fn(),
+  mockClassifyColumns: vi.fn(),
   mockIsScopeCompatible: vi.fn(),
   mockLoadExecutionsForRow: vi.fn(),
   mockLoadEnrichmentDetail: vi.fn(),
@@ -40,6 +44,7 @@ vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/table', () => ({
   ...tableMock,
+  findRowMatches: mockFindRowMatches,
   TABLE_LIMITS: { ...tableMock.TABLE_LIMITS, MAX_ROW_RUN_STATE_BYTES: 256 },
 }))
 
@@ -52,6 +57,7 @@ vi.mock('@/lib/table/column-types', () => ({
 /** The reader classifies each row on its own; `mockRowProvenance` answers per row id. */
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
   ...tableRowsSecretProvenanceMock,
+  classifyStoredTableRowColumns: mockClassifyColumns,
   TableRowProvenanceReader: class extends tableRowsSecretProvenanceMock.TableRowProvenanceReader {
     rowProvenance(rowId: string) {
       return mockRowProvenance(rowId)
@@ -64,6 +70,7 @@ vi.mock('@/lib/table/validation', () => ({
 }))
 
 vi.mock('@/lib/execution/durable-secret-provenance', () => ({
+  EXACT_EMPTY_DURABLE_SECRET_PROVENANCE: { status: 'exact', entries: [] },
   isPrivateSecretProvenanceScopeCompatible: mockIsScopeCompatible,
 }))
 
@@ -99,6 +106,7 @@ import {
   readTableRowEnrichmentDetail,
   replaceProjectedWireRows,
   replaceTableRows,
+  searchTableRows,
   TableRowsValidationError,
   updateTableRow,
   updateTableRows,
@@ -1081,5 +1089,44 @@ describe('row delivery to Chat', () => {
         expect(chat.rows[0]?.executions).toEqual(executions)
       }
     )
+  })
+
+  describe('row search for Chat', () => {
+    const MATCHES = [
+      { ordinal: 0, rowId: 'row-a', column: 'col-plain' },
+      { ordinal: 0, rowId: 'row-a', column: 'col-secret' },
+      { ordinal: 1, rowId: 'row-b', column: 'col-plain' },
+    ]
+    const search = (principal: Caller) =>
+      searchTableRows.execute({ principal, input: { tableId: TABLE.id, q: 'needle' } })
+
+    beforeEach(() => {
+      mockClassifyColumns.mockResolvedValue(
+        new Map([
+          ['row-a', { status: 'exact', secretColumns: new Set(['col-secret']) }],
+          ['row-b', { status: 'unknown' }],
+        ])
+      )
+    })
+
+    it('does not signal truncation through a match it withheld', async () => {
+      mockFindRowMatches.mockResolvedValue({ matches: MATCHES, truncated: true })
+      const result = await observeContentDelivery({ admit: gate(true) }, () => search(CHAT))
+      expect(result.matches).toEqual([MATCHES[0]])
+      expect(result.truncated).toBe(false)
+    })
+
+    it('keeps truncation when every match on a capped page was admitted', async () => {
+      mockFindRowMatches.mockResolvedValue({ matches: [MATCHES[0]], truncated: true })
+      const result = await observeContentDelivery({ admit: gate(true) }, () => search(CHAT))
+      expect(result).toMatchObject({ matches: [MATCHES[0]], truncated: true })
+    })
+
+    it('answers a person with every match and the raw truncation', async () => {
+      mockFindRowMatches.mockResolvedValue({ matches: MATCHES, truncated: true })
+      const result = await search(PRINCIPAL)
+      expect(result).toMatchObject({ matches: MATCHES, truncated: true })
+      expect(mockClassifyColumns).not.toHaveBeenCalled()
+    })
   })
 })

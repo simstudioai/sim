@@ -1,3 +1,5 @@
+import type { Principal } from '@sim/auth/principal'
+import { queueTableRows, schemaMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import {
@@ -19,11 +21,16 @@ vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 
 vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 
+const admission = vi.hoisted(() => ({ admitKnowledgeDocuments: vi.fn() }))
+vi.mock('@/lib/knowledge/application/admit-knowledge-content', () => admission)
+
+import { admitContent } from '@/lib/core/application/content-delivery'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {
   createKnowledgeTag,
   deleteKnowledgeTag,
   listKnowledgeTags,
+  readDetailedKnowledgeTagUsage,
   readKnowledgeTagUsage,
   readNextKnowledgeTagSlot,
   updateKnowledgeTag,
@@ -353,4 +360,107 @@ describe('knowledge tag application use cases', () => {
       })
     }
   )
+
+  describe('tag usage Chat may see', () => {
+    const chat = { ...delegatedPrincipal, workspaceId: 'workspace-b' }
+    /** One document under two definitions: its value is refused under one and admitted under the other. */
+    const detailed = [
+      {
+        tagName: 'Region',
+        tagSlot: 'tag1',
+        documentCount: 2,
+        documents: [
+          { id: 'doc-shared', name: 'shared.csv', tagValue: 'refused' },
+          { id: 'doc-other', name: 'other.csv', tagValue: 'emea' },
+        ],
+      },
+      {
+        tagName: 'Owner',
+        tagSlot: 'tag2',
+        documentCount: 1,
+        documents: [{ id: 'doc-shared', name: 'shared.csv', tagValue: 'ops' }],
+      },
+    ]
+
+    beforeEach(() => {
+      mocks.resolvePermission.mockResolvedValue('read')
+      mocks.readDetailedUsage.mockResolvedValue(detailed)
+      /** Stands in for the gate: refuses an occurrence by the value it shows. */
+      admission.admitKnowledgeDocuments.mockImplementation(
+        async (principal: Principal, documents: { id: string; value: { tagValue: string } }[]) => {
+          await admitContent(principal, [])
+          return new Set(
+            documents.filter((doc) => doc.value.tagValue !== 'refused').map((doc) => doc.id)
+          )
+        }
+      )
+    })
+
+    it('decides each (definition, document) occurrence on its own', async () => {
+      const result = await readDetailedKnowledgeTagUsage.execute({
+        principal: chat,
+        input: { knowledgeBaseId: 'knowledge-b' },
+      })
+
+      expect(result.usage[0]).toMatchObject({
+        documentCount: 1,
+        documents: [{ id: 'doc-other' }],
+      })
+      expect(result.usage[1]).toBe(detailed[1])
+    })
+
+    it('counts for Chat only the documents it may see, chunks included', async () => {
+      mocks.readUsage.mockResolvedValue([
+        {
+          id: 'def-1',
+          tagSlot: 'tag1',
+          displayName: 'Region',
+          fieldType: 'text',
+          documentCount: 2,
+          chunkCount: 9,
+        },
+        {
+          id: 'def-2',
+          tagSlot: 'tag2',
+          displayName: 'Owner',
+          fieldType: 'text',
+          documentCount: 1,
+          chunkCount: 4,
+        },
+      ])
+      queueTableRows(schemaMock.embedding, [{ documentId: 'doc-shared', count: 4 }])
+
+      const result = await readKnowledgeTagUsage.execute({
+        principal: chat,
+        input: { knowledgeBaseId: 'knowledge-b' },
+      })
+
+      expect(result.usage).toEqual([
+        expect.objectContaining({ tagSlot: 'tag1', documentCount: 1, chunkCount: 5 }),
+        expect.objectContaining({ tagSlot: 'tag2', documentCount: 1, chunkCount: 4 }),
+      ])
+    })
+
+    it('leaves a person’s counts as stored, without reading documents', async () => {
+      const stats = [
+        {
+          id: 'def-1',
+          tagSlot: 'tag1',
+          displayName: 'Region',
+          fieldType: 'text',
+          documentCount: 2,
+          chunkCount: 9,
+        },
+      ]
+      mocks.readUsage.mockResolvedValue(stats)
+
+      const result = await readKnowledgeTagUsage.execute({
+        principal: sessionPrincipal,
+        input: { knowledgeBaseId: 'knowledge-b' },
+      })
+
+      expect(result.usage).toBe(stats)
+      expect(mocks.readDetailedUsage).not.toHaveBeenCalled()
+    })
+  })
 })

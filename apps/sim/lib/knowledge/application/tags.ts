@@ -1,7 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
+import { db } from '@sim/db'
+import { embedding } from '@sim/db/schema'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
-import { admitContent } from '@/lib/core/application/content-delivery'
+import { inArray, sql } from 'drizzle-orm'
+import { admitContent, isCopilotPrincipal } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { admitKnowledgeDocuments } from '@/lib/knowledge/application/admit-knowledge-content'
@@ -351,15 +354,71 @@ export const deleteKnowledgeTag = defineAuthorizedKnowledgeUseCase({
   }),
 })
 
+/**
+ * The documents each tag definition lists, admitted per (definition, document) occurrence: a
+ * document shows a different tag value under each definition, so one occurrence's verdict says
+ * nothing about another's.
+ */
+async function admitTagUsage(
+  principal: Principal,
+  usage: Awaited<ReturnType<typeof getTagUsage>>
+): Promise<Awaited<ReturnType<typeof getTagUsage>>> {
+  const admitted = []
+  for (const definition of usage) {
+    const ids = await admitKnowledgeDocuments(
+      principal,
+      definition.documents.map((doc) => ({ id: doc.id, value: doc }))
+    )
+    const documents = definition.documents.filter((doc) => ids.has(doc.id))
+    admitted.push(
+      documents.length === definition.documents.length
+        ? definition
+        : { ...definition, documents, documentCount: documents.length }
+    )
+  }
+  return admitted
+}
+
 export const readKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readTagUsage,
   resolveContext: ({ principal, input }: { principal: Principal; input: ListKnowledgeTagsInput }) =>
     resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ principal, context }) {
-    /** Counts per tag definition only; no tag value or document leaves. */
-    await admitContent(principal, [])
+    const requestId = generateRequestId()
+    const usage = await getTagUsageStats(context.knowledgeBaseId, context.access, requestId)
+    if (!isCopilotPrincipal(principal)) {
+      await admitContent(principal, [])
+      return { usage }
+    }
+    /**
+     * A count says which documents carry a tag, so for Chat each definition counts only the
+     * documents it may see; a withheld document's chunks leave its chunk count with it.
+     */
+    const detailed = await getTagUsage(context.knowledgeBaseId, requestId, context.access)
+    const visible = await admitTagUsage(principal, detailed)
+    const withheld = new Map<string, string[]>()
+    detailed.forEach((definition, index) => {
+      const kept = new Set(visible[index].documents.map((doc) => doc.id))
+      const refused = definition.documents.filter((doc) => !kept.has(doc.id)).map((doc) => doc.id)
+      if (refused.length > 0) withheld.set(definition.tagSlot, refused)
+    })
+    if (withheld.size === 0) return { usage }
+    const chunkCounts = await countKnowledgeDocumentChunks([
+      ...new Set([...withheld.values()].flat()),
+    ])
     return {
-      usage: await getTagUsageStats(context.knowledgeBaseId, context.access, generateRequestId()),
+      usage: usage.map((stat) => {
+        const refused = withheld.get(stat.tagSlot)
+        if (!refused) return stat
+        return {
+          ...stat,
+          documentCount: Math.max(0, stat.documentCount - refused.length),
+          chunkCount: Math.max(
+            0,
+            stat.chunkCount - refused.reduce((sum, id) => sum + (chunkCounts.get(id) ?? 0), 0)
+          ),
+        }
+      }),
     }
   },
 })
@@ -370,20 +429,20 @@ export const readDetailedKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
     resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ principal, context }) {
     const usage = await getTagUsage(context.knowledgeBaseId, generateRequestId(), context.access)
-    const admitted = await admitKnowledgeDocuments(
-      principal,
-      usage.flatMap((definition) => definition.documents.map((doc) => ({ id: doc.id, value: doc })))
-    )
-    return {
-      usage: usage.map((definition) => {
-        const documents = definition.documents.filter((doc) => admitted.has(doc.id))
-        return documents.length === definition.documents.length
-          ? definition
-          : { ...definition, documents, documentCount: documents.length }
-      }),
-    }
+    return { usage: await admitTagUsage(principal, usage) }
   },
 })
+
+/** Chunks per document, for the documents a tag count withholds. */
+async function countKnowledgeDocumentChunks(documentIds: string[]): Promise<Map<string, number>> {
+  if (documentIds.length === 0) return new Map()
+  const rows = await db
+    .select({ documentId: embedding.documentId, count: sql<number>`count(*)::int` })
+    .from(embedding)
+    .where(inArray(embedding.documentId, documentIds))
+    .groupBy(embedding.documentId)
+  return new Map(rows.map((row) => [row.documentId, Number(row.count)]))
+}
 
 export const readNextKnowledgeTagSlot = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readNextTagSlot,

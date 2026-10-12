@@ -3,12 +3,16 @@ import { generateId } from '@sim/utils/id'
 import { NextRequest } from 'next/server'
 import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
+import { ContentGateFailure } from '@/lib/core/application/content-delivery'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
-import { dispatchUnderContentGate } from '@/lib/mothership/content-delivery/dispatch'
+import {
+  dispatchUnderContentGate,
+  markCommittedWriteResponse,
+} from '@/lib/mothership/content-delivery/dispatch'
 import {
   createSessionContentGate,
   WorkbenchProvenanceUnavailableError,
@@ -126,18 +130,24 @@ async function proxyAuthorizedSandboxRequest(
     try {
       response = (await dispatchUnderContentGate(gate, dispatch)).response
     } catch (error) {
-      if (!(error instanceof WorkbenchProvenanceUnavailableError)) throw error
+      if (
+        !(error instanceof ContentGateFailure) ||
+        !(error.gateFailure instanceof WorkbenchProvenanceUnavailableError)
+      ) {
+        throw error
+      }
       /** A mutation may already have committed; the result is withheld, never retried for it. */
       logger.warn('Sandbox response provenance could not be recorded', {
         toolCallId: scope.toolCallId,
       })
-      response = Response.json(
+      const withheld = Response.json(
         {
           error:
             'The API request ran, but its result could not be returned safely. Do not retry a mutation automatically; read the resource to check its current state.',
         },
         { status: 502 }
       )
+      response = error.committedWrite ? markCommittedWriteResponse(withheld) : withheld
     }
     return response
   }

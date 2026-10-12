@@ -13,14 +13,22 @@ import {
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { OwnedFileContext, OwnedFileNamespace } from '@/lib/workspace-files/owned-files'
 
 /** What a classification is bound to; a workspace file record satisfies it. */
 interface ClassifiableFile {
   id: string
   key: string
   storageContext?: WorkspaceFileSecretProvenanceIdentity['context']
+  /** An owned file's namespace, which names the owner context its row is stored under. */
+  vfsNamespace?: 'uploads' | OwnedFileNamespace
   contentUpdatedAt?: Date | null
 }
+
+const OWNED_CONTEXT_BY_NAMESPACE = {
+  tests: 'test',
+  changelog: 'changelog',
+} as const satisfies Record<OwnedFileNamespace, OwnedFileContext>
 
 /** The identity a classification is bound to: these exact bytes of this exact canonical file. */
 function workspaceFileProvenanceIdentity(
@@ -29,7 +37,11 @@ function workspaceFileProvenanceIdentity(
   return {
     fileId: file.id,
     key: file.key,
-    context: file.storageContext ?? 'workspace',
+    context:
+      file.storageContext ??
+      (file.vfsNamespace && file.vfsNamespace !== 'uploads'
+        ? OWNED_CONTEXT_BY_NAMESPACE[file.vfsNamespace]
+        : 'workspace'),
     contentUpdatedAt: file.contentUpdatedAt ?? undefined,
   }
 }

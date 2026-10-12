@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { defineWorkspaceOperation } from '@/lib/core/application'
-import { observeContentDelivery } from '@/lib/core/application/content-delivery'
+import { admitContent, observeContentDelivery } from '@/lib/core/application/content-delivery'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
@@ -111,6 +111,11 @@ export const materializeInlineChatImage = defineAuthorizedChatUseCase({
   },
   async execute({ principal, context, input, request }) {
     validateImageInput(input)
+    /**
+     * The result is a URL. The source read below admits its own bytes; a snapshot already
+     * published was admitted when it was published.
+     */
+    await admitContent(principal, [])
     const signal = input.signal ?? request?.signal
     signal?.throwIfAborted()
     const url = inlineChatImageUrl(context.chatId, input.requestId, input.reference)

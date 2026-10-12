@@ -1,4 +1,8 @@
-import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import type { Principal } from '@sim/auth/principal'
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
 import {
   knowledgeContextsMock,
   knowledgeContextsMockFns,
@@ -8,6 +12,7 @@ import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/wo
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  admitKnowledgeChunks: vi.fn(),
   queryChunks: vi.fn(),
   batchChunkOperation: vi.fn(),
   createChunk: vi.fn(),
@@ -36,6 +41,11 @@ vi.mock('@/lib/knowledge/model-input-provenance', () => ({
 
 vi.mock('@/providers/utils', () => providersUtilsMock)
 
+vi.mock('@/lib/knowledge/application/admit-knowledge-content', () => ({
+  admitKnowledgeChunks: mocks.admitKnowledgeChunks,
+}))
+
+import { admitContent } from '@/lib/core/application/content-delivery'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
@@ -54,6 +64,65 @@ describe('knowledge chunk application use cases', () => {
       knowledgeBase: { id: 'knowledge-1' },
       documentId: 'document-1',
       document: { id: 'document-1', processingStatus: 'processing' },
+    })
+  })
+
+  /** Stands in for the gate's verdicts; accounting is the real primitive's, as the helper's is. */
+  function admitOnly(ids: string[]) {
+    mocks.admitKnowledgeChunks.mockImplementation(async (principal: Principal) => {
+      await admitContent(principal, [])
+      return new Set(ids)
+    })
+  }
+
+  describe('a searched chunk listing', () => {
+    const page = {
+      chunks: [
+        { id: 'chunk-1', content: 'first' },
+        { id: 'chunk-2', content: 'second' },
+      ],
+      pagination: { total: 7, limit: 2, offset: 4, hasMore: true },
+    }
+
+    beforeEach(() => {
+      knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue(
+        {
+          workspaceId: 'workspace-1',
+          workspaceOrganizationId: null,
+          allowPersonalApiKeys: true,
+          billedAccountUserId: 'billing-owner-1',
+          access: { get: async () => WORKSPACE_ACCESS_SCOPE },
+          knowledgeBaseId: 'knowledge-1',
+          knowledgeBase: { id: 'knowledge-1' },
+          documentId: 'document-1',
+          document: { id: 'document-1', processingStatus: 'completed', enabled: true },
+        }
+      )
+      mocks.queryChunks.mockResolvedValue(page)
+      admitOnly(['chunk-1'])
+    })
+
+    it('reports Chat a total of the matches it was given, not of withheld ones', async () => {
+      const result = await listKnowledgeChunks.execute({
+        principal: createDelegatedPrincipal({
+          workspaceId: 'workspace-1',
+          audience: 'sim:knowledge',
+        }),
+        input: { knowledgeBaseId: 'knowledge-1', documentId: 'document-1', search: 'token' },
+      })
+
+      expect(result.chunks.map((chunk) => chunk.id)).toEqual(['chunk-1'])
+      expect(result.pagination).toEqual({ total: 5, limit: 2, offset: 4, hasMore: true })
+    })
+
+    it('keeps the full total for a person', async () => {
+      admitOnly(['chunk-1', 'chunk-2'])
+      const result = await listKnowledgeChunks.execute({
+        principal: createSessionPrincipal(),
+        input: { knowledgeBaseId: 'knowledge-1', documentId: 'document-1', search: 'token' },
+      })
+
+      expect(result.pagination).toEqual(page.pagination)
     })
   })
 

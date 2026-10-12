@@ -37,7 +37,6 @@ const gate = () =>
   })
 
 beforeEach(() => {
-  vi.clearAllMocks()
   history.recordExistingSessionFileInput.mockResolvedValue(undefined)
 })
 

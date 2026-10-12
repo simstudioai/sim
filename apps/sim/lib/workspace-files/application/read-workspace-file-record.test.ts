@@ -4,12 +4,25 @@ import {
   workspaceFileManagerMock,
   workspaceFileManagerMockFns,
 } from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
+import {
+  type ContentDeliveryGate,
+  observeContentDelivery,
+} from '@/lib/core/application/content-delivery'
+import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import {
   downloadWorkspaceFileRecord,
   readWorkspaceFileContentRecord,
@@ -87,5 +100,39 @@ describe('workspace file record reads', () => {
       })
     ).rejects.toThrow()
     expect(mocks.getFile).not.toHaveBeenCalled()
+  })
+
+  it('binds an owned file to the owner context its row is stored under', async () => {
+    const owned = {
+      ...file,
+      key: 'workspace/workspace-1/test-body.js',
+      vfsNamespace: 'tests' as const,
+      contentUpdatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    }
+    mocks.getFile.mockResolvedValue(owned)
+    workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue(
+      {
+        status: 'exact',
+        entries: [],
+      }
+    )
+    const admitAll: ContentDeliveryGate = {
+      async admit(sources) {
+        return sources.map(() => true)
+      },
+    }
+    await observeContentDelivery(admitAll, () =>
+      readWorkspaceFileContentRecord.execute({
+        principal: createCopilotChatFilePrincipal({
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          chatId: 'chat-1',
+        }),
+        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
+      })
+    )
+    expect(
+      workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance
+    ).toHaveBeenCalledWith('workspace-1', expect.objectContaining({ context: 'test' }))
   })
 })

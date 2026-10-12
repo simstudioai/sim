@@ -15,6 +15,7 @@ import * as secrets from '@/lib/api/contracts/v2/secrets'
 import * as tables from '@/lib/api/contracts/v2/tables'
 import * as workflows from '@/lib/api/contracts/v2/workflows'
 import { parseFolderPath } from '@/lib/folders/paths'
+import { isCommittedWriteResponse } from '@/lib/mothership/content-delivery/dispatch'
 import type { ResourceAddress, ResourceChange } from '@/lib/mothership/generated/resources'
 import { findNonTabFileIds } from '@/lib/mothership/resources/file-tabs'
 import { encodeVfsPathSegments } from '@/lib/vfs/path'
@@ -31,6 +32,8 @@ interface EffectRoute {
   path: string
   readBody?: boolean
   readOnly?: boolean
+  /** Projects from the request alone, so a committed write whose result was withheld still counts. */
+  fromRequest?: boolean
   project: (response: Response, context: EffectContext) => Promise<ResourceChange[]>
 }
 
@@ -99,6 +102,7 @@ function parentAccess(
         method: value.method,
         path: value.path,
         readOnly,
+        fromRequest: true,
         async project(_response: Response, context: EffectContext) {
           /** Literal collection routes also match, preventing /folders from becoming an ID. */
           const id = context.params[parameter]
@@ -389,7 +393,10 @@ export function createResourceEffectTransport(
           : undefined
       : undefined
     const response = await transport(input, init)
-    if (route && response.ok && (!route.readOnly || observeReads)) {
+    const changed =
+      response.ok ||
+      (route?.fromRequest === true && !route.readOnly && isCommittedWriteResponse(response))
+    if (route && changed && (!route.readOnly || observeReads)) {
       const params = matchParams(route.path, url.pathname)
       if (params)
         effects.push(...(await onlyFileTabs(await route.project(response, { params, body }))))

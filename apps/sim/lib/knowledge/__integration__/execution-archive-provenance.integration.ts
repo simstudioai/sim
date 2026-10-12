@@ -209,6 +209,12 @@ async function assertBlockedConsumers(
   } else {
     expect(imported).toMatchObject({ failed: [] })
     expect(imported.added).toHaveLength(1)
+    /** The accepted document queued its processing; that work is removed with the fixture. */
+    const events = await db
+      .select({ id: outboxEvent.id })
+      .from(outboxEvent)
+      .where(sql`${outboxEvent.payload}::jsonb ->> 'documentId' = ${imported.added[0].documentId}`)
+    trackedEventIds.push(...events.map((event) => event.id))
   }
 }
 

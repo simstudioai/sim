@@ -43,8 +43,11 @@ const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
 /** Fields whose value is minted per write: storage keys and share tokens. */
 const MINTED_FIELDS = new Set(['key', 'token', 'url'])
-/** Ranking scores move with whatever else the shared test database indexed; order is pinned below. */
-const UNSTABLE_SCORES = new Set(['rank', 'rankScore', 'similarity'])
+/**
+ * Ranking scores move with whatever else the shared test database indexed (order is pinned below),
+ * and a table's `rowCount` is maintained by a migration trigger a pushed schema does not install.
+ */
+const UNSTABLE_SCORES = new Set(['rank', 'rankScore', 'similarity', 'rowCount'])
 const MINTED_ID = /\b(?:col|row|tbl)_[0-9a-f]{32}\b/g
 
 /** Replaces values minted per run (ids, times, tokens) so two runs of the same calls compare equal. */

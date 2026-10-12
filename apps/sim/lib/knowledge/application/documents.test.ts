@@ -68,6 +68,28 @@ vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
+/** Chat's verdicts come from a stand-in gate (refusing `withheld-*` ids); other callers run the real helper. */
+vi.mock('@/lib/knowledge/application/admit-knowledge-content', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/lib/knowledge/application/admit-knowledge-content')>()
+  const delivery = await vi.importActual<typeof import('@/lib/core/application/content-delivery')>(
+    '@/lib/core/application/content-delivery'
+  )
+  return {
+    ...original,
+    admitKnowledgeDocuments: async (
+      principal: Parameters<typeof original.admitKnowledgeDocuments>[0],
+      documents: Parameters<typeof original.admitKnowledgeDocuments>[1]
+    ) => {
+      if (!delivery.isCopilotPrincipal(principal)) {
+        return original.admitKnowledgeDocuments(principal, documents)
+      }
+      await delivery.admitContent(principal, [])
+      return new Set(documents.map((doc) => doc.id).filter((id) => !id.startsWith('withheld-')))
+    },
+  }
+})
+
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {
@@ -270,6 +292,49 @@ describe('knowledge document application use cases', () => {
       WORKSPACE_ACCESS_SCOPE
     )
     expect(mocks.deleteDocumentById).not.toHaveBeenCalled()
+  })
+
+  describe('a filtered document listing', () => {
+    const page = {
+      documents: [{ id: 'document-1' }, { id: 'withheld-1' }],
+      pagination: { total: 9, limit: 2, offset: 2, hasMore: true },
+    }
+    const chat = {
+      kind: 'delegated' as const,
+      serviceId: 'copilot',
+      subjectUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      delegationId: 'tool-call-1',
+      audience: 'sim:knowledge',
+      issuedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    }
+    const input = { knowledgeBaseId: 'knowledge-1', limit: 2, offset: 2, search: 'secret' }
+
+    beforeEach(() => {
+      mocks.getDocuments.mockResolvedValue(page)
+    })
+
+    it('reports Chat a total of the matches it was given, not of withheld ones', async () => {
+      const result = await listKnowledgeDocuments.execute({ principal: chat, input })
+
+      expect(result.documents.map((doc: { id: string }) => doc.id)).toEqual(['document-1'])
+      expect(result.pagination).toEqual({ total: 3, limit: 2, offset: 2, hasMore: true })
+    })
+
+    it('keeps the full total for a person and for Chat without a filter', async () => {
+      const person = await listKnowledgeDocuments.execute({
+        principal: createSessionPrincipal(),
+        input,
+      })
+      expect(person.pagination).toEqual(page.pagination)
+
+      const unfiltered = await listKnowledgeDocuments.execute({
+        principal: chat,
+        input: { knowledgeBaseId: 'knowledge-1', limit: 2, offset: 2 },
+      })
+      expect(unfiltered.pagination).toEqual(page.pagination)
+    })
   })
 
   it('authorizes the canonical knowledge base before listing documents', async () => {

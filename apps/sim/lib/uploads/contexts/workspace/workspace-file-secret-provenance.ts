@@ -24,6 +24,7 @@ import {
   PROVENANCE_MAX_SERIALIZED_BYTES,
 } from '@/lib/execution/provenance-limits'
 import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import type { OwnedFileContext } from '@/lib/workspace-files/owned-files'
 import { OWNED_FILE_CONTEXTS } from '@/lib/workspace-files/owned-files'
 import {
   isResolvedSecretProvenanceAbsence,
@@ -79,7 +80,8 @@ interface WorkspaceFileAttachmentIdentity {
 export interface WorkspaceFileSecretProvenanceIdentity {
   fileId: string
   key: string
-  context: 'workspace' | 'mothership' | 'execution'
+  /** The row's `context`: a store, or the owner of an owned file (a test or release body). */
+  context: 'workspace' | 'mothership' | 'execution' | OwnedFileContext
   contentUpdatedAt?: Date
 }
 

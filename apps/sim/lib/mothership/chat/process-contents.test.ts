@@ -1,4 +1,5 @@
 import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import {
   integrationsAvailabilityMock,
   integrationsAvailabilityMockFns,
@@ -36,6 +37,7 @@ import {
 } from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
+import { admitContent } from '@/lib/core/application/content-delivery'
 import {
   MAX_TABLE_SELECTION_PREVIEW_LENGTH,
   MAX_TABLE_SELECTION_ROWS,
@@ -118,6 +120,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => 
   readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadata },
 }))
 vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/table/application/views', () => ({
   readTableViewUseCase: { execute: readTableView },
 }))
@@ -1449,6 +1452,47 @@ describe('processContextsServer - table_selection contexts', () => {
     expect(result).toEqual([])
     expect(readTableUseCase).not.toHaveBeenCalled()
     expect(queryTableRows).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a pipe', 'tok|en-FIXTURE-PIPE-0001'],
+    ['a newline', 'tok\nen-FIXTURE-LINE-0002'],
+  ])('redacts a cell secret holding %s before markdown escaping', async (_case, secret) => {
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => ({
+      decrypted: value.slice('enc:'.length),
+    }))
+    readTableUseCase.mockResolvedValue({
+      table: { name: 'Keys', schema: { columns: [{ id: 'c_key', name: 'Key' }] } },
+      folderPath: '/',
+    })
+    const rows = [{ id: 'r1', data: { c_key: `value ${secret}` } }]
+    /** The real query admits each row it returns; this one carries the secret's provenance. */
+    queryTableRows.mockImplementation(async ({ principal }) => {
+      await admitContent(principal, [
+        {
+          kind: 'table-row',
+          id: 'r1',
+          provenance: {
+            status: 'exact',
+            entries: [
+              { name: 'CELL_TOKEN', encryptedValue: `enc:${secret}`, sourceUserId: 'user-1' },
+            ],
+          },
+          view: { derived: rows[0].data },
+        },
+      ])
+      return { rows, totalCount: 1 }
+    })
+    const [context] = await processContextsServer(
+      [{ kind: 'table_selection', tableId: 'tbl-1', label: 'Keys', rowIds: ['r1'] }],
+      'user-1',
+      '',
+      'ws-1'
+    )
+    expect(context.content).toContain('[REDACTED_SECRET]')
+    for (const fragment of [secret.slice(0, 4), secret.slice(-4), ...secret.split(/[|\n]/)]) {
+      expect(context.content).not.toContain(fragment)
+    }
   })
 
   it('keeps oversized column headings within the selection budget', async () => {

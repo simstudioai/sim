@@ -694,9 +694,15 @@ async function compileDocInLegacySandbox(
     )
   }
 
+  /** Admitted before the cache too: a cached build may embed a file the gate now refuses. */
+  const readableWorkspaceFileIds = await admitBrokerFiles(args)
   const cacheKey = sha256Hex(`.${fmt.ext}${args.source}${args.workspaceId}`)
   const cached = compiledDocCache.get(cacheKey)
-  if (cached) {
+  /** A build another caller made may have read files this compile may not; it rebuilds instead. */
+  const cacheReadable =
+    !readableWorkspaceFileIds ||
+    (cached?.contributingFiles ?? []).every((file) => readableWorkspaceFileIds.has(file.fileId))
+  if (cached && cacheReadable) {
     return {
       buffer: cached.buffer,
       contentType: fmt.contentType,
@@ -710,7 +716,6 @@ async function compileDocInLegacySandbox(
     }
   }
 
-  const readableWorkspaceFileIds = await admitBrokerFiles(args)
   const contributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
   const buffer = await runSandboxTask(
     format.taskId,

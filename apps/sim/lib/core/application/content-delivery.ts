@@ -64,8 +64,6 @@ interface ContentLedger {
   admitted: ContentProvenance[]
   /** A committed write's returned item was refused; the operation answers with a refusal. */
   withheldAfterWrite?: ContentSourceKind
-  /** A committed write's gate failed; the operation completes, then answers with this error. */
-  failedAfterWrite?: unknown
   /** The gate itself failed while this ledger was open, whatever the route then answered. */
   gateFailure?: unknown
 }
@@ -185,8 +183,24 @@ export class ContentAdmission {
   }
 }
 
+/**
+ * Accounts for the operation running now and the requests around it. An enclosing operation is
+ * not marked: a nested use case's admission covers what it returned, not what the outer one adds.
+ */
 function markAccounted(): void {
-  for (let ledger = ledgers.getStore(); ledger; ledger = ledger.parent) ledger.accounted = true
+  const current = ledgers.getStore()
+  if (!current) return
+  current.accounted = true
+  for (let ledger = current.parent; ledger; ledger = ledger.parent) {
+    if (ledger.declaration === undefined) ledger.accounted = true
+  }
+}
+
+/** A committed write returned an item of `kind` its gate refused or could not decide. */
+function withholdAfterWrite(kind: ContentSourceKind): void {
+  for (let ledger = ledgers.getStore(); ledger; ledger = ledger.parent) {
+    ledger.withheldAfterWrite ??= kind
+  }
 }
 
 /**
@@ -254,25 +268,20 @@ export async function admitWrittenContent(
     admission = await admitContent(principal, sources)
   } catch (error) {
     /**
-     * A gate that cannot decide (its record could not be written) must not undo the write's
-     * audit and effects either: every item is withheld, and the operation answers with the error.
+     * A gate that cannot decide (its record could not be written) must not undo the write's audit
+     * and effects either: every item is withheld, and the operation answers "saved, not shown".
+     * A transport that must answer the failure itself reads it from the request's ledger.
      */
-    const ledger = ledgers.getStore()
-    if (!ledger) throw error
-    for (let open: ContentLedger | undefined = ledger; open; open = open.parent) {
-      open.failedAfterWrite ??= error
-    }
+    const [first] = sources
+    if (!ledgers.getStore() || !first) throw error
+    withholdAfterWrite(first.kind)
     return new ContentAdmission(
       sources,
       sources.map(() => false)
     )
   }
   const refused = admission.refused[0]
-  if (refused) {
-    for (let ledger = ledgers.getStore(); ledger; ledger = ledger.parent) {
-      ledger.withheldAfterWrite ??= refused.kind
-    }
-  }
+  if (refused) withholdAfterWrite(refused.kind)
   return admission
 }
 
@@ -285,14 +294,28 @@ export async function admitEach<T>(
   principal: Principal,
   items: readonly T[],
   classify: (items: readonly T[]) => Promise<readonly ContentSource[]>,
-  options: { written?: boolean } = {}
+  options: { written?: ContentSourceKind } = {}
 ): Promise<T[]> {
   if (items.length === 0 || !mustClassifyContent(principal)) {
     await admitContent(principal, [])
     return [...items]
   }
-  const sources = await classify(items)
-  const admission = await (options.written ? admitWrittenContent : admitContent)(principal, sources)
+  if (!options.written) {
+    const sources = await classify(items)
+    const admission = await admitContent(principal, sources)
+    return items.filter((_, index) => admission.admits(sources[index]))
+  }
+  /** A committed write whose items cannot even be classified is saved, then withheld whole. */
+  let sources: readonly ContentSource[]
+  try {
+    sources = await classify(items)
+  } catch (error) {
+    if (!ledgers.getStore()) throw error
+    markAccounted()
+    withholdAfterWrite(options.written)
+    return []
+  }
+  const admission = await admitWrittenContent(principal, sources)
   return items.filter((_, index) => admission.admits(sources[index]))
 }
 
@@ -308,6 +331,17 @@ export async function requireAdmittedContent(
   if (!admission.admits(source)) throw new ContentRefusedError(source.kind)
 }
 
+/** The gate failed during a dispatched request, which may have committed a write first. */
+export class ContentGateFailure extends Error {
+  constructor(
+    readonly gateFailure: unknown,
+    readonly committedWrite: boolean
+  ) {
+    super('The content gate failed during the request', { cause: gateFailure })
+    this.name = 'ContentGateFailure'
+  }
+}
+
 /** What one dispatched request delivered, as the transport that dispatched it needs to know. */
 export interface ContentDeliveryRecord<T> {
   result: T
@@ -315,6 +349,8 @@ export interface ContentDeliveryRecord<T> {
   unaccounted: boolean
   /** The gate failed to decide during the request; see {@link ContentLedger.gateFailure}. */
   gateFailure?: unknown
+  /** A write committed, then its returned content was withheld: the change happened. */
+  committedWrite: boolean
   /** Provenance of every admitted item, in admission order. */
   admitted: readonly ContentProvenance[]
 }
@@ -333,10 +369,18 @@ export async function trackContentDelivery<T>(
     accounted: false,
     admitted: [],
   }
-  const result = await ledgers.run(ledger, execute)
+  let result: T
+  try {
+    result = await ledgers.run(ledger, execute)
+  } catch (error) {
+    /** The request threw because its gate failed; its transport answers that, not the error. */
+    if (ledger.gateFailure === undefined) throw error
+    throw new ContentGateFailure(ledger.gateFailure, ledger.withheldAfterWrite !== undefined)
+  }
   return {
     result,
     unaccounted: ledger.sourcedOperationAdmitted && !ledger.accounted,
+    committedWrite: ledger.withheldAfterWrite !== undefined,
     admitted: ledger.admitted,
     ...(ledger.gateFailure === undefined ? {} : { gateFailure: ledger.gateFailure }),
   }
@@ -381,7 +425,6 @@ export async function runDeclaredContentOperation<T>(
   }
   const result = await ledgers.run(ledger, execute)
   await complete?.(result)
-  if (ledger.failedAfterWrite) throw ledger.failedAfterWrite
   if (operation.contentDelivery === 'sourced' && !ledger.accounted) {
     throw new ContentDeliveryUnaccountedError(operation.id)
   }

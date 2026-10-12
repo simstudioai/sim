@@ -735,10 +735,16 @@ export const searchTableRows = defineAuthorizedTableUseCase({
         { q: input.q, filter, sort },
         requestId(input)
       )
+      const matches = await admitRowMatches(principal, result.matches)
       return {
         table: context.table,
-        ...result,
-        matches: await admitRowMatches(principal, result.matches),
+        matches,
+        /**
+         * A capped search that withheld a match cannot say whether what lies past the cap is
+         * admissible, so truncation is reported only when every match on the page was admitted;
+         * otherwise a refused match would be signalled through the flag alone.
+         */
+        truncated: result.truncated && matches.length === result.matches.length,
       }
     } catch (error) {
       rethrowQueryValidation(error)

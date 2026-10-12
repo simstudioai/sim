@@ -172,6 +172,39 @@ describe('downloadWorkspaceFileItems', () => {
     expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
   })
 
+  it('counts only the zipped files once a rendered document is left out', async () => {
+    mockListFiles.mockResolvedValue([
+      file('f1', 'clean.txt', null, 10),
+      { ...file('f2', 'report.docx', null, 25), type: 'text/x-generated-document' },
+    ])
+    mockIsGenerated.mockImplementation((type: string) => type === 'text/x-generated-document')
+    mockFetchServable.mockResolvedValue({
+      buffer: Buffer.from('rendered'),
+      contributingFiles: [{ fileId: 'c1', key: 'key-c1', context: 'workspace' }],
+    })
+    mockProvenance.mockImplementation(
+      async (_workspaceId: string, identities: readonly { fileId: string }[]) =>
+        new Map(
+          identities.map((identity) => [
+            identity.fileId,
+            identity.fileId === 'c1' ? { status: 'unknown' } : { status: 'exact', entries: [] },
+          ])
+        )
+    )
+    const result = await observeContentDelivery(secretFreeGate, () =>
+      downloadWorkspaceFileItems.execute({
+        principal: createDelegatedPrincipal({
+          subjectUserId: 'u1',
+          workspaceId: 'ws-1',
+          audience: 'sim:workspace-files',
+        }),
+        input: { workspaceId: 'ws-1', fileIds: ['f1', 'f2'], folderIds: [] },
+      })
+    )
+    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
+    expect(result.declaredBytes).toBe(10)
+  })
+
   it('refuses a Chat archive whose every file its gate refuses', async () => {
     mockProvenance.mockResolvedValue(new Map([['f1', { status: 'unknown' }]]))
     await expect(

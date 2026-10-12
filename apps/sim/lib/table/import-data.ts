@@ -53,6 +53,8 @@ export interface BulkImportBatch {
   afterOrderKey?: string | null
   /** Provenance each row inherits from its source; absent, rows are exact-empty. */
   rowProvenance?: ImportedRowProvenance
+  /** Each row's cells as the source held them, aligned with `rows`; see `importedRowSources`. */
+  rowSources?: readonly RowData[]
 }
 
 /**
@@ -148,9 +150,11 @@ export async function bulkInsertImportBatch(
       }
     }
     return mutateTableRowsWithSecretProvenance(trx, {
-      rows: rowsToInsert.map((row) => ({
+      rows: rowsToInsert.map((row, index) => ({
         rowId: row.id,
-        provenance: (data.rowProvenance ?? createExactEmptyTableRowSecretProvenance)(row.data),
+        provenance: data.rowProvenance
+          ? data.rowProvenance(row.data, data.rowSources?.[index])
+          : createExactEmptyTableRowSecretProvenance(row.data),
       })),
       rowState: 'new',
       mode: 'replace',

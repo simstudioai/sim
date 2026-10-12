@@ -9,7 +9,11 @@ import {
   checkAttributedUsageLimits,
 } from '@/lib/billing/core/billing-attribution'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
-import { admitContent, ContentRefusedError } from '@/lib/core/application/content-delivery'
+import {
+  admitContent,
+  ContentRefusedError,
+  isCopilotPrincipal,
+} from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { admitKnowledgeDocuments } from '@/lib/knowledge/application/admit-knowledge-content'
@@ -323,9 +327,18 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       principal,
       result.documents.map((doc) => ({ id: doc.id, value: doc }))
     )
+    const documents = result.documents.filter((doc) => admitted.has(doc.id))
+    /**
+     * A filtered total counts every matching document, refused ones included, so for Chat it would
+     * say whether withheld names or tag values matched. Chat sees only the matches it was given.
+     */
+    const filtered = Boolean(input.search) || tagFilters.length > 0
     return {
       ...result,
-      documents: result.documents.filter((doc) => admitted.has(doc.id)),
+      documents,
+      ...(filtered && isCopilotPrincipal(principal)
+        ? { pagination: { ...result.pagination, total: offset + documents.length } }
+        : {}),
       tagDefinitions:
         resolvedNameFilters?.definitionsByKnowledgeBase.get(context.knowledgeBaseId) ??
         (await getDocumentTagDefinitions(context.knowledgeBaseId)),

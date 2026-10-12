@@ -208,7 +208,7 @@ describe('runDeclaredContentOperation', () => {
     expect(refusal).toMatchObject({ message: expect.stringContaining('The change was saved') })
   })
 
-  it('answers with a gate failure during a write only after its effects completed', async () => {
+  it('answers a write whose gate failed as saved-not-shown, after its effects completed', async () => {
     const failure = new Error('history unavailable')
     const failing: ContentDeliveryGate = {
       async admit() {
@@ -231,7 +231,37 @@ describe('runDeclaredContentOperation', () => {
       ).catch((error: unknown) => error)
     )
     expect(events).toEqual(['withheld=1', 'audit recorded'])
-    expect(outcome).toBe(failure)
+    /** Not the gate's error: that would invite a retry of a write that already committed. */
+    expect(outcome).toBeInstanceOf(ContentRefusedError)
+    expect(outcome).toMatchObject({ message: expect.stringContaining('The change was saved') })
+    /** The request's transport still sees the failure, to answer it itself (the proxy's 502). */
+    const record = await observeContentDelivery(failing, () =>
+      trackContentDelivery(() =>
+        runDeclaredContentOperation(SOURCED, CHAT, async () => {
+          await admitWrittenContent(CHAT, [source('written')])
+          return 'saved row'
+        }).catch(() => 'answered')
+      )
+    )
+    expect(record.gateFailure).toBe(failure)
+  })
+
+  it('does not let a nested use case account for what its enclosing operation returns', async () => {
+    const admitAll: ContentDeliveryGate = {
+      async admit(sources) {
+        return sources.map(() => true)
+      },
+    }
+    const outcome = await observeContentDelivery(admitAll, () =>
+      runDeclaredContentOperation(SOURCED, CHAT, async () => {
+        await runDeclaredContentOperation(SOURCED, CHAT, async () => {
+          await admitContent(CHAT, [source('nested')])
+          return 'nested'
+        })
+        return 'outer content never classified'
+      }).catch((error: unknown) => error)
+    )
+    expect(outcome).toBeInstanceOf(ContentDeliveryUnaccountedError)
   })
 
   it('rethrows a gate failure at once when no operation is open to answer with it', async () => {
@@ -265,7 +295,12 @@ describe('trackContentDelivery', () => {
       noteContentDeliveryOperation(SOURCED, CHAT)
       return 'response'
     })
-    expect(record).toEqual({ result: 'response', unaccounted: true, admitted: [] })
+    expect(record).toEqual({
+      result: 'response',
+      unaccounted: true,
+      committedWrite: false,
+      admitted: [],
+    })
   })
 
   it('does not report a none operation, or a sourced one another caller ran', async () => {

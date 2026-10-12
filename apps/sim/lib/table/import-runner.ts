@@ -29,7 +29,7 @@ import {
   deleteAllTableRows,
   setTableSchemaForImport,
 } from '@/lib/table/import-data'
-import { resolveImportedRowProvenance } from '@/lib/table/import-provenance'
+import { importedRowSources, resolveImportedRowProvenance } from '@/lib/table/import-provenance'
 import { createCsvParser } from '@/lib/table/import-stream'
 import {
   markJobFailedInWorkspace,
@@ -324,6 +324,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           startPosition: basePosition + inserted,
           afterOrderKey: lastOrderKey,
           rowProvenance,
+          rowSources: importedRowSources(rows, schema, headerToColumn),
         },
         { ...table, schema },
         requestId,

@@ -5,14 +5,17 @@ import type { Principal } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 import {
   admitContent,
+  admitWrittenContent,
   type ContentDeliveryGate,
   type ContentSource,
   noteContentDeliveryOperation,
+  runDeclaredContentOperation,
 } from '@/lib/core/application/content-delivery'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import {
   deliveredFileProvenance,
   dispatchUnderContentGate,
+  isCommittedWriteResponse,
 } from '@/lib/mothership/content-delivery/dispatch'
 
 const now = Date.now()
@@ -69,7 +72,28 @@ describe('dispatchUnderContentGate', () => {
         }
         return Response.json({ data: 'unreachable' })
       })
-    ).rejects.toBe(failure)
+    ).rejects.toMatchObject({
+      name: 'ContentGateFailure',
+      gateFailure: failure,
+      committedWrite: false,
+    })
+  })
+
+  it('marks a withheld response to a committed write, so what it changed is still refreshed', async () => {
+    const refusing: ContentDeliveryGate = {
+      async admit(sources) {
+        return sources.map(() => false)
+      },
+    }
+    const { response } = await dispatchUnderContentGate(refusing, async () => {
+      const outcome = await runDeclaredContentOperation(SOURCED, CHAT, async () => {
+        await admitWrittenContent(CHAT, [SOURCE])
+        return 'saved'
+      }).catch(() => 'withheld')
+      return Response.json({ error: outcome }, { status: 403 })
+    })
+    expect(response.status).toBe(403)
+    expect(isCommittedWriteResponse(response)).toBe(true)
   })
 
   it('replaces any successful response that never classified its content with a 403', async () => {

@@ -5,7 +5,6 @@ import {
   ContentRefusedError,
   type ContentView,
   isCopilotPrincipal,
-  mustClassifyContent,
 } from '@/lib/core/application/content-delivery'
 import { collectUserFilesById, isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { getStoredFileSecretProvenanceByKey } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -118,5 +117,6 @@ export function inlinesRunFiles(
   requested: boolean | undefined,
   mode: string | undefined
 ): boolean | undefined {
-  return mode !== 'sync' && requested && mustClassifyContent(principal) ? false : requested
+  /** An omitted flag inlines by default downstream, so Chat's streamed runs pin it off. */
+  return mode !== 'sync' && isCopilotPrincipal(principal) ? false : requested
 }

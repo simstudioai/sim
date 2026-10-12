@@ -1,5 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
-import { admitEach } from '@/lib/core/application/content-delivery'
+import { admitEach, type ContentSourceKind } from '@/lib/core/application/content-delivery'
 import {
   classifyKnowledgeChunks,
   classifyKnowledgeDocumentMetadata,
@@ -9,6 +9,9 @@ interface KnowledgeAdmissionOptions {
   /** The items are what a committed write returns; see `admitWrittenContent`. */
   written?: boolean
 }
+
+const writtenAs = (options: KnowledgeAdmissionOptions, kind: ContentSourceKind) =>
+  options.written ? { written: kind } : {}
 
 /**
  * Admits each document whose rendered metadata a result returns, on its own, and returns the ids
@@ -32,7 +35,7 @@ export async function admitKnowledgeDocuments(
         view: { derived: item.value },
       }))
     },
-    options
+    writtenAs(options, 'knowledge-document')
   )
   return new Set(admitted.map((item) => item.id))
 }
@@ -59,7 +62,7 @@ export async function admitKnowledgeChunks(
         view: chunk.value === undefined ? ('complete' as const) : { derived: chunk.value },
       }))
     },
-    options
+    writtenAs(options, 'knowledge-chunk')
   )
   return new Set(admitted.map((chunk) => chunk.id))
 }

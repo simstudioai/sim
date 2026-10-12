@@ -1221,12 +1221,27 @@ async function resolveTableSelectionResource(
   // needs. The real clause isn't known until packing finishes, so reserve its
   // longest form: every row shown AND every row omitted maximizes both counts
   // and forces the plural. A few characters of unused slack beats overshooting.
+  /**
+   * Each cell is redacted as stored, before markdown escaping rewrites `|` and newlines: redaction
+   * matches a secret's exact text, so escaping first would let a secret holding either pass.
+   */
+  let cellsProjected = true
+  const projectCell = (value: unknown): string => {
+    if (value === null || value === undefined) return ''
+    const projection = projectResolvedSecretModelContent(
+      typeof value === 'string' ? value : JSON.stringify(value),
+      selectionRegistry
+    )
+    if (projection.safe && typeof projection.value === 'string') return projection.value
+    cellsProjected = false
+    return ''
+  }
   const lines: string[] = []
   let remaining =
     MAX_TABLE_SELECTION_PREVIEW_LENGTH -
     describe(sizeClause(selectedRowCount, selectedRowCount)).length
   for (const row of rows) {
-    const line = `| ${renderTableCell(row.id)} | ${columns.map((col) => renderTableCell(row.data[getColumnId(col)])).join(' | ')} |`
+    const line = `| ${renderTableCell(row.id)} | ${columns.map((col) => renderTableCell(projectCell(row.data[getColumnId(col)]))).join(' | ')} |`
     if (line.length + 1 > remaining) break
     lines.push(line)
     remaining -= line.length + 1
@@ -1240,7 +1255,7 @@ async function resolveTableSelectionResource(
       ? `\n\n${withheldRows} selected ${withheldRows === 1 ? 'row is' : 'rows are'} not shown: ${withheldRows === 1 ? 'its' : 'their'} secret provenance could not be verified.`
       : ''
   const preview =
-    !projected.safe || typeof projected.value !== 'string'
+    !cellsProjected || !projected.safe || typeof projected.value !== 'string'
       ? `Selected ${scope} from table "${table.name}" (${selectedRowCount} rows, ${columns.length} columns). Cell values could not be checked for secret values, so none were inlined.`
       : projected.value.length <= MAX_TABLE_SELECTION_PREVIEW_LENGTH
         ? `${projected.value}${withheldNote}`
