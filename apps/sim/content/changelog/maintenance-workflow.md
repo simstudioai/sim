@@ -6,7 +6,7 @@ Use one scheduled Sim workflow to collect changes and prepare an editorial draft
 
 ## Cadence
 
-Review on Monday and Thursday at 09:00 in `America/Los_Angeles`. The schedule follows Pacific daylight saving time. Run a manual catch-up for a significant launch or an urgent notice. A push to the production branch does not trigger a draft PR. Publishing is based on meaningful, available changes, not a requirement to post twice a week.
+Review on Monday and Thursday at 09:00 in `America/Los_Angeles`. The schedule follows Pacific daylight saving time. A manual workflow run catches up or resumes the current slot; it does not create another edition after that slot is complete. Use the [manual edition path](#manual-editions) for a separate launch or urgent notice. A push to the production branch does not trigger a draft PR. Publishing is based on meaningful, available changes, not a requirement to post twice a week.
 
 ```mermaid
 flowchart LR
@@ -37,7 +37,7 @@ Sim also has Human in the Loop if the team later wants an approval portal. It is
 Create three small tables in the selected Sim workspace:
 
 - `changelog_candidates`: unique `source_key` such as `simstudioai/sim#123`; source URL, merge SHA/time, source update time, proposed benefit, decision, decision reason, owner, availability evidence, related URLs, and edition key. Decisions are `new`, `deferred`, `selected`, `skipped`, or `published`. Keep an editor's decision when source metadata is refreshed.
-- `changelog_editions`: unique `edition_key`; selected source keys, branch, draft PR URL, source snapshot, media status, review status, canonical URL, and publication status. For a new edition, use the most recent Monday or Thursday calendar date in `America/Los_Angeles`. Reuse that key throughout its slot and on recovery; do not use a unique timestamp or generated headline. Existing unfinished editions take precedence over the current slot.
+- `changelog_editions`: unique `edition_key`; selected source keys, branch, draft PR URL, source snapshot, media status, review status, canonical URL, and publication status. For a new automatic edition, use the most recent Monday or Thursday calendar date in `America/Los_Angeles`. Reuse that key throughout its slot and on recovery; do not use a unique timestamp or generated headline. Existing unfinished editions take precedence over the current slot. Separately authored manual editions use `manual-<article-slug>`.
 - `changelog_runs`: unique run key; scan lower/upper bounds, last fully collected boundary, run result, counts, and error details. Collection progress is separate from publication status.
 
 Use unique columns for deduplication. Query by `source_key`, then use Insert Row for a new candidate or Update Row by ID with only collector-owned fields for an existing one. If a concurrent insert wins the unique key, reread that candidate and patch its source metadata. Never reset review decisions or publication status. Upsert Row replaces the entire stored row when a key matches, so it is unsuitable for partial refreshes; even merging a previously read snapshot could overwrite a newer editor decision.
@@ -101,6 +101,12 @@ Plan for two short editorial reviews per week, plus the feature owner's capture 
 - A merged PR is not yet a published edition. Confirm the production article and media, RSS, and sitemap after site deployment, then mark the included candidates published. If deployment fails, retain a pending-deployment state.
 - Correct published claims in place with a substantive `updated` date. Preserve original slugs, publication dates, and RSS identities. Do not regenerate historical entries on each scheduled run.
 
+## Manual editions
+
+For a separate announcement after the current slot is complete, create an article PR against `staging` through the normal publishing guide. Assign a stable key such as `manual-<article-slug>` in its production brief and keep it on retries. Do not rename or reuse the completed scheduled edition, and do not pass a manual key to the automatic draft writer, which accepts dated editions only.
+
+Record the source candidates as selected with the manual key so scheduled collection does not propose them again. Keep the PR as the review record while it is open. After it merges, add one edition row with that manual key, its actual branch and PR, source keys, canonical URL, recorded editorial/media approvals, and `publication_status: pending_deployment`. Do not insert the manual row as `prepared`, `draft`, or `in_review`: those states enter the automatic writer's recovery path. The daily monitor verifies manual and scheduled editions against the same production article, media, RSS, and sitemap checks. Reconcile a closed, unmerged manual PR's candidate decisions so its sources are not stranded as selected.
+
 ## Keep the workflow itself maintained
 
 Name one release editor, a backup, and an owner for the workflow's credentials. Configure credentials through Sim's supported secret/credential inputs. Restrict the GitHub credential to the intended repository and the permissions needed to read sources, write a draft branch, and open PRs. Keep branch protection and required review in place; the drafting workflow never receives a merge step.
@@ -116,7 +122,7 @@ The release editor checks the queue twice a week and resolves old deferred items
 1. Select the Sim workspace, editor/backup, GitHub credential, notification destination, timezone, and first collection boundary.
 2. Create the three tables and unique keys. Build the Schedule → collection → queue → drafting path without repository writes, and run it manually on a small known interval.
 3. Compare collected candidates with GitHub, including more than one page. Confirm already-covered PRs and closed-but-unmerged PRs do not create new stories. Check a deferred feature, a revert, and a week with no meaningful update.
-4. Verify distinct Monday and Thursday edition keys, retries within each slot, Pacific/UTC date boundaries, daylight-saving transitions, and year boundaries. Add draft-branch/file/PR steps. Exercise an overlapping candidate refresh after an editor changes its decision, two inserts racing for the same source key, a retry after a partial file write, an existing PR, concurrent start, and an editor-modified file. Verify saved decisions survive and each edition produces one recoverable draft without losing edits.
+4. Verify distinct Monday and Thursday edition keys, retries within each slot, Pacific/UTC date boundaries, daylight-saving transitions, and year boundaries. Check a separate manual edition after a scheduled edition is published: its stable manual key must not collide with the dated key, enter automatic draft recovery, or lose its selected-source decisions. Add draft-branch/file/PR steps. Exercise an overlapping candidate refresh after an editor changes its decision, two inserts racing for the same source key, a retry after a partial file write, an existing PR, concurrent start, and an editor-modified file. Verify saved decisions survive and each edition produces one recoverable draft without losing edits.
 5. Finish one edition with real media. Run the content audit and existing PR gates, review locally through the development-only preview, then verify the deployed public URL, media, RSS, and sitemap. Hosted production builds intentionally do not expose draft preview routes.
 6. Exercise a read failure, rate limit, page cap, expired credential, failed deployment, and missed schedule. Record the results and run links, verify the chosen alert path, then deploy the scheduled workflow.
 
