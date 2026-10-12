@@ -3,6 +3,7 @@ slug: review-fork-changes
 title: 'Review fork changes before syncing'
 description: 'See what changed in a source workflow before syncing a workspace fork in Sim. Review prompts, settings, and steps against the last successful sync.'
 date: '2026-10-03T04:32:55Z'
+updated: '2026-10-12T21:00:16Z'
 authors: [waleed]
 tags: [Workspaces, Enterprise]
 ogImage: /changelog/review-fork-changes-v1.jpg
@@ -22,6 +23,10 @@ release:
   caption="Review source workflow changes before syncing a fork"
 />
 
-Review changes to a source workflow before syncing them into a workspace fork. Compare prompts, settings, and steps against the last successful sync, with a separate history for each fork and sync direction.
+Sim now lets you review changes to a source workflow before syncing them into a workspace fork. The **Last Sync → Now** comparison shows what changed in the source since it was last successfully synced, including edits to prompts, settings, and workflow steps.
 
-Available to workspace admins with Forks enabled on Sim Cloud Enterprise or self-hosted deployments. [Learn more about workspace forks](https://docs.sim.ai/platform/enterprise/forks).
+If you maintain a shared agent across several workspaces, use the comparison to understand an update before bringing it into a fork. For example, check a revised renewal-reminder interval and new settings together before syncing. Each fork and sync direction keeps its own baseline, so the review reflects that particular relationship.
+
+Open the fork’s mapping settings, choose the sync direction, and select **Compare** from a deployed workflow’s menu. Comparison becomes available after a successful sync establishes a baseline; the source snapshots must still be available.
+
+Available with Forks enabled on Sim Cloud Enterprise or self-hosted deployments. Managing a sync requires admin access to both workspaces. [Learn more about workspace forks](https://docs.sim.ai/platform/enterprise/forks).

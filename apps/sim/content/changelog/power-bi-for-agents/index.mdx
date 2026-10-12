@@ -3,6 +3,7 @@ slug: power-bi-for-agents
 title: 'Bring Power BI data into your agents'
 description: 'Query Power BI data from Sim and pass the results to an agent for a briefing or follow-up. Browse reports and manage refreshes in the same workflow.'
 date: '2026-10-03T04:32:55Z'
+updated: '2026-10-12T21:00:16Z'
 authors: [waleed]
 tags: [Integrations]
 ogImage: /changelog/power-bi-query-v1.jpg
@@ -20,6 +21,14 @@ release:
   height="900"
 />
 
-Your agents can now query [Power BI](/integrations/power-bi) data, browse reports, and manage model refreshes. Pull revenue by region into a sales briefing or check refresh status before using the latest data.
+Your agents can now query [Power BI](/integrations/power-bi) from Sim and use the results in a briefing, report, or follow-up. Connect business data that already lives in Power BI to the prompts and integrations in your agent.
 
-[Connect Power BI](https://docs.sim.ai/integrations/powerbi) to get started. Queries require Read and Build permissions and your tenant's Execute Queries setting.
+The integration supports three parts of that process:
+
+- **Find the right data:** browse accessible workspaces, reports, and semantic models, the datasets behind your Power BI reports.
+- **Query a model:** use DAX, Power BI’s query language, to return the rows your agent needs.
+- **Manage refreshes:** request a model refresh and check its history to see the reported status.
+
+For example, query revenue by region, pass the rows to an Agent block for a sales briefing, and send the summary to Slack.
+
+[Connect Power BI](https://docs.sim.ai/integrations/powerbi) with your organization’s Microsoft account. Queries require workspace access, Read and Build permissions, and the **Execute Queries** setting enabled in Power BI. The guide covers permissions for each action.

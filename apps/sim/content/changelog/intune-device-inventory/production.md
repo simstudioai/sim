@@ -23,3 +23,7 @@ The article links the canonical integration catalog and exact Intune setup guide
 Bring Microsoft Intune device inventory into your agents in Sim. Read managed devices, detected applications, and compliance status to prepare IT reviews. See account requirements and setup: https://www.sim.ai/changelog/intune-device-inventory
 
 Draft only; no announcement has been sent.
+
+## Editorial expansion
+
+Expanded October 12, 2026, with supported capabilities, a practical example, and a short path to getting started. Copy was checked against the existing feature evidence and linked documentation. Original publication dates, release references, RSS identities, and reviewed media are unchanged; the article’s `updated` timestamp records this substantive copy revision. Browser and CI evidence belongs in the expansion PR.

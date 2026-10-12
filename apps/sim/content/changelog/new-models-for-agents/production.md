@@ -23,3 +23,7 @@ The release timestamp is preserved as the feature's historical release date. Thi
 Choose GPT-6.1 Sol, Claude Haiku 5.5, or Grok 4.7 for an Agent block in Sim. Keep your prompts and integrations, then review the model settings and try your sample input. Setup: https://www.sim.ai/changelog/new-models-for-agents
 
 Draft only; no announcement has been sent.
+
+## Editorial expansion
+
+Expanded October 12, 2026, with supported capabilities, a practical example, and a short path to getting started. Copy was checked against the existing feature evidence and linked documentation. Original publication dates, release references, RSS identities, and reviewed media are unchanged; the article’s `updated` timestamp records this substantive copy revision. Browser and CI evidence belongs in the expansion PR.

@@ -36,3 +36,7 @@ Email body:
 > Open deployment history and choose Compare to review two workflow versions. You can also review a draft against the live workflow before redeploying. See the product walkthrough and setup guide: https://www.sim.ai/changelog/compare-workflow-deployments
 
 These are drafts, not sent announcements.
+
+## Editorial expansion
+
+Expanded October 12, 2026, with supported capabilities, a practical example, and a short path to getting started. Copy was checked against the existing feature evidence and linked documentation. Original publication dates, release references, RSS identities, and reviewed media are unchanged; the article’s `updated` timestamp records this substantive copy revision. Browser and CI evidence belongs in the expansion PR.

@@ -10,11 +10,12 @@ Routine retry fixes, loading improvements, internal refactors, and small polish 
 
 Keep existing article URLs, original dates, and RSS identities when refining historical copy. Do not merge existing entries just to make a larger announcement. Preserve material version, permission, and rollout restrictions.
 
-## Write a compact entry
+## Write a useful, complete entry
 
 - Headline: name the capability or action, at most 65 characters. Avoid generic headlines such as “A better experience.”
 - Summary: 15–40 words for search, sharing, and RSS, naming Sim and explaining the capability in plain language. It must make sense without the image.
-- Body: lead with what changed and what teams can do with it. Aim for 2–4 short sentences, usually 30–90 words, followed by a useful documentation link. There is no minimum word count; keep the body under 120 words. Use one concrete example when it adds clarity. Save setup instructions for the linked guide; do not pad a simple update into a tutorial.
+- Body: lead with what changed and what teams can do with it, then add enough detail to understand the feature without opening the docs. A typical standalone story is 100–200 words, with a ceiling of 250 words and no minimum. Cover the specific capabilities, one practical example, and where to get started. Use short paragraphs or up to three capability bullets when they make the update easier to scan. A simple model addition can be shorter; a broad release can include separately scoped supporting notes. Let the evidence determine the length rather than padding to a target.
+- Detail: name the relevant controls and explain meaningful behavior, such as what two versions a comparison uses or which inventory an integration can read. Include a brief starting action; leave the full setup procedure to the linked guide. Examples describe something a team can try, never an invented customer result, benchmark, or new capability. Avoid repeating the headline or summary in longer words.
 - Media: place the reviewed image or video immediately after the article header. Both use the shared lightbox; videos show a plain poster with playback, seeking, and zoom controls inside the viewer. Use concise alt text or an accessible action label without a visible video description. Do not add captions or prose about how the capture was made, whether a query ran, sample credentials, or what a screenshot does not prove. Keep capture provenance and review evidence in production.md.
 - Supporting notes: up to three related, source-backed improvements, each one sentence. Omit empty sections. Do not invent extras to fill a template.
 - Links: one descriptive setup/documentation link, plus an integration, model, or product link when directly relevant. Use the actual catalog slug and guide. Put links in context; avoid a wall of generic “Learn more” links.
