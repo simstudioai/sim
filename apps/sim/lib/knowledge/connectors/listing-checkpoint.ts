@@ -24,6 +24,8 @@ const checkpointSchema = z.object({
   contentFailures: z.boolean().default(false),
   permissionFailures: z.boolean().default(false),
   listingFailures: listingFailuresSchema.nullable().default(null),
+  imageExtractionsAdmitted: z.number().int().nonnegative().default(0),
+  imagesDeferred: z.boolean().default(false),
   changeCursor: z
     .string()
     .max(512 * 1024)
@@ -72,6 +74,8 @@ export function beginListingCheckpoint(input: {
     contentFailures: false,
     permissionFailures: false,
     listingFailures: null,
+    imageExtractionsAdmitted: 0,
+    imagesDeferred: false,
     changeCursor: input.changeCursor ?? null,
     incrementalSince: input.incrementalSince?.toISOString() ?? null,
     forceRehydrate: input.forceRehydrate ?? false,
@@ -143,6 +147,8 @@ export async function runResumableListing(input: {
         contentFailures: false,
         permissionFailures: false,
         listingFailures: null,
+        imageExtractionsAdmitted: 0,
+        imagesDeferred: false,
       }
       await input.saveCheckpoint(checkpoint)
       cursors.clear()

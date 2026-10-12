@@ -19,6 +19,7 @@ import {
   VALIDATE_RETRY_OPTIONS,
 } from '@/lib/knowledge/documents/utils'
 import {
+  confluenceImagesEnabled,
   getConfluenceAttachment,
   isConfluenceAttachment,
   listConfluenceAttachments,
@@ -845,6 +846,7 @@ export const confluenceConnector: ConnectorConfig = {
       accessToken,
       cloudId,
       domain: normalizeConfluenceDomainHost(sourceConfig.domain as string),
+      includeImages: confluenceImagesEnabled(sourceConfig),
       cursor,
       syncContext,
       /** Attachment versions change independently of their parent pages. */

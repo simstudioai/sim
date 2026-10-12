@@ -1,6 +1,7 @@
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import type { ConnectorPermissionConfigCapability } from '@/lib/knowledge/connectors/permission-config'
+import type { ImageExtractionPolicy } from '@/lib/knowledge/documents/image-extraction-policy'
 import type { OAuthService } from '@/lib/oauth/types'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { ConnectorSourceReasonState } from '@/connectors/source-error'
@@ -422,6 +423,13 @@ export interface ConnectorMeta {
    * picked up. Only the deliberate full resync pays this re-index cost.
    */
   rehydrateOnFullSync?: boolean
+
+  /**
+   * How this connector's image documents become text. `semantic` sends each
+   * image through the vision extractor; absent keeps the OCR path. Processing
+   * reads it per document, so a connector that never lists images is unaffected.
+   */
+  imageExtraction?: Extract<ImageExtractionPolicy, 'semantic'>
 
   /**
    * Tag definitions this connector populates. Shown in the add-connector modal

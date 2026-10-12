@@ -19,6 +19,11 @@ import {
   type ConnectorFailureDiagnostic,
   getConnectorFailureDiagnostic,
 } from '@/lib/knowledge/connectors/connector-error'
+import {
+  admitNewDocument,
+  type ImageAdmissionState,
+  imageExtractionPolicyFor,
+} from '@/lib/knowledge/connectors/image-admission'
 import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { SyncLockLostException, type SyncRunLease } from '@/lib/knowledge/connectors/sync-lock'
 import {
@@ -1014,6 +1019,8 @@ export interface ProcessDocOpsInput {
   documentAccess: ConnectorAccessMode
   /** Yield between batches; one batch always advances an already fetched page. */
   deadlineAt?: number
+  /** Counts this sync's new vision-extracted images against the per-sync cap; absent, no cap. */
+  imageAdmission?: ImageAdmissionState
   onBatchComplete?: (documents: ExternalDocument[]) => Promise<void>
 }
 
@@ -1036,6 +1043,7 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
   } = input
   const { priorByExternalId } = input.corpus
   const { result, failedExternalIds, sourceFailures } = input.state
+  const imagePolicy = imageExtractionPolicyFor(connector.connectorType)
 
   const pendingDispatch: DocumentData[] = []
   const bufferDispatch = isTriggerAvailable()
@@ -1102,7 +1110,18 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
         sourceMetadata?: SourceMetadataFields
       }> = []
 
-      const contentOps = rawBatch.filter((op) => op.type !== 'skip')
+      /** Over-cap new images are never fetched or stored; the next listing offers them again. */
+      const imagesHeldBack = new Set(
+        rawBatch
+          .filter(
+            (op) =>
+              op.type === 'add' && !admitNewDocument(op.extDoc, imagePolicy, input.imageAdmission)
+          )
+          .map((op) => op.extDoc.externalId)
+      )
+      const contentOps = rawBatch
+        .filter((op) => op.type !== 'skip')
+        .filter((op) => !imagesHeldBack.has(op.extDoc.externalId))
       const deferredOps = contentOps.filter((op) => op.extDoc.contentDeferred)
       const readyOps = contentOps.filter((op) => !op.extDoc.contentDeferred)
       let hydrationDeferral: unknown
@@ -1353,7 +1372,11 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
       if (!bufferDispatch) await flushDispatch()
       /** Persist completed siblings before yielding; deferred sources remain on this page for retry. */
       const attempted = rawBatch
-        .filter((op) => !deferredExternalIds.has(op.extDoc.externalId))
+        .filter(
+          (op) =>
+            !deferredExternalIds.has(op.extDoc.externalId) &&
+            !imagesHeldBack.has(op.extDoc.externalId)
+        )
         .map((op) => op.extDoc)
       if (attempted.length > 0) await input.onBatchComplete?.(attempted)
       if (hydrationDeferral !== undefined) throw hydrationDeferral

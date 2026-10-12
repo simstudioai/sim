@@ -1,0 +1,228 @@
+/**
+ * @vitest-environment node
+ */
+import sharp from 'sharp'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockRequest, mockResolveKey, mockAdmission, mockLoad, mockSave, GeminiError } = vi.hoisted(
+  () => ({
+    mockRequest: vi.fn(),
+    mockResolveKey: vi.fn(),
+    mockAdmission: vi.fn(),
+    mockLoad: vi.fn(),
+    mockSave: vi.fn(),
+    GeminiError: class GeminiImageExtractionError extends Error {
+      constructor(
+        readonly status: number,
+        readonly retryAfterMs: number | undefined
+      ) {
+        super(`Gemini image extraction failed (${status})`)
+      }
+    },
+  })
+)
+
+vi.mock('@/lib/knowledge/documents/image-extraction-gemini', () => ({
+  requestGeminiImageExtraction: mockRequest,
+  GeminiImageExtractionError: GeminiError,
+}))
+vi.mock('@/lib/embeddings/keys', () => ({ resolveProviderKey: mockResolveKey }))
+vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
+  waitForProviderAdmission: mockAdmission,
+}))
+vi.mock('@/lib/knowledge/documents/vision-checkpoints', () => ({
+  createVisionCheckpoint: () => ({ load: mockLoad, save: mockSave }),
+}))
+
+import { env } from '@/lib/core/config/env'
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
+import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
+import {
+  DEFAULT_IMAGE_EXTRACTION_MODEL,
+  extractImageText,
+  IMAGE_EXTRACTION_RESPONSE_SCHEMA,
+  resolveImageExtractionModel,
+} from '@/lib/knowledge/documents/image-extraction'
+
+const CHECKPOINT = { knowledgeBaseId: 'kb-1', documentId: 'doc-1', indexingPassId: 'pass-1' }
+
+function extraction(overrides: Record<string, unknown> = {}) {
+  return {
+    kind: 'table',
+    language: 'en',
+    visible_text: 'Region Quarter',
+    description: 'A launch calendar.',
+    table: { caption: '', headers: ['Region', 'Quarter'], rows: [['EMEA', 'Q1']], notes: '' },
+    rendered_text: 'Region: EMEA. Quarter: Q1.',
+    quality: { confidence: 0.98, issues: [], unreadable_regions: '' },
+    ...overrides,
+  }
+}
+
+function respond(body: unknown, finishReason = 'STOP') {
+  mockRequest.mockResolvedValue({
+    text: typeof body === 'string' ? body : JSON.stringify(body),
+    finishReason,
+    inputTokens: 1200,
+    outputTokens: 300,
+  })
+}
+
+async function png(width: number, height: number): Promise<Buffer> {
+  return sharp({
+    create: { width, height, channels: 3, background: { r: 240, g: 240, b: 240 } },
+  })
+    .png()
+    .toBuffer()
+}
+
+async function extract(width = 400, height = 300, extra: Record<string, unknown> = {}) {
+  return extractImageText({
+    source: await png(width, height),
+    filename: 'Launch calendar',
+    ...extra,
+  })
+}
+
+describe('extractImageText', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockLoad.mockResolvedValue(null)
+    mockSave.mockResolvedValue(undefined)
+    mockAdmission.mockResolvedValue(undefined)
+    mockResolveKey.mockResolvedValue({ apiKey: 'platform-key', isBYOK: false })
+    Object.assign(env, { KB_IMAGE_EXTRACTION_MODEL: undefined })
+    respond(extraction())
+  })
+
+  it('sends one image with the schema and output budget, and keeps only the searchable text', async () => {
+    const result = await extract(400, 300, { workspaceId: 'ws-1', checkpoint: CHECKPOINT })
+
+    expect(result).toMatchObject({
+      decorative: false,
+      renderedText: 'Region: EMEA. Quarter: Q1.',
+      usage: { model: DEFAULT_IMAGE_EXTRACTION_MODEL, inputTokens: 1200, outputTokens: 300 },
+    })
+    expect(result.usage?.cost).toBeGreaterThan(0)
+    expect(mockResolveKey).toHaveBeenCalledWith('gemini', 'ws-1')
+    expect(mockAdmission).toHaveBeenCalledWith(
+      expect.objectContaining({ providerId: 'google', operation: 'ocr' })
+    )
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+    const [request] = mockRequest.mock.calls[0]
+    expect(request).toMatchObject({
+      model: DEFAULT_IMAGE_EXTRACTION_MODEL,
+      apiKey: 'platform-key',
+      responseJsonSchema: IMAGE_EXTRACTION_RESPONSE_SCHEMA,
+      maxOutputTokens: 32_768,
+    })
+    expect(request.image.mimeType).toBe('image/png')
+    expect(mockSave).toHaveBeenCalledWith(result, undefined)
+  })
+
+  it('charges nothing when the workspace supplied its own Gemini key', async () => {
+    mockResolveKey.mockResolvedValue({ apiKey: 'workspace-key', isBYOK: true })
+    expect((await extract()).usage?.cost).toBe(0)
+  })
+
+  it('downscales an image wider than the model edge before sending it', async () => {
+    await extract(4000, 1000)
+    const sent = await sharp(mockRequest.mock.calls[0][0].image.bytes).metadata()
+    expect(Math.max(sent.width ?? 0, sent.height ?? 0)).toBe(2048)
+  })
+
+  it('returns a decorative image with no text but keeps its cost', async () => {
+    respond(extraction({ kind: 'decorative', rendered_text: 'Acme logo' }))
+    const result = await extract(300, 120)
+    expect(result).toMatchObject({ decorative: true, renderedText: '' })
+    expect(result.usage?.cost).toBeGreaterThan(0)
+  })
+
+  it('treats an image under the pixel floor as decorative without calling the model', async () => {
+    expect(await extract(48, 400)).toEqual({ decorative: true, renderedText: '' })
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('resumes from a checkpoint without a second paid call', async () => {
+    const cached = {
+      decorative: false,
+      renderedText: 'cached text',
+      usage: {
+        model: DEFAULT_IMAGE_EXTRACTION_MODEL,
+        cost: 0.004,
+        inputTokens: 1,
+        outputTokens: 1,
+      },
+    }
+    mockLoad.mockResolvedValue(cached)
+    expect(await extract(400, 300, { checkpoint: CHECKPOINT })).toEqual(cached)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('refuses bytes that are not a supported raster image', async () => {
+    await expect(
+      extractImageText({
+        source: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+        filename: 'Logo',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_file' })
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('retries a truncated response and fails an incomplete or empty one permanently', async () => {
+    respond('{"kind": "table", "rendered_text": "Region: EM')
+    const truncated = extract()
+    await expect(truncated).rejects.toThrow('malformed JSON')
+    await expect(truncated).rejects.not.toHaveProperty('code')
+
+    respond({ kind: 'table' })
+    await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_invalid' })
+
+    respond('', 'SAFETY')
+    await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_invalid' })
+  })
+
+  it('defers on throttling and fails on a rejected key or image', async () => {
+    mockRequest.mockRejectedValueOnce(new GeminiError(429, 5000))
+    await expect(extract()).rejects.toMatchObject({ reason: 'rate_limit', retryAfterMs: 5000 })
+
+    mockRequest.mockRejectedValueOnce(new GeminiError(403, undefined))
+    await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_unavailable' })
+
+    mockRequest.mockRejectedValueOnce(new GeminiError(400, undefined))
+    await expect(extract()).rejects.toMatchObject({ code: 'invalid_file' })
+
+    const serverError = new GeminiError(500, undefined)
+    mockRequest.mockRejectedValueOnce(serverError)
+    await expect(extract()).rejects.toBe(serverError)
+  })
+
+  it('yields to the next pass instead of starting a call that would overrun the deadline', async () => {
+    await expect(extract(400, 300, { deadlineAt: Date.now() + 10_000 })).rejects.toBeInstanceOf(
+      ProviderCapacityDeferredError
+    )
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('fails with an actionable error when no Gemini key is configured', async () => {
+    mockResolveKey.mockRejectedValue(new EmbeddingConfigurationError())
+    await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_unavailable' })
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveImageExtractionModel', () => {
+  afterEach(() => {
+    Object.assign(env, { KB_IMAGE_EXTRACTION_MODEL: undefined })
+  })
+
+  it.each(['not-a-model', 'gpt-5.4-mini'])('falls back to the default for %s', (model) => {
+    Object.assign(env, { KB_IMAGE_EXTRACTION_MODEL: model })
+    expect(resolveImageExtractionModel()).toBe(DEFAULT_IMAGE_EXTRACTION_MODEL)
+  })
+
+  it('uses a configured Gemini model', () => {
+    Object.assign(env, { KB_IMAGE_EXTRACTION_MODEL: 'gemini-3.1-pro-preview' })
+    expect(resolveImageExtractionModel()).toBe('gemini-3.1-pro-preview')
+  })
+})

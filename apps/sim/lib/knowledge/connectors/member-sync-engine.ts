@@ -1691,8 +1691,12 @@ async function syncDedicatedMemberContent(input: {
   })
   run.result.docsHydratedOnce = pass.hydratedCount
   const incompleteListing =
-    !pass.complete || pass.checkpoint.unsafe || pass.checkpoint.contentFailures
-  if (pass.checkpoint.contentFailures) run.result.listingIncomplete = true
+    !pass.complete ||
+    pass.checkpoint.unsafe ||
+    pass.checkpoint.contentFailures ||
+    pass.checkpoint.imagesDeferred
+  if (pass.checkpoint.contentFailures || pass.checkpoint.imagesDeferred)
+    run.result.listingIncomplete = true
   const contentNotice = pass.holdNotice
   /** Counted before the lease transaction: a scan of the whole connector never holds its row. */
   const [{ count }] = await db
@@ -2400,11 +2404,13 @@ export async function executeMemberSync(
               lease: run.lease,
               documentAccess: 'members',
               deadlineAt: durableCheckpoint ? run.deadlineAt : undefined,
+              imageAdmission: checkpoint,
               onBatchComplete: async (attempted) => {
                 result.docsHydratedOnce += attempted.filter((item) => item.contentDeferred).length
                 await persistAttempted(attempted)
               },
             })
+            if (checkpoint.imagesDeferred) result.listingIncomplete = true
             if (rejectedCredentialError) throw rejectedCredentialError
             if (!finished) return false
           } else {

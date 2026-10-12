@@ -27,6 +27,7 @@ import {
   walkReconciliationWindows,
 } from '@/lib/knowledge/connectors/reconciliation-window'
 import {
+  IMAGES_DEFERRED_NOTICE,
   SOURCE_CONTENT_ERROR,
   SOURCE_PERMISSION_ERROR,
 } from '@/lib/knowledge/connectors/sync-limits'
@@ -277,6 +278,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         pendingOps,
         forceRehydrate: !page.permissionsOnly && cycle.forceRehydrate,
         matchContentHash,
+        imageAdmission: cycle,
         onBatchComplete: async (attempted) => {
           hydratedCount += attempted.filter((item) => item.contentDeferred).length
           await persistAttempted(attempted)
@@ -348,6 +350,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
       checkpoint.permissionFailures ? SOURCE_PERMISSION_ERROR : null,
       reconciliation.notice,
       checkpoint.contentFailures ? SOURCE_CONTENT_ERROR : null,
+      checkpoint.imagesDeferred ? IMAGES_DEFERRED_NOTICE : null,
     ]
       .filter(Boolean)
       .join('\n') || null

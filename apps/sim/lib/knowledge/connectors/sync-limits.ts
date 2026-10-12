@@ -156,6 +156,10 @@ export const SOURCE_PERMISSION_ERROR =
 export const SOURCE_CONTENT_ERROR =
   'Source content could not be refreshed. The connector will retry at its next scheduled sync.'
 
+/** The per-sync image cap held some new images back; nothing failed. */
+export const IMAGES_DEFERRED_NOTICE =
+  'Some new images were left for the next scheduled sync to keep this sync within its image extraction limit.'
+
 /**
  * Documents whose permission evidence is refreshed per statement. Documents are
  * grouped by identical ACL first — files under one folder overwhelmingly share
