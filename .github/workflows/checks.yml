@@ -725,9 +725,10 @@ jobs:
         run: bunx turbo run build --filter=@sim/app
 
   # One status for every check above: the single check to require on a branch ruleset, so adding,
-  # sharding or renaming a job never means editing the ruleset. A skip passes only for a gated job
-  # whose `changes` flag is exactly `false`; any other skip (a failed or skipped `changes`, a lost
-  # output, an ungated job) fails, as does a failure or a cancellation.
+  # sharding or renaming a job never means editing the ruleset. .github/scripts/ci-gate.sh decides:
+  # a skip passes only for a gated job whose `changes` flag is exactly `false`; any other skip (a
+  # failed or skipped `changes`, a lost output, an ungated job) fails, as does a failure or a
+  # cancellation. A failed checkout fails the gate too.
   # `always()`, not `!cancelled()`: a skipped job satisfies a required check, so a gate that skips
   # on a cancelled run would report a cancelled head commit as passing.
   ci:
@@ -737,21 +738,9 @@ jobs:
     runs-on: *runner-2vcpu
     timeout-minutes: 5
     steps:
+      - *checkout-mirror
+      - *checkout-plain
       - name: Require every check to pass
         env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: |
-          failed="$(jq -r '
-            {"integration": "full", "e2e": "full", "test": "test", "build": "build", "desktop-live": "desktop_live"} as $gate
-            | (.changes.outputs // {}) as $flags
-            | to_entries[]
-            | select(.value.result != "success")
-            | select(.value.result != "skipped" or $gate[.key] == null or $flags[$gate[.key]] != "false")
-            | "\(.key): \(.value.result)"
-          ' <<< "$RESULTS")"
-          if [ -n "$failed" ]; then
-            echo "::error::Checks did not pass:"
-            echo "$failed"
-            exit 1
-          fi
-          echo "All checks passed."
+          NEEDS: ${{ toJSON(needs) }}
+        run: bash .github/scripts/ci-gate.sh

@@ -47,7 +47,9 @@ function classify(repo: string, base: string): Flags {
   const result = spawnSync('bash', [script, base], { cwd: repo, encoding: 'utf8' })
   expect(result.status, result.stderr).toBe(0)
   const lines = result.stdout.trim().split('\n')
+  for (const line of lines) expect(line).toMatch(/^[a-z_]+=(true|false)$/)
   const flags = Object.fromEntries(lines.map((line) => line.split('=')))
+  expect(lines).toHaveLength(4)
   expect(Object.keys(flags).sort()).toEqual(['build', 'desktop_live', 'full', 'test'])
   return {
     full: flags.full === 'true',
