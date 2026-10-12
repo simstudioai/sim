@@ -50,6 +50,27 @@ describe('getOrganizationSurfaceContext', () => {
   })
 
   it.each([
+    { integrationsDenied: false, knowledgeDenied: false, allowed: true },
+    { integrationsDenied: true, knowledgeDenied: false, allowed: false },
+    { integrationsDenied: false, knowledgeDenied: true, allowed: false },
+  ])(
+    'respects Search connection permissions: %o',
+    async ({ integrationsDenied, knowledgeDenied, allowed }) => {
+      queueTableRows(member, [{ role: 'member' }])
+      queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
+      queueTableRows(member, [{ memberCount: 1 }])
+      mockPermissionConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        hideIntegrationsTab: integrationsDenied,
+        hideKnowledgeBaseTab: knowledgeDenied,
+      })
+      await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toMatchObject({
+        viewer: { canConnectSearchIntegrations: allowed },
+      })
+    }
+  )
+
+  it.each([
     { role: 'owner', billing: true, denied: false, expected: true },
     { role: 'admin', billing: true, denied: true, expected: false },
     { role: 'member', billing: true, denied: false, expected: false },

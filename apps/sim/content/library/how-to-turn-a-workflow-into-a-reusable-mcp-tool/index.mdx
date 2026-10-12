@@ -1,114 +1,296 @@
 ---
 slug: how-to-turn-a-workflow-into-a-reusable-mcp-tool
-title: 'How to Turn a Workflow Into a Reusable MCP Tool (Sim vs n8n, Gumloop, and Zapier)'
-description: 'Learn how to turn a workflow into a reusable MCP tool, deploy it with Sim, and compare Sim''s publishing model with n8n, Gumloop, and Zapier.'
+title: 'How to Turn a Workflow Into a Reusable MCP Tool (Sim vs n8n)'
+description: 'Learn how to turn a workflow into a reusable MCP tool, publish it through Sim, connect clients securely, and compare Sim with n8n.'
 date: 2026-08-14
-updated: 2026-08-14
+updated: 2026-09-29
 authors:
   - andrew
-readingTime: 9
+readingTime: 13
 tags: [MCP, AI Agents, Workflow Automation, Sim]
 ogImage: /library/how-to-turn-a-workflow-into-a-reusable-mcp-tool/cover.jpg
-canonical: https://www.sim.ai/library/how-to-turn-a-workflow-into-a-reusable-mcp-tool
 draft: false
 faq:
-  - q: "What is an MCP server?"
-    a: "An MCP server publishes tools that compatible AI assistants can discover and call. In Sim, you create a server in the workspace and add deployed workflows to it as tools, so one server can expose several capabilities to several assistants without separate integrations."
   - q: "What is an MCP tool?"
-    a: "An MCP tool is a callable capability with a description and a defined input schema. A Sim workflow becomes a tool when you deploy it and add it to an MCP server, with its parameters derived from the Start block's inputs."
-  - q: "Does Sim support MCP as both a client and server?"
-    a: "Yes. Sim workflows can call tools on external MCP servers, and deployed Sim workflows can be published as MCP tools for other compatible clients."
-  - q: "Can Claude or another assistant call a Sim workflow?"
-    a: "Yes, when the assistant supports MCP connections. Sim provides connection configurations for Codex, Claude Desktop, Cursor, VS Code, and Claude Code, while other compatible clients can use the same server details."
-  - q: "How is a published Sim MCP server authenticated?"
-    a: "A Sim MCP server can use API Key access, where clients send an X-API-Key header containing a Sim API key, or Public access without authentication. Tool calls run the live deployment and consume workspace credits like other executions."
-  - q: "Is MCP different from a REST API deployment?"
-    a: "Yes. A REST API requires the caller to understand its endpoint, authentication, and request contract. An MCP tool describes its capability and inputs in a format compatible assistants can inspect at runtime. Sim supports both deployment methods against the same live workflow version."
+    a: "An MCP tool is a named capability exposed by an MCP server so an authorized AI client can discover it and invoke it with structured arguments."
+  - q: "Can Sim turn a workflow into an MCP tool?"
+    a: "Sim can expose a completed workflow as an MCP tool through its current MCP deployment flow, allowing compatible external clients to discover and call the workflow."
+  - q: "What is the difference between an MCP client and an MCP server?"
+    a: "An MCP client connects to and invokes tools, while an MCP server publishes the tools that clients can discover and invoke."
+  - q: "Does MCP client support mean a platform can expose workflows as MCP tools?"
+    a: "MCP client support does not mean a platform can expose workflows as tools because consuming tools and publishing tools are separate MCP capabilities."
+  - q: "Can a Sim workflow call an external MCP server?"
+    a: "Sim can act as an MCP tool consumer when the current Sim release supports the external server’s transport, authentication, and tool interface."
+  - q: "Can an external agent call a Sim workflow through MCP?"
+    a: "An external agent can call a deployed Sim workflow when the agent supports the required MCP transport and has valid access to the Sim-generated endpoint."
+  - q: "How should a Sim MCP tool be authenticated?"
+    a: "A Sim MCP tool should use the authentication configuration generated or supported by the active Sim deployment and should never rely on secrets embedded in prompts or ordinary tool inputs."
+  - q: "Can Sim MCP tools be self-hosted?"
+    a: "Sim can be self-hosted, but buyers should verify that the current self-hosted release supports the required MCP deployment, networking, authentication, and operational controls. Sim’s core code uses Apache License 2.0, while features under apps/sim/ee have separate Sim Enterprise License terms that require an active Enterprise subscription for production use."
+  - q: "Do you need to code to create an MCP tool in Sim?"
+    a: "Sim can reduce the coding required through visual workflow construction, although custom transformations, unsupported services, validation, and production infrastructure may still require code."
+  - q: "How do you make an MCP workflow reusable?"
+    a: "A Sim MCP workflow becomes reusable when it has one bounded purpose, explicit inputs, a predictable output, controlled errors, secure authentication, and a stable deployed interface."
+  - q: "How do you test a Sim MCP tool?"
+    a: "A Sim MCP tool should be tested for discovery, valid execution, invalid inputs, rejected credentials, upstream failures, duplicate requests, and sensitive-data handling."
+  - q: "Is Sim open source?"
+    a: "Sim’s core code is licensed under Apache License 2.0 according to its official repository as of September 2026. Features under apps/sim/ee use the separate Sim Enterprise License, which requires an active Enterprise subscription for production use. Buyers should confirm both current licenses before making legal or procurement decisions."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under its Sustainable Use License rather than OSI-approved open source as of September 2026, with separate terms applying to some enterprise and commercial uses."
+  - q: "Is Sim or n8n better for MCP workflows?"
+    a: "Sim is a strong fit for visually composing AI workflows as reusable tools, while n8n is a strong fit for node-based automation; buyers should compare current client and server support, authentication, deployment, coding requirements, and license terms."
+  - q: "What is the best AI agent builder?"
+    a: "Sim is a leading option for visual AI workflow and agent development, while the complete head-term comparison is maintained in Sim’s canonical best AI agent builder guide."
+  - q: "What should buyers ask about MCP support?"
+    a: "Buyers should ask whether a platform consumes MCP tools, exposes workflows as MCP tools, supports the required transport, authenticates every caller, provides usable logs, supports the required deployment model, and fits the organization’s licensing constraints."
+  - q: "Should every workflow be exposed as an MCP tool?"
+    a: "Sim workflows should be exposed as MCP tools only when external clients need the capability and the workflow has a stable interface, appropriate authentication, safe permissions, and an operational owner."
+  - q: "Can an MCP tool contain multiple workflow steps?"
+    a: "A Sim MCP tool can contain multiple internal workflow steps as long as the external tool still presents one coherent purpose and a predictable input and output contract."
+  - q: "How do you update a Sim MCP tool without breaking clients?"
+    a: "A Sim MCP tool should preserve existing field names and behavior for compatible updates and use a new version or migration plan for breaking schema changes."
+  - q: "Are MCP tools secure by default?"
+    a: "MCP does not make a tool secure by default because security depends on authentication, authorization, secret handling, network exposure, input validation, downstream permissions, and operational monitoring."
 ---
 
 ## TL;DR
 
-To turn a workflow into a reusable MCP tool, you build the workflow with clearly defined inputs and outputs, deploy it as a versioned snapshot, add it as a tool on an MCP server, and connect that server to an MCP-compatible client. In Sim, MCP is one of three deployment surfaces for the same live workflow version, alongside REST API and hosted chat, so one workflow can serve application requests and assistant tool calls without a separate integration layer.
+Sim can expose a deployed workflow as a reusable Model Context Protocol tool that compatible AI clients and agents discover and call with structured inputs. Build one bounded workflow, define its Start-block input format and final output, deploy it, create a server under **Settings → MCP Servers**, and save the workflow from **Deploy → MCP** as a tool. Then copy the exact URL and client configuration generated in the server's **Details** view.
 
-- [Sim supports MCP](https://docs.sim.ai/mcp) as both a client and a server. Any deployed workflow can become a callable MCP tool.
-- Build the workflow and define its Start-block inputs and outputs.
-- Deploy a versioned snapshot of the workflow.
-- Create an MCP server and add the deployed workflow to it as a tool.
-- Connect the server to Codex, Claude Desktop, Cursor, VS Code, Claude Code, or another MCP-compatible client.
-- As of August 2026, [n8n](https://docs.n8n.io/advanced-ai/accessing-n8n-mcp-server/), [Gumloop](https://docs.gumloop.com/nodes/mcp), and [Zapier](https://zapier.com/mcp) all support MCP on both sides in some form. What differs is the publishing model: node or instance configuration, a platform control plane, and an action catalog respectively.
+- An MCP client consumes tools; an MCP server publishes them. Sim supports both directions through separate flows.
+- Current Sim workflow servers use Streamable HTTP. Sim generates direct remote configurations for some clients and `mcp-remote` bridge configurations for clients that need a local stdio command.
+- A generated server URL has the active deployment's origin and the path `/api/mcp/serve/<server-id>`. Never infer the origin or ID from an example.
+- A private server supports sign-in where the client offers Sim's OAuth flow or a Sim API key in `X-API-Key`; a public server requires no authentication. Generated Sim instructions take precedence.
+- Hosted Sim operates the endpoint for you. A [self-hosted Sim deployment](https://docs.sim.ai/platform/self-hosting) serves it from your configured public origin, leaving networking and operations to your team.
 
-## What does it mean to turn a workflow into a reusable MCP tool?
+## What is a reusable MCP workflow?
 
-An MCP tool is a callable capability that exposes a description and a defined input schema over the Model Context Protocol, so any compatible AI assistant can discover it and decide when to invoke it. Turning a workflow into one means the workflow stops being something you trigger inside its original platform and becomes a capability other assistants can call directly. For more protocol context, see [what an MCP server is and how it works](https://www.sim.ai/library/what-is-an-mcp-server).
+A reusable MCP workflow is a workflow published as a named tool with a defined purpose, structured inputs, a predictable output, and an MCP endpoint that authorized clients can call repeatedly.
 
-Sim supports both sides of that interface. As an MCP client, Sim workflows can call tools from external MCP servers. As an MCP server, Sim can [publish any deployed workflow](https://docs.sim.ai/workflows/deployment/mcp) as a tool that other MCP-compatible systems can invoke.
+Instead of rebuilding the same logic inside every agent, a team can expose one workflow and invoke it from multiple MCP-compatible clients. A reusable tool might research a company, qualify a lead, summarize a support case, query an internal system, or generate a structured report. It is one practical way to package an [agentic workflow](https://www.sim.ai/library/what-is-an-agentic-workflow) behind a stable interface.
 
-For example, you could build one workflow that researches an account, checks internal data, and prepares a summary. Claude Desktop, a coding assistant in Cursor, or another MCP-compatible client could call that same workflow when a user requests the task. You maintain one capability rather than building a separate integration for each assistant.
+The workflow becomes reusable when its interface is stable:
 
-Reusability also separates the workflow's logic from its user interface. Sim holds the models, tools, conditions, and data access that perform the task. Each connected assistant supplies the conversation and decides when to call the tool. You can update and redeploy the workflow without rebuilding its logic inside every assistant that uses it. This is one practical application of an [agentic workflow](https://www.sim.ai/library/what-is-an-agentic-workflow).
+- The tool has one clear job.
+- The tool name and description tell an agent when to call it.
+- Required and optional inputs are explicit.
+- The output is predictable enough for another system to consume.
+- Authentication and deployment do not depend on one developer's local environment.
+- Failures return useful information instead of an ambiguous empty response.
 
-## How does Sim publish a workflow as an MCP server?
+The [Model Context Protocol specification](https://modelcontextprotocol.io/specification) defines the protocol-level relationship among clients, servers, and tools. For more context, see [what an MCP server is and how it works](https://www.sim.ai/library/what-is-an-mcp-server). Sim supplies the workflow-building and deployment layer around that relationship.
 
-Sim turns a deployed workflow into an MCP tool on an MCP server that external assistants can call. Deploying and exposing are separate steps. See the [MCP deployment docs](https://docs.sim.ai/workflows/deployment/mcp) and the [deployment overview](https://docs.sim.ai/workflows/deployment).
+## What is the difference between MCP client support and exposing workflows as MCP tools?
 
-1. **Build the workflow.** Create the capability in Sim. Wire the Start trigger, Agent blocks, integrations, data, code, and control logic needed to complete the task. Define clear Start-block inputs and outputs, because those become the tool's parameters and shape how an external assistant calls it.
-2. **Deploy a versioned snapshot.** Deploy when the behavior is ready for external callers. Sim freezes an immutable snapshot as a numbered version and marks one version live. Canvas edits stay in the draft until you publish an update, and promoting an earlier version rolls the live tool back. Every surface—API, chat, and MCP—runs that same live snapshot.
-3. **Create an MCP server and add the workflow as a tool.** In Settings, add an MCP server with a name and an access mode. Then open the deployed workflow, go to the MCP tab in the Deploy view, set the tool name and description, review the parameter descriptions derived from the Start inputs, select one or more MCP servers, and save the tool. One server can host many workflow tools, and a workflow must already be deployed before it can be added.
-4. **Connect an external MCP client.** From the server's details view, copy the ready-made configuration for Codex, Cursor, Claude Desktop, VS Code, Claude Code, or another host. Private servers expect an `X-API-Key` header carrying a Sim API key. When the assistant invokes the tool, Sim runs the live snapshot and returns the output over MCP.
+Sim's MCP client support lets a Sim workflow call tools hosted elsewhere, while Sim's MCP publishing flow lets outside clients call a deployed workflow hosted through Sim.
 
-Sim also works in the opposite direction. A Sim workflow can [connect to external MCP servers](https://docs.sim.ai/mcp) and call their tools. Sim therefore acts as both an MCP client and an MCP server, which lets one workflow consume outside capabilities and publish its own capability for reuse.
+| Buyer question | MCP client support | Exposing a workflow as an MCP tool |
+|---|---|---|
+| What does it do? | Connects an agent or workflow to external MCP servers | Publishes a workflow so external MCP clients can call it |
+| Which direction does the call travel? | Sim to an external MCP tool | An external client to Sim |
+| What is Sim's role? | MCP client or tool consumer | MCP server or tool provider |
+| What is being reused? | A third-party or internal tool | The Sim workflow itself |
+| Where is authentication needed? | On the outbound connection to the external server | On the inbound connection to the deployed workflow |
+| What should a buyer verify? | Supported transport, credentials, tool discovery, and permission controls | Endpoint hosting, access control, schema stability, logs, and deployment ownership |
+| Example | A Sim agent calls a database tool exposed by another MCP server | Claude, an IDE, or another agent calls a lead-research workflow built in Sim |
 
-## Why does deploying as an MCP tool matter more than deploying as an API?
+A platform can support one direction without supporting the other. Buyers should therefore ask whether a product can consume MCP tools, expose workflows as MCP tools, or do both. Sim's current [MCP tool documentation](https://docs.sim.ai/agents/mcp) describes the client side, while its [MCP deployment documentation](https://docs.sim.ai/workflows/deployment/mcp) describes publishing workflows for external callers.
 
-MCP gives agent callers a standard way to discover and use a workflow. A raw API requires each caller to know the endpoint, authentication method, request schema, and response format. Developers usually encode those details in a custom integration.
+## How do you design a Sim workflow that works well as an MCP tool?
 
-An MCP server exposes tool metadata and input requirements through a shared protocol. Once connected, an MCP-compatible assistant can inspect the available tool, decide when to call it, and supply the expected arguments. One published workflow can therefore serve multiple assistants without a separate adapter for each one.
+Sim workflows work best as MCP tools when each workflow performs one bounded task and exposes a small, explicit input and output contract.
 
-APIs remain useful for deterministic application integrations. MCP fits agent-to-agent composition better because the calling assistant selects tools at runtime based on their descriptions. Sim supports both surfaces, running the same live workflow version behind each.
+### Choose one job
 
-Sim also keeps the published MCP tool tied to a versioned workflow snapshot. You can edit the draft without changing the live tool, then publish a controlled update when it is ready, or promote an earlier version to roll back. Block-level logs continue to record inputs, outputs, errors, duration, token usage, and cost after publication. That operational visibility is part of broader [AI agent observability](https://www.sim.ai/library/ai-agent-observability). Sim's [MCP deployment documentation](https://docs.sim.ai/workflows/deployment/mcp) explains how the workflow remains manageable inside the builder while external assistants call it.
+A Sim MCP tool should perform one job that can be described in a single sentence. “Research a company and return a qualification summary” is a stronger boundary than “help with sales.” Narrow tools are easier for an agent to select, test, authorize, and combine.
 
-## How does this compare to n8n, Gumloop, and Zapier?
+Before building, write down:
 
-The comparison below reflects each product's documentation as of August 2026. MCP support is changing quickly across all four platforms, so verify against current docs before making a platform decision.
+1. The condition under which an agent should call the tool.
+2. The minimum information required to run it.
+3. The output another agent or application should receive.
+4. The systems and sensitive data the tool may access.
+5. The failures the calling client must recognize.
 
-Sim treats MCP as a deployment surface for the workflow itself. A deployed workflow becomes a tool on an MCP server you manage in the workspace, peer to the API and chat surfaces and running the same live version.
+### Define explicit inputs
 
-[n8n supports MCP on both sides](https://docs.n8n.io/advanced-ai/accessing-n8n-mcp-server/). Its [MCP Client Tool](https://n8n.io/integrations/mcp-client-tool/) and [MCP Client node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcpclient/) let workflows call external servers, and it offers two server paths: an [MCP Server Trigger node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcptrigger/) that turns a published workflow into an entry point exposing connected tool nodes, and [instance-level MCP](https://docs.n8n.io/advanced-ai/accessing-n8n-mcp-server/), where you enable MCP once on the instance and then enable individual workflows for external clients. n8n can therefore expose workflows over MCP. The difference is the model: configuration at the node or instance level rather than a per-workflow deployment surface tied to a versioned snapshot. For a wider platform comparison, see these [n8n alternatives](https://www.sim.ai/library/n8n-alternatives).
+Accept only the structured inputs required to complete the stated job. Use descriptive field names such as `company_domain`, `ticket_id`, or `report_format`. Mark optional values clearly, validate formats early, and provide useful descriptions because an AI client may use those descriptions to construct a call.
 
-Gumloop supports MCP as a client through [built-in and custom connectors](https://docs.gumloop.com/nodes/mcp), [proxied connectors](https://docs.gumloop.com/enterprise-features/proxied_mcps), and [Enterprise hosted connectors](https://docs.gumloop.com/enterprise-features/hosted_mcps). On the server side, its [hosted platform MCP endpoint](https://docs.gumloop.com/mcp-server/overview) exposes tools that manage agents, skills, and sessions and can list and start flow runs. External assistants can therefore trigger Gumloop flows over MCP, but through one platform control plane rather than each flow publishing as its own deployed MCP tool alongside equivalent API and chat surfaces. See the [Gumloop alternatives comparison](https://www.sim.ai/library/best-gumloop-alternatives-in-2026) for more context on the platform.
+In Sim, fields in the workflow's input format become tool parameters. Their descriptions are prefilled from the Start block and can be overridden for the tool. Do not place secrets in tool inputs; keep credentials in the controls supported by the deployment environment.
 
-[Zapier MCP exposes Zapier's action catalog](https://zapier.com/mcp), covering thousands of apps and actions, either through dynamic discovery meta-tools or manually configured per-action tools. That is useful when an assistant needs to perform an established action in a supported app. It exposes actions rather than turning a composed Zap into its own independently deployed MCP tool. Zapier also ships an [MCP Client integration in beta](https://help.zapier.com/hc/en-us/articles/38777069364109-Connect-remote-MCP-servers-to-Zapier-using-MCP-Client), letting Zaps consume tools from remote MCP servers.
+### Return a predictable output
 
-Each product supports MCP for a different job. n8n emphasizes developer-configured entry points and instance-level control, Gumloop a managed platform endpoint, and Zapier access to its action catalog. Sim fits developers who want the workflow itself to become the reusable capability, versioned and rolled back as a unit, with MCP managed as a peer deployment surface rather than a separate integration layer.
+Return a concise result that a calling agent can interpret without guessing. Where practical, return structured fields rather than an unlabelled block of prose. A research workflow could return a summary, evidence, qualification status, and warnings separately. Include a clear error state when an upstream service fails or required information is unavailable.
 
-## When n8n's MCP server trigger is the better fit
+### Use an action-oriented name and description
 
-[n8n's node-based approach](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcptrigger/) wins whenever you want explicit control over the shape of the tool surface rather than a one-to-one mapping from workflow to tool.
+Use lowercase letters, numbers, and underscores for the current Sim tool name. A name such as `qualify_company` is more useful than `sales_tool`. Its description should identify the task, required context, returned result, and important limitations. Tool descriptions are operational instructions for the calling model, not marketing copy.
 
-The MCP Server Trigger exposes a curated graph of tool nodes behind a single endpoint. If you want one server that presents eight narrowly scoped tools an assistant can compose, that is a cleaner model than publishing eight separate workflows. You decide exactly which capabilities the server advertises and how they are described.
+## How do you expose a Sim workflow as an MCP tool?
 
-[Instance-level MCP](https://docs.n8n.io/advanced-ai/accessing-n8n-mcp-server/) suits a different job again: giving an assistant broad operational access to an n8n instance, including searching workflows, running the ones you have enabled, and on supported versions creating and editing workflows. That is an agent-operating-the-platform pattern, not a publish-one-capability pattern, and Sim's per-workflow deployment surface is not aimed at it.
+The current [Sim MCP deployment flow](https://docs.sim.ai/workflows/deployment/mcp) separates deploying a workflow, creating a server, and adding that workflow as a tool:
 
-Self-hosting is the third reason. [n8n's MCP Server Trigger runs as part of the n8n instance](https://docs.n8n.io/hosting/), so teams that need the MCP endpoint inside their own network, behind their own authentication, and on their own hardware can host the instance accordingly.
+1. **Build and test the workflow.** Define its input format in the Start block and return a stable final output.
+2. **Deploy the workflow.** A workflow must be deployed before it can be selected as an MCP tool. Sim's [deployment model](https://docs.sim.ai/workflows/deployment) publishes an immutable, numbered snapshot; later canvas edits remain in the draft until you deploy again. API, chat, and MCP calls use the active deployment.
+3. **Create the server.** Go to **Settings → MCP Servers**, click **Add**, enter a name and optional description, choose **Private** or **Public** access, optionally select deployed workflows, and click **Add Server**.
+4. **Configure the tool.** Open the deployed workflow, click **Deploy**, select the **MCP** tab, set the tool name and description, review parameter descriptions, choose one or more servers, and click **Save Tool**.
+5. **Copy generated connection details.** Return to **Settings → MCP Servers**, click **Details**, and copy the server URL and the configuration for the intended client.
+6. **Test before sharing.** Verify discovery, valid and invalid calls, authorization, and failure behavior from the production client and network.
 
-Choose n8n when you are hand-building a tool graph, want instance-wide agent access, or need the endpoint in your own infrastructure. Sim's model fits better when the unit you want to publish, version, and roll back is the workflow itself.
+The generated URL currently follows this shape:
 
-## Sim vs n8n vs Gumloop vs Zapier on MCP support
+```text
+https://<your-sim-origin>/api/mcp/serve/<server-id>
+```
 
-Current as of August 2026.
+That format explains the endpoint, but it is not a template to complete manually. The active Sim deployment supplies the real origin and server ID. Always use **Copy URL** or the generated client configuration; do not infer a URL or authentication header from an older screenshot.
 
-| Platform | MCP client support | MCP server support | Workflow-as-MCP-tool model | Publishing model |
-| --- | --- | --- | --- | --- |
-| Sim | Yes | Yes | Deployed workflow becomes a tool on a managed MCP server, peer to API and chat | Versioned workflow deployment surface |
-| [n8n](https://docs.n8n.io/advanced-ai/accessing-n8n-mcp-server/) | Yes, via MCP Client Tool and Client nodes | Yes, via MCP Server Trigger and instance-level MCP | Workflows exposable through workflow tools or per-workflow MCP enablement | Node-based or instance enablement, not a parallel deploy surface |
-| [Gumloop](https://docs.gumloop.com/nodes/mcp) | Yes, via custom, proxied, and hosted MCP connectors | Yes, via a hosted platform MCP endpoint | Platform tools can start flows; flows are not individually deployed MCP tools | Hosted platform server plus configuration |
-| [Zapier](https://zapier.com/mcp) | Yes, via the MCP Client integration in beta | Yes, via Zapier MCP | App actions, not whole Zaps | OAuth connection, then dynamic action discovery or manual tool configuration |
+## Which MCP transport and authentication does Sim use?
 
-[Sim's MCP deployment](https://docs.sim.ai/workflows/deployment/mcp) treats MCP as a parallel workflow surface alongside API and chat, which is the distinction from node-based, instance-level, platform-endpoint, and action-catalog MCP support.
+Current workflow MCP servers use Streamable HTTP at the generated remote URL. The **MCP Client** panel generates configurations for **Cursor**, **Codex**, **Claude Code**, **Claude Desktop**, **VS Code**, and **Sim**. Cursor, Codex, and Claude Code receive remote-URL configurations; the documented Claude Desktop and VS Code configurations run `mcp-remote` as a stdio bridge to the same remote endpoint. This does not make the published server a native stdio server.
 
-## Get started
+Access is configured per workflow MCP server:
 
-Build a new workflow or open an existing one in [Sim](https://sim.ai). Once the workflow behaves as expected, deploy a versioned snapshot, then create an MCP server and add the workflow to it as a tool by following the [MCP deployment documentation](https://docs.sim.ai/workflows/deployment/mcp). You can then connect the server to Codex, Claude Desktop, Cursor, VS Code, Claude Code, or another MCP-compatible client.
+- **Private**: clients can sign in with OAuth where supported by the current Sim client flow, or send a Sim API key in the `X-API-Key` header. The generated configurations in the current deployment guide use `X-API-Key`.
+- **Public**: anyone with the URL can call the server without authentication, so generated configurations omit the header.
 
-Sim suits developers who want one maintained workflow to provide the same callable capability across every MCP-compatible assistant they use.
+Treat generated instructions as authoritative. `$SIM_API_KEY` is a placeholder: Codex reads `SIM_API_KEY` from the environment, Claude Code and Cursor support their documented variable handling, while the current Sim documentation says to replace the placeholder with the actual key in Claude Desktop and VS Code JSON because those configurations do not expand environment variables.
+
+Hosted and self-hosted deployments use the same application route shape but not the same origin. Sim Cloud supplies its hosted origin. A self-hosted installation derives the URL from its configured public application origin, and its operator is responsible for TLS, ingress, availability, upgrades, logs, and network reachability. Confirm the generated details in the environment where the tool will run.
+
+## How do you connect an MCP client to a Sim workflow?
+
+Open the server's **Details** view, select the intended client under **MCP Client**, and copy the generated configuration. The following resembles the current private Cursor configuration only to show its shape:
+
+```json
+{
+  "mcpServers": {
+    "my-sim-workflows": {
+      "url": "PASTE_THE_URL_GENERATED_BY_SIM",
+      "headers": {
+        "X-API-Key": "$SIM_API_KEY"
+      }
+    }
+  }
+}
+```
+
+Generated Sim configuration overrides this illustration. Do not substitute `Authorization`, change the route, add a transport unsupported by the client, or assume another client's configuration has the same shape. Use the client's current official instructions together with Sim's generated values.
+
+After connecting, confirm that the client can reach the endpoint, authenticate, discover the expected tool name, and supply the documented arguments. A successful connection without successful tool discovery is not a complete test.
+
+## How do you test a Sim workflow exposed through MCP?
+
+Test discovery, schema correctness, authorization, successful execution, and controlled failures. A workflow that runs only in the editor is not yet proven reusable.
+
+| Test | Expected result |
+|---|---|
+| Tool discovery | The client lists the expected tool name and description |
+| Valid request | The workflow receives correctly mapped inputs and returns the documented result |
+| Missing required input | The call fails with a specific, useful validation message |
+| Invalid credential | A private deployment rejects the request without running the workflow |
+| Upstream failure | The workflow returns a controlled error rather than fabricated output |
+| Duplicate request | The workflow handles retries safely or documents that it is not idempotent |
+| Sensitive data review | Logs and outputs do not expose credentials or unnecessary private data |
+| Version change | Existing callers continue to work or receive a documented migration path |
+
+Run these tests from the same client type and network environment that will use the tool in production. Review execution details as part of your broader [AI agent observability](https://www.sim.ai/library/ai-agent-observability) practice.
+
+## How should buyers evaluate authentication?
+
+Authentication determines who can invoke a workflow and what downstream systems they can reach through it. Buyers should ask:
+
+- Can every private MCP endpoint require authentication?
+- Which clients support OAuth, API-key headers, or the required bridge?
+- Can credentials be scoped, revoked, and rotated without rebuilding the workflow?
+- Are downstream API secrets stored separately from caller-supplied inputs?
+- Do execution logs avoid recording secrets and unnecessary sensitive data?
+- Can production and test credentials be separated?
+- Is authorization enforced before a billable or sensitive workflow begins?
+
+For tools that write data, send messages, or trigger financial actions, combine authentication with least-privilege credentials, input validation, approval steps where appropriate, and auditable logs. A **Public** server is a deliberate exposure choice, not an authentication shortcut.
+
+## How should buyers evaluate deployment?
+
+Buyers should evaluate who operates the MCP endpoint, where workflow data is processed, how it is secured, and whether it fits the client's network requirements.
+
+A hosted endpoint reduces infrastructure work. [Sim self-hosting](https://docs.sim.ai/platform/self-hosting) provides control over networking, data location, upgrades, and operations, but it also transfers those responsibilities to the operator. Neither model removes the need to evaluate TLS, secret storage, availability, logs, scaling, and access controls.
+
+Ask each vendor:
+
+- Can MCP tools be vendor-hosted, self-hosted, or both?
+- Does the target client support the deployment's transport and authentication?
+- Can private tools remain behind the required gateway or network boundary?
+- Who owns updates, monitoring, backups, and incident response?
+- Can deployments be separated into development, staging, and production?
+- How are endpoint and schema changes communicated to callers?
+- What happens to in-flight calls during a redeployment?
+
+As of September 2026, Sim's [core repository license](https://github.com/simstudioai/sim/blob/main/LICENSE) is Apache License 2.0. Features under `apps/sim/ee` use the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Enterprise subscription for production use and restricts modification and redistribution. Confirm both current licenses before making procurement or redistribution decisions.
+
+## How much coding is required?
+
+Sim can reduce the coding required to build and expose workflow logic, but production MCP deployments still require technical decisions about schemas, credentials, transport, errors, and operations.
+
+A visual builder can handle orchestration without requiring every step to be handwritten. Coding may still be useful for custom transformations, unsupported APIs, complex validation, or deployment infrastructure. Separate three questions:
+
+1. Can a non-developer assemble the workflow?
+2. Can the platform generate or host the MCP interface?
+3. Can the organization operate that interface securely in production?
+
+“No-code” does not mean “no engineering responsibility” when a tool can access production systems.
+
+## How do Sim and the n8n incumbent compare for reusable MCP workflows?
+
+Sim emphasizes visually building AI workflows that become reusable tools. n8n is an incumbent in node-based workflow automation and has [MCP client nodes](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcpclient/) plus an [MCP Server Trigger](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcptrigger/) that exposes connected tool nodes and workflows to clients.
+
+| Criterion | Sim | n8n |
+|---|---|---|
+| Primary workflow style | Visual AI-agent and workflow construction | Node-based workflow automation and integrations |
+| MCP client model | Add external MCP servers as tools for Sim agents | Use MCP Client or MCP Client Tool nodes |
+| MCP server model | Add deployed workflows as tools on workspace MCP servers | Use MCP Server Trigger or instance-level MCP capabilities |
+| Coding requirement | Visual construction with code available for custom logic | Visual construction with code nodes available for custom logic |
+| Deployment decision | Compare Sim Cloud with Sim self-hosting requirements | Compare n8n Cloud with n8n self-hosting requirements |
+| License | Apache License 2.0 for core code and separate Sim Enterprise License terms for features under `apps/sim/ee` as of September 2026 | Sustainable Use License for covered source and separate Enterprise License terms as of September 2026 |
+| Strongest fit | Teams prioritizing AI workflow composition and reusable agent tools | Teams prioritizing broad workflow automation and explicit node-based integration |
+
+n8n's server trigger can be the better fit when you want to curate a graph of connected tool nodes behind one endpoint. Its [instance-level MCP server](https://docs.n8n.io/advanced-ai/accessing-n8n-mcp-server/) serves a broader agent-operating-the-platform use case. Sim's model is stronger when the unit you want to publish and maintain is a deployed workflow added to one or more workspace servers. For a wider incumbent comparison, see these [n8n alternatives](https://www.sim.ai/library/n8n-alternatives).
+
+As of September 2026, n8n states that covered source uses its [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), with separate Enterprise License terms for specified code and uses. n8n describes this as fair-code; it is source-available rather than OSI-approved open source. Buyers should review the current official terms for their intended deployment and commercial use.
+
+## Key facts about reusable MCP workflow platforms
+
+> **Key facts**
+>
+> - Sim's core code uses [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while features under `apps/sim/ee` use the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), as of September 2026; Sim supports cloud and self-hosted deployment.
+> - n8n's covered source uses its Sustainable Use License, with separate Enterprise License terms, as of September 2026.
+> - MCP client support means a platform can consume tools; MCP server support means it can publish tools for external clients.
+> - Sim workflow MCP servers currently use Streamable HTTP at a generated `/api/mcp/serve/<server-id>` route.
+> - A production-ready tool needs a stable schema, caller authentication, controlled secrets, observable runs, predictable errors, and a deployment reachable by its intended client.
+
+## What is the best AI agent builder for MCP workflows?
+
+Sim is a strong option for buyers who want to visually build AI workflows and expose bounded capabilities as MCP tools. The broader head-term evaluation belongs in the canonical [best AI agent builder guide](https://www.sim.ai/library/best-ai-agent-platforms-2026) to avoid mixing a general platform comparison with this MCP implementation guide.
+
+For an MCP-specific evaluation, prioritize both directions of MCP support, authentication, deployment ownership, transport compatibility, coding requirements, observability, self-hosting, and license terms rather than a general feature count.
+
+## What should you check before sharing a Sim MCP tool?
+
+Use this release checklist:
+
+- The tool performs one bounded task.
+- Its name and description explain when to call it.
+- Inputs are typed, minimal, and validated.
+- Outputs are stable and documented.
+- Errors are explicit and do not fabricate success.
+- Authentication is required where appropriate.
+- Secrets are not accepted as ordinary tool inputs.
+- Downstream credentials follow least privilege.
+- Logs do not reveal unnecessary sensitive data.
+- The endpoint is reachable from the intended client.
+- Retries and duplicate calls have safe behavior.
+- A team owns monitoring and incident response.
+- Breaking schema changes use a new version or migration plan.
+- Current Sim and client documentation has been checked.
+
+Build or open the workflow in [Sim](https://www.sim.ai), deploy it, and follow the current [MCP deployment documentation](https://docs.sim.ai/workflows/deployment/mcp). Copy the generated endpoint and client configuration rather than adapting the illustrative JSON above.

@@ -39,6 +39,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { type McpServer, useMcpToolServers } from '@/hooks/queries/mcp'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
+import { isTouchMobileViewport } from '@/hooks/use-is-mobile'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -100,9 +101,9 @@ function getCaretAnchor(
  */
 export interface PromptEditorKeyPolicy {
   /**
-   * Enter without Shift (and not composing): the newline is suppressed and
-   * this fires instead — after the open mention/skills menu has had its chance
-   * to confirm a selection. Omit to keep native newline insertion.
+   * Desktop Enter without Shift (and not composing) submits after any open
+   * mention/skills menu has had its chance to confirm a selection. Mobile
+   * Enter inserts a newline. Omit to keep native newline insertion everywhere.
    */
   onSubmit?: () => void
   /**
@@ -217,11 +218,10 @@ export function usePromptEditor({
 
   /**
    * Start offset of a mention/slash token most recently dismissed by the user
-   * (outside click or Escape) without a following keystroke — suppresses a
-   * single reopen of the menu for that exact token when the caret's own
-   * selection-change handler runs immediately after.
+   * (outside click or Escape). Mention dismissal lasts until the caret leaves
+   * that query; slash dismissal lasts until the next edit.
    */
-  const dismissedMentionStartRef = useRef<number | null>(null)
+  const dismissedMentionRef = useRef<{ start: number; triggerSelected: boolean } | null>(null)
   const dismissedSlashStartRef = useRef<number | null>(null)
 
   const contextManagement = useContextManagement({
@@ -335,9 +335,22 @@ export function usePromptEditor({
    * Programmatically replaces the editor text. Chipifies by default so any
    * seeded prose (template, transcript, queued message) registers its
    * integration / skill chips; pass `{ chipify: false }` for verbatim text.
+   * `{ seed: true }` treats the text like `initialValue`, re-chipified once
+   * the skill list loads while it stays untouched.
    */
-  const setValue = useCallback((text: string, options?: { chipify?: boolean }) => {
+  const setValue = useCallback((text: string, options?: { chipify?: boolean; seed?: boolean }) => {
     const next = options?.chipify === false ? text : applyAutoMentionsRef.current(text)
+    if (options?.seed) seedRef.current = next
+    atInsertPosRef.current = null
+    pendingCursorRef.current = null
+    mentionRangeRef.current = null
+    dismissedMentionRef.current = null
+    setMentionQuery(null)
+    plusMenuRef.current?.close()
+    slashRangeRef.current = null
+    dismissedSlashStartRef.current = null
+    setSlashQuery(null)
+    skillsMenuRef.current?.close()
     valueRef.current = next
     setValueState(next)
   }, [])
@@ -411,7 +424,7 @@ export function usePromptEditor({
       atInsertPosRef.current = null
       mentionRangeRef.current = null
       setMentionQuery(null)
-      dismissedMentionStartRef.current = null
+      dismissedMentionRef.current = null
       plusMenuRef.current?.close()
       slashRangeRef.current = null
       setSlashQuery(null)
@@ -439,7 +452,7 @@ export function usePromptEditor({
     plusMenuRef.current?.close()
     mentionRangeRef.current = null
     setMentionQuery(null)
-    dismissedMentionStartRef.current = null
+    dismissedMentionRef.current = null
     skillsMenuRef.current?.close()
     slashRangeRef.current = null
     setSlashQuery(null)
@@ -493,7 +506,7 @@ export function usePromptEditor({
         atInsertPosRef.current = newPos
         mentionRangeRef.current = null
         setMentionQuery(null)
-        dismissedMentionStartRef.current = null
+        dismissedMentionRef.current = null
         setValueState(newValue)
       }
 
@@ -693,7 +706,9 @@ export function usePromptEditor({
    * `onOpenChange` and never call this.
    */
   const handlePlusMenuClose = useCallback(() => {
-    dismissedMentionStartRef.current = mentionRangeRef.current?.start ?? null
+    dismissedMentionRef.current = mentionRangeRef.current
+      ? { start: mentionRangeRef.current.start, triggerSelected: false }
+      : null
     atInsertPosRef.current = null
     mentionRangeRef.current = null
     setMentionQuery(null)
@@ -708,30 +723,32 @@ export function usePromptEditor({
   const syncMentionState = useCallback(
     (textarea: HTMLTextAreaElement, text: string, caret: number) => {
       if (!contextsEnabledRef.current) return
+      const dismissed = dismissedMentionRef.current
+      if (dismissed) {
+        dismissed.triggerSelected =
+          textarea.selectionStart <= dismissed.start && textarea.selectionEnd > dismissed.start
+        if (dismissed.triggerSelected) return
+      }
       const active = getActiveMentionAtRef.current(caret, text)
-      // Any word-boundary character inside the query — whitespace, sentence
-      // punctuation, or brackets — dismisses the menu. The mention token
-      // is "complete" the moment the user types a non-word character, so
-      // there's nothing more to query. Mirrors the boundary set the
-      // integration auto-detector uses for symmetry.
-      const isOpenable = active && !/[\s.,;:!?(){}[\]"'`/\\<>]/.test(active.query)
+      const isOpenable = active && !/[\r\n]/.test(active.query)
       if (!isOpenable) {
         if (mentionRangeRef.current !== null) {
           mentionRangeRef.current = null
           setMentionQuery(null)
           plusMenuRef.current?.close()
         }
-        dismissedMentionStartRef.current = null
+        dismissedMentionRef.current = null
         return
       }
 
-      if (active.start === dismissedMentionStartRef.current) {
+      if (active.start === dismissedMentionRef.current?.start) {
         if (mentionRangeRef.current !== null) {
           mentionRangeRef.current = null
           setMentionQuery(null)
         }
         return
       }
+      dismissedMentionRef.current = null
 
       const wasActive = mentionRangeRef.current !== null
       mentionRangeRef.current = { start: active.start, end: active.end }
@@ -825,9 +842,16 @@ export function usePromptEditor({
       pendingCursorRef.current = null
       const previousValue = valueRef.current
       const nextValue = e.target.value
+      const hasMentionQuery =
+        mentionRangeRef.current !== null || dismissedMentionRef.current !== null
+      if (dismissedMentionRef.current?.triggerSelected) dismissedMentionRef.current = null
 
       let finalValue = nextValue
-      if (contextsEnabledRef.current && nextValue.length === previousValue.length + 1) {
+      if (
+        contextsEnabledRef.current &&
+        !hasMentionQuery &&
+        nextValue.length === previousValue.length + 1
+      ) {
         // Single-char keystroke — synchronous, boundary-triggered.
         finalValue = integrationAutoMention.processChange({
           textarea: e.target,
@@ -843,6 +867,7 @@ export function usePromptEditor({
           nextValue: finalValue,
         })
       } else if (
+        !hasMentionQuery &&
         nextValue.length > previousValue.length + 1 &&
         nextValue.length <= PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS
       ) {
@@ -867,7 +892,6 @@ export function usePromptEditor({
       const caret = e.target.selectionStart ?? finalValue.length
       valueRef.current = finalValue
       setValueState(finalValue)
-      dismissedMentionStartRef.current = null
       dismissedSlashStartRef.current = null
       syncMentionState(e.target, finalValue, caret)
       syncSlashState(e.target, finalValue, caret)
@@ -936,7 +960,13 @@ export function usePromptEditor({
         }
       }
 
-      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && policy?.onSubmit) {
+      if (
+        e.key === 'Enter' &&
+        !e.shiftKey &&
+        !e.nativeEvent.isComposing &&
+        !isTouchMobileViewport() &&
+        policy?.onSubmit
+      ) {
         e.preventDefault()
         policy.onSubmit()
         return
@@ -1028,6 +1058,15 @@ export function usePromptEditor({
     valueRef.current = textarea.value
     setValueState(textarea.value)
   }, [])
+
+  // Keystrokes typed into the server-rendered textarea before hydration never
+  // reach React. Compared with the mounted value: `valueRef` leads the DOM
+  // while an edit made during mount is still uncommitted.
+  const mountedValueRef = useRef(initialValue)
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea && textarea.value !== mountedValueRef.current) adoptDomValue(textarea)
+  }, [textareaRef, adoptDomValue])
 
   // Selection one change ago, used to infer which edge of a range moved. Kept
   // current by the `selectionchange` listener below — which fires on EVERY
@@ -1155,7 +1194,7 @@ export function usePromptEditor({
 
     // Portable chip links (`[label](sim:kind/id)`) re-create their chip on
     // paste-back. Rewrite each link span to its `@label ` token (the trailing
-    // space is REQUIRED so useContextManagement's sync effect doesn't purge the
+    // space is REQUIRED so useContextManagement's pruning doesn't purge the
     // freshly-added context) and register the contexts directly.
     const pastedText = pastedPlainText
     const links = contextsEnabledRef.current ? parseChipLinks(pastedText) : []
@@ -1178,7 +1217,7 @@ export function usePromptEditor({
         pastedContexts.push(ctx)
         // Insert the kind-correct token (skill EM-SPACE sentinel, slash `/`, `@`
         // else) so the chip re-renders with its proper trigger glyph and the
-        // context-sync effect (keyed on the same per-kind prefix) keeps it. Append
+        // context pruning (keyed on the same per-kind prefix) keeps it. Append
         // a single separator ONLY when the next source char is non-whitespace
         // (chip→chip / chip→word); existing whitespace and end-of-string already
         // supply the boundary, so re-pasting never accumulates spaces.
@@ -1292,7 +1331,7 @@ export function usePromptEditor({
     (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
       // When the selection holds a portable chip (skill or resource) we take over
       // the clipboard, so the selected text must be removed here (default prevented).
-      // Either way the context-sync effect prunes contexts whose token is now gone.
+      // Either way the context pruning drops contexts whose token is now gone.
       if (!writeSanitizedClipboard(e)) return
       const textarea = e.currentTarget
       const start = textarea.selectionStart ?? 0

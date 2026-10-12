@@ -44,7 +44,7 @@ import { SimStudioClient } from 'simstudio-ts-sdk';
 // Initialize the client
 const client = new SimStudioClient({
   apiKey: 'your-api-key-here',
-  baseUrl: 'https://sim.ai' // optional, defaults to https://sim.ai
+  baseUrl: 'https://www.sim.ai' // optional, defaults to https://www.sim.ai
 });
 
 // Execute a workflow
@@ -68,7 +68,7 @@ new SimStudioClient(config: SimStudioConfig)
 
 **Configuration:**
 - `config.apiKey` (string): Your Sim API key
-- `config.baseUrl` (string, optional): Base URL for the Sim API (defaults to `https://sim.ai`)
+- `config.baseUrl` (string, optional): Base URL for the Sim API (defaults to `https://www.sim.ai`; versions before 0.2.1 default to `https://sim.ai`, which redirects to `https://www.sim.ai`, so set the `www` host explicitly on older versions)
 
 #### Methods
 
@@ -492,7 +492,7 @@ Configure the client using environment variables:
 
     const client = new SimStudioClient({
       apiKey,
-      baseUrl: process.env.SIM_BASE_URL || 'https://sim.ai'
+      baseUrl: process.env.SIM_BASE_URL || 'https://www.sim.ai'
     });
     ```
   </Tab>

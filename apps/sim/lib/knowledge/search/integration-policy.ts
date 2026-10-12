@@ -2,18 +2,29 @@ import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector, organizationSearchIntegration } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
+
+/** Take before resource row locks when changing or consuming an organization's Search approval. */
+export async function lockOrganizationSearchApproval(tx: DbTransaction, organizationId: string) {
+  await acquireAdvisoryXactLock(tx, 'search_approval', `search-approval:${organizationId}`)
+}
 
 /** Existing configured sources retain approval until an admin records an explicit decision. */
-export async function listOrganizationSearchApprovals(organizationId: string) {
+export async function listOrganizationSearchApprovals(
+  organizationId: string,
+  executor: DbOrTx = db
+) {
   const [decisions, configured] = await Promise.all([
-    db
+    executor
       .select({
         connectorType: organizationSearchIntegration.connectorType,
         approved: organizationSearchIntegration.approved,
       })
       .from(organizationSearchIntegration)
       .where(eq(organizationSearchIntegration.organizationId, organizationId)),
-    db
+    executor
       .selectDistinct({ connectorType: knowledgeConnector.connectorType })
       .from(knowledgeConnector)
       .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
@@ -22,8 +33,7 @@ export async function listOrganizationSearchApprovals(organizationId: string) {
           eq(knowledgeBase.organizationId, organizationId),
           eq(knowledgeBase.isSearchIndex, true),
           isNull(knowledgeBase.deletedAt),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
+          connectorIsLive()
         )
       ),
   ])

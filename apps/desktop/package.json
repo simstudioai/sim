@@ -25,8 +25,8 @@
     "lint:check": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "bun run scripts/build-native.ts && vitest run",
+    "test:watch": "bun run scripts/build-native.ts && vitest",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -60,6 +60,7 @@
     "jsdom": "^26.0.0",
     "postcss": "^8",
     "postcss-load-config": "6.0.1",
+    "postgres": "^3.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "typescript": "^7.0.2",

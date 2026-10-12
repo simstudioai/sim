@@ -1,16 +1,16 @@
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   getOAuthToken,
   refreshAccessTokenIfNeeded,
   resolveOAuthAccountId,
 } from '@/lib/oauth/credential-service'
 import {
-  getCredentialOwner,
+  getCredentialAccessToken,
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
@@ -55,15 +55,14 @@ async function fetchAndProcessAirtablePayloads(
   // Logging handles all error logging
   let currentCursor: number | null = null
   let mightHaveMore = true
-  let payloadsFetched = 0
   let apiCallCount = 0
   // Use a Map to consolidate changes per record ID
   const consolidatedChangesMap = new Map<string, AirtableChange>()
   // Capture raw payloads from Airtable for exposure to workflows
   const allPayloads = []
-  const localProviderConfig = {
-    ...((webhookData.providerConfig as Record<string, unknown>) || {}),
-  } as Record<string, unknown>
+  const localProviderConfig: Record<string, unknown> = {
+    ...toRecord(webhookData.providerConfig),
+  }
 
   try {
     const baseId = localProviderConfig.baseId
@@ -193,7 +192,6 @@ async function fetchAndProcessAirtablePayloads(
       const fullUrl = `${apiUrl}?${queryParams.toString()}`
 
       try {
-        const fetchStartTime = Date.now()
         const response = await fetch(fullUrl, {
           method: 'GET',
           headers: {
@@ -225,12 +223,10 @@ async function fetchAndProcessAirtablePayloads(
         const receivedPayloads = responseBody.payloads || []
 
         if (receivedPayloads.length > 0) {
-          payloadsFetched += receivedPayloads.length
           // Keep the raw payloads for later exposure to the workflow
           for (const p of receivedPayloads) {
             allPayloads.push(p)
           }
-          let changeCount = 0
           for (const payload of receivedPayloads) {
             if (payload.changedTablesById) {
               for (const [tableId, tableChangesUntyped] of Object.entries(
@@ -239,9 +235,6 @@ async function fetchAndProcessAirtablePayloads(
                 const tableChanges = tableChangesUntyped as AirtableTableChanges
 
                 if (tableChanges.createdRecordsById) {
-                  const createdCount = Object.keys(tableChanges.createdRecordsById).length
-                  changeCount += createdCount
-
                   for (const [recordId, recordData] of Object.entries(
                     tableChanges.createdRecordsById
                   )) {
@@ -267,9 +260,6 @@ async function fetchAndProcessAirtablePayloads(
 
                 // Handle updated records
                 if (tableChanges.changedRecordsById) {
-                  const updatedCount = Object.keys(tableChanges.changedRecordsById).length
-                  changeCount += updatedCount
-
                   for (const [recordId, recordData] of Object.entries(
                     tableChanges.changedRecordsById
                   )) {
@@ -440,13 +430,11 @@ async function fetchAndProcessAirtablePayloads(
 export const airtableHandler: WebhookProviderHandler = {
   async createSubscription({
     webhook: webhookRecord,
-    workflow,
     userId,
     requestId,
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     try {
-      const { path, providerConfig } = webhookRecord as Record<string, unknown>
-      const config = (providerConfig as Record<string, unknown>) || {}
+      const config = getProviderConfig(webhookRecord)
       const { baseId, tableId, includeCellValuesInFieldIds, credentialId } = config as {
         baseId?: string
         tableId?: string
@@ -473,17 +461,8 @@ export const airtableHandler: WebhookProviderHandler = {
         throw new Error(tableIdValidation.error)
       }
 
-      const credentialOwner = credentialId
-        ? await getCredentialOwner(credentialId, requestId)
-        : null
       const accessToken = credentialId
-        ? credentialOwner
-          ? await refreshAccessTokenIfNeeded(
-              credentialOwner.accountId,
-              credentialOwner.userId,
-              requestId
-            )
-          : null
+        ? await getCredentialAccessToken(credentialId, requestId)
         : await getOAuthToken(userId, 'airtable')
       if (!accessToken) {
         logger.warn(
@@ -494,7 +473,7 @@ export const airtableHandler: WebhookProviderHandler = {
         )
       }
 
-      const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+      const notificationUrl = getNotificationUrl(webhookRecord)
 
       const airtableApiUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks`
 
@@ -570,7 +549,6 @@ export const airtableHandler: WebhookProviderHandler = {
 
   async deleteSubscription({
     webhook: webhookRecord,
-    workflow,
     requestId,
     strict,
   }: DeleteSubscriptionContext): Promise<void> {
@@ -608,14 +586,7 @@ export const airtableHandler: WebhookProviderHandler = {
         return
       }
 
-      const credentialOwner = await getCredentialOwner(credentialId, requestId)
-      const accessToken = credentialOwner
-        ? await refreshAccessTokenIfNeeded(
-            credentialOwner.accountId,
-            credentialOwner.userId,
-            requestId
-          )
-        : null
+      const accessToken = await getCredentialAccessToken(credentialId, requestId)
       if (!accessToken) {
         const message = `[${requestId}] Could not retrieve Airtable access token. Cannot delete webhook in Airtable.`
         logger.warn(message, { webhookId: webhookRecord.id })

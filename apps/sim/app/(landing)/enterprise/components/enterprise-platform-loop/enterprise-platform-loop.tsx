@@ -100,7 +100,7 @@ export function EnterprisePlatformLoop({
       chats={content.sidebarChats}
       workflows={content.sidebarWorkflows}
     >
-      <div className='flex h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
+      <div className='flex size-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
         <div className='relative h-full min-w-0 flex-1'>
           <EnterpriseHomeStage
             phase={phase}
@@ -120,7 +120,7 @@ export function EnterprisePlatformLoop({
         >
           <div
             className={cn(
-              'h-full w-full transition-opacity duration-300 ease-out',
+              'size-full transition-opacity duration-300 ease-out',
               fading ? 'opacity-0' : 'opacity-100'
             )}
           >

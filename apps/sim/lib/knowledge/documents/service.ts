@@ -71,6 +71,7 @@ import {
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
 import {
   knowledgeAccessCondition,
   knowledgeMetadataCandidateAccessCondition,
@@ -81,6 +82,10 @@ import {
   SYSTEM_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/types'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import {
+  connectorIndexingCondition,
+  requiresConnectorIndexing,
+} from '@/lib/knowledge/connectors/indexing-policy'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import { documentConnectorIsActive } from '@/lib/knowledge/documents/connector-lifecycle'
 import {
@@ -141,7 +146,6 @@ import {
   enqueueKnowledgeStorageCleanup,
   getKnowledgeBaseStorageKey,
   isKnowledgeBaseOwnedStorageKey,
-  type KnowledgeStorageCleanupDocument,
 } from '@/lib/knowledge/documents/storage-cleanup'
 import { claimKnowledgeUploadForAttachment } from '@/lib/knowledge/documents/storage-upload'
 import {
@@ -229,12 +233,13 @@ class SupersededProcessingOutput extends Error {
   }
 }
 
-/** The document's knowledge base has not been deleted. */
+/** The document's knowledge base is active and its backend still accepts indexed content. */
 function knowledgeBaseIsActive() {
   return sql`EXISTS (
     SELECT 1 FROM ${knowledgeBase}
     WHERE ${knowledgeBase.id} = ${document.knowledgeBaseId}
       AND ${knowledgeBase.deletedAt} IS NULL
+      AND ${connectorIndexingCondition() ?? sql`true`}
   )`
 }
 
@@ -658,15 +663,22 @@ const KNOWLEDGE_DOCUMENT_TAG_FIELDS = new Set<KnowledgeDocumentMetadataField>([
   'boolean3',
 ])
 
+function countUnrecordedFileSources(
+  provenances: ReadonlyMap<string, WorkspaceFileSecretProvenance>
+): number {
+  let recordCount = 0
+  for (const provenance of provenances.values()) {
+    if (provenance.status === 'unrecorded') recordCount += 1
+  }
+  return recordCount
+}
+
 function durableSecretProvenanceFromWorkspaceFile(
   provenance: WorkspaceFileSecretProvenance,
   binding: FileMetadataRecord
 ): DurableSecretProvenance {
-  /**
-   * `unrecorded` is a more specific `unknown`, and this boundary has not opted into the workspace
-   * file surface's policy, so it keeps refusing exactly as it did.
-   */
-  if (provenance.status !== 'exact') return { status: 'unknown' }
+  if (provenance.status === 'unknown') return provenance
+  if (provenance.status === 'unrecorded') return EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
   return {
     status: 'exact',
     entries: provenance.entries.map((entry) => ({
@@ -1186,6 +1198,19 @@ export async function processDocumentsWithQueue(
   }
 
   const requested = uniqueDocuments.length
+  const [indexingTarget] = await db
+    .select({ isSearchIndex: knowledgeBase.isSearchIndex })
+    .from(knowledgeBase)
+    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    .limit(1)
+  if (indexingTarget && !requiresConnectorIndexing(indexingTarget.isSearchIndex)) {
+    return {
+      requested,
+      accepted: 0,
+      failed: requested,
+      failedDocumentIds: uniqueDocuments.map((doc) => doc.documentId),
+    }
+  }
   const queuedAt = new Date()
   const documentIds = uniqueDocuments.map((doc) => doc.documentId)
   const {
@@ -1591,7 +1616,7 @@ export async function processDocumentAsync(
     fileSize: number
     mimeType: string
   },
-  processingOptions: ProcessingOptions = {},
+  _processingOptions: ProcessingOptions = {},
   providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext,
   indexingPassId?: string,
   attemptContext?: DocumentProcessingAttemptContext
@@ -1609,6 +1634,7 @@ export async function processDocumentAsync(
 
     const contextRows = await db
       .select({
+        isSearchIndex: knowledgeBase.isSearchIndex,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
         chunkingConfig: knowledgeBase.chunkingConfig,
@@ -1653,6 +1679,37 @@ export async function processDocumentAsync(
       )
       .limit(1)
 
+    if (contextRows[0] && !requiresConnectorIndexing(contextRows[0].isSearchIndex)) {
+      /**
+       * A generation queued before its KB went dormant (e.g. legacy index adoption) gives back its
+       * stamp and charged attempt, as `clearDocumentsQueued` does; the token stays as the owner.
+       */
+      if (attemptContext?.processingQueueToken || attemptContext?.processingQueuedAt) {
+        await db
+          .update(document)
+          .set({
+            processingQueuedAt: null,
+            ...(attemptContext.chargedAtDispatch
+              ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
+              : {}),
+          })
+          .where(
+            and(
+              eq(document.id, documentId),
+              eq(document.processingStatus, 'pending'),
+              /**
+               * Only the exact stamp this payload was queued with: a duplicate of an already
+               * withdrawn generation, or a newer stamp under a reused token, is left alone.
+               */
+              attemptContext.processingQueuedAt
+                ? eq(document.processingQueuedAt, attemptContext.processingQueuedAt)
+                : isNotNull(document.processingQueuedAt),
+              ...queueGenerationConditions(attemptContext)
+            )
+          )
+      }
+      return { outcome: 'skipped', reason: 'unavailable' }
+    }
     if (contextRows.length === 0) {
       logger.warn(
         `[${documentId}] Skipping document processing: document or knowledge base ${knowledgeBaseId} no longer exists`
@@ -2421,6 +2478,7 @@ async function resolveDocumentStorageAdmission(
 ): Promise<DocumentStorageAdmission> {
   const [kb] = await db
     .select({
+      isSearchIndex: knowledgeBase.isSearchIndex,
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
       userId: knowledgeBase.userId,
@@ -2432,6 +2490,9 @@ async function resolveDocumentStorageAdmission(
     throw new OrchestrationError('not_found', 'Knowledge base not found')
   }
 
+  if (!requiresConnectorIndexing(kb.isSearchIndex)) {
+    throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
+  }
   if (kb.organizationId)
     throw new OrchestrationError(
       'validation',
@@ -2482,14 +2543,23 @@ export async function createDocumentRecords(
   const resolvedDocuments = await resolveServerKnownDocumentSizes(documents)
   const totalBytes = resolvedDocuments.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
   const admission = await resolveDocumentStorageAdmission(knowledgeBaseId, totalBytes)
-  const { returnData, storageNotification } = await db.transaction(async (tx) => {
+  const { returnData, storageNotification, unrecordedCount } = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
 
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+    /**
+     * `FOR NO KEY UPDATE` still serializes this insert with other document writes,
+     * KB moves, and archive, but not with the `FOR KEY SHARE` that each embedding
+     * insert takes through its foreign key, so uploads never queue behind a
+     * long-running indexing transaction in the same knowledge base.
+     */
+    await tx.execute(
+      sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR NO KEY UPDATE`
+    )
 
     const kb = await tx
       .select({
         id: knowledgeBase.id,
+        isSearchIndex: knowledgeBase.isSearchIndex,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
@@ -2500,6 +2570,9 @@ export async function createDocumentRecords(
 
     if (kb.length === 0) {
       throw new OrchestrationError('not_found', 'Knowledge base not found')
+    }
+    if (!requiresConnectorIndexing(kb[0].isSearchIndex)) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
     }
 
     if (kb[0].workspaceId !== admission.workspaceId) {
@@ -2527,7 +2600,7 @@ export async function createDocumentRecords(
       tx,
       trackedBindings
     )
-    for (const [documentIndex, docData] of resolvedDocuments.entries()) {
+    for (const docData of resolvedDocuments) {
       const currentSize = getServerKnownDocumentSize(
         docData.fileUrl,
         docData.fileSize,
@@ -2673,9 +2746,20 @@ export async function createDocumentRecords(
         .where(eq(knowledgeBase.id, knowledgeBaseId))
     }
 
-    return { returnData, storageNotification }
+    return {
+      returnData,
+      storageNotification,
+      unrecordedCount: countUnrecordedFileSources(boundFileProvenanceById),
+    }
   })
 
+  if (unrecordedCount > 0) {
+    reportDurableSecretProvenanceUnrecorded({
+      surface: 'workspace-file',
+      workspaceId: admission.workspaceId,
+      recordCount: unrecordedCount,
+    })
+  }
   if (storageNotification) {
     void maybeNotifyStorageLimitForBillingContext(
       storageNotification.context,
@@ -3147,17 +3231,20 @@ export async function createSingleDocument(
     ...processedTags,
   }
 
-  const storageNotification = await db.transaction(async (tx) => {
+  const { storageNotification, unrecordedCount } = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
     if (options?.uploadedArtifact) {
       await claimKnowledgeUploadForAttachment(tx, options.uploadedArtifact.cleanupEventId)
     }
 
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+    await tx.execute(
+      sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR NO KEY UPDATE`
+    )
 
     const kb = await tx
       .select({
         id: knowledgeBase.id,
+        isSearchIndex: knowledgeBase.isSearchIndex,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
@@ -3168,6 +3255,9 @@ export async function createSingleDocument(
 
     if (kb.length === 0) {
       throw new OrchestrationError('not_found', 'Knowledge base not found')
+    }
+    if (!requiresConnectorIndexing(kb[0].isSearchIndex)) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
     }
 
     if (
@@ -3275,9 +3365,19 @@ export async function createSingleDocument(
       })
     }
 
-    return storageNotification
+    return {
+      storageNotification,
+      unrecordedCount: countUnrecordedFileSources(boundFileProvenanceById),
+    }
   })
 
+  if (unrecordedCount > 0) {
+    reportDurableSecretProvenanceUnrecorded({
+      surface: 'workspace-file',
+      workspaceId: admission.workspaceId,
+      recordCount: unrecordedCount,
+    })
+  }
   if (storageNotification) {
     void maybeNotifyStorageLimitForBillingContext(
       storageNotification.context,
@@ -4005,14 +4105,6 @@ export async function updateDocument(
   }
 }
 
-/** Persists standalone cleanup intents; document mutations supply their own transaction. */
-export async function deleteDocumentStorageFiles(
-  documentsToDelete: readonly KnowledgeStorageCleanupDocument[],
-  requestId: string
-): Promise<void> {
-  await enqueueKnowledgeStorageCleanup(db, documentsToDelete, requestId)
-}
-
 async function excludeConnectorDocuments(
   documentIds: string[],
   requestId: string
@@ -4250,6 +4342,9 @@ async function hardDeleteDocumentBatch(
      * Lock every parent KB in stable ID order before deleting document rows.
      * Normal inserts and KB moves take the same parent lock first, so the
      * workspace snapshots used for accounting cannot change mid-delete.
+     * `no key update` lets embedding inserts keep taking their foreign-key
+     * `KEY SHARE` lock, so a delete neither waits on indexing elsewhere in the
+     * KB nor deadlocks against an indexing pass on one of its own documents.
      */
     const knowledgeBaseIds = [
       ...new Set(documentsToDelete.map((doc) => doc.knowledgeBaseId)),
@@ -4269,7 +4364,7 @@ async function hardDeleteDocumentBatch(
         )
       )
       .orderBy(asc(knowledgeBase.id))
-      .for('update')
+      .for('no key update')
     const lockedKnowledgeBaseById = new Map(lockedKnowledgeBases.map((kb) => [kb.id, kb]))
     for (const doc of documentsToDelete) {
       const lockedKb = lockedKnowledgeBaseById.get(doc.knowledgeBaseId)

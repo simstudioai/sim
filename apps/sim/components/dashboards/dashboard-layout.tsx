@@ -4,6 +4,7 @@ import { cn, TabStrip } from '@sim/emcn'
 import { useQueryState } from 'nuqs'
 import { DashboardPanel } from '@/components/dashboards/dashboard-panel'
 import { dashboardTabParser, dashboardUrlOptions } from '@/components/dashboards/search-params'
+import type { ChartHighlight } from '@/lib/charts/annotations'
 import type { DashboardBlock, DashboardSource, DashboardTabs } from '@/lib/dashboards/spec'
 import type { DashboardTimeRange } from '@/lib/dashboards/time'
 
@@ -11,11 +12,13 @@ interface DashboardLayoutProps {
   blocks: DashboardBlock[]
   defaults?: DashboardSource
   workspaceId: string
-  fileId: string
+  dashboardId: string
   range: DashboardTimeRange
   now: number
   path?: string
   startIndex?: number
+  embedded?: boolean
+  highlights?: ChartHighlight[]
 }
 interface DashboardTabsProps extends Omit<DashboardLayoutProps, 'blocks'> {
   block: DashboardTabs
@@ -39,7 +42,7 @@ const ROW_GROW: Record<number, string> = {
 
 function DashboardTabGroup({ block, path, ...props }: DashboardTabsProps) {
   const [selected, setSelected] = useQueryState(
-    `dash-${props.fileId}-tab-${path}`,
+    `dash-${props.dashboardId}-tab-${path}`,
     dashboardTabParser.withOptions(dashboardUrlOptions)
   )
   const names = Object.keys(block.tabs)

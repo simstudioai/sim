@@ -792,39 +792,3 @@ export interface MicrosoftAdRemoveGroupMemberResponse extends ToolResponse {
     memberId: string
   }
 }
-
-export type MicrosoftAdResponse =
-  | MicrosoftAdListUsersResponse
-  | MicrosoftAdGetUserResponse
-  | MicrosoftAdCreateUserResponse
-  | MicrosoftAdUpdateUserResponse
-  | MicrosoftAdDeleteUserResponse
-  | MicrosoftAdListGroupsResponse
-  | MicrosoftAdGetGroupResponse
-  | MicrosoftAdCreateGroupResponse
-  | MicrosoftAdUpdateGroupResponse
-  | MicrosoftAdDeleteGroupResponse
-  | MicrosoftAdListGroupMembersResponse
-  | MicrosoftAdAddGroupMemberResponse
-  | MicrosoftAdRemoveGroupMemberResponse
-  | MicrosoftAdAssignLicenseResponse
-  | MicrosoftAdListUserLicensesResponse
-  | MicrosoftAdListSubscribedSkusResponse
-  | MicrosoftAdRevokeSignInSessionsResponse
-  | MicrosoftAdSetPasswordResponse
-  | MicrosoftAdResetPasswordResponse
-  | MicrosoftAdListAuthenticationMethodsResponse
-  | MicrosoftAdListSignInsResponse
-  | MicrosoftAdListDirectoryAuditsResponse
-  | MicrosoftAdListAppRoleAssignmentsResponse
-  | MicrosoftAdAddUserAppRoleAssignmentResponse
-  | MicrosoftAdRemoveUserAppRoleAssignmentResponse
-  | MicrosoftAdListServicePrincipalsResponse
-  | MicrosoftAdListDirectoryRolesResponse
-  | MicrosoftAdListDirectoryRoleMembersResponse
-  | MicrosoftAdAddDirectoryRoleMemberResponse
-  | MicrosoftAdRemoveDirectoryRoleMemberResponse
-  | MicrosoftAdListDevicesResponse
-  | MicrosoftAdGetDeviceResponse
-  | MicrosoftAdListConditionalAccessPoliciesResponse
-  | MicrosoftAdGetConditionalAccessPolicyResponse

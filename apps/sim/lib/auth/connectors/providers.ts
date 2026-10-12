@@ -853,6 +853,22 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       },
     },
     {
+      providerId: 'microsoft-intune',
+      clientId: env.MICROSOFT_CLIENT_ID as string,
+      clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+      authorizationUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+      tokenUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+      scopes: getCanonicalScopesForProvider('microsoft-intune'),
+      responseType: 'code',
+      accessType: 'offline',
+      authentication: 'basic',
+      pkce: true,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-intune`,
+      getUserInfo: async (tokens) => {
+        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-intune')
+      },
+    },
+    {
       providerId: 'microsoft-planner',
       clientId: env.MICROSOFT_CLIENT_ID as string,
       clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
@@ -867,6 +883,28 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-planner`,
       getUserInfo: async (tokens) => {
         return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-planner')
+      },
+    },
+
+    {
+      providerId: 'microsoft-powerbi',
+      clientId: env.MICROSOFT_CLIENT_ID as string,
+      clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+      authorizationUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+      tokenUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+      scopes: getCanonicalScopesForProvider('microsoft-powerbi'),
+      responseType: 'code',
+      accessType: 'offline',
+      authentication: 'basic',
+      pkce: true,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-powerbi`,
+      getUserInfo: async (tokens) => {
+        const canonicalScopes = getCanonicalScopesForProvider('microsoft-powerbi')
+        tokens.scopes = tokens.scopes?.map((scope) => {
+          const qualified = `https://analysis.windows.net/powerbi/api/${scope}`
+          return canonicalScopes.includes(qualified) ? qualified : scope
+        })
+        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-powerbi')
       },
     },
 
@@ -2788,6 +2826,65 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in DocuSign getUserInfo:', { error })
+          return null
+        }
+      },
+    },
+
+    {
+      providerId: 'ramp',
+      clientId: env.RAMP_CLIENT_ID as string,
+      clientSecret: env.RAMP_CLIENT_SECRET as string,
+      authorizationUrl: 'https://app.ramp.com/v1/authorize',
+      tokenUrl: 'https://api.ramp.com/developer/v1/token',
+      scopes: getCanonicalScopesForProvider('ramp'),
+      responseType: 'code',
+      authentication: 'basic',
+      accessTokenExpiresIn: 3600,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/ramp`,
+      getUserInfo: async (tokens) => {
+        if (!tokens.accessToken) return null
+
+        try {
+          const signal = AbortSignal.timeout(15_000)
+          const response = await fetch('https://api.ramp.com/developer/v1/business', {
+            headers: { Authorization: `Bearer ${tokens.accessToken}` },
+            redirect: 'error',
+            signal,
+          })
+          if (!response.ok) {
+            await readResponseTextWithLimit(response, {
+              maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+              label: 'Ramp OAuth business error response',
+              signal,
+            }).catch(() => {})
+            logger.error('Failed to fetch Ramp business info', { status: response.status })
+            return null
+          }
+
+          const business = await readResponseJsonWithLimit<unknown>(response, {
+            maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+            label: 'Ramp OAuth business response',
+            signal,
+          })
+          if (!isRecordLike(business) || typeof business.id !== 'string' || !business.id) {
+            return null
+          }
+
+          const now = new Date()
+          return {
+            id: `${business.id}-${generateId()}`,
+            name:
+              typeof business.business_name_legal === 'string' && business.business_name_legal
+                ? business.business_name_legal
+                : 'Ramp Business',
+            email: syntheticConnectorEmail('ramp', business.id),
+            emailVerified: false,
+            createdAt: now,
+            updatedAt: now,
+          }
+        } catch (error) {
+          logger.error('Failed to fetch Ramp business info', { errorType: toError(error).name })
           return null
         }
       },

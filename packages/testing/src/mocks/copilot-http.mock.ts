@@ -2,7 +2,7 @@ import { vi } from 'vitest'
 
 /**
  * Frozen mirror of the `NotificationStatus` const from
- * `@/lib/copilot/request/http`. Matches the real values so route code using
+ * `@/lib/mothership/request/http`. Matches the real values so route code using
  * e.g. `NotificationStatus.success` keeps resolving under mock.
  */
 const NotificationStatusMock = {
@@ -14,7 +14,7 @@ const NotificationStatusMock = {
 } as const
 
 /**
- * Controllable mock functions for `@/lib/copilot/request/http`.
+ * Controllable mock functions for `@/lib/mothership/request/http`.
  * Response helpers default to returning minimal Response-like objects so
  * handler tests can assert `res.status` and `await res.json()`.
  * `createRequestTracker` returns a stable tracker with `requestId`,
@@ -22,7 +22,7 @@ const NotificationStatusMock = {
  *
  * @example
  * ```ts
- * import { copilotHttpMockFns } from '@sim/testing'
+ * import { copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
  *
  * copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
  *   userId: 'user-1',
@@ -63,11 +63,11 @@ export const copilotHttpMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/copilot/request/http`.
+ * Static mock module for `@/lib/mothership/request/http`.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+ * vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
  * ```
  */
 export const copilotHttpMock = {

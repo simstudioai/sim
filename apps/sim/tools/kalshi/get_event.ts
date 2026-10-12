@@ -55,7 +55,7 @@ export const kalshiGetEventTool: ToolConfig<KalshiGetEventParams, KalshiGetEvent
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_event')
+      handleKalshiError(data, 'get_event')
     }
 
     return {
@@ -173,7 +173,7 @@ export const kalshiGetEventV2Tool: ToolConfig<KalshiGetEventV2Params, KalshiGetE
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_event_v2')
+      handleKalshiError(data, 'get_event_v2')
     }
 
     const event = data.event || {}

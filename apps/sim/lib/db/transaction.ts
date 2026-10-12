@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('DbTransaction')
 
@@ -48,7 +48,7 @@ export function isRetryableTransactionError(error: unknown): boolean {
  * than once, and only the committing attempt is durable.
  */
 export async function withTransactionRetry<T>(
-  fn: (tx: DbOrTx) => Promise<T>,
+  fn: (tx: DbTransaction) => Promise<T>,
   options: { attempts?: number; label?: string } = {}
 ): Promise<T> {
   const attempts = options.attempts ?? DEFAULT_ATTEMPTS

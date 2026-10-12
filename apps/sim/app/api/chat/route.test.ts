@@ -39,7 +39,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
-const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
+const mockCreateCodedErrorResponse = workflowsApiUtilsMockFns.mockCreateCodedErrorResponse
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
@@ -148,7 +148,7 @@ describe('Chat API Route', () => {
         headers: { 'Content-Type': 'application/json' },
       })
     })
-    mockCreateErrorResponse.mockImplementation((message, status = 500) => {
+    mockCreateCodedErrorResponse.mockImplementation((message, status = 500) => {
       return new Response(JSON.stringify({ error: message }), {
         status,
         headers: { 'Content-Type': 'application/json' },

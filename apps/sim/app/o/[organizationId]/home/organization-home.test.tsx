@@ -7,10 +7,8 @@ import {
   deploymentShapeMock,
   deploymentShapeMockFns,
 } from '@sim/testing/mocks/deployment-shape.mock'
-import {
-  kbConnectorsQueriesMock,
-  kbConnectorsQueriesMockFns,
-} from '@sim/testing/mocks/kb-connectors-queries.mock'
+import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
+import { kbConnectorsQueriesMock } from '@sim/testing/mocks/kb-connectors-queries.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import {
   organizationProviderMock,
@@ -25,7 +23,6 @@ import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 
 const mocks = vi.hoisted(() => ({
-  live: false,
   plan: false,
   resourcePanel: vi.fn(),
   chat: vi.fn(),
@@ -46,7 +43,7 @@ vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => 
   useFeatureFlag: (name: string) => (name === 'mothership-plan-mode' ? mocks.plan : false),
 }))
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
-vi.mock('@/blocks/integration-matcher', () => ({ mentionifyIntegrations: (text: string) => text }))
+vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@tanstack/react-query', () => reactQueryMock)
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => ({
@@ -98,18 +95,15 @@ import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-hom
 
 const mockSession = authClientMockFns.mockUseSession
 const mockContext = organizationProviderMockFns.mockUseOrganizationContext
-const mockSources = kbConnectorsQueriesMockFns.mockUseSearchSourceOverview
-const liveShape = () =>
-  createMockDeploymentShape({ features: { liveEnterpriseSearch: mocks.live } })
-deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(liveShape)
-deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(liveShape)
+const deploymentShape = () => createMockDeploymentShape()
+deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(deploymentShape)
+deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape)
 
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
   useMothershipDraftsStore.setState({ drafts: {} })
   mocks.plan = false
-  mocks.live = false
   mocks.activeResource = null
   mockSession.mockReturnValue({ data: { user: { id: 'reader' } } })
   useOrganizationChatModeStore.setState({ modes: {}, assistantSearchLevels: {} })
@@ -130,7 +124,6 @@ beforeEach(() => {
     canBuild: true,
     viewer: { isAdmin: false, canUseSearchMcp: true },
   })
-  mockSources.mockReturnValue({ data: { providers: [], hasSearchableDocuments: false } })
   mocks.apiKeys.mockReturnValue({ data: { personalKeys: [] } })
   mockAuthorizedApps([{ apps: [], nextCursor: null }])
   mocks.chat.mockReturnValue({

@@ -13,39 +13,48 @@ export const MOTHERSHIP_EFFORT_OPTIONS: Array<{ value: MothershipEffort; label: 
 
 export const MOTHERSHIP_MODEL_OPTIONS = [
   { value: 'gpt-6-astra', label: 'GPT-6 Astra' },
-  { value: 'gpt-6-sol', label: 'GPT-6 Sol' },
+  { value: 'gpt-6-sol', label: 'GPT-6.1 Sol' },
   { value: 'claude-opus-5-5', label: 'Opus 5.5' },
 ] satisfies Array<{ value: ModelSelection['model']; label: string }>
 
-/** Labels deliberately describe the simplified product dial; values are provider efforts. */
-export const MOTHERSHIP_SIMPLE_EFFORT_OPTIONS: Array<{ value: MothershipEffort; label: string }> = [
-  { value: 'medium', label: 'Low' },
-  { value: 'high', label: 'Medium' },
-  { value: 'xhigh', label: 'High' },
-]
+/** The effort a chat or Sim Chat block runs at until the user picks one. */
+export const DEFAULT_MOTHERSHIP_EFFORT: MothershipEffort = 'high'
 
-export function mothershipEffortOptions(model: ModelSelection['model']) {
-  return model === 'gpt-6-sol'
-    ? [{ value: 'none' as const, label: 'None' }, ...MOTHERSHIP_EFFORT_OPTIONS]
-    : MOTHERSHIP_EFFORT_OPTIONS
-}
+const SIMPLE_EFFORT_VALUES: ReadonlySet<MothershipEffort> = new Set([
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+])
 
-/** Shared by the visible controls, send path and server admission so hidden preferences cannot leak. */
+/** The efforts the simple picker offers, labeled with the effort each one sends. */
+export const MOTHERSHIP_SIMPLE_EFFORT_OPTIONS = MOTHERSHIP_EFFORT_OPTIONS.filter((option) =>
+  SIMPLE_EFFORT_VALUES.has(option.value)
+)
+
+/**
+ * Shared by the visible controls, send path and server admission so hidden preferences cannot leak.
+ * Without the model picker no selection is sent, so the worker routes every model role itself.
+ */
 export function resolveMothershipModelSettings(
   settings: { effort?: MothershipEffort; modelSelection?: ModelSelection },
   advanced: boolean
-): { effort: MothershipEffort; modelSelection: ModelSelection } {
-  let effort = settings.effort ?? 'high'
+): { effort: MothershipEffort; modelSelection: ModelSelection | undefined } {
+  let effort = settings.effort ?? DEFAULT_MOTHERSHIP_EFFORT
+  // No served model reasons at `none`; a pick stored before it was retired runs at the nearest effort.
+  if (effort === 'none') effort = 'low'
   if (!advanced) {
-    if (effort === 'none' || effort === 'low') effort = 'medium'
     if (effort === 'max') effort = 'xhigh'
-    return { effort, modelSelection: { model: 'gpt-6-astra', fastMode: false } }
+    return { effort, modelSelection: undefined }
   }
-  const stored = settings.modelSelection ?? { model: 'gpt-6-astra', fastMode: false }
+  const modelSelection = normalizeModelSelection(
+    settings.modelSelection ?? { model: 'gpt-6-astra', fastMode: false }
+  )
+  return { effort, modelSelection }
+}
+
+/** A stored pick on the current catalog: Opus 5 reads as Opus 5.5, which has no Fast mode. */
+export function normalizeModelSelection(stored: ModelSelection): ModelSelection {
   const model = stored.model === 'claude-opus-5' ? 'claude-opus-5-5' : stored.model
-  if (effort === 'none' && model !== 'gpt-6-sol') effort = 'medium'
-  return {
-    effort,
-    modelSelection: { model, fastMode: model === 'claude-opus-5-5' ? false : stored.fastMode },
-  }
+  return { model, fastMode: model === 'claude-opus-5-5' ? false : stored.fastMode }
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { vantaCredentialInputSchema } from '@/lib/internal/vanta/input'
 
 const nullableString = z.string().nullable()
 const nullableNumber = z.number().nullable()
@@ -360,13 +361,7 @@ const vantaRiskScenarioSchema = z.object({
   identificationDate: nullableString,
 })
 
-const VANTA_REGIONS = ['us', 'gov'] as const
-
-const vantaBaseBodySchema = z.object({
-  clientId: z.string().min(1, 'Client ID is required'),
-  clientSecret: z.string().min(1, 'Client secret is required'),
-  region: z.enum(VANTA_REGIONS).optional(),
-})
+const vantaBaseBodySchema = vantaCredentialInputSchema
 
 const vantaPaginationBodySchema = z.object({
   pageSize: z

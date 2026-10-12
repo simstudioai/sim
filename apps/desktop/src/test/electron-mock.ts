@@ -99,6 +99,10 @@ export const net = {
   fetch: vi.fn(),
 }
 
+export const powerMonitor = {
+  on: vi.fn(),
+}
+
 export const session = {
   fromPartition: vi.fn(),
 }
@@ -241,7 +245,7 @@ function createWebContentsMock() {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
       setUserAgent: vi.fn(),
-      webRequest: { onBeforeRequest: vi.fn() },
+      webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
       on: vi.fn(),
     },
   }
@@ -250,7 +254,11 @@ function createWebContentsMock() {
 export class WebContentsView {
   webContents = createWebContentsMock()
   setBackgroundColor = vi.fn()
-  setVisible = vi.fn()
+  private visible = true
+  setVisible = vi.fn((visible: boolean) => {
+    this.visible = visible
+  })
+  getVisible = vi.fn(() => this.visible)
   private bounds = { x: 0, y: 0, width: 0, height: 0 }
   setBounds = vi.fn((bounds: { x: number; y: number; width: number; height: number }) => {
     this.bounds = { ...bounds }
@@ -389,6 +397,7 @@ export const electronMock = {
   screen,
   Menu,
   net,
+  powerMonitor,
   session,
   protocol,
   ipcMain,

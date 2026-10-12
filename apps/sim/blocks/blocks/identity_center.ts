@@ -1,9 +1,8 @@
 import { IdentityCenterIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { IdentityCenterBaseResponse } from '@/tools/identity_center/types'
 
-export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
+export const IdentityCenterBlock: BlockConfig = {
   type: 'identity_center',
   name: 'AWS Identity Center',
   description: 'Manage temporary elevated access in AWS IAM Identity Center',

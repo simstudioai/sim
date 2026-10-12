@@ -4,7 +4,7 @@ import type { ScimUserAttributes } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { suspendMemberTx, unsuspendMemberTx } from '@/lib/organizations/members/lifecycle'
 import {
   invalidateAfterSessionRevocation,
@@ -49,7 +49,7 @@ export interface UpdateOutcome {
 }
 
 async function applyUserUpdate(
-  tx: DbOrTx,
+  tx: DbTransaction,
   context: ScimUseCaseContext,
   current: ScimUserRecord,
   next: ScimUserAttributes
@@ -135,7 +135,7 @@ export interface UpdateScimUserResult {
  * which take the advisory locks first and then touch rows referencing this one.
  */
 async function loadUserForUpdate(
-  tx: DbOrTx,
+  tx: DbTransaction,
   context: ScimUseCaseContext,
   scimUserId: string
 ): Promise<ScimUserRecord> {

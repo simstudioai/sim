@@ -464,7 +464,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                   let parsed: any
                   try {
                     parsed = JSON.parse(data)
-                  } catch (parseError) {
+                  } catch {
                     continue
                   }
 

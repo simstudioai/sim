@@ -7,7 +7,7 @@ import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isHosted, isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import {
   type IntegrationGateConfig,
@@ -29,6 +29,7 @@ import {
 import type { AssistantImageContent } from '@/lib/mothership/chat/assistant-images'
 import { buildUploadedFileContext } from '@/lib/mothership/chat/upload-context'
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
+import { computeEntitlements } from '@/lib/mothership/entitlements'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import type { ChatRequest, ModelSelection } from '@/lib/mothership/generated/protocol'
 import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
@@ -217,9 +218,7 @@ export async function buildIntegrationToolSchemas(
     return structuredClone(
       schemas.filter((schema) => {
         const original = getToolMetadata(schema.name)
-        const metadata = original
-          ? projectAssistantConnectedAccountTool(original, isLiveEnterpriseSearchEnabled)
-          : undefined
+        const metadata = original ? projectAssistantConnectedAccountTool(original) : undefined
         return (
           !metadata?.personalToken &&
           metadata?.oauth?.required &&
@@ -249,7 +248,7 @@ async function buildIntegrationToolSchemasUncached({
     const metadata = getToolMetadata(toolId)
     if (options.personalAccountsOnly && !isAssistantIntegrationTool(metadata)) continue
     const projectedTool = options.personalAccountsOnly
-      ? projectAssistantConnectedAccountTool(toolConfig, isLiveEnterpriseSearchEnabled)
+      ? projectAssistantConnectedAccountTool(toolConfig)
       : toolConfig
     const userSchema = createUserToolSchema(projectedTool, {
       surface: options.schemaSurface,
@@ -312,12 +311,7 @@ async function buildIntegrationToolSchemasUncached({
 /**
  * Build the request payload for the copilot backend.
  */
-export async function buildCopilotRequestPayload(
-  params: BuildPayloadParams,
-  options: {
-    selectedModel: string
-  }
-): Promise<ChatRequest> {
+export async function buildCopilotRequestPayload(params: BuildPayloadParams): Promise<ChatRequest> {
   const { message, workflowId, userId, userMessageId, mode, contexts, fileAttachments, chatId } =
     params
   const effectiveMode = mode === 'agent' ? 'build' : mode
@@ -442,7 +436,15 @@ export async function buildCopilotRequestPayload(
     !isAssistant && params.principal && params.workspaceId
       ? await buildWorkspaceInventory(params.principal, params.workspaceId)
       : undefined
+  const entitlements = isAssistant
+    ? []
+    : await computeEntitlements({
+        principal: params.principal,
+        workspaceId: params.workspaceId,
+        organizationId: params.organizationId,
+      })
   return {
+    entitlements,
     message,
     ...(!isAssistant && workflowId ? { workflowId } : {}),
     ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),

@@ -1,9 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db/knowledge-projection', () => ({
-  SOURCE_ACL_PROJECTIONS: ['embedding_search', 'embedding_keyword_tin'],
-}))
-
 import { prewarmSearchProjection } from '@/lib/knowledge/search/prewarm'
 
 interface Statement {
@@ -60,7 +55,7 @@ describe('prewarmSearchProjection', () => {
         installed: true,
         relations: [
           'embedding_search',
-          'embedding_keyword_tin',
+          'embedding_search_cosine_hnsw_idx',
           'embedding_search_512_cosine_hnsw_idx',
         ],
       })
@@ -74,7 +69,7 @@ describe('prewarmSearchProjection', () => {
       const warmed = await prewarmSearchProjection(fake, { budgetMs: 1000 })
       expect(warmed.map((item) => item.relation)).toEqual([
         'embedding_search',
-        'embedding_keyword_tin',
+        'embedding_search_cosine_hnsw_idx',
         'embedding_search_512_cosine_hnsw_idx',
       ])
       const timeouts = fake.statements

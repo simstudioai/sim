@@ -175,7 +175,6 @@ export const IntercomBlock: BlockConfig = {
       placeholder: 'Enter your Intercom access token',
       required: true,
     },
-    // Contact fields
     {
       id: 'role',
       title: 'Role',
@@ -395,7 +394,6 @@ Return ONLY the query - no explanations.`,
         value: ['search_contacts', 'search_conversations'],
       },
     },
-    // Company fields
     {
       id: 'companyId',
       title: 'Company ID',
@@ -502,7 +500,6 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Conversation fields
     {
       id: 'conversationId',
       title: 'Conversation ID',
@@ -661,7 +658,6 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Ticket fields
     {
       id: 'ticketId',
       title: 'Ticket ID',
@@ -782,7 +778,6 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         value: ['create_ticket'],
       },
     },
-    // Message fields
     {
       id: 'message_type_msg',
       title: 'Message Type',
@@ -901,7 +896,6 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Pagination fields
     {
       id: 'per_page',
       title: 'Per Page',
@@ -944,7 +938,6 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         value: ['list_companies'],
       },
     },
-    // Close/Open conversation body
     {
       id: 'close_body',
       title: 'Closing Message',
@@ -955,7 +948,6 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         value: ['close_conversation'],
       },
     },
-    // Snooze conversation
     {
       id: 'snoozed_until',
       title: 'Snooze Until',
@@ -980,7 +972,6 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Assign conversation
     {
       id: 'assignee_id',
       title: 'Assignee ID',
@@ -1002,7 +993,6 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         value: ['assign_conversation'],
       },
     },
-    // Update ticket fields
     {
       id: 'update_ticket_attributes',
       title: 'Ticket Attributes',
@@ -1079,7 +1069,6 @@ Return ONLY the numeric timestamp.`,
         value: ['update_ticket'],
       },
     },
-    // Tag fields
     {
       id: 'tagId',
       title: 'Tag ID',
@@ -1112,7 +1101,6 @@ Return ONLY the numeric timestamp.`,
         value: ['create_tag'],
       },
     },
-    // Contact ID for tag/untag/note operations
     {
       id: 'tag_contact_id',
       title: 'Contact ID',
@@ -1130,7 +1118,6 @@ Return ONLY the numeric timestamp.`,
         ],
       },
     },
-    // Note fields
     {
       id: 'note_body',
       title: 'Note Content',
@@ -1150,7 +1137,6 @@ Return ONLY the note text - no explanations.`,
         placeholder: 'Describe the note content (e.g., "customer requested callback")...',
       },
     },
-    // Event fields
     {
       id: 'event_name',
       title: 'Event Name',
@@ -1233,7 +1219,6 @@ Return ONLY the numeric timestamp.`,
         generationType: 'timestamp',
       },
     },
-    // Company attachment fields
     {
       id: 'attach_company_id',
       title: 'Company ID',
@@ -1382,17 +1367,14 @@ Return ONLY the numeric timestamp.`,
         } = params
         const cleanParams: Record<string, any> = {}
 
-        // Special mapping for message_type in create_message
         if (operation === 'create_message' && message_type_msg) {
           cleanParams.message_type = message_type_msg
         }
 
-        // Special mapping for company name
         if (operation === 'create_company' && company_name) {
           cleanParams.name = company_name
         }
 
-        // Map contact_company_id to company_id for contact operations
         if (
           (operation === 'create_contact' || operation === 'update_contact') &&
           contact_company_id
@@ -1400,12 +1382,10 @@ Return ONLY the numeric timestamp.`,
           cleanParams.company_id = contact_company_id
         }
 
-        // Map reply_created_at to created_at for reply_conversation
         if (operation === 'reply_conversation' && reply_created_at) {
           cleanParams.created_at = Number(reply_created_at)
         }
 
-        // Map ticket fields for create_ticket
         if (operation === 'create_ticket') {
           if (ticket_company_id) cleanParams.company_id = ticket_company_id
           if (ticket_created_at) cleanParams.created_at = Number(ticket_created_at)
@@ -1414,12 +1394,10 @@ Return ONLY the numeric timestamp.`,
           }
         }
 
-        // Map message_created_at to created_at for create_message
         if (operation === 'create_message' && message_created_at) {
           cleanParams.created_at = Number(message_created_at)
         }
 
-        // Convert include_translations string to boolean for get_conversation
         if (
           operation === 'get_conversation' &&
           include_translations !== undefined &&
@@ -1428,17 +1406,14 @@ Return ONLY the numeric timestamp.`,
           cleanParams.include_translations = include_translations === 'true'
         }
 
-        // Map close_body to body for close_conversation
         if (operation === 'close_conversation' && close_body) {
           cleanParams.body = close_body
         }
 
-        // Map assign_body to body for assign_conversation
         if (operation === 'assign_conversation' && assign_body) {
           cleanParams.body = assign_body
         }
 
-        // Map tag_contact_id to contactId for tag/note/company attachment operations
         if (
           [
             'tag_contact',
@@ -1452,7 +1427,6 @@ Return ONLY the numeric timestamp.`,
           cleanParams.contactId = tag_contact_id
         }
 
-        // Map attach_company_id to companyId for company attachment operations
         if (
           ['attach_contact_to_company', 'detach_contact_from_company'].includes(operation) &&
           attach_company_id
@@ -1460,7 +1434,6 @@ Return ONLY the numeric timestamp.`,
           cleanParams.companyId = attach_company_id
         }
 
-        // Map update_ticket fields
         if (operation === 'update_ticket') {
           if (update_ticket_attributes) cleanParams.ticket_attributes = update_ticket_attributes
           if (ticket_open !== undefined && ticket_open !== '') {
@@ -1473,18 +1446,15 @@ Return ONLY the numeric timestamp.`,
           if (ticket_assignee_id) cleanParams.assignee_id = ticket_assignee_id
         }
 
-        // Map tag fields for create_tag
         if (operation === 'create_tag') {
           if (tag_name) cleanParams.name = tag_name
           if (tag_id_update) cleanParams.id = tag_id_update
         }
 
-        // Map note_body to body for create_note
         if (operation === 'create_note' && note_body) {
           cleanParams.body = note_body
         }
 
-        // Map event fields for create_event
         if (operation === 'create_event') {
           if (event_user_id) cleanParams.user_id = event_user_id
           if (event_email) cleanParams.email = event_email
@@ -1681,17 +1651,14 @@ export const IntercomV2Block: BlockConfig = {
         } = params
         const cleanParams: Record<string, any> = {}
 
-        // Special mapping for message_type in create_message
         if (operation === 'create_message' && message_type_msg) {
           cleanParams.message_type = message_type_msg
         }
 
-        // Special mapping for company name
         if (operation === 'create_company' && company_name) {
           cleanParams.name = company_name
         }
 
-        // Map contact_company_id to company_id for contact operations
         if (
           (operation === 'create_contact' || operation === 'update_contact') &&
           contact_company_id
@@ -1699,12 +1666,10 @@ export const IntercomV2Block: BlockConfig = {
           cleanParams.company_id = contact_company_id
         }
 
-        // Map reply_created_at to created_at for reply_conversation
         if (operation === 'reply_conversation' && reply_created_at) {
           cleanParams.created_at = Number(reply_created_at)
         }
 
-        // Map ticket fields for create_ticket
         if (operation === 'create_ticket') {
           if (ticket_company_id) cleanParams.company_id = ticket_company_id
           if (ticket_created_at) cleanParams.created_at = Number(ticket_created_at)
@@ -1713,12 +1678,10 @@ export const IntercomV2Block: BlockConfig = {
           }
         }
 
-        // Map message_created_at to created_at for create_message
         if (operation === 'create_message' && message_created_at) {
           cleanParams.created_at = Number(message_created_at)
         }
 
-        // Convert include_translations string to boolean for get_conversation
         if (
           operation === 'get_conversation' &&
           include_translations !== undefined &&
@@ -1727,17 +1690,14 @@ export const IntercomV2Block: BlockConfig = {
           cleanParams.include_translations = include_translations === 'true'
         }
 
-        // Map close_body to body for close_conversation
         if (operation === 'close_conversation' && close_body) {
           cleanParams.body = close_body
         }
 
-        // Map assign_body to body for assign_conversation
         if (operation === 'assign_conversation' && assign_body) {
           cleanParams.body = assign_body
         }
 
-        // Map tag_contact_id to contactId for tag/note/company attachment operations
         if (
           [
             'tag_contact',
@@ -1751,7 +1711,6 @@ export const IntercomV2Block: BlockConfig = {
           cleanParams.contactId = tag_contact_id
         }
 
-        // Map attach_company_id to companyId for company attachment operations
         if (
           ['attach_contact_to_company', 'detach_contact_from_company'].includes(operation) &&
           attach_company_id
@@ -1759,7 +1718,6 @@ export const IntercomV2Block: BlockConfig = {
           cleanParams.companyId = attach_company_id
         }
 
-        // Map update_ticket fields
         if (operation === 'update_ticket') {
           if (update_ticket_attributes) cleanParams.ticket_attributes = update_ticket_attributes
           if (ticket_open !== undefined && ticket_open !== '') {
@@ -1772,18 +1730,15 @@ export const IntercomV2Block: BlockConfig = {
           if (ticket_assignee_id) cleanParams.assignee_id = ticket_assignee_id
         }
 
-        // Map tag fields for create_tag
         if (operation === 'create_tag') {
           if (tag_name) cleanParams.name = tag_name
           if (tag_id_update) cleanParams.id = tag_id_update
         }
 
-        // Map note_body to body for create_note
         if (operation === 'create_note' && note_body) {
           cleanParams.body = note_body
         }
 
-        // Map event fields for create_event
         if (operation === 'create_event') {
           if (event_user_id) cleanParams.user_id = event_user_id
           if (event_email) cleanParams.email = event_email

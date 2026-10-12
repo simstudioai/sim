@@ -13,6 +13,8 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
 }))
 
 vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => ({
+  reportDurableSecretProvenanceUnrecorded: vi.fn(),
+  reportDurableSecretProvenanceUnrecordedBatch: vi.fn(),
   reportDurableSecretProvenanceWrite: mockReportWrite,
   reportDurableSecretProvenanceRefusal: mockReportRefusal,
 }))
@@ -379,6 +381,7 @@ describe('workspace file secret provenance', () => {
        * stored `unknown` above is dropped: a writer refused those bytes on purpose, which is a
        * different claim from nobody having recorded them, and no policy relaxes it.
        */
+      { id: 'unrecorded-id', key: 'unrecorded-key' },
       { id: 'pre-marker-sidecar-id', key: 'pre-marker-sidecar-key' },
       { id: 'legacy-id', key: 'legacy-key' },
       { id: 'inline-file' },
@@ -612,7 +615,7 @@ describe('workspace file secret provenance', () => {
    * Unrecorded says exactly what an untracked file says, and that one has always mounted. There is
    * nothing to import either way, so the mount proceeds and the workspace is told.
    */
-  it('refuses to mount an unrecorded tracked file', async () => {
+  it('admits an unrecorded tracked file without importing secret entries', async () => {
     const registry = {
       importProvenance: vi.fn(),
       isPermanentlyIncomplete: vi.fn().mockReturnValue(false),
@@ -633,7 +636,7 @@ describe('workspace file secret provenance', () => {
         identity: { fileId: 'file-1', key: 'file-key', context: 'workspace' },
         registry,
       })
-    ).resolves.toBe(false)
+    ).resolves.toBe(true)
     expect(registry.importProvenance).not.toHaveBeenCalled()
   })
 
@@ -795,8 +798,8 @@ describe('workspace file secret provenance', () => {
       entries: [{ name: 'TOKEN', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
     }
     const unrecorded = { status: 'unrecorded' as const }
-    expect(mergeWorkspaceFileSecretProvenance(known, unrecorded)).toEqual({ status: 'unknown' })
-    expect(mergeWorkspaceFileSecretProvenance(unrecorded, known)).toEqual({ status: 'unknown' })
+    expect(mergeWorkspaceFileSecretProvenance(known, unrecorded)).toEqual(known)
+    expect(mergeWorkspaceFileSecretProvenance(unrecorded, known)).toEqual(known)
   })
 
   it('fails closed when persisted provenance is malformed', async () => {
@@ -972,7 +975,7 @@ describe('workspace file secret provenance', () => {
     )
   })
 
-  it('refuses an unrecorded tracked file', async () => {
+  it('admits an unrecorded tracked file', async () => {
     queueTableRows(workspaceFiles, [
       {
         id: 'unrecorded-id',
@@ -987,12 +990,7 @@ describe('workspace file secret provenance', () => {
       },
     ])
 
-    await expect(isModelSafeWorkspaceFileKey('unrecorded-key')).resolves.toBe(false)
-    expect(mockReportRefusal).toHaveBeenCalledWith({
-      surface: 'workspace-file',
-      cause: 'workspace-file-unrecorded-enforced',
-      workspaceId: undefined,
-    })
+    await expect(isModelSafeWorkspaceFileKey('unrecorded-key')).resolves.toBe(true)
   })
 
   it('still lets an unknown contribution dominate an unrecorded one', () => {

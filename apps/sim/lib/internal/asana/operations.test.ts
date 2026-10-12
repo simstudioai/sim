@@ -1,26 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsanaOperationError } from '@/lib/internal/asana/errors'
-import {
-  executeAsanaAddComment,
-  executeAsanaAddFollowers,
-  executeAsanaCreateProject,
-  executeAsanaCreateSection,
-  executeAsanaCreateSubtask,
-  executeAsanaCreateTask,
-  executeAsanaDeleteTask,
-  executeAsanaGetProject,
-  executeAsanaGetProjects,
-  executeAsanaGetTask,
-  executeAsanaListSections,
-  executeAsanaListWorkspaces,
-  executeAsanaSearchTasks,
-  executeAsanaUpdateTask,
-} from '@/lib/internal/asana/operations'
+import { executeAsanaAddFollowers, executeAsanaGetTask } from '@/lib/internal/asana/operations'
 
-const API_BASE_URL = 'https://app.asana.com/api/1.0'
-const TASK_OPT_FIELDS =
-  'gid,name,notes,completed,assignee,assignee.name,due_on,created_at,modified_at,created_by,created_by.name,resource_type,resource_subtype'
-const PROJECT_OPT_FIELDS = 'name,notes,archived,color,created_at,modified_at,permalink_url'
 const AUTH = { accessToken: 'access-token' }
 
 describe('Asana operations', () => {
@@ -32,105 +13,6 @@ describe('Asana operations', () => {
       async () => new Response(JSON.stringify({ data: {}, next_page: { offset: 'next' } }))
     )
   })
-
-  const searchParams = new URLSearchParams({ opt_fields: TASK_OPT_FIELDS })
-  const operationCases = [
-    {
-      name: 'add comment',
-      run: (signal: AbortSignal) =>
-        executeAsanaAddComment({ ...AUTH, taskGid: 'task1', text: 'Comment' }, signal),
-      url: `${API_BASE_URL}/tasks/task1/stories`,
-      method: 'POST',
-    },
-    {
-      name: 'add followers',
-      run: (signal: AbortSignal) =>
-        executeAsanaAddFollowers({ ...AUTH, taskGid: 'task1', followers: ['user1'] }, signal),
-      url: `${API_BASE_URL}/tasks/task1/addFollowers?opt_fields=name,followers.name`,
-      method: 'POST',
-    },
-    {
-      name: 'create project',
-      run: (signal: AbortSignal) =>
-        executeAsanaCreateProject({ ...AUTH, workspace: 'workspace1', name: 'Project' }, signal),
-      url: `${API_BASE_URL}/projects?opt_fields=${PROJECT_OPT_FIELDS}`,
-      method: 'POST',
-    },
-    {
-      name: 'create section',
-      run: (signal: AbortSignal) =>
-        executeAsanaCreateSection({ ...AUTH, projectGid: 'project1', name: 'Section' }, signal),
-      url: `${API_BASE_URL}/projects/project1/sections`,
-      method: 'POST',
-    },
-    {
-      name: 'create subtask',
-      run: (signal: AbortSignal) =>
-        executeAsanaCreateSubtask({ ...AUTH, taskGid: 'task1', name: 'Subtask' }, signal),
-      url: `${API_BASE_URL}/tasks/task1/subtasks?opt_fields=name,notes,completed,created_at,permalink_url`,
-      method: 'POST',
-    },
-    {
-      name: 'create task',
-      run: (signal: AbortSignal) =>
-        executeAsanaCreateTask({ ...AUTH, workspace: 'workspace1', name: 'Task' }, signal),
-      url: `${API_BASE_URL}/tasks?opt_fields=name,notes,completed,created_at,permalink_url`,
-      method: 'POST',
-    },
-    {
-      name: 'delete task',
-      run: (signal: AbortSignal) => executeAsanaDeleteTask({ ...AUTH, taskGid: 'task1' }, signal),
-      url: `${API_BASE_URL}/tasks/task1`,
-      method: 'DELETE',
-    },
-    {
-      name: 'get project',
-      run: (signal: AbortSignal) =>
-        executeAsanaGetProject({ ...AUTH, projectGid: 'project1' }, signal),
-      url: `${API_BASE_URL}/projects/project1?opt_fields=${PROJECT_OPT_FIELDS}`,
-      method: 'GET',
-    },
-    {
-      name: 'get projects',
-      run: (signal: AbortSignal) =>
-        executeAsanaGetProjects({ ...AUTH, workspace: 'workspace1' }, signal),
-      url: `${API_BASE_URL}/projects?workspace=workspace1`,
-      method: 'GET',
-    },
-    {
-      name: 'get task',
-      run: (signal: AbortSignal) => executeAsanaGetTask({ ...AUTH, taskGid: 'task1' }, signal),
-      url: `${API_BASE_URL}/tasks/task1?opt_fields=${TASK_OPT_FIELDS}`,
-      method: 'GET',
-    },
-    {
-      name: 'list sections',
-      run: (signal: AbortSignal) =>
-        executeAsanaListSections({ ...AUTH, projectGid: 'project1' }, signal),
-      url: `${API_BASE_URL}/projects/project1/sections`,
-      method: 'GET',
-    },
-    {
-      name: 'list workspaces',
-      run: (signal: AbortSignal) => executeAsanaListWorkspaces(AUTH, signal),
-      url: `${API_BASE_URL}/workspaces?limit=100`,
-      method: 'GET',
-    },
-    {
-      name: 'search tasks',
-      run: (signal: AbortSignal) =>
-        executeAsanaSearchTasks({ ...AUTH, workspace: 'workspace1' }, signal),
-      url: `${API_BASE_URL}/workspaces/workspace1/tasks/search?${searchParams.toString()}`,
-      method: 'GET',
-    },
-    {
-      name: 'update task',
-      run: (signal: AbortSignal) =>
-        executeAsanaUpdateTask({ ...AUTH, taskGid: 'task1', completed: true }, signal),
-      url: `${API_BASE_URL}/tasks/task1`,
-      method: 'PUT',
-    },
-  ]
 
   it('preserves task-list pagination, project precedence, and the default limit', async () => {
     fetchMock.mockResolvedValueOnce(

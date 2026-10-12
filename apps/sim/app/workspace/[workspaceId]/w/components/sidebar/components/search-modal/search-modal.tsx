@@ -969,7 +969,8 @@ function SearchModalContent({
     if (!query) return
 
     const homeHref = `/workspace/${workspaceId}/home`
-    const sentToMountedHome = window.location.pathname === homeHref && sendMothershipMessage(query)
+    const sentToMountedHome =
+      window.location.pathname === homeHref && sendMothershipMessage({ content: query })
 
     if (!sentToMountedHome) {
       /* One-shot auto-send handoff: Home's mount consumer sends it on arrival,

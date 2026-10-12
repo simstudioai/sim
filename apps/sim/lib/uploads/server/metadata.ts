@@ -71,24 +71,6 @@ function isSameFileMetadataInsert(
   )
 }
 
-function isSameFileMetadataRequest(
-  left: FileMetadataInsertOptions,
-  right: FileMetadataInsertOptions
-): boolean {
-  return (
-    left.key === right.key &&
-    left.userId === right.userId &&
-    (left.workspaceId ?? null) === (right.workspaceId ?? null) &&
-    (left.organizationId ?? null) === (right.organizationId ?? null) &&
-    (left.folderId ?? null) === (right.folderId ?? null) &&
-    left.context === right.context &&
-    left.originalName === right.originalName &&
-    left.contentType === right.contentType &&
-    left.size === right.size &&
-    (left.id ?? null) === (right.id ?? null)
-  )
-}
-
 async function findActiveFileMetadataByKey(
   executor: DbOrTx,
   key: string
@@ -284,83 +266,6 @@ export async function insertImmutableFileMetadata(
 ): Promise<FileMetadataRecord> {
   if (executor) return insertImmutableFileMetadataWithExecutor(executor, options)
   return insertFileMetadataWithExecutor(db, options, true)
-}
-
-/**
- * Bulk-insert file metadata rows in a single statement.
- *
- * Intended for batch upload flows that create many fresh keys at once (e.g. the
- * presigned batch route), replacing a fan-out of individual `insertFileMetadata`
- * calls. Uses `ON CONFLICT DO NOTHING` on the active-key unique index, so it is
- * safe against a concurrent single insert. Already-present active keys are
- * accepted only when every ownership and file-identity field matches; any
- * mismatch is rejected. Unlike {@link insertFileMetadata} it does NOT restore
- * soft-deleted rows — callers use this only for newly generated keys.
- */
-export async function insertFileMetadataMany(
-  rows: Array<Omit<FileMetadataInsertOptions, 'id'> & { id?: string }>
-): Promise<void> {
-  if (rows.length === 0) {
-    return
-  }
-
-  const uniqueRowsByKey = new Map<string, (typeof rows)[number]>()
-  for (const row of rows) {
-    assertFileMetadataOrganizationOwner(row)
-    const existing = uniqueRowsByKey.get(row.key)
-    if (existing && !isSameFileMetadataRequest(existing, row)) {
-      throw new ActiveFileMetadataKeyConflictError(row.key)
-    }
-    uniqueRowsByKey.set(row.key, existing ?? row)
-  }
-  const uniqueRows = [...uniqueRowsByKey.values()]
-
-  const inserted = await db
-    .insert(workspaceFiles)
-    .values(
-      uniqueRows.map((row) => ({
-        id: row.id || generateId(),
-        key: row.key,
-        userId: row.userId,
-        workspaceId: row.workspaceId || null,
-        organizationId: row.organizationId || null,
-        folderId: row.folderId ?? null,
-        context: row.context,
-        originalName: row.originalName,
-        displayName: row.originalName,
-        contentType: row.contentType,
-        sizeBytes: row.size,
-        deletedAt: null,
-        uploadedAt: new Date(),
-      }))
-    )
-    .onConflictDoNothing()
-    .returning()
-
-  const insertedKeys = new Set(inserted.map((record) => record.key))
-  const conflictingRows = uniqueRows.filter((row) => !insertedKeys.has(row.key))
-  if (conflictingRows.length > 0) {
-    const activeRows = await db
-      .select()
-      .from(workspaceFiles)
-      .where(
-        and(
-          inArray(
-            workspaceFiles.key,
-            conflictingRows.map((row) => row.key)
-          ),
-          isNull(workspaceFiles.deletedAt)
-        )
-      )
-    const activeByKey = new Map(activeRows.map((record) => [record.key, record]))
-    for (const row of conflictingRows) {
-      const active = activeByKey.get(row.key)
-      if (!active) {
-        throw new ActiveFileMetadataKeyConflictError(row.key)
-      }
-      resolveExistingFileMetadata(active, row)
-    }
-  }
 }
 
 /**

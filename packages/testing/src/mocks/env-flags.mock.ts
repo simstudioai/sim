@@ -32,7 +32,6 @@ interface EnvFlagsMockState {
   isUsageMonitoringEnabled: boolean
   isAccessControlEnabled: boolean
   isOrganizationsEnabled: boolean
-  isLiveEnterpriseSearchEnabled: boolean
   isInboxEnabled: boolean
   isSandboxDeploymentEntitled: boolean
   isSandboxesEnabled: boolean
@@ -40,6 +39,7 @@ interface EnvFlagsMockState {
   isWhitelabelingEnabled: boolean
   isAuditLogsEnabled: boolean
   isCustomBlocksEnabled: boolean
+  isCredentialGroupsEnabled: boolean
   isDataRetentionEnabled: boolean
   isDataDrainsEnabled: boolean
   isSessionPoliciesEnabled: boolean
@@ -87,7 +87,6 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,
   /** Live Search is the default Sim Search backend; indexed search is dormant. */
-  isLiveEnterpriseSearchEnabled: true,
   // True with billing off and no flags set — these carry a legacy default of
   // `true` so upgrades do not remove a feature. See
   // ENTERPRISE_FEATURE_LEGACY_DEFAULTS.
@@ -99,6 +98,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isSessionPoliciesEnabled: true,
   isAuditLogsEnabled: false,
   isCustomBlocksEnabled: false,
+  isCredentialGroupsEnabled: false,
   isDataRetentionEnabled: false,
   isDataDrainsEnabled: false,
   isForkingEnabled: false,

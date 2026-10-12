@@ -41,7 +41,7 @@ function parseTimeInput(raw: string): string | null {
   return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
 }
 
-export interface ChipTimePickerProps {
+interface ChipTimePickerProps {
   /** Selected time as an `HH:mm` (24h) string. */
   value?: string
   /** Called with the committed time in `HH:mm` format. */

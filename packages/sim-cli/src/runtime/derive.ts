@@ -1,3 +1,4 @@
+import type { Command } from 'commander'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 
 /**
@@ -67,4 +68,13 @@ export function kebab(value: string): string {
  */
 export function camel(flag: string): string {
   return flag.replace(/-([a-z])/g, (_match, character: string) => character.toUpperCase())
+}
+
+/** The command's own name and its ancestors', root excluded, in typing order. */
+export function commandPath(command: Command): string[] {
+  const names: string[] = []
+  for (let current: Command | null = command; current?.parent; current = current.parent) {
+    names.unshift(current.name())
+  }
+  return names
 }

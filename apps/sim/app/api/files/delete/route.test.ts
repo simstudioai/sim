@@ -54,7 +54,6 @@ describe('File Delete API Route', () => {
     filesAuthorizationMockFns.mockVerifyFileAccess.mockResolvedValue(true)
     storageServiceMockFns.mockDeleteFile.mockResolvedValue(undefined)
     storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
-    uploadsMockFns.mockGetStorageProvider.mockReturnValue('s3')
     uploadsMockFns.mockIsUsingCloudStorage.mockReturnValue(true)
   })
 

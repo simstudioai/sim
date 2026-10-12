@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { encryptionMockFns, environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
@@ -15,9 +16,10 @@ import {
   loggingSessionMock,
   loggingSessionMockFns,
 } from '@sim/testing/mocks/logging-session.mock'
-import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
 import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBlock } from '@/blocks/registry'
@@ -35,7 +37,6 @@ import {
 import type { SerializedBlock } from '@/serializer/types'
 
 const mockResolveBillingAttribution = billingAttributionMockFns.mockResolveBillingAttribution
-const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
 const { mockGetCustomBlockAuthority } = customBlockOperationsMockFns
 const { mockGetUserEmailById } = usersQueriesMockFns
 const {
@@ -52,7 +53,7 @@ authInternalMockFns.mockGenerateInternalToken.mockResolvedValue('test-token')
 
 const {
   mockExecutorExecute,
-  mockCreateSnapshot,
+  mockResolveSnapshot,
   mockAdmitCustomBlockChildExecution,
   mockTrackChildRun,
   mockBuildTraceSpans,
@@ -61,7 +62,7 @@ const {
   executorOptions,
 } = vi.hoisted(() => ({
   mockExecutorExecute: vi.fn(),
-  mockCreateSnapshot: vi.fn(),
+  mockResolveSnapshot: vi.fn(),
   mockAdmitCustomBlockChildExecution: vi.fn(),
   mockTrackChildRun: vi.fn(),
   mockBuildTraceSpans: vi.fn(),
@@ -160,7 +161,7 @@ afterAll(() => {
 })
 
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
-  snapshotService: { createSnapshotWithDeduplication: mockCreateSnapshot },
+  snapshotService: { resolveSnapshot: mockResolveSnapshot },
 }))
 
 vi.mock('@/lib/auth/internal', () => authInternalMock)
@@ -356,7 +357,7 @@ describe('WorkflowBlockHandler', () => {
       await expect(handler.execute(ctx, mockBlock, inputs)).rejects.toThrow(
         'Child workflow child-workflow-id belongs to a different workspace and cannot be executed'
       )
-      expect(mockCreateSnapshot).not.toHaveBeenCalled()
+      expect(mockResolveSnapshot).not.toHaveBeenCalled()
       expect(mockExecutorExecute).not.toHaveBeenCalled()
       expect(mockReadWorkflowDefinitionAsExecutor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -369,6 +370,21 @@ describe('WorkflowBlockHandler', () => {
           },
         })
       )
+    })
+
+    it('leaves an internal child load fault for the block executor to log with the run identity', async () => {
+      mockReadWorkflowDefinitionAsExecutor.mockRejectedValueOnce(
+        new TypeError('definition is undefined')
+      )
+
+      const thrown = await handler
+        .execute({ ...mockContext, executionId: 'parent-execution-id' }, mockBlock, inputs)
+        .catch((error: unknown) => error)
+
+      expect(thrown).toBeInstanceOf(Error)
+      /** Logged here, the block executor would skip its log carrying block, run, and stack. */
+      expect(logFailureOnce(createLogger('OuterBoundary'), 'probe', thrown)).toBe('internal')
+      expect(classifyFailure(thrown)).toBe('internal')
     })
 
     it("runs a non-custom child under the parent's env and redaction policy", async () => {
@@ -395,7 +411,11 @@ describe('WorkflowBlockHandler', () => {
             },
           }),
       })
-      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockResolveSnapshot.mockResolvedValue({
+        id: 'snapshot-1',
+        workflowId: 'workflow-1',
+        stateHash: 'hash',
+      })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
 
       await handler.execute(ctx, mockBlock, inputs)
@@ -463,7 +483,11 @@ describe('WorkflowBlockHandler', () => {
             }),
         }
       })
-      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockResolveSnapshot.mockResolvedValue({
+        id: 'snapshot-1',
+        workflowId: 'workflow-1',
+        stateHash: 'hash',
+      })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
 
       await handler.execute(ctx, customBlock, {})
@@ -557,7 +581,11 @@ describe('WorkflowBlockHandler', () => {
             }),
         }
       })
-      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockResolveSnapshot.mockResolvedValue({
+        id: 'snapshot-1',
+        workflowId: 'workflow-1',
+        stateHash: 'hash',
+      })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
 
       await handler.execute(ctx, customBlock, {})
@@ -642,7 +670,11 @@ describe('WorkflowBlockHandler', () => {
             }),
         }
       })
-      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockResolveSnapshot.mockResolvedValue({
+        id: 'snapshot-1',
+        workflowId: 'workflow-1',
+        stateHash: 'hash',
+      })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
 
       await handler.execute(ctx, customBlock, {})
@@ -706,7 +738,11 @@ describe('WorkflowBlockHandler', () => {
             },
           }),
       })
-      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockResolveSnapshot.mockResolvedValue({
+        id: 'snapshot-1',
+        workflowId: 'workflow-1',
+        stateHash: 'hash',
+      })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
 
       await handler.execute(ctx, mockBlock, inputs)
@@ -744,11 +780,11 @@ describe('WorkflowBlockHandler', () => {
       }
 
       expect(() =>
-        (handler as any).mapChildOutputToParent(childResult, 'child-id', 'Child Workflow', 100)
+        (handler as any).mapChildOutputToParent(childResult, 'child-id', 'Child Workflow')
       ).toThrow('"Child Workflow" failed: Child workflow failed')
 
       try {
-        ;(handler as any).mapChildOutputToParent(childResult, 'child-id', 'Child Workflow', 100)
+        ;(handler as any).mapChildOutputToParent(childResult, 'child-id', 'Child Workflow')
       } catch (error: any) {
         expect(error.childTraceSpans).toEqual([])
       }
@@ -818,7 +854,11 @@ describe('WorkflowBlockHandler', () => {
             }),
         }
       })
-      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockResolveSnapshot.mockResolvedValue({
+        id: 'snapshot-1',
+        workflowId: 'workflow-1',
+        stateHash: 'hash',
+      })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
     })
 

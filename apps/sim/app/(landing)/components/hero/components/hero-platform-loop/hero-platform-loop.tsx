@@ -266,7 +266,7 @@ export function HeroPlatformLoop() {
       >
         <div
           ref={previewContainerRef}
-          className='relative flex h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)] [--preview-resource-width:50%]'
+          className='relative flex size-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)] [--preview-resource-width:50%]'
         >
           <div className={cn('relative h-full min-w-0 flex-1', stageOpen && 'max-lg:hidden')}>
             <HeroChatLoop
@@ -338,7 +338,7 @@ export function HeroPlatformLoop() {
           >
             <div
               className={cn(
-                'h-full w-full transition-[transform,opacity] duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+                'size-full transition-[transform,opacity] duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
                 stageOpen ? 'translate-x-0 opacity-100' : 'translate-x-6 opacity-0'
               )}
             >

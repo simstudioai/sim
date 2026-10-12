@@ -21,7 +21,7 @@ import {
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { env, envNumber } from '@/lib/core/config/env'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { captureServerEvent } from '@/lib/posthog/server'

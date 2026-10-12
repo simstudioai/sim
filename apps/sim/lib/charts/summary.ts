@@ -1,5 +1,6 @@
 import { toRecord } from '@sim/utils/object'
 import type { EChartsType, registerUpdateLifecycle } from 'echarts'
+import { CHART_ANNOTATION_SERIES_ID } from '@/lib/charts/annotations'
 import type { ChartReadout, ChartReadoutValue } from '@/lib/charts/time-series'
 
 type ChartModel = Parameters<Parameters<typeof registerUpdateLifecycle<'afterupdate'>>[1]>[0]
@@ -43,6 +44,7 @@ export function summarizeChart(model: ChartModel, labels: Record<string, string>
   const values: ChartReadoutValue[] = []
   model.eachSeries((series) => {
     if (series.get('coordinateSystem') !== 'cartesian2d') return
+    if (series.id === CHART_ANNOTATION_SERIES_ID) return
     const data = series.getRawData()
     const axis = model.getComponent('yAxis', Number(toRecord(series.option).yAxisIndex ?? 0))
     const format = toRecord(toRecord(axis?.option).axisLabel).formatter

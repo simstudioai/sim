@@ -14,12 +14,10 @@ import { sql } from 'drizzle-orm'
 import postgres from 'postgres'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { enabled, signalChanged, fireTrigger } = vi.hoisted(() => ({
-  enabled: vi.fn(),
+const { signalChanged, fireTrigger } = vi.hoisted(() => ({
   signalChanged: vi.fn(),
   fireTrigger: vi.fn(),
 }))
-vi.mock('@/lib/table/ttl-availability', () => ({ isTableRowTtlEnabled: enabled }))
 vi.mock('@/lib/table/events', () => ({ signalTableRowsChanged: signalChanged }))
 vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: fireTrigger }))
 
@@ -67,9 +65,10 @@ async function seedRows(tableId: string, count: number, value: string | null = e
 async function rowCount(tableId: string): Promise<number> {
   const [result] =
     await control`SELECT count(*)::int AS count FROM user_table_rows WHERE table_id = ${tableId}`
-  const [definition] =
-    await control`SELECT row_count FROM user_table_definitions WHERE id = ${tableId}`
-  expect(definition.row_count).toBe(result.count)
+  const [definition] = await control`SELECT d.row_count + coalesce(sum(c.row_delta), 0)::int AS live
+    FROM user_table_definitions d LEFT JOIN user_table_row_changes c ON c.table_id = d.id
+    WHERE d.id = ${tableId} GROUP BY d.id`
+  expect(definition.live).toBe(result.count)
   return result.count
 }
 
@@ -115,7 +114,6 @@ describe.skipIf(!migrated)('Expiration with real PostgreSQL transactions', () =>
   })
 
   beforeEach(async () => {
-    enabled.mockResolvedValue(true)
     fireTrigger.mockResolvedValue(undefined)
     await control`DELETE FROM user_table_definitions WHERE workspace_id = ${workspaceId}`
   })
@@ -180,12 +178,9 @@ describe.skipIf(!migrated)('Expiration with real PostgreSQL transactions', () =>
     expect(fireTrigger.mock.calls[0][4]).toHaveLength(4)
   })
 
-  it('respects feature disablement, delete locks, and archival, then catches up when restored', async () => {
+  it('respects delete locks and archival, then catches up when restored', async () => {
     const table = await createTable()
     await seedRows(table, 1)
-    enabled.mockResolvedValue(false)
-    expect((await runCleanupTableRowTtl()).deleted).toBe(0)
-    enabled.mockResolvedValue(true)
     await control`UPDATE user_table_definitions SET delete_locked = true WHERE id = ${table}`
     expect((await runCleanupTableRowTtl()).deleted).toBe(0)
     await control`UPDATE user_table_definitions SET delete_locked = false, archived_at = now() WHERE id = ${table}`

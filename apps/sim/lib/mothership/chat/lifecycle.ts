@@ -8,7 +8,11 @@ import {
 } from '@sim/platform-authz/workflow'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
-import { type ConversationMode, conversationModeSelection } from '@/lib/mothership/chat/intent'
+import {
+  type ConversationMode,
+  chatEffortSelection,
+  conversationModeSelection,
+} from '@/lib/mothership/chat/intent'
 import {
   authorizeOrganizationChat,
   authorizeOrganizationChatCancellation,
@@ -17,6 +21,7 @@ import {
   type PersistedMessage,
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
+import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,
@@ -59,6 +64,7 @@ const copilotChatDetailColumns = {
   title: copilotChats.title,
   conversationId: copilotChats.conversationId,
   resources: copilotChats.resources,
+  effort: chatEffortSelection,
   createdAt: copilotChats.createdAt,
   updatedAt: copilotChats.updatedAt,
 } as const
@@ -163,7 +169,7 @@ export type CopilotChatDetail = Pick<
   | 'resources'
   | 'createdAt'
   | 'updatedAt'
-> & { mode: ConversationMode }
+> & { mode: ConversationMode; effort: MothershipEffort | null }
 
 export type CopilotChatDetailRow = CopilotChatDetail & {
   /** Transcript assembled from `copilot_messages` (no longer a chat-row column). */

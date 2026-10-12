@@ -4,11 +4,11 @@ import type {
   OrganizationSettingsSection,
 } from '@/components/settings/navigation'
 import {
-  organizationBillingQueryOptions,
   organizationDetailQueryOptions,
   organizationRosterQueryOptions,
 } from '@/hooks/queries/organization'
 import { organizationBillingSummaryOptions } from '@/hooks/queries/organization-billing-summary'
+import { organizationPlanSeatsOptions } from '@/hooks/queries/organization-plan-seats'
 import { prefetchQueryOnIntent } from '@/hooks/queries/utils/prefetch-query-on-intent'
 
 interface OrganizationSettingsQueryWarmContext {
@@ -28,7 +28,7 @@ export function warmOrganizationSettingsSectionQuery(
     prefetchQueryOnIntent(queryClient, organizationDetailQueryOptions(organizationId))
     prefetchQueryOnIntent(queryClient, organizationRosterQueryOptions(organizationId))
     if (isAdmin) {
-      prefetchQueryOnIntent(queryClient, organizationBillingQueryOptions(organizationId))
+      prefetchQueryOnIntent(queryClient, organizationPlanSeatsOptions(organizationId))
     }
   }
   if (section === 'billing' && isAdmin) {

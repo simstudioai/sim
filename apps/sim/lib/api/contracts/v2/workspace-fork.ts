@@ -11,6 +11,7 @@ import {
   forkMappableResourceTypeSchema,
   forkRemapKindSchema,
   forkResourceSelectionSchema,
+  forkWorkflowComparisonSchema,
   promoteCopyResourcesSchema,
 } from '@/lib/api/contracts/workspace-fork'
 
@@ -336,6 +337,11 @@ export const v2SyncPreviewDataSchema = z
               'Existing target workflow identifier; absent when apply will create a new target.'
             ),
           name: z.string().max(1024).describe('Display name of the workflow or workspace.'),
+          comparison: forkWorkflowComparisonSchema
+            .optional()
+            .describe(
+              'Last successfully synced source deployment compared with the source deployment pinned by this preview. Absent for archive actions.'
+            ),
         })
       )
       .max(2000)

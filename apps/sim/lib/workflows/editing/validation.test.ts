@@ -4,7 +4,7 @@ import {
   integrationsAvailabilityMock,
   integrationsAvailabilityMockFns,
 } from '@sim/testing/mocks/integrations-availability.mock'
-import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
 import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import type { Mock } from 'vitest'
@@ -279,6 +279,7 @@ vi.mock('@/providers/utils', () => providersUtilsMock)
 vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
+import * as providerModels from '@/providers/models'
 import {
   collectUnresolvedAgentToolReferences,
   collectUnresolvedReferences,
@@ -296,8 +297,6 @@ tableServiceMockFns.mockGetTableById.mockResolvedValue(null)
 
 const mockGetBlock = getBlock as Mock
 mockGetBlock.mockImplementation((type: string) => blockConfigsByType[type])
-
-const mockGetHostedModels = providersUtilsMockFns.mockGetHostedModels
 
 const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
 
@@ -836,12 +835,11 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
 describe('preValidateCredentialInputs (hosted models)', () => {
   beforeEach(() => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
-    mockGetHostedModels.mockReturnValue(['claude-sonnet-4-6'])
+    vi.spyOn(providerModels, 'getHostedModels').mockReturnValue(['claude-sonnet-4-6'])
     setEnvFlags({ isHosted: true })
   })
 
   afterEach(() => {
-    mockGetHostedModels.mockReset()
     setEnvFlags({ isHosted: false })
   })
 

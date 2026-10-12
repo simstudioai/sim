@@ -21,9 +21,6 @@ vi.mock('@/components/settings/settings-header', () => ({
 vi.mock('@/components/settings/settings-panel', () => ({
   SettingsSectionProvider: ({ children }: { children: ReactNode }) => children,
 }))
-vi.mock('@/components/settings/use-settings-before-unload', () => ({
-  useSettingsBeforeUnload: vi.fn(),
-}))
 
 import { StandaloneSettingsShell } from '@/components/settings/standalone-settings-shell'
 import {

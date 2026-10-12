@@ -11,10 +11,12 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
+import type { NormalizedWorkflowData } from '@/lib/workflows/persistence/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
   BlockCompletionCallbackData,
   ExecutionMetadata,
+  ExecutionTestHooks,
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
@@ -54,10 +56,14 @@ export interface ExecuteWorkflowOptions {
   abortSignal?: AbortSignal
   /** Use the live/draft workflow state instead of the deployed state. Used by copilot. */
   useDraftState?: boolean
+  /** Draft state the caller already loaded, reused instead of reading the draft tables again. */
+  draftState?: NormalizedWorkflowData
   /** Immutable workflow state selected by a trusted server-side trigger boundary. */
   workflowStateOverride?: NonNullable<ExecutionMetadata['workflowStateOverride']>
   /** Stop execution after this block completes. Used for "run until block" feature. */
   stopAfterBlockId?: string
+  /** Workflow test run: mocked blocks await these hooks instead of running. */
+  testHooks?: ExecutionTestHooks
   /** Run-from-block configuration using a prior execution snapshot. */
   runFromBlock?: {
     startBlockId: string
@@ -223,9 +229,11 @@ export async function executeWorkflow(
       base64MaxBytes: streamConfig?.base64MaxBytes,
       abortSignal: streamConfig?.abortSignal,
       stopAfterBlockId: streamConfig?.stopAfterBlockId,
+      testHooks: streamConfig?.testHooks,
       trustedInitialResolvedSecretTraceProvenance:
         streamConfig?.trustedInitialResolvedSecretTraceProvenance,
       runFromBlock: streamConfig?.runFromBlock,
+      draftState: streamConfig?.draftState,
     }))
 
     const blockTypes = [

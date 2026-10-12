@@ -20,12 +20,6 @@ export interface DiscordMessage {
   mention_everyone: boolean
 }
 
-interface DiscordAPIError {
-  code: number
-  message: string
-  errors?: Record<string, any>
-}
-
 export interface DiscordGuild {
   id: string
   name: string
@@ -534,44 +528,3 @@ export interface DiscordBulkDeleteMessagesResponse extends BaseDiscordResponse {
     message: string
   }
 }
-
-export type DiscordResponse =
-  | DiscordSendMessageResponse
-  | DiscordGetMessagesResponse
-  | DiscordGetServerResponse
-  | DiscordGetUserResponse
-  | DiscordEditMessageResponse
-  | DiscordDeleteMessageResponse
-  | DiscordAddReactionResponse
-  | DiscordRemoveReactionResponse
-  | DiscordPinMessageResponse
-  | DiscordUnpinMessageResponse
-  | DiscordCreateThreadResponse
-  | DiscordJoinThreadResponse
-  | DiscordLeaveThreadResponse
-  | DiscordArchiveThreadResponse
-  | DiscordCreateChannelResponse
-  | DiscordUpdateChannelResponse
-  | DiscordDeleteChannelResponse
-  | DiscordGetChannelResponse
-  | DiscordCreateRoleResponse
-  | DiscordUpdateRoleResponse
-  | DiscordDeleteRoleResponse
-  | DiscordAssignRoleResponse
-  | DiscordRemoveRoleResponse
-  | DiscordKickMemberResponse
-  | DiscordBanMemberResponse
-  | DiscordUnbanMemberResponse
-  | DiscordGetMemberResponse
-  | DiscordUpdateMemberResponse
-  | DiscordCreateInviteResponse
-  | DiscordGetInviteResponse
-  | DiscordDeleteInviteResponse
-  | DiscordCreateWebhookResponse
-  | DiscordExecuteWebhookResponse
-  | DiscordGetWebhookResponse
-  | DiscordDeleteWebhookResponse
-  | DiscordListChannelsResponse
-  | DiscordListRolesResponse
-  | DiscordGetPinnedMessagesResponse
-  | DiscordBulkDeleteMessagesResponse

@@ -5,21 +5,21 @@ import type { NextConfig } from 'next'
 type DocsRedirect = Awaited<ReturnType<NonNullable<NextConfig['redirects']>>>[number]
 
 /**
- * Every redirect the docs site serves, in match order — Next applies the first
+ * Every unprefixed path redirect, in match order — Next applies the first
  * matching rule.
  *
  * This lives outside `next.config.ts` so it can be read without evaluating that
  * module. `createMDX()` runs at import time and bundles `source.config.ts`
  * against `process.cwd()`, so importing the config from the root Vitest project
  * fails with `The entry point "source.config.ts" cannot be marked as external`.
- * `scripts/openapi/docs-redirects.test.ts` reads this array directly to keep the
+ * `scripts/openapi/docs-redirects.test.ts` reads `DOCS_REDIRECTS` directly to keep the
  * `/api-reference/` rules honest against the specs.
  *
  * The whole table lives here rather than only the `/api-reference/` block: Next
  * applies the first matching rule, so splitting one ordered list across two
  * modules would make match order an emergent property of two files.
  */
-export const DOCS_REDIRECTS: DocsRedirect[] = [
+const PATH_REDIRECTS: DocsRedirect[] = [
   ...Object.entries(integrationNavigation.redirects).map(([from, to]) => ({
     source: `/integrations/${from}`,
     destination: `/integrations/${to}`,
@@ -76,9 +76,9 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
     destination: '/workflows/deployment/mcp',
     permanent: true,
   },
-  // building-agents section renamed to agents; mcp and skills folded into it
   { source: '/building-agents', destination: '/agents', permanent: true },
   { source: '/building-agents/:path*', destination: '/agents/:path*', permanent: true },
+  // Browsers may retain this permanent redirect; the workspace guide uses /mcp/overview.
   { source: '/mcp', destination: '/agents/mcp', permanent: true },
   { source: '/skills', destination: '/agents/skills', permanent: true },
   // tools/ + triggers/<service> unified into per-service integrations/ pages.
@@ -389,4 +389,29 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
     destination: '/api-reference/workflow-runs/getWorkflowRunV2',
     permanent: false,
   },
+]
+
+/**
+ * Locale prefixes the docs served before translations were removed in #7247
+ * (`lib/i18n.ts` declared `en`, `es`, `fr`, `de`, `ja`, `zh`; `en` was hidden).
+ * Search engines still hold these URLs, so each one 308s to its English page.
+ */
+const RETIRED_LOCALE_PREFIX = '/:lang(en|es|fr|de|ja|zh)'
+
+/**
+ * Every redirect the docs site serves, in match order — Next applies the first
+ * matching rule and does not chain them internally.
+ *
+ * Each path redirect is repeated under the retired locale prefix with the same
+ * destination, so `/fr/tools/x` lands on `/integrations/x` in one hop rather
+ * than stripping the locale and redirecting again. The trailing catch-all
+ * strips the prefix from every other path, which already resolves.
+ */
+export const DOCS_REDIRECTS: DocsRedirect[] = [
+  ...PATH_REDIRECTS,
+  ...PATH_REDIRECTS.map((rule) => ({
+    ...rule,
+    source: rule.source === '/' ? RETIRED_LOCALE_PREFIX : `${RETIRED_LOCALE_PREFIX}${rule.source}`,
+  })),
+  { source: `${RETIRED_LOCALE_PREFIX}/:path*`, destination: '/:path*', permanent: true },
 ]

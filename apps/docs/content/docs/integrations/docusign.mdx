@@ -216,4 +216,18 @@ Get the recipient status details for a DocuSign envelope
 |   ↳ `email` | string | Recipient email |
 |   ↳ `status` | string | Recipient status |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a DocuSign account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/docusign` |
+| Environment variables | `DOCUSIGN_CLIENT_ID`, `DOCUSIGN_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `signature` | Send, track, and manage envelopes with the eSignature API |
+| `extended` | Keep access active by extending the refresh token lifetime |
+
 

@@ -18,6 +18,7 @@ import {
   type Trail,
 } from '@aws-sdk/client-cloudtrail'
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import type { AwsCloudtrailCancelQueryBody } from '@/lib/api/contracts/tools/aws/cloudtrail-cancel-query'
 import type { AwsCloudtrailDescribeQueryBody } from '@/lib/api/contracts/tools/aws/cloudtrail-describe-query'
 import type { AwsCloudtrailDescribeTrailsBody } from '@/lib/api/contracts/tools/aws/cloudtrail-describe-trails'
@@ -103,8 +104,8 @@ function parseCloudTrailEvent(raw: string | undefined): {
   if (!raw) return { cloudTrailEvent: null, cloudTrailEventRaw: null }
   try {
     const parsed: unknown = JSON.parse(raw)
-    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return { cloudTrailEvent: parsed as Record<string, unknown>, cloudTrailEventRaw: null }
+    if (isRecordLike(parsed)) {
+      return { cloudTrailEvent: parsed, cloudTrailEventRaw: null }
     }
   } catch {
     logger.warn('Failed to parse CloudTrailEvent payload; returning the raw string')

@@ -5,6 +5,7 @@ import type { CompetitorProfile } from '@/lib/compare/data/types'
 export const powerAutomateProfile: CompetitorProfile = {
   id: 'power-automate',
   name: 'Microsoft Power Automate',
+  mentions: ['Power Automate'],
   website: 'https://www.microsoft.com/en-us/power-platform/products/power-automate',
   brand: {
     icon: MicrosoftIcon,

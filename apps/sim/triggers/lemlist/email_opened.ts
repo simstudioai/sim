@@ -23,7 +23,7 @@ export const lemlistEmailOpenedTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'lemlist_email_opened',
     triggerOptions: lemlistTriggerOptions,
-    setupInstructions: lemlistSetupInstructions('emailsOpened'),
+    setupInstructions: lemlistSetupInstructions(),
     extraFields: buildLemlistExtraFields('lemlist_email_opened'),
   }),
 

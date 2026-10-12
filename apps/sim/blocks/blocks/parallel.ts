@@ -1,8 +1,7 @@
 import { ParallelIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
 
-export const ParallelBlock: BlockConfig<ToolResponse> = {
+export const ParallelBlock: BlockConfig = {
   type: 'parallel_ai',
   name: 'Parallel AI',
   description: 'Web research with Parallel AI',

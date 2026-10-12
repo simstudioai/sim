@@ -371,6 +371,9 @@ export const createCredentialGroupMcpConnectorBodySchema = z.discriminatedUnion(
   z.object({ connectorId: z.literal('granola') }).strict(),
   z.object({ connectorId: z.literal('notion') }).strict(),
   z.object({ connectorId: z.literal('coda') }).strict(),
+  z.object({ connectorId: z.literal('hubspot') }).strict(),
+  z.object({ connectorId: z.literal('lucid') }).strict(),
+  z.object({ connectorId: z.literal('zoom') }).strict(),
   z
     .object({
       connectorId: z.literal('databricks'),
@@ -409,6 +412,7 @@ export const workspaceAccountsSettingsSchema = z.object({
    * so an admin is never shown an account type nobody could finish connecting.
    */
   availableProviders: z.array(credentialGroupProviderSchema),
+  availableMcpConnectors: z.array(managedMcpConnectorIdSchema),
 })
 
 export type WorkspaceAccountsSettings = z.output<typeof workspaceAccountsSettingsSchema>

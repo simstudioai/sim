@@ -10,6 +10,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000000"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Modal](https://modal.com/) is a serverless platform for running Python code, AI models, and batch jobs on cloud CPUs and GPUs.
+
+With the Modal block, you can:
+
+- **Call your functions**: Send an HTTPS request to a deployed Modal Web Function or Server and get back its response
+- **Generate completions**: Get chat completions from a model you serve on a Modal Endpoint
+- **List models**: See which models a token can reach
+
+To connect, create a proxy auth token in your Modal workspace settings and enter its token ID and secret in the block.
+
+In Sim, the Modal block lets your agents use compute you already run on Modal: call a custom inference function, run a GPU job on data from an earlier block, or use your own hosted model inside a workflow.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Modal into your workflow to reach the serverless compute you already run there. Invoke a deployed Web Function or Server over HTTPS with proxy-token auth, generate completions from a model served by a Modal Endpoint, and list the models a token can reach.

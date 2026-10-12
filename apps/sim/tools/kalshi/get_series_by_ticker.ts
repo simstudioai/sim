@@ -45,7 +45,7 @@ export const kalshiGetSeriesByTickerTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_series_by_ticker')
+      handleKalshiError(data, 'get_series_by_ticker')
     }
 
     const series = data.series || data
@@ -145,7 +145,7 @@ export const kalshiGetSeriesByTickerV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_series_by_ticker_v2')
+      handleKalshiError(data, 'get_series_by_ticker_v2')
     }
 
     const series = data.series || data

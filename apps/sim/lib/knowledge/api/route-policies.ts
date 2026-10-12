@@ -11,12 +11,17 @@ import {
 } from '@/lib/api/server/routes'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { internalPersonalCredentialConnectionErrorPolicy } from '@/lib/credentials/api/route-policies'
+import {
+  isBYOKEmbeddingCredentialRejection,
+  isBYOKEmbeddingQuotaExhaustion,
+  isEmbeddingQuotaExhaustion,
+} from '@/lib/embeddings'
 import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import { KnowledgeSearchProvenanceUnavailableError } from '@/lib/knowledge/application/search'
 import { KnowledgeDocumentUnsupportedMediaTypeError } from '@/lib/knowledge/application/upload-sessions'
-import { SearchIndexDormantError } from '@/lib/sim-search/indexed/gate'
+import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
 import { v2Error } from '@/app/api/v2/lib/response'
 
 function internalKnowledgeErrorPolicy(unhandledMessage: string): InternalErrorPolicy {
@@ -40,6 +45,18 @@ const internalKnowledgeUploadErrorPolicy: InternalErrorPolicy = {
     internalErrorResponse(500, { error: 'Failed to process knowledge upload request' }),
 }
 
+const BYOK_EMBEDDING_QUOTA_SEARCH_MESSAGE =
+  "Knowledge search could not run: this workspace's embedding API key (Settings > Provider API keys) has no remaining quota. Add credit with the provider or replace the key."
+const BYOK_EMBEDDING_REJECTED_SEARCH_MESSAGE =
+  "Knowledge search could not run: this workspace's embedding API key (Settings > Provider API keys) was rejected. Update the key and try again."
+const PLATFORM_EMBEDDING_QUOTA_SEARCH_MESSAGE =
+  'Knowledge search is temporarily unavailable because the embedding provider has no remaining quota. Try again later.'
+
+/**
+ * Names the failures a caller can act on instead of collapsing them into the generic
+ * vector-search `500`. Every status stays `5xx`, so retry and alerting behavior keyed
+ * on server errors is unchanged; only the message and the specific code differ.
+ */
 const internalKnowledgeSearchErrorPolicy: InternalErrorPolicy = {
   project(error) {
     if (error instanceof KnowledgeUsageLimitExceededError) {
@@ -47,6 +64,18 @@ const internalKnowledgeSearchErrorPolicy: InternalErrorPolicy = {
     }
     if (error instanceof KnowledgeSearchProvenanceUnavailableError) {
       return internalErrorResponse(422, { error: error.message })
+    }
+    if (isBYOKEmbeddingQuotaExhaustion(error)) {
+      return internalErrorResponse(503, { error: BYOK_EMBEDDING_QUOTA_SEARCH_MESSAGE })
+    }
+    if (isEmbeddingQuotaExhaustion(error)) {
+      return internalErrorResponse(503, { error: PLATFORM_EMBEDDING_QUOTA_SEARCH_MESSAGE })
+    }
+    if (isBYOKEmbeddingCredentialRejection(error)) {
+      return internalErrorResponse(502, { error: BYOK_EMBEDDING_REJECTED_SEARCH_MESSAGE })
+    }
+    if (error instanceof SearchDeadlineError) {
+      return internalErrorResponse(504, { error: error.message })
     }
     return internalOrchestrationErrorPolicy.project(error)
   },
@@ -58,18 +87,6 @@ export const internalKnowledgeSessionOrExecutorAuth = createInternalSessionOrExe
 })
 
 export const KNOWLEDGE_BASE_NOT_FOUND_MESSAGE = 'Knowledge base not found'
-
-/**
- * Answers an indexed-only surface refused while indexed organization search is dormant with a
- * `409`: the request is well formed and authorized, and the deployment's state is what refuses it.
- */
-function refuseDormantSearchIndex(base: InternalErrorPolicy): InternalErrorPolicy {
-  return extendInternalErrorPolicy(base, (error) =>
-    error instanceof SearchIndexDormantError
-      ? internalErrorResponse(409, { error: error.message })
-      : null
-  )
-}
 
 /**
  * Conceals a knowledge-base-scoped internal policy the way the v2 knowledge
@@ -124,12 +141,8 @@ export const internalKnowledgeErrorPolicies = {
   tags: concealKnowledgeBase(
     internalKnowledgeErrorPolicy('Failed to process knowledge tag request')
   ),
-  connectors: concealKnowledgeBase(
-    refuseDormantSearchIndex(internalKnowledgeErrorPolicy('Internal server error'))
-  ),
-  connectAccount: concealKnowledgeBase(
-    refuseDormantSearchIndex(internalPersonalCredentialConnectionErrorPolicy)
-  ),
+  connectors: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
+  connectAccount: concealKnowledgeBase(internalPersonalCredentialConnectionErrorPolicy),
   uploads: concealKnowledgeBase(internalKnowledgeUploadErrorPolicy),
 } as const
 

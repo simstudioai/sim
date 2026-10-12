@@ -176,7 +176,7 @@ export function isTimeoutError(error: unknown): boolean {
   return false
 }
 
-export function getTimeoutErrorMessage(error: unknown, timeoutMs?: number): string {
+export function getTimeoutErrorMessage(timeoutMs?: number): string {
   if (timeoutMs) {
     const timeoutSeconds = Math.floor(timeoutMs / 1000)
     const timeoutMinutes = Math.floor(timeoutSeconds / 60)

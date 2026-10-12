@@ -186,7 +186,11 @@ describe('a withheld run_workflow result', () => {
       'run_workflow'
     )
 
-    expect(result.output).toEqual({ resultWithheld: true, effect: 'not_attempted' })
+    expect(result.output).toEqual({
+      resultWithheld: true,
+      withheldReason: expect.stringMatching(/could not be verified/),
+      effect: 'not_attempted',
+    })
     expect(result.error).toContain('nothing was created')
   })
 
@@ -197,6 +201,7 @@ describe('a withheld run_workflow result', () => {
     expect(result.success).toBe(succeeded)
     expect(result.output).toEqual({
       resultWithheld: true,
+      withheldReason: expect.stringMatching(/could not be verified/),
       effect,
       // An id is present exactly when there is something to resolve.
       ...(effect === 'not_attempted' ? {} : { executionId: EXECUTION_ID }),

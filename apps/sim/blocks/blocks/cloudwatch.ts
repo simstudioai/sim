@@ -1,21 +1,6 @@
 import { CloudWatchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type {
-  CloudWatchDescribeAlarmHistoryResponse,
-  CloudWatchDescribeAlarmsResponse,
-  CloudWatchDescribeLogGroupsResponse,
-  CloudWatchDescribeLogStreamsResponse,
-  CloudWatchFilterLogEventsResponse,
-  CloudWatchGetLogEventsResponse,
-  CloudWatchGetMetricStatisticsResponse,
-  CloudWatchListMetricsResponse,
-  CloudWatchMuteAlarmResponse,
-  CloudWatchPutLogGroupRetentionResponse,
-  CloudWatchPutMetricDataResponse,
-  CloudWatchQueryLogsResponse,
-  CloudWatchUnmuteAlarmResponse,
-} from '@/tools/cloudwatch/types'
 
 /*
  * Canonical basic/advanced pairs, shared by the card sentences below. Listing
@@ -27,21 +12,7 @@ const LOG_GROUPS_FIELD = ['logGroupSelector', 'logGroupNamesInput'] as const
 const LOG_GROUP_FIELD = ['logGroupNameSelector', 'logGroupNameInput'] as const
 const LOG_STREAM_FIELD = ['logStreamNameSelector', 'logStreamNameInput'] as const
 
-export const CloudWatchBlock: BlockConfig<
-  | CloudWatchQueryLogsResponse
-  | CloudWatchDescribeLogGroupsResponse
-  | CloudWatchDescribeLogStreamsResponse
-  | CloudWatchGetLogEventsResponse
-  | CloudWatchFilterLogEventsResponse
-  | CloudWatchDescribeAlarmsResponse
-  | CloudWatchDescribeAlarmHistoryResponse
-  | CloudWatchListMetricsResponse
-  | CloudWatchGetMetricStatisticsResponse
-  | CloudWatchPutMetricDataResponse
-  | CloudWatchMuteAlarmResponse
-  | CloudWatchUnmuteAlarmResponse
-  | CloudWatchPutLogGroupRetentionResponse
-> = {
+export const CloudWatchBlock: BlockConfig = {
   type: 'cloudwatch',
   name: 'CloudWatch',
   description: 'Query and monitor AWS CloudWatch logs, metrics, and alarms',

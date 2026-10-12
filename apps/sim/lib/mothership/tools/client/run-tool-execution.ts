@@ -1,9 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import { backoffWithJitter } from '@sim/utils/retry'
+import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import {
+  cancelWorkflowExecutionContract,
+  getWorkflowExecutionContract,
+} from '@/lib/api/contracts/workflows'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
@@ -32,6 +38,7 @@ import {
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import {
   isExecutionStreamHttpError,
+  isReconnectStreamOpen,
   SSEEventHandlerError,
   SSEStreamInterruptedError,
 } from '@/hooks/use-execution-stream'
@@ -51,7 +58,29 @@ interface ActiveRunTool {
   execution?: { id: string; controller: AbortController }
 }
 
-const activeRunToolByWorkflowId = new Map<string, ActiveRunTool>()
+/** A run tool queued behind the workflow's owner; admitted with null when stopped first. */
+interface WaitingRunTool {
+  toolCallId: string
+  admit: (run: ActiveRunTool | null) => void
+}
+
+/**
+ * Who holds a workflow's single visible run in this tab: a run tool, or an execution
+ * whose run tool lost its stream while the server kept running it.
+ */
+type RunSlotOwner =
+  | { kind: 'runTool'; run: ActiveRunTool }
+  | { kind: 'interrupted'; executionId: string }
+
+interface WorkflowRunSlot {
+  owner: RunSlotOwner | null
+  waiters: WaitingRunTool[]
+  watchingInterrupted: boolean
+}
+
+const runSlotsByWorkflowId = new Map<string, WorkflowRunSlot>()
+const INTERRUPTED_RUN_POLL_MAX_MS = 15_000
+const INTERRUPTED_RUN_MAX_STATUS_FAILURES = 8
 const manuallyStoppedToolCallIds = new Set<string>()
 type RunToolReleaseListener = (workflowId: string) => void
 const runToolReleaseListeners = new Set<RunToolReleaseListener>()
@@ -71,6 +100,194 @@ interface PendingCompletionReport {
    * that pointer is cleaned up once the pending report is delivered.
    */
   clearExecutionPointerAfterReport?: boolean
+}
+
+function slotFor(workflowId: string): WorkflowRunSlot {
+  let slot = runSlotsByWorkflowId.get(workflowId)
+  if (!slot) {
+    slot = { owner: null, waiters: [], watchingInterrupted: false }
+    runSlotsByWorkflowId.set(workflowId, slot)
+  }
+  return slot
+}
+
+function pruneSlot(workflowId: string, slot: WorkflowRunSlot): void {
+  if (!slot.owner && slot.waiters.length === 0) runSlotsByWorkflowId.delete(workflowId)
+}
+
+/** Whether a new run tool for this workflow has to queue. */
+function isSlotHeld(workflowId: string): boolean {
+  return runSlotsByWorkflowId.has(workflowId)
+}
+
+function runToolOwner(workflowId: string): ActiveRunTool | undefined {
+  const owner = runSlotsByWorkflowId.get(workflowId)?.owner
+  return owner?.kind === 'runTool' ? owner.run : undefined
+}
+
+function* runToolOwners(): Generator<[string, ActiveRunTool]> {
+  for (const [workflowId, slot] of runSlotsByWorkflowId) {
+    if (slot.owner?.kind === 'runTool') yield [workflowId, slot.owner.run]
+  }
+}
+
+/**
+ * Takes the workflow's run slot, or waits in arrival order behind its owner.
+ * Resolves null when the call is stopped while waiting.
+ */
+function acquireRunToolSlot(workflowId: string, toolCallId: string): Promise<ActiveRunTool | null> {
+  if (!isSlotHeld(workflowId)) {
+    const run: ActiveRunTool = { toolCallId }
+    slotFor(workflowId).owner = { kind: 'runTool', run }
+    return Promise.resolve(run)
+  }
+  const slot = slotFor(workflowId)
+  logger.info("[RunTool] Waiting for this workflow's current run", {
+    toolCallId,
+    workflowId,
+    owner: slot.owner?.kind === 'runTool' ? slot.owner.run.toolCallId : slot.owner?.kind,
+  })
+  return new Promise((admit) => {
+    slot.waiters.push({ toolCallId, admit })
+    if (slot.owner?.kind === 'interrupted') watchInterruptedExecution(workflowId, slot)
+  })
+}
+
+/** Runs synchronously with the release that freed the slot, so a later call cannot jump ahead. */
+function admitNextRunTool(workflowId: string, slot: WorkflowRunSlot): void {
+  if (!slot.owner) {
+    const next = slot.waiters.shift()
+    if (next) {
+      const run: ActiveRunTool = { toolCallId: next.toolCallId }
+      slot.owner = { kind: 'runTool', run }
+      next.admit(run)
+    }
+  }
+  pruneSlot(workflowId, slot)
+}
+
+/**
+ * Gives up a run tool's slot. A run whose stream dropped while the server kept
+ * executing it hands the slot to that execution instead, until it settles.
+ */
+function releaseRunToolSlot(
+  workflowId: string,
+  run: ActiveRunTool,
+  interruptedExecutionId?: string
+): void {
+  const slot = runSlotsByWorkflowId.get(workflowId)
+  if (!slot || runToolOwner(workflowId) !== run) return
+  slot.owner = interruptedExecutionId
+    ? { kind: 'interrupted', executionId: interruptedExecutionId }
+    : null
+  admitNextRunTool(workflowId, slot)
+  if (interruptedExecutionId && slot.waiters.length > 0) {
+    watchInterruptedExecution(workflowId, slot)
+  }
+}
+
+async function releaseInterruptedHold(
+  workflowId: string,
+  slot: WorkflowRunSlot,
+  executionId: string
+): Promise<void> {
+  if (slot.owner?.kind !== 'interrupted' || slot.owner.executionId !== executionId) return
+  // A reconnect cancelled by navigating away leaves the settled run marked current and its
+  // pointer saved; both go before the next run can write its own.
+  clearVisibleExecution(workflowId, executionId)
+  const pointer = await loadExecutionPointer(workflowId).catch(() => null)
+  if (pointer?.executionId === executionId) await clearExecutionPointer(workflowId)
+  slot.owner = null
+  admitNextRunTool(workflowId, slot)
+}
+
+/**
+ * Polls an interrupted execution while calls wait behind it, releasing the hold once
+ * the server has settled it and no reconnect stream is still draining it.
+ */
+function watchInterruptedExecution(workflowId: string, slot: WorkflowRunSlot): void {
+  if (slot.watchingInterrupted || slot.owner?.kind !== 'interrupted') return
+  slot.watchingInterrupted = true
+  const { executionId } = slot.owner
+  const isHeldByThisExecution = () =>
+    slot.owner?.kind === 'interrupted' && slot.owner.executionId === executionId
+  void (async () => {
+    let serverSettled = false
+    let statusFailures = 0
+    for (let attempt = 1; ; attempt++) {
+      await sleep(backoffWithJitter(attempt, null, { maxMs: INTERRUPTED_RUN_POLL_MAX_MS }))
+      if (!isHeldByThisExecution() || slot.waiters.length === 0) break
+      if (isDocumentHidden() || isReconnectStreamOpen(workflowId, executionId)) continue
+      if (!serverSettled) {
+        const status = await readExecutionStatus(workflowId, executionId)
+        if (status === 'running') continue
+        if (status === 'unknown' && ++statusFailures < INTERRUPTED_RUN_MAX_STATUS_FAILURES) continue
+        serverSettled = true
+        if (isReconnectStreamOpen(workflowId, executionId)) continue
+      }
+      await releaseInterruptedHold(workflowId, slot, executionId)
+      break
+    }
+    slot.watchingInterrupted = false
+  })()
+}
+
+function isDocumentHidden(): boolean {
+  return typeof document !== 'undefined' && document.hidden
+}
+
+/** 'settled' also covers an execution that is gone or not ours (403/404). */
+async function readExecutionStatus(
+  workflowId: string,
+  executionId: string
+): Promise<'running' | 'settled' | 'unknown'> {
+  try {
+    const { status } = await requestJson(getWorkflowExecutionContract, {
+      params: { id: workflowId, executionId },
+      query: {},
+    })
+    return status === 'queued' || status === 'pending' || status === 'running'
+      ? 'running'
+      : 'settled'
+  } catch (error) {
+    if (error instanceof ApiClientError && (error.status === 403 || error.status === 404)) {
+      return 'settled'
+    }
+    logger.warn("[RunTool] Could not read an interrupted execution's status", {
+      workflowId,
+      executionId,
+      error: toError(error).message,
+    })
+    return 'unknown'
+  }
+}
+
+function isRunToolWaiting(workflowId: string, toolCallId: string): boolean {
+  return (
+    runSlotsByWorkflowId.get(workflowId)?.waiters.some((w) => w.toolCallId === toolCallId) ?? false
+  )
+}
+
+function dropWaitingRunTools(toolCallIds: ReadonlySet<string>): void {
+  for (const [workflowId, slot] of runSlotsByWorkflowId) {
+    const kept: WaitingRunTool[] = []
+    for (const waiter of slot.waiters) {
+      if (toolCallIds.has(waiter.toolCallId)) waiter.admit(null)
+      else kept.push(waiter)
+    }
+    slot.waiters = kept
+    pruneSlot(workflowId, slot)
+  }
+}
+
+/** Clears the editor's visible run when it still shows `executionId`; returns whether it did. */
+function clearVisibleExecution(workflowId: string, executionId: string): boolean {
+  const state = useExecutionStore.getState()
+  if (state.getCurrentExecutionId(workflowId) !== executionId) return false
+  state.setCurrentExecutionId(workflowId, null)
+  state.setIsExecuting(workflowId, false)
+  state.setActiveBlocks(workflowId, new Set())
+  return true
 }
 
 function resolveWorkflowInput(params: Record<string, unknown>): unknown {
@@ -275,24 +492,20 @@ export async function bindRunToolToExecution(
   toolCallId: string,
   workflowId: string
 ): Promise<boolean> {
-  const existingToolCallId = activeRunToolByWorkflowId.get(workflowId)?.toolCallId
-  if (existingToolCallId === toolCallId) {
+  const owner = runSlotsByWorkflowId.get(workflowId)?.owner
+  const ownerToolCallId = owner?.kind === 'runTool' ? owner.run.toolCallId : undefined
+  if (ownerToolCallId === toolCallId || isRunToolWaiting(workflowId, toolCallId)) {
     logger.info('[RunTool] Recovery skipped: run tool is already active in this tab', {
       workflowId,
       toolCallId,
     })
     return true
   }
-  if (existingToolCallId && existingToolCallId !== toolCallId) {
-    logger.warn('[RunTool] Recovery skipped: another run tool is already active', {
-      workflowId,
-      toolCallId,
-      existingToolCallId,
-    })
-    return false
-  }
-
-  const pointer = await loadExecutionPointer(workflowId).catch(() => null)
+  // Another run's pointer says nothing about this call.
+  const otherRunOwnsWorkflow = owner != null
+  const pointer = otherRunOwnsWorkflow
+    ? null
+    : await loadExecutionPointer(workflowId).catch(() => null)
   const pendingCompletion = loadPendingCompletionReport(toolCallId)
   if (pendingCompletion) {
     const executionId = pendingCompletion.executionId ?? pointer?.executionId
@@ -313,7 +526,7 @@ export async function bindRunToolToExecution(
         executionId
       )
       clearPendingCompletionReport(toolCallId)
-      if (pendingCompletion.clearExecutionPointerAfterReport) {
+      if (pendingCompletion.clearExecutionPointerAfterReport && !otherRunOwnsWorkflow) {
         await clearExecutionPointer(workflowId)
       }
     } catch (error) {
@@ -325,6 +538,15 @@ export async function bindRunToolToExecution(
       })
     }
     return true
+  }
+
+  if (otherRunOwnsWorkflow) {
+    logger.warn('[RunTool] Recovery skipped: another run owns this workflow', {
+      workflowId,
+      toolCallId,
+      owner: ownerToolCallId ?? owner.kind,
+    })
+    return false
   }
 
   if (!pointer?.executionId) {
@@ -386,8 +608,8 @@ export function executeRunToolOnClient(
 }
 
 export function isRunToolActiveForId(toolCallId: string): boolean {
-  for (const active of activeRunToolByWorkflowId.values()) {
-    if (active.toolCallId === toolCallId) return true
+  for (const [, run] of runToolOwners()) {
+    if (run.toolCallId === toolCallId) return true
   }
   return false
 }
@@ -401,7 +623,7 @@ export function isRunToolActiveForId(toolCallId: string): boolean {
  * acknowledged the run.
  */
 export function isRunToolActiveForWorkflow(workflowId: string): boolean {
-  return activeRunToolByWorkflowId.has(workflowId)
+  return runToolOwner(workflowId) !== undefined
 }
 
 /**
@@ -426,7 +648,7 @@ function notifyRunToolReleased(workflowId: string): void {
 
 /** The resource's Stop button refers to its displayed execution, which may be a manual run. */
 export function stopRunToolForExecution(workflowId: string, executionId: string | null): boolean {
-  const active = activeRunToolByWorkflowId.get(workflowId)
+  const active = runToolOwner(workflowId)
   if (!executionId || active?.execution?.id !== executionId) return false
   stopRunToolExecutions(new Set([active.toolCallId]))
   return true
@@ -434,7 +656,8 @@ export function stopRunToolForExecution(workflowId: string, executionId: string 
 
 /** Cancels exact tool-owned executions; a workflow's current UI pointer is not ownership. */
 export function stopRunToolExecutions(toolCallIds: ReadonlySet<string>): void {
-  for (const [workflowId, active] of activeRunToolByWorkflowId) {
+  dropWaitingRunTools(toolCallIds)
+  for (const [workflowId, active] of runToolOwners()) {
     const { toolCallId, execution } = active
     if (!toolCallIds.has(toolCallId) || !execution || manuallyStoppedToolCallIds.has(toolCallId)) {
       continue
@@ -470,13 +693,7 @@ export function stopRunToolExecutions(toolCallIds: ReadonlySet<string>): void {
       blockName: 'Run Cancelled',
       blockType: 'cancelled',
     })
-    const state = useExecutionStore.getState()
-    if (state.getCurrentExecutionId(workflowId) === execution.id) {
-      clearExecutionPointer(workflowId)
-      state.setCurrentExecutionId(workflowId, null)
-      state.setIsExecuting(workflowId, false)
-      state.setActiveBlocks(workflowId, new Set())
-    }
+    if (clearVisibleExecution(workflowId, execution.id)) clearExecutionPointer(workflowId)
   }
 }
 
@@ -501,32 +718,28 @@ async function doExecuteRunTool(
     return
   }
 
-  const existingToolCallId = activeRunToolByWorkflowId.get(targetWorkflowId)
-  if (existingToolCallId) {
-    logger.warn('[RunTool] Execution prevented: another run tool is already active', {
-      toolCallId,
-      toolName,
-      existingToolCallId: existingToolCallId.toolCallId,
-    })
+  const activeRun = await acquireRunToolSlot(targetWorkflowId, toolCallId)
+  if (!activeRun) {
+    logger.info('[RunTool] Stopped before its turn to run', { toolCallId, toolName })
     await reportCompletion(
       toolCallId,
-      MothershipStreamV1ToolOutcome.error,
-      WORKFLOW_EXECUTION_BUSY.message,
-      { code: WORKFLOW_EXECUTION_BUSY.code }
+      MothershipStreamV1ToolOutcome.cancelled,
+      getWorkflowToolCompletionMessage(MothershipStreamV1ToolOutcome.cancelled),
+      { reason: 'user_cancelled', cancelledByUser: true }
     )
     return
   }
 
   setActiveWorkflow(targetWorkflowId)
-  const activeRun: ActiveRunTool = { toolCallId }
-  activeRunToolByWorkflowId.set(targetWorkflowId, activeRun)
 
   const { getWorkflowExecution, setIsExecuting } = useExecutionStore.getState()
   const { isExecuting } = getWorkflowExecution(targetWorkflowId)
 
+  // The previous run tool has already released the workflow, so a run here is
+  // one no run tool drives: the user's, or a dropped stream being re-attached.
   if (isExecuting) {
     logger.warn('[RunTool] Execution prevented: already executing', { toolCallId, toolName })
-    activeRunToolByWorkflowId.delete(targetWorkflowId)
+    releaseRunToolSlot(targetWorkflowId, activeRun)
     await reportCompletion(
       toolCallId,
       MothershipStreamV1ToolOutcome.error,
@@ -551,9 +764,7 @@ async function doExecuteRunTool(
         triggerBlockId
       )
     } finally {
-      if (activeRunToolByWorkflowId.get(targetWorkflowId) === activeRun) {
-        activeRunToolByWorkflowId.delete(targetWorkflowId)
-      }
+      releaseRunToolSlot(targetWorkflowId, activeRun)
     }
     return
   }
@@ -602,15 +813,11 @@ async function doExecuteRunTool(
   setCurrentExecutionId(targetWorkflowId, executionId)
   saveExecutionPointer({ workflowId: targetWorkflowId, executionId, lastEventId: 0 })
   const releaseVisibleExecutionForBackground = () => {
-    const { setCurrentExecutionId: clearExecId, setActiveBlocks } = useExecutionStore.getState()
     if (
-      activeRunToolByWorkflowId.get(targetWorkflowId) === activeRun &&
-      useExecutionStore.getState().getCurrentExecutionId(targetWorkflowId) === executionId
+      runToolOwner(targetWorkflowId) === activeRun &&
+      clearVisibleExecution(targetWorkflowId, executionId)
     ) {
-      clearExecId(targetWorkflowId, null)
       consolePersistence.executionEnded(persistenceExecution)
-      setIsExecuting(targetWorkflowId, false)
-      setActiveBlocks(targetWorkflowId, new Set())
     }
   }
 
@@ -648,7 +855,7 @@ async function doExecuteRunTool(
   })
 
   let leaveExecutionRecoverable = false
-  let streamInterrupted = false
+  let interruptedExecutionId: string | undefined
 
   try {
     const result = await executeWorkflowWithFullLogging({
@@ -729,7 +936,7 @@ async function doExecuteRunTool(
       const msg = toError(err).message
       if (err instanceof SSEEventHandlerError || err instanceof SSEStreamInterruptedError) {
         leaveExecutionRecoverable = true
-        streamInterrupted = true
+        interruptedExecutionId = err.executionId ?? executionId
         logger.warn(
           '[RunTool] Execution stream interrupted; leaving workflow execution in background',
           {
@@ -782,24 +989,16 @@ async function doExecuteRunTool(
       window.removeEventListener('pagehide', onPageHide)
     }
     manuallyStoppedToolCallIds.delete(toolCallId)
-    const ownsRegistration = activeRunToolByWorkflowId.get(targetWorkflowId) === activeRun
-    if (ownsRegistration) {
-      activeRunToolByWorkflowId.delete(targetWorkflowId)
-    }
+    const ownsRegistration = runToolOwner(targetWorkflowId) === activeRun
     consolePersistence.executionEnded(persistenceExecution)
-    const { setCurrentExecutionId: clearExecId, setActiveBlocks } = useExecutionStore.getState()
     if (
-      !leaveExecutionRecoverable &&
       ownsRegistration &&
-      useExecutionStore.getState().getCurrentExecutionId(targetWorkflowId) === executionId
+      !leaveExecutionRecoverable &&
+      clearVisibleExecution(targetWorkflowId, executionId)
     ) {
-      clearExecId(targetWorkflowId, null)
       clearExecutionPointer(targetWorkflowId)
-      setIsExecuting(targetWorkflowId, false)
-      setActiveBlocks(targetWorkflowId, new Set())
     }
-    if (streamInterrupted && ownsRegistration) {
-      notifyRunToolReleased(targetWorkflowId)
-    }
+    releaseRunToolSlot(targetWorkflowId, activeRun, interruptedExecutionId)
+    if (ownsRegistration && interruptedExecutionId) notifyRunToolReleased(targetWorkflowId)
   }
 }

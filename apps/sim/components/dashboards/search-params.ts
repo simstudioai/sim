@@ -14,11 +14,11 @@ export const dashboardUrlOptions = {
   shallow: true,
   clearOnDefault: true,
 } as const
-export function dashboardUrlKeys(fileId: string) {
+export function dashboardUrlKeys(dashboardId: string) {
   return {
-    range: `dash-${fileId}-range`,
-    from: `dash-${fileId}-from`,
-    to: `dash-${fileId}-to`,
-    zone: `dash-${fileId}-zone`,
+    range: `dash-${dashboardId}-range`,
+    from: `dash-${dashboardId}-from`,
+    to: `dash-${dashboardId}-to`,
+    zone: `dash-${dashboardId}-zone`,
   }
 }

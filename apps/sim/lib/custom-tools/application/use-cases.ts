@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import type { customTools } from '@sim/db/schema'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
@@ -17,15 +17,12 @@ import {
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import {
   type CustomToolSortBy,
-  deleteCustomTool,
   deleteWorkspaceCustomTool,
   getAvailableCustomTool,
-  getCustomToolById,
   getWorkspaceCustomTool,
   getWorkspaceCustomToolByTitle,
   listCustomTools,
   listWorkspaceCustomTools,
-  updateCustomTool,
   updateWorkspaceCustomTool,
   upsertCustomTools,
 } from '@/lib/workflows/custom-tools/operations'
@@ -56,21 +53,6 @@ async function resolveWorkspaceToolContext(
 ): Promise<CustomToolContext> {
   const workspace = await resolveWorkspaceContext(workspaceId)
   const tool = await getWorkspaceCustomTool({ workspaceId: workspace.workspaceId, toolId })
-  if (!tool) throw new OrchestrationError('not_found', 'Custom tool not found')
-  return { ...workspace, tool }
-}
-
-async function resolveAvailableToolContext(args: {
-  principal: Exclude<Principal, { kind: 'workspace_api_key' }>
-  workspaceId: string
-  toolId: string
-}): Promise<CustomToolContext> {
-  const workspace = await resolveWorkspaceContext(args.workspaceId)
-  const tool = await getCustomToolById({
-    toolId: args.toolId,
-    userId: requireCustomToolUserId(args.principal),
-    workspaceId: workspace.workspaceId,
-  })
   if (!tool) throw new OrchestrationError('not_found', 'Custom tool not found')
   return { ...workspace, tool }
 }
@@ -125,7 +107,7 @@ export const listAvailableCustomToolsUseCase = defineAuthorizedWorkspaceUseCase(
   resolveContext: ({ input }: { input: ListAvailableCustomToolsInput }) =>
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
-  async execute({ principal, input, context }) {
+  async execute({ principal, context }) {
     const tools = await listCustomTools({
       userId: requireCustomToolUserId(principal),
       workspaceId: context.workspaceId,
@@ -220,38 +202,6 @@ export const createWorkspaceCustomToolUseCase = defineAuthorizedWorkspaceUseCase
   }),
 })
 
-export const saveWorkspaceCustomToolUseCase = defineAuthorizedWorkspaceUseCase({
-  operation: customToolOperations.save,
-  resolveContext: ({ input }: { input: CreateWorkspaceCustomToolInput }) =>
-    resolveWorkspaceContext(input.workspaceId),
-  authorizationOptions,
-  async execute({ principal, input, context }) {
-    const attribution = resolvePrincipalAttribution(principal, {
-      workspaceBillingOwnerUserId: context.billedAccountUserId,
-    })
-    try {
-      const tools = await upsertCustomTools({
-        tools: [{ title: input.title, schema: input.schema, code: input.code }],
-        workspaceId: context.workspaceId,
-        userId: attribution.attributedUserId,
-      })
-      const tool = tools.find((candidate) => candidate.title === input.title)
-      if (!tool) throw new Error(`Custom tool "${input.title}" missing after a successful save`)
-      return { tool }
-    } catch (error) {
-      return customToolConflict(error)
-    }
-  },
-  projectAudit: ({ input, result }) => ({
-    action: AuditAction.CUSTOM_TOOL_CREATED,
-    resourceType: AuditResourceType.CUSTOM_TOOL,
-    resourceId: result.tool.id,
-    resourceName: result.tool.title,
-    description: `Created custom tool "${result.tool.title}"`,
-    metadata: { source: input.source },
-  }),
-})
-
 interface UpdateCustomToolFields {
   title?: string
   schema?: unknown
@@ -321,56 +271,6 @@ export const updateWorkspaceCustomToolUseCase = defineAuthorizedWorkspaceUseCase
   }),
 })
 
-export const updateAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase({
-  operation: customToolOperations.updateAvailable,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Exclude<Principal, { kind: 'workspace_api_key' }>
-    input: UpdateWorkspaceCustomToolInput
-  }) =>
-    resolveAvailableToolContext({
-      principal,
-      workspaceId: input.workspaceId,
-      toolId: input.toolId,
-    }),
-  authorizationOptions,
-  async execute({ principal, input, context }) {
-    const title = input.title ?? context.tool.title
-    await ensureTitleAvailable(context, title)
-    /**
-     * Only a supplied schema, unlike the public update above: this surface does
-     * not parse what it returns, so an edit that merely keeps a legacy stored
-     * schema still succeeds, while a caller-supplied one is held to the shape
-     * the public API has to publish.
-     */
-    if (input.schema !== undefined) assertValidCustomToolDeclaration(input.schema)
-    try {
-      const tool = await updateCustomTool({
-        workspaceId: context.workspaceId,
-        toolId: context.tool.id,
-        userId: requireCustomToolUserId(principal),
-        title,
-        schema: input.schema ?? context.tool.schema,
-        code: input.code ?? context.tool.code,
-      })
-      if (!tool) throw new OrchestrationError('not_found', 'Custom tool not found')
-      return { tool }
-    } catch (error) {
-      return customToolConflict(error)
-    }
-  },
-  projectAudit: ({ input, result }) => ({
-    action: AuditAction.CUSTOM_TOOL_UPDATED,
-    resourceType: AuditResourceType.CUSTOM_TOOL,
-    resourceId: result.tool.id,
-    resourceName: result.tool.title,
-    description: `Updated custom tool "${result.tool.title}"`,
-    metadata: { source: input.source },
-  }),
-})
-
 export interface DeleteWorkspaceCustomToolInput {
   workspaceId: string
   toolId: string
@@ -386,40 +286,6 @@ export const deleteWorkspaceCustomToolUseCase = defineAuthorizedWorkspaceUseCase
     const deleted = await deleteWorkspaceCustomTool({
       workspaceId: context.workspaceId,
       toolId: context.tool.id,
-    })
-    if (!deleted) throw new OrchestrationError('not_found', 'Custom tool not found')
-    return { tool: context.tool }
-  },
-  projectAudit: ({ input, result }) => ({
-    action: AuditAction.CUSTOM_TOOL_DELETED,
-    resourceType: AuditResourceType.CUSTOM_TOOL,
-    resourceId: result.tool.id,
-    resourceName: result.tool.title,
-    description: `Deleted custom tool "${result.tool.title}"`,
-    metadata: { source: input.source },
-  }),
-})
-
-export const deleteAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase({
-  operation: customToolOperations.deleteAvailable,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Exclude<Principal, { kind: 'workspace_api_key' }>
-    input: DeleteWorkspaceCustomToolInput
-  }) =>
-    resolveAvailableToolContext({
-      principal,
-      workspaceId: input.workspaceId,
-      toolId: input.toolId,
-    }),
-  authorizationOptions,
-  async execute({ principal, input, context }) {
-    const deleted = await deleteCustomTool({
-      workspaceId: context.workspaceId,
-      toolId: context.tool.id,
-      userId: requireCustomToolUserId(principal),
     })
     if (!deleted) throw new OrchestrationError('not_found', 'Custom tool not found')
     return { tool: context.tool }

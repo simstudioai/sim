@@ -46,7 +46,7 @@ export function MyAccessRequestDetails({ scope, requestId, onClose }: MyAccessRe
         )}
         {details.isError && (
           <ChipModalField type='custom' title='Unable to load request'>
-            <p className='text-[var(--text-error)] text-sm'>{details.error.message}</p>
+            <p className='text-[var(--text-muted)] text-sm'>{details.error.message}</p>
             <Chip onClick={() => void details.refetch()}>Try again</Chip>
           </ChipModalField>
         )}

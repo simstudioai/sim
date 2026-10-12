@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { revokeUserSessionsTx } from '@/lib/organizations/members/revocation'
 
 const logger = createLogger('OrganizationMemberLifecycle')
@@ -38,7 +38,7 @@ export interface SuspendMemberResult {
  * restores every automation exactly as it was.
  */
 export async function suspendMemberTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: { userId: string; organizationId: string; source: SuspensionSource }
 ): Promise<SuspendMemberResult> {
   await acquireOrganizationUserMutationLocks(tx, {
@@ -100,7 +100,7 @@ export type ChangeMemberRoleResult =
  * moves billing and the last-owner guarantee with it, which is its own operation.
  */
 export async function changeMemberRoleTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: { organizationId: string; userId: string; role: OrganizationMemberRole }
 ): Promise<ChangeMemberRoleResult> {
   await acquireOrganizationUserMutationLocks(tx, {

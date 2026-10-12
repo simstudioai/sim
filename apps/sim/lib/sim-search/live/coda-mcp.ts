@@ -1,27 +1,13 @@
 import { createLogger } from '@sim/logger'
-import type { ResourceOwner } from '@/lib/core/resource-scope'
 import { parseCodaResourceUri } from '@/lib/sim-search/live/coda-uri'
 import { hasDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
-import {
-  createManagedSearchMcpClient,
-  type ManagedSearchMcpClient,
-} from '@/lib/sim-search/live/managed-mcp'
+import type { ManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
 import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
 
 const logger = createLogger('CodaMcpSearch')
 
 export interface CodaMcpClient extends ManagedSearchMcpClient {}
-
-export function createCodaMcpClient(
-  owner: ResourceOwner,
-  userId: string,
-  credentialId: string,
-  signal: AbortSignal,
-  searches = 1
-): Promise<CodaMcpClient> {
-  return createManagedSearchMcpClient(owner, userId, credentialId, 'coda', signal, searches)
-}
 
 function requireCodaUri(uri: string): string {
   const parsed = parseCodaResourceUri(uri)

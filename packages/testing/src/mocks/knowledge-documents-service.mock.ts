@@ -55,7 +55,6 @@ export const knowledgeDocumentsServiceMockFns = {
   mockMarkDocumentAsFailedTimeout: vi.fn(),
   mockRetryDocumentProcessing: vi.fn(),
   mockUpdateDocument: vi.fn(),
-  mockDeleteDocumentStorageFiles: vi.fn(),
   mockHardDeleteDocuments: vi.fn(),
   mockDeleteDocument: vi.fn(),
   mockDeleteKnowledgeDocumentInKnowledgeBase: vi.fn(),
@@ -87,7 +86,6 @@ export const knowledgeDocumentsServiceMock = {
   markDocumentAsFailedTimeout: knowledgeDocumentsServiceMockFns.mockMarkDocumentAsFailedTimeout,
   retryDocumentProcessing: knowledgeDocumentsServiceMockFns.mockRetryDocumentProcessing,
   updateDocument: knowledgeDocumentsServiceMockFns.mockUpdateDocument,
-  deleteDocumentStorageFiles: knowledgeDocumentsServiceMockFns.mockDeleteDocumentStorageFiles,
   hardDeleteDocuments: knowledgeDocumentsServiceMockFns.mockHardDeleteDocuments,
   deleteDocument: knowledgeDocumentsServiceMockFns.mockDeleteDocument,
   deleteKnowledgeDocumentInKnowledgeBase:

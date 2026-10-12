@@ -16,10 +16,8 @@ import {
 import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import { getNewestRunningTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
-import {
-  getSearchActivitySources,
-  SearchActivityDetails,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-details'
+import { getSearchActivitySources } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-details'
+import { SearchActivityResults } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-results'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import {
   getActivityAttentionKey,
@@ -220,7 +218,7 @@ export function ToolActivityGroup({
   autoScrollActivity = true,
   isLive = false,
 }: ToolActivityGroupProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
   const tools = withoutRetriedSearchFailures(calls)
   const statusTool = getActivityStatusTool(tools)
   if (!statusTool) return null
@@ -236,6 +234,7 @@ export function ToolActivityGroup({
   const attentionKey = getActivityAttentionKey(tools)
   const entries = tools.map((tool) => ({ tool, sources: getSearchActivitySources(tool) }))
   const hasSearchDetails = entries.some(({ sources }) => sources !== undefined)
+  const expanded = manualExpanded ?? (isLive && hasSearchDetails)
 
   return (
     <ToolCallComponent
@@ -262,7 +261,7 @@ export function ToolActivityGroup({
           expandedLabel={tools.length > 1 ? groupedActivity?.title : undefined}
           collapsible={tools.length > 1 || hasSearchDetails}
           expanded={expanded}
-          onToggle={() => setExpanded(!expanded)}
+          onToggle={() => setManualExpanded(!expanded)}
           isStreaming={working && autoScrollActivity}
           unbounded={entries.some(({ sources }) => (sources?.length ?? 0) > 0)}
         >
@@ -275,7 +274,7 @@ export function ToolActivityGroup({
                   <ToolCallComponent {...tool} toolCallId={tool.id} />
                 )}
                 {sources && (
-                  <SearchActivityDetails
+                  <SearchActivityResults
                     sources={sources}
                     label={`Search results for step ${index + 1}: ${getToolTitle(tool)}`}
                   />

@@ -23,6 +23,7 @@ import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/appl
 import {
   hasWorkspaceFileDeliveryObserver,
   reportWorkspaceFileDelivery,
+  requireCopilotWorkspaceFileDeliveryObserver,
 } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
@@ -114,6 +115,7 @@ async function executeReadWorkspaceFileText({
 >): Promise<ReadWorkspaceFileTextResult> {
   const signal = request?.signal
   signal?.throwIfAborted()
+  requireCopilotWorkspaceFileDeliveryObserver(principal)
   return extractWorkspaceFileRecordText(context.file, input, principal, signal)
 }
 
@@ -128,8 +130,21 @@ export async function extractWorkspaceFileRecordText(
     'maxBytes' | 'offset' | 'limit' | 'allowPlainText' | 'includeSecretProvenance'
   >,
   principal: Principal,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  sourceProvenance?: WorkspaceFileSecretProvenance
 ): Promise<ReadWorkspaceFileTextResult> {
+  const secretProvenance =
+    sourceProvenance ??
+    (input.includeSecretProvenance || hasWorkspaceFileDeliveryObserver()
+      ? await getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
+          fileId: file.id,
+          key: file.key,
+          context: file.storageContext ?? 'workspace',
+          contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+        })
+      : undefined)
+  await reportWorkspaceFileDelivery(secretProvenance, file.id)
+
   const extension = input.allowPlainText
     ? (workspaceFileTextFormat(file) ?? getFileExtension(file.name))
     : getFileExtension(file.name)
@@ -162,16 +177,6 @@ export async function extractWorkspaceFileRecordText(
     : await readSourceBuffer(file, maxBytes, signal)
   const parsed = await parseFileText(content, extension, file.name, signal)
   const metadata = parsed.metadata ?? {}
-  const secretProvenance =
-    input.includeSecretProvenance || hasWorkspaceFileDeliveryObserver()
-      ? await getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
-          fileId: file.id,
-          key: file.key,
-          context: file.storageContext ?? 'workspace',
-          contentUpdatedAt: file.contentUpdatedAt ?? undefined,
-        })
-      : undefined
-  await reportWorkspaceFileDelivery(secretProvenance)
 
   const truncated = metadata.truncated === true
   const { text, lineRange } = sliceFileTextLines(
@@ -252,6 +257,9 @@ export async function parseFileText(
 export const readWorkspaceFileText = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
   resolveContext: ({ principal, input }) =>
-    resolveReferencedWorkspaceFileContext(principal, input, { includeChatUploads: true }),
+    resolveReferencedWorkspaceFileContext(principal, input, {
+      includeChatUploads: true,
+      includeOwnedFiles: true,
+    }),
   execute: executeReadWorkspaceFileText,
 })

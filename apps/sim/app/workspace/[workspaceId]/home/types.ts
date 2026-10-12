@@ -5,9 +5,6 @@ import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import type { ChatContext } from '@/stores/panel'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
-const EDIT_CONTENT_TOOL_ID = 'apply_file_edit'
-const RUN_SUBAGENT_ID = 'run'
-
 export type {
   MothershipResource,
   MothershipResourceType,
@@ -29,14 +26,25 @@ export interface FileAttachmentForApi {
 /** Assistant searches as the signed-in person and uses their connected accounts. */
 export type ChatRequestMode = MothershipChat['mode']
 
-export interface QueuedMessage {
-  id: string
+/** What a chat send carries, whether it goes out now, waits in the queue or is handed over. */
+export interface SendPayload {
   content: string
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
   assistantSearchLevel?: AssistantSearchLevel
+}
+
+export interface QueuedMessage extends SendPayload {
+  id: string
+  /**
+   * An earlier attempt at this message got no answer, so the server may
+   * already hold it as sent. It goes out exactly as written, under that
+   * attempt's id, and cannot be edited into a different message. False once
+   * the server is known not to have it (it refused it, or it was never sent).
+   */
+  admissionUnknown?: boolean
 }
 
 export const ToolCallStatus = {
@@ -56,20 +64,6 @@ interface ToolCallResult {
   success: boolean
   output?: unknown
   error?: string
-}
-
-interface GenericResourceEntry {
-  toolCallId: string
-  toolName: string
-  displayTitle: string
-  status: ToolCallStatus
-  params?: Record<string, unknown>
-  streamingArgs?: string
-  result?: ToolCallResult
-}
-
-export interface GenericResourceData {
-  entries: GenericResourceEntry[]
 }
 
 export interface ToolCallData {
@@ -166,6 +160,7 @@ export interface ChatMessageContext {
   tableId?: string
   viewId?: string
   fileId?: string
+  dashboardId?: string
   folderId?: string
   chatId?: string
   blockType?: string

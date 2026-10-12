@@ -978,4 +978,32 @@ Sticky or unsticky a Reddit post to the top of a subreddit (moderator action)
 | `success` | boolean | Whether the sticky action was successful |
 | `message` | string | Success or error message |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Reddit account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/reddit` |
+| Environment variables | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `identity` | View your Reddit username and signup date |
+| `read` | Read posts and comments through your account |
+| `submit` | Submit posts and comments |
+| `vote` | Vote on posts and comments |
+| `save` | Save and unsave posts and comments |
+| `edit` | Edit and delete your posts and comments |
+| `subscribe` | Subscribe and unsubscribe from subreddits |
+| `history` | View your voting history and saved or hidden posts |
+| `privatemessages` | Access inbox and send private messages |
+| `account` | Update account preferences and settings |
+| `mysubreddits` | Access subscribed and moderated subreddits |
+| `flair` | Select your user flair and change flair on your posts |
+| `report` | Report content and hide or show posts |
+| `modposts` | Approve, remove, and moderate posts in moderated subreddits |
+| `modflair` | Manage flair in moderated subreddits |
+| `modmail` | Access and respond to moderator mail |
+
 

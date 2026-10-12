@@ -37,11 +37,8 @@ const mocks = {
   listRows: folderQueriesMockFns.mockListActiveFolderRows,
 }
 
-const {
-  mockCreateFolderAtPathTransition,
-  mockDeleteFolderByPathTransition,
-  mockRelocateFolderByPathTransition,
-} = foldersOrchestrationMockFns
+const { mockCreateFolderAtPathTransition, mockDeleteFolderByPathTransition } =
+  foldersOrchestrationMockFns
 
 const mockResolveContext = workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
 const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission

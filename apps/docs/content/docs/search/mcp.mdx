@@ -44,7 +44,7 @@ The connection applies to the organization whose URL you copied. Sim checks curr
 
 `chat` accepts questions up to 8,192 characters. Tool responses are limited to 1 MiB. API rate limits apply; follow any retry delay. Provider failures or incomplete retrieval are reported explicitly, and the tools do not fall back to an old index when a live provider is unavailable.
 
-These are the live-backend schemas. If an operator explicitly selects legacy Search with `SIM_SEARCH_LIVE=false`, the server advertises its indexed search/read schemas instead. Refresh your MCP client's tool discovery after changing backends.
+These are the Search MCP schemas. Refresh tool discovery in clients that previously connected to the retired indexed backend.
 
 ## Reconnect or revoke access
 

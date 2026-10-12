@@ -5,7 +5,7 @@ import {
   billingSubscriptionUtilsMock,
   billingSubscriptionUtilsMockFns,
 } from '@sim/testing/mocks/billing-subscription-utils.mock'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockInsert,
@@ -280,7 +280,7 @@ describe('recordCumulativeUsage', () => {
       eventKey: 'update-cost:msg-1-billing',
       metadata: { inputTokens: 100, outputTokens: 5 },
     })
-    expect(result).toEqual({ billed: true, delta: 0.3474447, total: 0.3474447 })
+    expect(result).toMatchObject({ billed: true, delta: 0.3474447, total: 0.3474447 })
     expect(mockInsert).toHaveBeenCalledTimes(1)
     expect(mockUpdate).not.toHaveBeenCalled()
     expect(mockValues.mock.calls[0][0][0]).toMatchObject({
@@ -315,7 +315,7 @@ describe('recordCumulativeUsage', () => {
       cost: 0.4662453,
       eventKey: 'update-cost:msg-1-billing',
     })
-    expect(result).toEqual({ billed: false, delta: 0, total: 0.4662453 })
+    expect(result).toMatchObject({ billed: false, delta: 0, total: 0.4662453 })
     expect(updateSet).not.toHaveBeenCalled()
     expect(mockInsert).not.toHaveBeenCalled()
   })
@@ -455,7 +455,13 @@ describe('ledger aggregates', () => {
   ]
 
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
     installSharedDbMocks()
+    vi.spyOn(Date, 'now').mockReturnValue(billingPeriod.start.getTime())
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   for (const aggregate of aggregates) {

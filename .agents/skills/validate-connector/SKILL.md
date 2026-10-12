@@ -10,7 +10,7 @@ argument-hint: <service-name> [api-docs-url]
 
 For **Sim Search**, validate the [live provider registration and access pipeline](../../../apps/sim/lib/sim-search/live/README.md#adding-a-live-search-connector): catalog and metadata parity, both search/read handlers, current member grants, service-source restrictions, safe scoped references, pagination, provenance, and provider failure behavior. Test real localhost setup/search/read with authorized fixtures when available, and distinguish those results from mocked provider tests. Live Search must not enqueue content indexing or background ACL/directory builds; GitLab still computes request-time permissions or uses current CSV grants.
 
-The ingestion-specific checks below apply to ordinary workspace KB connectors and legacy Search selected with `SIM_SEARCH_LIVE=false`. Keep those checks for providers supporting both runtimes; do not require a live-only provider to implement content hashes, ingestion cursors, embeddings, or stored ACL snapshots.
+The ingestion-specific checks below apply to ordinary workspace KB connectors only. Do not require a live-only provider to implement content hashes, ingestion cursors, embeddings, or stored ACL snapshots.
 
 You are an expert auditor for Sim knowledge base connectors. Your job is to thoroughly validate that an existing connector is correct, complete, and follows all conventions.
 
@@ -110,7 +110,7 @@ For **every** API call in the connector (`listDocuments`, `getDocument`, `valida
   - OData `$filter`: single quotes escaped with `''` (e.g., `externalId.replace(/'/g, "''")`)
   - SOQL: single quotes escaped with `\'`
   - GraphQL variables: passed as variables, not interpolated into query strings
-  - URL path segments: `encodeURIComponent()` applied
+  - A single ID URL path segment: `safeUrlPathSegment(value, 'paramName')` from `@/tools/url-path`; query values: `encodeURIComponent()`
 - [ ] URL-type config fields (e.g., `siteUrl`, `instanceUrl`) are normalized:
   - Strip `https://` / `http://` prefix if the API expects bare domains
   - Strip trailing `/`
@@ -133,7 +133,7 @@ Scopes must be correctly declared and sufficient for all API calls the connector
 - [ ] No invalid, deprecated, or made-up scopes are listed
 - [ ] No unnecessary excess scopes beyond what the connector actually needs
 
-### Scope Subset Validation (CRITICAL)
+### Scope Subset Validation
 - [ ] Every scope in `requiredScopes` exists in the OAuth provider's `scopes` array in `lib/oauth/oauth.ts`
 - [ ] Find the provider in `OAUTH_PROVIDERS[providerGroup].services[serviceId].scopes`
 - [ ] Verify: `requiredScopes` ⊆ `OAUTH_PROVIDERS scopes` (every required scope is present in the provider config)
@@ -146,7 +146,7 @@ For each API endpoint the connector calls:
 - [ ] If the connector calls endpoints requiring scopes not in `requiredScopes`, flag as **warning**
 
 ### Token Refresh Config
-- [ ] Check the `getOAuthTokenRefreshConfig` function in `lib/oauth/oauth.ts` for this provider
+- [ ] Check the provider's entry in `getProviderAuthConfig` (`lib/oauth/oauth.ts`)
 - [ ] `useBasicAuth` matches the service's token exchange requirements
 - [ ] `supportsRefreshTokenRotation` matches whether the service issues rotating refresh tokens
 - [ ] Token endpoint URL is correct
@@ -164,12 +164,12 @@ For each API endpoint the connector calls:
 - [ ] No off-by-one errors in pagination tracking
 - [ ] The connector does NOT hit known API pagination limits silently (e.g., HubSpot search 10k cap)
 
-### Deletion-Reconciliation Safety (`listingCapped`) — CRITICAL
+### Deletion-Reconciliation Safety (`listingCapped`)
 The sync engine tombstones, then hard-deletes, any stored document absent from a full listing. Audit every path where `listDocuments` can return less than the full source set:
 - [ ] `syncContext.listingCapped = true` is set when a `maxItems`-style cap truncates the listing while more documents exist
 - [ ] `listingCapped` is set when a transient per-item error drops a still-existing document from the listing
 - [ ] `listingCapped` is NOT set when the source is genuinely exhausted (deleted documents must reconcile) or for intentional scope filters (date cutoffs)
-Verify it explicitly against `shouldReconcileDeletions` in `sync-engine.ts`.
+Verify it against the `checkpoint.unsafe` computation in `lib/knowledge/connectors/listing-checkpoint.ts`.
 
 ### Pagination State Across Pages
 - [ ] `syncContext` is used to cache state across pages (user names, field maps, instance URLs, portal IDs, etc.)
@@ -177,7 +177,7 @@ Verify it explicitly against `shouldReconcileDeletions` in `sync-engine.ts`.
 
 ## Step 6: Validate Data Transformation
 
-### Content Deferral (CRITICAL)
+### Content Deferral
 Connectors that require per-document API calls to fetch content (file download, export, blocks fetch) MUST use `contentDeferred: true`. This is the standard pattern for reliability — without it, content downloads during listing can exhaust the sync task's time budget before any documents are saved.
 
 - [ ] If the connector downloads content per-doc during `listDocuments`, it MUST use `contentDeferred: true` instead
@@ -193,7 +193,7 @@ Connectors where the list API already returns content inline (e.g., Slack messag
 - [ ] `externalId` is a stable, unique identifier from the source API
 - [ ] `title` is extracted from the correct field and has a sensible fallback (e.g., `'Untitled'`)
 - [ ] `content` is plain text — HTML content is stripped using `htmlToPlainText` from `@/connectors/utils`
-- [ ] `mimeType` is `'text/plain'`
+- [ ] `mimeType` is `'text/plain'` for extracted text, or the document hands over `sourceFile` for a format the KB pipeline parses
 - [ ] `contentHash` uses a metadata-based format (e.g., `service:{id}:{modifiedTime}`) for connectors with `contentDeferred: true`, or `computeContentHash` from `@/connectors/utils` for inline-content connectors
 - [ ] `sourceUrl` is a valid, complete URL back to the original resource (not relative)
 - [ ] `metadata` contains all fields referenced by `mapTags` and `tagDefinitions`
@@ -230,17 +230,8 @@ Connectors where the list API already returns content inline (e.g., Slack messag
   - A `type: 'selector'` field with `selectorKey`, `canonicalParamId`, `mode: 'basic'`
   - A `type: 'short-input'` field with the same `canonicalParamId`, `mode: 'advanced'`
   - `required` is identical on both fields in the pair
-- [ ] `selectorKey` values exist in the browser-safe manifest and remote keys have exactly one
-      server attachment
 - [ ] `dependsOn` references selector field `id` values, not `canonicalParamId`
-- [ ] The shared builder projects only the active canonical dependency into an allowlisted
-      `SelectorContextKey`; exact `{{KEY}}` references remain unresolved in the browser
-- [ ] The attachment binds stored credentials to the actor, workspace, and trusted provider/service
-      and declares a reviewed `fixed`, `credential-bound`, or `user-controlled` destination policy
-- [ ] The connector sends workspace scope through the shared selector transport and does not send
-      the full connector configuration
-- [ ] No client provider selector module, browser token request, provider-specific selector request,
-      or selector-only route remains
+- [ ] Each selector key passes the `validate-selector` skill
 
 ### validateConfig
 - [ ] Validates all required fields are present before making API calls
@@ -267,7 +258,7 @@ Connectors where the list API already returns content inline (e.g., Slack messag
 ## Step 10: Validate General Quality
 
 ### fetchWithRetry Usage
-- [ ] All external API calls use `fetchWithRetry` from `@/lib/knowledge/documents/utils`
+- [ ] All external API calls use `fetchWithRetry` (or `secureFetchWithRetry` for user-controlled hosts) from `@/lib/knowledge/documents/secure-fetch.server`
 - [ ] No raw `fetch()` calls to external APIs
 - [ ] `VALIDATE_RETRY_OPTIONS` used in `validateConfig`
 - [ ] If `validateConfig` calls a shared helper (e.g., `linearGraphQL`, `resolveId`), that helper must accept and forward `retryOptions` to `fetchWithRetry`
@@ -367,31 +358,4 @@ After fixing, confirm:
 
 ## Checklist Summary
 
-- [ ] Read connector meta.ts, implementation, types, utils, both registries, and OAuth config
-- [ ] Pulled and read official API documentation for the service
-- [ ] Validated every API endpoint URL, method, headers, and body against API docs
-- [ ] Validated input sanitization: no query/filter injection, URL fields normalized
-- [ ] Validated OAuth scopes: `requiredScopes` ⊆ OAuth provider `scopes` in `oauth.ts`
-- [ ] Validated each scope is real and recognized by the service's API
-- [ ] Validated scopes are sufficient for all API endpoints the connector calls
-- [ ] Validated token refresh config (`useBasicAuth`, `supportsRefreshTokenRotation`)
-- [ ] Validated pagination: cursor names, page sizes, hasMore logic, no silent caps
-- [ ] Validated deletion-reconciliation safety: `syncContext.listingCapped` set on capped/error-truncated listings, not on genuine exhaustion or intentional scope filters
-- [ ] Validated content deferral: `contentDeferred: true` used when per-doc content fetch required, metadata-based `contentHash` consistent between stub and `getDocument`
-- [ ] Validated data transformation: plain text extraction, HTML stripping, content hashing
-- [ ] Validated tag definitions match mapTags output, correct fieldTypes
-- [ ] Validated config fields: canonical pairs, selector keys, required flags
-- [ ] Validated each dynamic selector through the shared manifest, server attachment, and
-      `selectors.execute` boundary
-- [ ] Validated validateConfig: lightweight check, error messages, retry options
-- [ ] Validated getDocument: null on 404, all content types handled, no redundant re-fetches, syncContext forwarding
-- [ ] Validated fetchWithRetry used for all external calls (no raw fetch), VALIDATE_RETRY_OPTIONS threaded through helpers
-- [ ] Validated API efficiency: field selection used, no redundant calls, sequential fetches batched
-- [ ] Validated error handling: graceful failures, no unhandled rejections
-- [ ] Validated logging: createLogger, no console.log
-- [ ] Validated meta/runtime split: `meta.ts` holds metadata with no server/runtime imports, `{service}.ts` spreads the meta + adds runtime functions
-- [ ] Validated registry: exported from index.ts, full connector in `registry.server.ts`, meta in `registry.ts`, matching keys and alphabetical-by-id ordering in both
-- [ ] Reported all issues grouped by severity
-- [ ] Fixed all critical and warning issues
-- [ ] Ran `bun run lint` after fixes
-- [ ] Verified TypeScript compiles clean
+Before reporting, confirm every step above was checked, issues are grouped by severity, critical and warning fixes are applied, and `bun run lint` plus type-check pass.

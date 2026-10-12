@@ -66,6 +66,9 @@ Search the ZoomInfo company database by name, industry, location, and size.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `companies` | array | Matching companies |
+| `totalResults` | number | Total number of matching results across all pages |
+| `currentPage` | number | Current page number |
+| `totalPages` | number | Total number of pages available |
 
 ### ZoomInfo Search Contacts
 
@@ -99,6 +102,9 @@ Search ZoomInfo for contacts (people) by name, job title, company, and other fil
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts` | array | Matching contacts \(without emails or phone numbers\) |
+| `totalResults` | number | Total number of matching results across all pages |
+| `currentPage` | number | Current page number |
+| `totalPages` | number | Total number of pages available |
 
 ### ZoomInfo Enrich Companies
 
@@ -168,6 +174,9 @@ Search for companies showing intent signals on specific topics.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `signals` | array | Intent signals with topic, score, audience strength, and company |
+| `totalResults` | number | Total number of matching results across all pages |
+| `currentPage` | number | Current page number |
+| `totalPages` | number | Total number of pages available |
 
 ### ZoomInfo Search News
 
@@ -191,5 +200,8 @@ Search ZoomInfo news articles by category, URL, or date range.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `articles` | array | News articles matching the filters |
+| `totalResults` | number | Total number of matching results across all pages |
+| `currentPage` | number | Current page number |
+| `totalPages` | number | Total number of pages available |
 
 

@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isEqual } from 'es-toolkit'
 import type { UpdateConnectorBody } from '@/lib/api/contracts/knowledge/connectors'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { isContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
@@ -137,7 +136,7 @@ export function useConnectorSettingsForm({
   onSaved,
   syncing = isConnectorSyncingOrPending(connector),
 }: UseConnectorSettingsFormOptions) {
-  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch && isSearchIndex
+  const liveSearch = isSearchIndex
   const connectorConfig = liveSearchSourceMeta(
     CONNECTOR_META_REGISTRY[connector.connectorType] ?? null,
     Boolean(liveSearch),

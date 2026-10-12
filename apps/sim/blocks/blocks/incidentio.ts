@@ -1,7 +1,6 @@
 import { IncidentioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { IncidentioResponse } from '@/tools/incidentio/types'
 import { getTrigger } from '@/triggers'
 
 /** Identifiers a user can be looked up by, whichever one is filled. */
@@ -26,7 +25,7 @@ function toTriState(value: unknown): boolean | undefined {
   return undefined
 }
 
-export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
+export const IncidentioBlock: BlockConfig = {
   type: 'incidentio',
   name: 'incident.io',
   description: 'Manage incidents with incident.io',
@@ -229,98 +228,74 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Incidents
         { label: 'List Incidents', id: 'incidentio_incidents_list' },
         { label: 'Create Incident', id: 'incidentio_incidents_create' },
         { label: 'Show Incident', id: 'incidentio_incidents_show' },
         { label: 'Update Incident', id: 'incidentio_incidents_update' },
-        // Actions
         { label: 'List Actions', id: 'incidentio_actions_list' },
         { label: 'Show Action', id: 'incidentio_actions_show' },
-        // Follow-ups
         { label: 'List Follow-ups', id: 'incidentio_follow_ups_list' },
         { label: 'Show Follow-up', id: 'incidentio_follow_ups_show' },
-        // Users
         { label: 'List Users', id: 'incidentio_users_list' },
         { label: 'Show User', id: 'incidentio_users_show' },
-        // Workflows
         { label: 'List Workflows', id: 'incidentio_workflows_list' },
         { label: 'Create Workflow', id: 'incidentio_workflows_create' },
         { label: 'Show Workflow', id: 'incidentio_workflows_show' },
         { label: 'Update Workflow', id: 'incidentio_workflows_update' },
         { label: 'Delete Workflow', id: 'incidentio_workflows_delete' },
-        // Schedules
         { label: 'List Schedules', id: 'incidentio_schedules_list' },
         { label: 'Create Schedule', id: 'incidentio_schedules_create' },
         { label: 'Show Schedule', id: 'incidentio_schedules_show' },
         { label: 'Update Schedule', id: 'incidentio_schedules_update' },
         { label: 'Delete Schedule', id: 'incidentio_schedules_delete' },
-        // Escalations
         { label: 'List Escalations', id: 'incidentio_escalations_list' },
         { label: 'Create Escalation', id: 'incidentio_escalations_create' },
         { label: 'Show Escalation', id: 'incidentio_escalations_show' },
-        // Custom Fields
         { label: 'List Custom Fields', id: 'incidentio_custom_fields_list' },
         { label: 'Create Custom Field', id: 'incidentio_custom_fields_create' },
         { label: 'Show Custom Field', id: 'incidentio_custom_fields_show' },
         { label: 'Update Custom Field', id: 'incidentio_custom_fields_update' },
         { label: 'Delete Custom Field', id: 'incidentio_custom_fields_delete' },
-        // Reference Data
         { label: 'List Severities', id: 'incidentio_severities_list' },
         { label: 'List Incident Statuses', id: 'incidentio_incident_statuses_list' },
         { label: 'List Incident Types', id: 'incidentio_incident_types_list' },
-        // Incident Roles
         { label: 'List Incident Roles', id: 'incidentio_incident_roles_list' },
         { label: 'Create Incident Role', id: 'incidentio_incident_roles_create' },
         { label: 'Show Incident Role', id: 'incidentio_incident_roles_show' },
         { label: 'Update Incident Role', id: 'incidentio_incident_roles_update' },
         { label: 'Delete Incident Role', id: 'incidentio_incident_roles_delete' },
-        // Incident Timestamps
         { label: 'List Incident Timestamps', id: 'incidentio_incident_timestamps_list' },
         { label: 'Show Incident Timestamp', id: 'incidentio_incident_timestamps_show' },
-        // Incident Updates
         { label: 'List Incident Updates', id: 'incidentio_incident_updates_list' },
-        // Schedule Entries
         { label: 'List Schedule Entries', id: 'incidentio_schedule_entries_list' },
-        // Schedule Overrides
         { label: 'Create Schedule Override', id: 'incidentio_schedule_overrides_create' },
-        // Escalation Paths
         { label: 'List Escalation Paths', id: 'incidentio_escalation_paths_list' },
         { label: 'Create Escalation Path', id: 'incidentio_escalation_paths_create' },
         { label: 'Show Escalation Path', id: 'incidentio_escalation_paths_show' },
         { label: 'Update Escalation Path', id: 'incidentio_escalation_paths_update' },
         { label: 'Delete Escalation Path', id: 'incidentio_escalation_paths_delete' },
-        // On-call
         { label: 'Get Who Is On Call', id: 'incidentio_on_call_now' },
         { label: 'List Schedule Overrides', id: 'incidentio_schedule_overrides_list' },
-        // Alerts
         { label: 'List Alerts', id: 'incidentio_alerts_list' },
         { label: 'Show Alert', id: 'incidentio_alerts_show' },
         { label: 'Resolve Alert', id: 'incidentio_alerts_resolve' },
         { label: 'Create Alert Event', id: 'incidentio_alert_events_create' },
         { label: 'List Incident Alerts', id: 'incidentio_incident_alerts_list' },
-        // Escalations
         { label: 'Cancel Escalation', id: 'incidentio_escalations_cancel' },
-        // Catalog
         { label: 'List Catalog Types', id: 'incidentio_catalog_types_list' },
         { label: 'List Catalog Entries', id: 'incidentio_catalog_entries_list' },
-        // Teams
         { label: 'List Teams', id: 'incidentio_teams_list' },
         { label: 'Show Team', id: 'incidentio_teams_show' },
-        // Follow-ups
         { label: 'Create Follow-up', id: 'incidentio_follow_ups_create' },
         { label: 'Update Follow-up', id: 'incidentio_follow_ups_update' },
-        // Actions
         { label: 'Create Action', id: 'incidentio_actions_create' },
         { label: 'Update Action', id: 'incidentio_actions_update' },
-        // Incident people
         { label: 'List Incident Participants', id: 'incidentio_incident_participants_list' },
         { label: 'Grant Incident Membership', id: 'incidentio_incident_memberships_create' },
         { label: 'Revoke Incident Membership', id: 'incidentio_incident_memberships_revoke' },
       ],
       value: () => 'incidentio_incidents_list',
     },
-    // Common pagination field
     {
       id: 'page_size',
       title: 'Page Size',
@@ -345,7 +320,6 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       },
       mode: 'advanced',
     },
-    // Pagination 'after' field for list operations
     {
       id: 'after',
       title: 'After (Pagination)',
@@ -394,7 +368,6 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       condition: { field: 'operation', value: 'incidentio_incidents_list' },
       mode: 'advanced',
     },
-    // Incidents Create operation inputs
     {
       id: 'summary',
       title: 'Summary',
@@ -467,7 +440,6 @@ Return ONLY the summary text - no explanations.`,
       condition: { field: 'operation', value: 'incidentio_incidents_create' },
       required: true,
     },
-    // Show/Update Incident inputs
     {
       id: 'id',
       title: 'ID',
@@ -555,7 +527,6 @@ Return ONLY the name - no explanations.`,
         placeholder: 'Describe the name you want to use...',
       },
     },
-    // Escalations inputs
     {
       id: 'idempotency_key',
       title: 'Idempotency Key',
@@ -604,7 +575,6 @@ Return ONLY the title - no explanations.`,
       placeholder: 'Enter user IDs, comma-separated (required if no path ID)...',
       condition: { field: 'operation', value: 'incidentio_escalations_create' },
     },
-    // Actions List inputs
     {
       id: 'incident_id',
       title: 'Incident ID',
@@ -652,7 +622,6 @@ Return ONLY the title - no explanations.`,
       },
       mode: 'advanced',
     },
-    // Workflows inputs
     {
       id: 'folder',
       title: 'Folder',
@@ -846,7 +815,6 @@ Return ONLY the title - no explanations.`,
       mode: 'advanced',
       required: { field: 'operation', value: 'incidentio_workflows_update' },
     },
-    // Schedules inputs
     {
       id: 'timezone',
       title: 'Timezone',
@@ -912,7 +880,6 @@ Return ONLY the JSON object - no explanations or markdown formatting.`,
         generationType: 'json-object',
       },
     },
-    // Custom Fields inputs
     {
       id: 'description',
       title: 'Description',
@@ -956,7 +923,6 @@ Return ONLY the description text - no explanations.`,
       condition: { field: 'operation', value: 'incidentio_custom_fields_create' },
       required: true,
     },
-    // Incident Roles inputs
     {
       id: 'instructions',
       title: 'Instructions',
@@ -991,8 +957,6 @@ Return ONLY the instructions text - no explanations.`,
       },
       required: true,
     },
-    // Incident Updates inputs
-    // Schedule Entries inputs
     {
       id: 'schedule_id',
       title: 'Schedule ID',
@@ -1056,7 +1020,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Schedule Overrides inputs
     {
       id: 'rotation_id',
       title: 'Rotation ID',
@@ -1161,7 +1124,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Escalation Paths inputs
     {
       id: 'path',
       title: 'Path Configuration',
@@ -1215,7 +1177,6 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
         generationType: 'json-object',
       },
     },
-    // Alerts inputs
     {
       id: 'alert_status',
       title: 'Alert Status',
@@ -1406,7 +1367,6 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
         generationType: 'json-object',
       },
     },
-    // Catalog inputs
     {
       id: 'catalog_type_id',
       title: 'Catalog Type ID',
@@ -1423,7 +1383,6 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
       condition: { field: 'operation', value: 'incidentio_catalog_entries_list' },
       mode: 'advanced',
     },
-    // Follow-up and Action inputs
     {
       id: 'follow_up_title',
       title: 'Follow-up Title',
@@ -1560,7 +1519,6 @@ Return ONLY the description - no explanations.`,
       },
       mode: 'advanced',
     },
-    // API Key (common)
     {
       id: 'apiKey',
       title: 'API Key',
@@ -1569,7 +1527,6 @@ Return ONLY the description - no explanations.`,
       password: true,
       required: true,
     },
-    // Trigger subBlocks (webhook configuration)
     ...getTrigger('incidentio_incident_created').subBlocks,
     ...getTrigger('incidentio_incident_updated').subBlocks,
     ...getTrigger('incidentio_incident_status_updated').subBlocks,
@@ -1836,14 +1793,12 @@ Return ONLY the description - no explanations.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'incident.io API key' },
-    // Common fields
     id: { type: 'string', description: 'Resource ID' },
     name: { type: 'string', description: 'Resource name' },
     page_size: { type: 'number', description: 'Number of results per page' },
     after: { type: 'string', description: 'Pagination cursor' },
     sort_by: { type: 'string', description: 'Incident sort order' },
     filter_mode: { type: 'string', description: 'Incident filter combination mode' },
-    // Incident fields
     summary: { type: 'string', description: 'Incident summary' },
     severity_id: { type: 'string', description: 'Severity ID' },
     incident_type_id: { type: 'string', description: 'Incident type ID' },
@@ -1855,7 +1810,6 @@ Return ONLY the description - no explanations.`,
       type: 'boolean',
       description: 'Whether to notify the incident channel',
     },
-    // Workflow fields
     folder: { type: 'string', description: 'Workflow folder' },
     state: { type: 'string', description: 'Workflow state' },
     trigger: { type: 'string', description: 'Workflow trigger type' },
@@ -1881,16 +1835,12 @@ Return ONLY the description - no explanations.`,
     once_for: { type: 'string', description: 'Workflow run-once fields JSON' },
     expressions: { type: 'string', description: 'Workflow expressions JSON' },
     delay: { type: 'string', description: 'Workflow delay JSON' },
-    // Schedule fields
     timezone: { type: 'string', description: 'Schedule timezone' },
-    // Custom field fields
     description: { type: 'string', description: 'Custom field description' },
     field_type: { type: 'string', description: 'Custom field type' },
     idempotency_key: { type: 'string', description: 'Unique key to prevent duplicate creation' },
-    // Incident Roles fields
     role_type: { type: 'string', description: 'Type of incident role' },
     required: { type: 'boolean', description: 'Whether the role is required' },
-    // Schedule Entries/Overrides fields
     schedule_id: { type: 'string', description: 'Schedule ID' },
     entry_window_start: { type: 'string', description: 'Schedule entry window start' },
     entry_window_end: { type: 'string', description: 'Schedule entry window end' },
@@ -1901,10 +1851,8 @@ Return ONLY the description - no explanations.`,
     start_at: { type: 'string', description: 'Start date/time' },
     end_at: { type: 'string', description: 'End date/time' },
     layer_id: { type: 'string', description: 'Schedule layer ID' },
-    // Escalation Paths fields
     path: { type: 'json', description: 'Escalation path configuration' },
     working_hours: { type: 'json', description: 'Working hours configuration' },
-    // Alert fields
     alert_id: { type: 'string', description: 'Alert ID' },
     alert_status: { type: 'string', description: 'Alert status (firing, resolved)' },
     status_operator: { type: 'string', description: 'How to match the alert status filter' },
@@ -1927,10 +1875,8 @@ Return ONLY the description - no explanations.`,
     alert_description: { type: 'string', description: 'Alert description' },
     source_url: { type: 'string', description: 'Link to the alert in the upstream system' },
     metadata: { type: 'string', description: 'Alert metadata JSON' },
-    // Catalog fields
     catalog_type_id: { type: 'string', description: 'Catalog type ID' },
     identifier: { type: 'string', description: 'Catalog entry identifier to match' },
-    // Follow-up and Action fields
     follow_up_title: { type: 'string', description: 'Follow-up title' },
     follow_up_description: { type: 'string', description: 'Follow-up description' },
     action_description: { type: 'string', description: 'Action description' },
@@ -1943,73 +1889,51 @@ Return ONLY the description - no explanations.`,
     labels: { type: 'string', description: 'Comma-separated follow-up labels' },
   },
   outputs: {
-    // Incidents
     incidents: { type: 'json', description: 'List of incidents' },
     incident: { type: 'json', description: 'Incident details' },
-    // Actions
     actions: { type: 'json', description: 'List of actions' },
     action: { type: 'json', description: 'Action details' },
-    // Follow-ups
     follow_ups: { type: 'json', description: 'List of follow-ups' },
     follow_up: { type: 'json', description: 'Follow-up details' },
-    // Users
     users: { type: 'json', description: 'List of users' },
     user: { type: 'json', description: 'User details' },
-    // Workflows
     workflows: { type: 'json', description: 'List of workflows' },
     workflow: { type: 'json', description: 'Workflow details' },
     management_meta: { type: 'json', description: 'Workflow management metadata' },
-    // Schedules
     schedules: { type: 'json', description: 'List of schedules' },
     schedule: { type: 'json', description: 'Schedule details' },
-    // Escalations
     escalations: { type: 'json', description: 'List of escalations' },
     escalation: { type: 'json', description: 'Escalation details' },
-    // Custom Fields
     custom_fields: { type: 'json', description: 'List of custom fields' },
     custom_field: { type: 'json', description: 'Custom field details' },
-    // Reference Data
     severities: { type: 'json', description: 'List of severities' },
     incident_statuses: { type: 'json', description: 'List of incident statuses' },
     incident_types: { type: 'json', description: 'List of incident types' },
-    // Incident Roles
     incident_roles: { type: 'json', description: 'List of incident roles' },
     incident_role: { type: 'json', description: 'Incident role details' },
-    // Incident Timestamps
     incident_timestamps: { type: 'json', description: 'List of incident timestamps' },
     incident_timestamp: { type: 'json', description: 'Incident timestamp details' },
-    // Incident Updates
     incident_updates: { type: 'json', description: 'List of incident updates' },
-    // Schedule Entries
     schedule_entries: { type: 'json', description: 'List of schedule entries' },
-    // Schedule Overrides
     override: { type: 'json', description: 'Schedule override details' },
-    // Escalation Paths
     escalation_paths: { type: 'json', description: 'List of escalation paths' },
     escalation_path: { type: 'json', description: 'Escalation path details' },
-    // On-call
     on_call: { type: 'json', description: 'Shifts that are ongoing right now' },
     next_on_call: { type: 'json', description: 'Shifts that take over at the next changeover' },
-    // Schedule Overrides
     overrides: { type: 'json', description: 'List of schedule overrides' },
-    // Alerts
     alerts: { type: 'json', description: 'List of alerts' },
     alert: { type: 'json', description: 'Alert details' },
     incident_alerts: { type: 'json', description: 'List of incident-to-alert connections' },
     deduplication_key: { type: 'string', description: 'Deduplication key of the alert event' },
     status: { type: 'string', description: 'Status of the alert event' },
-    // Catalog
     catalog_types: { type: 'json', description: 'List of catalog types' },
     catalog_entries: { type: 'json', description: 'List of catalog entries' },
     catalog_type: { type: 'json', description: 'The catalog type the entries belong to' },
-    // Teams
     teams: { type: 'json', description: 'List of teams' },
     team: { type: 'json', description: 'Team details' },
-    // Incident people
     active: { type: 'json', description: 'Participants actively helping with the incident' },
     passive: { type: 'json', description: 'Participants observing the incident' },
     incident_membership: { type: 'json', description: 'Incident membership details' },
-    // General
     message: { type: 'string', description: 'Operation result message' },
     pagination_meta: { type: 'json', description: 'Pagination metadata' },
   },

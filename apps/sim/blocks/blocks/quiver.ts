@@ -3,7 +3,6 @@ import { QuiverIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { QuiverSvgResponse, QuiverSvgV2Response } from '@/tools/quiver/types'
 
 const REFERENCE_IMAGES_FIELD = ['referenceFiles', 'referenceInput'] as const
 const IMAGE_FIELD = ['imageFile', 'imageInput'] as const
@@ -258,7 +257,7 @@ export const QuiverBlock = {
       description: 'List of available models (list_models operation only)',
     },
   },
-} satisfies BlockConfig<QuiverSvgResponse>
+} satisfies BlockConfig
 
 const selectQuiverV2Tool = createVersionedToolSelector({
   baseToolSelector: (params: Record<string, string>) =>
@@ -267,7 +266,7 @@ const selectQuiverV2Tool = createVersionedToolSelector({
   fallbackToolId: 'quiver_text_to_svg_v2',
 })
 
-export const QuiverV2Block: BlockConfig<QuiverSvgV2Response> = {
+export const QuiverV2Block: BlockConfig = {
   ...QuiverBlock,
   type: 'quiver_v2',
   name: 'Quiver',

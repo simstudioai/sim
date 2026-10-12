@@ -6,11 +6,19 @@
  * capture call site.
  */
 
+import type { AttributionProperties } from '@/lib/analytics/attribution'
+
 export interface PostHogEventMap {
   user_created: {
     auth_method: 'email' | 'oauth' | 'sso'
     provider?: string
-  }
+  } & AttributionProperties
+
+  /**
+   * PostHog's reserved page-view event, sent by hand on marketing routes because
+   * `capture_pageview` is off app-wide. Its URL properties come from the browser.
+   */
+  $pageview: Record<string, never>
 
   landing_page_viewed: Record<string, never>
 
@@ -27,6 +35,17 @@ export interface PostHogEventMap {
       | 'landing_preview'
       | 'integrations'
     destination: 'auth_modal' | 'demo_modal' | '/signup' | '/login' | '/workspace' | (string & {})
+  }
+
+  /**
+   * A sign-in left for an identity provider. Paired with `user_created`
+   * (server) to measure drop-off at the provider's consent screen. SSO serves
+   * both sign-in and sign-up, so it carries no `view`.
+   */
+  external_sign_in_started: {
+    provider: 'github' | 'google' | 'microsoft' | 'sso'
+    view?: 'login' | 'signup'
+    surface: 'auth_page' | 'auth_modal' | 'sso_page'
   }
 
   auth_modal_opened: {
@@ -46,6 +65,8 @@ export interface PostHogEventMap {
   landing_demo_request_submitted: {
     company_size: string
   }
+
+  landing_demo_booked: Record<string, never>
 
   landing_contact_submitted: {
     topic: string
@@ -766,6 +787,17 @@ export interface PostHogEventMap {
     workspace_id: string
     workflow_count: number
     fork_sync_excluded: boolean
+  }
+
+  /**
+   * The lineage-wide "do new workflows sync to forks?" default was changed from the Forks
+   * settings. `workspace_id` is where the admin changed it; the write fans out to the
+   * whole lineage.
+   */
+  fork_sync_default_updated: {
+    workspace_id: string
+    fork_sync_new_workflows_excluded: boolean
+    workspaces_updated: number
   }
 
   workflow_schedule_created: {

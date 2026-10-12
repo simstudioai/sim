@@ -5,6 +5,7 @@ import type { CompetitorProfile } from '@/lib/compare/data/types'
 export const microsoftCopilotProfile: CompetitorProfile = {
   id: 'microsoft-copilot',
   name: 'Microsoft Copilot Studio',
+  mentions: ['Copilot Studio'],
   website: 'https://www.microsoft.com/en-us/microsoft-copilot-studio',
   brand: {
     icon: MicrosoftCopilotIcon,

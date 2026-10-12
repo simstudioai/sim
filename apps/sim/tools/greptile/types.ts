@@ -9,15 +9,6 @@ interface GreptileBaseParams {
 }
 
 /**
- * Repository identifier format
- */
-interface GreptileRepository {
-  remote: 'github' | 'gitlab'
-  branch: string
-  repository: string
-}
-
-/**
  * Query tool parameters
  */
 export interface GreptileQueryParams extends GreptileBaseParams {
@@ -118,12 +109,3 @@ export interface GreptileStatusResponse extends ToolResponse {
     sha?: string
   }
 }
-
-/**
- * Union type for all Greptile responses
- */
-export type GreptileResponse =
-  | GreptileQueryResponse
-  | GreptileSearchResponse
-  | GreptileIndexResponse
-  | GreptileStatusResponse

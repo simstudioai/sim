@@ -4,6 +4,8 @@
 export interface SidebarState {
   workspaceDropdownOpen: boolean
   sidebarWidth: number
+  /** Current expanded layout width; the saved desktop preference remains sidebarWidth. */
+  renderedSidebarWidth: number
   /** Whether the sidebar is collapsed to icon-only mode */
   isCollapsed: boolean
   _hasHydrated: boolean

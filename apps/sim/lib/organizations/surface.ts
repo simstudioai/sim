@@ -36,6 +36,7 @@ interface OrganizationSurfaceViewer {
   role: OrganizationRole
   isAdmin: boolean
   canInviteMembers: boolean
+  canConnectSearchIntegrations: boolean
   canUsePersonalApiKeys: boolean
   canUseSearchMcp: boolean
 }
@@ -126,6 +127,9 @@ async function resolveOrganizationSurfaceContext(
       isAdmin: access.isAdmin,
       canInviteMembers:
         access.isAdmin && !isInvitationsDisabled && !capabilityDeniedBy('invitations.send', config),
+      canConnectSearchIntegrations:
+        !capabilityDeniedBy('integrations.manage', config) &&
+        !capabilityDeniedBy('knowledge.use', config),
       canUsePersonalApiKeys:
         !capabilityDeniedBy('personal_api_key.use', config) &&
         !capabilityDeniedBy('api_keys.manage', config),

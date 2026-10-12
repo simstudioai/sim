@@ -152,7 +152,7 @@ export async function sealClientToolContext(
   return { [SEALED_CLIENT_TOOL_CONTEXT_FIELD]: encrypted }
 }
 
-export function retainSealedClientToolContext(
+function retainSealedClientToolContext(
   value: unknown
 ): Partial<Record<typeof SEALED_CLIENT_TOOL_CONTEXT_FIELD, string>> {
   if (!isPlainRecord(value)) return {}
@@ -160,6 +160,21 @@ export function retainSealedClientToolContext(
   return typeof sealed === 'string' && sealed.length > 0
     ? { [SEALED_CLIENT_TOOL_CONTEXT_FIELD]: sealed }
     : {}
+}
+
+/**
+ * The durable result of a client tool call settled with `content`: the sealed provenance
+ * pre-persist stored on the row, beside the sealed completion, so the call's waiter restores it
+ * like any client result.
+ */
+export async function sealClientToolSettlement(
+  storedResult: unknown,
+  content: ClientToolCompletionContent
+): Promise<Record<string, string>> {
+  return {
+    ...retainSealedClientToolContext(storedResult),
+    ...(await sealClientToolCompletion(content)),
+  }
 }
 
 export async function unsealClientToolContext(

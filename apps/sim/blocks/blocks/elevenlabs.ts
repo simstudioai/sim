@@ -1,7 +1,6 @@
 import { ElevenLabsIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { ElevenLabsBlockResponse } from '@/tools/elevenlabs/types'
 
 const VOICE_OPERATIONS = [
   'tts',
@@ -27,7 +26,7 @@ const toBoolean = (value: unknown): boolean | undefined => {
   return String(value).toLowerCase() === 'true'
 }
 
-export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
+export const ElevenLabsBlock: BlockConfig = {
   type: 'elevenlabs',
   name: 'ElevenLabs',
   description: 'Generate and transform audio with ElevenLabs',

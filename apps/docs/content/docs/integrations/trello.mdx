@@ -579,4 +579,17 @@ List members of a Trello board
 |   ↳ `username` | string | Member username |
 | `count` | number | Number of members returned |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Trello account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Environment variables | `TRELLO_API_KEY` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `read` | Read boards, lists, cards, and workspaces |
+| `write` | Create and update boards, lists, and cards |
+
 

@@ -2,9 +2,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { PostgresIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { PostgresResponse } from '@/tools/postgresql/types'
 
-export const PostgreSQLBlock: BlockConfig<PostgresResponse> = {
+export const PostgreSQLBlock: BlockConfig = {
   type: 'postgresql',
   name: 'PostgreSQL',
   description: 'Connect to PostgreSQL database',

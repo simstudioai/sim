@@ -7,7 +7,7 @@
 
 import { workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
-import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { v1LogsMetaMock, v1LogsMetaMockFns } from '@sim/testing/mocks/v1-logs-meta.mock'
 import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
@@ -77,8 +77,6 @@ v1LogsMetaMockFns.mockCreateApiResponse.mockImplementation((body: unknown) => ({
 
 const mockSaveWorkflowToNormalizedTables =
   workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
-const mockNotifyWorkspaceWorkflowsChanged =
-  realtimeNotifyMockFns.mockNotifyWorkspaceWorkflowsChanged
 const mockAssertFolderMutable = workflowAuthzMockFns.mockAssertFolderMutable
 const mockAssertFolderInWorkspace = workflowAuthzMockFns.mockAssertFolderInWorkspace
 const mockDbDelete = dbChainMockFns.delete

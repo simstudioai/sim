@@ -1,14 +1,16 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { isOrgProjectViewEnabled } from '@/lib/projects/feature-flag'
-import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
+import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
@@ -17,7 +19,10 @@ import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
-import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
+import {
+  WorkspaceChrome,
+  WorkspaceViewport,
+} from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 
@@ -58,10 +63,11 @@ export default async function OrganizationLayout({
 
   const [
     ,
-    tableRowTtlEnabled,
     modelSelectorEnabled,
     planModeEnabled,
     dashboardsEnabled,
+    workflowTestsEnabled,
+    changelogEnabled,
     orgProjectViewEnabled,
   ] = await Promise.all([
     prefetchOrganizationSidebar(
@@ -70,10 +76,11 @@ export default async function OrganizationLayout({
       { kind: 'session', userId: session.user.id, sessionId: session.session.id },
       getActiveOrganizationId(session)
     ),
-    isTableRowTtlEnabled(),
     isMothershipModelSelectorEnabled(),
     isPlanModeEnabled(),
     isDashboardsEnabled(organizationId),
+    isWorkflowTestsEnabled(organizationId),
+    isChangelogEnabled(organizationId),
     isOrgProjectViewEnabled(organizationId),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
@@ -83,7 +90,9 @@ export default async function OrganizationLayout({
       <FeatureFlagsProvider
         flags={{
           dashboards: dashboardsEnabled,
-          'table-row-ttl': tableRowTtlEnabled,
+          'workflow-tests': workflowTestsEnabled,
+          changelog: changelogEnabled,
+          'org-project-view': orgProjectViewEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
           'org-project-view': orgProjectViewEnabled,
@@ -91,16 +100,18 @@ export default async function OrganizationLayout({
       >
         <OrganizationProvider context={context}>
           <GlobalCommandsProvider>
-            <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
+            <WorkspaceViewport className='workspace-root'>
               <ImpersonationBanner />
               <SessionExpired />
-              <WorkspaceChrome
-                sidebar={<OrganizationSidebar />}
-                initialSidebarCollapsed={initialSidebarCollapsed}
-              >
-                {children}
-              </WorkspaceChrome>
-            </div>
+              <SettingsNavigationProvider>
+                <WorkspaceChrome
+                  sidebar={<OrganizationSidebar />}
+                  initialSidebarCollapsed={initialSidebarCollapsed}
+                >
+                  {children}
+                </WorkspaceChrome>
+              </SettingsNavigationProvider>
+            </WorkspaceViewport>
           </GlobalCommandsProvider>
         </OrganizationProvider>
       </FeatureFlagsProvider>

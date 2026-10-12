@@ -15,9 +15,17 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { SIM_TOOL_EXECUTION_LEASE_SECONDS } from '@/lib/mothership/async-runs/execution-lease'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
-import { createRunSegment, updateRunStatus } from '@/lib/mothership/async-runs/repository'
-import { TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/mothership/constants'
+import {
+  createRunSegment,
+  getChatViewDesktopLeaseRemainingMs,
+  updateRunStatus,
+} from '@/lib/mothership/async-runs/repository'
+import {
+  CLIENT_TOOL_RESULT_TIMEOUT_MS,
+  TOOL_WATCHDOG_RESUME_GRACE_MS,
+} from '@/lib/mothership/constants'
 import {
   type CopilotEnvironmentContext,
   prepareCopilotEnvironmentContext,
@@ -53,6 +61,7 @@ import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-ret
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
+import { turnFailure } from '@/lib/mothership/request/session/turn-failure'
 import {
   getToolCallTerminalData,
   requireToolCallStateResult,
@@ -87,7 +96,71 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 
 const logger = createLogger('CopilotLifecycle')
 
+/** After a renewed lease's end, the wait looks once more before it calls the call lost. */
+const LEASE_RECHECK_SLACK_MS = 1_000
+/** How soon a failed lease lookup is tried again. */
+const LEASE_LOOKUP_RETRY_MS = 5_000
+/** How long one lease lookup may take before it counts as failed. */
+const LEASE_LOOKUP_TIMEOUT_MS = 5_000
+
+/** The resume wait's watch over one pending tool call. */
+interface PendingToolWatchdog {
+  promise: Promise<AsyncCompletionSignal>
+  settlement: Promise<{ toolCallId: string; promise: Promise<AsyncCompletionSignal> }>
+  deadlineAt: number
+  waitBudgetMs: number
+  /** When this wait began. */
+  startedAt: number
+  /** Past this, the call is given up however its lease stands: any client tool's cap. */
+  ceilingAt: number
+  /** Why the deadline was moved past the plain budget, if it was. */
+  extendedBy?: 'lease' | 'lease_lookup'
+  /** Until when a failing lease lookup is retried before the call is given up. */
+  leaseLookupRetryUntil?: number
+}
+
+/** Why a pending call's wait ran out, in the words its force-fail is logged with. */
+function pendingToolExpiryMessage(watchdog: PendingToolWatchdog, now: number): string {
+  if (!watchdog.extendedBy)
+    return 'Pending tool execution exceeded its resume wait budget; force-failing'
+  if (now >= watchdog.ceilingAt)
+    return 'Pending tool execution reached the client tool result cap; force-failing'
+  if (watchdog.leaseLookupRetryUntil !== undefined)
+    return 'Pending tool execution lease could not be read for a whole lease; force-failing'
+  return 'Pending tool execution has no live lease past its budget; force-failing'
+}
+
+/** A pending call's chat-view lease, or why it could not be read within `timeoutMs`. */
+async function readLeaseWithin(
+  toolCallId: string,
+  timeoutMs: number,
+  abortSignal: AbortSignal | undefined
+): Promise<{ remainingMs: number | null } | { error: unknown }> {
+  const lookup = getChatViewDesktopLeaseRemainingMs(toolCallId).then(
+    (remainingMs) => ({ remainingMs }),
+    (error: unknown) => ({ error })
+  )
+  const giveUp = new AbortController()
+  const signal = abortSignal ? AbortSignal.any([abortSignal, giveUp.signal]) : giveUp.signal
+  try {
+    return await Promise.race([
+      lookup,
+      interruptibleSleep(timeoutMs, signal).then(() => ({
+        error: new Error(`The lease lookup took longer than ${timeoutMs} ms`),
+      })),
+    ])
+  } finally {
+    giveUp.abort()
+  }
+}
+
 const COPILOT_MODEL_CONTENT_PROJECTION_ERROR = 'Copilot model input could not be safely projected'
+
+/**
+ * Shown when the worker ends a turn with an error terminal but gives no reason. Every surface
+ * (Chat, workflow execute, inbox) reports it, so it carries no surface-specific next step.
+ */
+const ENDED_RUN_MESSAGE = 'This run had already ended before it could continue.'
 
 class CopilotModelContentProjectionError extends Error {
   constructor() {
@@ -246,7 +319,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
  *
  * Beyond the flag, gating is limited to interactive mothership chats: that is
  * the only surface with a UI that can answer a prompt, so enabling it anywhere
- * else would hang the turn until the orchestration timeout with nothing to click.
+ * else would hang the turn until the permission wait expires with nothing to click.
  */
 async function resolveToolPermissions(
   options: CopilotLifecycleOptions
@@ -508,7 +581,13 @@ export async function runCopilotLifecycle(
         // The worker terminal was already delivered before the relay died.
         // Rebuild persistence from that receipt without charging its usage twice.
       } else if (admission.isExceeded) {
-        await handleBillingLimitResponse(execContext.userId, context, execContext, lifecycleOptions)
+        await handleBillingLimitResponse(
+          execContext.userId,
+          context,
+          execContext,
+          lifecycleOptions,
+          'scope' in admission ? admission.scope : undefined
+        )
       } else {
         if (!isContinuation && hostedBillingRequest)
           await lifecycleOptions.onBillingAdmission?.(hostedBillingRequest)
@@ -517,14 +596,29 @@ export async function runCopilotLifecycle(
           requestPayload,
           lifecycleOptions.workspaceId
         )
-        await runCheckpointLoop(
-          modelSafeRequestPayload,
-          context,
-          execContext,
-          lifecycleOptions,
-          goRoute,
-          hostedBillingRequest
-        )
+        try {
+          await runCheckpointLoop(
+            modelSafeRequestPayload,
+            context,
+            execContext,
+            lifecycleOptions,
+            goRoute,
+            hostedBillingRequest
+          )
+        } catch (error) {
+          // A continuation refused on spend, or a worker 402 on any leg, ends the turn with the
+          // same card as a refused dispatch and stops the worker run.
+          if (!(error instanceof BillingLimitError)) throw error
+          context.awaitingAsyncContinuation = undefined
+          await handleBillingLimitResponse(
+            error.userId,
+            context,
+            execContext,
+            lifecycleOptions,
+            error.scope
+          )
+          await stopWorkerRunAfterUsageRefusal(context.messageId, execContext)
+        }
       }
 
       // The backend's terminal `complete` is the turn's verdict. A failure it
@@ -534,18 +628,31 @@ export async function runCopilotLifecycle(
       // the work the user watched succeed.
       const backendFinishedTurn =
         context.completionStatus === MothershipStreamV1CompletionStatus.complete
+      // A turn failure (such as a refused replay write) aborts the turn to stop it, but
+      // the turn failed; it was not stopped by the user.
+      const failure = turnFailure(lifecycleOptions.abortSignal?.reason)
       // Consult the lifecycle signal as well as the flag. `context.wasAborted` is
       // only reached from a fanout leg through the (deliberately asymmetric) merge
       // in `mergeResumeLegOutputs`, so a Stop landing mid-fanout could otherwise
       // classify the turn as a success. Mirrors the check already used below on
       // the throw path.
       const turnWasAborted =
-        context.completionStatus === MothershipStreamV1CompletionStatus.cancelled ||
-        context.wasAborted ||
-        (lifecycleOptions.abortSignal?.aborted ?? false)
+        !failure &&
+        (context.completionStatus === MothershipStreamV1CompletionStatus.cancelled ||
+          context.wasAborted ||
+          (lifecycleOptions.abortSignal?.aborted ?? false))
       const succeeded =
+        !failure &&
         !turnWasAborted &&
         (backendFinishedTurn || (!context.completionStatus && context.errors.length === 0))
+      // The worker sends an error terminal with no `error` event only when it replays a run
+      // that already ended (for example at its deadline) to a resume or reattach, because
+      // that replay does not carry the run's stored reason. Say so rather than leave the turn
+      // to a generic failure; a reported reason or a turn failure always wins.
+      const endedWithoutReason =
+        !turnWasAborted &&
+        context.completionStatus === MothershipStreamV1CompletionStatus.error &&
+        context.errors.length === 0
 
       const result: OrchestratorResult = {
         success: succeeded,
@@ -564,6 +671,8 @@ export async function runCopilotLifecycle(
         toolCalls: buildToolCallSummaries(context),
         chatId: context.chatId,
         requestId: context.requestId,
+        ...(endedWithoutReason ? { error: ENDED_RUN_MESSAGE } : {}),
+        ...(failure ? { error: failure.userMessage, errorCode: failure.code } : {}),
         errors: !succeeded && context.errors.length ? context.errors : undefined,
         usage: context.usage,
         cost: context.cost,
@@ -586,6 +695,7 @@ export async function runCopilotLifecycle(
       // explained, not just reduced to a message string.
       logger.error('Copilot orchestration failed', {
         error: err.message,
+        ...causeForLog(err),
         name: err.name,
         ...(error instanceof CopilotBackendError
           ? { backendStatus: error.status, backendBody: error.body?.slice(0, 2000) }
@@ -601,7 +711,8 @@ export async function runCopilotLifecycle(
       // partial content can be appended.
       // Return `cancelled: true` so upstream classification stays
       // consistent with the success-path cancel result.
-      const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
+      const failure = turnFailure(lifecycleOptions.abortSignal?.reason)
+      const wasCancelled = !failure && (lifecycleOptions.abortSignal?.aborted ?? false)
       // Preserve whatever streamed before the throw for both terminals. A thrown
       // backend error (as opposed to an `error` SSE event that lets the loop finish
       // normally) must still carry the partial assistant turn so onError can
@@ -616,7 +727,8 @@ export async function runCopilotLifecycle(
         toolCalls: buildToolCallSummaries(context),
         chatId: context.chatId,
         requestId: context.requestId,
-        error: err.message,
+        error: failure?.userMessage ?? err.message,
+        ...(failure ? { errorCode: failure.code } : {}),
         errors: context.errors.length ? context.errors : undefined,
         usage: context.usage,
         cost: context.cost,
@@ -836,6 +948,14 @@ async function runResumeLegWithRetry(
   hostedBillingRequest?: AttributedBillingRequestEnvelope
 ): Promise<void> {
   const retry = new StreamRetryWindow(options.timeout)
+  /** A leg that streams again has recovered; a later outage gets its own budget. */
+  const legOptions: CopilotLifecycleOptions = {
+    ...options,
+    onEvent: async (event) => {
+      retry.recovered()
+      await options.onEvent?.(event)
+    },
+  }
   for (;;) {
     options.abortSignal?.throwIfAborted()
     const errorsBeforeAttempt = leg.errors.length
@@ -850,7 +970,7 @@ async function runResumeLegWithRetry(
         },
         leg,
         execContext,
-        { ...options, timeout: retry.remainingMs() }
+        { ...legOptions, timeout: retry.remainingMs() }
       )
       return
     } catch (error) {
@@ -858,9 +978,10 @@ async function runResumeLegWithRetry(
       if (backoff !== null) {
         leg.errors.length = errorsBeforeAttempt
         logger.warn('Child resume leg failed, retrying', {
-          attempt: retry.attempt + 1,
+          attempt: retry.attempts + 1,
           backoffMs: backoff,
           error: toError(error).message,
+          ...causeForLog(error),
         })
         await interruptibleSleep(backoff, options.abortSignal)
         continue
@@ -1128,6 +1249,7 @@ async function runCheckpointLoop(
          has an HTTP buffer worth a per-event macrotask flush. */
       flushAfterEvent: options.flushAfterEvent ?? Boolean(callerOnEvent),
       onEvent: async (event: StreamEvent) => {
+        retry?.recovered()
         if (
           event.type === MothershipStreamV1EventType.run &&
           event.payload.kind === MothershipStreamV1RunKind.checkpoint_pause &&
@@ -1153,7 +1275,7 @@ async function runCheckpointLoop(
       {
         route,
         isResume,
-        ...(isResume ? { attempt: retry.attempt } : {}),
+        ...(isResume ? { attempt: retry.attempts } : {}),
       }
     )
     context.trace.setActiveSpan(streamSpan)
@@ -1161,7 +1283,7 @@ async function runCheckpointLoop(
     logger.info('Starting stream loop', {
       route,
       isResume,
-      resumeAttempt: retry.attempt,
+      resumeAttempt: retry.attempts,
       pendingToolPromises: context.pendingToolPromises.size,
       toolCallCount: context.toolCalls.size,
       hasCheckpoint: !!context.awaitingAsyncContinuation,
@@ -1208,10 +1330,6 @@ async function runCheckpointLoop(
     } catch (streamError) {
       context.trace.endSpan(streamSpan, RequestTraceV1SpanStatus.error)
       context.trace.setActiveSpan(undefined)
-      if (streamError instanceof BillingLimitError) {
-        await handleBillingLimitResponse(streamError.userId, context, execContext, options)
-        break
-      }
       const backoff = retry?.nextDelay(streamError, options.abortSignal) ?? null
       if (backoff !== null) {
         /** A recovered connection must not finalize with an earlier transport failure. */
@@ -1219,9 +1337,10 @@ async function runCheckpointLoop(
         logger.warn(
           isResume ? 'Resume stream failed, retrying' : 'Initial stream failed, retrying',
           {
-            attempt: (retry?.attempt ?? 0) + 1,
+            attempt: (retry?.attempts ?? 0) + 1,
             backoffMs: backoff,
             error: toError(streamError).message,
+            ...causeForLog(streamError),
           }
         )
         await interruptibleSleep(backoff, options.abortSignal)
@@ -1298,18 +1417,7 @@ async function runCheckpointLoop(
       })
       let maximumWaitBudgetMs = 0
       let timedOutCount = 0
-      const pendingWatchdogs = new Map<
-        string,
-        {
-          promise: Promise<AsyncCompletionSignal>
-          settlement: Promise<{
-            toolCallId: string
-            promise: Promise<AsyncCompletionSignal>
-          }>
-          deadlineAt: number
-          waitBudgetMs: number
-        }
-      >()
+      const pendingWatchdogs = new Map<string, PendingToolWatchdog>()
 
       /**
        * A long-running approval must not lend its deadline to an unrelated
@@ -1328,7 +1436,7 @@ async function runCheckpointLoop(
         for (const [toolCallId, promise] of context.pendingToolPromises) {
           if (pendingWatchdogs.get(toolCallId)?.promise === promise) continue
           const waitBudgetMs =
-            pendingToolWaitBudgetMs(context.toolCalls.get(toolCallId)) +
+            pendingToolWaitBudgetMs(context.toolCalls.get(toolCallId), context.desktopDeviceId) +
             TOOL_WATCHDOG_RESUME_GRACE_MS
           pendingWatchdogs.set(toolCallId, {
             promise,
@@ -1338,26 +1446,74 @@ async function runCheckpointLoop(
             ),
             deadlineAt: now + waitBudgetMs,
             waitBudgetMs,
+            startedAt: now,
+            ceilingAt: now + Math.max(waitBudgetMs, CLIENT_TOOL_RESULT_TIMEOUT_MS),
           })
           maximumWaitBudgetMs = Math.max(maximumWaitBudgetMs, waitBudgetMs)
         }
 
-        const expiredTools = Array.from(pendingWatchdogs.entries()).filter(
+        const overdueTools = Array.from(pendingWatchdogs.entries()).filter(
           ([toolCallId, watchdog]) =>
             watchdog.deadlineAt <= now &&
             context.pendingToolPromises.get(toolCallId) === watchdog.promise
         )
+        // A desktop import the chat view is running renews its lease while it works: its budget
+        // runs to the end of that lease, and only a lapsed lease fails it. At its ceiling a call is
+        // given up however its lease stands, so its lease is not read.
+        // A lookup that fails says nothing about the lease, so it is retried, for at most one lease.
+        // Each lookup is bounded, so a stalled read cannot hold the wait past its deadlines or Stop.
+        const leaseChecked = overdueTools.filter(([, watchdog]) => now < watchdog.ceilingAt)
+        const leases = await Promise.all(
+          leaseChecked.map(([toolCallId]) =>
+            readLeaseWithin(toolCallId, LEASE_LOOKUP_TIMEOUT_MS, options.abortSignal)
+          )
+        )
+        if (isAborted(options, context)) break
+        const expiredTools = [
+          ...overdueTools.filter(
+            ([toolCallId, watchdog]) =>
+              now >= watchdog.ceilingAt &&
+              context.pendingToolPromises.get(toolCallId) === watchdog.promise
+          ),
+          ...leaseChecked.filter(([toolCallId, watchdog], index) => {
+            // A call replaced while its lease was read belongs to its new watchdog.
+            if (context.pendingToolPromises.get(toolCallId) !== watchdog.promise) return false
+            const lease = leases[index]
+            const checkedAt = Date.now()
+            const extendTo = (deadlineAt: number, reason: 'lease' | 'lease_lookup') => {
+              watchdog.deadlineAt = Math.min(deadlineAt, watchdog.ceilingAt)
+              watchdog.extendedBy = reason
+              maximumWaitBudgetMs = Math.max(
+                maximumWaitBudgetMs,
+                watchdog.deadlineAt - watchdog.startedAt
+              )
+              return false
+            }
+            if ('error' in lease) {
+              watchdog.leaseLookupRetryUntil ??= checkedAt + SIM_TOOL_EXECUTION_LEASE_SECONDS * 1000
+              if (checkedAt >= watchdog.leaseLookupRetryUntil) return true
+              logger.warn('Could not read a pending tool call lease; checking again', {
+                toolCallId,
+                error: getErrorMessage(lease.error),
+              })
+              return extendTo(checkedAt + LEASE_LOOKUP_RETRY_MS, 'lease_lookup')
+            }
+            watchdog.leaseLookupRetryUntil = undefined
+            if (typeof lease.remainingMs !== 'number' || lease.remainingMs <= 0) return true
+            return extendTo(checkedAt + lease.remainingMs + LEASE_RECHECK_SLACK_MS, 'lease')
+          }),
+        ]
         if (expiredTools.length > 0) {
           await Promise.all(
             expiredTools.map(async ([toolCallId, watchdog]) => {
-              logger.error(
-                'Pending tool execution exceeded its resume wait budget; force-failing',
-                {
-                  checkpointId: continuation.checkpointId,
-                  toolCallId,
-                  waitBudgetMs: watchdog.waitBudgetMs,
-                }
-              )
+              const waitedMs = Date.now() - watchdog.startedAt
+              logger.error(pendingToolExpiryMessage(watchdog, now), {
+                checkpointId: continuation.checkpointId,
+                toolCallId,
+                waitBudgetMs: watchdog.waitBudgetMs,
+                waitedMs,
+                ...(watchdog.extendedBy ? { extendedBy: watchdog.extendedBy } : {}),
+              })
               await failPendingToolCall(toolCallId, context, execContext)
               if (context.pendingToolPromises.get(toolCallId) === watchdog.promise) {
                 context.pendingToolPromises.delete(toolCallId)
@@ -1625,8 +1781,16 @@ async function ensureHeadlessRunIdentity(input: {
       },
     })
     return { executionId, runId, cancelled: run.status === 'cancelled' }
-  } catch {
-    throw new Error('Chat could not start because its execution record is unavailable')
+  } catch (error) {
+    logger.error('Headless run record could not be created', {
+      chatId: input.chatId,
+      streamId: input.messageId,
+      error: getErrorMessage(error),
+      ...causeForLog(error),
+    })
+    throw new Error('Chat could not start because its execution record is unavailable', {
+      cause: error,
+    })
   }
 }
 
@@ -1660,8 +1824,40 @@ async function withEnterpriseByokKey(
   return byokApiKey ? { ...refreshed, byokApiKey } : refreshed
 }
 
+/** The underlying failure behind a generic user-facing error, for logs. */
+function causeForLog(error: unknown): { cause?: string } {
+  const cause = error instanceof Error ? error.cause : undefined
+  return cause === undefined ? {} : { cause: getErrorMessage(cause) }
+}
+
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {
   return !!(options.abortSignal?.aborted || context.wasAborted)
+}
+
+/**
+ * A refused continuation leaves the worker run parked on its checkpoint, and a parked run holds
+ * the chat: the next message would be refused as busy until the sweeper expires it. Stopping it
+ * frees the chat, so the message sent after an upgrade continues the conversation.
+ */
+async function stopWorkerRunAfterUsageRefusal(
+  streamId: string,
+  execContext: Pick<ExecutionContext, 'userId' | 'chatId'>
+): Promise<void> {
+  try {
+    const { requestExplicitStreamAbort } = await import(
+      '@/lib/mothership/request/session/explicit-abort'
+    )
+    await requestExplicitStreamAbort({
+      streamId,
+      userId: execContext.userId,
+      chatId: execContext.chatId,
+    })
+  } catch (error) {
+    logger.warn('Worker stop after a usage-limit refusal was not delivered', {
+      streamId,
+      error: getErrorMessage(error),
+    })
+  }
 }
 
 function cancelPendingTools(context: StreamingContext): void {

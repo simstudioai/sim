@@ -5,7 +5,6 @@ import {
   extractWorkspaceIdFromStorageKey,
   inferContextFromKey,
   isInternalFileUrl,
-  isNetworkError,
   processSingleFileToUserFile,
   resolveEffectiveMimeType,
   resolveFileType,
@@ -119,26 +118,6 @@ describe('resolveTrustedFileContext', () => {
     expect(() => resolveTrustedFileContext('legacy/report.pdf', 'og-images')).toThrow()
     expect(() => resolveTrustedFileContext('legacy/report.pdf', 'profile-pictures')).toThrow()
     expect(() => resolveTrustedFileContext('legacy/report.pdf')).toThrow()
-  })
-})
-
-describe('isNetworkError', () => {
-  it.each([
-    'fetch failed',
-    'Network request failed',
-    'connection reset',
-    'request timeout',
-    'operation timed out',
-    'ECONNRESET while reading body',
-  ])('matches transient message %s', (msg) => {
-    expect(isNetworkError(new Error(msg))).toBe(true)
-  })
-
-  it('does not match deterministic errors', () => {
-    expect(isNetworkError(new Error('Forbidden'))).toBe(false)
-    expect(isNetworkError(new Error('Validation failed: name is required'))).toBe(false)
-    expect(isNetworkError('not an error')).toBe(false)
-    expect(isNetworkError(null)).toBe(false)
   })
 })
 

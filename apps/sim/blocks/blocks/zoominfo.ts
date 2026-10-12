@@ -1,9 +1,8 @@
 import { ZoomInfoIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ZoomInfoResponse } from '@/tools/zoominfo/types'
 
-export const ZoomInfoBlock: BlockConfig<ZoomInfoResponse> = {
+export const ZoomInfoBlock: BlockConfig = {
   type: 'zoominfo',
   name: 'ZoomInfo',
   description: 'Search and enrich B2B company and contact data with ZoomInfo.',

@@ -88,7 +88,7 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
       voiceControl={
         voice.isSupported && (
           <MicButton
-            audioLevelsRef={voice.audioLevelsRef}
+            audioLevels={voice.audioLevels}
             isListening={voice.isListening}
             onToggle={voice.toggleListening}
           />

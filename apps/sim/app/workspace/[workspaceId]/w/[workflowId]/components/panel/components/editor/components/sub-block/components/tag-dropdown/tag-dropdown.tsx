@@ -383,7 +383,7 @@ interface NestedTagRendererProps {
   selectedIndex: number
   setSelectedIndex: (index: number) => void
   handleTagSelect: (tag: string, blockGroup?: BlockTagGroup) => void
-  itemRefs: React.RefObject<Map<string, HTMLElement>>
+  itemRefs: Map<string, HTMLElement>
   blocks: Record<string, BlockState>
   getMergedSubBlocks: (blockId: string) => Record<string, any>
 }
@@ -440,7 +440,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
           }}
           ref={(el) => {
             if (el && currentNestedTag.parentTag) {
-              itemRefs.current?.set(currentNestedTag.parentTag, el)
+              itemRefs.set(currentNestedTag.parentTag, el)
             }
           }}
         >
@@ -480,7 +480,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }}
             ref={(el) => {
               if (el) {
-                itemRefs.current?.set(child.fullTag, el)
+                itemRefs.set(child.fullTag, el)
               }
             }}
           >
@@ -516,7 +516,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }}
             ref={(el) => {
               if (el && nestedChild.parentTag) {
-                itemRefs.current?.set(nestedChild.parentTag, el)
+                itemRefs.set(nestedChild.parentTag, el)
               }
             }}
           >
@@ -604,7 +604,7 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
         }}
         ref={(el) => {
           if (el && nestedTag.parentTag) {
-            itemRefs.current?.set(nestedTag.parentTag, el)
+            itemRefs.set(nestedTag.parentTag, el)
           }
         }}
       >
@@ -671,7 +671,7 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
       }}
       ref={(el) => {
         if (el && nestedTag.fullTag) {
-          itemRefs.current?.set(nestedTag.fullTag, el)
+          itemRefs.set(nestedTag.fullTag, el)
         }
       }}
     >
@@ -713,7 +713,7 @@ const VariableTagItem: React.FC<{
   selectedIndex: number
   setSelectedIndex: (index: number) => void
   handleTagSelect: (tag: string) => void
-  itemRefs: React.RefObject<Map<string, HTMLElement>>
+  itemRefs: Map<string, HTMLElement>
   variableInfo: { type: string; id: string } | null
 }> = ({
   tag,
@@ -739,7 +739,7 @@ const VariableTagItem: React.FC<{
       }}
       ref={(el) => {
         if (el) {
-          itemRefs.current?.set(tag, el)
+          itemRefs.set(tag, el)
         }
       }}
     >
@@ -767,7 +767,7 @@ const BlockRootTagItem: React.FC<{
   selectedIndex: number
   setSelectedIndex: (index: number) => void
   handleTagSelect: (tag: string, group?: BlockTagGroup) => void
-  itemRefs: React.RefObject<Map<string, HTMLElement>>
+  itemRefs: Map<string, HTMLElement>
   group: BlockTagGroup
   blockType: string
   blockName: string
@@ -796,7 +796,7 @@ const BlockRootTagItem: React.FC<{
       }}
       ref={(el) => {
         if (el) {
-          itemRefs.current?.set(rootTag, el)
+          itemRefs.set(rootTag, el)
         }
       }}
     >
@@ -904,7 +904,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   inputRef,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const itemRefs = useRef<Map<string, HTMLElement>>(new Map())
+  const itemElementsRef = useRef<Map<string, HTMLElement> | null>(null)
+  const itemRefs = (itemElementsRef.current ??= new Map())
 
   const [nestedPath, setNestedPath] = useState<NestedTag[]>([])
   const baseFolderRef = useRef<{

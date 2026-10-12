@@ -1,4 +1,4 @@
-import { truncate } from '@sim/utils/string'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 
 /** Leaves room for file content and authorization within one live read's request budget. */
@@ -13,6 +13,7 @@ interface DiscussionPage {
 /**
  * Collects a bounded discussion without representing provider failures or omitted pages as an
  * empty, complete history. The caller puts the warning before the document's first read window.
+ * Cancellation is judged by the caller's signal after the read, not by the error's shape.
  */
 export async function readDiscussionSection(
   label: string,
@@ -29,7 +30,7 @@ export async function readDiscussionSection(
       for (const entry of result.entries) {
         if (!entry) continue
         const remaining = Math.max(0, DISCUSSION_MAX_CHARACTERS - characters - 2)
-        entries.push(truncate(entry, remaining))
+        entries.push(truncateAtCodePoint(entry, remaining, ''))
         characters += Math.min(entry.length, remaining) + 2
         if (entry.length > remaining) {
           omitted = 'exceeded the discussion text limit'

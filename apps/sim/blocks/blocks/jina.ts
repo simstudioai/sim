@@ -1,8 +1,7 @@
 import { JinaAIIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { ReadUrlResponse, SearchResponse } from '@/tools/jina/types'
 
-export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
+export const JinaBlock: BlockConfig = {
   type: 'jina',
   name: 'Jina',
   description: 'Search the web or extract content from URLs',

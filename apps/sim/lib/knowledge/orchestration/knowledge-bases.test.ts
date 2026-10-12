@@ -21,7 +21,6 @@ import {
 } from '@/lib/knowledge/orchestration/knowledge-bases'
 
 const mockCreateKnowledgeBase = knowledgeServiceMockFns.mockCreateKnowledgeBase
-const mockDeleteKnowledgeBase = knowledgeServiceMockFns.mockDeleteKnowledgeBase
 const mockUpdateKnowledgeBase = knowledgeServiceMockFns.mockUpdateKnowledgeBase
 
 const mockRecordAudit = auditMockFns.mockRecordAudit

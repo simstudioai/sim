@@ -1,7 +1,5 @@
+import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import { isAncestorProtected, isBlockProtected } from '@/stores/workflows/workflow/utils'
-
-export { isAncestorProtected, isBlockProtected }
 
 /**
  * Result of filtering protected blocks from a deletion operation
@@ -28,7 +26,7 @@ export function isEdgeProtected(
   edge: { source: string; target: string },
   blocks: Record<string, BlockState>
 ): boolean {
-  return isBlockProtected(edge.target, blocks)
+  return isWorkflowBlockProtected(edge.target, blocks)
 }
 
 /**
@@ -43,7 +41,7 @@ export function filterProtectedBlocks(
   blockIds: string[],
   blocks: Record<string, BlockState>
 ): FilterProtectedBlocksResult {
-  const protectedIds = blockIds.filter((id) => isBlockProtected(id, blocks))
+  const protectedIds = blockIds.filter((id) => isWorkflowBlockProtected(id, blocks))
   const deletableIds = blockIds.filter((id) => !protectedIds.includes(id))
 
   return {

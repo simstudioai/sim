@@ -162,7 +162,7 @@ export const workspaceFileRecordSchema = z.object({
   contentUpdatedAt: z.coerce.date().nullable().optional(),
   revision: z.string().optional(),
   storageContext: z.enum(['workspace', 'mothership']).optional(),
-  vfsNamespace: z.literal('uploads').optional(),
+  vfsNamespace: z.enum(['uploads', 'tests', 'changelog']).optional(),
   share: shareRecordSchema.nullable().optional(),
 })
 
@@ -344,8 +344,3 @@ export const workspaceFileStyleContract = defineRouteContract({
     schema: documentStyleSummarySchema,
   },
 })
-
-const compiledCheckResponseSchema = z.union([
-  z.object({ ok: z.literal(true) }),
-  z.object({ ok: z.literal(false), error: z.string(), errorName: z.string() }),
-])

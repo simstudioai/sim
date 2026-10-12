@@ -22,7 +22,7 @@ export class ServiceAccountTokenErrorMock extends Error {
  *
  * @example
  * ```ts
- * import { authOAuthUtilsMockFns } from '@sim/testing'
+ * import { authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
  *
  * authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded.mockResolvedValue('access-token')
  * authOAuthUtilsMockFns.mockGetOAuthToken.mockResolvedValue(null)
@@ -40,6 +40,7 @@ export const authOAuthUtilsMockFns = {
   mockGetOAuthToken: vi.fn(),
   mockRefreshAccessTokenIfNeeded: vi.fn(),
   mockRefreshTokenIfNeeded: vi.fn(),
+  mockClearOAuthRefreshFailure: vi.fn(async (): Promise<void> => undefined),
   mockGetCredentialTerminalRefreshError: vi.fn(
     async (): Promise<{ errorCode: string; providerId: string } | null> => null
   ),
@@ -67,4 +68,5 @@ export const authOAuthUtilsMock = {
   refreshAccessTokenIfNeeded: authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded,
   refreshTokenIfNeeded: authOAuthUtilsMockFns.mockRefreshTokenIfNeeded,
   getCredentialTerminalRefreshError: authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError,
+  clearOAuthRefreshFailure: authOAuthUtilsMockFns.mockClearOAuthRefreshFailure,
 }

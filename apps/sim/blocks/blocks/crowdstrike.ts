@@ -6,7 +6,6 @@ import {
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
-import type { CrowdStrikeResponse } from '@/tools/crowdstrike/types'
 
 /**
  * Maximum `limit` for each CrowdStrike query collection. Every entry except IOC
@@ -92,7 +91,7 @@ const CLEARED_OPTIONAL_PARAMS: Record<string, undefined> = Object.freeze({
   vulnerabilityIds: undefined,
 })
 
-export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
+export const CrowdStrikeBlock: BlockConfig = {
   type: 'crowdstrike',
   name: 'CrowdStrike',
   description:

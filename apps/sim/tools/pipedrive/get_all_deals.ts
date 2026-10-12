@@ -109,7 +109,7 @@ export const pipedriveGetAllDealsTool: ToolConfig<
     headers: (params) => getPipedriveAuthHeaders(params),
   },
 
-  transformResponse: async (response: Response, params?: PipedriveGetAllDealsParams) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!data.success) {

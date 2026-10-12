@@ -2,13 +2,18 @@ import {
   DeleteObjectCommand,
   PutObjectCommand,
   S3Client,
+  type S3ClientConfig,
   type S3ServiceException,
 } from '@aws-sdk/client-s3'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { z } from 'zod'
 import { validateExternalUrl } from '@/lib/core/security/input-validation'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import {
+  createPinnedConnectionPool,
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { buildObjectKey, normalizePrefix } from '@/lib/data-drains/destinations/utils'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
@@ -22,6 +27,13 @@ const AWS_REGION_RE = /^[a-z]{2,}(-[a-z]+)+-\d+$/
 /** Cap is over key + value bytes only (no `x-amz-meta-` prefix). */
 const MAX_S3_METADATA_BYTES = 2 * 1024
 const MAX_S3_KEY_BYTES = 1024
+const REQUEST_TIMEOUT_MS = 60_000
+const MAX_RESPONSE_BYTES = 256 * 1024
+
+type S3RequestHandler = Extract<
+  NonNullable<S3ClientConfig['requestHandler']>,
+  { updateHttpClientConfig: unknown; httpHandlerConfigs: unknown }
+>
 
 const s3BucketSchema = z
   .string()
@@ -104,6 +116,85 @@ const s3CredentialsSchema = z.object({
 export type S3DestinationConfig = z.infer<typeof s3ConfigSchema>
 export type S3DestinationCredentials = z.infer<typeof s3CredentialsSchema>
 
+function createRequestHandler(): S3RequestHandler {
+  const connections = createPinnedConnectionPool()
+  return {
+    async handle(
+      request: Parameters<S3RequestHandler['handle']>[0],
+      options: Parameters<S3RequestHandler['handle']>[1]
+    ) {
+      if (request.protocol !== 'https:') throw new Error('S3 requests must use HTTPS')
+      const callerSignal = options?.abortSignal
+      if (callerSignal && !(callerSignal instanceof AbortSignal)) {
+        throw new Error('S3 transport requires a native AbortSignal')
+      }
+      const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      const signal = callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout
+      signal.throwIfAborted()
+      const hostname = request.hostname
+      const authority =
+        hostname.includes(':') && !hostname.startsWith('[') ? `[${hostname}]` : hostname
+      const origin = `https://${authority}${request.port ? `:${request.port}` : ''}`
+      const validation = await validateUrlWithDNS(origin, 'S3 endpoint', 'configuredEndpoint', {
+        signal,
+      })
+      if (!validation.isValid) throw new Error(validation.error)
+      const body: unknown = request.body
+      if (body !== undefined && typeof body !== 'string' && !(body instanceof Uint8Array)) {
+        throw new Error('Unsupported S3 request body')
+      }
+      const encodeQueryComponent = (value: string) =>
+        encodeURIComponent(value).replace(
+          /[!'()*]/g,
+          (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+        )
+      const query = request.query ?? {}
+      const queryParts: string[] = []
+      for (const key of Object.keys(query).sort()) {
+        const value = query[key]
+        const encodedKey = encodeQueryComponent(key)
+        if (value === null) queryParts.push(encodedKey)
+        else {
+          for (const item of Array.isArray(value) ? value : [value]) {
+            queryParts.push(`${encodedKey}=${encodeQueryComponent(item)}`)
+          }
+        }
+      }
+      const search = queryParts.join('&')
+      const requestTarget = `${request.path}${search ? `?${search}` : ''}`
+      const response = await secureFetchWithPinnedIP(
+        `${origin}${requestTarget}`,
+        validation.resolvedIP,
+        {
+          profile: 'configuredEndpoint',
+          requestTarget,
+          method: request.method,
+          headers: request.headers,
+          body,
+          signal,
+          timeout: REQUEST_TIMEOUT_MS,
+          maxResponseBytes: MAX_RESPONSE_BYTES,
+          connectionPool: connections,
+        }
+      )
+      return {
+        response: {
+          statusCode: response.status,
+          headers: response.headers.toRecord(),
+          body: Buffer.from(await response.arrayBuffer()),
+        },
+      }
+    },
+    destroy() {
+      connections.destroy()
+    },
+    updateHttpClientConfig() {},
+    httpHandlerConfigs() {
+      return {}
+    },
+  }
+}
+
 function buildClient(config: S3DestinationConfig, credentials: S3DestinationCredentials): S3Client {
   return new S3Client({
     region: config.region,
@@ -113,6 +204,7 @@ function buildClient(config: S3DestinationConfig, credentials: S3DestinationCred
     },
     endpoint: config.endpoint,
     forcePathStyle: config.forcePathStyle ?? false,
+    requestHandler: createRequestHandler(),
   })
 }
 
@@ -123,15 +215,6 @@ function isS3ServiceException(error: unknown): error is S3ServiceException {
     '$metadata' in error &&
     typeof (error as { name?: unknown }).name === 'string'
   )
-}
-
-/** DNS-aware SSRF check: catches hostnames that resolve to internal IPs (the schema check only catches IP literals). */
-async function assertEndpointIsPublic(endpoint: string | undefined): Promise<void> {
-  if (!endpoint) return
-  const result = await validateUrlWithDNS(endpoint, 'endpoint', 'configuredEndpoint')
-  if (!result.isValid) {
-    throw new Error(result.error)
-  }
 }
 
 /**
@@ -146,8 +229,7 @@ async function withS3ErrorContext<T>(action: string, fn: () => Promise<T>): Prom
     if (isS3ServiceException(error)) {
       const code = error.name
       const status = error.$metadata?.httpStatusCode
-      const requestId = error.$metadata?.requestId
-      logger.warn('S3 operation failed', { action, code, status, requestId })
+      logger.warn('S3 operation failed', { action, status })
       /** Preserve SDK error as `cause` so callers can still branch on `code` / `$metadata`. */
       throw new Error(
         `S3 ${action} failed (${code}${status ? ` ${status}` : ''}): ${error.message}`,
@@ -165,7 +247,6 @@ export const s3Destination: DrainDestination<S3DestinationConfig, S3DestinationC
   credentialsSchema: s3CredentialsSchema,
 
   async test({ config, credentials, signal }) {
-    await assertEndpointIsPublic(config.endpoint)
     const client = buildClient(config, credentials)
     /** Real write probe so write-only IAM policies surface here, not at first run. */
     const probeKey = `${normalizePrefix(config.prefix)}.sim-drain-write-probe/${generateShortId(12)}`
@@ -187,11 +268,10 @@ export const s3Destination: DrainDestination<S3DestinationConfig, S3DestinationC
         await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: probeKey }), {
           abortSignal: signal,
         })
-      } catch (cleanupError) {
+      } catch {
         logger.debug('S3 test write probe cleanup failed (non-fatal)', {
           bucket: config.bucket,
           key: probeKey,
-          error: cleanupError,
         })
       }
     } finally {
@@ -201,17 +281,8 @@ export const s3Destination: DrainDestination<S3DestinationConfig, S3DestinationC
 
   openSession({ config, credentials }) {
     const client = buildClient(config, credentials)
-    /**
-     * Lazy + cached DNS-aware endpoint check. SDK manages its own connections
-     * so we can't pin the IP, but failing the first deliver still rejects
-     * hostnames that resolve to internal targets. Lazy init avoids an
-     * unhandled rejection when the source yields no chunks.
-     */
-    let endpointCheck: Promise<void> | null = null
     return {
       async deliver({ body, contentType, metadata, signal }) {
-        if (endpointCheck === null) endpointCheck = assertEndpointIsPublic(config.endpoint)
-        await endpointCheck
         const key = buildObjectKey(config.prefix, metadata)
         const keyBytes = Buffer.byteLength(key, 'utf8')
         if (keyBytes > MAX_S3_KEY_BYTES) {

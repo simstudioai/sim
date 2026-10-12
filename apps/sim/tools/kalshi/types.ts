@@ -1,7 +1,6 @@
 import crypto from 'crypto'
 import type { OutputProperty } from '@/tools/types'
 
-// Base URL for Kalshi API
 export const KALSHI_BASE_URL = 'https://api.elections.kalshi.com/trade-api/v2'
 
 /**
@@ -235,37 +234,22 @@ export const KALSHI_PAGING_OUTPUT_PROPERTIES = {
   cursor: { type: 'string', description: 'Cursor for fetching next page', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
-// Base params for authenticated endpoints
 export interface KalshiAuthParams {
-  keyId: string // API Key ID
-  privateKey: string // RSA Private Key (PEM format)
+  keyId: string
+  /** RSA private key (PEM format) */
+  privateKey: string
 }
 
-// Pagination params
 export interface KalshiPaginationParams {
-  limit?: string // 1-1000, default 100
-  cursor?: string // Pagination cursor
+  /** 1-1000, default 100 */
+  limit?: string
+  cursor?: string
 }
 
-// Pagination info in response
 export interface KalshiPagingInfo {
   cursor?: string | null
 }
 
-// Generic response type
-interface KalshiResponse<T> {
-  success: boolean
-  output: T & {
-    paging?: KalshiPagingInfo
-    metadata: {
-      operation: string
-      [key: string]: any
-    }
-    success: boolean
-  }
-}
-
-// Market type
 export interface KalshiMarket {
   ticker: string
   event_ticker: string
@@ -295,7 +279,6 @@ export interface KalshiMarket {
   floor_strike?: number
 }
 
-// Event type
 export interface KalshiEvent {
   event_ticker: string
   series_ticker: string
@@ -308,13 +291,6 @@ export interface KalshiEvent {
   status?: string
 }
 
-// Balance type
-interface KalshiBalance {
-  balance: number // In cents
-  portfolio_value: number // In cents
-}
-
-// Position type
 export interface KalshiPosition {
   ticker: string
   event_ticker: string
@@ -327,7 +303,6 @@ export interface KalshiPosition {
   resting_orders_count?: number
 }
 
-// Order type
 export interface KalshiOrder {
   order_id: string
   ticker: string
@@ -349,7 +324,6 @@ export interface KalshiOrder {
   taker_fees?: number
 }
 
-// Orderbook type
 interface KalshiOrderbookLevel {
   price: number
   quantity: number
@@ -360,7 +334,6 @@ export interface KalshiOrderbook {
   no: KalshiOrderbookLevel[]
 }
 
-// Trade type
 export interface KalshiTrade {
   ticker: string
   yes_price: number
@@ -370,7 +343,6 @@ export interface KalshiTrade {
   taker_side: string
 }
 
-// Candlestick type
 export interface KalshiCandlestick {
   open_time: string
   close_time: string
@@ -381,7 +353,6 @@ export interface KalshiCandlestick {
   volume: number
 }
 
-// Fill type
 export interface KalshiFill {
   created_time: string
   ticker: string
@@ -394,13 +365,11 @@ export interface KalshiFill {
   trade_id: string
 }
 
-// Settlement source type
 interface KalshiSettlementSource {
   name: string
   url: string
 }
 
-// Series type
 export interface KalshiSeries {
   ticker: string
   title: string
@@ -410,48 +379,41 @@ export interface KalshiSeries {
   settlement_sources?: KalshiSettlementSource[]
   contract_url?: string
   contract_terms_url?: string
-  fee_type?: string // 'quadratic' | 'quadratic_with_maker_fees' | 'flat'
+  /** 'quadratic' | 'quadratic_with_maker_fees' | 'flat' */
+  fee_type?: string
   fee_multiplier?: number
   additional_prohibitions?: string[]
   product_metadata?: Record<string, unknown>
 }
 
-// Exchange status type
 export interface KalshiExchangeStatus {
   trading_active: boolean
   exchange_active: boolean
 }
 
-// Helper function to build Kalshi API URLs
 export function buildKalshiUrl(path: string): string {
   return `${KALSHI_BASE_URL}${path}`
 }
 
-// Helper to normalize PEM key format
-// Handles: literal \n strings, missing line breaks, various PEM formats
+/** Normalizes a PEM key: literal `\n` strings, missing line breaks, and headerless base64. */
 function normalizePemKey(privateKey: string): string {
   let key = privateKey.trim()
 
-  // Convert literal \n strings to actual newlines
   key = key.replace(/\\n/g, '\n')
 
-  // Extract the key type and base64 content
   const beginMatch = key.match(/-----BEGIN ([A-Z\s]+)-----/)
   const endMatch = key.match(/-----END ([A-Z\s]+)-----/)
 
   if (beginMatch && endMatch) {
-    // Extract the key type (e.g., "RSA PRIVATE KEY" or "PRIVATE KEY")
     const keyType = beginMatch[1]
 
-    // Extract base64 content between headers
     const startIdx = key.indexOf('-----', key.indexOf('-----') + 5) + 5
     const endIdx = key.lastIndexOf('-----END')
     let base64Content = key.substring(startIdx, endIdx)
 
-    // Remove all whitespace from base64 content
     base64Content = base64Content.replace(/\s/g, '')
 
-    // Reconstruct PEM with proper 64-character line breaks
+    // PEM bodies wrap at 64 characters
     const lines: string[] = []
     for (let i = 0; i < base64Content.length; i += 64) {
       lines.push(base64Content.substring(i, i + 64))
@@ -470,23 +432,21 @@ function normalizePemKey(privateKey: string): string {
   return `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----`
 }
 
-// RSA-PSS signature generation for authenticated requests
-// Kalshi requires RSA-PSS with SHA256, not plain PKCS#1 v1.5
+/**
+ * Signs `timestamp + METHOD + path` (query string excluded). Kalshi requires
+ * RSA-PSS with SHA-256, not plain PKCS#1 v1.5.
+ */
 export function generateKalshiSignature(
   privateKey: string,
   timestamp: string,
   method: string,
   path: string
 ): string {
-  // Sign: timestamp + method + path (without query params)
-  // Strip query params from path for signing
   const pathWithoutQuery = path.split('?')[0]
   const message = timestamp + method.toUpperCase() + pathWithoutQuery
 
-  // Normalize PEM key format (handles literal \n, missing line breaks, etc.)
   const pemKey = normalizePemKey(privateKey)
 
-  // Use RSA-PSS padding with SHA256 (required by Kalshi API)
   const signature = crypto.sign('sha256', Buffer.from(message, 'utf-8'), {
     key: pemKey,
     padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
@@ -496,7 +456,6 @@ export function generateKalshiSignature(
   return signature.toString('base64')
 }
 
-// Build auth headers for authenticated requests
 export function buildKalshiAuthHeaders(
   keyId: string,
   privateKey: string,
@@ -514,8 +473,7 @@ export function buildKalshiAuthHeaders(
   }
 }
 
-// Helper function for consistent error handling
-export function handleKalshiError(data: any, status: number, operation: string): never {
+export function handleKalshiError(data: any, operation: string): never {
   const errorMessage =
     data.error?.message || data.error || data.message || data.detail || 'Unknown error'
   throw new Error(`Kalshi ${operation} failed: ${errorMessage}`)

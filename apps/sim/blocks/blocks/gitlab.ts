@@ -1,7 +1,6 @@
 import { GitLabIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { GitLabResponse } from '@/tools/gitlab/types'
 import {
   coerceGitLabAccessLevel,
   GITLAB_ACCESS_LEVEL_OPTIONS,
@@ -130,7 +129,7 @@ function parseTriState(raw: unknown): boolean | undefined {
   return undefined
 }
 
-export const GitLabBlock: BlockConfig<GitLabResponse> = {
+export const GitLabBlock: BlockConfig = {
   type: 'gitlab',
   name: 'GitLab',
   description: 'Interact with GitLab projects, issues, merge requests, and pipelines',
@@ -401,33 +400,27 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Project Operations
         { label: 'List Projects', id: 'gitlab_list_projects' },
         { label: 'Get Project', id: 'gitlab_get_project' },
-        // Group Operations
         { label: 'List Groups', id: 'gitlab_list_groups' },
         { label: 'Get Group', id: 'gitlab_get_group' },
-        // Issue Operations
         { label: 'List Issues', id: 'gitlab_list_issues' },
         { label: 'Get Issue', id: 'gitlab_get_issue' },
         { label: 'Create Issue', id: 'gitlab_create_issue' },
         { label: 'Update Issue', id: 'gitlab_update_issue' },
         { label: 'Delete Issue', id: 'gitlab_delete_issue' },
         { label: 'Add Issue Comment', id: 'gitlab_create_issue_note' },
-        // Merge Request Operations
         { label: 'List Merge Requests', id: 'gitlab_list_merge_requests' },
         { label: 'Get Merge Request', id: 'gitlab_get_merge_request' },
         { label: 'Create Merge Request', id: 'gitlab_create_merge_request' },
         { label: 'Update Merge Request', id: 'gitlab_update_merge_request' },
         { label: 'Merge Merge Request', id: 'gitlab_merge_merge_request' },
         { label: 'Add MR Comment', id: 'gitlab_create_merge_request_note' },
-        // Pipeline Operations
         { label: 'List Pipelines', id: 'gitlab_list_pipelines' },
         { label: 'Get Pipeline', id: 'gitlab_get_pipeline' },
         { label: 'Create Pipeline', id: 'gitlab_create_pipeline' },
         { label: 'Retry Pipeline', id: 'gitlab_retry_pipeline' },
         { label: 'Cancel Pipeline', id: 'gitlab_cancel_pipeline' },
-        // Repository Operations
         { label: 'List Repository Tree', id: 'gitlab_list_repository_tree' },
         { label: 'Get File', id: 'gitlab_get_file' },
         { label: 'Create File', id: 'gitlab_create_file' },
@@ -437,17 +430,13 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
         { label: 'Create Branch', id: 'gitlab_create_branch' },
         { label: 'Delete Branch', id: 'gitlab_delete_branch' },
         { label: 'Compare Branches', id: 'gitlab_compare_branches' },
-        // Additional Merge Request Operations
         { label: 'Get MR Changes', id: 'gitlab_get_merge_request_changes' },
         { label: 'Approve Merge Request', id: 'gitlab_approve_merge_request' },
-        // Job Operations
         { label: 'List Pipeline Jobs', id: 'gitlab_list_pipeline_jobs' },
         { label: 'Get Job Log', id: 'gitlab_get_job_log' },
         { label: 'Play Job', id: 'gitlab_play_job' },
-        // Release Operations
         { label: 'List Releases', id: 'gitlab_list_releases' },
         { label: 'Create Release', id: 'gitlab_create_release' },
-        // Access / Membership Operations
         { label: 'List Members', id: 'gitlab_list_members' },
         { label: 'Add Member', id: 'gitlab_add_member' },
         { label: 'Update Member', id: 'gitlab_update_member' },
@@ -488,7 +477,6 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
       password: true,
       required: true,
     },
-    // Self-managed GitLab host (defaults to gitlab.com)
     {
       id: 'host',
       title: 'GitLab Host',
@@ -497,7 +485,6 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
       mode: 'advanced',
       description: 'Self-managed GitLab host. Leave blank for gitlab.com.',
     },
-    // Project ID (required for most operations)
     {
       id: 'projectId',
       title: 'Project ID',
@@ -580,7 +567,6 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
         ],
       },
     },
-    // Pipeline ID
     {
       id: 'pipelineId',
       title: 'Pipeline ID',
@@ -597,7 +583,6 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
         ],
       },
     },
-    // Title (for issue/MR creation)
     {
       id: 'title',
       title: 'Title',
@@ -617,7 +602,6 @@ Return ONLY the title - no explanations, no extra text.`,
         placeholder: 'Describe the issue or merge request...',
       },
     },
-    // Description
     {
       id: 'description',
       title: 'Description',
@@ -649,7 +633,6 @@ Return ONLY the description - no explanations outside the content.`,
         placeholder: 'Describe the content in detail...',
       },
     },
-    // Comment body
     {
       id: 'body',
       title: 'Comment',
@@ -670,7 +653,6 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
         placeholder: 'Describe the comment you want to write...',
       },
     },
-    // Source branch (for MR creation)
     {
       id: 'sourceBranch',
       title: 'Source Branch',
@@ -682,7 +664,6 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
         value: ['gitlab_create_merge_request'],
       },
     },
-    // Target branch (for MR creation)
     {
       id: 'targetBranch',
       title: 'Target Branch',
@@ -694,7 +675,6 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
         value: ['gitlab_create_merge_request'],
       },
     },
-    // Ref (for pipeline creation)
     {
       id: 'ref',
       title: 'Branch/Tag',
@@ -716,7 +696,6 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
         ],
       },
     },
-    // File Path
     {
       id: 'filePath',
       title: 'File Path',
@@ -728,7 +707,6 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
         value: ['gitlab_get_file', 'gitlab_create_file', 'gitlab_update_file'],
       },
     },
-    // Branch
     {
       id: 'branch',
       title: 'Branch',
@@ -745,7 +723,6 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
         ],
       },
     },
-    // Compare from ref
     {
       id: 'compareFrom',
       title: 'From',
@@ -758,7 +735,6 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
         value: ['gitlab_compare_branches'],
       },
     },
-    // Compare to ref
     {
       id: 'compareTo',
       title: 'To',
@@ -770,7 +746,6 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
         value: ['gitlab_compare_branches'],
       },
     },
-    // Compare directly instead of using merge base
     {
       id: 'straight',
       title: 'Compare Directly',
@@ -781,7 +756,6 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
         value: ['gitlab_compare_branches'],
       },
     },
-    // Release tag name
     {
       id: 'tagName',
       title: 'Tag Name',
@@ -793,7 +767,6 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
         value: ['gitlab_create_release'],
       },
     },
-    // Release name
     {
       id: 'releaseName',
       title: 'Release Name',
@@ -804,7 +777,6 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
         value: ['gitlab_create_release'],
       },
     },
-    // Release date
     {
       id: 'releasedAt',
       title: 'Released At',
@@ -824,7 +796,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         placeholder: 'Describe when the release happened...',
       },
     },
-    // Release milestones
     {
       id: 'releaseMilestones',
       title: 'Milestones',
@@ -836,7 +807,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_create_release'],
       },
     },
-    // File Content
     {
       id: 'content',
       title: 'File Content',
@@ -848,7 +818,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_create_file', 'gitlab_update_file'],
       },
     },
-    // Commit Message
     {
       id: 'commitMessage',
       title: 'Commit Message',
@@ -860,7 +829,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_create_file', 'gitlab_update_file'],
       },
     },
-    // Job ID
     {
       id: 'jobId',
       title: 'Job ID',
@@ -872,7 +840,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_get_job_log', 'gitlab_play_job'],
       },
     },
-    // Subdirectory path (for repository tree)
     {
       id: 'path',
       title: 'Path',
@@ -884,7 +851,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_list_repository_tree', 'gitlab_list_commits'],
       },
     },
-    // Recursive tree listing
     {
       id: 'recursive',
       title: 'Recursive',
@@ -895,7 +861,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_list_repository_tree'],
       },
     },
-    // Ref name filter (for list commits)
     {
       id: 'refName',
       title: 'Ref (branch/tag)',
@@ -907,7 +872,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_list_commits'],
       },
     },
-    // Commit time range filters
     {
       id: 'since',
       title: 'Since',
@@ -946,7 +910,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         placeholder: 'Describe the end of the time range...',
       },
     },
-    // Commit author filter
     {
       id: 'author',
       title: 'Author',
@@ -958,7 +921,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_list_commits'],
       },
     },
-    // Optimistic-locking guard (update file)
     {
       id: 'lastCommitId',
       title: 'Last Commit ID',
@@ -970,7 +932,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_update_file'],
       },
     },
-    // Include retried jobs (list pipeline jobs)
     {
       id: 'includeRetried',
       title: 'Include Retried Jobs',
@@ -981,7 +942,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_list_pipeline_jobs'],
       },
     },
-    // Job scope filter (for list pipeline jobs)
     {
       id: 'scope',
       title: 'Job Scope',
@@ -1008,7 +968,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_list_pipeline_jobs'],
       },
     },
-    // Commit SHA (for approve merge request)
     {
       id: 'sha',
       title: 'Commit SHA',
@@ -1020,7 +979,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_approve_merge_request'],
       },
     },
-    // Labels
     {
       id: 'labels',
       title: 'Labels',
@@ -1039,7 +997,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         ],
       },
     },
-    // Assignee IDs
     {
       id: 'assigneeIds',
       title: 'Assignee IDs',
@@ -1056,7 +1013,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         ],
       },
     },
-    // Milestone ID
     {
       id: 'milestoneId',
       title: 'Milestone ID',
@@ -1073,7 +1029,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         ],
       },
     },
-    // State filter for issues
     {
       id: 'issueState',
       title: 'State',
@@ -1090,7 +1045,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_list_issues'],
       },
     },
-    // State filter for merge requests
     {
       id: 'mrState',
       title: 'State',
@@ -1108,7 +1062,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_list_merge_requests'],
       },
     },
-    // State event (for updates)
     {
       id: 'stateEvent',
       title: 'State Event',
@@ -1125,7 +1078,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_update_issue', 'gitlab_update_merge_request'],
       },
     },
-    // Pipeline status filter
     {
       id: 'pipelineStatus',
       title: 'Pipeline Status',
@@ -1152,7 +1104,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_list_pipelines'],
       },
     },
-    // Remove source branch after merge
     {
       id: 'removeSourceBranch',
       title: 'Remove Source Branch',
@@ -1197,7 +1148,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_update_merge_request'],
       },
     },
-    // Squash commits
     {
       id: 'squash',
       title: 'Squash Commits',
@@ -1208,7 +1158,6 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_create_merge_request', 'gitlab_merge_merge_request'],
       },
     },
-    // Merge commit message
     {
       id: 'mergeCommitMessage',
       title: 'Merge Commit Message',
@@ -1228,7 +1177,6 @@ Return ONLY the commit message - no explanations, no extra text.`,
         placeholder: 'Describe the merge...',
       },
     },
-    // Search filter (projects and issues listings)
     {
       id: 'searchQuery',
       title: 'Search',
@@ -1240,7 +1188,6 @@ Return ONLY the commit message - no explanations, no extra text.`,
         value: ['gitlab_list_projects', 'gitlab_list_groups', 'gitlab_list_issues'],
       },
     },
-    // List-projects / list-groups filters
     {
       id: 'owned',
       title: 'Owned Only',
@@ -1319,7 +1266,6 @@ Return ONLY the commit message - no explanations, no extra text.`,
         value: ['gitlab_list_projects', 'gitlab_list_groups'],
       },
     },
-    // List-issues filters
     {
       id: 'assigneeId',
       title: 'Assignee ID',
@@ -1342,7 +1288,6 @@ Return ONLY the commit message - no explanations, no extra text.`,
         value: ['gitlab_list_issues'],
       },
     },
-    // List-MRs branch filters
     {
       id: 'sourceBranchFilter',
       title: 'Source Branch',
@@ -1365,7 +1310,6 @@ Return ONLY the commit message - no explanations, no extra text.`,
         value: ['gitlab_list_merge_requests'],
       },
     },
-    // Per-domain sort fields
     {
       id: 'projectOrderBy',
       title: 'Order By',
@@ -1507,7 +1451,6 @@ Return ONLY the commit message - no explanations, no extra text.`,
         ],
       },
     },
-    // Pipeline variables and inputs (create pipeline)
     {
       id: 'pipelineVariables',
       title: 'Pipeline Variables',
@@ -1544,7 +1487,6 @@ Return ONLY the JSON - no explanations, no extra text.`,
         placeholder: 'Describe the pipeline inputs...',
       },
     },
-    // Manual job variables (play job)
     {
       id: 'jobVariables',
       title: 'Job Variables',
@@ -1563,7 +1505,6 @@ Return ONLY the JSON - no explanations, no extra text.`,
         placeholder: 'Describe the job variables...',
       },
     },
-    // Release extras
     {
       id: 'tagMessage',
       title: 'Tag Message',
@@ -1593,7 +1534,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         placeholder: 'Describe the release assets...',
       },
     },
-    // Commit authoring options (create/update file)
     {
       id: 'startBranch',
       title: 'Start Branch',
@@ -1643,7 +1583,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_create_file', 'gitlab_update_file'],
       },
     },
-    // Cross-fork compare options
     {
       id: 'fromProjectId',
       title: 'From Project ID',
@@ -1666,7 +1605,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_compare_branches'],
       },
     },
-    // Internal note toggle (comments)
     {
       id: 'internalNote',
       title: 'Internal Note',
@@ -1678,7 +1616,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_create_issue_note', 'gitlab_create_merge_request_note'],
       },
     },
-    // Per page (pagination)
     {
       id: 'perPage',
       title: 'Results Per Page',
@@ -1706,7 +1643,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         ],
       },
     },
-    // Page number
     {
       id: 'page',
       title: 'Page Number',
@@ -1734,7 +1670,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         ],
       },
     },
-    // Resource type (project or group) for access/membership operations
     {
       id: 'resourceType',
       title: 'Resource Type',
@@ -1750,7 +1685,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: RESOURCE_SCOPED_OPS,
       },
     },
-    // Project / group ID for access/membership operations
     {
       id: 'resourceId',
       title: 'Project / Group ID',
@@ -1762,7 +1696,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: RESOURCE_SCOPED_OPS,
       },
     },
-    // Group ID for SAML group link operations (group-scoped only)
     {
       id: 'groupId',
       title: 'Group ID',
@@ -1774,7 +1707,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: GROUP_ID_OPS,
       },
     },
-    // User ID (member target or admin user target)
     {
       id: 'userId',
       title: 'User ID',
@@ -1801,7 +1733,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_add_member'],
       },
     },
-    // Membership source filter for List User Memberships
     {
       id: 'membershipType',
       title: 'Membership Type',
@@ -1864,7 +1795,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_update_invitation'],
       },
     },
-    // Access expiration date (first-class time-boxed grants)
     {
       id: 'expiresAt',
       title: 'Expires At',
@@ -1888,7 +1818,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_update_member', 'gitlab_update_invitation'],
       },
     },
-    // Custom member role ID (GitLab Ultimate)
     {
       id: 'memberRoleId',
       title: 'Member Role ID',
@@ -1900,7 +1829,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: MEMBER_ROLE_OPS,
       },
     },
-    // Email address (invitations)
     {
       id: 'email',
       title: 'Email',
@@ -1912,7 +1840,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: EMAIL_OPS,
       },
     },
-    // Filter for member / invitation listings
     {
       id: 'query',
       title: 'Filter',
@@ -1925,7 +1852,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_list_members', 'gitlab_list_invitations', 'gitlab_list_branches'],
       },
     },
-    // Invitation source attribution (invite member)
     {
       id: 'inviteSource',
       title: 'Invite Source',
@@ -1937,7 +1863,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_invite_member'],
       },
     },
-    // Direct members only toggle (list members)
     {
       id: 'directMembersOnly',
       title: 'Direct Members Only',
@@ -1949,7 +1874,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_list_members'],
       },
     },
-    // Remove-member cleanup options
     {
       id: 'skipSubresources',
       title: 'Skip Subresources',
@@ -1972,7 +1896,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_remove_member'],
       },
     },
-    // List-members filters
     {
       id: 'memberUserIds',
       title: 'User IDs',
@@ -2013,7 +1936,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_list_members'],
       },
     },
-    // User search query
     {
       id: 'userSearch',
       title: 'Search',
@@ -2025,7 +1947,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_search_users'],
       },
     },
-    // SAML group name
     {
       id: 'samlGroupName',
       title: 'SAML Group Name',
@@ -2037,7 +1958,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: SAML_NAME_OPS,
       },
     },
-    // SAML provider name (add/delete SAML group link)
     {
       id: 'samlProvider',
       title: 'SAML Provider',
@@ -2049,7 +1969,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: SAML_NAME_OPS,
       },
     },
-    // Provider (delete user identity)
     {
       id: 'provider',
       title: 'Identity Provider',
@@ -2061,7 +1980,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_delete_user_identity'],
       },
     },
-    // Hard delete toggle (delete user)
     {
       id: 'hardDelete',
       title: 'Hard Delete',
@@ -2074,7 +1992,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_delete_user'],
       },
     },
-    // User attributes (create/update user)
     {
       id: 'userAdminEmail',
       title: 'Email',
@@ -3286,26 +3203,19 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     userAdminIsAdmin: { type: 'boolean', description: 'Whether the user is an administrator' },
   },
   outputs: {
-    // Project outputs
     projects: { type: 'json', description: 'List of projects' },
     project: { type: 'json', description: 'Project details' },
-    // Group outputs
     groups: { type: 'json', description: 'List of groups' },
     group: { type: 'json', description: 'Group details' },
     memberships: { type: 'json', description: "A user's project and group memberships" },
-    // Issue outputs
     issues: { type: 'json', description: 'List of issues' },
     issue: { type: 'json', description: 'Issue details' },
-    // Merge request outputs
     mergeRequests: { type: 'json', description: 'List of merge requests' },
     mergeRequest: { type: 'json', description: 'Merge request details' },
     mergeRequestIid: { type: 'number', description: 'Merge request internal ID (IID)' },
-    // Pipeline outputs
     pipelines: { type: 'json', description: 'List of pipelines' },
     pipeline: { type: 'json', description: 'Pipeline details' },
-    // Note outputs
     note: { type: 'json', description: 'Comment/note details' },
-    // Repository outputs
     tree: { type: 'json', description: 'Repository tree entries' },
     content: { type: 'string', description: 'File contents (decoded)' },
     fileName: { type: 'string', description: 'File name' },
@@ -3321,7 +3231,6 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     blobId: { type: 'string', description: 'The blob ID' },
     lastCommitId: { type: 'string', description: 'The last commit ID that modified the file' },
     webUrl: { type: 'string', description: 'Web URL' },
-    // Merge request change outputs
     changes: { type: 'json', description: 'Merge request file changes/diffs' },
     changesCount: { type: 'number', description: 'Number of changed files returned (first 100)' },
     hasMore: {
@@ -3331,19 +3240,15 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     approvalsRequired: { type: 'number', description: 'Approvals required' },
     approvalsLeft: { type: 'number', description: 'Approvals remaining' },
     approvedBy: { type: 'json', description: 'List of approvers' },
-    // Job outputs
     jobs: { type: 'json', description: 'Pipeline jobs' },
     log: { type: 'string', description: 'Job log output' },
     id: { type: 'number', description: 'Job ID' },
     status: { type: 'string', description: 'Job status' },
-    // Compare outputs
     diffs: { type: 'json', description: 'File diffs between two compared references' },
     compareTimeout: { type: 'boolean', description: 'Whether the comparison timed out' },
     compareSameRef: { type: 'boolean', description: 'Whether both compared references match' },
-    // Release outputs
     releases: { type: 'json', description: 'List of releases' },
     release: { type: 'json', description: 'Release details' },
-    // Access / membership outputs
     members: { type: 'json', description: 'List of project or group members' },
     member: { type: 'json', description: 'A single member' },
     alreadyMember: { type: 'boolean', description: 'Whether the user was already a member' },
@@ -3354,16 +3259,13 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     samlGroupLinks: { type: 'json', description: 'List of SAML group links' },
     samlGroupLink: { type: 'json', description: 'A single SAML group link' },
     message: { type: 'json', description: 'Per-email invitation result detail' },
-    // User outputs
     users: { type: 'json', description: 'List of matching users' },
     user: { type: 'json', description: 'User details' },
-    // Pagination
     total: { type: 'number', description: 'Total number of items available across all pages' },
     truncated: {
       type: 'boolean',
       description: 'Whether returned content (file content or job log) was truncated',
     },
-    // Success indicator
     success: { type: 'boolean', description: 'Operation success status' },
   },
 

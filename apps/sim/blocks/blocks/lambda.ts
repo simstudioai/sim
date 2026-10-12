@@ -2,58 +2,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { LambdaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type {
-  LambdaAddPermissionResponse,
-  LambdaCreateAliasResponse,
-  LambdaCreateEventSourceMappingResponse,
-  LambdaCreateFunctionResponse,
-  LambdaCreateFunctionUrlConfigResponse,
-  LambdaDeleteAliasResponse,
-  LambdaDeleteEventSourceMappingResponse,
-  LambdaDeleteFunctionConcurrencyResponse,
-  LambdaDeleteFunctionEventInvokeConfigResponse,
-  LambdaDeleteFunctionResponse,
-  LambdaDeleteFunctionUrlConfigResponse,
-  LambdaDeleteProvisionedConcurrencyConfigResponse,
-  LambdaGetAccountSettingsResponse,
-  LambdaGetAliasResponse,
-  LambdaGetEventSourceMappingResponse,
-  LambdaGetFunctionConcurrencyResponse,
-  LambdaGetFunctionConfigurationResponse,
-  LambdaGetFunctionEventInvokeConfigResponse,
-  LambdaGetFunctionRecursionConfigResponse,
-  LambdaGetFunctionResponse,
-  LambdaGetFunctionUrlConfigResponse,
-  LambdaGetLayerVersionResponse,
-  LambdaGetPolicyResponse,
-  LambdaGetProvisionedConcurrencyConfigResponse,
-  LambdaGetRuntimeManagementConfigResponse,
-  LambdaInvokeResponse,
-  LambdaListAliasesResponse,
-  LambdaListEventSourceMappingsResponse,
-  LambdaListFunctionEventInvokeConfigsResponse,
-  LambdaListFunctionsResponse,
-  LambdaListFunctionUrlConfigsResponse,
-  LambdaListLayersResponse,
-  LambdaListLayerVersionsResponse,
-  LambdaListProvisionedConcurrencyConfigsResponse,
-  LambdaListTagsResponse,
-  LambdaListVersionsByFunctionResponse,
-  LambdaPublishVersionResponse,
-  LambdaPutFunctionConcurrencyResponse,
-  LambdaPutFunctionEventInvokeConfigResponse,
-  LambdaPutFunctionRecursionConfigResponse,
-  LambdaPutProvisionedConcurrencyConfigResponse,
-  LambdaPutRuntimeManagementConfigResponse,
-  LambdaRemovePermissionResponse,
-  LambdaTagResourceResponse,
-  LambdaUntagResourceResponse,
-  LambdaUpdateAliasResponse,
-  LambdaUpdateEventSourceMappingResponse,
-  LambdaUpdateFunctionCodeResponse,
-  LambdaUpdateFunctionConfigurationResponse,
-  LambdaUpdateFunctionUrlConfigResponse,
-} from '@/tools/lambda/types'
 
 type ParamKind = 'string' | 'number' | 'boolean' | 'json' | 'array' | 'jsonArray'
 
@@ -453,58 +401,7 @@ function parseJson(value: unknown, name: string): unknown {
   }
 }
 
-export const LambdaBlock: BlockConfig<
-  | LambdaInvokeResponse
-  | LambdaListFunctionsResponse
-  | LambdaGetFunctionResponse
-  | LambdaGetFunctionConfigurationResponse
-  | LambdaCreateFunctionResponse
-  | LambdaUpdateFunctionCodeResponse
-  | LambdaUpdateFunctionConfigurationResponse
-  | LambdaDeleteFunctionResponse
-  | LambdaPublishVersionResponse
-  | LambdaListVersionsByFunctionResponse
-  | LambdaCreateAliasResponse
-  | LambdaGetAliasResponse
-  | LambdaUpdateAliasResponse
-  | LambdaDeleteAliasResponse
-  | LambdaListAliasesResponse
-  | LambdaAddPermissionResponse
-  | LambdaRemovePermissionResponse
-  | LambdaGetPolicyResponse
-  | LambdaCreateEventSourceMappingResponse
-  | LambdaGetEventSourceMappingResponse
-  | LambdaUpdateEventSourceMappingResponse
-  | LambdaDeleteEventSourceMappingResponse
-  | LambdaListEventSourceMappingsResponse
-  | LambdaGetFunctionConcurrencyResponse
-  | LambdaPutFunctionConcurrencyResponse
-  | LambdaDeleteFunctionConcurrencyResponse
-  | LambdaGetProvisionedConcurrencyConfigResponse
-  | LambdaPutProvisionedConcurrencyConfigResponse
-  | LambdaDeleteProvisionedConcurrencyConfigResponse
-  | LambdaListProvisionedConcurrencyConfigsResponse
-  | LambdaCreateFunctionUrlConfigResponse
-  | LambdaGetFunctionUrlConfigResponse
-  | LambdaUpdateFunctionUrlConfigResponse
-  | LambdaDeleteFunctionUrlConfigResponse
-  | LambdaListFunctionUrlConfigsResponse
-  | LambdaGetFunctionEventInvokeConfigResponse
-  | LambdaPutFunctionEventInvokeConfigResponse
-  | LambdaDeleteFunctionEventInvokeConfigResponse
-  | LambdaListFunctionEventInvokeConfigsResponse
-  | LambdaListLayersResponse
-  | LambdaListLayerVersionsResponse
-  | LambdaGetLayerVersionResponse
-  | LambdaListTagsResponse
-  | LambdaTagResourceResponse
-  | LambdaUntagResourceResponse
-  | LambdaGetAccountSettingsResponse
-  | LambdaGetFunctionRecursionConfigResponse
-  | LambdaPutFunctionRecursionConfigResponse
-  | LambdaGetRuntimeManagementConfigResponse
-  | LambdaPutRuntimeManagementConfigResponse
-> = {
+export const LambdaBlock: BlockConfig = {
   type: 'lambda',
   name: 'Lambda',
   description: 'Invoke, deploy, and manage AWS Lambda functions',

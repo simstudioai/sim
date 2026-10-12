@@ -2,9 +2,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { RDSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { RdsIntrospectResponse, RdsResponse } from '@/tools/rds/types'
 
-export const RDSBlock: BlockConfig<RdsResponse | RdsIntrospectResponse> = {
+export const RDSBlock: BlockConfig = {
   type: 'rds',
   name: 'Amazon RDS',
   description: 'Connect to Amazon RDS via Data API',

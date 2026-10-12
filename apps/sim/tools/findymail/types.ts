@@ -62,7 +62,7 @@ export const FINDYMAIL_EMPLOYEES_OUTPUT: OutputProperty = {
   },
 }
 
-export interface FindymailContact {
+interface FindymailContact {
   name: string
   email: string
   domain: string
@@ -164,7 +164,7 @@ export interface FindymailFindEmployeesParams extends FindymailBaseParams {
   count?: number
 }
 
-export interface FindymailEmployee {
+interface FindymailEmployee {
   name: string
   linkedinUrl: string | null
   companyWebsite: string | null
@@ -193,7 +193,7 @@ export interface FindymailSearchTechnologiesParams extends FindymailBaseParams {
   q: string
 }
 
-export interface FindymailTechnology {
+interface FindymailTechnology {
   name: string
   category: string | null
   subcategory: string | null
@@ -226,16 +226,3 @@ export interface FindymailGetCreditsResponse extends ToolResponse {
     verifier_credits: number
   }
 }
-
-export type FindymailResponse =
-  | FindymailVerifyEmailResponse
-  | FindymailFindEmailFromNameResponse
-  | FindymailFindEmailsByDomainResponse
-  | FindymailFindEmailFromLinkedInResponse
-  | FindymailReverseEmailLookupResponse
-  | FindymailGetCompanyResponse
-  | FindymailFindEmployeesResponse
-  | FindymailFindPhoneResponse
-  | FindymailSearchTechnologiesResponse
-  | FindymailLookupTechnologiesResponse
-  | FindymailGetCreditsResponse

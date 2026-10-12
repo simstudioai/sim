@@ -1,4 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
+import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 import { wizaHosting } from '@/tools/wiza/hosting'
 import type {
@@ -77,6 +78,7 @@ export const wizaIndividualRevealTool: ToolConfig<
   description:
     'Reveal a contact via LinkedIn URL, name + company/domain, or email. Starts the reveal and polls until it resolves. Uses 2 credits per valid email and 5 credits per phone, charged only on success.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.WIZA_ERRORS,
 
   hosting: wizaHosting<WizaIndividualRevealParams>((_params, output) => {
     let credits = 0
@@ -238,9 +240,22 @@ export const wizaIndividualRevealTool: ToolConfig<
         consecutiveErrors += 1
         if (consecutiveErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
           const errorText = await statusResponse.text().catch(() => '')
+          let errorData: unknown
+          try {
+            errorData = JSON.parse(errorText)
+          } catch {
+            errorData = errorText
+          }
           return {
             success: false,
-            error: `Wiza API error: ${statusResponse.status} - ${errorText}`,
+            error: extractErrorMessage(
+              {
+                status: statusResponse.status,
+                statusText: statusResponse.statusText,
+                data: errorData,
+              },
+              ErrorExtractorId.WIZA_ERRORS
+            ),
             output: result.output,
           }
         }

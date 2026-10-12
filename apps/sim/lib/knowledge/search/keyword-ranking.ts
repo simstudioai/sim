@@ -1,4 +1,4 @@
-import { document, type embedding, type embeddingKeywordSearch } from '@sim/db/schema'
+import { document, type embedding } from '@sim/db/schema'
 import { and, type SQL, sql } from 'drizzle-orm'
 
 /**
@@ -18,7 +18,7 @@ export function keywordCandidateRankingQuery(input: {
   /** What a matched document must satisfy to be readable. */
   documentConditions: (SQL | undefined)[]
   /** The table whose text-search vector `rank` reads, joined to the matches on `id`. */
-  rankTable: typeof embedding | typeof embeddingKeywordSearch
+  rankTable: typeof embedding
   rank: SQL<number>
   limit: number
   offset: number

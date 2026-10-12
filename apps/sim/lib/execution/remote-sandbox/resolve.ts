@@ -218,7 +218,7 @@ export async function resolveWorkspaceSandbox(args: {
   await requireSandboxPlan(workspaceId)
 
   const provider = resolveProvider()
-  const { db, sandboxImage, workspaceSandbox, and, eq } = await sandboxDb()
+  const { db, workspaceSandbox, and, eq } = await sandboxDb()
   const [row] = await db
     .select({
       id: workspaceSandbox.id,

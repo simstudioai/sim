@@ -17,7 +17,6 @@ import {
 import { MoreHorizontal } from '@sim/emcn/icons'
 import { orderHeaderActions, type SettingsAction } from '@/components/settings/settings-header'
 import type { ConnectorActionState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 
 interface ConnectorActionsProps {
   state: ConnectorActionState
@@ -105,9 +104,9 @@ export function ConnectorActionFeedback({ state }: ConnectorActionFeedbackProps)
   return (
     <>
       {state.error && (
-        <SettingsEmptyState variant='inline' tone='error'>
+        <p role='alert' className='py-4 text-center text-[var(--text-error)] text-sm'>
           {state.error.message}
-        </SettingsEmptyState>
+        </p>
       )}
       <ChipConfirmModal
         open={removal.open}

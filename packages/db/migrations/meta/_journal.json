@@ -2717,6 +2717,146 @@
       "when": 1790465741392,
       "tag": "0388_document_connector_reconciliation_v2_index",
       "breakpoints": true
+    },
+    {
+      "idx": 389,
+      "version": "7",
+      "when": 1790559081077,
+      "tag": "0389_member_resurrection_cursor",
+      "breakpoints": true
+    },
+    {
+      "idx": 390,
+      "version": "7",
+      "when": 1790562554468,
+      "tag": "0390_table_rows_version_at_commit",
+      "breakpoints": true
+    },
+    {
+      "idx": 391,
+      "version": "7",
+      "when": 1790647979450,
+      "tag": "0391_fork_sync_new_workflow_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 392,
+      "version": "7",
+      "when": 1790723607543,
+      "tag": "0392_dashboard",
+      "breakpoints": true
+    },
+    {
+      "idx": 393,
+      "version": "7",
+      "when": 1790973503076,
+      "tag": "0393_fork_workflow_sync_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 394,
+      "version": "7",
+      "when": 1790986588983,
+      "tag": "0394_project_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 395,
+      "version": "7",
+      "when": 1791242831820,
+      "tag": "0395_desktop_tool_permission_requested",
+      "breakpoints": true
+    },
+    {
+      "idx": 396,
+      "version": "7",
+      "when": 1791254828269,
+      "tag": "0396_user_table_row_changes",
+      "breakpoints": true
+    },
+    {
+      "idx": 397,
+      "version": "7",
+      "when": 1791260527198,
+      "tag": "0397_desktop_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 398,
+      "version": "7",
+      "when": 1791260662287,
+      "tag": "0398_desktop_tool_pickup_deadline",
+      "breakpoints": true
+    },
+    {
+      "idx": 399,
+      "version": "7",
+      "when": 1791313130367,
+      "tag": "0399_tool_call_persist_seq",
+      "breakpoints": true
+    },
+    {
+      "idx": 400,
+      "version": "7",
+      "when": 1791447472721,
+      "tag": "0400_vanta_client_token",
+      "breakpoints": true
+    },
+    {
+      "idx": 401,
+      "version": "7",
+      "when": 1791487459599,
+      "tag": "0401_retire_keyword_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 402,
+      "version": "7",
+      "when": 1791496539437,
+      "tag": "0402_table_row_change_triggers",
+      "breakpoints": true
+    },
+    {
+      "idx": 403,
+      "version": "7",
+      "when": 1791499299484,
+      "tag": "0403_workflow_tests",
+      "breakpoints": true
+    },
+    {
+      "idx": 404,
+      "version": "7",
+      "when": 1791573858975,
+      "tag": "0404_changelog",
+      "breakpoints": true
+    },
+    {
+      "idx": 405,
+      "version": "7",
+      "when": 1791594144264,
+      "tag": "0405_oauth_refresh_revoked",
+      "breakpoints": true
+    },
+    {
+      "idx": 406,
+      "version": "7",
+      "when": 1791594144265,
+      "tag": "0406_workspace_project_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 407,
+      "version": "7",
+      "when": 1791671263222,
+      "tag": "0407_workspace_files_display_name_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 408,
+      "version": "7",
+      "when": 1791785549802,
+      "tag": "0408_index_alignment",
+      "breakpoints": true
     }
   ]
 }

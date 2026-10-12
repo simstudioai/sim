@@ -24,13 +24,19 @@ With the Vanta integration in Sim, you can:
 - **Watch device compliance**: List monitored computers with screenlock, disk encryption, password manager, and antivirus check outcomes.
 - **Manage risk scenarios**: Query risk register scenarios with likelihood/impact scores, treatment decisions, and review status.
 
-The integration authenticates with Vanta OAuth client credentials (created under Settings → Developer Console in Vanta) and supports both the commercial (api.vanta.com) and FedRAMP (api.vanta-gov.com) environments. Evidence uploads require credentials granted the `vanta-api.documents:upload` scope.
+Create a **Manage Vanta** application in Vanta's Developer Console, then add a Vanta credential in Sim with its client ID, client secret, and deployment. Select that saved credential in your Vanta blocks. Sim stores the credentials securely and obtains access tokens automatically; there is no browser authorization redirect or shared Sim OAuth application to configure.
+
+Standard Vanta deployments, including US, EU, and AU tenants, use `api.vanta.com`; Vanta Gov uses `api.vanta-gov.com`. Read operations require `vanta-api.all:read`; submitting documents also requires `vanta-api.all:write`; evidence uploads require `vanta-api.documents:upload`. Grant the scopes needed for your workflows when creating the application. See [Vanta's authentication documentation](https://developer.vanta.com/reference/manage-vanta/overview).
+
+The first successful connection sets this application's permissions in Sim. Every connection to that application must always use the same permissions, including after tokens expire or credentials are reconnected. Leave permissions blank on reconnect to retain the current choice. To choose different permissions, create a separate Manage Vanta application and connect it in Sim.
+
+If your workflow entered credentials directly on a Vanta block, create and select a saved Vanta credential before running it again. Use a dedicated Vanta application for Sim: Vanta allows one active access token per application, so another client obtaining a new token can invalidate Sim's token.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Requires Vanta OAuth client credentials.
+Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Select a saved Vanta credential created with your Vanta application client ID and client secret.
 
 
 
@@ -44,9 +50,6 @@ List the compliance frameworks (e.g., SOC 2, ISO 27001) available in a Vanta acc
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
@@ -65,9 +68,6 @@ Get a Vanta compliance framework by ID, including its requirement categories and
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `frameworkId` | string | Yes | Unique ID of the framework \(e.g., soc2\) |
 
 #### Output
@@ -84,9 +84,6 @@ List the controls that belong to a specific Vanta compliance framework
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `frameworkId` | string | Yes | Unique ID of the framework \(e.g., soc2\) |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
@@ -106,9 +103,6 @@ List the security controls in a Vanta account, optionally filtered by framework
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `frameworkMatchesAny` | string | No | Comma-separated framework IDs to filter controls by \(e.g., soc2,iso27001\) |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
@@ -128,9 +122,6 @@ Get a Vanta security control by ID, including its status and evidence pass/fail 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `controlId` | string | Yes | Unique ID of the control |
 
 #### Output
@@ -147,9 +138,6 @@ List the automated tests mapped to a specific Vanta control
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `controlId` | string | Yes | Unique ID of the control |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
@@ -169,9 +157,6 @@ List the evidence documents mapped to a specific Vanta control
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `controlId` | string | Yes | Unique ID of the control |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
@@ -191,9 +176,6 @@ List the automated compliance tests in a Vanta account, with filters for status,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `statusFilter` | string | No | Filter by test status: OK, DEACTIVATED, NEEDS_ATTENTION, IN_PROGRESS, INVALID, or NOT_APPLICABLE |
 | `frameworkFilter` | string | No | Filter by framework ID \(e.g., soc2\) |
 | `integrationFilter` | string | No | Filter by integration ID \(e.g., aws\) |
@@ -219,9 +201,6 @@ Get a Vanta automated compliance test by ID, including its status and remediatio
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `testId` | string | Yes | Unique ID of the test \(e.g., test-aws-cloudtrail-enabled\) |
 
 #### Output
@@ -238,9 +217,6 @@ List the failing or deactivated resource entities for a specific Vanta test, use
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `testId` | string | Yes | Unique ID of the test \(e.g., test-aws-cloudtrail-enabled\) |
 | `entityStatus` | string | No | Filter entities by status: FAILING or DEACTIVATED |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
@@ -261,9 +237,6 @@ List the evidence documents in a Vanta account, optionally filtered by framework
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `frameworkMatchesAny` | string | No | Comma-separated framework IDs to filter documents by \(e.g., soc2,iso27001\) |
 | `statusMatchesAny` | string | No | Comma-separated document statuses to filter by: "Needs document", "Needs update", "Not relevant", "OK" |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
@@ -284,9 +257,6 @@ Get a Vanta evidence document by ID, including its renewal schedule and deactiva
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `documentId` | string | Yes | Unique ID of the document |
 
 #### Output
@@ -303,9 +273,6 @@ List the files uploaded to a specific Vanta evidence document
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `documentId` | string | Yes | Unique ID of the document |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
@@ -325,9 +292,6 @@ Upload an evidence file to a Vanta document. Requires credentials with the vanta
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `documentId` | string | Yes | Unique ID of the document to attach the file to |
 | `file` | file | No | The evidence file to upload |
 | `fileName` | string | No | Optional file name override |
@@ -349,9 +313,6 @@ Download a file previously uploaded to a Vanta evidence document and store it in
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `documentId` | string | Yes | Unique ID of the document |
 | `uploadedFileId` | string | Yes | Unique ID of the uploaded file \(from List Document Uploads\) |
 
@@ -372,9 +333,6 @@ Submit a Vanta document collection for review so uploaded evidence becomes visib
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `documentId` | string | Yes | Unique ID of the document to submit |
 
 #### Output
@@ -392,9 +350,6 @@ List the people tracked in a Vanta account with employment status, group members
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `emailAndNameFilter` | string | No | Filter people by email address or name |
 | `employmentStatus` | string | No | Filter by employment status: UPCOMING, CURRENT, ON_LEAVE, INACTIVE, or FORMER |
 | `groupIdsMatchesAny` | string | No | Comma-separated group IDs to filter people by |
@@ -419,9 +374,6 @@ Get a person tracked in Vanta by ID, including employment, leave, and security t
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `personId` | string | Yes | Unique ID of the person |
 
 #### Output
@@ -438,9 +390,6 @@ List the security policies in a Vanta account with approval status and version i
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
@@ -459,9 +408,6 @@ Get a Vanta security policy by ID, including its approval status and latest appr
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `policyId` | string | Yes | Unique ID of the policy |
 
 #### Output
@@ -478,9 +424,6 @@ List the vendors tracked in a Vanta account with risk levels, contract dates, an
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `name` | string | No | Filter vendors by name |
 | `statusMatchesAny` | string | No | Comma-separated vendor statuses to filter by: MANAGED, ARCHIVED, IN_PROCUREMENT |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
@@ -501,9 +444,6 @@ Get a Vanta vendor by ID, including risk levels, contract details, and authentic
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `vendorId` | string | Yes | Unique ID of the vendor |
 
 #### Output
@@ -520,9 +460,6 @@ List the monitored computers in a Vanta account with screenlock, disk encryption
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `complianceStatusFilterMatchesAny` | string | No | Comma-separated compliance issues to filter by: PWM_NOT_INSTALLED, HD_NOT_ENCRYPTED, AV_NOT_INSTALLED, SCREENLOCK_NOT_CONFIGURED, LAST_CHECK_OVER_14_DAYS |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
@@ -542,9 +479,6 @@ List the vulnerabilities detected across a Vanta account with filters for severi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `q` | string | No | Search query for vulnerabilities |
 | `severity` | string | No | Filter by severity: LOW, MEDIUM, HIGH, or CRITICAL |
 | `isFixAvailable` | boolean | No | Filter by whether a fix is available |
@@ -574,9 +508,6 @@ List remediated vulnerabilities in a Vanta account with detection, SLA deadline,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `integrationId` | string | No | Filter by the integration that detected the vulnerability |
 | `severity` | string | No | Filter by severity: LOW, MEDIUM, HIGH, or CRITICAL |
 | `isRemediatedOnTime` | boolean | No | Filter by whether the vulnerability was remediated before its SLA deadline |
@@ -600,9 +531,6 @@ List the assets associated with vulnerabilities in a Vanta account (servers, rep
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `q` | string | No | Search query for vulnerable assets |
 | `integrationId` | string | No | Filter by the integration scanning the asset |
 | `assetType` | string | No | Filter by asset type: SERVER, SERVERLESS_FUNCTION, CONTAINER, CONTAINER_REPOSITORY, CONTAINER_REPOSITORY_IMAGE, CODE_REPOSITORY, MANIFEST_FILE, WORKSTATION, or OTHER |
@@ -625,9 +553,6 @@ Get a vulnerable asset in Vanta by ID, including the scanners reporting it and p
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `vulnerableAssetId` | string | Yes | Unique ID of the vulnerable asset |
 
 #### Output
@@ -644,9 +569,6 @@ List the risk scenarios in a Vanta risk register with likelihood/impact scores, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `searchString` | string | No | Search string to filter risk scenarios |
 | `includeIgnored` | boolean | No | Include ignored risk scenarios |
 | `type` | string | No | Filter by scenario type: "Risk Scenario" or "Enterprise Risk" |
@@ -676,9 +598,6 @@ Get a Vanta risk scenario by ID, including its scores, treatment decision, and r
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `riskScenarioId` | string | Yes | Unique ID of the risk scenario |
 
 #### Output

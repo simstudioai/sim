@@ -40,12 +40,9 @@ setEnv({
   APPCONFIG_APPLICATION: 'sim-staging',
   APPCONFIG_ENVIRONMENT: 'staging',
   DASHBOARDS: undefined,
-  TABLES_V2_API: undefined,
-  TABLE_ROW_TTL: undefined,
   MSHIP_MODEL_SELECTOR: undefined,
   MSHIP_PLAN_MODE: undefined,
   AGENT_MEMORY_HISTORY: undefined,
-  CREDENTIAL_GROUPS: undefined,
   KNOWLEDGE_MEMBER_ACCESS: undefined,
   SLACK_SEARCH_SHARED_APP: undefined,
 })
@@ -110,9 +107,6 @@ describe('getFeatureFlags', () => {
     const flags = await getFeatureFlags()
     // All registered flags should be present, disabled (env vars unset in test env)
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
-    expect(flags['tables-v2-api']).toEqual({ enabled: false })
-    expect(flags['table-row-ttl']).toEqual({ enabled: false })
-    expect(flags['credential-groups']).toEqual({ enabled: false })
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
@@ -138,9 +132,6 @@ describe('getFeatureFlags', () => {
     mockFetch.mockResolvedValue(null)
     const flags = await getFeatureFlags()
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
-    expect(flags['tables-v2-api']).toEqual({ enabled: false })
-    expect(flags['table-row-ttl']).toEqual({ enabled: false })
-    expect(flags['credential-groups']).toEqual({ enabled: false })
   })
 
   it('degrades gracefully on a malformed document', async () => {
@@ -154,7 +145,6 @@ describe('getFeatureFlags', () => {
 describe('isFeatureEnabled', () => {
   beforeEach(() => {
     setEnvFlags({ isAppConfigEnabled: false })
-    envRef.CREDENTIAL_GROUPS = undefined
     envRef.KNOWLEDGE_MEMBER_ACCESS = undefined
     envRef.SLACK_SEARCH_SHARED_APP = undefined
   })
@@ -225,32 +215,6 @@ describe('isFeatureEnabled', () => {
     })
   })
 
-  describe('credential-groups flag', () => {
-    it('uses a global fallback switch off AppConfig', async () => {
-      expect(await isFeatureEnabled('credential-groups')).toBe(false)
-
-      envRef.CREDENTIAL_GROUPS = true
-      expect(await isFeatureEnabled('credential-groups')).toBe(true)
-    })
-
-    it('uses the global AppConfig clause', async () => {
-      withAppConfig({ 'credential-groups': { enabled: true } })
-      expect(await isFeatureEnabled('credential-groups')).toBe(true)
-    })
-
-    it('opens for an allowlisted organization only', async () => {
-      withAppConfig({ 'credential-groups': { orgIds: ['org-1'] } })
-      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-1' })).toBe(true)
-      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-2' })).toBe(false)
-      expect(await isFeatureEnabled('credential-groups')).toBe(false)
-    })
-
-    it('a legacy workspace allowlist does not enable the organization gate', async () => {
-      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
-      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-1' })).toBe(false)
-    })
-  })
-
   it('matches the workspaceIds clause', async () => {
     withAppConfig({ f: { workspaceIds: ['ws-1'] } })
     expect(await enabled('f', { workspaceId: 'ws-1' })).toBe(true)
@@ -318,50 +282,6 @@ describe('isFeatureEnabled', () => {
       expect(await enabled('f', { userId: 'u1' })).toBe(false)
       expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
     })
-  })
-})
-
-describe('tables-v2-api flag', () => {
-  beforeEach(() => {
-    setEnvFlags({ isAppConfigEnabled: false })
-    envRef.TABLES_V2_API = undefined
-  })
-
-  it('is off by default off-AppConfig, on when the fallback secret is set', async () => {
-    expect(await isFeatureEnabled('tables-v2-api')).toBe(false)
-    envRef.TABLES_V2_API = true
-    expect(await isFeatureEnabled('tables-v2-api')).toBe(true)
-  })
-
-  it('gates by org cohort via AppConfig', async () => {
-    withAppConfig({ 'tables-v2-api': { orgIds: ['org-1'] } })
-    expect(await isFeatureEnabled('tables-v2-api', { orgId: 'org-1' })).toBe(true)
-    expect(await isFeatureEnabled('tables-v2-api', { orgId: 'org-2' })).toBe(false)
-    expect(await isFeatureEnabled('tables-v2-api', { userId: 'u1' })).toBe(false)
-  })
-
-  it('global enabled turns it on for everyone', async () => {
-    withAppConfig({ 'tables-v2-api': { enabled: true } })
-    expect(await isFeatureEnabled('tables-v2-api')).toBe(true)
-  })
-})
-
-describe('table-row-ttl flag', () => {
-  beforeEach(() => {
-    setEnvFlags({ isAppConfigEnabled: false })
-    envRef.TABLE_ROW_TTL = undefined
-  })
-
-  it('uses a global fallback switch off AppConfig', async () => {
-    expect(await isFeatureEnabled('table-row-ttl')).toBe(false)
-
-    envRef.TABLE_ROW_TTL = true
-    expect(await isFeatureEnabled('table-row-ttl')).toBe(true)
-  })
-
-  it('uses the global AppConfig clause', async () => {
-    withAppConfig({ 'table-row-ttl': { enabled: true } })
-    expect(await isFeatureEnabled('table-row-ttl')).toBe(true)
   })
 })
 

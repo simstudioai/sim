@@ -33,7 +33,7 @@ export const kalshiGetExchangeScheduleTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_exchange_schedule')
+      handleKalshiError(data, 'get_exchange_schedule')
     }
 
     return {
@@ -92,7 +92,7 @@ export const kalshiGetExchangeScheduleV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_exchange_schedule_v2')
+      handleKalshiError(data, 'get_exchange_schedule_v2')
     }
 
     const schedule = data.schedule || {}

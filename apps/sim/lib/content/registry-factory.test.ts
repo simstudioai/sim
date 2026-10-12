@@ -27,7 +27,6 @@ description: The registry still serves posts when the native binary is missing.
 date: 2026-08-10
 authors: [waleed]
 ogImage: /blog/missing-og.png
-canonical: https://sim.ai/blog/sharp-is-unavailable
 ---
 
 Body copy.
@@ -51,7 +50,7 @@ afterAll(async () => {
 
 describe('createContentRegistry without a loadable sharp', () => {
   it('still lists posts, omitting only the OG dimensions', async () => {
-    const registry = createContentRegistry({ contentDir, authorsDir })
+    const registry = createContentRegistry({ contentDir, authorsDir, basePath: '/blog' })
 
     const posts = await registry.getAllPostMeta()
 

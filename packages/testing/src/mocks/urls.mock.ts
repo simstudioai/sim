@@ -175,7 +175,7 @@ function isOllamaUrlConfiguredImpl(): boolean {
  *
  * @example
  * ```ts
- * import { urlsMockFns } from '@sim/testing'
+ * import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
  *
  * urlsMockFns.mockGetBaseUrl.mockReturnValue('https://custom.example.com')
  * ```

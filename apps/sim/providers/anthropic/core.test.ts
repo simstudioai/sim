@@ -293,7 +293,7 @@ describe('executeAnthropicProviderRequest forced tool use', () => {
     expect(payload.tool_choice).toEqual({ type: 'tool', name: 'publish' })
   })
 
-  it.each(['claude-fable-5-1', 'claude-opus-5-5'])(
+  it.each(['claude-fable-5-1', 'claude-opus-5-5', 'claude-sonnet-5-5'])(
     'drops forced tool_choice when the catalog model disables Force (%s)',
     async (model) => {
       const { payload, warn } = await runWithForcedTool(model)
@@ -745,6 +745,165 @@ describe('streaming', () => {
       }
     })
   })
+
+  /**
+   * Both tool loops rebuild requests after tool calls. Explicit none modes
+   * must survive later turns or default-thinking models resume thinking.
+   */
+  describe('Anthropic tool exchanges', () => {
+    const lookupTool = {
+      id: 'lookup',
+      name: 'lookup',
+      description: 'Lookup',
+      params: {},
+      parameters: { type: 'object', properties: {}, required: [] },
+    }
+    const turns = [
+      message([{ type: 'tool_use', id: 'tool-1', name: 'lookup', input: {} }], 'tool_use'),
+      message([{ type: 'text', text: 'done' }], 'end_turn'),
+    ]
+
+    /** Runs a tool exchange and returns the SDK request bodies and settled output. */
+    async function runToolExchange(
+      model: string,
+      streaming: boolean,
+      thinkingLevel = 'none',
+      forceTool = false,
+      responseTurns = turns
+    ) {
+      mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'tool result' } })
+      const sent: Anthropic.Messages.MessageCreateParams[] = []
+      const nextTurn = (payload: Anthropic.Messages.MessageCreateParams) => {
+        sent.push(payload)
+        return responseTurns[sent.length - 1]
+      }
+      const result = await executeAnthropicProviderRequest(
+        {
+          model,
+          apiKey: 'test-key',
+          stream: streaming,
+          maxTokens: 4096,
+          thinkingLevel,
+          temperature: 0.5,
+          agentEvents: true,
+          messages: [{ role: 'user', content: 'Look this up' }],
+          tools: [{ ...lookupTool, usageControl: forceTool ? 'force' : 'auto' }],
+        },
+        {
+          providerId: 'anthropic',
+          providerLabel: 'Anthropic',
+          createClient: () =>
+            ({
+              messages: streaming
+                ? {
+                    stream: (payload: never) =>
+                      stream([{ type: 'message_stop' }], nextTurn(payload)),
+                  }
+                : { create: async (payload: never) => nextTurn(payload) },
+            }) as never,
+          logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+        }
+      )
+      if (streaming) await collectEvents(result as StreamingExecution)
+      return {
+        sent,
+        output: streaming
+          ? (result as StreamingExecution).execution.output
+          : (result as ProviderResponse),
+      }
+    }
+
+    it.each([false, true])(
+      'sends bare between_tools on every turn (streaming: %s)',
+      async (streaming) => {
+        const { sent } = await runToolExchange('claude-sonnet-5-5', streaming)
+        expect(sent).toHaveLength(2)
+        for (const payload of sent) {
+          expect(payload.thinking).toEqual({ type: 'between_tools' })
+          expect(payload.output_config).toBeUndefined()
+        }
+      }
+    )
+
+    it.each(['claude-sonnet-5', 'claude-opus-5-5'])(
+      'sends no thinking config on %s',
+      async (model) => {
+        const { sent } = await runToolExchange(model, false)
+        expect(sent).toHaveLength(2)
+        for (const payload of sent) expect(payload.thinking).toBeUndefined()
+      }
+    )
+
+    it.each([false, true])(
+      'disables Haiku 5.5 default thinking on every tool turn (streaming: %s)',
+      async (streaming) => {
+        const { sent } = await runToolExchange('claude-haiku-5-5', streaming)
+        expect(sent).toHaveLength(2)
+        for (const payload of sent) {
+          expect(payload.thinking).toEqual({ type: 'disabled' })
+          expect(payload.output_config).toBeUndefined()
+          expect(payload.temperature).toBeUndefined()
+        }
+      }
+    )
+
+    it.each([false, true])(
+      'uses adaptive Haiku 5.5 thinking and releases the executed forced tool (streaming: %s)',
+      async (streaming) => {
+        const { sent } = await runToolExchange('claude-haiku-5-5', streaming, 'max', true)
+        expect(sent).toHaveLength(2)
+        for (const payload of sent) {
+          expect(payload.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+          expect(payload.output_config).toEqual({ effort: 'max' })
+          expect(payload.temperature).toBeUndefined()
+        }
+        expect(sent[0].tool_choice).toEqual({ type: 'tool', name: 'lookup' })
+        expect(sent[1].tool_choice).toBeUndefined()
+      }
+    )
+
+    it.each([false, true])(
+      'prices Haiku prompts below the long-context tier separately (streaming: %s)',
+      async (streaming) => {
+        const responseTurns = turns.map((turn) => ({
+          ...turn,
+          usage: { input_tokens: 60000, output_tokens: 2000 },
+        }))
+        const { output } = await runToolExchange(
+          'claude-haiku-5-5',
+          streaming,
+          'none',
+          false,
+          responseTurns
+        )
+        expect(output.tokens).toMatchObject({ input: 120000, output: 4000 })
+        expect(output.cost).toMatchObject({ input: 0.012, output: 0.002, total: 0.014 })
+      }
+    )
+
+    it.each([false, true])(
+      'prices mixed Haiku prompt tiers using each turn including cache reads (streaming: %s)',
+      async (streaming) => {
+        const responseTurns = turns.map((turn, index) => ({
+          ...turn,
+          usage: {
+            input_tokens: index === 0 ? 60000 : 10000,
+            output_tokens: 2000,
+            cache_read_input_tokens: index === 0 ? 10000 : 100000,
+          },
+        }))
+        const { output } = await runToolExchange(
+          'claude-haiku-5-5',
+          streaming,
+          'none',
+          false,
+          responseTurns
+        )
+        expect(output.tokens).toMatchObject({ input: 70000, output: 4000, cacheRead: 110000 })
+        expect(output.cost).toMatchObject({ input: 0.0161, output: 0.006, total: 0.0221 })
+      }
+    )
+  })
 })
 
 /**
@@ -758,6 +917,7 @@ describe('buildThinkingConfig', () => {
     for (const model of [
       'claude-fable-5-1',
       'claude-fable-5',
+      'claude-sonnet-5-5',
       'claude-sonnet-5',
       'claude-opus-5-5',
       'claude-opus-5',

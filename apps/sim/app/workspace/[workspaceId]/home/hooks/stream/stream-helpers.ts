@@ -1,5 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
+import { isUnsettledToolState } from '@/lib/mothership/chat/persisted-message'
 import {
   CallIntegrationTool,
   CreateEmptyFile,
@@ -39,8 +39,6 @@ import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
-const logger = createLogger('StreamHelpers')
-
 export const FILE_SUBAGENT_ID = 'file'
 
 export const DEPLOY_TOOL_NAMES: Set<string> = new Set([
@@ -68,17 +66,17 @@ export function asPayloadRecord(value: unknown): StreamPayload | undefined {
 }
 
 /**
- * Settles any tool row still `executing` at a turn terminal by propagating the
- * turn's outcome — the deterministic replacement for the old `interrupted`
- * invention. A clean `complete` means the turn succeeded, so a straggler is
- * settled `success` (with explicit tool/span terminals from the backend there
- * are normally none); a stop settles `cancelled`; an error settles `error`.
+ * Settles every unfinished tool row (running, pending, or awaiting approval) at
+ * a turn terminal by propagating the turn's outcome: a clean `complete` settles
+ * a straggler `success`, a stop `cancelled`, an error `error`. Also closes any
+ * open subagent lane. Returns whether it settled a row or closed a lane.
  */
 export function finalizeResidualToolCalls(
   blocks: ContentBlock[],
   turnTerminal: 'complete' | 'cancelled' | 'error'
-): void {
+): boolean {
   const endedAt = Date.now()
+  let settled = false
   const propagated =
     turnTerminal === 'cancelled'
       ? ToolCallStatus.cancelled
@@ -93,10 +91,12 @@ export function finalizeResidualToolCalls(
     // transport-based gating.
     if (block.type === 'subagent' && block.endedAt === undefined) {
       block.endedAt = endedAt
+      settled = true
       continue
     }
     const tc = block.toolCall
-    if (!tc || tc.status !== ToolCallStatus.executing) continue
+    if (!tc || !isUnsettledToolState(tc.status)) continue
+    settled = true
     tc.status = propagated
     if (propagated === ToolCallStatus.cancelled) {
       tc.displayTitle = 'Stopped by user'
@@ -105,6 +105,7 @@ export function finalizeResidualToolCalls(
       block.endedAt = endedAt
     }
   }
+  return settled
 }
 
 function stringParam(value: unknown): string | undefined {

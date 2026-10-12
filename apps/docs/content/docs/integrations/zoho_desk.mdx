@@ -481,8 +481,6 @@ List the Zoho Desk organizations (portals) the connected account can access.
 |   ↳ `portalName` | string | Portal name |
 | `count` | number | Number of organizations returned |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -512,4 +510,28 @@ Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, conta
 | `orgId` | string | Zoho Desk organization ID |
 | `payload` | json | The full resource that changed \(ticket, comment, thread, etc.\). Comment and thread events gain a derived plain-text `contentText` alongside the raw `content` + `contentType`; ticket events gain `descriptionText` alongside `description`. |
 | `prevState` | json | Previous state of the resource \(update events only\) |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Zoho Desk account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/zoho-desk` |
+| Environment variables | `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `Desk.tickets.READ` | View tickets, threads, comments, and attachments |
+| `Desk.tickets.UPDATE` | Update tickets and add comments |
+| `Desk.contacts.READ` | View contacts |
+| `Desk.articles.READ` | View knowledge base articles |
+| `Desk.organization.READ` | View organization details |
+| `Desk.agents.READ` | View agents |
+| `Desk.basic.READ` | View basic data such as organizations, agents, and departments |
+| `Desk.webhooks.CREATE` | Create webhooks |
+| `Desk.webhooks.DELETE` | Delete webhooks |
+| `aaaserver.profile.READ` | View your Zoho profile |
+
 

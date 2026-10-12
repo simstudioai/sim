@@ -18,6 +18,7 @@ import {
   createOrganizationDocumentProcessingBillingContext,
   createWorkspaceDocumentProcessingBillingContext,
 } from '@/lib/knowledge/documents/processing-payload'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
 import {
   DOCUMENT_LIVENESS_BATCH_SIZE,
@@ -28,7 +29,6 @@ import {
 
 const logger = createLogger('KnowledgeDocumentRecovery')
 
-export const KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT = 'knowledge.document.processing.recover'
 export const DOCUMENT_RECOVERY_BATCH_SIZE = 200
 const RECOVERY_RUNTIME_MS = 20_000
 const MAX_RECOVERY_CANDIDATE_BATCHES = 4

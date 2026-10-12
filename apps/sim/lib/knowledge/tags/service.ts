@@ -13,6 +13,9 @@ import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
+  ALL_TAG_SLOTS,
+  type AllTagSlot,
+  getFieldTypeForSlot,
   getSlotsForFieldType,
   isValidSlotForFieldType,
   SUPPORTED_FIELD_TYPES,
@@ -27,25 +30,7 @@ import type {
 
 const logger = createLogger('TagsService')
 
-/** Text tag slots */
-const VALID_TEXT_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
-
-const VALID_NUMBER_SLOTS = ['number1', 'number2', 'number3', 'number4', 'number5'] as const
-/** Date tag slots (reduced to 2 for write performance) */
-const VALID_DATE_SLOTS = ['date1', 'date2'] as const
-/** Boolean tag slots */
-const VALID_BOOLEAN_SLOTS = ['boolean1', 'boolean2', 'boolean3'] as const
-
-/** All valid tag slots combined */
-const VALID_TAG_SLOTS = [
-  ...VALID_TEXT_SLOTS,
-  ...VALID_NUMBER_SLOTS,
-  ...VALID_DATE_SLOTS,
-  ...VALID_BOOLEAN_SLOTS,
-] as const
-
-type ValidTagSlot = (typeof VALID_TAG_SLOTS)[number]
-type ClearedTagValues = Partial<Record<ValidTagSlot, null>>
+type ClearedTagValues = Partial<Record<AllTagSlot, null>>
 const TAG_MUTATION_STATEMENT_TIMEOUT_MS = 120_000
 const TAG_MUTATION_LOCK_TIMEOUT_MS = 5_000
 const TAG_MUTATION_IDLE_TIMEOUT_MS = 30_000
@@ -63,9 +48,9 @@ export class KnowledgeTagProvenanceConflictError extends OrchestrationError {
 /**
  * Validates that a tag slot is a valid slot name
  */
-function validateTagSlot(tagSlot: string): asserts tagSlot is ValidTagSlot {
-  if (!VALID_TAG_SLOTS.includes(tagSlot as ValidTagSlot)) {
-    throw new Error(`Invalid tag slot: ${tagSlot}. Must be one of: ${VALID_TAG_SLOTS.join(', ')}`)
+function validateTagSlot(tagSlot: string): asserts tagSlot is AllTagSlot {
+  if (!ALL_TAG_SLOTS.includes(tagSlot as AllTagSlot)) {
+    throw new Error(`Invalid tag slot: ${tagSlot}. Must be one of: ${ALL_TAG_SLOTS.join(', ')}`)
   }
 }
 
@@ -120,7 +105,7 @@ async function assertKnowledgeBaseTagsCanBeClearedInTx(
 async function clearTagSlotsInTx(
   tx: DbTransaction,
   knowledgeBaseId: string,
-  tagSlots: readonly ValidTagSlot[]
+  tagSlots: readonly AllTagSlot[]
 ): Promise<void> {
   if (tagSlots.length === 0) return
 
@@ -148,17 +133,6 @@ async function clearTagSlotsInTx(
         or(...tagSlots.map((tagSlot) => isNotNull(document[tagSlot])))
       )
     )
-}
-
-/**
- * Get the field type for a tag slot
- */
-function getFieldTypeForSlot(tagSlot: string): string | null {
-  if ((VALID_TEXT_SLOTS as readonly string[]).includes(tagSlot)) return 'text'
-  if ((VALID_NUMBER_SLOTS as readonly string[]).includes(tagSlot)) return 'number'
-  if ((VALID_DATE_SLOTS as readonly string[]).includes(tagSlot)) return 'date'
-  if ((VALID_BOOLEAN_SLOTS as readonly string[]).includes(tagSlot)) return 'boolean'
-  return null
 }
 
 /**
@@ -499,7 +473,7 @@ export async function createOrUpdateTagDefinitionsBulk(
         const newDefinition = {
           id: generateId(),
           knowledgeBaseId,
-          tagSlot: finalTagSlot as ValidTagSlot,
+          tagSlot: finalTagSlot as AllTagSlot,
           displayName,
           fieldType,
           createdAt: new Date(),
@@ -746,7 +720,7 @@ async function insertTagDefinition(
   const newDefinition = {
     id: tagDefinitionId,
     knowledgeBaseId: data.knowledgeBaseId,
-    tagSlot: data.tagSlot as ValidTagSlot,
+    tagSlot: data.tagSlot as AllTagSlot,
     displayName: data.displayName,
     fieldType: data.fieldType,
     createdAt: now,

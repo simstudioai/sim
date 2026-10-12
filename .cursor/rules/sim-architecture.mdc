@@ -11,7 +11,7 @@ Repository layout, package boundaries, the application operation boundary, namin
 
 ## The `'use client'` server boundary
 
-Every export of a `'use client'` module becomes a *client reference* on the server — server-evaluated code (RSC pages/layouts, `prefetch.ts`, route handlers, block definitions, triggers) can only *render* it as a component or pass it as a prop, never *call* it (doing so throws at runtime, e.g. `tableKeys.list is not a function`; `next build` does not catch it). Keep server-importable query primitives (key factories, fetchers, mappers, constants) in non-`'use client'` modules — see `.claude/rules/sim-queries.md`. Enforced by `scripts/check-client-boundary-imports.ts`.
+Server-evaluated code (RSC pages/layouts, `prefetch.ts`, route handlers, block definitions, triggers) can render an export of a `'use client'` module but never call it; the call throws at runtime and `next build` does not catch it. Keep anything a server module calls (key factories, fetchers, mappers, constants) in a non-`'use client'` module. Detail and the escape hatch: `.claude/rules/sim-queries.md`. `bun run check:client-boundary` checks the direct imports of `prefetch*.ts`, API route handlers, triggers, and blocks; it does not follow transitive imports, and nothing checks pages and layouts.
 
 ## The app/worker runtime boundary
 

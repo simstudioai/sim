@@ -7,6 +7,7 @@ import { azureDevOpsHandler } from '@/lib/webhooks/providers/azure-devops'
 import { bitbucketHandler } from '@/lib/webhooks/providers/bitbucket'
 import { calcomHandler } from '@/lib/webhooks/providers/calcom'
 import { calendlyHandler } from '@/lib/webhooks/providers/calendly'
+import { checkrHandler } from '@/lib/webhooks/providers/checkr'
 import { circlebackHandler } from '@/lib/webhooks/providers/circleback'
 import { clerkHandler } from '@/lib/webhooks/providers/clerk'
 import { clickupHandler } from '@/lib/webhooks/providers/clickup'
@@ -38,8 +39,10 @@ import { loopsHandler } from '@/lib/webhooks/providers/loops'
 import { microsoftTeamsHandler } from '@/lib/webhooks/providers/microsoft-teams'
 import { mondayHandler } from '@/lib/webhooks/providers/monday'
 import { notionHandler } from '@/lib/webhooks/providers/notion'
+import { otterHandler } from '@/lib/webhooks/providers/otter'
 import { outlookHandler } from '@/lib/webhooks/providers/outlook'
 import { pagerdutyHandler } from '@/lib/webhooks/providers/pagerduty'
+import { planeHandler } from '@/lib/webhooks/providers/plane'
 import { quickBooksHandler } from '@/lib/webhooks/providers/quickbooks'
 import { resendHandler } from '@/lib/webhooks/providers/resend'
 import { revenueCatHandler } from '@/lib/webhooks/providers/revenuecat'
@@ -76,6 +79,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   bitbucket: bitbucketHandler,
   calendly: calendlyHandler,
   calcom: calcomHandler,
+  checkr: checkrHandler,
   circleback: circlebackHandler,
   clerk: clerkHandler,
   clickup: clickupHandler,
@@ -111,8 +115,10 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   sentry: sentryHandler,
   'microsoft-teams': microsoftTeamsHandler,
   notion: notionHandler,
+  otter: otterHandler,
   outlook: outlookHandler,
   pagerduty: pagerdutyHandler,
+  plane: planeHandler,
   quickbooks: quickBooksHandler,
   rss: rssHandler,
   salesforce: salesforceHandler,

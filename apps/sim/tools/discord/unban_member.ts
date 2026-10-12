@@ -53,7 +53,7 @@ export const discordUnbanMemberTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async () => {
     return {
       success: true,
       output: {

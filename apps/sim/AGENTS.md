@@ -12,9 +12,16 @@ Applies to `apps/sim/**` on top of the root [AGENTS.md](/AGENTS.md), which holds
 - Tests: `sim-testing.md` and the `test-audit` skill
 - Landing pages: `app/(landing)/CLAUDE.md`, `landing-seo-geo.md`, `constitution.md` (product language)
 
+For a common task, start from its skill (`.agents/skills/<name>/SKILL.md`):
+
+- New or migrated API route, tool command, or protected operation: `migrate-application-operation`, then `sim-api-contracts.md`; a `/api/v2` route also follows `v2-api-conventions`
+- Schema change or migration: `db-migrate`
+- Integration (tools, block, trigger): `add-integration`; a knowledge connector: `add-connector`
+- Feature flag: `add-feature-flag`; settings page: `add-settings-page`; table column type: `add-column-type`; model: `add-model`
+
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 

@@ -7,23 +7,20 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import Image from 'next/image'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { SettingRow } from '@/ee/components/setting-row'
 import {
   useUpdateWhitelabelSettings,
   useWhitelabelSettings,
   type WhitelabelSettingsPayload,
 } from '@/ee/whitelabeling/hooks/whitelabel'
-import { useOrganizationBilling } from '@/hooks/queries/organization'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WhitelabelingSettings')
@@ -151,10 +148,16 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
     (logoUpload.previewUrl || null) !== savedLogoUrl ||
     (wordmarkUpload.previewUrl || null) !== savedWordmarkUrl
 
-  useSettingsUnsavedGuard({ isDirty: hasChanges })
+  const isUploading = logoUpload.isUploading || wordmarkUpload.isUploading
+  const saving = updateSettings.isPending || isUploading
+  useSettingsUnsavedGuard({
+    isDirty: hasChanges,
+    navigationBlocked: saving,
+    onDiscard: handleDiscard,
+  })
 
   async function handleSave() {
-    if (!orgId) return
+    if (!orgId || saving) return
 
     const colorFields: Array<[string, string]> = [
       ['Primary color', primaryColor],
@@ -205,6 +208,9 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
   }
 
   function handleDiscard() {
+    if (saving) return
+    logoUpload.reset()
+    wordmarkUpload.reset()
     setBrandName(savedBrandName)
     setPrimaryColor(savedPrimaryColor)
     setPrimaryHoverColor(savedPrimaryHoverColor)
@@ -218,10 +224,9 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
     setWordmarkUrl(savedWordmarkUrl)
   }
 
-  const isUploading = logoUpload.isUploading || wordmarkUpload.isUploading
   const actions = saveDiscardActions({
     dirty: hasChanges,
-    saving: updateSettings.isPending,
+    saving,
     saveDisabled: isUploading,
     onSave: handleSave,
     onDiscard: handleDiscard,
@@ -249,8 +254,14 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
               labelTooltip='Shown in the collapsed sidebar. Square image — PNG, JPEG, or SVG, max 5MB.'
             >
               <div className='flex items-center gap-4'>
-                <DropZone onDrop={logoUpload.handleFileDrop}>
+                <DropZone
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    if (!saving) logoUpload.handleFileDrop(event)
+                  }}
+                >
                   <UploadPreviewButton
+                    disabled={saving}
                     onClick={logoUpload.handleThumbnailClick}
                     loading={logoUpload.isUploading}
                     aria-label={logoUpload.previewUrl ? 'Change logo' : 'Upload logo'}
@@ -272,6 +283,7 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
                   <Button
                     variant='ghost'
                     size='sm'
+                    disabled={saving}
                     onClick={logoUpload.handleRemove}
                     aria-label='Remove logo'
                     className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
@@ -283,7 +295,10 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
                   ref={logoUpload.fileInputRef}
                   type='file'
                   accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
-                  onChange={logoUpload.handleFileChange}
+                  disabled={saving}
+                  onChange={(event) => {
+                    if (!saving) logoUpload.handleFileChange(event)
+                  }}
                   className='hidden'
                 />
               </div>
@@ -294,8 +309,15 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
               labelTooltip='Shown in the expanded sidebar. Wide image — PNG, JPEG, or SVG, max 5MB.'
             >
               <div className='flex items-center gap-4'>
-                <DropZone onDrop={wordmarkUpload.handleFileDrop} className='min-w-0 flex-1'>
+                <DropZone
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    if (!saving) wordmarkUpload.handleFileDrop(event)
+                  }}
+                  className='min-w-0 flex-1'
+                >
                   <UploadPreviewButton
+                    disabled={saving}
                     onClick={wordmarkUpload.handleThumbnailClick}
                     loading={wordmarkUpload.isUploading}
                     aria-label={wordmarkUpload.previewUrl ? 'Change wordmark' : 'Upload wordmark'}
@@ -318,6 +340,7 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
                   <Button
                     variant='ghost'
                     size='sm'
+                    disabled={saving}
                     onClick={wordmarkUpload.handleRemove}
                     aria-label='Remove wordmark'
                     className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
@@ -329,7 +352,10 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
                   ref={wordmarkUpload.fileInputRef}
                   type='file'
                   accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
-                  onChange={wordmarkUpload.handleFileChange}
+                  disabled={saving}
+                  onChange={(event) => {
+                    if (!saving) wordmarkUpload.handleFileChange(event)
+                  }}
                   className='hidden'
                 />
               </div>
@@ -407,18 +433,13 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
   )
 }
 
+/** Gates on the entitlement returned by the whitelabel read — the same check saving enforces. */
 export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSettingsProps) {
-  const { billingEnabled } = useDeploymentShape()
-  const {
-    data: organizationBillingData,
-    isPending: organizationBillingLoading,
-    error: organizationBillingError,
-  } = useOrganizationBilling(orgId, { enabled: billingEnabled })
   const { data: workspaces } = useWorkspacesQuery(true)
   const uploadWorkspaceId = workspaces?.find((workspace) => workspace.organizationId === orgId)?.id
-  const { data: savedSettings, error: settingsError, isLoading } = useWhitelabelSettings(orgId)
+  const { data: whitelabel, error: settingsError, isLoading } = useWhitelabelSettings(orgId)
 
-  if (isLoading || (billingEnabled && organizationBillingLoading)) {
+  if (isLoading) {
     return (
       <SettingsPanel
         actions={saveDiscardActions({
@@ -432,32 +453,24 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
     )
   }
 
-  if (!savedSettings) {
+  if (!whitelabel) {
     return (
-      <SettingsEmptyState tone='error'>
+      <SettingsEmptyState>
         {getErrorMessage(settingsError, 'Failed to load whitelabeling settings')}
       </SettingsEmptyState>
     )
   }
 
-  if (billingEnabled && organizationBillingData === undefined && organizationBillingError) {
+  if (!whitelabel.isEnterprise) {
     return (
-      <SettingsEmptyState tone='error'>
-        {getErrorMessage(organizationBillingError, 'Failed to load organization billing')}
-      </SettingsEmptyState>
-    )
-  }
-
-  if (billingEnabled && !isEnterprise(organizationBillingData?.data?.subscriptionPlan)) {
-    return (
-      <SettingsEmptyState>Whitelabeling is available on Enterprise plans only.</SettingsEmptyState>
+      <SettingsEmptyState>Whitelabeling requires an active Enterprise plan.</SettingsEmptyState>
     )
   }
 
   return (
     <WhitelabelingForm
       key={orgId}
-      initialSettings={savedSettings}
+      initialSettings={whitelabel.settings}
       orgId={orgId}
       uploadWorkspaceId={uploadWorkspaceId}
     />

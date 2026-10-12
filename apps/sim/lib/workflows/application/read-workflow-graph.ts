@@ -1,10 +1,8 @@
-import type { Principal } from '@sim/auth/principal'
 import type { BlockState, Variable, WorkflowState } from '@sim/workflow-types/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { loadWorkflowReadSnapshot } from '@/lib/workflows/queries'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 
@@ -42,11 +40,7 @@ export interface ReadWorkflowGraphResult {
  */
 export const readWorkflowGraph = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.read,
-  resolveContext: ({ principal, input }: { principal: Principal; input: ReadWorkflowGraphInput }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-    }),
+  resolveContext: resolvePrincipalWorkflowContext<ReadWorkflowGraphInput>,
   async execute({ context }): Promise<ReadWorkflowGraphResult> {
     return loadWorkflowGraph(context)
   },

@@ -51,6 +51,7 @@ vi.mock('@/executor/execution/snapshot', () => ({
   ExecutionSnapshot: { fromJSON: hoisted.snapshotFromJson },
 }))
 
+import type { FailedResumeOutcome } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
 
 const mocks = {
@@ -217,4 +218,98 @@ describe('resuming a paused table cell', () => {
     const [cascadePayload] = mocks.runRowCascadeLoop.mock.calls[0]
     expect(cascadePayload.capabilityGovernedUserId).toBe('requesting-member')
   }, 20_000)
+
+  describe('when the resume throws', () => {
+    /** Downstream groups the row's cascade started after the resume. */
+    let startedGroups: string[]
+
+    beforeEach(() => {
+      startedGroups = []
+      mocks.runRowCascadeLoop.mockImplementation(async (payload: { groupId: string }) => {
+        startedGroups.push(payload.groupId)
+      })
+    })
+
+    /** The execution state the last cell write persisted. */
+    function lastCellExecutionState() {
+      const [, payload] = mocks.writeWorkflowGroupState.mock.calls.at(-1) ?? []
+      return payload?.executionState
+    }
+
+    /**
+     * Fails the resume the way the manager does: settle, report the outcome (a
+     * failing handler is logged, never rethrown), rethrow the attempt's error.
+     */
+    function failResume(outcome: FailedResumeOutcome, error: Error) {
+      mocks.startResumeExecution.mockImplementationOnce(
+        async ({
+          onAttemptFailed,
+        }: {
+          onAttemptFailed?: (outcome: FailedResumeOutcome, error: unknown) => Promise<void>
+        }) => {
+          await onAttemptFailed?.(outcome, error).catch(() => undefined)
+          throw error
+        }
+      )
+    }
+
+    it('marks the cell failed when the resume failed the execution', async () => {
+      const runFailure = new Error('writeLedger: Unique constraint violation')
+      failResume('execution_failed', runFailure)
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(runFailure)
+
+      expect(lastCellExecutionState()).toMatchObject({
+        status: 'error',
+        executionId: 'parent-execution-1',
+        error: 'writeLedger: Unique constraint violation',
+      })
+    }, 20_000)
+
+    it('marks the cell completed when the run completed before a later step failed', async () => {
+      const bookkeepingFailure = new Error('Database unavailable')
+      failResume('execution_completed', bookkeepingFailure)
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(bookkeepingFailure)
+
+      expect(lastCellExecutionState()).toMatchObject({
+        status: 'completed',
+        executionId: 'parent-execution-1',
+        error: null,
+      })
+      expect(startedGroups).toEqual([NEXT_GROUP.id])
+    }, 20_000)
+
+    it('does not continue the cascade when the completed cell could not be saved', async () => {
+      const bookkeepingFailure = new Error('Database unavailable')
+      failResume('execution_completed', bookkeepingFailure)
+      mocks.writeWorkflowGroupState.mockRejectedValueOnce(new Error('Cell write failed'))
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(bookkeepingFailure)
+
+      expect(startedGroups).toEqual([])
+    }, 20_000)
+
+    it('does not continue the cascade when the resume failed the execution', async () => {
+      const runFailure = new Error('Block failed')
+      failResume('execution_failed', runFailure)
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(runFailure)
+
+      expect(startedGroups).toEqual([])
+    }, 20_000)
+
+    it('puts the cell back to paused when the pause stayed resumable', async () => {
+      const admissionRefusal = new Error('Execution can no longer be resumed')
+      failResume('pause_retained', admissionRefusal)
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(admissionRefusal)
+
+      expect(lastCellExecutionState()).toMatchObject({
+        status: 'pending',
+        executionId: 'parent-execution-1',
+        jobId: 'paused-parent-execution-1',
+      })
+    }, 20_000)
+  })
 })

@@ -1,5 +1,5 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
 import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import {
   tableWorkflowColumnsMock,
@@ -45,7 +45,6 @@ tableWorkflowColumnsMockFns.mockBuildPendingRuns.mockImplementation(
     )
 )
 
-const mockAppendTableEvent = tableEventsMockFns.mockAppendTableEvent
 const mockGetTableById = tableServiceMockFns.mockGetTableById
 
 const DISPATCH = {

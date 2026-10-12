@@ -97,6 +97,29 @@ it('bounds the remote copy itself, not just the eventual response stream', async
   ).rejects.toThrow('size limit')
   expect(mocks.read).not.toHaveBeenCalled()
 })
+it('asks the reconnect for the idle lease, which can outlast the runtime cap', async () => {
+  const IDLE_MS = 20 * 60_000
+  const capAtMs = Date.now() + 60_000
+  let leaseEndAtMs = capAtMs
+  const machine = await mocks.find()
+  mocks.find.mockImplementation(async (_key: string, options: { lifetimeMs?: number }) => {
+    if (options.lifetimeMs !== undefined) leaseEndAtMs = Date.now() + options.lifetimeMs
+    return {
+      ...machine,
+      extendLifetime: async (lifetimeMs: number) => {
+        leaseEndAtMs = Math.min(Date.now() + lifetimeMs, capAtMs)
+      },
+    }
+  })
+  const path = join(directory, 'source.txt')
+  await writeFile(path, 'original')
+  const snapshot = await openSessionFileSnapshot('chat', path, undefined, undefined, {
+    allowedRoots: [directory],
+    maxBytes: 100,
+  })
+  await snapshot.dispose()
+  expect(leaseEndAtMs).toBeGreaterThanOrEqual(Date.now() + IDLE_MS - 1000)
+})
 it('never creates a replacement machine for a missing read', async () => {
   mocks.find.mockResolvedValue(null)
   await expect(openSessionFileSnapshot('chat', '/tmp/missing')).rejects.toThrow(

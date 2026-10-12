@@ -45,7 +45,7 @@ const mockAgentSession = {
 const sealedResourceLoader = { kind: 'sealed' }
 
 const mockSdk = {
-  SettingsManager: { inMemory: vi.fn(() => ({})) },
+  SettingsManager: { inMemory: () => ({}) },
   SessionManager: { inMemory: vi.fn(() => ({})) },
   createAgentSession: mockCreateAgentSession,
   defineTool: vi.fn((tool) => tool),

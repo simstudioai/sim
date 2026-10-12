@@ -3,7 +3,6 @@ import { decodeJwt } from 'jose'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }))
-vi.stubGlobal('fetch', fetchMock)
 
 import { snowflakeDestination } from '@/lib/data-drains/destinations/snowflake'
 
@@ -62,8 +61,9 @@ describe('snowflakeDestination', () => {
 
     const payload = JSON.parse(init.body as string)
     expect(payload.statement).toContain('INSERT INTO "DB"."PUBLIC"."DRAINS"')
-    expect(payload.statement).toContain('VALUES (PARSE_JSON(?)), (PARSE_JSON(?))')
-    expect(payload.statement.match(/PARSE_JSON\(\?\)/g)).toHaveLength(2)
+    expect(payload.statement).toBe(
+      'INSERT INTO "DB"."PUBLIC"."DRAINS" ("DATA") SELECT PARSE_JSON(column1) FROM VALUES (?), (?)'
+    )
     expect(payload.bindings['1']).toEqual({ type: 'TEXT', value: JSON.stringify({ id: 'a' }) })
     expect(payload.bindings['2']).toEqual({ type: 'TEXT', value: JSON.stringify({ id: 'b' }) })
     expect(payload.warehouse).toBe('WH')

@@ -1,11 +1,8 @@
 import type { DelegatedPrincipal } from '@sim/auth/principal'
 import {
-  checkBillingBlocked,
-  checkBillingEntityBlocked,
-} from '@/lib/billing/calculations/usage-monitor'
-import {
   type AccountBillingDecision,
   type BillingAttributionSnapshot,
+  checkAccountBillingBlocks,
   checkAttributedBillingBlocks,
 } from '@/lib/billing/core/billing-attribution'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application/authorized-workspace-use-case'
@@ -98,11 +95,7 @@ export type CopilotContinuationBilling =
 
 /** Checks account standing against the original admission; never reads spend or selects a new payer. */
 export async function checkCopilotContinuationBilling(billing: CopilotContinuationBilling) {
-  if (billing.kind === 'attributed') return checkAttributedBillingBlocks(billing.attribution)
-
-  const actor = await checkBillingBlocked(billing.decision.userId)
-  if (actor.blocked) return { ...actor, scope: 'actor' }
-  const payer = billing.decision.billingEntity
-  if (payer.type === 'user' && payer.id === billing.decision.userId) return actor
-  return { ...(await checkBillingEntityBlocked(payer)), scope: 'payer' }
+  return billing.kind === 'attributed'
+    ? checkAttributedBillingBlocks(billing.attribution)
+    : checkAccountBillingBlocks(billing.decision)
 }

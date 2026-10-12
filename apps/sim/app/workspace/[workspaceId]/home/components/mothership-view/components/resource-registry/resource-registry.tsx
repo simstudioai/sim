@@ -4,12 +4,14 @@ import type { ElementType, ReactNode } from 'react'
 import { cn, OverflowText } from '@sim/emcn'
 import {
   Connections,
+  Dashboard,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
   Globe,
   Library,
   Search,
+  ShieldCheck,
   Table as TableIcon,
   Task,
   TerminalWindow,
@@ -34,15 +36,11 @@ export interface ResourceTypeConfig {
   type: MothershipResourceType
   label: string
   icon: ElementType
-  /**
-   * `desktopScopeId` names the desktop browser scope a browser tab belongs to; `fileType` is a
-   * file's stored MIME type, which names extensionless files such as pages and dashboards.
-   */
+  /** `desktopScopeId` names the desktop browser scope a browser tab belongs to. */
   renderTabIcon: (
     resource: MothershipResource,
     className: string,
-    desktopScopeId?: string,
-    fileType?: string
+    desktopScopeId?: string
   ) => ReactNode
   renderDropdownItem: (props: DropdownItemRenderProps) => ReactNode
   /**
@@ -68,7 +66,7 @@ function DefaultDropdownItem({ item }: DropdownItemRenderProps) {
 }
 
 function FileDropdownItem({ item }: DropdownItemRenderProps) {
-  const DocIcon = getDocumentIcon(typeof item.mimeType === 'string' ? item.mimeType : '', item.name)
+  const DocIcon = getDocumentIcon('', item.name)
   return (
     <>
       <DocIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
@@ -187,12 +185,30 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TableIcon} />,
   },
+  dashboard: {
+    type: 'dashboard',
+    label: 'Dashboards',
+    icon: Dashboard,
+    renderTabIcon: (_resource, className) => (
+      <Dashboard className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Dashboard} />,
+  },
+  test: {
+    type: 'test',
+    label: 'Tests',
+    icon: ShieldCheck,
+    renderTabIcon: (_resource, className) => (
+      <ShieldCheck className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={ShieldCheck} />,
+  },
   file: {
     type: 'file',
     label: 'Files',
     icon: FileIcon,
-    renderTabIcon: (resource, className, _desktopScopeId, fileType) => {
-      const DocIcon = getDocumentIcon(fileType ?? '', resource.title)
+    renderTabIcon: (resource, className) => {
+      const DocIcon = getDocumentIcon('', resource.title)
       return <DocIcon className={cn(className, 'text-[var(--text-icon)]')} />
     },
     renderDropdownItem: (props) => <FileDropdownItem {...props} />,
@@ -283,16 +299,17 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
 export const MENTION_PREVIEW_DEFAULT_LIMIT = 5
 
 /**
- * Top-down order for every menu that lists resource families, mirroring the
- * workspace sidebar so a user reads the same sequence in both places. The two
- * desktop-only panels trail the workspace resources, matching where they surface
- * in the app. `folder`/`filefolder` never render as their own entry — they feed
+ * Top-down order for every menu that lists resource families (`+` attach, `@`
+ * mention, resource-tab `+`). It is its own product order, not a copy of the
+ * sidebar. The two desktop-only panels trail the workspace resources. `folder`/`filefolder` never render as their own entry — they feed
  * their family's folder tree — but are ordered beside it so a menu that ever does
  * surface them lands in the right place.
  */
 export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
   'integration',
   'task',
+  'dashboard',
+  'test',
   'table',
   'file',
   'filefolder',

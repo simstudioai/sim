@@ -2,9 +2,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { Neo4jIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { Neo4jIntrospectResponse, Neo4jResponse } from '@/tools/neo4j/types'
 
-export const Neo4jBlock: BlockConfig<Neo4jResponse | Neo4jIntrospectResponse> = {
+export const Neo4jBlock: BlockConfig = {
   type: 'neo4j',
   name: 'Neo4j',
   description: 'Connect to Neo4j graph database',

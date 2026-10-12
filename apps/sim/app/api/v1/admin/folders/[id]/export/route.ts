@@ -30,8 +30,8 @@ import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { encodeFilenameForHeader } from '@/app/api/files/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  internalErrorResponse,
-  notFoundResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import type { FolderExportPayload, WorkflowExportState } from '@/app/api/v1/admin/types'
@@ -120,7 +120,7 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!folderData) {
-        return notFoundResponse('Folder')
+        return adminNotFoundResponse('Folder')
       }
 
       const allWorkflows = await db
@@ -252,7 +252,7 @@ export const GET = withRouteHandler(
       })
     } catch (error) {
       logger.error('Admin API: Failed to export folder', { error, folderId })
-      return internalErrorResponse('Failed to export folder')
+      return adminInternalErrorResponse('Failed to export folder')
     }
   })
 )

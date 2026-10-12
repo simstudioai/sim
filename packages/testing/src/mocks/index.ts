@@ -1,18 +1,17 @@
 /**
- * Mock implementations for common dependencies.
+ * Mock implementations for common dependencies. Tests import each one from its own file, not
+ * from this barrel.
  *
  * @example
  * ```ts
- * import { createMockLogger, setupGlobalFetchMock, databaseMock } from '@sim/testing/mocks'
+ * import { encryptionMock } from '@sim/testing/mocks/encryption.mock'
+ * import { setupGlobalFetchMock } from '@sim/testing/mocks/fetch.mock'
  *
- * // Mock the logger
- * vi.mock('@sim/logger', () => ({ createLogger: () => createMockLogger() }))
+ * vi.mock('@/lib/core/security/encryption', () => encryptionMock)
  *
- * // Mock fetch globally
- * setupGlobalFetchMock({ json: { success: true } })
- *
- * // Mock database
- * vi.mock('@sim/db', () => databaseMock)
+ * beforeEach(() => {
+ *   setupGlobalFetchMock({ json: { success: true } })
+ * })
  * ```
  */
 
@@ -45,12 +44,10 @@ export {
   asyncJobsRegionMock,
   asyncJobsRegionMockFns,
 } from './async-jobs-region.mock'
-// Audit mocks
 export {
   auditMock,
   auditMockFns,
 } from './audit.mock'
-// Auth mocks
 export {
   authMock,
   authMockFns,
@@ -130,6 +127,10 @@ export {
   billingSubscriptionMockFns,
 } from './billing-subscription.mock'
 export {
+  billingSubscriptionSyncMock,
+  billingSubscriptionSyncMockFns,
+} from './billing-subscription-sync.mock'
+export {
   billingSubscriptionUtilsMock,
   billingSubscriptionUtilsMockFns,
 } from './billing-subscription-utils.mock'
@@ -145,6 +146,7 @@ export {
   billingUsageLogMock,
   billingUsageLogMockFns,
   MockCumulativeUsageContextMismatchError,
+  MockCumulativeUsagePeriodClosedError,
   MockUnknownUsageCursorError,
 } from './billing-usage-log.mock'
 export {
@@ -165,7 +167,6 @@ export {
   blockVisibilityMockFns,
   type MockBlockVisibilityState,
 } from './block-visibility.mock'
-// Blocks mocks
 export {
   blocksMock,
   createMockGetBlock,
@@ -174,7 +175,7 @@ export {
   toolsUtilsMock,
   toolsUtilsMockFns,
 } from './blocks.mock'
-// Copilot HTTP mocks (for @/lib/copilot/request/http)
+// Copilot HTTP mocks (for @/lib/mothership/request/http)
 export {
   copilotHttpMock,
   copilotHttpMockFns,
@@ -227,7 +228,6 @@ export {
   customBlockOperationsMockFns,
   MockCustomBlockValidationError,
 } from './custom-block-operations.mock'
-// Database mocks
 export {
   createMockSql,
   databaseMock,
@@ -272,12 +272,10 @@ export {
   emcnIconsMock,
   getEmcnIconStub,
 } from './emcn-icons.mock'
-// Encryption mocks
 export {
   encryptionMock,
   encryptionMockFns,
 } from './encryption.mock'
-// Env mocks
 export {
   createEnvMock,
   defaultMockEnv,
@@ -286,7 +284,6 @@ export {
   resetEnvMock,
   setEnv,
 } from './env.mock'
-// Env flag mocks
 export {
   envFlagsMock,
   envFlagsMockFns,
@@ -327,7 +324,7 @@ export {
   featureFlagsMockFns,
 } from './feature-flags.mock'
 // Executor mocks - use side-effect import: import '@sim/testing/mocks/executor'
-// Fetch mocks
+
 export {
   createMockFetch,
   createMockResponse,
@@ -368,7 +365,6 @@ export {
   humanInTheLoopManagerMock,
   humanInTheLoopManagerMockFns,
 } from './human-in-the-loop-manager.mock'
-// Hybrid auth mocks
 export {
   hybridAuthMock,
   hybridAuthMockFns,
@@ -378,11 +374,15 @@ export {
   idMockFns,
   resetIdMock,
 } from './id.mock'
-// Input validation mocks
+export {
+  idempotencyServiceMock,
+  idempotencyServiceMockFns,
+} from './idempotency-service.mock'
 export {
   inputValidationMock,
   inputValidationMockFns,
 } from './input-validation.mock'
+export { integrationMatcherMock } from './integration-matcher.mock'
 export {
   integrationsAvailabilityMock,
   integrationsAvailabilityMockFns,
@@ -480,7 +480,6 @@ export {
   libDesktopMock,
   libDesktopMockFns,
 } from './lib-desktop.mock'
-// Logger mocks
 export {
   createMockLogger,
   getAllMockLoggers,
@@ -494,6 +493,7 @@ export {
   loggingSessionMock,
   loggingSessionMockFns,
 } from './logging-session.mock'
+export { maskClientMock, maskClientMockFns } from './mask-client.mock'
 // MCP OAuth mocks (for @/lib/mcp/oauth)
 export {
   McpOauthRedirectRequiredMock,
@@ -537,6 +537,10 @@ export {
   mothershipChatStatusMock,
   mothershipChatStatusMockFns,
 } from './mothership-chat-status.mock'
+export {
+  mothershipClientToolWaiterMock,
+  mothershipClientToolWaiterMockFns,
+} from './mothership-client-tool-waiter.mock'
 export {
   mothershipEnvironmentContextMock,
   mothershipEnvironmentContextMockFns,
@@ -622,7 +626,6 @@ export {
   permissionGroupLocksMock,
   permissionGroupLocksMockFns,
 } from './permission-group-locks.mock'
-// Permission mocks
 export {
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
@@ -707,7 +710,6 @@ export {
   remoteSandboxProviderMock,
   remoteSandboxProviderMockFns,
 } from './remote-sandbox-provider.mock'
-// Request mocks
 export {
   createMockRequest,
   type MockRequestOptions,
@@ -720,7 +722,6 @@ export {
   resourcePolicyRepositoryMock,
   resourcePolicyRepositoryMockFns,
 } from './resource-policy-repository.mock'
-// Schema mocks
 export { type MockSchemaTable, schemaMock } from './schema.mock'
 export {
   searchReplaceIndexerMock,
@@ -752,16 +753,16 @@ export {
   storageServiceMock,
   storageServiceMockFns,
 } from './storage-service.mock'
-// Stripe mocks
 export {
+  createInMemoryStripe,
   createMockStripeEvent,
+  type InMemoryStripe,
   stripeClientMock,
   stripePaymentMethodMock,
 } from './stripe.mock'
 export {
   MockCsvImportValidationError,
   MockTableQueryValidationError,
-  MockTableRowTtlDisabledError,
   MockTableViewValidationError,
   tableMock,
   tableMockFns,
@@ -777,7 +778,6 @@ export {
 export {
   MockProjectedWireRowsValidationError,
   MockTableRowsValidationError,
-  MockTableV2FeatureDisabledError,
   tableApplicationRowsMock,
   tableApplicationRowsMockFns,
 } from './table-application-rows.mock'
@@ -807,6 +807,10 @@ export {
   tableRouteUtilsMockFns,
 } from './table-route-utils.mock'
 export {
+  tableRowsLiveSchemaMock,
+  tableRowsLiveSchemaMockFns,
+} from './table-rows-live-schema.mock'
+export {
   MockTableRowProvenanceReader,
   tableRowsSecretProvenanceMock,
   tableRowsSecretProvenanceMockFns,
@@ -825,10 +829,6 @@ export {
   tableTriggerMockFns,
 } from './table-trigger.mock'
 export {
-  tableTtlAvailabilityMock,
-  tableTtlAvailabilityMockFns,
-} from './table-ttl-availability.mock'
-export {
   tableWireMock,
   tableWireMockFns,
 } from './table-wire.mock'
@@ -836,7 +836,6 @@ export {
   tableWorkflowColumnsMock,
   tableWorkflowColumnsMockFns,
 } from './table-workflow-columns.mock'
-// Telemetry mocks
 export { getMockPlatformEvent, telemetryMock, telemetryMockFns } from './telemetry.mock'
 // Terminal console mocks (for @/stores/terminal and @/stores/terminal/console/store)
 export {
@@ -905,7 +904,6 @@ export {
   setUploadDirServer,
   uploadsSetupMock,
 } from './uploads-setup.mock'
-// URL mocks
 export {
   resetUrlsMock,
   urlsMock,
@@ -931,8 +929,6 @@ export {
 export {
   v1PersonalKeyCredential,
   v1RateLimitContextModuleMock,
-  v1RateLimiterModuleMock,
-  v1SubscriptionModuleMock,
   v1WorkspaceKeyCredential,
 } from './v1-route.mock'
 export {
@@ -943,6 +939,10 @@ export {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from './v2-route.mock'
+export {
+  webhooksPollingUtilsMock,
+  webhooksPollingUtilsMockFns,
+} from './webhooks-polling-utils.mock'
 export {
   webhooksProcessorMock,
   webhooksProcessorMockFns,
@@ -984,7 +984,6 @@ export {
   workflowsQueriesMock,
   workflowsQueriesMockFns,
 } from './workflows-queries.mock'
-// Workflows-utils mocks
 export {
   workflowsUtilsMock,
   workflowsUtilsMockFns,
@@ -1043,6 +1042,10 @@ export {
   workspaceForkingLineageMock,
   workspaceForkingLineageMockFns,
 } from './workspace-forking-lineage.mock'
+export {
+  workspaceForkingLineageRootMock,
+  workspaceForkingLineageRootMockFns,
+} from './workspace-forking-lineage-root.mock'
 export {
   workspaceForkingMappingStoreMock,
   workspaceForkingMappingStoreMockFns,

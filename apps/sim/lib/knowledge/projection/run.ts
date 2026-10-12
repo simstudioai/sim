@@ -9,21 +9,20 @@ import { withUtcTimestamps } from '@sim/db/timestamps'
 import { createLogger } from '@sim/logger'
 import postgres, { type Sql } from 'postgres'
 import { env, envNumber } from '@/lib/core/config/env'
-import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 
 const logger = createLogger('KnowledgeProjectionPass')
 
 /**
  * Most documents one pass projects at once, each worker on a connection of its own. Measured
  * locally on content-heavy load, projection throughput kept rising to eight workers without
- * deadlocks, so eight is the default; `KB_CONFIG_PROJECTION_CONCURRENCY` raises or lowers it per
+ * deadlocks, so eight is the ceiling; `KB_CONFIG_PROJECTION_CONCURRENCY` can lower it per
  * deployment. A round opens only as many workers as there are marks, so a pass over a few
  * documents holds a few connections.
  */
-const PROJECTION_CONCURRENCY = envNumber(env.KB_CONFIG_PROJECTION_CONCURRENCY, 8, {
-  min: 1,
-  integer: true,
-})
+const PROJECTION_CONCURRENCY = Math.min(
+  8,
+  envNumber(env.KB_CONFIG_PROJECTION_CONCURRENCY, 8, { min: 1, integer: true })
+)
 
 /** How the projector's connections name themselves in `pg_stat_activity`. */
 const PROJECTOR_APPLICATION_NAME = 'sim-knowledge-projector'
@@ -45,17 +44,14 @@ export interface KnowledgeProjectionPassResult extends KnowledgeProjectionProgre
  * One pass of the knowledge projector: settles every marked document. Each round first releases,
  * for no longer than a release's own short budget, the marks no pass is owed (see
  * `releaseSettledMarks`), so a backlog of them shrinks every round without holding up the content
- * behind it. What is left is projected: content a writer deferred, and, while indexed organization
- * search is on, search-index documents, whose rows mirror their source and ACL.
+ * behind it. Only ordinary-KB vector content that older writers deferred is repaired; retired
+ * Search content and copied ACLs are never projected.
  *
  * Workers project documents in parallel, each on a connection of its own that holds its
  * per-document advisory locks; a pass this long should not hold the pool's connections. Workers
  * read the same oldest marks and split them at those locks. A round ends when every worker found
  * nothing more it could take; the pass goes on while rounds settle documents, and `remaining`
  * reports marks it left for the next sweep.
- *
- * The pass writes Tin keyword rows only while indexed organization search is enabled: only that
- * search reads them.
  */
 export async function runKnowledgeProjectionPass(options: {
   budgetMs: number
@@ -75,7 +71,6 @@ export async function runKnowledgeProjectionPass(options: {
     )
   )
   const deadline = Date.now() + options.budgetMs
-  const scope = { searchIndexes: isIndexedOrgSearchEnabled() }
   const result: KnowledgeProjectionPassResult = {
     settled: 0,
     deferred: 0,
@@ -88,8 +83,7 @@ export async function runKnowledgeProjectionPass(options: {
     while (Date.now() < deadline) {
       const release = await releaseSettledMarks(
         sessions[0],
-        Math.min(deadline, Date.now() + MARK_RELEASE_BUDGET_MS),
-        scope
+        Math.min(deadline, Date.now() + MARK_RELEASE_BUDGET_MS)
       )
       result.released += release.released
       const workers = sessions.slice(0, await workersFor(sessions[0]))
@@ -98,7 +92,6 @@ export async function runKnowledgeProjectionPass(options: {
         workers.map((session) =>
           runKnowledgeProjection(session, {
             budgetMs: Math.max(0, deadline - Date.now()),
-            ...scope,
           })
         )
       )

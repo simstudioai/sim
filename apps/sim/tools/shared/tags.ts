@@ -10,18 +10,6 @@ export interface DocumentTagEntry {
 }
 
 /**
- * Tag filter entry format used in search tool.
- */
-interface TagFilterEntry {
-  tagName: string
-  tagSlot?: string
-  tagValue: string | number | boolean
-  fieldType?: string
-  operator?: string
-  valueTo?: string | number
-}
-
-/**
  * Checks if a tag value is effectively empty (unfilled/default entry).
  */
 function isEmptyTagEntry(entry: Record<string, unknown>): boolean {

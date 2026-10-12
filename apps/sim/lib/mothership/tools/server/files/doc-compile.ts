@@ -440,7 +440,7 @@ fs.writeFileSync('/home/user/output.docx', __buf);
  * engines. Throws DocCompileUserError on a script error.
  */
 async function compileDocViaE2BNode(
-  { source, fileName, workspaceId, filePrincipal }: CompileArgs,
+  { source, workspaceId, filePrincipal }: CompileArgs,
   ext: 'pptx' | 'docx',
   referencedImages: ReferencedImageResolution
 ): Promise<Buffer> {

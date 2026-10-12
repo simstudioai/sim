@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { isRecordLike, omit } from '@sim/utils/object'
+import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { MAX_TRACE_ARCHIVE_BYTES } from '@/lib/execution/payloads/limits'
 import {
@@ -76,6 +77,8 @@ export interface TraceStoreReadContext {
   workflowId: string | null
   executionId: string
   userId?: string
+  /** A strict caller budget: oversized or unavailable archives fail instead of degrading to metadata. */
+  maxBytes?: number
 }
 
 export interface DisplayExecutionDataWithBlockOutputs {
@@ -295,7 +298,8 @@ export async function externalizeExecutionData(
  * `__simLargeValueRef` stubs remain as previews, matching prior behavior.
  *
  * Returns metadata-only (the slim row minus the pointer) if the object is
- * missing/unreadable (e.g. post-retention) so reads degrade rather than crash.
+ * missing/unreadable (e.g. post-retention) so ordinary reads degrade. A caller
+ * supplying `maxBytes` instead requires an available, scoped, bounded archive.
  */
 export async function materializeExecutionData(
   executionData: Record<string, unknown> | null | undefined,
@@ -305,29 +309,41 @@ export async function materializeExecutionData(
 
   const ref = executionData[TRACE_STORE_REF_KEY]
   if (!isLargeValueRef(ref)) return executionData
+  if (context.maxBytes !== undefined) {
+    assertKnownSizeWithinLimit(ref.size, context.maxBytes, 'Drain archive record')
+  }
 
   const { [TRACE_STORE_REF_KEY]: _pointer, ...markers } = executionData
 
-  if (!context.workspaceId) return markers
+  if (!context.workspaceId) {
+    if (context.maxBytes !== undefined)
+      throw new Error('Drain archive workspace scope is unavailable')
+    return markers
+  }
 
   // workflowId is `set null` on workflow delete, but the ref key embeds the
   // original workflowId — recover it so deleted-workflow logs stay readable.
   // Workspace authorization still comes from the (authorized) caller context.
   const workflowId = context.workflowId ?? workflowIdFromStorageKey(ref.key)
-  if (!workflowId) return markers
+  if (!workflowId) {
+    if (context.maxBytes !== undefined)
+      throw new Error('Drain archive workflow scope is unavailable')
+    return markers
+  }
 
   try {
     const materialized = await materializeLargeValueRef(ref, {
       workspaceId: context.workspaceId,
       workflowId,
       executionId: context.executionId,
-      maxBytes: Math.min(ref.size, MAX_TRACE_ARCHIVE_BYTES),
+      maxBytes: Math.min(ref.size, context.maxBytes ?? MAX_TRACE_ARCHIVE_BYTES),
       // Read-only: the value is already referenced by its own execution; don't
       // re-register (or fail) on every view/export.
       trackReference: false,
     })
 
     if (!materialized || typeof materialized !== 'object') {
+      if (context.maxBytes !== undefined) throw new Error('Drain execution archive is unavailable')
       logger.warn('Trace store object unavailable; returning metadata only', {
         executionId: context.executionId,
         key: ref.key,
@@ -337,6 +353,7 @@ export async function materializeExecutionData(
 
     return { ...(materialized as Record<string, unknown>), ...markers }
   } catch (error) {
+    if (context.maxBytes !== undefined) throw error
     logger.warn('Failed to materialize execution data; returning metadata only', {
       executionId: context.executionId,
       error: toError(error).message,

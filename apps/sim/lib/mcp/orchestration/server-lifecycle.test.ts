@@ -11,10 +11,6 @@ import { mcpOauthMock, mcpOauthMockFns } from '@sim/testing/mocks/mcp-oauth.mock
 import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateMcpServerId } = vi.hoisted(() => ({
-  mockGenerateMcpServerId: vi.fn(),
-}))
-
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/utils/id', () => idMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
@@ -29,26 +25,21 @@ vi.mock('@/lib/mcp/domain-check', () => ({
 }))
 vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
 vi.mock('@/lib/mcp/service', () => mcpServiceMock)
-vi.mock('@/lib/mcp/utils', () => ({ generateMcpServerId: mockGenerateMcpServerId }))
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   performCreateMcpServer,
   performUpdateMcpServer,
 } from '@/lib/mcp/orchestration/server-lifecycle'
+import { generateMcpServerId } from '@/lib/mcp/utils'
 
 const mockClearCache = mcpServiceMockFns.mockClearCache
-const mockEvictServerConnections = mcpServiceMockFns.mockEvictServerConnections
 const mockOauthCredsChanged = mcpOauthMockFns.mockOauthCredsChanged
 const mockRevokeOauthTokens = mcpOauthMockFns.mockRevokeMcpOauthTokens
 
 describe('MCP server lifecycle orchestration', () => {
   const auditUpdatedFields = (): string[] | undefined =>
     auditMockFns.mockRecordAudit.mock.calls.at(-1)?.[0].metadata.updatedFields
-  const auditAction = (): string | undefined =>
-    auditMockFns.mockRecordAudit.mock.calls.at(-1)?.[0].action
-  const auditMetadata = (): Record<string, unknown> | undefined =>
-    auditMockFns.mockRecordAudit.mock.calls.at(-1)?.[0].metadata
 
   beforeEach(() => {
     resetDbChainMock()
@@ -79,6 +70,7 @@ describe('MCP server lifecycle orchestration', () => {
       workspaceId: 'workspace-1',
       userId: 'user-1',
       serverId: 'server-1',
+      allowDestinationChange: false,
       oauthClientId: 'client-1',
       oauthClientIdProvided: true,
     })
@@ -121,6 +113,7 @@ describe('MCP server lifecycle orchestration', () => {
       workspaceId: 'workspace-1',
       userId: 'user-1',
       serverId: 'server-1',
+      allowDestinationChange: false,
       authType: 'headers',
     })
 
@@ -168,6 +161,7 @@ describe('MCP server lifecycle orchestration', () => {
       workspaceId: 'workspace-1',
       userId: 'user-1',
       serverId: 'server-1',
+      allowDestinationChange: false,
       headers: { authorization: 'Bearer rotated' },
     })
 
@@ -185,7 +179,7 @@ describe('MCP server lifecycle orchestration', () => {
   })
 
   it('resets to disconnected when a create/upsert flips an existing OAuth server to headers', async () => {
-    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'server-1' }])
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'server-1',
@@ -227,11 +221,184 @@ describe('MCP server lifecycle orchestration', () => {
       })
     )
     // ...and revoke the now-orphaned OAuth tokens.
-    expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1', 'workspace-1')
+    expect(mockRevokeOauthTokens).toHaveBeenCalledWith(
+      generateMcpServerId('workspace-1', 'https://example.com/mcp'),
+      'workspace-1'
+    )
+  })
+
+  it('refuses a non-admin pointing an existing server at a different host', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+        headers: {},
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+
+    const result = await performUpdateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      allowDestinationChange: false,
+      url: 'https://other-host.example.com/mcp',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'forbidden' })
+  })
+
+  it('refuses a non-admin changing only the credentials embedded in the URL', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        url: 'https://user:pass@example.com/mcp',
+        authType: 'headers',
+        headers: {},
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+
+    const result = await performUpdateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      allowDestinationChange: false,
+      url: 'https://attacker:pass@example.com/mcp',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'forbidden' })
+  })
+
+  it('refuses a non-admin setting a URL on a server that has none', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        url: null,
+        authType: 'headers',
+        headers: {},
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+
+    const result = await performUpdateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      allowDestinationChange: false,
+      url: 'https://other-host.example.com/mcp',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'forbidden' })
+  })
+
+  it('refuses a non-admin save when the URL changed after it was checked', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+        headers: {},
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const result = await performUpdateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      allowDestinationChange: false,
+      url: 'https://example.com/mcp?token=rotated',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
+  })
+
+  it('lets an admin point an existing server at a different host', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+        headers: {},
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Example',
+        transport: 'streamable-http',
+        url: 'https://new.example.com/mcp',
+        authType: 'headers',
+      },
+    ])
+
+    const result = await performUpdateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      allowDestinationChange: true,
+      url: 'https://new.example.com/mcp',
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      server: { url: 'https://new.example.com/mcp' },
+    })
+  })
+
+  it('refuses a registration whose id collides with a server at a different host', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        deletedAt: null,
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+
+    const result = await performCreateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Example',
+      url: 'https://other-host.example.com/collide',
+      authType: 'headers',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
+  })
+
+  it('refuses a re-registration when the URL changed after it was checked', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        deletedAt: null,
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const result = await performCreateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Example',
+      url: 'https://example.com/mcp',
+      authType: 'headers',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
   })
 
   it('registers a new server as disconnected rather than stamping a connection it never made', async () => {
-    mockGenerateMcpServerId.mockReturnValue('server-1')
     dbChainMockFns.limit.mockResolvedValueOnce([])
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
@@ -259,7 +426,6 @@ describe('MCP server lifecycle orchestration', () => {
   })
 
   it('keeps an explicit auth type when an OAuth client ID is also supplied', async () => {
-    mockGenerateMcpServerId.mockReturnValue('server-1')
     dbChainMockFns.limit.mockResolvedValueOnce([])
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
@@ -290,7 +456,7 @@ describe('MCP server lifecycle orchestration', () => {
   })
 
   it('leaves a re-registered server disconnected until discovery re-runs', async () => {
-    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'server-1' }])
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'server-1',
@@ -339,7 +505,7 @@ describe('MCP server lifecycle orchestration', () => {
    * tool the server publishes, with no path back.
    */
   it('keeps an OAuth server connected through a re-registration that only renames it', async () => {
-    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'server-1' }])
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'server-1',
@@ -384,7 +550,7 @@ describe('MCP server lifecycle orchestration', () => {
   })
 
   it('resets a re-registered server whose transport changes', async () => {
-    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'server-1' }])
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'server-1',

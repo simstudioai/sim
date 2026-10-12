@@ -23,8 +23,6 @@ import {
 const mockApplyStorageUsageDeltasInTx = billingStorageMockFns.mockApplyStorageUsageDeltasInTx
 const mockEnsureUserStatsExists = billingUsageMockFns.mockEnsureUserStatsExists
 const mockFindActiveFolder = folderQueriesMockFns.mockFindActiveFolder
-const mockMaybeNotifyStorageLimitForBillingContext =
-  billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
 const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
 
 const mockGetHighestPrioritySubscription =

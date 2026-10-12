@@ -43,11 +43,8 @@ import {
 } from '@/lib/internal/mistral/operations'
 
 const authorizeFile = filesAuthorizationMockFns.mockAssertToolFileAccess
-const {
-  mockDownloadServableFileFromStorage: downloadFile,
-  mockDownloadFileFromUrl: downloadUrl,
-  mockResolveInternalFileUrl: resolveUrl,
-} = fileUtilsServerMockFns
+const { mockDownloadServableFileFromStorage: downloadFile, mockDownloadFileFromUrl: downloadUrl } =
+  fileUtilsServerMockFns
 const modelSafeFile = workspaceFileSecretProvenanceMockFns.mockIsModelSafeWorkspaceFileKey
 const validateUrl = inputValidationMockFns.mockValidateUrlWithDNS
 

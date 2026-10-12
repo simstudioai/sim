@@ -18,6 +18,9 @@ const input: NativeSearchInput = { query: 'rollout', limit: 10, scopes: [] }
 function client(json: NativeClient['json']): NativeClient {
   return {
     json,
+    bytes: async () => {
+      throw new Error('Unexpected binary request')
+    },
     text: async () => {
       throw new Error('Unexpected text request')
     },
@@ -134,6 +137,12 @@ describe('Linear live search boundary', () => {
   it('rejects malformed search responses and project references', async () => {
     const api = client(async () => ({ data: { searchIssues: {} } }))
     await expect(searchLinear(api, input)).rejects.toThrow('unsupported')
+    const ascending = client(async () => ({
+      data: { searchIssues: { nodes: [issue], pageInfo: { hasNextPage: false } } },
+    }))
+    await expect(
+      searchLinear(ascending, { ...input, filters: { sortBy: 'oldest' } })
+    ).rejects.toThrow('unsupported')
     await expect(
       searchLinear(api, {
         ...input,

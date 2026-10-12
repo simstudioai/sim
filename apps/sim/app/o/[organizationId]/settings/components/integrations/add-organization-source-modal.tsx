@@ -27,6 +27,7 @@ interface AddOrganizationSourceModalProps {
     type: string
     meta: Pick<ConnectorMeta, 'name' | 'icon'> & { auth?: ConnectorMeta['auth'] }
     access: { admin: boolean; members: boolean }
+    availabilityStatus?: 'loading' | 'error'
   }[]
   pending: boolean
   ready: boolean
@@ -52,8 +53,9 @@ export function AddOrganizationSourceModal({
   const visible = sources.filter(({ meta }) => meta.name.toLowerCase().includes(query))
   const list = (
     <div className={RESOURCE_LIST_STACK}>
-      {visible.map(({ type, meta, access }) => {
+      {visible.map(({ type, meta, access, availabilityStatus }) => {
         const available = access.admin || access.members
+        const sourceReady = ready && !availabilityStatus
         return (
           <SettingsResourceRow
             key={type}
@@ -67,26 +69,28 @@ export function AddOrganizationSourceModal({
             }
             title={meta.name}
             description={
-              !ready
-                ? 'Checking availability'
-                : !available
-                  ? 'Unavailable in this deployment'
-                  : (descriptions?.[type] ??
-                    (access.admin
-                      ? meta.auth?.mode === 'apiKey'
-                        ? 'Connect an API token'
-                        : meta.auth?.mode === 'oauth' &&
-                            meta.auth.adminCredentialType === 'service_account'
-                          ? 'Connect a service account'
-                          : 'Connect an admin account'
-                      : type === 'slack'
-                        ? 'Set up your Slack app'
-                        : 'Connect member accounts'))
+              availabilityStatus === 'error'
+                ? 'Could not check availability'
+                : !sourceReady
+                  ? 'Checking availability'
+                  : !available
+                    ? 'Unavailable in this deployment'
+                    : (descriptions?.[type] ??
+                      (access.admin
+                        ? meta.auth?.mode === 'apiKey'
+                          ? 'Connect an API token'
+                          : meta.auth?.mode === 'oauth' &&
+                              meta.auth.adminCredentialType === 'service_account'
+                            ? 'Connect a service account'
+                            : 'Connect an admin account'
+                        : type === 'slack'
+                          ? 'Set up your Slack app'
+                          : 'Connect member accounts'))
             }
-            disabled={pending || !ready || !available}
+            disabled={pending || !sourceReady || !available}
             onClick={() => onSelect(type, access.admin ? 'admin' : 'members')}
             clickLabel={`Set up ${meta.name}`}
-            navigable={ready && available}
+            navigable={sourceReady && available}
           />
         )
       })}

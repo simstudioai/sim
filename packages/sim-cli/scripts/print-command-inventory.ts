@@ -5,7 +5,8 @@
  * The source is `buildProgram()` — the same command tree `--help` and the generated docs
  * read — so the model's card can never describe a command the CLI does not have. Each
  * leaf carries its positionals and options as commander declares them, plus the top-level
- * shape of its JSON response resolved from the v2 OpenAPI documents.
+ * shape of its JSON response resolved from the v2 OpenAPI documents, and
+ * `mothershipUnavailable` when Sim refuses a Mothership caller any operation it calls.
  *
  *   bun run packages/sim-cli/scripts/print-command-inventory.ts > inventory.json
  */
@@ -21,7 +22,8 @@ import {
 } from '#sim-cli/contract/reference'
 import { V2_OPERATIONS, type V2OperationName } from '#sim-cli/generated/v2-api'
 import { buildProgram } from '#sim-cli/program'
-import { camel, deriveCommandPath } from '#sim-cli/runtime/derive'
+import { calledOperations, operationOf } from '#sim-cli/runtime/called-operations'
+import { camel } from '#sim-cli/runtime/derive'
 import { cursorSlot, flagNameFor } from '#sim-cli/runtime/request'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -51,6 +53,11 @@ interface InventoryCommand extends CommandReference {
   description: string
   args: InventoryArgument[]
   options: InventoryOption[]
+  /**
+   * Sim refuses Mothership for an operation this command calls, so chat cannot run it.
+   * Absent when every call is admitted or the command calls no known operation.
+   */
+  mothershipUnavailable?: true
 }
 
 function isHiddenCommand(command: Command): boolean {
@@ -69,25 +76,32 @@ function collectLeaves(command: Command, prefix: string[]): { path: string[]; co
   return children.flatMap((child) => collectLeaves(child, [...prefix, child.name()]))
 }
 
-/**
- * Command path → v2 operation name. Every operation names its command the way the
- * program builder does (`deriveCommandPath`); a contract entry's explicit `command`
- * string overrides that, exactly as it does when the program is built.
- */
-const OPERATION_BY_PATH = new Map<string, V2OperationName>()
-const operations = Object.keys(V2_OPERATIONS) as V2OperationName[]
-for (const operation of operations) {
-  OPERATION_BY_PATH.set(deriveCommandPath(operation).join(' '), operation)
-}
-for (const operation of operations) {
-  const command = CLI_CONTRACT[operation]?.command
-  if (command) OPERATION_BY_PATH.set(command, operation)
-}
-
 const OPENAPI_DOCS: ReferenceDocument[] = fs
   .readdirSync(path.join(ROOT, 'apps/docs'))
   .filter((name) => /^openapi-v2-.*\.json$/.test(name))
   .map((name) => JSON.parse(fs.readFileSync(path.join(ROOT, 'apps/docs', name), 'utf8')))
+
+/**
+ * `METHOD path` of every route Sim refuses a Mothership caller, as the route inventory
+ * evaluates the admission rule (`apps/sim/lib/api/server/routes/copilot-route-inventory.test.ts`).
+ */
+const MOTHERSHIP_REFUSED = new Set(
+  (
+    JSON.parse(
+      fs.readFileSync(
+        path.join(ROOT, 'apps/sim/lib/api/server/routes/copilot-refused-routes.json'),
+        'utf8'
+      )
+    ) as { method: string; path: string }[]
+  ).map((route) => `${route.method} ${route.path}`)
+)
+
+function mothershipRefuses(operations: readonly V2OperationName[]): boolean {
+  return operations.some((name) => {
+    const { method, path: route } = V2_OPERATIONS[name]
+    return MOTHERSHIP_REFUSED.has(`${method} ${route}`)
+  })
+}
 
 const program = buildProgram()
 const inventory: InventoryCommand[] = collectLeaves(program, []).map(
@@ -109,7 +123,7 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
         ...(option.defaultValue !== undefined ? { defaultValue: String(option.defaultValue) } : {}),
         ...(option.argChoices ? { choices: option.argChoices } : {}),
       }))
-    const operation = OPERATION_BY_PATH.get(cmdPath.join(' '))
+    const operation = operationOf(command)
     const jsonOptions = new Set(
       options.filter((option) => /<json\|@file>/.test(option.flags)).map((option) => option.name)
     )
@@ -128,12 +142,14 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
     const reference = op
       ? commandReference(OPENAPI_DOCS, op, jsonFields, cursorSlot(op) !== null)
       : {}
+    const called = calledOperations(command) ?? []
     return {
       path: cmdPath,
       description: command.description(),
       args,
       options,
       ...reference,
+      ...(mothershipRefuses(called) ? { mothershipUnavailable: true as const } : {}),
     }
   }
 )

@@ -40,7 +40,6 @@ import type {
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -208,7 +207,6 @@ export function Table({
   const tableId = propTableId || (params.tableId as string)
 
   const posthog = usePostHog()
-  const tableRowTtlEnabled = useFeatureFlag('table-row-ttl')
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
 
@@ -1455,7 +1453,6 @@ export function Table({
   const createTrigger = userPermissions.canEdit ? (
     <ColumnDropdown
       columns={columns}
-      tableRowTtlEnabled={tableRowTtlEnabled}
       trigger='header'
       disabled={false}
       blocked={!canMutateSchema}
@@ -1576,6 +1573,7 @@ export function Table({
                 <Chip
                   key={action.label}
                   leftIcon={action.icon}
+                  mobileIconOnly
                   onClick={action.onClick}
                   disabled={action.disabled}
                 >
@@ -1639,7 +1637,6 @@ export function Table({
         workspaceId={workspaceId}
         tableId={tableId}
         embedded={embedded}
-        tableRowTtlEnabled={tableRowTtlEnabled}
         locks={tableData?.locks}
         onBlockedAction={showBlockedToast}
         sidebarReservedPx={sidebarReservedPx}
@@ -1746,7 +1743,6 @@ export function Table({
       )}
       <ColumnConfigSidebar
         config={columnConfig}
-        tableRowTtlEnabled={tableRowTtlEnabled}
         onClose={onCloseSlideout}
         allColumns={columns}
         existingColumn={

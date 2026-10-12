@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import type { SearchParams } from 'nuqs/server'
 import { getAshbyJobs } from '@/lib/ashby/jobs'
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import {
   filterPostings,
   groupByDepartment,
@@ -50,8 +51,8 @@ export default async function Careers({ searchParams }: CareersProps) {
         <p className='sr-only'>
           Careers at Sim, the open-source AI workspace where teams build, deploy, and manage AI
           agents. Sim is hiring engineers, designers, and go-to-market builders to help teams
-          automate real work across hundreds of integrations and every major LLM — visually,
-          conversationally, or with code.
+          automate real work across {INTEGRATION_COUNT_LABEL} integrations and every major LLM —
+          visually, conversationally, or with code.
         </p>
 
         <h1

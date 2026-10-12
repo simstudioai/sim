@@ -2,7 +2,6 @@ import { isRecordLike } from '@sim/utils/object'
 import { SmartleadIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SmartleadResponse } from '@/tools/smartlead/types'
 
 const CAMPAIGN_ID_OPERATIONS = [
   'get_campaign',
@@ -73,7 +72,7 @@ const EMAIL_ACCOUNT_ID_OPERATIONS = [
   'remove_email_accounts_from_campaign',
 ] as const
 
-export const SmartleadBlock: BlockConfig<SmartleadResponse> = {
+export const SmartleadBlock: BlockConfig = {
   type: 'smartlead',
   name: 'Smartlead',
   description: 'Manage Smartlead cold email campaigns, sequences, and leads',

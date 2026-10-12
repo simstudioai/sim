@@ -8,7 +8,7 @@ import { DAGExecutor } from '@/executor/execution/executor'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import { RunFromBlockValidationError } from '@/executor/utils/run-from-block'
-import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
+import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const { executed, gateChoice } = vi.hoisted(() => ({

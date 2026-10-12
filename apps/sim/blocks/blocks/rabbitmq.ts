@@ -1,7 +1,6 @@
 import { RabbitmqIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { RabbitmqResponse } from '@/tools/rabbitmq/types'
 
 /** Operations that act on a single named queue. */
 const QUEUE_OPERATIONS = [
@@ -31,7 +30,7 @@ const PAGINATED_OPERATIONS = [
 
 const POLICY_OPERATIONS = ['rabbitmq_create_policy', 'rabbitmq_delete_policy']
 
-export const RabbitmqBlock: BlockConfig<RabbitmqResponse> = {
+export const RabbitmqBlock: BlockConfig = {
   type: 'rabbitmq',
   name: 'RabbitMQ',
   description: 'Publish and read messages and manage queues in RabbitMQ',

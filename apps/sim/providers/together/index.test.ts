@@ -12,10 +12,6 @@ import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 
-const { mockSupportsNativeStructuredOutputs } = vi.hoisted(() => ({
-  mockSupportsNativeStructuredOutputs: vi.fn(),
-}))
-
 vi.mock('openai', () => openaiMock)
 
 vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
@@ -25,14 +21,6 @@ vi.mock('@/providers', () => providersMock)
 vi.mock('@/providers/models', () => providersModelsMock)
 
 vi.mock('@/providers/attachments', () => providersAttachmentsMock)
-
-vi.mock('@/providers/together/utils', () => ({
-  supportsNativeStructuredOutputs: mockSupportsNativeStructuredOutputs,
-  createReadableStreamFromOpenAIStream: vi.fn(
-    () => new ReadableStream({ start: (controller) => controller.close() })
-  ),
-  checkForForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
-}))
 
 vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
@@ -87,7 +75,6 @@ const lastCallBody = () => mockCreate.mock.calls.at(-1)?.[0]
 
 describe('togetherProvider', () => {
   beforeEach(() => {
-    mockSupportsNativeStructuredOutputs.mockResolvedValue(true)
     mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
       tools,
       toolChoice: 'auto',
@@ -153,7 +140,7 @@ describe('togetherProvider', () => {
   )
 
   it('streams directly when there are no tools', async () => {
-    mockCreate.mockResolvedValueOnce({})
+    mockCreate.mockResolvedValueOnce((async function* () {})())
 
     const result = await togetherProvider.executeRequest({ ...baseRequest, stream: true })
 
@@ -170,23 +157,7 @@ describe('togetherProvider', () => {
     expect(callBody(0).model).toBe('Org/Custom-Model')
   })
 
-  it('sends a json_schema response_format with no strict field', async () => {
-    mockCreate.mockResolvedValueOnce(textResponse('{}'))
-
-    await togetherProvider.executeRequest({
-      ...baseRequest,
-      responseFormat: { name: 'my_schema', schema: { type: 'object' }, strict: true },
-    })
-
-    expect(lastCallBody().response_format).toEqual({
-      type: 'json_schema',
-      json_schema: { name: 'my_schema', schema: { type: 'object' } },
-    })
-    expect(lastCallBody().response_format.json_schema).not.toHaveProperty('strict')
-  })
-
-  it('falls back to json_object with prompt instructions when native is unsupported', async () => {
-    mockSupportsNativeStructuredOutputs.mockResolvedValue(false)
+  it('uses json_object with prompt instructions for structured output', async () => {
     mockCreate.mockResolvedValueOnce(textResponse('{}'))
 
     await togetherProvider.executeRequest({
@@ -215,10 +186,7 @@ describe('togetherProvider', () => {
     expect(mockCreate).toHaveBeenCalledTimes(2)
     expect(callBody(0).response_format).toBeUndefined()
     expect(callBody(0).tools).toBeDefined()
-    expect(callBody(1).response_format).toEqual({
-      type: 'json_schema',
-      json_schema: { name: 'my_schema', schema: { type: 'object' } },
-    })
+    expect(callBody(1).response_format).toEqual({ type: 'json_object' })
     expect(callBody(1).tools).toBeUndefined()
   })
 

@@ -4,6 +4,7 @@ import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   mothershipWorkspaceTargetMock,
   mothershipWorkspaceTargetMockFns,
@@ -43,6 +44,7 @@ vi.mock('@/lib/execution/remote-sandbox/session-file-snapshot', () => ({
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: async () => 'fixture' }))
 
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
 vi.mock('@/lib/mothership/agent-cli/scoped-transport', () => ({
@@ -52,6 +54,7 @@ vi.mock('@/lib/mothership/agent-cli/scoped-transport', () => ({
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
+import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -97,17 +100,48 @@ function registry() {
   return new ResolvedSecretTraceRegistry([], { userId: 'reader', workspaceId: 'workspace' })
 }
 
-function classify(status: 'exact' | 'unknown', fileRevision = revision) {
+type SidecarStatus = 'exact' | 'unknown'
+
+function sidecarRow(status: SidecarStatus, fileRevision = revision, entries: unknown[] = []) {
+  return {
+    fileContentUpdatedAt: fileRevision,
+    secretProvenanceVersion: 1,
+    provenanceContentUpdatedAt: fileRevision,
+    status,
+    entries,
+  }
+}
+
+/** Queues one sidecar per status, in the order the reads consume them. */
+function classify(...statuses: [SidecarStatus, ...SidecarStatus[]]) {
   resetDbChainMock()
-  queueTableRows(workspaceFiles, [
+  for (const status of statuses) queueTableRows(workspaceFiles, [sidecarRow(status)])
+}
+
+type CliInvocation = Parameters<typeof executeSimCli>[0]['request']['invocation']
+
+const readFile: CliInvocation = {
+  kind: 'augmentation',
+  name: 'files read',
+  positionals: ['file'],
+  flags: {},
+}
+
+function grepFiles(pattern: string): CliInvocation {
+  return { kind: 'augmentation', name: 'grep', positionals: [pattern], flags: { scope: 'files' } }
+}
+
+function runCli(invocation: CliInvocation, trace = registry()) {
+  return executeSimCli(
+    { request: { invocation } },
     {
-      fileContentUpdatedAt: fileRevision,
-      secretProvenanceVersion: 1,
-      provenanceContentUpdatedAt: fileRevision,
-      status,
-      entries: [],
-    },
-  ])
+      userId: 'reader',
+      workspaceId: 'workspace',
+      workflowId: '',
+      chatId: 'chat',
+      resolvedSecretTraceRegistry: trace,
+    }
+  )
 }
 
 function readTransport(trace = registry()) {
@@ -277,14 +311,53 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     expect(mocks.stream).toHaveBeenCalledTimes(1)
   })
 
-  it('withholds extracted text whose canonical revision changed', async () => {
-    classify('exact', new Date(revision.getTime() + 1))
+  it('refuses a forwarded response naming its unknown file, without blanking the invocation', async () => {
+    const refusals = getMockLogger('DurableSecretProvenancePersistence').error
+    refusals.mockClear()
     const trace = registry()
+    const transport = createFileReadTransport({
+      endpoint: 'https://sim.test',
+      userId: 'reader',
+      registry: trace,
+      invocation: { userId: 'reader', workspaceId: 'workspace', chatId: 'chat' },
+      transport: async () => {
+        await reportWorkspaceFileDelivery({ status: 'exact', entries: [] }, 'clean')
+        await reportWorkspaceFileDelivery({ status: 'unknown' }, 'tainted')
+        return new Response(content)
+      },
+    })
+    const response = await transport(
+      new Request('https://sim.test/api/v2/files/bulk-download?workspaceId=workspace')
+    )
+    expect(response.status).toBe(403)
+    expect(await response.text()).not.toContain(content)
+    expect(trace.isPermanentlyIncomplete()).toBe(false)
+    expect(refusals).toHaveBeenCalledTimes(1)
+    expect(refusals).toHaveBeenCalledWith(
+      'Refusing unavailable durable secret provenance',
+      expect.objectContaining({ resourceId: 'tainted' })
+    )
+  })
+
+  it('refuses extracted text whose canonical revision changed before loading its bytes', async () => {
+    resetDbChainMock()
+    queueTableRows(workspaceFiles, [sidecarRow('exact', new Date(revision.getTime() + 1))])
+    const trace = registry()
+    const response = await readTransport(trace)(fileRequest('/text'))
+    expect(response.status).toBe(403)
+    expect(await response.text()).not.toContain(content)
+    expect(mocks.buffer).not.toHaveBeenCalled()
+    expect(trace.isPermanentlyIncomplete()).toBe(false)
+  })
+
+  it('still withholds a delivered text read once the registry is incomplete for another reason', async () => {
+    classify('exact')
+    const trace = registry()
+    trace.markIncomplete('provenance-capacity-exceeded')
     const response = await readTransport(trace)(fileRequest('/text'))
     expect(response.status).toBe(200)
     const output = await response.text()
     expect(output).toContain(content)
-    expect(trace.isPermanentlyIncomplete()).toBe(true)
     expect(
       JSON.stringify(
         inspectToolResultForCopilot({ success: true, output }, trace, 'sim_cli').result
@@ -319,6 +392,38 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     ).not.toContain(content)
   })
 
+  it('redacts generated document contents in a download renderer failure', async () => {
+    resetDbChainMock()
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: revision,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: revision,
+        status: 'exact',
+        entries: [
+          {
+            name: 'FILE_SECRET',
+            encryptedValue: 'fixture-ciphertext',
+            sourceUserId: 'reader',
+            sourceWorkspaceId: 'workspace',
+          },
+        ],
+      },
+    ])
+    mocks.file.mockResolvedValue({ ...file, name: 'private.pdf', type: 'text/x-pdflibjs' })
+    mocks.render.mockRejectedValue(
+      new OrchestrationError('conflict', `Document could not be generated: ${content}`)
+    )
+    const trace = registry()
+    const response = await readTransport(trace)(fileRequest())
+    expect(response.status).toBe(409)
+    const output = await response.text()
+    expect(output).toContain(content)
+    const projected = inspectToolResultForCopilot({ success: false, output }, trace, 'sim_cli')
+    expect(JSON.stringify(projected.result)).not.toContain(content)
+    expect(JSON.stringify(projected.result)).toContain('{{FILE_SECRET}}')
+  })
+
   it.each(['sequential', 'parallel'])(
     'carries file classification into each %s grep invocation',
     async (mode) => {
@@ -333,62 +438,83 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
       classify('unknown')
       const grep = async () => {
         const trace = registry()
-        const result = await executeSimCli(
-          {
-            request: {
-              invocation: {
-                kind: 'augmentation',
-                name: 'grep',
-                positionals: [content],
-                flags: { scope: 'files' },
-              },
-            },
-          },
-          {
-            userId: 'reader',
-            workspaceId: 'workspace',
-            workflowId: '',
-            chatId: 'chat',
-            resolvedSecretTraceRegistry: trace,
-          }
+        const result = await runCli(grepFiles(content), trace)
+        expect(result.error).toContain('Search incomplete')
+        expect(JSON.stringify(result.output)).toContain(
+          'files/private.txt (file): could not read text'
         )
-        expect(result.success).toBe(true)
-        expect(JSON.stringify(result.output)).toContain(content)
-        expect(
-          JSON.stringify(inspectToolResultForCopilot(result, trace, 'sim_cli').result)
-        ).not.toContain(content)
+        expect(JSON.stringify(result.output)).toContain('No matches')
+        expect(trace.isPermanentlyIncomplete()).toBe(false)
       }
       if (mode === 'parallel') await Promise.all([grep(), grep()])
       else {
         await grep()
         await grep()
       }
-      expect(mocks.buffer).toHaveBeenCalledTimes(2)
+      expect(mocks.buffer).not.toHaveBeenCalled()
     }
   )
 
-  it('carries unified text reads through the actual CLI transport and secret projection', async () => {
-    classify('unknown')
-    const trace = registry()
-    const result = await executeSimCli(
-      {
-        request: {
-          invocation: {
-            kind: 'augmentation',
-            name: 'files read',
-            positionals: ['file'],
-            flags: {},
-          },
-        },
-      },
-      {
-        userId: 'reader',
-        workspaceId: 'workspace',
-        workflowId: '',
-        chatId: 'chat',
-        resolvedSecretTraceRegistry: trace,
-      }
+  it('returns clean grep matches while refusing only the file whose provenance is unknown', async () => {
+    const tainted = { ...file, id: 'tainted', key: 'workspace/workspace/tainted-key' }
+    const taintedText = 'TAINTED_FILE_CANARY_FOR_LOCAL_TEST'
+    const byId = (id: string) => (id === tainted.id ? tainted : file)
+    mocks.file.mockImplementation(async (_workspaceId: string, id: string) => byId(id))
+    mocks.reference.mockImplementation(async (_workspaceId: string, id: string) => byId(id))
+    mocks.context.mockImplementation(async (id: string) => ({
+      workspaceId: 'workspace',
+      fileId: id,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'owner',
+    }))
+    mocks.buffer.mockImplementation(async (record: { id: string }) =>
+      Buffer.from(record.id === tainted.id ? taintedText : content)
     )
+    vi.stubGlobal('fetch', async () =>
+      Response.json({
+        data: [file, tainted].map((record) => ({ ...record, updatedAt: revision.toISOString() })),
+        nextCursor: null,
+      })
+    )
+    classify('exact', 'unknown')
+    const refusals = getMockLogger('DurableSecretProvenancePersistence').error
+    refusals.mockClear()
+    const trace = registry()
+    const result = await runCli(grepFiles('CANARY_FOR_LOCAL_TEST'), trace)
+    const projected = JSON.stringify(inspectToolResultForCopilot(result, trace, 'sim_cli').result)
+    expect(trace.isPermanentlyIncomplete()).toBe(false)
+    expect(projected).not.toContain(taintedText)
+    expect(projected).toContain(content)
+    expect(mocks.buffer).toHaveBeenCalledTimes(1)
+    expect(refusals).toHaveBeenCalledTimes(1)
+    expect(refusals).toHaveBeenCalledWith(
+      'Refusing unavailable durable secret provenance',
+      expect.objectContaining({
+        cause: 'workspace-file-provenance-unavailable',
+        resourceId: tainted.id,
+      })
+    )
+  })
+
+  it('refuses an unknown file through the actual CLI text read without loading its bytes', async () => {
+    classify('unknown')
+    const result = await runCli(readFile)
+    expect(result.success).toBe(false)
+    expect(JSON.stringify(result.output)).not.toContain(content)
+    expect(JSON.stringify(result)).toContain('secret provenance is unavailable')
+    expect(mocks.buffer).not.toHaveBeenCalled()
+  })
+
+  it('carries unified text reads through the actual CLI transport and secret projection', async () => {
+    resetDbChainMock()
+    queueTableRows(workspaceFiles, [
+      sidecarRow('exact', revision, [
+        { name: 'FILE_SECRET', encryptedValue: 'fixture-ciphertext', sourceUserId: 'reader' },
+      ]),
+    ])
+    const trace = registry()
+    const result = await runCli(readFile, trace)
     expect(result.success).toBe(true)
     expect(JSON.stringify(result.output)).toContain(content)
     expect(JSON.stringify(result.output)).toContain('representation')

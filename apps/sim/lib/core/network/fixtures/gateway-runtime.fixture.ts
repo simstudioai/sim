@@ -35,6 +35,18 @@ try {
     })
     if (pinned.headers.get('x-via-proxy') !== 'yes') throw new Error('Pinned fetch bypassed proxy')
     if ((await pinned.text()) !== 'tls reached') throw new Error('Pinned fetch response mismatch')
+    const target = '/exports/../raw/event%2Fpart.ndjson?x-id=PutObject&token=%2B'
+    const signed = await secureFetchWithPinnedIP(`https://origin.invalid${target}`, '1.1.1.1', {
+      profile: 'selfHostedService',
+      requestTarget: target,
+      method: 'PUT',
+      body: '{"id":"event"}\n',
+      timeout: 10_000,
+    })
+    if (signed.headers.get('x-via-proxy') !== 'yes') throw new Error('Signed fetch bypassed proxy')
+    if (signed.headers.get('x-request-target') !== target) throw new Error('Signed target changed')
+    if ((await signed.text()) !== '{"id":"event"}\n')
+      throw new Error('Signed fetch response mismatch')
   })
 
   let rejected = false

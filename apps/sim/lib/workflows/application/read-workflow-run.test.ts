@@ -2,7 +2,7 @@ import {
   createPersonalApiKeyPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
-import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
 import {
   workflowContextMock,
   workflowContextMockFns,
@@ -31,7 +31,6 @@ vi.mock('@/lib/workflows/executor/execution-run-files', () => ({
 
 import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
 
-const mockRecordAudit = auditMockFns.mockRecordAudit
 const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowRunApplicationContext
 

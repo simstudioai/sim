@@ -1,5 +1,6 @@
 import { workspaceFiles } from '@sim/db/schema'
 import { eq, inArray, isNull } from 'drizzle-orm'
+import { OWNED_FILE_CONTEXTS } from '@/lib/workspace-files/owned-files'
 
 /** Durable files available to workspace resource pickers, reference mappings, and fork copies. */
 export function activeWorkspaceFileConditions(workspaceIds: string[]) {
@@ -9,3 +10,9 @@ export function activeWorkspaceFileConditions(workspaceIds: string[]) {
     isNull(workspaceFiles.deletedAt),
   ]
 }
+
+/** Rows whose content the editor and Sim write: workspace files and owned files. */
+export const contentWritableWorkspaceFileContextCondition = inArray(workspaceFiles.context, [
+  'workspace',
+  ...OWNED_FILE_CONTEXTS,
+])

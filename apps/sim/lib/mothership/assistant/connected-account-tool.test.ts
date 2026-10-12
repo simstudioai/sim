@@ -7,9 +7,8 @@ import { getIssueV2Tool } from '@/tools/github/get_issue'
 import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 
 describe('GitHub Assistant connected-account adapter', () => {
-  it('preserves Build and flag-off tool configuration without mutating the registry', () => {
-    expect(projectAssistantConnectedAccountTool(getIssueV2Tool, false)).toBe(getIssueV2Tool)
-    const adapted = projectAssistantConnectedAccountTool(getIssueV2Tool, true)
+  it('preserves Build tool configuration without mutating the registry', () => {
+    const adapted = projectAssistantConnectedAccountTool(getIssueV2Tool)
     expect(adapted).not.toBe(getIssueV2Tool)
     expect(getIssueV2Tool.params.apiKey.required).toBe(true)
     expect(getIssueV2Tool.oauth).toBeUndefined()
@@ -23,7 +22,7 @@ describe('GitHub Assistant connected-account adapter', () => {
     expect(assistantConnectedAccountTokenParam(adapted)).toBe('apiKey')
   })
   it('uses the same adapter for the existing issue/PR search tool with total_count', () => {
-    const adapted = projectAssistantConnectedAccountTool(searchIssuesV2Tool, true)
+    const adapted = projectAssistantConnectedAccountTool(searchIssuesV2Tool)
     expect(adapted.request).toBe(searchIssuesV2Tool.request)
     expect(adapted.transformResponse).toBe(searchIssuesV2Tool.transformResponse)
     expect(adapted.outputs).toBe(searchIssuesV2Tool.outputs)
@@ -31,7 +30,7 @@ describe('GitHub Assistant connected-account adapter', () => {
   })
   it('does not turn unrelated API-key tools or GitLab admin sources into personal credentials', () => {
     const tool = { ...getIssueV2Tool, id: 'gitlab_get_project' }
-    expect(projectAssistantConnectedAccountTool(tool, true)).toBe(tool)
+    expect(projectAssistantConnectedAccountTool(tool)).toBe(tool)
     expect(assistantConnectedAccountTokenParam(tool)).toBeUndefined()
   })
 })

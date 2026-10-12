@@ -15,9 +15,9 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import { toAdminAuditLog } from '@/app/api/v1/admin/types'
@@ -41,7 +41,7 @@ export const GET = withRouteHandler(
       const [log] = await db.select().from(auditLog).where(eq(auditLog.id, id)).limit(1)
 
       if (!log) {
-        return notFoundResponse('AuditLog')
+        return adminNotFoundResponse('AuditLog')
       }
 
       logger.info(`Admin API: Retrieved audit log ${id}`)
@@ -49,7 +49,7 @@ export const GET = withRouteHandler(
       return singleResponse(toAdminAuditLog(log))
     } catch (error) {
       logger.error('Admin API: Failed to get audit log', { error, id })
-      return internalErrorResponse('Failed to get audit log')
+      return adminInternalErrorResponse('Failed to get audit log')
     }
   })
 )

@@ -13,6 +13,7 @@
  * Wired into {@link BlockExecutor} `handleStreamingExecution`.
  */
 
+import { toError } from '@sim/utils/errors'
 import {
   type AgentStreamEvent,
   type AgentStreamFormat,
@@ -404,7 +405,7 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
 
     if (drainError && !cancelled) {
       closeTextStream(drainError)
-      throw drainError instanceof Error ? drainError : new Error(String(drainError))
+      throw toError(drainError)
     }
 
     if (cancelled) {
@@ -484,7 +485,7 @@ export function projectStreamingExecutionToByteStream(streamingExec: {
           return
         }
         try {
-          controller.error(error instanceof Error ? error : new Error(String(error)))
+          controller.error(toError(error))
         } catch {
           // already closed/errored
         }

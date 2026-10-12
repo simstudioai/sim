@@ -97,7 +97,7 @@ export function DemoBooking({ className }: DemoBookingProps) {
       style={{ '--demo-card-h': formHeight ? `${formHeight}px` : undefined } as CSSProperties}
     >
       <div
-        className='flex h-full w-full transition-transform duration-200 ease-out motion-reduce:transition-none'
+        className='flex size-full transition-transform duration-200 ease-out motion-reduce:transition-none'
         style={{ transform: showScheduler ? 'translateX(-100%)' : undefined }}
       >
         <div
@@ -110,11 +110,7 @@ export function DemoBooking({ className }: DemoBookingProps) {
             <DemoForm onComplete={setLead} />
           </div>
         </div>
-        <div
-          ref={schedulerPanelRef}
-          className='h-full w-full min-w-0 shrink-0'
-          inert={!showScheduler}
-        >
+        <div ref={schedulerPanelRef} className='size-full min-w-0 shrink-0' inert={!showScheduler}>
           {lead ? <DemoScheduler lead={lead} /> : null}
         </div>
       </div>

@@ -3,7 +3,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { PitchBookIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { PitchbookResponse } from '@/tools/pitchbook/types'
 
 /**
  * Search subblock ids are prefixed per entity family because subblock ids must
@@ -184,7 +183,7 @@ function toOptionalNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-export const PitchBookBlock: BlockConfig<PitchbookResponse> = {
+export const PitchBookBlock: BlockConfig = {
   type: 'pitchbook',
   name: 'PitchBook',
   description: 'Look up private market data on companies, deals, investors, funds, and people',

@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { LinearResponse } from '@/tools/linear/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -14,7 +13,7 @@ import { getTrigger } from '@/triggers'
 const TEAM_FIELD = ['teamId', 'manualTeamId'] as const
 const PROJECT_FIELD = ['projectId', 'manualProjectId'] as const
 
-export const LinearBlock: BlockConfig<LinearResponse> = {
+export const LinearBlock: BlockConfig = {
   type: 'linear',
   name: 'Linear (Legacy)',
   description: 'Interact with Linear issues, projects, and more',
@@ -334,7 +333,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Issue Operations
         { label: 'Read Issues', id: 'linear_read_issues' },
         { label: 'Get Issue', id: 'linear_get_issue' },
         { label: 'Create Issue', id: 'linear_create_issue' },
@@ -345,90 +343,70 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         { label: 'Search Issues', id: 'linear_search_issues' },
         { label: 'Add Label to Issue', id: 'linear_add_label_to_issue' },
         { label: 'Remove Label from Issue', id: 'linear_remove_label_from_issue' },
-        // Comment Operations
         { label: 'Create Comment', id: 'linear_create_comment' },
         { label: 'Update Comment', id: 'linear_update_comment' },
         { label: 'Delete Comment', id: 'linear_delete_comment' },
         { label: 'List Comments', id: 'linear_list_comments' },
-        // Project Operations
         { label: 'List Projects', id: 'linear_list_projects' },
         { label: 'Get Project', id: 'linear_get_project' },
         { label: 'Create Project', id: 'linear_create_project' },
         { label: 'Update Project', id: 'linear_update_project' },
         { label: 'Archive Project', id: 'linear_archive_project' },
-        // User & Team Operations
         { label: 'List Users', id: 'linear_list_users' },
         { label: 'List Teams', id: 'linear_list_teams' },
         { label: 'Get Viewer', id: 'linear_get_viewer' },
-        // Label Operations
         { label: 'List Labels', id: 'linear_list_labels' },
         { label: 'Create Label', id: 'linear_create_label' },
         { label: 'Update Label', id: 'linear_update_label' },
         { label: 'Archive Label', id: 'linear_archive_label' },
-        // Workflow State Operations
         { label: 'List Workflow States', id: 'linear_list_workflow_states' },
         { label: 'Create Workflow State', id: 'linear_create_workflow_state' },
         { label: 'Update Workflow State', id: 'linear_update_workflow_state' },
-        // Cycle Operations
         { label: 'List Cycles', id: 'linear_list_cycles' },
         { label: 'Get Cycle', id: 'linear_get_cycle' },
         { label: 'Create Cycle', id: 'linear_create_cycle' },
         { label: 'Get Active Cycle', id: 'linear_get_active_cycle' },
-        // Attachment Operations
         { label: 'Create Attachment', id: 'linear_create_attachment' },
         { label: 'List Attachments', id: 'linear_list_attachments' },
         { label: 'Update Attachment', id: 'linear_update_attachment' },
         { label: 'Delete Attachment', id: 'linear_delete_attachment' },
-        // Issue Relation Operations
         { label: 'Create Issue Relation', id: 'linear_create_issue_relation' },
         { label: 'List Issue Relations', id: 'linear_list_issue_relations' },
         { label: 'Delete Issue Relation', id: 'linear_delete_issue_relation' },
-        // Favorite Operations
         { label: 'Create Favorite', id: 'linear_create_favorite' },
         { label: 'List Favorites', id: 'linear_list_favorites' },
-        // Project Update Operations
         { label: 'Create Project Update', id: 'linear_create_project_update' },
         { label: 'List Project Updates', id: 'linear_list_project_updates' },
-        // Notification Operations
         { label: 'List Notifications', id: 'linear_list_notifications' },
         { label: 'Update Notification', id: 'linear_update_notification' },
-        // Customer Operations
         { label: 'Create Customer', id: 'linear_create_customer' },
         { label: 'List Customers', id: 'linear_list_customers' },
-        // Customer Request Operations
         { label: 'Create Customer Request', id: 'linear_create_customer_request' },
         { label: 'Update Customer Request', id: 'linear_update_customer_request' },
         { label: 'List Customer Requests', id: 'linear_list_customer_requests' },
-        // Customer Management Operations
         { label: 'Get Customer', id: 'linear_get_customer' },
         { label: 'Update Customer', id: 'linear_update_customer' },
         { label: 'Delete Customer', id: 'linear_delete_customer' },
         { label: 'Merge Customers', id: 'linear_merge_customers' },
-        // Customer Status Operations
         { label: 'Create Customer Status', id: 'linear_create_customer_status' },
         { label: 'Update Customer Status', id: 'linear_update_customer_status' },
         { label: 'Delete Customer Status', id: 'linear_delete_customer_status' },
         { label: 'List Customer Statuses', id: 'linear_list_customer_statuses' },
-        // Customer Tier Operations
         { label: 'Create Customer Tier', id: 'linear_create_customer_tier' },
         { label: 'Update Customer Tier', id: 'linear_update_customer_tier' },
         { label: 'Delete Customer Tier', id: 'linear_delete_customer_tier' },
         { label: 'List Customer Tiers', id: 'linear_list_customer_tiers' },
-        // Project Management Operations
         { label: 'Delete Project', id: 'linear_delete_project' },
-        // Project Label Operations
         { label: 'Create Project Label', id: 'linear_create_project_label' },
         { label: 'Update Project Label', id: 'linear_update_project_label' },
         { label: 'Delete Project Label', id: 'linear_delete_project_label' },
         { label: 'List Project Labels', id: 'linear_list_project_labels' },
         { label: 'Add Label to Project', id: 'linear_add_label_to_project' },
         { label: 'Remove Label from Project', id: 'linear_remove_label_from_project' },
-        // Project Milestone Operations
         { label: 'Create Project Milestone', id: 'linear_create_project_milestone' },
         { label: 'Update Project Milestone', id: 'linear_update_project_milestone' },
         { label: 'Delete Project Milestone', id: 'linear_delete_project_milestone' },
         { label: 'List Project Milestones', id: 'linear_list_project_milestones' },
-        // Project Status Operations
         { label: 'Create Project Status', id: 'linear_create_project_status' },
         { label: 'Update Project Status', id: 'linear_update_project_status' },
         { label: 'Delete Project Status', id: 'linear_delete_project_status' },
@@ -456,7 +434,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    // Team selector (for most operations)
     {
       id: 'teamId',
       title: 'Team',
@@ -496,7 +473,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         ],
       },
     },
-    // Manual team ID input (advanced mode)
     {
       id: 'manualTeamId',
       title: 'Team ID',
@@ -534,7 +510,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         ],
       },
     },
-    // Project selector (for issue creation)
     {
       id: 'projectId',
       title: 'Project',
@@ -571,7 +546,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         ],
       },
     },
-    // Manual project ID input (advanced mode)
     {
       id: 'manualProjectId',
       title: 'Project ID',
@@ -606,7 +580,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         ],
       },
     },
-    // Issue ID input (for operations requiring issue ID)
     {
       id: 'issueId',
       title: 'Issue ID',
@@ -632,7 +605,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         ],
       },
     },
-    // Title (for issue creation/update)
     {
       id: 'title',
       title: 'Title',
@@ -655,7 +627,6 @@ Return ONLY the title text - no explanations.`,
         placeholder: 'Describe the issue (e.g., "login not working", "add export feature")...',
       },
     },
-    // Description (for issue creation/update, comments, projects)
     {
       id: 'description',
       title: 'Description',
@@ -682,7 +653,6 @@ Return ONLY the description text - no explanations.`,
         placeholder: 'Describe the details (e.g., "users report errors when logging in")...',
       },
     },
-    // Comment body
     {
       id: 'body',
       title: 'Comment',
@@ -709,7 +679,6 @@ Return ONLY the comment text - no explanations.`,
           'Describe what you want to communicate (e.g., "progress update", "request for review")...',
       },
     },
-    // Comment ID
     {
       id: 'commentId',
       title: 'Comment ID',
@@ -721,7 +690,6 @@ Return ONLY the comment text - no explanations.`,
         value: ['linear_update_comment', 'linear_delete_comment'],
       },
     },
-    // Label ID
     {
       id: 'labelId',
       title: 'Label ID',
@@ -738,7 +706,6 @@ Return ONLY the comment text - no explanations.`,
         ],
       },
     },
-    // Label name (for creating labels)
     {
       id: 'name',
       title: 'Name',
@@ -761,7 +728,6 @@ Return ONLY the comment text - no explanations.`,
         ],
       },
     },
-    // Label color
     {
       id: 'color',
       title: 'Color (hex)',
@@ -777,7 +743,6 @@ Return ONLY the comment text - no explanations.`,
         ],
       },
     },
-    // State ID (for issue updates)
     {
       id: 'stateId',
       title: 'State ID',
@@ -788,7 +753,6 @@ Return ONLY the comment text - no explanations.`,
         value: ['linear_update_issue', 'linear_update_workflow_state'],
       },
     },
-    // Assignee ID (for issue operations)
     {
       id: 'assigneeId',
       title: 'Assignee ID',
@@ -799,7 +763,6 @@ Return ONLY the comment text - no explanations.`,
         value: ['linear_create_issue', 'linear_update_issue'],
       },
     },
-    // Priority (for issues and projects)
     {
       id: 'priority',
       title: 'Priority',
@@ -817,7 +780,6 @@ Return ONLY the comment text - no explanations.`,
         value: ['linear_create_issue', 'linear_update_issue', 'linear_create_project'],
       },
     },
-    // Estimate (for issues)
     {
       id: 'estimate',
       title: 'Estimate',
@@ -828,7 +790,6 @@ Return ONLY the comment text - no explanations.`,
         value: ['linear_create_issue', 'linear_update_issue'],
       },
     },
-    // Search query
     {
       id: 'query',
       title: 'Search Query',
@@ -852,7 +813,6 @@ Return ONLY the search query - no explanations.`,
           'Describe what you want to search for (e.g., "open bugs", "my assigned tasks")...',
       },
     },
-    // Include archived (for list operations)
     {
       id: 'includeArchived',
       title: 'Include Archived',
@@ -862,7 +822,6 @@ Return ONLY the search query - no explanations.`,
         value: ['linear_read_issues', 'linear_search_issues', 'linear_list_projects'],
       },
     },
-    // Issue filtering options for read_issues (advanced)
     {
       id: 'labelIds',
       title: 'Label IDs',
@@ -907,7 +866,6 @@ Return ONLY the search query - no explanations.`,
         value: 'linear_read_issues',
       },
     },
-    // Cycle ID
     {
       id: 'cycleId',
       title: 'Cycle ID',
@@ -919,7 +877,6 @@ Return ONLY the search query - no explanations.`,
         value: ['linear_get_cycle'],
       },
     },
-    // Cycle start/end dates
     {
       id: 'startDate',
       title: 'Start Date',
@@ -971,7 +928,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         generationType: 'timestamp',
       },
     },
-    // Target date (for projects)
     {
       id: 'targetDate',
       title: 'Target Date',
@@ -995,7 +951,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         generationType: 'timestamp',
       },
     },
-    // Attachment file
     {
       id: 'attachmentFileUpload',
       title: 'Attachment',
@@ -1021,7 +976,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       },
       mode: 'advanced',
     },
-    // Attachment URL
     {
       id: 'url',
       title: 'URL',
@@ -1034,7 +988,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       },
       mode: 'advanced',
     },
-    // Attachment title
     {
       id: 'attachmentTitle',
       title: 'Title',
@@ -1046,7 +999,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_attachment', 'linear_update_attachment'],
       },
     },
-    // Attachment ID
     {
       id: 'attachmentId',
       title: 'Attachment ID',
@@ -1058,7 +1010,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_update_attachment', 'linear_delete_attachment'],
       },
     },
-    // Issue relation type
     {
       id: 'relationType',
       title: 'Relation Type',
@@ -1075,7 +1026,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_issue_relation'],
       },
     },
-    // Related issue ID
     {
       id: 'relatedIssueId',
       title: 'Related Issue ID',
@@ -1087,7 +1037,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_issue_relation'],
       },
     },
-    // Relation ID
     {
       id: 'relationId',
       title: 'Relation ID',
@@ -1099,7 +1048,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_delete_issue_relation'],
       },
     },
-    // Favorite type
     {
       id: 'favoriteType',
       title: 'Favorite Type',
@@ -1116,7 +1064,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_favorite'],
       },
     },
-    // Favorite target ID
     {
       id: 'favoriteTargetId',
       title: 'Target ID',
@@ -1128,7 +1075,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_favorite'],
       },
     },
-    // Pagination - First (for list operations)
     {
       id: 'first',
       title: 'Limit',
@@ -1161,7 +1107,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         ],
       },
     },
-    // Pagination - After (for list operations)
     {
       id: 'after',
       title: 'After Cursor',
@@ -1194,7 +1139,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         ],
       },
     },
-    // Project health (for project updates)
     {
       id: 'health',
       title: 'Project Health',
@@ -1210,7 +1154,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_project_update'],
       },
     },
-    // Notification ID
     {
       id: 'notificationId',
       title: 'Notification ID',
@@ -1222,7 +1165,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_update_notification'],
       },
     },
-    // Mark as read
     {
       id: 'markAsRead',
       title: 'Mark as Read',
@@ -1232,7 +1174,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_update_notification'],
       },
     },
-    // Workflow state type
     {
       id: 'workflowType',
       title: 'Workflow Type',
@@ -1250,7 +1191,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_workflow_state'],
       },
     },
-    // Lead ID (for projects)
     {
       id: 'leadId',
       title: 'Lead ID',
@@ -1261,7 +1201,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_project', 'linear_update_project'],
       },
     },
-    // Project state
     {
       id: 'projectState',
       title: 'Project State',
@@ -1272,7 +1211,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_update_project'],
       },
     },
-    // Customer name (for creating/updating customer)
     {
       id: 'customerName',
       title: 'Customer Name',
@@ -1284,7 +1222,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_customer', 'linear_update_customer'],
       },
     },
-    // Customer domains
     {
       id: 'customerDomains',
       title: 'Domains',
@@ -1295,7 +1232,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_customer', 'linear_update_customer'],
       },
     },
-    // Customer external IDs
     {
       id: 'customerExternalIds',
       title: 'External IDs',
@@ -1306,7 +1242,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_customer', 'linear_update_customer'],
       },
     },
-    // Customer logo URL
     {
       id: 'customerLogoUrl',
       title: 'Logo URL',
@@ -1317,7 +1252,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_customer', 'linear_update_customer'],
       },
     },
-    // Customer owner ID
     {
       id: 'customerOwnerId',
       title: 'Owner User ID',
@@ -1328,7 +1262,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_customer', 'linear_update_customer'],
       },
     },
-    // Customer revenue
     {
       id: 'customerRevenue',
       title: 'Annual Revenue',
@@ -1339,7 +1272,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_customer', 'linear_update_customer'],
       },
     },
-    // Customer size
     {
       id: 'customerSize',
       title: 'Organization Size',
@@ -1350,7 +1282,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_customer', 'linear_update_customer'],
       },
     },
-    // Customer ID (for customer request operations)
     {
       id: 'customerId',
       title: 'Customer ID',
@@ -1362,7 +1293,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
       },
     },
-    // Customer request ID (for updating)
     {
       id: 'customerNeedId',
       title: 'Customer Request ID',
@@ -1374,7 +1304,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_update_customer_request'],
       },
     },
-    // Customer request body/description
     {
       id: 'requestBody',
       title: 'Request Description',
@@ -1397,7 +1326,6 @@ Return ONLY the description text - no explanations.`,
           'Describe the customer request (e.g., "need bulk export feature", "integration with Slack")...',
       },
     },
-    // Customer request priority/urgency
     {
       id: 'customerRequestPriority',
       title: 'Urgency',
@@ -1412,7 +1340,6 @@ Return ONLY the description text - no explanations.`,
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
       },
     },
-    // Link customer request to issue
     {
       id: 'linkedIssueId',
       title: 'Link to Issue',
@@ -1423,7 +1350,6 @@ Return ONLY the description text - no explanations.`,
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
       },
     },
-    // Customer ID for get/update/delete/merge operations
     {
       id: 'customerIdTarget',
       title: 'Customer ID',
@@ -1435,7 +1361,6 @@ Return ONLY the description text - no explanations.`,
         value: ['linear_get_customer', 'linear_update_customer', 'linear_delete_customer'],
       },
     },
-    // Source and target customer IDs for merge
     {
       id: 'sourceCustomerId',
       title: 'Source Customer ID (to merge from)',
@@ -1458,7 +1383,6 @@ Return ONLY the description text - no explanations.`,
         value: ['linear_merge_customers'],
       },
     },
-    // Customer status/tier fields
     {
       id: 'statusName',
       title: 'Status Name',
@@ -1519,7 +1443,6 @@ Return ONLY the description text - no explanations.`,
         value: ['linear_update_customer_tier', 'linear_delete_customer_tier'],
       },
     },
-    // Project label fields
     {
       id: 'projectLabelName',
       title: 'Label Name',
@@ -1581,7 +1504,6 @@ Return ONLY the description text - no explanations.`,
         ],
       },
     },
-    // Project milestone fields
     {
       id: 'milestoneName',
       title: 'Milestone Name',
@@ -1637,7 +1559,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         generationType: 'timestamp',
       },
     },
-    // Project status fields
     {
       id: 'projectStatusName',
       title: 'Status Name',
@@ -1704,7 +1625,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['linear_create_project_status', 'linear_update_project_status'],
       },
     },
-    // Project ID for milestone/label operations
     {
       id: 'projectIdForMilestone',
       title: 'Project ID',
@@ -1721,7 +1641,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         ],
       },
     },
-    // Trigger SubBlocks
     ...getTrigger('linear_issue_created').subBlocks,
     ...getTrigger('linear_issue_updated').subBlocks,
     ...getTrigger('linear_issue_removed').subBlocks,
@@ -1828,12 +1747,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         const effectiveTeamId = params.teamId ? String(params.teamId).trim() : ''
         const effectiveProjectId = params.projectId ? String(params.projectId).trim() : ''
 
-        // Base params that most operations need
         const baseParams: Record<string, any> = {
           oauthCredential: params.oauthCredential,
         }
 
-        // Operation-specific param mapping
         switch (params.operation) {
           case 'linear_read_issues':
             return {
@@ -2142,7 +2059,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             if (!params.issueId?.trim()) {
               throw new Error('Issue ID is required.')
             }
-            // Normalize file input - use canonical param 'file' (raw subBlock IDs are deleted after serialization)
+            // Canonical param 'file': raw subBlock IDs are deleted after serialization
             const attachmentFile = normalizeFileInput(params.file, {
               single: true,
               errorMessage: 'Attachment file must be a single file.',
@@ -2343,7 +2260,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               includeArchived: false,
             }
 
-          // Customer Management Operations
           case 'linear_get_customer':
             if (!params.customerIdTarget?.trim()) {
               throw new Error('Customer ID is required.')
@@ -2394,7 +2310,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               targetCustomerId: params.targetCustomerId.trim(),
             }
 
-          // Customer Status Operations
           case 'linear_create_customer_status':
             if (!params.statusName?.trim() || !params.statusColor?.trim()) {
               throw new Error('Status name and color are required.')
@@ -2436,7 +2351,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               after: params.after?.trim() || undefined,
             }
 
-          // Customer Tier Operations
           case 'linear_create_customer_tier':
             if (!params.tierName?.trim() || !params.statusColor?.trim()) {
               throw new Error('Tier name and color are required.')
@@ -2478,7 +2392,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               after: params.after?.trim() || undefined,
             }
 
-          // Project Management Operations
           case 'linear_delete_project':
             if (!effectiveProjectId) {
               throw new Error('Project ID is required.')
@@ -2488,7 +2401,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               projectId: effectiveProjectId,
             }
 
-          // Project Label Operations
           case 'linear_create_project_label':
             if (!params.projectLabelName?.trim()) {
               throw new Error('Project label name is required.')
@@ -2551,7 +2463,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               labelId: params.projectLabelId.trim(),
             }
 
-          // Project Milestone Operations
           case 'linear_create_project_milestone':
             if (!params.projectIdForMilestone?.trim() || !params.milestoneName?.trim()) {
               throw new Error('Project ID and milestone name are required.')
@@ -2596,7 +2507,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               after: params.after?.trim() || undefined,
             }
 
-          // Project Status Operations
           case 'linear_create_project_status':
             if (
               !params.projectStatusName?.trim() ||
@@ -2710,7 +2620,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     customerNeedId: { type: 'string', description: 'Customer request identifier' },
     requestBody: { type: 'string', description: 'Customer request description' },
     linkedIssueId: { type: 'string', description: 'Issue ID to link to customer request' },
-    // New customer management inputs
     customerIdTarget: { type: 'string', description: 'Customer ID for operations' },
     sourceCustomerId: { type: 'string', description: 'Source customer ID for merge' },
     targetCustomerId: { type: 'string', description: 'Target customer ID for merge' },
@@ -2719,7 +2628,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     customerOwnerId: { type: 'string', description: 'Customer owner user ID' },
     customerRevenue: { type: 'number', description: 'Customer annual revenue' },
     customerSize: { type: 'number', description: 'Customer organization size' },
-    // Customer status and tier inputs
     statusId: { type: 'string', description: 'Status identifier' },
     statusName: { type: 'string', description: 'Status name' },
     statusColor: { type: 'string', description: 'Status color in hex format' },
@@ -2729,7 +2637,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     tierName: { type: 'string', description: 'Tier name' },
     tierDisplayName: { type: 'string', description: 'Tier display name' },
     tierDescription: { type: 'string', description: 'Tier description' },
-    // Project label inputs
     projectLabelId: { type: 'string', description: 'Project label identifier' },
     projectLabelName: { type: 'string', description: 'Project label name' },
     projectLabelDescription: { type: 'string', description: 'Project label description' },
@@ -2738,13 +2645,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'string',
       description: 'Parent label ID for hierarchical labels',
     },
-    // Project milestone inputs
     projectIdForMilestone: { type: 'string', description: 'Project ID for milestone operations' },
     milestoneId: { type: 'string', description: 'Milestone identifier' },
     milestoneName: { type: 'string', description: 'Milestone name' },
     milestoneDescription: { type: 'string', description: 'Milestone description' },
     milestoneTargetDate: { type: 'string', description: 'Milestone target date (YYYY-MM-DD)' },
-    // Project status inputs
     projectStatusId: { type: 'string', description: 'Project status identifier' },
     projectStatusName: { type: 'string', description: 'Project status name' },
     projectStatusDescription: { type: 'string', description: 'Project status description' },
@@ -2754,75 +2659,54 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     },
   },
   outputs: {
-    // Issue outputs
     issues: { type: 'json', description: 'Issues list' },
     issue: { type: 'json', description: 'Single issue data' },
     issueId: { type: 'string', description: 'Issue ID for operations' },
-    // Comment outputs
     comment: { type: 'json', description: 'Comment data' },
     comments: { type: 'json', description: 'Comments list' },
-    // Project outputs
     project: { type: 'json', description: 'Project data' },
     projects: { type: 'json', description: 'Projects list' },
     projectId: { type: 'string', description: 'Project ID for operations' },
-    // User/Team outputs
     users: { type: 'json', description: 'Users list' },
     teams: { type: 'json', description: 'Teams list' },
     user: { type: 'json', description: 'User data' },
     viewer: { type: 'json', description: 'Current user data' },
-    // Label outputs
     label: { type: 'json', description: 'Label data' },
     labels: { type: 'json', description: 'Labels list' },
     labelId: { type: 'string', description: 'Label ID for operations' },
-    // Workflow state outputs
     state: { type: 'json', description: 'Workflow state data' },
     states: { type: 'json', description: 'Workflow states list' },
-    // Cycle outputs
     cycle: { type: 'json', description: 'Cycle data' },
     cycles: { type: 'json', description: 'Cycles list' },
-    // Attachment outputs
     attachment: { type: 'json', description: 'Attachment data' },
     attachments: { type: 'json', description: 'Attachments list' },
-    // Relation outputs
     relation: { type: 'json', description: 'Issue relation data' },
     relations: { type: 'json', description: 'Issue relations list' },
-    // Favorite outputs
     favorite: { type: 'json', description: 'Favorite data' },
     favorites: { type: 'json', description: 'Favorites list' },
-    // Project update outputs
     update: { type: 'json', description: 'Project update data' },
     updates: { type: 'json', description: 'Project updates list' },
-    // Notification outputs
     notification: { type: 'json', description: 'Notification data' },
     notifications: { type: 'json', description: 'Notifications list' },
-    // Customer outputs
     customer: { type: 'json', description: 'Customer data' },
     customers: { type: 'json', description: 'Customers list' },
-    // Customer request outputs
     customerNeed: { type: 'json', description: 'Customer request data' },
     customerNeeds: { type: 'json', description: 'Customer requests list' },
-    // Customer status and tier outputs
     customerStatus: { type: 'json', description: 'Customer status data' },
     customerStatuses: { type: 'json', description: 'Customer statuses list' },
     customerTier: { type: 'json', description: 'Customer tier data' },
     customerTiers: { type: 'json', description: 'Customer tiers list' },
-    // Project label outputs
     projectLabel: { type: 'json', description: 'Project label data' },
     projectLabels: { type: 'json', description: 'Project labels list' },
-    // Project milestone outputs
     projectMilestone: { type: 'json', description: 'Project milestone data' },
     projectMilestones: { type: 'json', description: 'Project milestones list' },
-    // Project status outputs
     projectStatus: { type: 'json', description: 'Project status data' },
     projectStatuses: { type: 'json', description: 'Project statuses list' },
-    // Pagination
     pageInfo: {
       type: 'json',
       description: 'Pagination information (hasNextPage, endCursor) for list operations',
     },
-    // Success indicators
     success: { type: 'boolean', description: 'Operation success status' },
-    // Trigger outputs
     action: { type: 'string', description: 'Webhook action (create, update, remove)' },
     type: {
       type: 'string',
@@ -2867,7 +2751,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
  * Uses automatic webhook registration via the Linear GraphQL API.
  * Inherits all tool operations from the legacy block.
  */
-export const LinearV2Block: BlockConfig<LinearResponse> = {
+export const LinearV2Block: BlockConfig = {
   ...LinearBlock,
   sunset: undefined,
   type: 'linear_v2',
@@ -2892,7 +2776,6 @@ export const LinearV2Block: BlockConfig<LinearResponse> = {
         !sb.id?.startsWith('triggerInstructions') &&
         !sb.id?.startsWith('selectedTriggerId')
     ),
-    // V2 Trigger SubBlocks
     ...getTrigger('linear_issue_created_v2').subBlocks,
     ...getTrigger('linear_issue_updated_v2').subBlocks,
     ...getTrigger('linear_issue_removed_v2').subBlocks,

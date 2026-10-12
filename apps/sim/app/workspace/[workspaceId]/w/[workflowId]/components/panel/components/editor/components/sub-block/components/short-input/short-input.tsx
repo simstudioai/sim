@@ -219,13 +219,6 @@ export const ShortInput = memo(function ShortInput({
 
   const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : undefined
 
-  const effectiveValue =
-    (useWebhookUrl || config.providerWebhookUrl) && webhookManagement.webhookUrl
-      ? webhookManagement.webhookUrl
-      : baseValue
-
-  const value = wandHook?.isStreaming ? localContent : effectiveValue
-
   useEffect(() => {
     if (!wandHook.isStreaming) {
       setLocalContent((prev) => {

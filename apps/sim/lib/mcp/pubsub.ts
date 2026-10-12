@@ -19,6 +19,8 @@ interface McpPubSubAdapter {
   publishWorkflowToolsChanged(event: WorkflowToolsChangedEvent): void
   onToolsChanged(handler: (event: ToolsChangedEvent) => void): () => void
   onWorkflowToolsChanged(handler: (event: WorkflowToolsChangedEvent) => void): () => void
+  /** Settles once this process receives both channels' events. */
+  ready(): Promise<void>
   dispose(): void
 }
 
@@ -60,6 +62,9 @@ export const mcpPubSub: McpPubSubAdapter | null =
         publishWorkflowToolsChanged: (event) => workflowToolsChannel.publish(event),
         onToolsChanged: (handler) => toolsChannel.subscribe(handler),
         onWorkflowToolsChanged: (handler) => workflowToolsChannel.subscribe(handler),
+        ready: async () => {
+          await Promise.all([toolsChannel.ready(), workflowToolsChannel.ready()])
+        },
         dispose: () => {
           toolsChannel.dispose()
           workflowToolsChannel.dispose()

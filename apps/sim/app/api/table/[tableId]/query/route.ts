@@ -30,7 +30,6 @@ export const POST = defineInternalJsonRoute({
     includeTotal: !body.cursor,
     includeRunState: false,
     allowExpandedLimit: true,
-    requireV2Feature: true,
     includePersistedSecretProvenance: negotiateTableRowsProvenance(
       request,
       principal.kind === 'delegated'

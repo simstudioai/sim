@@ -1,7 +1,7 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Base params shared by every Icypeas operation. */
-export interface IcypeasBaseParams {
+interface IcypeasBaseParams {
   apiKey: string
 }
 
@@ -50,8 +50,6 @@ export interface IcypeasVerifyEmailResponse extends ToolResponse {
 }
 
 // Union response type used by the block
-
-export type IcypeasResponse = IcypeasFindEmailResponse | IcypeasVerifyEmailResponse
 
 // Shared output property constants
 

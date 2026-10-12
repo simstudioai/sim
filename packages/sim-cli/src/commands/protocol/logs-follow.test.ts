@@ -9,7 +9,7 @@ const { mockSleep } = vi.hoisted(() => ({
   mockSleep: vi.fn(() => Promise.resolve()),
 }))
 
-vi.mock('../../helpers', () => ({ sleep: mockSleep }))
+vi.mock('@sim/utils/helpers', () => ({ sleep: mockSleep }))
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
 

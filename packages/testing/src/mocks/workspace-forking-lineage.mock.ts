@@ -26,6 +26,7 @@ export const workspaceForkingLineageMockFns = {
   mockSetForkLockTimeout: vi.fn(),
   mockAcquireForkEdgeLock: vi.fn(),
   mockAcquireForkTargetLock: vi.fn(),
+  mockAcquireForkLineageLock: vi.fn(),
 }
 
 /**
@@ -44,4 +45,5 @@ export const workspaceForkingLineageMock = {
   setForkLockTimeout: workspaceForkingLineageMockFns.mockSetForkLockTimeout,
   acquireForkEdgeLock: workspaceForkingLineageMockFns.mockAcquireForkEdgeLock,
   acquireForkTargetLock: workspaceForkingLineageMockFns.mockAcquireForkTargetLock,
+  acquireForkLineageLock: workspaceForkingLineageMockFns.mockAcquireForkLineageLock,
 }

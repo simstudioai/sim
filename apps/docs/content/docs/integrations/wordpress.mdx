@@ -1033,4 +1033,17 @@ Search across all content types in WordPress.com (posts, pages, media)
 | `total` | number | Total number of results |
 | `totalPages` | number | Total number of result pages |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a WordPress account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/wordpress` |
+| Environment variables | `WORDPRESS_CLIENT_ID`, `WORDPRESS_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `global` | Full access to every WordPress.com site the account can manage |
+
 

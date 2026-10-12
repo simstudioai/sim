@@ -1,9 +1,8 @@
 import { TavilyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { TavilyResponse } from '@/tools/tavily/types'
 
-export const TavilyBlock: BlockConfig<TavilyResponse> = {
+export const TavilyBlock: BlockConfig = {
   type: 'tavily',
   name: 'Tavily',
   description: 'Search and extract information',

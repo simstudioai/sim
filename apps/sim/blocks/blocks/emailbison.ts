@@ -1,7 +1,6 @@
 import { EmailBisonIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { EmailBisonResponse } from '@/tools/emailbison/types'
 import { getTrigger } from '@/triggers'
 
 const LEAD_MUTATION_OPERATIONS = ['create_lead', 'update_lead'] as const
@@ -33,7 +32,7 @@ const EMAILBISON_TRIGGER_IDS = [
   'emailbison_warmup_disabled_causing_bounces',
 ] as const
 
-export const EmailBisonBlock: BlockConfig<EmailBisonResponse> = {
+export const EmailBisonBlock: BlockConfig = {
   type: 'emailbison',
   name: 'Email Bison',
   description: 'Manage Email Bison leads, campaigns, replies, and tags',

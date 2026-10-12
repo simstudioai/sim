@@ -1376,8 +1376,6 @@ Get display name and profile info for a Confluence user by account ID.
 | `profilePicture` | string | Path to the user profile picture |
 | `publicName` | string | Public name of the user |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -2156,4 +2154,55 @@ Trigger workflow on any Confluence webhook event
 | `content` | json | Content object \(present in label events\) |
 | `user` | json | User object \(present in user events\) |
 | `files` | file[] | Attachment file content \(present in attachment events when includeFileContent is enabled\) |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Confluence account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/confluence` |
+| Environment variables | `CONFLUENCE_CLIENT_ID`, `CONFLUENCE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `read:confluence-content.all` | Read all Confluence content |
+| `read:confluence-space.summary` | Read Confluence space information |
+| `read:space:confluence` | View Confluence spaces |
+| `write:confluence-content` | Create and edit Confluence pages, blog posts, and comments |
+| `write:confluence-space` | Manage Confluence spaces |
+| `write:confluence-file` | Upload files to Confluence |
+| `read:page:confluence` | View Confluence pages |
+| `write:page:confluence` | Create and update Confluence pages |
+| `read:comment:confluence` | View comments on Confluence pages |
+| `write:comment:confluence` | Create and update comments |
+| `delete:comment:confluence` | Delete comments from Confluence pages |
+| `delete:attachment:confluence` | Delete attachments from Confluence pages |
+| `delete:page:confluence` | Delete Confluence pages |
+| `read:label:confluence` | View labels on Confluence content |
+| `write:label:confluence` | Add and remove labels |
+| `read:attachment:confluence` | View attachments on Confluence pages |
+| `write:attachment:confluence` | Upload and manage attachments |
+| `search:confluence` | Search Confluence content |
+| `read:me` | Read profile information |
+| `offline_access` | Access account when not using the application |
+| `read:hierarchical-content:confluence` | View page hierarchy \(children and ancestors\) |
+| `read:content.metadata:confluence` | View content metadata \(required for ancestors\) |
+| `read:user:confluence` | View Confluence user profiles |
+| `read:confluence-user` | View Confluence user profiles \(v1 API\) |
+| `read:group:confluence` | View Confluence groups and memberships |
+| `read:task:confluence` | View Confluence inline tasks |
+| `write:task:confluence` | Update Confluence inline tasks |
+| `write:space:confluence` | Create and update Confluence spaces |
+| `delete:space:confluence` | Delete Confluence spaces |
+| `read:blogpost:confluence` | View Confluence blog posts |
+| `write:blogpost:confluence` | Create and update Confluence blog posts |
+| `delete:blogpost:confluence` | Delete Confluence blog posts |
+| `read:content.property:confluence` | View properties on Confluence content |
+| `write:content.property:confluence` | Create and manage content properties |
+| `read:space.property:confluence` | View Confluence space properties |
+| `write:space.property:confluence` | Create and manage space properties |
+| `read:space.permission:confluence` | View Confluence space permissions |
+
 

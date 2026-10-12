@@ -12,6 +12,7 @@
  */
 
 import { generateKeyBetween, generateNKeysBetween } from '@sim/utils/fractional-indexing'
+import { generateRandomBytes } from '@sim/utils/random'
 
 /**
  * Returns a key that sorts strictly between `a` and `b`. Pass `null` for an open
@@ -31,4 +32,28 @@ export function keyBetween(a: string | null, b: string | null): string {
  */
 export function nKeysBetween(a: string | null, b: string | null, n: number): string[] {
   return generateNKeysBetween(a, b, n)
+}
+
+/** Random halvings {@link appendKeys} takes: two concurrent appends collide with odds 2^-32. */
+const APPEND_SLOT_BITS = 32
+
+/**
+ * Returns `n` ordered keys after `last`, in a slot no concurrent append to the same table picks.
+ *
+ * Appends take no lock, so two writers can read the same `last`. Each mints inside the integer
+ * range `keyBetween(last, null)` opens, narrowed by {@link APPEND_SLOT_BITS} random halvings to a
+ * private sub-range: keys never collide, and a batch stays contiguous instead of interleaving with
+ * another writer's. The next append reads the new max and moves to the next integer, so keys do
+ * not grow across appends — each carries a fixed few extra characters.
+ */
+export function appendKeys(last: string | null, n: number): string[] {
+  let lo = keyBetween(last, null)
+  let hi = keyBetween(lo, null)
+  const bits = generateRandomBytes(APPEND_SLOT_BITS / 8)
+  for (let i = 0; i < APPEND_SLOT_BITS; i++) {
+    const mid = keyBetween(lo, hi)
+    if ((bits[i >> 3] >> (i & 7)) & 1) lo = mid
+    else hi = mid
+  }
+  return nKeysBetween(lo, hi, n)
 }

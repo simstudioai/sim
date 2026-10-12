@@ -1,7 +1,6 @@
 import { AhrefsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { AhrefsResponse } from '@/tools/ahrefs/types'
 
 const COUNTRY_OPTIONS = [
   { label: 'United States', id: 'us' },
@@ -88,7 +87,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   generationType: 'timestamp' as const,
 }
 
-export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
+export const AhrefsBlock: BlockConfig = {
   type: 'ahrefs',
   name: 'Ahrefs',
   description: 'SEO analysis with Ahrefs',
@@ -264,7 +263,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       ],
       value: () => 'ahrefs_domain_rating',
     },
-    // Domain Rating operation inputs
     {
       id: 'target',
       title: 'Target Domain',
@@ -282,7 +280,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       mode: 'advanced',
       wandConfig: DATE_WAND_CONFIG,
     },
-    // Metrics operation inputs
     {
       id: 'target',
       title: 'Target Domain/URL',
@@ -318,7 +315,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       mode: 'advanced',
       wandConfig: DATE_WAND_CONFIG,
     },
-    // Backlinks operation inputs
     {
       id: 'target',
       title: 'Target Domain/URL',
@@ -356,7 +352,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_backlinks' },
       mode: 'advanced',
     },
-    // Backlinks Stats operation inputs
     {
       id: 'target',
       title: 'Target Domain/URL',
@@ -383,7 +378,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       mode: 'advanced',
       wandConfig: DATE_WAND_CONFIG,
     },
-    // Referring Domains operation inputs
     {
       id: 'target',
       title: 'Target Domain/URL',
@@ -421,7 +415,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_referring_domains' },
       mode: 'advanced',
     },
-    // Broken Backlinks operation inputs
     {
       id: 'target',
       title: 'Target Domain/URL',
@@ -447,7 +440,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_broken_backlinks' },
       mode: 'advanced',
     },
-    // Organic Keywords operation inputs
     {
       id: 'target',
       title: 'Target Domain/URL',
@@ -491,7 +483,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       mode: 'advanced',
       wandConfig: DATE_WAND_CONFIG,
     },
-    // Organic Competitors operation inputs
     {
       id: 'target',
       title: 'Target Domain/URL',
@@ -535,7 +526,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       mode: 'advanced',
       wandConfig: DATE_WAND_CONFIG,
     },
-    // Top Pages operation inputs
     {
       id: 'target',
       title: 'Target Domain',
@@ -579,7 +569,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       mode: 'advanced',
       wandConfig: DATE_WAND_CONFIG,
     },
-    // Keyword Overview operation inputs
     {
       id: 'keyword',
       title: 'Keyword',
@@ -597,7 +586,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_keyword_overview' },
       mode: 'advanced',
     },
-    // Paid Pages operation inputs
     {
       id: 'target',
       title: 'Target Domain',
@@ -641,7 +629,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       mode: 'advanced',
       wandConfig: DATE_WAND_CONFIG,
     },
-    // Anchors operation inputs
     {
       id: 'target',
       title: 'Target Domain/URL',
@@ -679,7 +666,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_anchors' },
       mode: 'advanced',
     },
-    // Related Terms operation inputs
     {
       id: 'keyword',
       title: 'Keyword',
@@ -723,7 +709,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_related_terms' },
       mode: 'advanced',
     },
-    // Domain Rating History operation inputs
     {
       id: 'target',
       title: 'Target Domain',
@@ -759,7 +744,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_domain_rating_history' },
       mode: 'advanced',
     },
-    // Metrics History operation inputs
     {
       id: 'target',
       title: 'Target Domain/URL',
@@ -822,7 +806,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_metrics_history' },
       mode: 'advanced',
     },
-    // Referring Domains History operation inputs
     {
       id: 'target',
       title: 'Target Domain/URL',
@@ -867,7 +850,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_refdomains_history' },
       mode: 'advanced',
     },
-    // Keywords History operation inputs
     {
       id: 'target',
       title: 'Target Domain/URL',
@@ -921,7 +903,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_keywords_history' },
       mode: 'advanced',
     },
-    // Batch Analysis operation inputs
     {
       id: 'targets',
       title: 'Targets',
@@ -966,7 +947,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_batch_analysis' },
       mode: 'advanced',
     },
-    // Site Audit Page Explorer operation inputs
     {
       id: 'projectId',
       title: 'Site Audit Project ID',
@@ -1008,7 +988,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_site_audit_page_explorer' },
       mode: 'advanced',
     },
-    // Rank Tracker Overview operation inputs
     {
       id: 'projectId',
       title: 'Rank Tracker Project ID',
@@ -1061,7 +1040,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_rank_tracker_overview' },
       mode: 'advanced',
     },
-    // Rank Tracker SERP Overview operation inputs
     {
       id: 'projectId',
       title: 'Rank Tracker Project ID',
@@ -1129,7 +1107,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_rank_tracker_serp_overview' },
       mode: 'advanced',
     },
-    // Rank Tracker Competitors Overview operation inputs
     {
       id: 'projectId',
       title: 'Rank Tracker Project ID',
@@ -1182,7 +1159,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_rank_tracker_competitors_overview' },
       mode: 'advanced',
     },
-    // Rank Tracker Competitors Stats operation inputs
     {
       id: 'projectId',
       title: 'Rank Tracker Project ID',
@@ -1218,7 +1194,6 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       condition: { field: 'operation', value: 'ahrefs_rank_tracker_competitors_stats' },
       mode: 'advanced',
     },
-    // API Key (common to all operations)
     {
       id: 'apiKey',
       title: 'API Key',
@@ -1374,88 +1349,65 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
     },
   },
   outputs: {
-    // Domain Rating output
     domainRating: { type: 'number', description: 'Domain Rating score (0-100)' },
     ahrefsRank: { type: 'number', description: 'Ahrefs Rank (global ranking)' },
-    // Metrics output
     metrics: {
       type: 'json',
       description:
         'Organic and paid search overview (organicTraffic, organicKeywords, organicKeywordsTop3, organicCost, paidTraffic, paidKeywords, paidPages, paidCost)',
     },
-    // Backlinks output
     backlinks: { type: 'json', description: 'List of backlinks' },
-    // Backlinks Stats output
     stats: {
       type: 'json',
       description:
         'Backlink and referring domain totals (liveBacklinks, liveReferringDomains, allTimeBacklinks, allTimeReferringDomains)',
     },
-    // Referring Domains output
     referringDomains: { type: 'json', description: 'List of referring domains' },
-    // Broken Backlinks output
     brokenBacklinks: { type: 'json', description: 'List of broken backlinks' },
-    // Organic Keywords output
     keywords: { type: 'json', description: 'List of organic keywords' },
-    // Organic Competitors output
     competitors: { type: 'json', description: 'List of organic search competitors' },
-    // Top Pages output
     pages: { type: 'json', description: 'List of top pages' },
-    // Keyword Overview output
     overview: {
       type: 'json',
       description:
         'Keyword metrics overview, including search intent flags (informational, navigational, commercial, transactional, branded, local)',
     },
-    // Paid Pages output
     paidPages: { type: 'json', description: 'List of pages receiving paid search traffic' },
-    // Anchors output
     anchors: { type: 'json', description: 'Anchor text distribution for the backlink profile' },
-    // Related Terms output
     relatedTerms: { type: 'json', description: 'Related keyword ideas for the seed keyword' },
-    // Domain Rating History output
     domainRatings: { type: 'json', description: 'Historical Domain Rating data points' },
-    // Metrics History output
     metricsHistory: {
       type: 'json',
       description: 'Historical organic and paid traffic data points',
     },
-    // Referring Domains History output
     referringDomainsHistory: {
       type: 'json',
       description: 'Historical referring domains count data points',
     },
-    // Keywords History output
     keywordsHistory: {
       type: 'json',
       description: 'Historical organic keyword ranking distribution',
     },
-    // Batch Analysis output
     results: {
       type: 'json',
       description: 'Bulk SEO metrics for each analyzed target, in submission order',
     },
-    // Site Audit Page Explorer output
     auditPages: {
       type: 'json',
       description: 'Crawled pages with health and SEO metrics from a Site Audit project',
     },
-    // Rank Tracker Overview output
     overviews: {
       type: 'json',
       description: 'Ranking overview for each keyword tracked in a Rank Tracker project',
     },
-    // Rank Tracker SERP Overview output
     positions: {
       type: 'json',
       description: 'Every ranking result on the SERP for a tracked keyword',
     },
-    // Rank Tracker Competitors Overview output
     competitorKeywords: {
       type: 'json',
       description: 'Tracked keywords with competitor ranking, traffic, and traffic value data',
     },
-    // Rank Tracker Competitors Stats output
     competitorsStats: {
       type: 'json',
       description: 'Aggregate stats for each tracked Rank Tracker competitor',

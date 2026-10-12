@@ -5,11 +5,13 @@ import type { CompetitorProfile } from '@/lib/compare/data'
 import { simProfile } from '@/lib/compare/data'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { buildLandingMetadata } from '@/lib/landing/seo'
+import { LIBRARY_SECTION } from '@/lib/library/seo'
 import { COMPARISON_SECTIONS, getFactGroup } from '@/app/(landing)/comparisons/comparison-sections'
 import { BrandIconTile, SimIconTile } from '@/app/(landing)/comparisons/components/brand-icon-tile'
 import { ComparisonCards } from '@/app/(landing)/comparisons/components/comparison-cards'
 import { ComparisonTable } from '@/app/(landing)/comparisons/components/comparison-table'
 import { ProseText } from '@/app/(landing)/comparisons/components/prose-text'
+import { getLibraryPostsForCompetitor } from '@/app/(landing)/comparisons/library-links'
 import {
   ALL_COMPETITORS,
   buildBottomLine,
@@ -18,7 +20,7 @@ import {
   getLatestVerifiedDate,
   SIM_LATEST_VERIFIED,
 } from '@/app/(landing)/comparisons/utils'
-import { BackLink } from '@/app/(landing)/components'
+import { BackLink, ContentRelatedPosts } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
@@ -86,6 +88,7 @@ export default async function ComparisonProviderPage({
   }
 
   const faqs = buildComparisonFaqs(competitor)
+  const relatedPosts = await getLibraryPostsForCompetitor(competitor)
   const verdict = buildBottomLine(competitor)
   const CompetitorIcon = competitor.brand?.icon
 
@@ -214,7 +217,7 @@ export default async function ComparisonProviderPage({
                 <section aria-labelledby='better-than-heading' className='px-6 py-10'>
                   <h2
                     id='better-than-heading'
-                    className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                    className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
                   >
                     Is Sim better than {competitor.name}?
                   </h2>
@@ -267,7 +270,7 @@ export default async function ComparisonProviderPage({
             <section aria-labelledby='comparison-table-heading' className='px-6 pt-10 pb-4'>
               <h2
                 id='comparison-table-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
               >
                 Sim vs {competitor.name}: feature-by-feature comparison
               </h2>
@@ -338,7 +341,7 @@ export default async function ComparisonProviderPage({
             <section aria-labelledby='bottom-line-heading' className='px-6 py-10'>
               <h2
                 id='bottom-line-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
               >
                 Bottom line
               </h2>
@@ -354,10 +357,30 @@ export default async function ComparisonProviderPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
+            {relatedPosts.length > 0 ? (
+              <>
+                <section aria-labelledby='related-reading-heading'>
+                  <h2
+                    id='related-reading-heading'
+                    className='px-6 pt-10 pb-6 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
+                  >
+                    Related reading
+                  </h2>
+                  <div className='h-px w-full bg-[var(--border)]' />
+                  <ContentRelatedPosts
+                    basePath={LIBRARY_SECTION.basePath}
+                    posts={relatedPosts}
+                    label='Related reading'
+                  />
+                </section>
+                <div className='h-px w-full bg-[var(--border)]' />
+              </>
+            ) : null}
+
             <section aria-labelledby='faq-heading' className='px-6 py-10'>
               <h2
                 id='faq-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
               >
                 Frequently asked questions
               </h2>

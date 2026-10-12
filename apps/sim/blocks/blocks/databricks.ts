@@ -1,7 +1,6 @@
 import { DatabricksIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { DatabricksResponse } from '@/tools/databricks/types'
 
 /** A run is parameterized either at the job level or per notebook, never both. */
 const DATABRICKS_RUN_PARAMS_FIELD = ['jobParameters', 'notebookParams'] as const
@@ -47,7 +46,7 @@ const GENIE_PAGED_OPERATIONS = [
   'genie_list_messages',
 ]
 
-export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
+export const DatabricksBlock: BlockConfig = {
   type: 'databricks',
   name: 'Databricks',
   description: 'Run SQL, manage jobs, and ask Genie agents on Databricks',

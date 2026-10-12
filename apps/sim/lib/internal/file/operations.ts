@@ -14,6 +14,7 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import { durableSecretProvenanceFromPrivateBundle } from '@/lib/execution/durable-secret-provenance'
+import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
 import {
   inspectPrivateSecretProvenanceRequest,
   isPrivateSecretProvenanceBundleV1,
@@ -596,6 +597,7 @@ export async function getFileContentProvenance(
     ? { userId: ownerUserId, workspaceId }
     : undefined
   const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
+  let unrecorded = 0
 
   for (const source of sources) {
     signal?.throwIfAborted()
@@ -605,7 +607,11 @@ export async function getFileContentProvenance(
     }
     const provenance = await readFileSourceSecretProvenance(principal, workspaceId, source.identity)
     signal?.throwIfAborted()
-    if (provenance.status !== 'exact' || (source.opaque && provenance.entries.length > 0)) {
+    if (provenance.status === 'unrecorded') {
+      unrecorded += 1
+      continue
+    }
+    if (provenance.status === 'unknown' || (source.opaque && provenance.entries.length > 0)) {
       accumulator.markIncomplete('workspace-file-provenance-unknown')
       continue
     }
@@ -625,6 +631,13 @@ export async function getFileContentProvenance(
     })
   }
 
+  if (unrecorded > 0) {
+    reportDurableSecretProvenanceUnrecorded({
+      surface: 'workspace-file',
+      workspaceId,
+      recordCount: unrecorded,
+    })
+  }
   return accumulator.exportProvenance()
 }
 

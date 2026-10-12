@@ -1,25 +1,23 @@
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { jsonResponse } from '@sim/testing/helpers/http'
-import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { authOAuthUtilsMock } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetCredentialOwner } = vi.hoisted(() => ({
-  mockGetCredentialOwner: vi.fn(),
+const { mockGetCredentialAccessToken } = vi.hoisted(() => ({
+  mockGetCredentialAccessToken: vi.fn(),
 }))
 
 vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
   getProviderConfig: (webhook: { providerConfig?: Record<string, unknown> }) =>
     webhook.providerConfig || {},
   getNotificationUrl: () => 'https://app.example.com/api/webhooks/trigger/clickup-path',
-  getCredentialOwner: mockGetCredentialOwner,
+  getCredentialAccessToken: mockGetCredentialAccessToken,
 }))
 
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 import { clickupHandler } from '@/lib/webhooks/providers/clickup'
-
-const mockRefreshAccessTokenIfNeeded = authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded
 
 const fetchMock = vi.fn()
 
@@ -39,8 +37,7 @@ function createContext(providerConfig: Record<string, unknown>) {
 describe('ClickUp webhook provider', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock)
-    mockGetCredentialOwner.mockResolvedValue({ userId: 'user-1', accountId: 'account-1' })
-    mockRefreshAccessTokenIfNeeded.mockResolvedValue('oauth-token')
+    mockGetCredentialAccessToken.mockResolvedValue('oauth-token')
   })
 
   describe('verifyAuth', () => {

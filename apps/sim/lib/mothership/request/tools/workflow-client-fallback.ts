@@ -49,8 +49,10 @@ interface RaceWorkflowToolClientPickupParams {
  *
  * After `graceMs` with no result, this competes for the same single-winner
  * execution claim that `/api/workflows/[id]/execute` takes on the browser's
- * behalf. Losing the claim means a browser really is running it, so we go back
- * to waiting; winning it means nobody was there, so we run it in-process.
+ * behalf. Losing the claim means a browser started it through that route, so we
+ * go back to waiting: the route reports the bound execution's outcome itself when
+ * it settles, even if the browser has gone. Winning it means nobody was there, so
+ * we run it in-process.
  * Because both sides contend on `claimedBy IS NULL`, the workflow can never run
  * twice — a browser arriving late gets a 409 it already treats as benign.
  */

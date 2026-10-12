@@ -1,7 +1,6 @@
 import { DynatraceIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { DynatraceResponse } from '@/tools/dynatrace/types'
 
 /** Operations that accept the shared `from` timeframe parameter. */
 const FROM_OPERATIONS = [
@@ -110,7 +109,7 @@ const SETTINGS_OBJECT_ID_OPERATIONS = [
   'dynatrace_delete_settings_object',
 ]
 
-export const DynatraceBlock: BlockConfig<DynatraceResponse> = {
+export const DynatraceBlock: BlockConfig = {
   type: 'dynatrace',
   name: 'Dynatrace',
   description: 'Manage Dynatrace problems, metrics, entities, logs, SLOs, settings, and security',

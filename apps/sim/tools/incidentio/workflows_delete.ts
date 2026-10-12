@@ -31,7 +31,7 @@ export const workflowsDeleteTool: ToolConfig<WorkflowsDeleteParams, WorkflowsDel
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async () => {
     return {
       success: true,
       output: {

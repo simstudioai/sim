@@ -1,0 +1,203 @@
+---
+title: Power BI
+description: Query semantic models and manage reports and refreshes
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="powerbi"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect a home-tenant organizational account through the Power BI Microsoft connection to list named workspaces, inspect reports and semantic models, execute DAX queries, request standard refreshes, and read refresh history. Microsoft Graph connections cannot substitute for this delegated OAuth connection. Self-hosted installations use the shared Microsoft app registration and register /api/auth/oauth2/callback/microsoft-powerbi as a Web redirect URI. Workspace listing supports a result limit, offset, and OData filter; reports and semantic models return flat lists. Read-only models may contain only their ID and name, and paginated reports may omit their semantic-model ID. Missing optional fields are null and do not establish permission or feature availability. Keep results small with summaries or TOPN: provider JSON reads are limited to 20 MiB, and workflow tool responses have a stricter 10 MiB inline budget. My Workspace, cross-tenant guest configuration, Credential Groups, service principals, impersonation, enhanced refresh, report exports, dashboards, and triggers are outside this version.
+
+
+
+## Actions
+
+### Power BI List Workspaces
+
+List accessible Power BI workspaces with optional OData filtering and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Maximum number of workspaces to return |
+| `skip` | number | No | Number of workspaces to skip |
+| `filter` | string | No | OData filter, for example contains\(name,'Sales'\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workspaces` | array | Accessible workspaces returned by this request |
+|   ↳ `id` | string | Workspace ID |
+|   ↳ `name` | string | Workspace name |
+| `workspaceCount` | number | Number of workspaces returned by this request |
+
+### Power BI List Reports
+
+List reports in a Power BI workspace, including paginated reports.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Power BI workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reports` | array | Reports in the workspace |
+|   ↳ `id` | string | Report ID |
+|   ↳ `name` | string | Report name |
+| `reportCount` | number | Number of reports returned |
+
+### Power BI Get Report
+
+Get report metadata from a Power BI workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Power BI workspace ID |
+| `reportId` | string | Yes | Power BI report ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `report` | object | Report metadata; unavailable fields are null |
+|   ↳ `id` | string | Report ID |
+|   ↳ `name` | string | Report name |
+
+### Power BI List Semantic Models
+
+List semantic models in a Power BI workspace; available metadata depends on permissions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Power BI workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `datasets` | array | Semantic models in the workspace |
+|   ↳ `id` | string | Semantic model ID |
+|   ↳ `name` | string | Semantic model name |
+| `datasetCount` | number | Number of semantic models returned |
+
+### Power BI Get Semantic Model
+
+Get semantic model metadata from a Power BI workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Power BI workspace ID |
+| `datasetId` | string | Yes | Power BI semantic model ID \(dataset ID in the REST API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dataset` | object | Semantic model metadata; unavailable fields are null |
+|   ↳ `id` | string | Semantic model ID |
+|   ↳ `name` | string | Semantic model name |
+
+### Power BI Execute DAX Query
+
+Execute one DAX query returning one table. Requires workspace access, Read/Build permissions, and the tenant Execute Queries setting. Reported errors fail the action even with HTTP 200. Direct tool responses retain partial rows and typed errors; failed workflows expose only the standard error output. Sim limits workflow tool responses to 10 MiB; use summaries or TOPN for larger results.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Power BI workspace ID |
+| `datasetId` | string | Yes | Power BI semantic model ID \(dataset ID in the REST API\) |
+| `query` | string | Yes | One DAX query returning one table, for example EVALUATE TOPN\(10, Sales\). Power BI caps each query at 100,000 rows or 1,000,000 values, 15 MB of data, and 120 requests per minute per user. Sim applies a stricter 10 MiB workflow tool-response budget. Dynamic column names are preserved; successful queries expose the declared outputs. Connect the error port to handle the standard error when a query fails; failed workflow outputs omit partial rows, errors, and incomplete. |
+| `includeNulls` | boolean | No | Include blank values in returned rows; defaults to true |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Returned query rows, preserving provider column keys |
+| `rowCount` | number | Number of rows returned |
+| `errors` | array | Errors reported at response, query, or table scope |
+|   ↳ `scope` | string | Error scope: response, query, or table |
+|   ↳ `details` | json | Dynamic nested provider error details, when supplied |
+| `incomplete` | boolean | Whether the provider reported an embedded error; false does not guarantee an unlimited result |
+| `informationProtectionLabel` | object | Information protection label, when supplied |
+
+### Power BI Refresh Semantic Model
+
+Request a standard asynchronous semantic model refresh and return acceptance immediately. Acceptance does not mean completion; use Get Refresh History separately to inspect status. Shared capacity allows eight refresh requests per day, including scheduled refreshes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Power BI workspace ID |
+| `datasetId` | string | Yes | Power BI semantic model ID \(dataset ID in the REST API\) |
+| `notifyOption` | string | No | NoNotification, MailOnFailure, or MailOnCompletion; defaults to NoNotification |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether Power BI accepted the refresh request; does not indicate completion |
+| `requestId` | string | Provider x-ms-request-id header, when supplied |
+| `location` | string | Provider Location header, when supplied |
+
+### Power BI Get Refresh History
+
+Get recent semantic model refresh history; requires Write permission on the model. Unknown can mean a refresh is in progress or its completion state is unknown.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Power BI workspace ID |
+| `datasetId` | string | Yes | Power BI semantic model ID \(dataset ID in the REST API\) |
+| `top` | number | No | Requested number of entries; defaults to the last available 60 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `refreshes` | array | Recent refresh entries returned by Power BI |
+|   ↳ `refreshAttempts` | array | Refresh attempts supplied by the provider |
+|     ↳ `attemptId` | number | Refresh attempt index |
+| `refreshCount` | number | Number of refresh entries returned |
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Power BI account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-powerbi` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://analysis.windows.net/powerbi/api/Workspace.Read.All` | View Power BI workspaces |
+| `https://analysis.windows.net/powerbi/api/Report.Read.All` | View Power BI reports |
+| `https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All` | Read, create, update, refresh, and delete Power BI semantic models within your account’s permissions |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `offline_access` | Access account when not using the application |
+
+

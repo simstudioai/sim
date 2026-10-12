@@ -2,9 +2,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { SQSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SqsResponse } from '@/tools/sqs/types'
 
-export const SQSBlock: BlockConfig<SqsResponse> = {
+export const SQSBlock: BlockConfig = {
   type: 'sqs',
   name: 'Amazon SQS',
   description: 'Connect to Amazon SQS',

@@ -120,7 +120,7 @@ export const createInsightTool: ToolConfig<
       if (params.query) {
         try {
           body.query = JSON.parse(params.query)
-        } catch (e) {
+        } catch {
           body.query = null
         }
       }

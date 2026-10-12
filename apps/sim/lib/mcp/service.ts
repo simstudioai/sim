@@ -492,6 +492,18 @@ class McpService {
     return client
   }
 
+  /** An operation owns this unpooled client and must disconnect it in its finalizer. */
+  async openManagedMcpSession(
+    serverId: string,
+    scope: ResourceScope,
+    auth: McpOauthCredentials,
+    signal: AbortSignal
+  ): Promise<Pick<McpClient, 'listTools' | 'callTool' | 'disconnect'>> {
+    const config = await this.getServerConfig(serverId, scope)
+    if (!config) throw new Error('Managed MCP server is unavailable')
+    return this.createManagedOauthClient(config, auth, signal)
+  }
+
   async discoverManagedMcpTools(
     serverId: string,
     scope: string | ResourceScope,

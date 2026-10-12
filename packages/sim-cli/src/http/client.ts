@@ -1,3 +1,4 @@
+import { truncate } from '@sim/utils/string'
 import { writeStderr } from '#sim-cli/output/io'
 import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
@@ -139,7 +140,7 @@ function toNonJsonError(
   const keepSnippet = !isMarkup && text.length > 0 && text.length <= 200
   return new SimApiError(
     `${url} returned ${kind}, not JSON (HTTP ${status}) — check your endpoint.${
-      keepSnippet ? ` Response: ${truncate(text, 200)}` : ''
+      keepSnippet ? ` Response: ${truncate(text, 200, '…')}` : ''
     }`,
     status
   )
@@ -185,10 +186,6 @@ function toApiError(
   return new SimApiError(`Request failed with status ${status}`, status)
 }
 
-function truncate(value: string, max: number): string {
-  return value.length <= max ? value : `${value.slice(0, max)}…`
-}
-
 /**
  * Keeps the useful nested reason from Node/Undici transport failures without
  * serializing request options, headers, socket objects, or credentials.
@@ -203,7 +200,7 @@ function transportErrorMessage(error: unknown): string {
     const candidate = current as { message?: unknown; code?: unknown; cause?: unknown }
     const message =
       typeof candidate.message === 'string'
-        ? truncate(candidate.message.replace(/\s+/g, ' ').trim(), 300)
+        ? truncate(candidate.message.replace(/\s+/g, ' ').trim(), 300, '…')
         : ''
     const code = typeof candidate.code === 'string' ? candidate.code : ''
     const detail = `${message}${code && !message.includes(code) ? ` (${code})` : ''}`
@@ -448,7 +445,7 @@ export function formatApiErrorDetails(details: unknown): string[] {
   }
 
   visit(details)
-  if (issues.length === 0) return [`  details: ${truncate(JSON.stringify(details), 1000)}`]
+  if (issues.length === 0) return [`  details: ${truncate(JSON.stringify(details), 1000, '…')}`]
 
   const kept = dropUnionBranchNoise(issues)
   const visible = kept.slice(0, 8)

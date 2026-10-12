@@ -41,10 +41,10 @@ import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -167,7 +167,7 @@ export const GET = withRouteHandler(
       })
     } catch (error) {
       logger.error('Admin API: Failed to list promotion codes', { error })
-      return internalErrorResponse('Failed to list promotion codes')
+      return adminInternalErrorResponse('Failed to list promotion codes')
     }
   })
 )
@@ -196,7 +196,7 @@ export const POST = withRouteHandler(
       if (appliesTo?.length) {
         appliesToProducts = await resolveProductIds(stripe, appliesTo)
         if (appliesToProducts.length === 0) {
-          return badRequestResponse(
+          return adminBadRequestResponse(
             'Could not resolve any Stripe products for the specified plan categories. Ensure price IDs are configured.'
           )
         }
@@ -252,10 +252,10 @@ export const POST = withRouteHandler(
         (error as { type: string }).type === 'StripeInvalidRequestError'
       ) {
         logger.warn('Admin API: Stripe rejected promotion code request', { error: error.message })
-        return badRequestResponse(error.message)
+        return adminBadRequestResponse(error.message)
       }
       logger.error('Admin API: Failed to create promotion code', { error })
-      return internalErrorResponse('Failed to create promotion code')
+      return adminInternalErrorResponse('Failed to create promotion code')
     }
   })
 )

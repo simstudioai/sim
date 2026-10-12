@@ -314,7 +314,7 @@ function TablesGridPane({ rowCount, filledCount }: TablesGridPaneProps) {
                 const Icon = column.type === 'boolean' ? TypeBoolean : TypeText
                 return (
                   <th key={column.id} className={CELL_HEADER}>
-                    <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
+                    <div className='flex size-full min-w-0 items-center px-2 py-[7px]'>
                       <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
                       <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-primary)] text-small'>
                         {column.label}
@@ -391,10 +391,10 @@ export function TablesHeroLoop() {
 
   return (
     <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeItem='Tables'>
-      <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
+      <div className='size-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
         <div
           className={cn(
-            'h-full w-full transition-opacity duration-300 ease-out',
+            'size-full transition-opacity duration-300 ease-out',
             fading ? 'opacity-0' : 'opacity-100'
           )}
         >

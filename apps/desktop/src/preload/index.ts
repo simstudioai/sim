@@ -28,6 +28,7 @@ import type {
   BrowserToolbarCommand,
   DesktopAppearanceTheme,
   DesktopCommand,
+  DesktopExecutorDevice,
   DesktopLocalFileRequest,
   DesktopLocalFileResponse,
   DesktopNotificationPayload,
@@ -127,6 +128,12 @@ const api: SimDesktopApi = {
     : {}),
   beginOAuthConnect: (providerId: string, scope?: DesktopOAuthConnectScope): Promise<boolean> =>
     ipcRenderer.invoke('desktop:oauth-connect', providerId, scope),
+  prepareSourceConnect: (): Promise<string | null> =>
+    ipcRenderer.invoke('desktop:source-connect-prepare'),
+  beginSourceConnect: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke('desktop:source-connect', requestId),
+  cancelSourceConnect: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke('desktop:source-connect-cancel', requestId),
   onOAuthConnectComplete: (callback: (result: DesktopOAuthConnectResult) => void): (() => void) => {
     const listener = (_event: unknown, result: DesktopOAuthConnectResult) => callback(result)
     ipcRenderer.on('desktop:oauth-connect-complete', listener)
@@ -150,6 +157,7 @@ const api: SimDesktopApi = {
     ipcRenderer.invoke('desktop:local-filesystem', request),
   localFiles: (request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse> =>
     ipcRenderer.invoke('desktop:local-files', request),
+  localReadClaims: true,
   onCommand: (callback: (command: DesktopCommand) => void): (() => void) => {
     const listener = (_event: unknown, command: DesktopCommand) => callback(command)
     ipcRenderer.on('desktop:command', listener)
@@ -171,6 +179,17 @@ const api: SimDesktopApi = {
     getPreferences: (): Promise<DesktopPreferences> => ipcRenderer.invoke('desktop:settings:get'),
     setPreference: (key: DesktopPreferenceKey, value: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set', key, value),
+    setFullFileAccess: (enabled: boolean): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set-full-file-access', enabled),
+    onFullFileAccessChanged: (
+      callback: (preferences: DesktopPreferences) => void
+    ): (() => void) => {
+      const listener = (_event: unknown, preferences: DesktopPreferences) => callback(preferences)
+      ipcRenderer.on('desktop:settings:full-file-access-changed', listener)
+      return () => ipcRenderer.removeListener('desktop:settings:full-file-access-changed', listener)
+    },
+    setPreventSleepWhileRunning: (enabled: boolean): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set-prevent-sleep', enabled),
     setBrowserSearchSuggestionsEnabled: (enabled: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set-browser-search-suggestions', enabled),
     notify: (payload: DesktopNotificationPayload): Promise<boolean> =>
@@ -185,6 +204,10 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('desktop:settings:set-appearance', 'terminalTheme', theme),
     setTerminalDefaultZoom: (zoom: DesktopZoomPercent): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set-terminal-default-zoom', zoom),
+  },
+  desktopExecutor: {
+    getDevice: (): Promise<DesktopExecutorDevice | null> =>
+      ipcRenderer.invoke('desktop-executor:get-device'),
   },
   updates: {
     getState: (): Promise<DesktopUpdateState> => ipcRenderer.invoke('desktop:updates:get-state'),

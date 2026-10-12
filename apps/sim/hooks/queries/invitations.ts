@@ -1,6 +1,12 @@
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { extractValidationIssues } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
@@ -112,16 +118,23 @@ async function fetchPendingInvitations(
   )
 }
 
+export function pendingInvitationsQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: invitationKeys.list(workspaceId),
+    queryFn: ({ signal }) => fetchPendingInvitations(workspaceId, signal),
+    staleTime: WORKSPACE_INVITATION_LIST_STALE_TIME,
+    retryOnMount: true,
+  })
+}
+
 /**
  * Fetches pending invitations for a workspace.
  * @param workspaceId - The workspace ID to fetch invitations for
  */
 export function usePendingInvitations(workspaceId: string | undefined) {
   return useQuery({
-    queryKey: invitationKeys.list(workspaceId ?? ''),
-    queryFn: ({ signal }) => fetchPendingInvitations(workspaceId as string, signal),
+    ...pendingInvitationsQueryOptions(workspaceId ?? ''),
     enabled: Boolean(workspaceId),
-    staleTime: WORKSPACE_INVITATION_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

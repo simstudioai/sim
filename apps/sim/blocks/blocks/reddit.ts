@@ -2,11 +2,10 @@ import { RedditIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { RedditResponse } from '@/tools/reddit/types'
 
 const REPORT_REASON_FIELD = ['reportReason', 'reportOtherReason'] as const
 
-export const RedditBlock: BlockConfig<RedditResponse> = {
+export const RedditBlock: BlockConfig = {
   type: 'reddit',
   name: 'Reddit',
   description: 'Access Reddit data and content',

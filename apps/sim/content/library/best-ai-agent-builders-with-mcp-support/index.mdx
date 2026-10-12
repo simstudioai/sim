@@ -9,7 +9,6 @@ authors:
 readingTime: 16
 tags: [AI Agents, MCP, Automation, Open Source, Sim]
 ogImage: /library/best-ai-agent-builders-with-mcp-support/cover.jpg
-canonical: https://www.sim.ai/library/best-ai-agent-builders-with-mcp-support
 draft: false
 faq:
   - q: "What is Model Context Protocol?"
@@ -72,7 +71,7 @@ Authentication methods, enterprise controls, human approval features, and observ
 
 ### Sim
 
-Sim is an open, extensible, multi-model agent workspace for building custom agents with specific tools, models, and data sources. You construct and deploy your own workflows rather than start with a single ready-made assistant. The open-source code lets technical buyers inspect and modify the software and operate a [self-hosted deployment](https://docs.sim.ai/platform/self-hosting). Teams comparing source access and deployment rights can also read this guide to [open-source AI agent frameworks](https://www.sim.ai/library/best-open-source-ai-agent-frameworks).
+Sim is an open, extensible, multi-model agent workspace for building custom agents with specific tools, models, and data sources. You construct and deploy your own workflows rather than start with a single ready-made assistant. The open-source code lets technical buyers inspect and modify the software and operate a [self-hosted deployment](https://docs.sim.ai/platform/self-hosting). Teams comparing source access and deployment rights can also read this guide to [open-source AI agent frameworks](https://www.sim.ai/library/open-source-ai-agent-platforms).
 
 Sim can [consume tools from external MCP servers](https://docs.sim.ai/agents/mcp) and turn a deployed workflow into a tool that other applications call through an MCP server. After you create a server and add the workflow as a tool, Sim provides [connection configurations for supported MCP clients](https://docs.sim.ai/workflows/deployment/mcp). Supported clients include Cursor, Codex, Claude Code, Claude Desktop, VS Code, and Sim itself. Each client can then invoke the workflow through the tool interface instead of reproducing its logic locally.
 
@@ -162,6 +161,8 @@ You can expose a deployed Sim workflow as an MCP tool in four steps.
 2. Deploy the workflow you want to expose. Deployment creates a callable version of the workflow rather than exposing an unpublished draft.
 3. Add the deployed workflow to the MCP server as a tool. Give the tool a clear name and description so the connected model can determine when to call it.
 4. Copy the connection configuration that Sim provides for Cursor, Codex, Claude Code, Claude Desktop, VS Code, or Sim. The client can then discover the tool and invoke the workflow with the required inputs.
+
+Several of these clients are [AI coding agents](https://www.sim.ai/library/agentic-ai-coding-tools-what-they-are-and-how-the-top-options-compare), so a deployed workflow can give a coding agent access to business data and actions it cannot reach from the repository alone.
 
 Authentication settings determine which clients can connect to the MCP server. Use the configuration and credentials Sim provides, and avoid placing sensitive credentials directly inside workflow prompts. A remote client must also have network access to the deployed MCP endpoint. A self-hosted environment may require network routing and firewall configuration so the client can reach the MCP endpoint.
 

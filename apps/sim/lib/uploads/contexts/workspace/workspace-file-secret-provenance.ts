@@ -15,6 +15,8 @@ import {
 } from '@/lib/execution/durable-secret-provenance'
 import {
   reportDurableSecretProvenanceRefusal,
+  reportDurableSecretProvenanceUnrecorded,
+  reportDurableSecretProvenanceUnrecordedBatch,
   reportDurableSecretProvenanceWrite,
 } from '@/lib/execution/durable-secret-provenance-telemetry'
 import {
@@ -22,6 +24,7 @@ import {
   PROVENANCE_MAX_SERIALIZED_BYTES,
 } from '@/lib/execution/provenance-limits'
 import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import { OWNED_FILE_CONTEXTS } from '@/lib/workspace-files/owned-files'
 import {
   isResolvedSecretProvenanceAbsence,
   type ResolvedSecretTraceProvenanceV1,
@@ -38,8 +41,8 @@ export const MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE =
 
 /**
  * Exact sidecars identify known secret contributions. Unrecorded sidecars represent missing
- * writer provenance; unknown sidecars represent taint or an invalid binding. Both refuse reads
- * for tracked files, while null tracking markers retain legacy compatibility.
+ * writer provenance and retain ordinary-input behavior with an audit of the coverage gap. Unknown
+ * sidecars represent taint or an invalid binding and refuse reads. Null markers remain compatible.
  */
 export type WorkspaceFileSecretProvenance =
   | { status: 'exact'; entries: readonly WorkspaceFileSecretProvenanceEntry[] }
@@ -115,9 +118,8 @@ interface ModelSafeWorkspaceFileRow {
 /**
  * Combines byte-contributing classifications without broadening any source.
  *
- * An absence stays unrecorded only when no contributor carries known secrets. Mixing it with
- * known secret entries cannot preserve an exact classification or discard those entries into a
- * permissive absence; the newly combined bytes must remain unknown.
+ * Missing evidence contributes no known entries. Preserve every known contribution when an
+ * unrecorded source is combined with an exact source; protection failures still dominate.
  */
 export function mergeWorkspaceFileSecretProvenance(
   ...provenances: readonly WorkspaceFileSecretProvenance[]
@@ -125,13 +127,7 @@ export function mergeWorkspaceFileSecretProvenance(
   if (provenances.some((provenance) => provenance.status === 'unknown')) {
     return { status: 'unknown' }
   }
-  if (provenances.some((provenance) => provenance.status === 'unrecorded')) {
-    return provenances.some(
-      (provenance) => provenance.status === 'exact' && provenance.entries.length > 0
-    )
-      ? { status: 'unknown' }
-      : { status: 'unrecorded' }
-  }
+  const unrecorded = provenances.some((provenance) => provenance.status === 'unrecorded')
 
   const entries = new Map<string, WorkspaceFileSecretProvenanceEntry>()
   let bytes = 0
@@ -161,7 +157,9 @@ export function mergeWorkspaceFileSecretProvenance(
       entries.set(key, entry)
     }
   }
-  return { status: 'exact', entries: [...entries.values()] }
+  return unrecorded && entries.size === 0
+    ? { status: 'unrecorded' }
+    : { status: 'exact', entries: [...entries.values()] }
 }
 
 function exactEntryByteSize(entry: WorkspaceFileSecretProvenanceEntry): number {
@@ -265,7 +263,7 @@ export async function createWorkspaceFileSecretProvenanceFromRegistry(
   representations: readonly WorkspaceFileSecretProvenanceRepresentation[] = [],
   representationsComplete = true
 ): Promise<WorkspaceFileSecretProvenanceWriteDecision> {
-  /** Missing recording context is persisted separately from known taint; both refuse later reads. */
+  /** Missing recording context is persisted separately from known taint. */
   if (!registry) return { safe: true, provenance: { status: 'unrecorded' } }
   const sourceProvenance = registry.exportCommittedProvenanceForValue(sourceValue)
   const persistedProvenance = Object.is(sourceValue, persistedValue)
@@ -387,8 +385,15 @@ export async function createWorkspaceFileSecretProvenanceFromRegistry(
   }
 }
 
-function isValidStoredEntries(value: unknown): value is StoredWorkspaceFileSecretProvenanceEntry[] {
-  if (!Array.isArray(value) || value.length > PROVENANCE_MAX_ENTRIES) {
+function isValidStoredEntries(
+  value: unknown,
+  status: string | null
+): value is StoredWorkspaceFileSecretProvenanceEntry[] {
+  if (
+    !Array.isArray(value) ||
+    value.length > PROVENANCE_MAX_ENTRIES ||
+    ((status === null || status === 'unrecorded') && value.length > 0)
+  ) {
     return false
   }
   let bytes = 0
@@ -434,7 +439,12 @@ async function markWorkspaceFileSecretProvenanceTrackedInTx(
         eq(workspaceFiles.id, fileId),
         gte(workspaceFiles.contentUpdatedAt, contentUpdatedAt),
         lt(workspaceFiles.contentUpdatedAt, nextContentMillisecond),
-        inArray(workspaceFiles.context, ['workspace', 'mothership', 'execution']),
+        inArray(workspaceFiles.context, [
+          'workspace',
+          'mothership',
+          'execution',
+          ...OWNED_FILE_CONTEXTS,
+        ]),
         or(
           isNull(workspaceFiles.secretProvenanceVersion),
           eq(workspaceFiles.secretProvenanceVersion, 1)
@@ -607,13 +617,23 @@ export async function snapshotWorkspaceFileSecretProvenanceInTx(
   if (
     !stored ||
     stored.contentUpdatedAt.getTime() !== contentUpdatedAt.getTime() ||
-    !isValidStoredEntries(stored.entries)
+    !isValidStoredEntries(stored.entries, stored.status)
   ) {
     return { status: 'unknown', entries: [] }
   }
   if (stored.status === 'exact') return { status: 'exact', entries: stored.entries }
   if (stored.status === 'unrecorded') return { status: 'unrecorded', entries: [] }
   return { status: 'unknown', entries: [] }
+}
+
+/** Decodes a captured file revision without dropping anonymous entries or accepting malformed absence. */
+export function workspaceFileSecretProvenanceFromSnapshot(
+  snapshot: WorkspaceFileSecretProvenanceSnapshot
+): WorkspaceFileSecretProvenance {
+  if (!isValidStoredEntries(snapshot.entries, snapshot.status)) return { status: 'unknown' }
+  if (snapshot.status === null) return EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+  if (snapshot.status !== 'exact') return { status: snapshot.status }
+  return { status: 'exact', entries: deserializeExactEntriesFromStorage(snapshot.entries) }
 }
 
 /**
@@ -627,15 +647,12 @@ async function reinstateWorkspaceFileSecretProvenanceInTx(
   contentUpdatedAt: Date,
   snapshot: WorkspaceFileSecretProvenanceSnapshot
 ): Promise<void> {
-  const provenance: WorkspaceFileSecretProvenance =
-    snapshot.status === null
-      ? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
-      : snapshot.status !== 'exact'
-        ? { status: snapshot.status }
-        : isValidStoredEntries(snapshot.entries)
-          ? { status: 'exact', entries: deserializeExactEntriesFromStorage(snapshot.entries) }
-          : { status: 'unknown' }
-  await replaceWorkspaceFileSecretProvenanceInTx(tx, fileId, contentUpdatedAt, provenance)
+  await replaceWorkspaceFileSecretProvenanceInTx(
+    tx,
+    fileId,
+    contentUpdatedAt,
+    workspaceFileSecretProvenanceFromSnapshot(snapshot)
+  )
 }
 
 /**
@@ -753,7 +770,7 @@ export async function copyWorkspaceFileSecretProvenanceInTx(
   }
   if (
     source.provenanceContentUpdatedAt?.getTime() !== source.fileContentUpdatedAt.getTime() ||
-    !isValidStoredEntries(source.entries)
+    !isValidStoredEntries(source.entries, source.status)
   ) {
     await replaceWorkspaceFileSecretProvenanceInTx(tx, targetFileId, target.contentUpdatedAt, {
       status: 'unknown',
@@ -895,10 +912,10 @@ export async function getBoundWorkspaceFileSecretProvenance(
   if (row.secretProvenanceVersion !== 1) return { status: 'unknown' }
   const bindingIsCurrent =
     row.provenanceContentUpdatedAt?.getTime() === row.fileContentUpdatedAt.getTime()
-  if (!bindingIsCurrent || !isValidStoredEntries(row.entries)) return { status: 'unknown' }
+  if (!bindingIsCurrent || !isValidStoredEntries(row.entries, row.status))
+    return { status: 'unknown' }
   /**
-   * Preserve the writer's absence/taint distinction for diagnostics. Readers refuse both;
-   * legacy compatibility is determined only by the tracking marker above.
+   * Preserve absence separately from protection failures so consumers apply the matching policy.
    */
   if (row.status === 'unrecorded') return { status: 'unrecorded' }
   if (row.status !== 'exact') return { status: 'unknown' }
@@ -950,7 +967,7 @@ export async function getBoundWorkspaceFileSecretProvenanceByMetadata(
       if (
         row.secretProvenanceVersion !== 1 ||
         row.provenanceContentUpdatedAt?.getTime() !== row.fileContentUpdatedAt.getTime() ||
-        !isValidStoredEntries(row.entries)
+        !isValidStoredEntries(row.entries, row.status)
       ) {
         result.set(row.id, { status: 'unknown' })
         continue
@@ -975,14 +992,29 @@ export async function getBoundWorkspaceFileSecretProvenanceByMetadata(
   return result
 }
 
-/** Refuses tracked content whose writer could not record its provenance. */
-function refuseUnrecordedWorkspaceFile(workspaceId: string | undefined): false {
-  reportDurableSecretProvenanceRefusal({
+/** Missing producer evidence does not prevent ordinary file use; record the coverage gap. */
+function allowUnrecordedWorkspaceFile(
+  workspaceId: string | undefined,
+  resourceId?: string,
+  actorUserId?: string
+): true {
+  reportDurableSecretProvenanceUnrecorded({
     surface: 'workspace-file',
-    cause: 'workspace-file-unrecorded-enforced',
     workspaceId,
+    resourceId,
+    actorUserId,
   })
-  return false
+  return true
+}
+
+function reportUnrecordedWorkspaceFileBatch(counts: ReadonlyMap<string | undefined, number>): void {
+  reportDurableSecretProvenanceUnrecordedBatch(
+    Array.from(counts, ([workspaceId, recordCount]) => ({
+      surface: 'workspace-file',
+      workspaceId,
+      recordCount,
+    }))
+  )
 }
 
 /** Reports the canonical file identity without exposing its storage key or contents. */
@@ -1006,8 +1038,8 @@ function refuseWorkspaceFileProvenance(
 /**
  * Authorizes one model-facing view of an exact workspace-file version. Complete text views import
  * the entire sidecar so representation-changing consumers retain the original lineage. Derived
- * text views import only entries present in the returned value; opaque bytes cannot be inspected
- * and therefore require an exact-empty sidecar.
+ * text views import only entries present in the returned value. Opaque bytes refuse known secret
+ * contributions; explicit missing producer evidence retains the ordinary-input policy.
  */
 export async function importWorkspaceFileSecretProvenanceForModelView(args: {
   workspaceId: string
@@ -1025,7 +1057,7 @@ export async function importWorkspaceFileSecretProvenanceForModelView(args: {
     )
   }
   if (provenance.status === 'unrecorded') {
-    return refuseUnrecordedWorkspaceFile(args.workspaceId)
+    return allowUnrecordedWorkspaceFile(args.workspaceId, args.identity.fileId)
   }
   if (provenance.entries.length === 0) return true
   if (args.view === 'opaque' || !args.registry) {
@@ -1053,7 +1085,7 @@ export async function importWorkspaceFileSecretProvenanceForModelView(args: {
   )
 }
 
-/** Allows opaque bytes to leave private storage only when their exact sidecar is provably empty. */
+/** Admits opaque bytes without known secret contributions or a protection failure. */
 export async function isOpaqueWorkspaceFileEgressSafe(
   workspaceId: string,
   identity: WorkspaceFileSecretProvenanceIdentity
@@ -1066,7 +1098,8 @@ export async function isOpaqueWorkspaceFileEgressSafe(
       identity.fileId
     )
   }
-  if (provenance.status === 'unrecorded') return refuseUnrecordedWorkspaceFile(workspaceId)
+  if (provenance.status === 'unrecorded')
+    return allowUnrecordedWorkspaceFile(workspaceId, identity.fileId)
   return (
     provenance.entries.length === 0 ||
     refuseWorkspaceFileProvenance(
@@ -1112,7 +1145,7 @@ export async function importWorkspaceFileSnapshotProvenance(args: {
     )
   }
   if (provenance.status === 'unrecorded') {
-    return refuseUnrecordedWorkspaceFile(args.workspaceId)
+    return allowUnrecordedWorkspaceFile(args.workspaceId, args.resourceId, args.actorUserId)
   }
   if (provenance.entries.length === 0) return true
   if (!args.registry) {
@@ -1160,7 +1193,7 @@ export async function filterModelSafeWorkspaceFileAttachments<
 
   const rowByKey = new Map(rows.map((row) => [row.key, row]))
   const versionKeys = await findWorkspaceFileVersionKeys(keys.filter((key) => !rowByKey.has(key)))
-  let unrecorded = 0
+  const unrecordedByWorkspace = new Map<string | undefined, number>()
   let refused = 0
   const kept = attachments.filter((attachment) => {
     if (typeof attachment.key !== 'string' || attachment.key.length === 0) return true
@@ -1183,20 +1216,18 @@ export async function filterModelSafeWorkspaceFileAttachments<
       refused += 1
       return false
     }
-    unrecorded += 1
-    return false
+    const workspaceId = options.workspaceId ?? row.workspaceId ?? undefined
+    unrecordedByWorkspace.set(workspaceId, (unrecordedByWorkspace.get(workspaceId) ?? 0) + 1)
+    return true
   })
   if (refused > 0) {
     refuseWorkspaceFileProvenance('workspace-file-provenance-unavailable', options.workspaceId)
   }
-  /** One report for the whole set of attachments, which is one read, rather than one per file. */
-  if (unrecorded > 0) {
-    refuseUnrecordedWorkspaceFile(options.workspaceId)
-  }
+  reportUnrecordedWorkspaceFileBatch(unrecordedByWorkspace)
   return kept
 }
 
-/** Keeps missing writer provenance distinct from taint for refusal diagnostics. */
+/** Keeps missing writer provenance distinct from a protection failure. */
 type ModelSafeWorkspaceFileClassification = 'safe' | 'unrecorded' | 'unsafe'
 
 function classifyModelSafeWorkspaceFileRow(
@@ -1208,7 +1239,7 @@ function classifyModelSafeWorkspaceFileRow(
   if (row.secretProvenanceVersion !== 1) return 'unsafe'
   const bindingIsCurrent =
     row.provenanceContentUpdatedAt?.getTime() === row.fileContentUpdatedAt.getTime()
-  if (!bindingIsCurrent || !isValidStoredEntries(row.entries)) return 'unsafe'
+  if (!bindingIsCurrent || !isValidStoredEntries(row.entries, row.status)) return 'unsafe'
   if (row.status === 'unrecorded') return 'unrecorded'
   if (row.status !== 'exact') return 'unsafe'
   return row.entries.length === 0 ? 'safe' : 'unsafe'
@@ -1287,7 +1318,7 @@ export async function areModelSafeWorkspaceFileKeys(
     )
   }
 
-  let unrecorded = 0
+  const unrecordedByWorkspace = new Map<string | undefined, number>()
   for (const row of rows) {
     if (
       row.context !== 'workspace' &&
@@ -1303,8 +1334,11 @@ export async function areModelSafeWorkspaceFileKeys(
         options.workspaceId ?? row.workspaceId ?? undefined
       )
     }
-    if (classification === 'unrecorded') unrecorded += 1
+    if (classification === 'unrecorded') {
+      const workspaceId = options.workspaceId ?? row.workspaceId ?? undefined
+      unrecordedByWorkspace.set(workspaceId, (unrecordedByWorkspace.get(workspaceId) ?? 0) + 1)
+    }
   }
-  /** One report for the batch, not one per key: a caller checking many keys is one read. */
-  return unrecorded === 0 || refuseUnrecordedWorkspaceFile(options.workspaceId)
+  reportUnrecordedWorkspaceFileBatch(unrecordedByWorkspace)
+  return true
 }

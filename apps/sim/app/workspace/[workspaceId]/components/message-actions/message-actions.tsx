@@ -19,6 +19,7 @@ import {
   useCopyToClipboard,
 } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { isLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -28,7 +29,7 @@ import { useFolderStore } from '@/stores/folders/store'
 
 const ICON_CLASS = 'size-[14px]'
 const BUTTON_CLASS =
-  'flex size-[26px] items-center justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-hidden'
+  'flex size-[44px] items-center md:size-[26px] justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-hidden'
 
 interface MessageActionsProps {
   content: string
@@ -39,6 +40,9 @@ interface MessageActionsProps {
   requestId?: string
   messageId?: string
 }
+
+/** Fork refusals whose message tells the person what to do: the response is unfinished, or the chat is too long. */
+const FORK_REFUSAL_STATUSES = new Set([409, 413])
 
 export const MessageActions = memo(function MessageActions({
   content,
@@ -143,8 +147,12 @@ export const MessageActions = memo(function MessageActions({
         useFolderStore.getState().clearChatSelection()
         router.push(`/workspace/${params.workspaceId}/chat/${result.id}`)
       }
-    } catch {
-      toast.error('Failed to fork chat')
+    } catch (error) {
+      toast.error(
+        isApiClientError(error) && FORK_REFUSAL_STATUSES.has(error.status)
+          ? error.message
+          : 'Failed to fork chat'
+      )
     }
   }
 

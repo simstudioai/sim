@@ -1,5 +1,6 @@
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import mammoth from 'mammoth'
 import {
   FileParserError,
@@ -18,6 +19,79 @@ import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('DocxParser')
+
+/** Bounds repeated notes and generated markup independently of the normalized text budget. */
+const MAX_DOCX_CONVERSION_NODES = 50_000
+const MAX_DOCX_CONVERSION_BYTES = 2 * 1024 * 1024
+
+/**
+ * Mammoth's supported transform hook runs before HTML generation. Count every reference
+ * expansion, including repeated notes, without retaining the expanded graph. The node ceiling
+ * also stops cyclic references. The separate 2 MiB ceiling charges raw UTF-8 model strings,
+ * including attributes, before HTML escaping. Fixed default styles and omitted image data
+ * bound conversion amplification; embedded style maps could add arbitrary wrapper markup.
+ */
+function assertDocxConversionWithinLimits(document: unknown, signal?: AbortSignal): void {
+  const notes = toRecord(toRecord(document).notes)
+  const pending: unknown[] = [document]
+  let nodes = 0
+  let bytes = 0
+  const complexity = () =>
+    new FileParserError('complexity_limit', 'DOCX conversion exceeds its graph budget')
+  const append = (children: unknown) => {
+    if (!Array.isArray(children))
+      throw new FileParserError('invalid_format', 'DOCX conversion has invalid children')
+    if (nodes + pending.length + children.length > MAX_DOCX_CONVERSION_NODES) throw complexity()
+    for (let index = children.length - 1; index >= 0; index--) pending.push(children[index])
+  }
+  while (pending.length) {
+    signal?.throwIfAborted()
+    const node = pending.pop()
+    if (!isRecordLike(node) || typeof node.type !== 'string')
+      throw new FileParserError('invalid_format', 'DOCX conversion has an invalid node')
+    if (++nodes > MAX_DOCX_CONVERSION_NODES) throw complexity()
+    for (const value of Object.values(node)) {
+      if (typeof value === 'string') bytes += Buffer.byteLength(value, 'utf8')
+    }
+    if (bytes > MAX_DOCX_CONVERSION_BYTES) throw complexity()
+    switch (node.type) {
+      case 'document':
+      case 'paragraph':
+      case 'run':
+      case 'hyperlink':
+      case 'table':
+      case 'tableRow':
+      case 'tableCell':
+        append(node.children)
+        break
+      case 'note':
+      case 'comment':
+        append(node.body)
+        break
+      case 'noteReference': {
+        if (typeof notes.resolve !== 'function')
+          throw new FileParserError('invalid_format', 'DOCX note resolver is unavailable')
+        const note: unknown = Reflect.apply(notes.resolve, notes, [node])
+        if (!note) throw new FileParserError('invalid_format', 'DOCX references a missing note')
+        append([note])
+        break
+      }
+      case 'text':
+        if (typeof node.value !== 'string')
+          throw new FileParserError('invalid_format', 'DOCX text is malformed')
+        break
+      case 'image':
+      case 'tab':
+      case 'checkbox':
+      case 'break':
+      case 'bookmarkStart':
+      case 'commentReference':
+        break
+      default:
+        throw new FileParserError('invalid_format', 'DOCX conversion has an unsupported node')
+    }
+  }
+}
 
 /**
  * Extracts DOCX text by rendering the document to HTML with mammoth and walking
@@ -45,24 +119,48 @@ export class DocxParser implements FileParser {
       }
 
       assertOoxmlArchiveWithinLimits(buffer)
+      const maxTextBytes =
+        options.docxTextMode === 'complete'
+          ? (options.maxTextBytes ?? MAX_DOCX_CONVERSION_BYTES)
+          : undefined
+      if (maxTextBytes !== undefined && (!Number.isSafeInteger(maxTextBytes) || maxTextBytes <= 0))
+        throw new FileParserError('complexity_limit', 'Invalid DOCX text byte budget')
 
       const extractionErrors: unknown[] = []
       let parserReturnedEmpty = false
 
       try {
-        const htmlResult = await mammoth.convertToHtml({ buffer })
+        const htmlResult = await mammoth.convertToHtml(
+          { buffer },
+          maxTextBytes === undefined
+            ? undefined
+            : {
+                includeEmbeddedStyleMap: false,
+                convertImage: mammoth.images.imgElement(async () => ({ src: '' })),
+                transformDocument: (document: unknown) => {
+                  assertDocxConversionWithinLimits(document, options.signal)
+                  return document
+                },
+              }
+        )
         options.signal?.throwIfAborted()
 
-        const structured = this.structuredTextFromHtml(htmlResult.value)
+        const structured = this.structuredTextFromHtml(htmlResult.value, maxTextBytes !== undefined)
         if (structured) {
+          const content = sanitizeTextForUTF8(structured)
+          if (maxTextBytes !== undefined && Buffer.byteLength(content, 'utf8') > maxTextBytes)
+            throw new FileParserError('complexity_limit', 'DOCX text exceeds its byte budget')
           return {
-            content: sanitizeTextForUTF8(structured),
+            content,
             metadata: {
               extractionMethod: 'mammoth-html',
               messages: htmlResult.messages,
             },
           }
         }
+
+        if (maxTextBytes !== undefined)
+          throw new FileParserError('no_extractable_text', 'No complete DOCX text was extracted')
 
         const rawResult = await mammoth.extractRawText({ buffer })
         options.signal?.throwIfAborted()
@@ -79,6 +177,7 @@ export class DocxParser implements FileParser {
         parserReturnedEmpty = true
       } catch (mammothError) {
         options.signal?.throwIfAborted()
+        if (maxTextBytes !== undefined) throw mammothError
         logger.warn('mammoth failed, trying officeparser:', mammothError)
         extractionErrors.push(mammothError)
       }
@@ -161,14 +260,16 @@ export class DocxParser implements FileParser {
   /**
    * Walks mammoth's HTML rendering under the HTML parser's size caps. A rendering
    * too large to walk safely falls back to the raw-text path by returning empty,
-   * since mammoth has already materialised the document once at that point.
+   * since mammoth has already materialised the document once at that point. Budgeted reads
+   * reject instead: the fallback cannot preserve the conversion and completeness bounds.
    */
-  private structuredTextFromHtml(html: string): string {
+  private structuredTextFromHtml(html: string, bounded = false): string {
     if (!html || html.trim().length === 0) return ''
     try {
       assertHtmlStringWithinLimits(html)
     } catch (error) {
       if (isHtmlComplexityError(error)) {
+        if (bounded) throw error
         logger.warn('mammoth HTML exceeds walker limits, using raw text:', error.message)
         return ''
       }

@@ -1,7 +1,6 @@
 import { ContextDevIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ContextDevScrapeMarkdownResponse } from '@/tools/context_dev/types'
 
 /** Operations whose primary input is a full page URL. */
 const URL_OPS = [
@@ -73,7 +72,7 @@ function toStringArray(value: unknown): string[] | undefined {
   return undefined
 }
 
-export const ContextDevBlock: BlockConfig<ContextDevScrapeMarkdownResponse> = {
+export const ContextDevBlock: BlockConfig = {
   type: 'context_dev',
   name: 'Context.dev',
   description: 'Scrape, crawl, search, extract, and enrich web and brand data',

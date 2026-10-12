@@ -89,7 +89,6 @@ vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt: Date }>())
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
   enqueueKnowledgeStorageCleanup: mockEnqueueStorageCleanup,
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
 }))

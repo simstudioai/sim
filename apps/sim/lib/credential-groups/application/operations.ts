@@ -121,33 +121,6 @@ export const credentialGroupOperations = {
     principalKinds: ['delegated'],
     delegatedServices: ['executor'],
   }),
-  // permission-group-exempt: read by the executor to resolve an enrolled person's credential; the group's enrollment rows are the gate, and no group key names them
-  listPeople: defineWorkspaceOperation({
-    id: 'credential_groups.people.list',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
-  }),
-  // permission-group-exempt: enrolls an outside person in a credential group, not a member in a workspace, so invitations.send does not name it
-  sendInvite: defineWorkspaceOperation({
-    id: 'credential_groups.invites.send',
-    minimumRole: 'admin',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
-  }),
-  // permission-group-exempt: mints an enrollment link for an outside person, not a workspace invitation, so invitations.send does not name it
-  createInviteLink: defineWorkspaceOperation({
-    id: 'credential_groups.invites.link.create',
-    minimumRole: 'admin',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
-  }),
   // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
   startSlackConfiguration: defineWorkspaceOperation({
     id: 'credential_groups.slack_configuration.start',

@@ -1,7 +1,7 @@
 import { member, ssoDomain } from '@sim/db/schema'
 import { createMockRequest, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { createRouteContext } from '@sim/testing/helpers/http'
-import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import {
   billingSubscriptionMock,
@@ -21,7 +21,6 @@ import { GET, POST } from '@/app/api/organizations/[id]/domains/route'
 
 const mockGetSession = authMockFns.mockGetSession
 const mockIsEnterprise = billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan
-const mockRecordAudit = auditMockFns.mockRecordAudit
 
 const ORG_ID = 'org-1'
 const routeContext = createRouteContext({ id: ORG_ID })
@@ -108,6 +107,7 @@ describe('org domains route', () => {
 
     it('re-adds an existing pending domain idempotently without rotating its token', async () => {
       queueTableRows(member, [{ role: 'owner' }]) // membership
+      queueTableRows(member, [{ role: 'owner' }])
       queueTableRows(ssoDomain, []) // verified-elsewhere check → none
       queueTableRows(ssoDomain, [
         {
@@ -132,8 +132,10 @@ describe('org domains route', () => {
 
     it('stays idempotent when a concurrent claim wins the unique index race', async () => {
       queueTableRows(member, [{ role: 'owner' }]) // membership
+      queueTableRows(member, [{ role: 'owner' }])
       queueTableRows(ssoDomain, []) // verified-elsewhere check → none
       queueTableRows(ssoDomain, []) // org-domains read → none existing, under the cap
+      queueTableRows(ssoDomain, [])
       // insert().returning() loses the race and hits sso_domain_org_domain_unique
       dbChainMockFns.returning.mockRejectedValueOnce(
         Object.assign(new Error('duplicate key'), { code: '23505' })

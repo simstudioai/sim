@@ -1,9 +1,8 @@
 import { GoogleAppsheetIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { GoogleAppsheetResponse } from '@/tools/google_appsheet/types'
 
-export const GoogleAppsheetBlock: BlockConfig<GoogleAppsheetResponse> = {
+export const GoogleAppsheetBlock: BlockConfig = {
   type: 'google_appsheet',
   name: 'Google AppSheet',
   description: 'Read, add, edit, and delete rows in a Google AppSheet table',

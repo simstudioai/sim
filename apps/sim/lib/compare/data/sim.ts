@@ -1,4 +1,6 @@
 import type { CompetitorProfile } from '@/lib/compare/data/types'
+import { SITE_URL } from '@/lib/core/utils/urls'
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 
 /**
  * Sim's own profile, for use as the constant left-hand column on every
@@ -11,9 +13,8 @@ import type { CompetitorProfile } from '@/lib/compare/data/types'
 export const simProfile: CompetitorProfile = {
   id: 'sim',
   name: 'Sim',
-  website: 'https://sim.ai',
-  oneLiner:
-    'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting 1,000+ integrations and every major LLM to automate real work visually, conversationally, or with code.',
+  website: SITE_URL,
+  oneLiner: `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting ${INTEGRATION_COUNT_LABEL} integrations and every major LLM to automate real work visually, conversationally, or with code.`,
   standoutFeatures: [
     {
       title: 'AI Copilot / Chat agent-building surface',
@@ -182,7 +183,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-08',
           },
           {
-            url: 'https://www.sim.ai/pricing',
+            url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing Page',
             asOf: '2026-07-02',
           },
@@ -622,11 +623,9 @@ export const simProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value:
-          '1,000+ integrations counting individual API actions, built from 266 first-party blocks and roughly 3,900 underlying tool actions',
-        detail:
-          'Sim\'s landing page cites the "1,000+ integrations" figure; the block/tool-action counts are the same integration surface measured at a different level of granularity.',
-        shortValue: '1,000+ integrations (266 blocks, ~3,900 tool actions)',
+        value: `${INTEGRATION_COUNT_LABEL} integrations counting individual API actions, built from 266 first-party blocks and roughly 3,900 underlying tool actions`,
+        detail: `Sim's landing page cites the "${INTEGRATION_COUNT_LABEL} integrations" figure; the block/tool-action counts are the same integration surface measured at a different level of granularity.`,
+        shortValue: `${INTEGRATION_COUNT_LABEL} integrations (266 blocks, ~3,900 tool actions)`,
         confidence: 'verified',
         sources: [
           {
@@ -640,7 +639,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://sim.ai',
+            url: SITE_URL,
             label: 'Sim Landing Page',
             asOf: '2026-07-02',
           },
@@ -772,7 +771,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://sim.ai/pricing',
+            url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing',
             asOf: '2026-07-02',
           },
@@ -784,7 +783,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://sim.ai/pricing',
+            url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing',
             asOf: '2026-07-02',
           },
@@ -797,7 +796,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.sim.ai/pricing',
+            url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing',
             asOf: '2026-08-26',
           },
@@ -839,12 +838,12 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://sim.ai',
+            url: SITE_URL,
             label: 'Sim Landing Page',
             asOf: '2026-07-02',
           },
           {
-            url: 'https://sim.ai/enterprise',
+            url: `${SITE_URL}/enterprise`,
             label: 'Sim Enterprise Page',
             asOf: '2026-07-02',
           },
@@ -920,7 +919,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://sim.ai/enterprise',
+            url: `${SITE_URL}/enterprise`,
             label: 'Sim Enterprise Page',
             asOf: '2026-07-02',
           },
@@ -1213,7 +1212,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.sim.ai/pricing',
+            url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing Page',
             asOf: '2026-07-02',
           },
@@ -1226,7 +1225,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.sim.ai/pricing',
+            url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing Page',
             asOf: '2026-07-08',
           },
@@ -1238,7 +1237,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://sim.ai',
+            url: SITE_URL,
             label: 'Sim Landing Page',
             asOf: '2026-07-02',
           },

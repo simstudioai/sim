@@ -37,7 +37,6 @@ import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/knowledge-bas
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { hasRerankerCredential, rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
-import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
 import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
 import type { SearchResult } from '@/lib/knowledge/search/candidates'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
@@ -53,7 +52,6 @@ import {
 import { getDocumentTagDefinitionsByKnowledgeBaseIds } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { StructuredFilter } from '@/lib/knowledge/types'
-import { usesIndexedRetrieval } from '@/lib/sim-search/indexed/gate'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getRerankModelPricing } from '@/providers/models'
@@ -473,7 +471,6 @@ export async function runKnowledgeSearch({
           }
         : undefined,
       structuredFilters: structuredFilters.length > 0 ? structuredFilters : undefined,
-      indexedRetrieval: usesIndexedRetrieval(context.knowledgeBases),
     })
   )
 
@@ -770,7 +767,7 @@ export async function runKnowledgeSearch({
   }
 }
 
-/** What follows a completed search on every surface: the organization's activity record and the platform event. */
+/** Records the platform event after an authorized knowledge search. */
 export async function afterKnowledgeSearch({
   principal,
   context,
@@ -782,17 +779,6 @@ export async function afterKnowledgeSearch({
   input: Pick<SearchKnowledgeInput, 'surface'>
   result: SearchKnowledgeResult
 }): Promise<void> {
-  const actorUserId = resolvePrincipalSubjectUserId(principal)
-  if (context.organizationId && actorUserId) {
-    await measureSearchStage('activity_recording', () =>
-      recordOrganizationSearchActivity({
-        organizationId: context.organizationId,
-        userId: actorUserId,
-        surface: input.surface ?? 'other',
-        results: result.results,
-      })
-    )
-  }
   PlatformEvents.knowledgeBaseSearched({
     knowledgeBaseId: result.knowledgeBaseId,
     knowledgeBaseIds: result.knowledgeBaseIds,

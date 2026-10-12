@@ -88,8 +88,7 @@ describe('indexed source content through real application access', () => {
   }
   const revokedSiteReaders = new Set<string>()
   const ids = createKnowledgeAclFixtureIds()
-  const { aliceId, bobId, workspaceId, knowledgeBaseId, connectorId, lockId, groups, groupIds } =
-    ids
+  const { aliceId, bobId, workspaceId, knowledgeBaseId, connectorId, lockId, groups } = ids
   const alice: Principal = { kind: 'session', userId: aliceId, sessionId: 'fixture-alice' }
   const bob: Principal = { kind: 'personal_api_key', userId: bobId, keyId: 'fixture-bob' }
   const workspaceKey: Principal = {

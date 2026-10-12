@@ -222,7 +222,7 @@ export class PiBlockHandler implements BlockHandler {
     const piModel = resolvePiModelId(providerId, model)
     if (!piModel) {
       throw new Error(
-        `Pi model "${model}" is not available for provider "${providerId}" in the installed Pi catalog`
+        `Pi model "${model}" is not available for provider "${providerId}" in the installed Pi catalog. Choose a supported Pi model in the block settings.`
       )
     }
 

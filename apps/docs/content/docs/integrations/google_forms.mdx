@@ -256,8 +256,6 @@ Renew a notification watch for another 7 days
 | `expireTime` | string | The new expiration time |
 | `state` | string | The watch state |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -286,4 +284,23 @@ Trigger workflow from Google Form submissions (via Apps Script forwarder)
 | `formId` | string | Google Form ID |
 | `answers` | object | Normalized map of question -&gt; answer |
 | `raw` | object | Original payload \(when enabled\) |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Google Forms account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-forms` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive` | View, edit, create, and delete all Google Drive files |
+| `https://www.googleapis.com/auth/forms.body` | View and manage Google Forms |
+| `https://www.googleapis.com/auth/forms.responses.readonly` | View responses to Google Forms |
+
 

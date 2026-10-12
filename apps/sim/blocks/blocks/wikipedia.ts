@@ -1,9 +1,8 @@
 import { WikipediaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { WikipediaResponse } from '@/tools/wikipedia/types'
 
-export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
+export const WikipediaBlock: BlockConfig = {
   type: 'wikipedia',
   name: 'Wikipedia',
   description: 'Search and retrieve content from Wikipedia',

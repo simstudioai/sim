@@ -10,6 +10,7 @@ import {
   checkUsageStatus,
 } from '@/lib/billing/calculations/usage-monitor'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
+import { USAGE_UNAVAILABLE_MESSAGE } from '@/lib/billing/constants'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
@@ -96,6 +97,14 @@ export interface AccountBillingDecision {
     readonly end: string
     readonly source?: UsagePeriodSource
   }
+  /**
+   * The payer's subscription at admission, so a run that outlives a Stripe period bills its
+   * later spend to the period it was spent in, as an attributed run's `payerSubscription` does.
+   * Absent for a payer without a subscription, and in decisions minted before it existed.
+   * If that subscription is replaced mid-run, spend stays in its period while the mid-run
+   * verdict judges the payer's current one, so the limit can only be under-enforced.
+   */
+  readonly payerSubscriptionId?: string
 }
 
 export interface ResolveBillingAttributionParams {
@@ -111,6 +120,11 @@ export interface AttributedUsageLimitsResult {
   isExceeded: boolean
   message?: string
   scope?: 'actor' | 'payer' | 'member'
+  /**
+   * Why an `isExceeded` refusal is not a spent limit: the account is blocked (payment failed,
+   * dispute), or the payer's usage could not be read and the gate failed closed.
+   */
+  reason?: 'billing_blocked' | 'usage_unavailable'
   payerUsage?: {
     currentUsage: number
     limit: number
@@ -540,6 +554,10 @@ function assertAccountBillingDecision(value: unknown): AccountBillingDecision {
   ) {
     throw new Error('Account billing decision must contain a valid billing period source')
   }
+  const payerSubscriptionId = value.payerSubscriptionId
+  if (payerSubscriptionId !== undefined && !isNonEmptyString(payerSubscriptionId)) {
+    throw new Error('Account billing decision must contain a valid payer subscription ID')
+  }
 
   return Object.freeze({
     userId: value.userId,
@@ -552,6 +570,7 @@ function assertAccountBillingDecision(value: unknown): AccountBillingDecision {
       end: end.toISOString(),
       ...(source !== undefined ? { source } : {}),
     }),
+    ...(payerSubscriptionId !== undefined ? { payerSubscriptionId } : {}),
   })
 }
 
@@ -717,6 +736,36 @@ function buildBillingAttributionSnapshot(params: {
       source: period.source,
     },
     payerSubscription: serializeSubscription(payerSubscription),
+  })
+}
+
+/**
+ * The same payer's attribution for its current usage period, for a run that outlived the period
+ * it was admitted in. The actor, workspace and payer are kept; only the payer's subscription,
+ * and so its period, is read again, and a subscription that no longer belongs to the payer is
+ * refused rather than re-selected.
+ */
+export async function refreshAttributionPeriod(
+  attribution: BillingAttributionSnapshot
+): Promise<BillingAttributionSnapshot> {
+  const validated = assertBillingAttributionSnapshot(attribution)
+  const payerSubscription = validated.organizationId
+    ? await getOrganizationSubscription(validated.organizationId, { onError: 'throw' })
+    : await getHighestPriorityPersonalSubscription(validated.billedAccountUserId, {
+        onError: 'throw',
+      })
+  const expectedReferenceId = validated.organizationId ?? validated.billedAccountUserId
+  if (payerSubscription && payerSubscription.referenceId !== expectedReferenceId) {
+    throw new Error(
+      `Resolved subscription ${payerSubscription.id} does not belong to payer ${expectedReferenceId}`
+    )
+  }
+  return buildBillingAttributionSnapshot({
+    actorUserId: validated.actorUserId,
+    workspaceId: validated.workspaceId,
+    billedAccountUserId: validated.billedAccountUserId,
+    organizationId: validated.organizationId,
+    payerSubscription,
   })
 }
 
@@ -902,6 +951,20 @@ export async function checkAttributedBillingBlocks(
 }
 
 /**
+ * The same freeze checks for a direct-v1 run: the actor's own account, then the payer saved in
+ * its admission decision, never one re-selected from the actor's current memberships.
+ */
+export async function checkAccountBillingBlocks(
+  decision: AccountBillingDecision
+): Promise<AttributedBillingBlockResult> {
+  const actorBlock = await checkBillingBlocked(decision.userId)
+  if (actorBlock.blocked) return { ...actorBlock, scope: 'actor' }
+  const payer = decision.billingEntity
+  if (payer.type === 'user' && payer.id === decision.userId) return actorBlock
+  return { ...(await checkBillingEntityBlocked(payer)), scope: 'payer' }
+}
+
+/**
  * Applies hosted billing gates in canonical order: actor account, workspace
  * payer pool, then `(organizationId, actorUserId)` member cap.
  */
@@ -919,6 +982,7 @@ export async function checkAttributedUsageLimits(
       isExceeded: true,
       message: billingBlock.message,
       scope: billingBlock.scope,
+      reason: 'billing_blocked',
     }
   }
 
@@ -934,8 +998,9 @@ export async function checkAttributedUsageLimits(
   if (payerUsage.isExceeded) {
     const formattedUsage = payerUsage.currentUsage.toFixed(2)
     const formattedLimit = payerUsage.limit.toFixed(2)
-    const message =
-      validatedAttribution.billingEntity.type === 'organization'
+    const message = payerUsage.unavailable
+      ? USAGE_UNAVAILABLE_MESSAGE
+      : validatedAttribution.billingEntity.type === 'organization'
         ? `Organization usage limit exceeded: $${formattedUsage} pooled of $${formattedLimit} organization limit. Ask a team admin to raise the organization usage limit to continue.`
         : `Usage limit exceeded: $${formattedUsage} used of $${formattedLimit} limit. Please upgrade your plan or raise your usage limit to continue.`
 
@@ -944,6 +1009,7 @@ export async function checkAttributedUsageLimits(
       message,
       scope: 'payer',
       payerUsage: payerSnapshot,
+      ...(payerUsage.unavailable ? { reason: 'usage_unavailable' as const } : {}),
     }
   }
 

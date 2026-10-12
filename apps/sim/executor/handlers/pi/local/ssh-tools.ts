@@ -7,6 +7,7 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import type { Client, SFTPWrapper } from 'ssh2'
 import {
   createSSHConnection,
@@ -129,7 +130,7 @@ export async function captureRepoChanges(
     }
     const raw = await executeSSHCommand(session.client, `${scoped} && git diff HEAD`)
     const out = raw.exitCode === 0 ? raw.stdout : ''
-    const diff = out.length > maxDiffBytes ? `${out.slice(0, maxDiffBytes)}\n[diff truncated]` : out
+    const diff = truncate(out, maxDiffBytes, '\n[diff truncated]')
     return { changedFiles: [...fileSet], diff }
   } catch {
     return { changedFiles: [], diff: '' }

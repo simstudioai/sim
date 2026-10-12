@@ -29,7 +29,6 @@ const table = {
       },
     ],
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any
 
 let lastHandle: {

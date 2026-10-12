@@ -284,8 +284,7 @@ function buildTriggerRunOption(
  * guaranteeing describe == enforce.
  */
 export function resolveTriggerRunOptions(
-  blocks: Record<string, TriggerBlockLike>,
-  edges?: Array<{ source: string; target: string }>
+  blocks: Record<string, TriggerBlockLike>
 ): TriggerRunOption[] {
   const manual = resolveStartCandidates(blocks, { execution: 'manual' })
   const chat = resolveStartCandidates(blocks, { execution: 'chat' })
@@ -302,7 +301,7 @@ export function resolveTriggerRunOptions(
     return []
   }
 
-  // Single overall default (no edges => one best); ties broken by trigger priority.
+  // Single overall default; ties broken by trigger priority.
   const defaultBlockId = selectBestTrigger(candidates)[0]?.blockId
 
   return candidates.map((candidate) =>

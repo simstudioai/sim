@@ -35,7 +35,7 @@ vi.mock('@/lib/workflows/autolayout/constants', () => ({
   DEFAULT_LAYOUT_OPTIONS: {},
 }))
 
-vi.mock('@/stores/workflows/workflow/utils', () => ({
+vi.mock('@sim/workflow-persistence/subflow-helpers', () => ({
   generateLoopBlocks: () => ({}),
   generateParallelBlocks: () => ({}),
 }))
@@ -43,10 +43,7 @@ vi.mock('@/stores/workflows/workflow/utils', () => ({
 vi.mock('@/blocks', () => ({
   getBlock: () => null,
   getAllBlocks: () => ({}),
-  getAllBlockTypes: () => [],
   getBlockByToolName: () => null,
-  getBlocksByCategory: () => [],
-  isValidBlockType: () => false,
   registry: {},
 }))
 
@@ -63,7 +60,6 @@ vi.mock('@/lib/workflows/subblocks/visibility', () => ({
 }))
 
 vi.mock('@/lib/workflows/triggers/triggers', () => ({
-  TRIGGER_TYPES: {},
   classifyStartBlockType: () => null,
   StartBlockPath: {},
   getTriggerOutputs: () => ({}),

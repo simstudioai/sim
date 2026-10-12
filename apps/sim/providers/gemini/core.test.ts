@@ -1,4 +1,8 @@
-import type { GenerateContentParameters, GenerateContentResponse } from '@google/genai'
+import {
+  ApiError,
+  type GenerateContentParameters,
+  type GenerateContentResponse,
+} from '@google/genai'
 import { providersMock } from '@sim/testing/mocks/providers.mock'
 import {
   providersConversationHistoryMock,
@@ -13,7 +17,6 @@ import { calculateCost } from '@/providers/utils'
 
 providersMock.MAX_TOOL_ITERATIONS = 5
 const mockCapture = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
-const mockRecordError = providersConversationHistoryMockFns.mockRecordProviderConversationToolError
 
 const mockExecuteTool = toolsMockFns.mockExecuteTool
 
@@ -141,6 +144,25 @@ describe('Vertex Gemini request compatibility', () => {
       expect(generateContent.mock.calls[0][0].config.temperature).toBe(0.5)
     }
   )
+
+  /** The SDK's own retry is off (it would replace every error message), so ours must run. */
+  it('replays a transient server error before reporting it', async () => {
+    vi.useFakeTimers()
+    try {
+      const generateContent = vi
+        .fn()
+        .mockRejectedValueOnce(new ApiError({ message: 'Internal error', status: 500 }))
+        .mockResolvedValue(textTurn())
+
+      const pending = run('vertex/gemini-3.8-flash', generateContent)
+      await vi.runAllTimersAsync()
+
+      await expect(pending).resolves.toMatchObject({ content: 'answer' })
+      expect(generateContent).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 
   it('prices Vertex-only catalog entries using the namespaced model ID', async () => {
     const generateContent = vi.fn().mockResolvedValue(textTurn())

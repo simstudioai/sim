@@ -23,7 +23,7 @@ export const lemlistLinkedInRepliedTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'lemlist_linkedin_replied',
     triggerOptions: lemlistTriggerOptions,
-    setupInstructions: lemlistSetupInstructions('linkedinReplied'),
+    setupInstructions: lemlistSetupInstructions(),
     extraFields: buildLemlistExtraFields('lemlist_linkedin_replied'),
   }),
 

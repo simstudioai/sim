@@ -815,7 +815,13 @@ describe('provider runtime context', () => {
       () => executeProviderTool('custom-tool', {})
     )
 
-    expect(result).toEqual({ success: true, output: {} })
+    expect(result).toEqual({
+      success: true,
+      output: {
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/could not be verified/),
+      },
+    })
     expect(registry.isComplete()).toBe(false)
     expect(registry.getActiveMatches()).toEqual([])
   })
@@ -840,7 +846,10 @@ describe('provider runtime context', () => {
 
     expect(result).toEqual({
       success: false,
-      output: {},
+      output: {
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/could not be verified/),
+      },
       error:
         'Tool execution settled, but its result could not be returned safely. Do not retry a mutation automatically.',
     })
@@ -867,7 +876,13 @@ describe('provider runtime context', () => {
     )
 
     expect(execution.rawResponse.output).toHaveProperty('value', 'secret-value')
-    expect(execution.modelResponse).toEqual({ success: true, output: {} })
+    expect(execution.modelResponse).toEqual({
+      success: true,
+      output: {
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/could not be checked/),
+      },
+    })
     expect(registry.isComplete()).toBe(true)
     expect(registry.getActiveMatches()).toEqual([
       { plaintext: 'secret-value', replacement: '{{TOKEN}}' },
@@ -895,7 +910,10 @@ describe('provider runtime context', () => {
     })
     expect(execution.modelResponse).toEqual({
       success: false,
-      output: {},
+      output: {
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/could not be verified/),
+      },
       error:
         'Tool execution settled, but its result could not be returned safely. Do not retry a mutation automatically.',
     })

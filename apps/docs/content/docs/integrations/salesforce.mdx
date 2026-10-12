@@ -673,9 +673,9 @@ Get a list of up to 200 recently viewed reports for the current user
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Reports data |
+|   ↳ `reports` | array | Array of report objects |
 |   ↳ `totalReturned` | number | Number of items returned |
 |   ↳ `success` | boolean | Salesforce operation success |
-|   ↳ `reports` | array | Array of report objects |
 
 ### Get Report Metadata from Salesforce
 
@@ -742,9 +742,9 @@ Get a list of available report types
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Report types data |
+|   ↳ `reportTypes` | array | Array of report type objects |
 |   ↳ `totalReturned` | number | Number of items returned |
 |   ↳ `success` | boolean | Salesforce operation success |
-|   ↳ `reportTypes` | array | Array of report type objects |
 
 ### List Dashboards from Salesforce
 
@@ -761,9 +761,9 @@ Get a list of recently used dashboards for the current user
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Dashboards data |
+|   ↳ `dashboards` | array | Array of dashboard objects |
 |   ↳ `totalReturned` | number | Number of items returned |
 |   ↳ `success` | boolean | Salesforce operation success |
-|   ↳ `dashboards` | array | Array of dashboard objects |
 
 ### Get Dashboard from Salesforce
 
@@ -1083,8 +1083,6 @@ Execute a SOQL query against the Tooling API to inspect metadata objects
 |     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `success` | boolean | Salesforce operation success |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -1280,4 +1278,21 @@ Trigger workflow on any Salesforce webhook event
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
 | `record` | json | Full record data |
 | `payload` | json | Full webhook payload |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Salesforce account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | Production or Developer Edition: `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/salesforce`<br />Sandbox: `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/salesforce-sandbox` |
+| Environment variables | `SALESFORCE_CLIENT_ID`, `SALESFORCE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `api` | Access Salesforce API |
+| `refresh_token` | Maintain long-term access to Salesforce account |
+| `openid` | Standard authentication |
+
 

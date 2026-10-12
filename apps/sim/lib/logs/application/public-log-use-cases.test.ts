@@ -139,7 +139,8 @@ describe('public log application use cases', () => {
     expect(mocks.loadWorkspace).toHaveBeenCalledWith('workspace-1')
     expect(mocks.getLog).toHaveBeenCalledWith(
       { column: 'executionId', value: 'run-1' },
-      'workspace-1'
+      'workspace-1',
+      { includeWorkflowState: undefined }
     )
     expect(mocks.materialize).toHaveBeenCalledWith(
       { pointer: true },

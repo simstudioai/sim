@@ -220,7 +220,7 @@ export async function ensureUserStatsExists(userId: string): Promise<void> {
     .onConflictDoNothing({ target: userStats.userId })
 }
 
-export interface ResolvedUserUsageData {
+interface ResolvedUserUsageData {
   usage: UsageData
   subscription: HighestPrioritySubscription
   /** The personal balance from the same user-stats row used to calculate usage. */
@@ -228,7 +228,7 @@ export interface ResolvedUserUsageData {
 }
 
 /** Resolves comprehensive usage and the subscription that determined its billing scope. */
-export async function getResolvedUserUsageData(
+async function getResolvedUserUsageData(
   userId: string,
   executor: DbClient = db
 ): Promise<ResolvedUserUsageData> {

@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { JiraResponse } from '@/tools/jira/types'
 import { getTrigger } from '@/triggers'
 
 /** Canonical `issueKey` pair: issue picker (basic) and raw issue key (advanced). */
@@ -13,7 +12,7 @@ const PROJECT_FIELD = ['projectId', 'manualProjectId'] as const
 /** Canonical `files` pair: upload (basic) and file reference (advanced). */
 const ATTACHMENT_FIELD = ['attachmentFiles', 'files'] as const
 
-export const JiraBlock: BlockConfig<JiraResponse> = {
+export const JiraBlock: BlockConfig = {
   type: 'jira',
   name: 'Jira',
   description: 'Interact with Jira',
@@ -200,7 +199,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    // Project selector (basic mode)
     {
       id: 'projectId',
       title: 'Select Project',
@@ -213,7 +211,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       mode: 'basic',
       required: { field: 'operation', value: ['write', 'read-bulk', 'get_project'] },
     },
-    // Manual project ID input (advanced mode)
     {
       id: 'manualProjectId',
       title: 'Project ID',
@@ -224,7 +221,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       mode: 'advanced',
       required: { field: 'operation', value: ['write', 'read-bulk', 'get_project'] },
     },
-    // Issue selector (basic mode)
     {
       id: 'issueKey',
       title: 'Select Issue',
@@ -282,7 +278,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       },
       mode: 'basic',
     },
-    // Manual issue key input (advanced mode)
     {
       id: 'manualIssueKey',
       title: 'Issue Key',
@@ -377,7 +372,6 @@ Return ONLY the description text - no explanations.`,
           'Describe the issue details (e.g., "users seeing 500 error when clicking submit")...',
       },
     },
-    // Write Issue type and parent
     {
       id: 'issueType',
       title: 'Issue Type',
@@ -396,7 +390,6 @@ Return ONLY the description text - no explanations.`,
       condition: { field: 'operation', value: 'write' },
       mode: 'advanced',
     },
-    // Write/Update Issue additional fields
     {
       id: 'assignee',
       title: 'Assignee Account ID',
@@ -499,7 +492,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       condition: { field: 'operation', value: 'update' },
       mode: 'advanced',
     },
-    // Delete Issue fields
     {
       id: 'deleteSubtasks',
       title: 'Delete Subtasks',
@@ -512,7 +504,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       condition: { field: 'operation', value: 'delete' },
       mode: 'advanced',
     },
-    // Assign Issue fields
     {
       id: 'accountId',
       title: 'Account ID',
@@ -521,7 +512,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Enter user account ID to assign',
       condition: { field: 'operation', value: ['assign', 'add_watcher', 'remove_watcher'] },
     },
-    // Transition Issue fields
     {
       id: 'transitionId',
       title: 'Transition ID',
@@ -556,7 +546,6 @@ Return ONLY the comment text - no explanations.`,
       condition: { field: 'operation', value: 'transition' },
       mode: 'advanced',
     },
-    // Search Issues fields
     {
       id: 'jql',
       title: 'JQL Query',
@@ -613,7 +602,6 @@ Return ONLY the JQL query - no explanations or markdown formatting.`,
       condition: { field: 'operation', value: 'search' },
       mode: 'advanced',
     },
-    // Comment fields
     {
       id: 'commentBody',
       title: 'Comment Text',
@@ -642,7 +630,6 @@ Return ONLY the comment text - no explanations.`,
       placeholder: 'Enter comment ID',
       condition: { field: 'operation', value: ['update_comment', 'delete_comment'] },
     },
-    // Attachment fields
     {
       id: 'attachmentFiles',
       title: 'Attachments',
@@ -672,7 +659,6 @@ Return ONLY the comment text - no explanations.`,
       placeholder: 'Enter attachment ID',
       condition: { field: 'operation', value: 'delete_attachment' },
     },
-    // Worklog fields
     {
       id: 'timeSpentSeconds',
       title: 'Time Spent (seconds)',
@@ -736,7 +722,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'Enter worklog ID',
       condition: { field: 'operation', value: ['update_worklog', 'delete_worklog'] },
     },
-    // Issue Link fields
     {
       id: 'inwardIssueKey',
       title: 'Inward Issue Key',
@@ -789,7 +774,6 @@ Return ONLY the comment text - no explanations.`,
       placeholder: 'Enter link ID to delete',
       condition: { field: 'operation', value: 'delete_link' },
     },
-    // Get Users fields
     {
       id: 'userAccountId',
       title: 'Account ID',
@@ -814,7 +798,6 @@ Return ONLY the comment text - no explanations.`,
       condition: { field: 'operation', value: 'get_users' },
       mode: 'advanced',
     },
-    // Search Users fields
     {
       id: 'searchUsersQuery',
       title: 'Search Query',
@@ -839,7 +822,6 @@ Return ONLY the comment text - no explanations.`,
       condition: { field: 'operation', value: 'search_users' },
       mode: 'advanced',
     },
-    // List Projects fields
     {
       id: 'projectSearchQuery',
       title: 'Project Filter',
@@ -863,7 +845,6 @@ Return ONLY the comment text - no explanations.`,
       condition: { field: 'operation', value: 'list_projects' },
       mode: 'advanced',
     },
-    // Trigger SubBlocks
     ...getTrigger('jira_issue_created').subBlocks,
     ...getTrigger('jira_issue_updated').subBlocks,
     ...getTrigger('jira_issue_deleted').subBlocks,
@@ -981,7 +962,7 @@ Return ONLY the comment text - no explanations.`,
         }
       },
       params: (params) => {
-        const { oauthCredential, projectId, issueKey, ...rest } = params
+        const { oauthCredential, projectId, issueKey } = params
 
         // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
         const effectiveProjectId = projectId ? String(projectId).trim() : ''
@@ -994,7 +975,6 @@ Return ONLY the comment text - no explanations.`,
 
         switch (params.operation) {
           case 'write': {
-            // Parse comma-separated strings into arrays
             const parseCommaSeparated = (value: string | undefined): string[] | undefined => {
               if (!value || value.trim() === '') return undefined
               return value
@@ -1066,7 +1046,6 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
-              // Include projectId if available for context
               ...(effectiveProjectId && { projectId: effectiveProjectId }),
             }
           }
@@ -1317,11 +1296,9 @@ Return ONLY the comment text - no explanations.`,
     oauthCredential: { type: 'string', description: 'Jira access token' },
     issueKey: { type: 'string', description: 'Issue key identifier (canonical param)' },
     projectId: { type: 'string', description: 'Project identifier (canonical param)' },
-    // Update/Write operation inputs
     summary: { type: 'string', description: 'Issue summary' },
     description: { type: 'string', description: 'Issue description' },
     issueType: { type: 'string', description: 'Issue type' },
-    // Write/Update operation additional inputs
     parentIssue: { type: 'string', description: 'Parent issue key for subtasks' },
     assignee: { type: 'string', description: 'Assignee account ID' },
     priority: { type: 'string', description: 'Priority ID or name' },
@@ -1334,18 +1311,14 @@ Return ONLY the comment text - no explanations.`,
     customFieldId: { type: 'string', description: 'Custom field ID (e.g., customfield_10001)' },
     customFieldValue: { type: 'string', description: 'Value for the custom field' },
     notifyUsers: { type: 'string', description: 'Whether to send notifications on update' },
-    // Delete operation inputs
     deleteSubtasks: { type: 'string', description: 'Whether to delete subtasks (true/false)' },
-    // Assign/Watcher operation inputs
     accountId: {
       type: 'string',
       description: 'User account ID for assignment or watcher operations',
     },
-    // Transition operation inputs
     transitionId: { type: 'string', description: 'Transition ID for workflow status changes' },
     transitionComment: { type: 'string', description: 'Optional comment for transition' },
     resolution: { type: 'string', description: 'Resolution name for transition (e.g., "Fixed")' },
-    // Search operation inputs
     nextPageToken: {
       type: 'string',
       description: 'Cursor token for the next page of search results',
@@ -1357,13 +1330,10 @@ Return ONLY the comment text - no explanations.`,
       type: 'string',
       description: 'Comma-separated field names to return (e.g., key,summary,status)',
     },
-    // Comment operation inputs
     commentBody: { type: 'string', description: 'Text content for comment operations' },
     commentId: { type: 'string', description: 'Comment ID for update/delete operations' },
-    // Attachment operation inputs
     files: { type: 'array', description: 'Files to attach (canonical param)' },
     attachmentId: { type: 'string', description: 'Attachment ID for delete operation' },
-    // Worklog operation inputs
     timeSpentSeconds: {
       type: 'string',
       description: 'Time spent in seconds for add worklog (required)',
@@ -1375,27 +1345,23 @@ Return ONLY the comment text - no explanations.`,
     worklogComment: { type: 'string', description: 'Optional comment for worklog' },
     started: { type: 'string', description: 'ISO timestamp when work started (optional)' },
     worklogId: { type: 'string', description: 'Worklog ID for update/delete operations' },
-    // Issue Link operation inputs
     inwardIssueKey: { type: 'string', description: 'Inward issue key for creating link' },
     outwardIssueKey: { type: 'string', description: 'Outward issue key for creating link' },
     linkType: { type: 'string', description: 'Type of link (e.g., "Blocks", "Relates")' },
     linkComment: { type: 'string', description: 'Optional comment for issue link' },
     linkId: { type: 'string', description: 'Link ID for delete operation' },
-    // Get Users operation inputs
     userAccountId: {
       type: 'string',
       description: 'Account ID for specific user lookup (optional)',
     },
     usersStartAt: { type: 'string', description: 'Pagination start index for users' },
     usersMaxResults: { type: 'string', description: 'Maximum users to return' },
-    // Search Users operation inputs
     searchUsersQuery: {
       type: 'string',
       description: 'Search query (email address or display name)',
     },
     searchUsersMaxResults: { type: 'string', description: 'Maximum users to return from search' },
     searchUsersStartAt: { type: 'string', description: 'Pagination start index for user search' },
-    // List Projects operation inputs
     projectSearchQuery: {
       type: 'string',
       description: 'Filter projects by partial name or key match',
@@ -1410,10 +1376,8 @@ Return ONLY the comment text - no explanations.`,
     },
   },
   outputs: {
-    // Common outputs across all Jira operations
     ts: { type: 'string', description: 'Timestamp of the operation' },
 
-    // jira_retrieve (read) outputs
     issueKey: { type: 'string', description: 'Issue key (e.g., PROJ-123)' },
     summary: { type: 'string', description: 'Issue summary/title' },
     description: { type: 'string', description: 'Issue description content' },
@@ -1422,12 +1386,10 @@ Return ONLY the comment text - no explanations.`,
     status: { type: 'string', description: 'Issue status name' },
     assignee: { type: 'string', description: 'Issue assignee display name or account ID' },
 
-    // jira_write (create) outputs
     url: { type: 'string', description: 'URL to the created/accessed issue' },
     id: { type: 'string', description: 'Jira issue ID' },
     key: { type: 'string', description: 'Jira issue key' },
 
-    // jira_search_issues / jira_bulk_read outputs
     total: { type: 'number', description: 'Total number of matching issues' },
     nextPageToken: { type: 'string', description: 'Cursor token for the next page of results' },
     isLast: { type: 'boolean', description: 'Whether this is the last page of results' },
@@ -1439,18 +1401,15 @@ Return ONLY the comment text - no explanations.`,
       description: 'Array of matching issues with key, summary, status, assignee, dates',
     },
 
-    // jira_get_comments outputs
     comments: {
       type: 'json',
       description: 'Array of comments with id, author, body, created, updated',
     },
 
-    // jira_add_comment, jira_update_comment outputs
     commentId: { type: 'string', description: 'Comment ID' },
     commentBody: { type: 'string', description: 'Comment text content' },
     author: { type: 'string', description: 'Comment author display name' },
 
-    // jira_get_attachments outputs
     attachments: {
       type: 'json',
       description: 'Array of attachments with id, filename, size, mimeType, created, author',
@@ -1461,70 +1420,57 @@ Return ONLY the comment text - no explanations.`,
     // jira_delete_attachment, jira_delete_comment, jira_delete_issue, jira_delete_worklog, jira_delete_issue_link outputs
     attachmentId: { type: 'string', description: 'Deleted attachment ID' },
 
-    // jira_get_worklogs outputs
     worklogs: {
       type: 'json',
       description:
         'Array of worklogs with id, author, timeSpentSeconds, timeSpent, comment, created, updated, started',
     },
 
-    // jira_add_worklog, jira_update_worklog outputs
     worklogId: { type: 'string', description: 'Worklog ID' },
     timeSpentSeconds: { type: 'number', description: 'Time spent in seconds' },
     timeSpent: { type: 'string', description: 'Formatted time spent string' },
 
-    // jira_assign_issue outputs
     assigneeId: { type: 'string', description: 'Assigned user account ID' },
 
-    // jira_transition_issue outputs
     transitionId: { type: 'string', description: 'Applied transition ID' },
     newStatus: { type: 'string', description: 'New status after transition' },
 
-    // jira_create_issue_link outputs
     linkId: { type: 'string', description: 'Created link ID' },
     inwardIssue: { type: 'string', description: 'Inward issue key' },
     outwardIssue: { type: 'string', description: 'Outward issue key' },
     linkType: { type: 'string', description: 'Type of issue link' },
 
-    // jira_add_watcher, jira_remove_watcher outputs
     watcherAccountId: { type: 'string', description: 'Watcher account ID' },
 
-    // jira_get_users outputs
     users: {
       type: 'json',
       description: 'Array of users with accountId, displayName, emailAddress, active status',
     },
 
-    // jira_list_projects outputs
     projects: {
       type: 'json',
       description: 'Array of projects with id, key, name, projectTypeKey, and lead',
     },
 
-    // jira_get_project / jira_list_issue_types outputs
     projectTypeKey: { type: 'string', description: 'Project type key (e.g., software, business)' },
     issueTypes: {
       type: 'json',
       description: 'Array of issue types with id, name, description, subtask, hierarchyLevel',
     },
 
-    // jira_get_transitions outputs
     transitions: {
       type: 'json',
       description: 'Array of available workflow transitions with id, name, and target status',
     },
 
-    // jira_get_fields outputs
     fields: {
       type: 'json',
       description: 'Array of Jira fields with id, key, name, custom flag, and schema type',
     },
 
-    // jira_bulk_read outputs
     // Note: bulk_read returns an array in the output field, each item contains:
     // ts, issueKey, summary, description, status, assignee, created, updated
 
-    // Trigger outputs (from webhook events)
     event_type: { type: 'string', description: 'Webhook event type' },
     issue_id: { type: 'string', description: 'Issue ID from webhook' },
     issue_key: { type: 'string', description: 'Issue key from webhook' },

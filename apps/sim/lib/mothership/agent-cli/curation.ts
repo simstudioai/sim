@@ -16,10 +16,8 @@ import { withToolBindingHints } from '@/lib/mothership/agent-cli/tool-binding-hi
 import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
 import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
-import { getTableQueryAvailability } from '@/lib/table/query-availability'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { inputFormatValueSchema } from '@/lib/workflows/input-format-schema'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 export interface CurationViewer {
@@ -97,18 +95,6 @@ export async function curateBlockDetail(
       : detail
   )
   enriched = withToolBindingHints(enriched)
-  if (detail.toolIds.includes('table_query_rows_v2')) {
-    const workspace = await resolveActiveWorkspaceApplicationContext(viewer.workspaceId)
-    enriched = {
-      ...enriched,
-      operationAvailability: {
-        table_query_rows_v2: await getTableQueryAvailability({
-          userId: viewer.userId,
-          orgId: workspace.workspaceOrganizationId,
-        }),
-      },
-    }
-  }
   if (enriched === detail) return permitted
   return { ...permitted, stdout: JSON.stringify(mothershipBlockDetailSchema.parse(enriched)) }
 }

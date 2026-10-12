@@ -55,6 +55,13 @@ Retrieve detailed information about a specific Jira issue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `timetracking` | object | Time tracking information |
+|   ↳ `originalEstimate` | string | Original estimate in human-readable format \(e.g., 1w 2d\) |
+|   ↳ `remainingEstimate` | string | Remaining estimate in human-readable format |
+|   ↳ `timeSpent` | string | Time spent in human-readable format |
+|   ↳ `originalEstimateSeconds` | number | Original estimate in seconds |
+|   ↳ `remainingEstimateSeconds` | number | Remaining estimate in seconds |
+|   ↳ `timeSpentSeconds` | number | Time spent in seconds |
 | `id` | string | Issue ID |
 | `key` | string | Issue key \(e.g., PROJ-123\) |
 | `self` | string | REST API URL for this issue |
@@ -128,13 +135,6 @@ Retrieve detailed information about a specific Jira issue
 | `created` | string | ISO 8601 timestamp when the issue was created |
 | `updated` | string | ISO 8601 timestamp when the issue was last updated |
 | `resolutiondate` | string | ISO 8601 timestamp when the issue was resolved |
-| `timetracking` | object | Time tracking information |
-|   ↳ `originalEstimate` | string | Original estimate in human-readable format \(e.g., 1w 2d\) |
-|   ↳ `remainingEstimate` | string | Remaining estimate in human-readable format |
-|   ↳ `timeSpent` | string | Time spent in human-readable format |
-|   ↳ `originalEstimateSeconds` | number | Original estimate in seconds |
-|   ↳ `remainingEstimateSeconds` | number | Remaining estimate in seconds |
-|   ↳ `timeSpentSeconds` | number | Time spent in seconds |
 | `parent` | object | Parent issue \(for subtasks\) |
 |   ↳ `id` | string | Parent issue ID |
 |   ↳ `key` | string | Parent issue key |
@@ -1164,8 +1164,6 @@ Get all system and custom fields defined in the Jira instance. Useful for discov
 |   ↳ `schemaType` | string | Field value type \(e.g., string, number, array, user\) |
 |   ↳ `customType` | string | Custom field type identifier \(only for custom fields\) |
 | `total` | number | Number of fields returned |
-
-
 
 ## Triggers
 
@@ -2225,4 +2223,59 @@ Trigger workflow when a worklog entry is updated on a Jira issue
 |   ↳ `updated` | string | When the worklog entry was last updated \(ISO format\) |
 |   ↳ `issueId` | string | ID of the issue this worklog belongs to |
 |   ↳ `self` | string | REST API URL for this worklog entry |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Jira account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/jira` |
+| Environment variables | `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `read:jira-user` | View Jira user profiles, including email addresses |
+| `read:jira-work` | View Jira projects and issues, and search issues |
+| `write:jira-work` | Create, edit, and delete Jira issues, comments, and worklogs |
+| `read:me` | Read profile information |
+| `offline_access` | Access account when not using the application |
+| `read:issue.vote:jira` | Read Jira issue votes |
+| `read:user:jira` | View Jira users |
+| `delete:issue:jira` | Delete Jira issues |
+| `delete:comment:jira` | Delete comments from Jira issues |
+| `delete:attachment:jira` | Delete attachments from Jira issues |
+| `delete:issue-worklog:jira` | Delete worklog entries from Jira issues |
+| `delete:issue-link:jira` | Delete links between Jira issues |
+| `read:servicedesk-request` | View service desk requests |
+| `write:servicedesk-request` | Create and update service desk requests |
+| `manage:servicedesk-customer` | Manage service desk customers and organizations |
+| `read:servicedesk:jira-service-management` | View service desks and their settings |
+| `read:requesttype:jira-service-management` | View request types available in service desks |
+| `read:request:jira-service-management` | View customer requests in service desks |
+| `write:request:jira-service-management` | Create customer requests in service desks |
+| `read:request.comment:jira-service-management` | View comments on customer requests |
+| `write:request.comment:jira-service-management` | Add comments to customer requests |
+| `read:servicedesk.customer:jira-service-management` | View customers linked to service desks |
+| `write:servicedesk.customer:jira-service-management` | Add and remove customers from service desks |
+| `read:organization:jira-service-management` | View organizations |
+| `write:organization:jira-service-management` | Create and manage organizations |
+| `read:servicedesk.organization:jira-service-management` | View organizations linked to service desks |
+| `write:servicedesk.organization:jira-service-management` | Add and remove organizations from service desks |
+| `read:queue:jira-service-management` | View service desk queues and their issues |
+| `read:request.sla:jira-service-management` | View SLA information for customer requests |
+| `read:request.status:jira-service-management` | View status of customer requests |
+| `write:request.status:jira-service-management` | Transition customer request status |
+| `read:request.participant:jira-service-management` | View participants on customer requests |
+| `write:request.participant:jira-service-management` | Add and remove participants from customer requests |
+| `read:request.approval:jira-service-management` | View approvals on customer requests |
+| `write:request.approval:jira-service-management` | Approve or decline customer requests |
+| `read:cmdb-object:jira` | View Assets objects and run AQL searches |
+| `write:cmdb-object:jira` | Create and update Assets objects |
+| `delete:cmdb-object:jira` | Delete Assets objects |
+| `read:cmdb-schema:jira` | View Assets object schemas |
+| `read:cmdb-type:jira` | View Assets object types |
+| `read:cmdb-attribute:jira` | View Assets object type attributes |
+
 

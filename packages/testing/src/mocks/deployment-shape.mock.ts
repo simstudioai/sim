@@ -8,7 +8,6 @@ export interface MockDeploymentShape {
   azureConfigured: boolean
   cohereConfigured: boolean
   features: {
-    liveEnterpriseSearch?: boolean
     accessControl: boolean
     auditLogs: boolean
     customBlocks: boolean
@@ -43,7 +42,6 @@ export function createMockDeploymentShape(
     cohereConfigured: false,
     ...rest,
     features: {
-      liveEnterpriseSearch: true,
       accessControl: false,
       auditLogs: false,
       customBlocks: false,

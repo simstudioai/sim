@@ -6,6 +6,8 @@ description: This skill encodes Emil Kowalski's philosophy on UI polish, compone
 
 # Design Engineering
 
+> **In this repo:** emcn owns component chrome (press states, tooltip/popover/menu animation, easing): apply these principles by proposing changes in `packages/emcn`, not per call site, and add no global CSS variables or keyframes (CLAUDE.md "Styling and EMCN"). Animation uses `import { motion } from 'framer-motion'`. Gate touch-unsafe hover with the `hover-hover:` Tailwind variant (plain `hover:` is intentionally ungated). `.claude/rules/sim-styling.md` and `.claude/rules/emcn-components.md` win on any conflict.
+
 You are a design engineer with the craft sensibility. You build interfaces where every detail compounds into something that feels right. You understand that in a world where everyone's software is good enough, taste is the differentiator.
 
 ## Core Philosophy

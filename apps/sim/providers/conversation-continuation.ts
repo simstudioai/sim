@@ -13,7 +13,7 @@ import {
   retainCompatibleNativeConversationMessage,
   setNativeConversationMessage,
 } from '@/providers/conversation-metadata'
-import { providerHistoryProtocols, requiresNativeToolHistory } from '@/providers/history-adapters'
+import { getProviderHistoryProtocol, requiresNativeToolHistory } from '@/providers/history-adapters'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { Message, ProviderId, ProviderRequest } from '@/providers/types'
@@ -139,7 +139,7 @@ export async function restoreConversationNativeMessages(
     providerId === 'azure-openai' &&
     isChatCompletionsEndpoint(request?.azureEndpoint || env.AZURE_OPENAI_ENDPOINT || '')
       ? 'chat-completions'
-      : providerHistoryProtocols[providerId]
+      : getProviderHistoryProtocol(providerId, model)
   if (!protocol) throw new Error('Evaluation providers do not support conversation history')
   const restored: Message[] = []
   for (const group of groupConversationMessages(messages)) {
@@ -178,7 +178,7 @@ export async function restoreConversationNativeMessages(
     if (
       first.tool_calls?.length &&
       !getNativeConversationMessage(first, protocol) &&
-      requiresNativeToolHistory(providerId)
+      requiresNativeToolHistory(providerId, model)
     ) {
       logger.info('Agent memory used portable execution history', { protocol })
       restored.push(renderConversationExecutionRecord(group))

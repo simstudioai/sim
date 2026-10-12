@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { credentialGroup } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq } from 'drizzle-orm'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { resourceScopeColumns, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -29,7 +28,6 @@ import {
   verifySlackUserIdentity,
 } from '@/lib/credential-groups/slack-managed-users'
 import type { DbOrTx } from '@/lib/db/types'
-import { SLACK_RTS_USER_SCOPES } from '@/lib/sim-search/live/scopes'
 
 const PROVIDER = 'slack' as const
 
@@ -181,15 +179,7 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
       buildAuthorizationUrl: ({ state }) => {
         const authorizationUrl = new URL('https://slack.com/oauth/v2/authorize')
         authorizationUrl.searchParams.set('client_id', currentPolicy.clientId)
-        authorizationUrl.searchParams.set(
-          'user_scope',
-          [
-            ...new Set([
-              ...policy.requiredScopes,
-              ...(isLiveEnterpriseSearchEnabled ? SLACK_RTS_USER_SCOPES : []),
-            ]),
-          ].join(',')
-        )
+        authorizationUrl.searchParams.set('user_scope', policy.requiredScopes.join(','))
         authorizationUrl.searchParams.set('redirect_uri', redirectUri)
         authorizationUrl.searchParams.set('state', state)
         authorizationUrl.searchParams.set('team', currentPolicy.teamId)

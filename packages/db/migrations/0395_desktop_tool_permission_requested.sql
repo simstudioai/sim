@@ -1,0 +1,1 @@
+ALTER TABLE "copilot_async_tool_calls" ADD COLUMN "permission_requested_at" timestamp;

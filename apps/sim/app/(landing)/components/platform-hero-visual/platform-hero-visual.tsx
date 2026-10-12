@@ -20,7 +20,7 @@ interface PlatformHeroVisualProps {
  */
 export function PlatformHeroVisual({ children }: PlatformHeroVisualProps) {
   return (
-    <div className='relative h-full w-full'>
+    <div className='relative size-full'>
       <Image
         fill
         priority

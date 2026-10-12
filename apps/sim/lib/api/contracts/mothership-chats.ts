@@ -39,6 +39,14 @@ export const mothershipChatParamsSchema = z.object({
   chatId: z.string().min(1),
 })
 
+/** The effort the user picked for a chat; null while the chat follows the default. */
+const mothershipChatEffortChoiceSchema = ChatPayloadSchema.shape.effort.unwrap().nullable()
+
+const setMothershipChatEffortBodySchema = z.object({
+  effort: ChatPayloadSchema.shape.effort.unwrap(),
+})
+export type SetMothershipChatEffortBody = z.input<typeof setMothershipChatEffortBodySchema>
+
 export const updateMothershipChatBodySchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
@@ -203,6 +211,7 @@ export const mothershipChatStreamQuerySchema = z
     streamId: z.string().optional(),
     after: z.string().optional(),
     batch: z.string().optional(),
+    source: z.enum(['ring', 'log']).optional(),
   })
   .passthrough()
 
@@ -308,6 +317,19 @@ export const updateMothershipChatContract = defineRouteContract({
   },
 })
 
+export const setMothershipChatEffortContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/mothership/chats/[chatId]/effort',
+  params: mothershipChatParamsSchema,
+  body: setMothershipChatEffortBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+    }),
+  },
+})
+
 export const deleteMothershipChatContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/mothership/chats/[chatId]',
@@ -398,6 +420,8 @@ export const getMothershipChatResponseSchema = z.object({
       messages: z.array(z.unknown()),
       activeStreamId: z.string().nullable(),
       resources: z.array(z.unknown()),
+      /** Optional so a client still loads chats from a server that predates the field. */
+      effort: mothershipChatEffortChoiceSchema.optional(),
       createdAt: z.union([z.string(), z.date()]).nullable().optional(),
       updatedAt: z.union([z.string(), z.date()]).nullable().optional(),
       streamSnapshot: mothershipChatStreamSnapshotSchema.optional(),
@@ -441,6 +465,24 @@ export const getMothershipChatContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: getMothershipChatResponseSchema,
+  },
+})
+
+/**
+ * The chat's live stream, without its transcript: what a tab polls while it
+ * waits for a finished turn to be saved, so each check costs a row and a lock
+ * lookup instead of the whole conversation.
+ */
+export const getMothershipChatStreamStatusContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mothership/chats/[chatId]/stream-status',
+  params: mothershipChatParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      activeStreamId: z.string().nullable(),
+    }),
   },
 })
 

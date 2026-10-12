@@ -7,10 +7,20 @@
  * browser and reports the outcome via the confirm endpoint, which wakes the
  * server-side waiter.
  */
-import { type BrowserToolName, browserToolRendererTimeoutMs } from '@sim/browser-protocol'
+import {
+  BROWSER_TOOL_OBSERVES_ONLY,
+  type BrowserToolName,
+  browserToolRendererTimeoutMs,
+} from '@sim/browser-protocol'
+import {
+  browserSessionClosedCompletion,
+  browserToolCompletion,
+  browserToolFailure,
+  browserToolNeedsLivePage,
+} from '@sim/desktop-bridge/tool-results'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike, toRecord } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import {
   cancelBrowserTool,
@@ -24,7 +34,6 @@ import {
 } from '@/lib/mothership/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/mothership/constants'
 import { BrowserToolReplayLedger } from '@/lib/mothership/tools/client/browser-tool-replay-ledger'
-import { sanitizeBrowserToolResultForModel } from '@/lib/mothership/tools/client/browser-tool-result'
 import {
   reportClientToolCompletion,
   reportClientToolCompletionOnPageExit,
@@ -34,67 +43,13 @@ import { getBrowserSession, useBrowserSessionStore } from '@/stores/browser-sess
 const logger = createLogger('CopilotBrowserToolExecution')
 
 /**
- * Tools that do not require an existing live page. Most create a new page;
- * `browser_list_sessions` reads the desktop's profile-level session registry.
- * Everything else is rejected up front when a closed scope cannot be restored,
- * instead of burning the full IPC timeout per call.
- */
-const LIVE_PAGE_OPTIONAL_TOOLS: ReadonlySet<BrowserToolName> = new Set<BrowserToolName>([
-  'browser_navigate',
-  'browser_open_url',
-  'browser_open_tab',
-  'browser_list_tabs',
-  'browser_list_sessions',
-  'browser_list_downloads',
-  'browser_save_download',
-])
-
-/**
  * Exhaustive replay policy for browser tools. Observation-only calls may run
  * when durable replay storage is unavailable because repeating them after a
  * reload cannot cause a page or external side effect. Every stateful current
  * tool and the retired takeover flow remain fail-closed.
  */
-const OBSERVATION_ONLY_BROWSER_TOOLS = {
-  browser_navigate: false,
-  browser_open_url: false,
-  browser_go_back: false,
-  browser_go_forward: false,
-  browser_reload: false,
-  browser_open_tab: false,
-  browser_switch_tab: false,
-  browser_close_tab: false,
-  browser_list_tabs: true,
-  browser_list_sessions: true,
-  browser_list_downloads: true,
-  browser_save_download: false,
-  browser_wait_for: true,
-  browser_snapshot: true,
-  browser_find: true,
-  browser_read_text: true,
-  browser_screenshot: true,
-  browser_extract: true,
-  browser_click: false,
-  browser_click_at: false,
-  browser_type: false,
-  browser_fill_form: false,
-  browser_batch: false,
-  browser_insert_text: false,
-  browser_press_key: false,
-  browser_scroll: false,
-  browser_select_option: false,
-  browser_set_checked: false,
-  browser_upload_file: false,
-  browser_hover: false,
-  browser_drag: false,
-  browser_zoom: false,
-  browser_request_takeover: false,
-} as const satisfies Readonly<Record<BrowserToolName, boolean>>
+const OBSERVATION_ONLY_BROWSER_TOOLS = BROWSER_TOOL_OBSERVES_ONLY
 
-const SESSION_CLOSED_MESSAGE =
-  'The agent browser session is closed, so this browser tool cannot run. ' +
-  'Call browser_open_url, browser_navigate, or browser_open_tab to start a new session, or report the situation to the user. ' +
-  'Do not retry other browser tools until a new session is open.'
 /** Tool events older than this are replays, not live instructions — never act on them. */
 const MAX_EVENT_AGE_MS = 120_000
 const EXECUTED_STORAGE_PREFIX = 'sim:copilot:browser-tool-executed:'
@@ -109,6 +64,8 @@ const OUTCOME_UNKNOWN_MESSAGE =
   'The Sim window closed while this browser action was in flight. It may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.'
 const REPLAY_OUTCOME_UNKNOWN_MESSAGE =
   'This browser action was recorded before the Sim page reloaded, but its terminal result could not be recovered. It may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.'
+const STALE_OBSERVATION_NOT_RUN_MESSAGE =
+  'Not run: this browser observation reached the Sim desktop app too late to run safely, so it has no result. An observation changes nothing in the browser. Do not retry it in this turn; tell the user to keep this chat open in the Sim desktop app, or to ask again later.'
 const STALE_STATEFUL_OUTCOME_UNKNOWN_MESSAGE =
   'This browser action was delivered too late to recover its exact result. It may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.'
 const REPLAY_GUARD_CAPACITY_MESSAGE =
@@ -551,20 +508,21 @@ function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknow
 }
 
 /**
- * Fire-and-forget entry point invoked by the stream tool-event handler when a
- * `browser_*` client tool call arrives.
+ * Entry point invoked by the stream tool-event handler when a `browser_*`
+ * client tool call arrives. It reports its own outcome; the returned promise
+ * only tells the caller when the action has settled.
  *
  * @param eventTs - the stream envelope's emission timestamp; stale events
  * (replays after reconnect/reload) are dropped rather than re-executed.
  */
-export function executeBrowserToolOnClient(
+export async function executeBrowserToolOnClient(
   toolCallId: string,
   toolName: BrowserToolName,
   params: Record<string, unknown>,
   scopeId = useBrowserSessionStore.getState().activeScopeId,
   eventTs?: string,
   abortSignal?: AbortSignal
-): void {
+): Promise<void> {
   if (retryRetainedTerminalCompletion(toolCallId)) {
     logger.info('Suppressing browser tool while recovering its terminal completion', {
       toolCallId,
@@ -592,7 +550,7 @@ export function executeBrowserToolOnClient(
     logger.info('Skipping stale browser tool event', { toolCallId, toolName, age })
     const observationOnly = OBSERVATION_ONLY_BROWSER_TOOLS[toolName]
     const message = observationOnly
-      ? 'This browser observation was delivered too late to run safely. Ask again to retry it.'
+      ? STALE_OBSERVATION_NOT_RUN_MESSAGE
       : STALE_STATEFUL_OUTCOME_UNKNOWN_MESSAGE
     retainAndReportTerminalCompletion(
       toolCallId,
@@ -703,7 +661,7 @@ export function executeBrowserToolOnClient(
     }
   }
   runningBrowserToolCalls.add(toolCallId)
-  void doExecuteBrowserTool(
+  await doExecuteBrowserTool(
     toolCallId,
     toolName,
     params,
@@ -863,7 +821,7 @@ async function doExecuteBrowserTool(
   }
 
   try {
-    const needsLivePage = !LIVE_PAGE_OPTIONAL_TOOLS.has(toolName)
+    const needsLivePage = browserToolNeedsLivePage(toolName)
     if (needsLivePage && isSessionClosed(scopeId)) {
       try {
         await restoreBrowserScope(scopeId)
@@ -883,11 +841,7 @@ async function doExecuteBrowserTool(
       })
       if (cancelled) return
       reportTerminalCompletion(
-        {
-          status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
-          message: SESSION_CLOSED_MESSAGE,
-          data: { error: SESSION_CLOSED_MESSAGE, sessionClosed: true },
-        },
+        browserSessionClosedCompletion(),
         'Failed to report browser session-closed error',
         'guard'
       )
@@ -915,50 +869,23 @@ async function doExecuteBrowserTool(
       nativeActionPending = false
       if (cancelled) return
       const sessionClosed = isSessionClosed(scopeId)
-      const outcomeUnknown = isOutcomeUnknownError(err)
-      const message = sessionClosed
-        ? `${toError(err).message} ${SESSION_CLOSED_MESSAGE}`
-        : toError(err).message
-      logger.warn('Browser tool failed', { toolCallId, toolName, error: message, sessionClosed })
-      reportTerminalCompletion(
-        {
-          status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
-          message,
-          data: {
-            error: message,
-            ...(outcomeUnknown ? { outcomeUnknown: true, doNotRetry: true } : {}),
-            ...(sessionClosed ? { sessionClosed: true } : {}),
-          },
-        },
-        'Failed to report browser tool error'
-      )
+      const failure = browserToolFailure(toError(err).message, {
+        outcomeUnknown: isOutcomeUnknownError(err),
+        sessionClosed,
+      })
+      logger.warn('Browser tool failed', {
+        toolCallId,
+        toolName,
+        error: failure.message,
+        sessionClosed,
+      })
+      reportTerminalCompletion(failure, 'Failed to report browser tool error')
       return
     }
     nativeActionPending = false
     if (cancelled) return
-    const outcomeUnknown = isRecordLike(result) && result.outcomeUnknown === true
-    const effectUnconfirmed = isRecordLike(result) && result.effectObserved === false
-    const stoppedMessage =
-      toolName === 'browser_fill_form' && isRecordLike(result) && result.completed === false
-        ? 'Form filling stopped; inspect the partial result'
-        : toolName === 'browser_batch' && isRecordLike(result) && result.stoppedBy === 'failure'
-          ? 'A batched browser action failed; inspect the partial result'
-          : undefined
     reportTerminalCompletion(
-      {
-        status:
-          stoppedMessage || outcomeUnknown
-            ? ASYNC_TOOL_CONFIRMATION_STATUS.error
-            : ASYNC_TOOL_CONFIRMATION_STATUS.success,
-        message:
-          stoppedMessage ??
-          (outcomeUnknown
-            ? 'Browser action outcome is unconfirmed; inspect the page before repeating it.'
-            : effectUnconfirmed
-              ? 'Browser input completed; its effect is unconfirmed. Inspect the current state before retrying.'
-              : 'Browser action completed'),
-        data: sanitizeBrowserToolResultForModel(toolName, result),
-      },
+      browserToolCompletion(toolName, result),
       'Failed to report browser tool completion'
     )
   } finally {

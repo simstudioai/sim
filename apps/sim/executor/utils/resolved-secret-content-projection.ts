@@ -23,7 +23,10 @@ export {
   scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-matcher'
 
-const MAX_CONTENT_NODES = 100_000
+/** Values one model-content projection will walk before refusing the whole payload. */
+export const MAX_CONTENT_NODES = 100_000
+/** Encoded bytes a model-content projection accepts by default before refusing the payload. */
+export const MAX_MODEL_CONTENT_BYTES = MAX_INLINE_MATERIALIZATION_BYTES
 const MAX_CONTENT_DEPTH = 100
 const INTERNAL_DIAGNOSTIC_IDENTIFIER_PATTERN =
   /__var_[A-Za-z0-9_]+|__sim_code_\d+_(?:binding|input|runtime)_\d+[A-Za-z0-9_]*|__sim_placeholder_[a-f0-9]{64}__|__sim_runtime_[A-Za-z0-9_]+_\d+[A-Za-z0-9_]*|__SIM_RUNTIME_PAYLOAD_PATH/g
@@ -351,10 +354,114 @@ function projectContent(
 export function projectResolvedSecretContent(
   value: unknown,
   matcher: ResolvedSecretMatcher,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
+  maxBytes = MAX_MODEL_CONTENT_BYTES,
   options: ResolvedSecretContentProjectionOptions = {}
 ): ResolvedSecretContentProjection {
   return projectContent(value, matcher, maxBytes, options)
+}
+
+/** Size of a value as the model-content projection sees it, for budgeting and diagnostics. */
+export interface ModelContentMeasure {
+  /** Values walked: the root and every array item and object property value JSON encodes. */
+  values: number
+  /** Bytes of the value's JSON encoding. */
+  bytes: number
+  /**
+   * True once the walk passed the projection's value, byte, or depth limit and stopped; `values`
+   * and `bytes` are then only what was counted before stopping.
+   */
+  exceeded: boolean
+}
+
+class ModelContentMeasureExceeded extends Error {}
+class ModelContentUnencodable extends Error {}
+
+/**
+ * Measures a value in the units the projection caps, following JSON's encoding rules, without
+ * serializing it: strings are measured one at a time and only while they fit the remaining byte
+ * budget, and the walk stops at the first limit it passes. Returns undefined for a value JSON
+ * cannot encode (a BigInt, a cycle), which the projection refuses too.
+ */
+export function measureModelContent(value: unknown): ModelContentMeasure | undefined {
+  let values = 0
+  let bytes = 0
+  const ancestors = new Set<object>()
+
+  const addBytes = (count: number): void => {
+    bytes += count
+    if (bytes > MAX_MODEL_CONTENT_BYTES) throw new ModelContentMeasureExceeded()
+  }
+  const addString = (text: string): void => {
+    // A JSON string is never shorter than its UTF-16 length plus its quotes.
+    if (text.length + 2 > MAX_MODEL_CONTENT_BYTES - bytes) throw new ModelContentMeasureExceeded()
+    addBytes(Buffer.byteLength(JSON.stringify(text), 'utf8'))
+  }
+  const walk = (raw: unknown, key: string, depth: number): void => {
+    const item =
+      raw !== null &&
+      typeof raw === 'object' &&
+      typeof (raw as { toJSON?: unknown }).toJSON === 'function'
+        ? (raw as { toJSON: (key: string) => unknown }).toJSON(key)
+        : raw
+    values += 1
+    if (values > MAX_CONTENT_NODES || depth > MAX_CONTENT_DEPTH) {
+      throw new ModelContentMeasureExceeded()
+    }
+    if (typeof item === 'string') {
+      addString(item)
+      return
+    }
+    if (typeof item === 'number') {
+      addBytes(Number.isFinite(item) ? String(item).length : 4)
+      return
+    }
+    if (typeof item === 'boolean') {
+      addBytes(item ? 4 : 5)
+      return
+    }
+    if (typeof item === 'bigint') throw new ModelContentUnencodable()
+    if (item === null || typeof item !== 'object') {
+      addBytes(4)
+      return
+    }
+    if (ancestors.has(item)) throw new ModelContentUnencodable()
+    ancestors.add(item)
+    if (Array.isArray(item)) {
+      addBytes(2 + Math.max(0, item.length - 1))
+      for (const [index, child] of item.entries()) {
+        if (child === undefined || typeof child === 'function' || typeof child === 'symbol') {
+          values += 1
+          addBytes(4)
+        } else {
+          walk(child, String(index), depth + 1)
+        }
+      }
+    } else {
+      addBytes(2)
+      let first = true
+      for (const [childKey, child] of Object.entries(item)) {
+        if (child === undefined || typeof child === 'function' || typeof child === 'symbol')
+          continue
+        if (!first) addBytes(1)
+        first = false
+        addString(childKey)
+        addBytes(1)
+        walk(child, childKey, depth + 1)
+      }
+    }
+    ancestors.delete(item)
+  }
+
+  if (value === undefined || typeof value === 'function' || typeof value === 'symbol') {
+    return { values: 0, bytes: 0, exceeded: false }
+  }
+  try {
+    walk(value, '', 0)
+    return { values, bytes, exceeded: false }
+  } catch (error) {
+    if (error instanceof ModelContentMeasureExceeded) return { values, bytes, exceeded: true }
+    return undefined
+  }
 }
 
 /** Returns the registry-revision-cached matcher used for all model-visible projection. */
@@ -396,7 +503,7 @@ export function getResolvedSecretModelMatcher(
 export function projectResolvedSecretModelContent(
   value: unknown,
   registry: ResolvedSecretTraceRegistry | undefined,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
+  maxBytes = MAX_MODEL_CONTENT_BYTES,
   options: ResolvedSecretContentProjectionOptions = {}
 ): ResolvedSecretContentProjection {
   const snapshot = getResolvedSecretModelMatcher(registry)
@@ -419,7 +526,7 @@ export function projectResolvedSecretModelContent(
 export function projectResolvedSecretModelJsonContent(
   value: unknown,
   registry: ResolvedSecretTraceRegistry | undefined,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
+  maxBytes = MAX_MODEL_CONTENT_BYTES,
   options: ResolvedSecretContentProjectionOptions = {}
 ): ResolvedSecretContentProjection {
   const snapshot = getResolvedSecretModelMatcher(registry)
@@ -455,7 +562,7 @@ export function projectResolvedSecretModelJsonContent(
 export function projectResolvedSecretDiagnosticContent(
   value: unknown,
   registry: ResolvedSecretTraceRegistry | undefined,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES
+  maxBytes = MAX_MODEL_CONTENT_BYTES
 ): ResolvedSecretContentProjection {
   return projectResolvedSecretModelContent(value, registry, maxBytes, {
     sanitizeInternalIdentifiers: true,
@@ -509,7 +616,7 @@ export function isResolvedSecretModelContentUnchanged(
   if (!snapshot.complete) return false
   if (!snapshot.matcher) return true
 
-  const projection = projectContent(value, snapshot.matcher, MAX_INLINE_MATERIALIZATION_BYTES, {
+  const projection = projectContent(value, snapshot.matcher, MAX_MODEL_CONTENT_BYTES, {
     projectPrimitiveLiterals: true,
     rejectResolvedSecretLiterals: true,
   })
@@ -523,7 +630,7 @@ export function isResolvedSecretModelContentUnchanged(
 export function projectResolvedSecretModelJsonStrings(
   values: readonly (string | undefined)[],
   registry: ResolvedSecretTraceRegistry | undefined,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES
+  maxBytes = MAX_MODEL_CONTENT_BYTES
 ): ResolvedSecretContentProjection {
   const snapshot = getResolvedSecretModelMatcher(registry)
   if (!snapshot.complete) return { safe: false }

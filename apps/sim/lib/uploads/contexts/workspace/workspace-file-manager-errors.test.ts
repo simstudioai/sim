@@ -1,5 +1,5 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { listWorkspaceFiles } from './workspace-file-manager'
 
 afterAll(resetDbChainMock)

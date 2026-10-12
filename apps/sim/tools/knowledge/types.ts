@@ -70,12 +70,6 @@ export interface KnowledgeSearchResponse {
   error?: string
 }
 
-interface KnowledgeSearchParams {
-  knowledgeBaseIds: string | string[]
-  query: string
-  topK?: number
-}
-
 interface KnowledgeUploadChunkResult {
   chunkId: string
   chunkIndex: number
@@ -114,12 +108,6 @@ export interface KnowledgeUploadChunkResponse {
   error?: string
 }
 
-interface KnowledgeUploadChunkParams {
-  documentId: string
-  content: string
-  enabled?: boolean
-}
-
 interface KnowledgeCreateDocumentResult {
   documentId: string
   documentName: string
@@ -145,10 +133,6 @@ interface KnowledgeTagDefinition {
   fieldType: string
   createdAt: string | null
   updatedAt: string | null
-}
-
-interface KnowledgeListTagsParams {
-  knowledgeBaseId: string
 }
 
 export interface KnowledgeListTagsResponse {

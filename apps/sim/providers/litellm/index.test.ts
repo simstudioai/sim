@@ -30,12 +30,6 @@ vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 
 vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
-vi.mock('@/providers/litellm/utils', () => ({
-  createReadableStreamFromLiteLLMStream: vi.fn(
-    () => new ReadableStream({ start: (c) => c.close() })
-  ),
-}))
-
 vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import { litellmProvider } from '@/providers/litellm'
@@ -347,6 +341,7 @@ describe('litellmProvider.executeRequest', () => {
   })
 
   it('returns a streaming execution when streaming without active tools', async () => {
+    mockCreate.mockResolvedValueOnce((async function* () {})())
     const result = await run({ stream: true })
 
     expect(firstPayload().stream).toBe(true)

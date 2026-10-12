@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 /** Shared pagination envelope returned by every Calendly list endpoint. */
-export interface CalendlyPagination {
+interface CalendlyPagination {
   count: number
   next_page: string | null
   previous_page: string | null
@@ -10,7 +10,7 @@ export interface CalendlyPagination {
 }
 
 /** The User resource, returned by both `/users/me` and `/users/{uuid}`. */
-export interface CalendlyUserResource {
+interface CalendlyUserResource {
   uri: string
   name: string
   slug: string
@@ -409,7 +409,7 @@ export interface CalendlyDeleteWebhookResponse extends ToolResponse {
 }
 
 /** The Invitee resource, returned by the single-invitee read and by the booking endpoint. */
-export interface CalendlyInviteeResource {
+interface CalendlyInviteeResource {
   uri: string
   email: string
   name: string

@@ -24,10 +24,13 @@ import { persistImportedWorkflow } from '@/lib/workflows/operations/import-expor
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
+import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
+import { sendPayload } from '@/app/workspace/[workspaceId]/home/hooks/send-queue-policy'
 import {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
+import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
@@ -58,6 +61,8 @@ interface HomeProps {
 }
 
 export function Home(props: HomeProps) {
+  const isRestoredChatEntry = useRestoredChatEntry({ chatId: props.chatId })
+  if (isRestoredChatEntry) return <HomeFallback />
   return (
     <PermissionAccessBoundary configKey='hideCopilot'>
       <HomeContent {...props} />
@@ -167,7 +172,6 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     sendMessage,
     stopGeneration,
     resolvedChatId,
-    resources,
     removeResource,
     messageQueue,
     removeFromQueue,
@@ -178,7 +182,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     dispatchingHeadId,
     getCurrentRequestId,
   } = chat
-  const panel = useChatResourcePanel(chat, controller)
+  const panel = useChatResourcePanel(chat, controller, userId)
   const {
     isResourceCollapsed,
     skipResourceTransition,
@@ -238,13 +242,13 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
       if (!detail?.message) return
       e.preventDefault()
       prepareResourceViewForAgentTurn()
-      sendMessage(detail.message, detail.fileAttachments, detail.contexts, {
+      const { content, fileAttachments, contexts, ...sendOptions } = sendPayload({
+        ...detail,
+        content: detail.message,
+      })
+      sendMessage(content, fileAttachments, contexts, {
+        ...sendOptions,
         ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
-        ...(detail.requestMode ? { requestMode: detail.requestMode } : {}),
-        ...(detail.assistantSearch ? { assistantSearch: detail.assistantSearch } : {}),
-        ...(detail.assistantSearchLevel !== undefined
-          ? { assistantSearchLevel: detail.assistantSearchLevel }
-          : {}),
       })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
@@ -275,14 +279,14 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     if (!handoff) return
     if (handoff.message) {
       prepareResourceViewForAgentTurn()
-      sendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
+      const { content, fileAttachments, contexts, ...sendOptions } = sendPayload({
+        ...handoff,
+        content: handoff.message,
+      })
+      sendMessage(content, fileAttachments, contexts, {
+        ...sendOptions,
         ...(handoff.resumeUserMessageId
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
-          : {}),
-        ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
-        ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
-        ...(handoff.assistantSearchLevel !== undefined
-          ? { assistantSearchLevel: handoff.assistantSearchLevel }
           : {}),
       })
       return
@@ -294,7 +298,6 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     // listing it would re-run this drain on every render. Omitted deliberately to
     // keep it one-shot — and harmless either way, since `consume` clears the entry
     // atomically and any re-run would find nothing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [chatId, workspaceId, prepareResourceViewForAgentTurn, sendMessage])
 
   function resolveResourceFromContext(
@@ -314,6 +317,8 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
         return context.fileId ? { type: 'file', id: context.fileId } : null
       case 'file_selection':
         return context.fileId ? { type: 'file', id: context.fileId } : null
+      case 'dashboard':
+        return { type: 'dashboard', id: context.dashboardId }
       default:
         return null
     }
@@ -410,7 +415,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
 
   return (
     <ChatResourcePanel workspaceId={workspaceId} chat={chat} panel={panel}>
-      <div className='relative flex h-full min-w-[min(480px,100%)] flex-1 flex-col'>
+      <div className='relative flex h-full @max-[960px]/chat-panel:min-w-0 min-w-0 flex-1 flex-col md:min-w-[min(480px,100%)]'>
         {showEmptyState && (
           <div
             className={cn(
@@ -433,7 +438,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
         {showEmptyState ? (
           <div className='h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
             {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
-            <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
+            <div className='flex min-h-full flex-col items-center justify-center px-3 pt-14 pb-8 md:px-6 md:pt-[2vh] md:pb-[22vh]'>
               <h1 className={cn(pageHeadingClassName, 'mb-7 max-w-chat')}>
                 What should we get done{firstName ? `, ${firstName}` : ''}?
               </h1>
@@ -455,7 +460,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
                   />
                 </ChatSurfaceProvider>
                 {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
-                <div className='absolute inset-x-0 top-full'>
+                <div className='relative md:absolute md:inset-x-0 md:top-full'>
                   <SuggestedActions
                     onSelectPrompt={(prompt) =>
                       initialViewUserInputRef.current?.populatePrompt(prompt)
@@ -496,7 +501,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
             draftScopeKey={draftScopeKey}
             animateInput={isInputEntering}
             onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
-            initialScrollBlocked={resources.length > 0 && isResourceCollapsed}
+            initialScrollBlocked={panel.initialScrollBlocked}
           />
         )}
       </div>

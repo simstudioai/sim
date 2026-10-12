@@ -14,7 +14,12 @@ export default defineConfig(({ mode }) => {
       test: {
         include: integration
           ? ['**/*.integration.ts']
-          : ['scripts/**/*.test.ts', 'script-migrations/**/*.test.ts', '*.test.ts'],
+          : [
+              'scripts/**/*.test.ts',
+              'script-migrations/**/*.test.ts',
+              'maintenance/**/*.test.ts',
+              '*.test.ts',
+            ],
         ...(integration && { setupFiles: ['./vitest.integration.setup.ts'] }),
       },
     })

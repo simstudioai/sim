@@ -4,6 +4,7 @@
  * filter matches rows or none.
  */
 import { resetDbChainMock } from '@sim/testing'
+import { tableRowsLiveSchemaMock } from '@sim/testing/mocks/table-rows-live-schema.mock'
 import {
   tableRowsSecretProvenanceMock,
   tableRowsSecretProvenanceMockFns,
@@ -24,12 +25,13 @@ vi.mock('@/lib/table/rows/ordering', () => ({
 
 vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
 
+vi.mock('@/lib/table/rows/live-schema', () => tableRowsLiveSchemaMock)
+
 vi.mock('@/lib/table/sql', () => ({
   buildFilterClause: vi.fn(() => sql`true`),
   buildPredicateClause: vi.fn(() => sql`true`),
   buildSortClause: vi.fn(() => sql`true`),
-  escapeLikePattern: vi.fn((value: string) => value),
-  fieldPredicate: vi.fn(() => sql`true`),
+  uniqueValuePredicate: vi.fn(() => sql`true`),
 }))
 
 vi.mock('@/lib/table/trigger', () => tableTriggerMock)

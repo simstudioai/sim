@@ -138,7 +138,10 @@ export async function searchLinear(
     variables
   )
   const result = object(data[field])
-  if (!Array.isArray(result.nodes) || typeof object(result.pageInfo).hasNextPage !== 'boolean')
+  if (
+    !Array.isArray(result.nodes) ||
+    typeof object(result.pageInfo)[backwards ? 'hasPreviousPage' : 'hasNextPage'] !== 'boolean'
+  )
     throw new NativeSearchError(
       'unavailable',
       'Linear search returned an unsupported result format.'

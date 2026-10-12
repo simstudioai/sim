@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { and, eq, gt, isNotNull, like, max, sql } from 'drizzle-orm'
+import { CLEARED_REFRESH_REVOCATION } from '@/lib/oauth/credential-revoked'
 
 /**
  * Slack bot tokens belong to the installation (team × app), not to the OAuth
@@ -52,6 +53,12 @@ interface FanOutOptions {
    * definition the newest.
    */
   ifChainUnchangedSince?: Date
+  /**
+   * The provider just issued this chain in a refresh, so a revocation recorded against the
+   * installation no longer holds. Omit when re-spreading a chain already stored; a connect's
+   * credential draft clears the installation's record itself.
+   */
+  freshlyIssued?: boolean
 }
 
 /**
@@ -72,6 +79,7 @@ export async function fanOutSlackTokenChain(
       accessToken: chain.accessToken,
       accessTokenExpiresAt: chain.accessTokenExpiresAt,
       ...(chain.refreshToken ? { refreshToken: chain.refreshToken } : {}),
+      ...(options?.freshlyIssued ? CLEARED_REFRESH_REVOCATION : {}),
       updatedAt: new Date(),
     })
     .where(

@@ -2,20 +2,21 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
-import { createRoot, type Root } from 'react-dom/client'
+import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
+import { createRoot, hydrateRoot, type Root } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
-vi.mock('@/blocks/integration-matcher', () => ({
-  getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
-}))
+vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 
 import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
 import {
   type UsePromptEditorProps,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
+import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 import type { ChatContext } from '@/stores/panel'
 
 function selectionPayload(context: ChatContext, sourceWorkspaceId = 'ws-1'): string {
@@ -74,6 +75,153 @@ function typeInto(textarea: HTMLTextAreaElement, value: string, caret = value.le
   textarea.setSelectionRange(caret, caret)
   textarea.dispatchEvent(new Event('input', { bubbles: true }))
 }
+
+describe.each([{ workspaceId: 'ws-1' }, { workspaceId: '', organizationId: 'org-1' }])(
+  'mention search in $workspaceId $organizationId',
+  (scope) => {
+    it.each([false, true])(
+      'does not auto-attach an integration after searching (dismissed: %s)',
+      (dismissed) => {
+        const matcher = vi.mocked(getIntegrationMatcher)
+        matcher.mockReturnValue({
+          regex: /Slack/gi,
+          byName: new Map([
+            ['slack', { name: 'Slack', blockType: 'slack', icon: () => null, bgColor: '#fff' }],
+          ]),
+        })
+        const { result, textarea, unmount } = renderPromptEditor(scope)
+        try {
+          for (const character of '@Slack') {
+            act(() => {
+              typeInto(textarea, textarea.value + character)
+              result().handleInputChange({
+                target: textarea,
+              } as React.ChangeEvent<HTMLTextAreaElement>)
+            })
+          }
+          if (dismissed) act(() => result().handlePlusMenuClose())
+          for (const character of ' roadmap') {
+            act(() => {
+              typeInto(textarea, textarea.value + character)
+              result().handleInputChange({
+                target: textarea,
+              } as React.ChangeEvent<HTMLTextAreaElement>)
+            })
+          }
+          expect(result().getActiveContexts()).toEqual([])
+          expect(result().mentionQuery).toBe(dismissed ? null : 'Slack roadmap')
+        } finally {
+          unmount()
+          matcher.mockReset()
+        }
+      }
+    )
+
+    it('keeps multiword and punctuated names searchable and replaces the whole query', () => {
+      const { result, textarea, unmount } = renderPromptEditor(scope)
+      try {
+        for (const value of [
+          'Find @Quarterly',
+          'Find @Quarterly ',
+          'Find @Quarterly plan (v2).md',
+        ]) {
+          act(() => {
+            typeInto(textarea, value)
+            result().handleInputChange({
+              target: textarea,
+            } as React.ChangeEvent<HTMLTextAreaElement>)
+          })
+          expect(result().mentionQuery).toBe(value.slice('Find @'.length))
+        }
+        act(() =>
+          result().insertResource({ type: 'file', id: 'plan', title: 'Quarterly plan (v2).md' })
+        )
+        expect(result().getPlainValue()).toBe('Find @Quarterly plan (v2).md ')
+        expect(result().getActiveContexts()).toEqual([
+          { kind: 'file', fileId: 'plan', label: 'Quarterly plan (v2).md' },
+        ])
+      } finally {
+        unmount()
+      }
+    })
+
+    it('keeps a dismissed search closed while typing, but allows a new trigger', () => {
+      const { result, textarea, unmount } = renderPromptEditor(scope)
+      const input = (value: string) => {
+        act(() => {
+          typeInto(textarea, value)
+          result().handleInputChange({ target: textarea } as React.ChangeEvent<HTMLTextAreaElement>)
+        })
+      }
+      try {
+        input('@Quarterly')
+        act(() => result().handlePlusMenuClose())
+        input('@Quarterlyplan')
+        expect(result().mentionQuery).toBeNull()
+        input('@Quarterly plan')
+        expect(result().mentionQuery).toBeNull()
+        input('@Quarterly plan @Roadmap')
+        expect(result().mentionQuery).toBe('Roadmap')
+      } finally {
+        unmount()
+      }
+    })
+
+    it.each(['selection', 'programmatic'])(
+      'opens a fresh search when replacing a dismissed trigger via %s',
+      (replacement) => {
+        const { result, textarea, unmount } = renderPromptEditor(scope)
+        const input = (value: string) => {
+          act(() => {
+            typeInto(textarea, value)
+            result().handleInputChange({
+              target: textarea,
+            } as React.ChangeEvent<HTMLTextAreaElement>)
+          })
+        }
+        try {
+          input('@Quarterly')
+          act(() => result().handlePlusMenuClose())
+          if (replacement === 'selection') {
+            act(() => {
+              textarea.setSelectionRange(0, textarea.value.length)
+              result().handleSelectAdjust()
+            })
+            expect(result().mentionQuery).toBeNull()
+            input('@Roadmap')
+          } else {
+            act(() => result().setValue('@Roadmap', { chipify: false }))
+            act(() => {
+              typeInto(textarea, result().getValue())
+              result().handleSelectAdjust()
+            })
+          }
+          expect(result().mentionQuery).toBe('Roadmap')
+        } finally {
+          unmount()
+        }
+      }
+    )
+
+    it.each(['@ ', '@ name', '@Quarterly\n', 'person@example.com'])(
+      'does not search across a dismissed boundary in %j',
+      (value) => {
+        const { result, textarea, unmount } = renderPromptEditor(scope)
+        try {
+          act(() => {
+            typeInto(textarea, value)
+            result().handleInputChange({
+              target: textarea,
+            } as React.ChangeEvent<HTMLTextAreaElement>)
+          })
+          expect(result().mentionQuery).toBeNull()
+        } finally {
+          unmount()
+        }
+      }
+    )
+  }
+)
 
 describe('usePromptEditor context insertion', () => {
   it('leaves a cross-workspace selection to the ordinary plain-text paste path', () => {
@@ -309,5 +457,72 @@ it('inserts a canonical built-in skill globally without inheriting a workspace',
     ])
   } finally {
     unmount()
+  }
+})
+
+it('keeps text typed into the server-rendered textarea before hydration', () => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  let latest: ReturnType<typeof usePromptEditor> | undefined
+  function Editor({ revision }: { revision: number }) {
+    const editor = usePromptEditor({ workspaceId: 'ws-1' })
+    latest = editor
+    return (
+      <textarea
+        ref={editor.textareaRef}
+        value={editor.value}
+        onChange={editor.handleInputChange}
+        data-revision={revision}
+      />
+    )
+  }
+  const container = document.createElement('div')
+  container.innerHTML = renderToString(<Editor revision={0} />)
+  document.body.appendChild(container)
+  const textarea = container.querySelector('textarea')
+  if (!textarea) throw new Error('The server must render the textarea')
+  textarea.value = 'Typed while the page loaded'
+  let root: Root | undefined
+  try {
+    act(() => {
+      root = hydrateRoot(container, <Editor revision={0} />)
+    })
+    act(() => root?.render(<Editor revision={1} />))
+    expect(latest?.getValue()).toBe('Typed while the page loaded')
+    expect(textarea.value).toBe('Typed while the page loaded')
+  } finally {
+    act(() => root?.unmount())
+    container.remove()
+  }
+})
+
+it('re-chipifies a seeded draft once skills load', () => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  const skill = {
+    id: 'review',
+    workspaceId: 'ws-1',
+    userId: null,
+    name: 'Review',
+    description: '',
+    content: '',
+    canEdit: false,
+    createdAt: '',
+    updatedAt: '',
+  }
+  let latest: ReturnType<typeof usePromptEditor> | undefined
+  function Editor({ skills }: { skills: (typeof skill)[] }) {
+    latest = usePromptEditor({ workspaceId: 'ws-1', availableSkills: skills })
+    return null
+  }
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    act(() => root.render(<Editor skills={[]} />))
+    act(() => latest?.setValue('/Review the draft', { seed: true }))
+    act(() => root.render(<Editor skills={[skill]} />))
+    expect(latest?.getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'review', label: 'Review' },
+    ])
+  } finally {
+    act(() => root.unmount())
   }
 })

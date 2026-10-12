@@ -1,12 +1,16 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/library/registry'
 import { buildPostGraphJsonLd, buildPostMetadata, LIBRARY_SECTION } from '@/lib/library/seo'
+import { ComparisonLinks } from '@/app/(landing)/comparisons/components/comparison-links'
+import { getComparisonsForPost } from '@/app/(landing)/comparisons/library-links'
 import { ContentPostPage } from '@/app/(landing)/components'
 
-/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
-export const dynamicParams = true
+/**
+ * Unknown params must 404 before rendering: `notFound()` during render streams this segment's
+ * `loading.tsx` with a 200 status first.
+ */
+export const dynamicParams = false
 
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()
@@ -31,6 +35,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const post = await getPostBySlug(slug)
   if (!post || post.draft) notFound()
   const related = await getRelatedPosts(slug, 3)
+  const comparisons = getComparisonsForPost(post)
 
   return (
     <ContentPostPage
@@ -39,7 +44,9 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       post={post}
       related={related}
       graphJsonLd={buildPostGraphJsonLd(post)}
-      shareUrl={`${getBaseUrl()}${LIBRARY_SECTION.basePath}/${slug}`}
+      afterArticle={
+        comparisons.length > 0 ? <ComparisonLinks competitors={comparisons} /> : undefined
+      }
     />
   )
 }

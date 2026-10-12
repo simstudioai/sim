@@ -103,7 +103,7 @@ function createRequestFromOptions(options: MockRequestOptions): NextRequest {
  *
  * @example
  * ```ts
- * import { requestUtilsMockFns } from '@sim/testing'
+ * import { requestUtilsMockFns } from '@sim/testing/mocks/request.mock'
  *
  * requestUtilsMockFns.mockGenerateRequestId.mockReturnValueOnce('test-req-42')
  * requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce('10.0.0.5')

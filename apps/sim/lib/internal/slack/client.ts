@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 
 const MAX_SLACK_JSON_BYTES = 2 * 1024 * 1024
@@ -35,10 +36,6 @@ export function postSlackMessage(accessToken: string, message: SlackMessage, sig
   return requestSlackApi({ accessToken, method: 'chat.postMessage', body: { ...message }, signal })
 }
 
-function isSlackJsonObject(value: unknown): value is SlackJsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 export function slackString(data: SlackJsonObject, key: string): string | undefined {
   const value = data[key]
   return typeof value === 'string' ? value : undefined
@@ -46,7 +43,7 @@ export function slackString(data: SlackJsonObject, key: string): string | undefi
 
 export function slackObject(data: SlackJsonObject, key: string): SlackJsonObject | undefined {
   const value = data[key]
-  return isSlackJsonObject(value) ? value : undefined
+  return isRecordLike(value) ? value : undefined
 }
 
 export function slackArray(data: SlackJsonObject, key: string): unknown[] | undefined {
@@ -103,7 +100,7 @@ export async function requestSlackApi({
     }
   }
   signal?.throwIfAborted()
-  if (!isSlackJsonObject(parsed)) throw new Error('Slack API returned an invalid response')
+  if (!isRecordLike(parsed)) throw new Error('Slack API returned an invalid response')
   const scopeHeader = response.headers.get('x-oauth-scopes')
   return {
     data: parsed,

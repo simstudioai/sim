@@ -7,7 +7,7 @@ argument-hint: "[scope] [fix=true|false]"
 # You Might Not Need a Memo
 
 Arguments:
-- scope: what to analyze (default: your current changes). Examples: "diff to main", "PR #123", "src/components/", "whole codebase"
+- scope: what to analyze (default: your current changes). Examples: "diff to staging", "PR #123", "src/components/", "whole codebase"
 - fix: whether to apply fixes (default: true). Set to false to only propose changes.
 
 User arguments: $ARGUMENTS
@@ -26,6 +26,10 @@ Read before analyzing:
 5. **useMemo to create objects/arrays passed as props**: Instead of memoizing to prevent child re-renders, consider whether the child even needs referential stability. If the child doesn't use React.memo or pass it to a dep array, the memo is wasted.
 6. **React.memo on components that always receive new props**: If the parent always passes new objects, arrays, or callbacks, React.memo's shallow comparison always fails. Fix the parent instead of memoizing the child.
 7. **useMemo for derived state**: If you're computing a value from props or state, just compute it inline during render. React renders are fast. `const fullName = first + ' ' + last` doesn't need useMemo.
+
+## Patterns that ARE correct — do not flag
+
+- A `useMemo` that builds a lookup `Map`/`Set` or a single-pass partition for list rendering (`.claude/rules/sim-components.md` "List-render performance").
 
 ## Steps
 

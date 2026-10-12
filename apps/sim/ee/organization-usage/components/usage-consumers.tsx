@@ -13,6 +13,7 @@ import {
   FireworksIcon,
   GeminiIcon,
   GroqIcon,
+  KieIcon,
   KimiIcon,
   LitellmIcon,
   MetaIcon,
@@ -29,6 +30,7 @@ import {
   xAIIcon,
   ZaiIcon,
 } from '@/components/icons'
+import { NebiusIcon } from '@/components/icons/nebius'
 import type {
   OrganizationUsageBreakdown,
   OrganizationUsageBreakdownRow,
@@ -64,10 +66,12 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   fireworks: FireworksIcon,
   google: GeminiIcon,
   groq: GroqIcon,
+  kie: KieIcon,
   kimi: KimiIcon,
   litellm: LitellmIcon,
   meta: MetaIcon,
   mistral: MistralIcon,
+  nebius: NebiusIcon,
   nvidia: NvidiaIcon,
   ollama: OllamaIcon,
   'ollama-cloud': OllamaIcon,
@@ -208,11 +212,7 @@ export function UsageConsumers({
   onExpandOther,
 }: UsageConsumersProps) {
   if (isError) {
-    return (
-      <SettingsEmptyState variant='inline' tone='error'>
-        Couldn't load this view.
-      </SettingsEmptyState>
-    )
+    return <SettingsEmptyState variant='inline'>Couldn't load this view.</SettingsEmptyState>
   }
   if (isLoading || !breakdown) {
     return <SettingsEmptyState variant='inline'>Loading…</SettingsEmptyState>

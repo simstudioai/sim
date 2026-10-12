@@ -188,7 +188,11 @@ describe('table provenance in PostgreSQL', () => {
     await connection`CREATE SCHEMA ${connection(testSchema)}`
     database.current = drizzle(connection, { schema })
     await connection.unsafe(`
-      CREATE TABLE user_table_definitions (id text PRIMARY KEY, workspace_id text NOT NULL, rows_version integer NOT NULL);
+      CREATE TABLE user_table_definitions (id text PRIMARY KEY, workspace_id text NOT NULL, rows_version integer NOT NULL, schema jsonb NOT NULL);
+      CREATE TABLE user_table_row_changes (
+        id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, table_id text NOT NULL,
+        row_delta integer NOT NULL
+      );
       CREATE TABLE user_table_rows (
         id text PRIMARY KEY, table_id text NOT NULL, workspace_id text NOT NULL,
         data jsonb NOT NULL, updated_at timestamp NOT NULL, secret_provenance_version integer,
@@ -207,6 +211,9 @@ describe('table provenance in PostgreSQL', () => {
         row_id text PRIMARY KEY, content_updated_at timestamp NOT NULL,
         status text NOT NULL, entries jsonb NOT NULL, updated_at timestamp DEFAULT now()
       );
+      CREATE FUNCTION user_table_schema_for_write(p_table_id text) RETURNS jsonb LANGUAGE sql VOLATILE AS $body$
+        SELECT schema FROM user_table_definitions WHERE id = p_table_id
+      $body$;
       CREATE FUNCTION demote_changed_row() RETURNS trigger LANGUAGE plpgsql AS $body$
         BEGIN
           IF NEW.data IS DISTINCT FROM OLD.data THEN
@@ -223,9 +230,9 @@ describe('table provenance in PostgreSQL', () => {
 
   beforeEach(async () => {
     await connection.unsafe(
-      'TRUNCATE table_row_executions, user_table_rows, user_table_row_secret_provenance, user_table_definitions'
+      'TRUNCATE table_row_executions, user_table_rows, user_table_row_secret_provenance, user_table_row_changes, user_table_definitions'
     )
-    await connection`INSERT INTO user_table_definitions VALUES ('table-1', 'workspace-1', 7)`
+    await connection`INSERT INTO user_table_definitions VALUES ('table-1', 'workspace-1', 7, ${JSON.stringify(table.schema)}::jsonb)`
   })
 
   afterAll(async () => {

@@ -420,13 +420,7 @@ export const listKnowledgeBases = defineAuthorizedKnowledgeUseCase({
  */
 export const restoreKnowledgeBase = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.restore,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: RestoreKnowledgeBaseInput
-  }) =>
+  resolveContext: ({ input }: { principal: Principal; input: RestoreKnowledgeBaseInput }) =>
     resolveArchivedKnowledgeBaseContext({
       knowledgeBaseId: input.knowledgeBaseId,
       assertedWorkspaceId: input.assertedWorkspaceId,

@@ -153,7 +153,7 @@ export const CLI_CONTRACT: CliContract = {
     // fields otherwise render as an unexplained em-dash for exactly the key
     // most people run the CLI with.
     describe:
-      'Show billing status and current-period credit usage (credits and storage require an OAuth login or personal API key)',
+      'Show billing status, credits spent this period, and storage used (credits and storage require an OAuth login or personal API key)',
     fields: [
       { header: 'plan' },
       { header: 'status' },
@@ -200,7 +200,7 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Name collisions: REST overloads one path for single and bulk ─────────
+  // Name collisions: REST overloads one path for single and bulk
   // The derived name is identical for both, so the bulk form is renamed. AWS's
   // `batch-` prefix rather than a `--all` flag: the plural is a different and
   // more dangerous operation, and it should be a different word.
@@ -314,7 +314,6 @@ export const CLI_CONTRACT: CliContract = {
   },
   setSecret: { hidden: true },
 
-  // ─── Destructive single-resource operations ───────────────────────────────
   // Soft deletes, all three: `tables restore`, `knowledge restore` and
   // `workflows restore` bring the resource back with its contents intact. The
   // messages promised an irreversible loss, which is the one thing a confirm
@@ -332,6 +331,7 @@ export const CLI_CONTRACT: CliContract = {
       'This archives the knowledge base and every document in it; restore with `knowledge restore`.',
   },
   deleteKnowledgeDocument: {
+    describe: 'Delete a document from a knowledge base',
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     confirm: 'This deletes the document and its embeddings.',
   },
@@ -343,6 +343,24 @@ export const CLI_CONTRACT: CliContract = {
   deleteFile: { confirm: 'This archives the file.' },
   deleteCredential: {
     confirm: 'This disconnects the credential and removes its stored authentication.',
+  },
+  listCredentialMembers: {
+    columns: [
+      { header: 'user', path: 'userId' },
+      { header: 'name', path: 'userName' },
+      { header: 'email', path: 'userEmail' },
+      { header: 'role' },
+      { header: 'status' },
+      { header: 'source', path: 'roleSource' },
+    ],
+  },
+  upsertCredentialMember: {
+    command: 'credentials members upsert',
+    flags: { userId: { name: 'user' } },
+  },
+  removeCredentialMember: {
+    command: 'credentials members remove',
+    confirm: 'This revokes the selected user’s explicit credential grant.',
   },
   deleteSkill: { confirm: 'This deletes the skill.' },
   revokeSkillEditor: {
@@ -373,9 +391,10 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'remaining columns', path: 'columns', format: 'count' },
     ],
   },
-  // ─── Fields whose type misdescribes their meaning ─────────────────────────
+  // Fields whose type misdescribes their meaning
   // `z.string()` that the route splits on commas. No generator can infer this.
   listLogs: {
+    describe: 'List run logs, such as failed or errored runs, by workflow, trigger or time',
     flags: {
       ...LOG_LIST_FILTER_FLAGS,
       // The `workflow` column below reads `workflow.name`, which the API only
@@ -418,6 +437,16 @@ export const CLI_CONTRACT: CliContract = {
   getLog: {
     describe: 'Show run diagnostics',
     expandedTrace: true,
+    flags: {
+      // The snapshot repeats the block configuration `workflows get` already
+      // serves, and is the bulk of a log after its trace. An agent diagnosing a
+      // run reads the trace, so the agent's invocations leave it out unless asked.
+      includeWorkflowState: {
+        embeddedRequestDefault: 'false',
+        describe:
+          'Include the saved workflow snapshot (default: true; Sim’s in-app agent leaves it out unless this flag is passed). Set false to omit block configuration from a log read. Other run fields are unchanged.',
+      },
+    },
     fields: [
       { header: 'run', path: 'runId' },
       { header: 'workflow', path: 'workflow.name' },
@@ -468,7 +497,8 @@ export const CLI_CONTRACT: CliContract = {
   },
   readFileText: {
     command: 'files read',
-    describe: 'Read a file’s text content',
+    describe: 'Read a file’s text content as JSON or YAML',
+    document: true,
   },
   // Publishing a workflow for an outside agent to call, and withdrawing it.
   createWorkflowMcpServer: {
@@ -530,6 +560,7 @@ export const CLI_CONTRACT: CliContract = {
   },
   applyWorkflowOperations: {
     command: 'workflows operations apply',
+    describe: 'Edit a workflow’s blocks, connections and settings with a batch of operations',
     confirm:
       'This edits the draft graph: the batch adds, edits, or deletes blocks and their edges as written.',
     flags: {
@@ -543,6 +574,7 @@ export const CLI_CONTRACT: CliContract = {
       operations: { json: true, describe: WORKFLOW_VARIABLE_OPERATIONS_HELP },
     },
   },
+  compareWorkflowVersions: { command: 'workflows versions compare' },
   // A revert is a graph write too: it overwrites the draft with an older
   // deployment's graph. Nothing about the name says "delete", so the destructive
   // sweep does not reach it, and the work it discards is whatever is in the
@@ -653,7 +685,6 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Friendlier flag names ────────────────────────────────────────────────
   upsertTableRow: {
     describe: 'Insert a row, or update the one that conflicts on a unique column',
     flags: {
@@ -664,6 +695,7 @@ export const CLI_CONTRACT: CliContract = {
   },
   queryRows: {
     command: 'tables rows query',
+    describe: 'Query rows with a filter and sort',
     flags: {
       predicate: { name: 'filter', json: true, describe: TABLE_READ_FILTER_HELP },
       sort: { json: true, describe: TABLE_SORT_HELP },
@@ -711,7 +743,15 @@ export const CLI_CONTRACT: CliContract = {
     variants: [moveResource('knowledge mv', 'knowledge base')],
     flags: { folderPath: FOLDER_PATH_FLAG },
   },
-  createWorkflow: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  createWorkflow: {
+    flags: {
+      folderPath: {
+        ...FOLDER_PATH_FLAG,
+        describe:
+          'Existing folder path (leading / optional); create it first with sim workflows mkdir <path>',
+      },
+    },
+  },
   updateWorkflow: {
     variants: [moveResource('workflows mv', 'workflow')],
     flags: { folderPath: FOLDER_PATH_FLAG },
@@ -796,7 +836,6 @@ export const CLI_CONTRACT: CliContract = {
     },
   },
 
-  // ─── Output columns for list commands ─────────────────────────────────────
   listTables: {
     flags: { folderPath: FOLDER_PATH_FLAG },
     columns: [
@@ -833,7 +872,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: [
       { header: 'id' },
       { header: 'name' },
-      // Now that files live in folders, which one is the difference between two
+      // Files live in folders, so the folder is the difference between two
       // identically-named rows.
       FOLDER_COLUMN,
       { header: 'size', format: 'bytes' },
@@ -1067,6 +1106,66 @@ export const CLI_CONTRACT: CliContract = {
     columns: [{ header: 'id' }, { header: 'name' }, { header: 'role' }],
   },
   getOrganization: { command: 'organizations get' },
+  listSsoProviders: {
+    command: 'organizations sso providers list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'provider', path: 'providerId' },
+      { header: 'domain' },
+      { header: 'primary', path: 'isPrimary', format: 'bool' },
+      { header: 'verified', path: 'domainVerified', format: 'bool' },
+    ],
+  },
+  getSsoProvider: {
+    command: 'organizations sso providers get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  saveSsoProvider: {
+    command: 'organizations sso providers save',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: {
+      clientSecret: {
+        textSource: true,
+        describe:
+          'Write-only OIDC client secret; the redacted marker from providers get preserves an existing secret. Passing it inline exposes it to shell history and process listings. Required when --provider-type is oidc',
+      },
+    },
+  },
+  deleteSsoProvider: {
+    command: 'organizations sso providers delete',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This removes the identity provider used for SSO sign-in; linked accounts remain.',
+  },
+  setPrimarySsoProvider: {
+    command: 'organizations sso providers primary',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  getSsoPolicy: {
+    command: 'organizations sso policy get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  updateSsoPolicy: {
+    command: 'organizations sso policy update',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  listOrganizationDomains: {
+    command: 'organizations domains list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [{ header: 'id' }, { header: 'domain' }, { header: 'status' }],
+  },
+  addOrganizationDomain: {
+    command: 'organizations domains add',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  verifyOrganizationDomain: {
+    command: 'organizations domains verify',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  removeOrganizationDomain: {
+    command: 'organizations domains remove',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This removes the domain claim and revokes verified SSO authority for its providers.',
+  },
   listOrganizationWorkspaces: {
     command: 'organizations workspaces',
     pathFlags: ORGANIZATION_FLAG,
@@ -1317,7 +1416,6 @@ export const CLI_CONTRACT: CliContract = {
     },
   },
 
-  // ─── The expanded files surface ───────────────────────────────────────────
   // Every one of these derives badly. `/files/move`, `/files/bulk-delete` and
   // `/files/[fileId]/restore` are verbs sitting where the deriver expects a
   // sub-resource, so it made them groups holding a lone `create`.
@@ -1412,7 +1510,8 @@ export const CLI_CONTRACT: CliContract = {
   },
   readFileVersionText: {
     command: 'files versions read',
-    describe: 'Read the text content of one version of a file',
+    describe: 'Read the text content of one version of a file as JSON or YAML',
+    document: true,
   },
   /** No confirm: a revert writes the old content as a new version, so what it replaces stays revertible. */
   revertFileVersion: {
@@ -1579,7 +1678,6 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Resource-scoped, path-addressed folders ──────────────────────────────
   /**
    * None of the four folder lists paginates: the route declares no `cursor` and
    * answers with the whole set. That is deliberate — a folder tree is bounded
@@ -1700,7 +1798,6 @@ export const CLI_CONTRACT: CliContract = {
     confirm: 'This archives the workflow folder and, when recursive, everything inside it.',
   },
 
-  // ─── The expanded tables surface ──────────────────────────────────────────
   // `/cancel-runs`, `/rows/search`, `/query/count` and the
   // enrichment path all put a verb where the deriver expects a sub-resource, so
   // each became a group holding a lone `create`.
@@ -1843,7 +1940,7 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Get the download URL for a finished export',
   },
 
-  // ─── Documents, not records ───────────────────────────────────────────────
+  // Documents, not records
   // The payload is the artifact: `sim workflows export <id> > wf.json` has to
   // produce something `sim workflows import` accepts back.
   exportWorkflow: {
@@ -1857,7 +1954,6 @@ export const CLI_CONTRACT: CliContract = {
     document: true,
   },
 
-  // ─── Catalog ──────────────────────────────────────────────────────────────
   // `tools get` and `tools list` derive cleanly; only the verb needs naming, for
   // the same reason `workflows run` does — `/execute` is not in the action list,
   // so POST would derive `tools execute create`.
@@ -1890,7 +1986,6 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Runs ─────────────────────────────────────────────────────────────────
   // The derived names land badly here: `/execute` and `/cancel` are verbs in
   // the path, but neither is in the action list, so POST would derive
   // `workflows execute create` and `workflows cancel create`.
@@ -1919,6 +2014,12 @@ export const CLI_CONTRACT: CliContract = {
       stream: { omit: true },
       includeThinking: { omit: true },
       includeToolCalls: { omit: true },
+      // Its embedded default lives with the synchronous request in
+      // `workflow-run-follow.ts`, because an `--async` run rejects the field.
+      includeFileBase64: {
+        describe:
+          'Inline eligible output files as base64 content (default: true; Sim’s in-app agent gets file references only unless this flag is passed). Rejected when `async` is true.',
+      },
       // Exposed under its domain name: every other flag in the CLI is one, and
       // `--x-run-id` would be the only place the raw HTTP header spelling
       // surfaced. The describe denies idempotency outright because the name
@@ -2026,7 +2127,7 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Not a terminal-shaped operation ──────────────────────────────────────
+  // Not a terminal-shaped operation
   // Multipart upload; `sim knowledge documents upload <id> <path>` needs its
   // own file-reading command rather than a generated flag surface.
   uploadKnowledgeDocument: { hidden: true },
@@ -2035,8 +2136,8 @@ export const CLI_CONTRACT: CliContract = {
   completeKnowledgeDocumentUpload: { hidden: true },
   abortKnowledgeDocumentUpload: { hidden: true },
 
-  // ─── Steps of a transfer, not commands ────────────────────────────────────
-  // Uploading is now a presigned multipart handshake: create the upload, ask for
+  // Steps of a transfer, not commands
+  // Uploading is a presigned multipart handshake: create the upload, ask for
   // part URLs in batches, PUT each part to storage, then complete with the
   // ETags — and abort if any of it fails. Exposing the steps individually would
   // advertise a protocol whose halfway states leak storage, so `sim files

@@ -4,12 +4,7 @@
 
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { truncate } from '@sim/utils/string'
-import {
-  LLM_BLOCK_TYPES,
-  MAX_PREVIEW_LENGTH,
-  TOKENIZATION_CONFIG,
-} from '@/lib/tokenization/constants'
+import { LLM_BLOCK_TYPES, TOKENIZATION_CONFIG } from '@/lib/tokenization/constants'
 import { createTokenizationError } from '@/lib/tokenization/errors'
 import type { ProviderTokenizationConfig, TokenUsage } from '@/lib/tokenization/types'
 import type { BlockTokens } from '@/executor/types'
@@ -98,13 +93,6 @@ export function extractTextContent(input: unknown): string {
   }
 
   return String(input || '')
-}
-
-/**
- * Creates a preview of text for logging (truncated)
- */
-export function createTextPreview(text: string): string {
-  return truncate(text, MAX_PREVIEW_LENGTH)
 }
 
 /**

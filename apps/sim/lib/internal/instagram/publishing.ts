@@ -113,6 +113,7 @@ function parseMediaFile(input: unknown): {
   mimeType?: string
   error?: { status: number; message: string }
 } {
+  // utils-lint-allow: narrows to `object` so the RawFileInput assertion compiles; isRecordLike's Record<string, unknown> does not overlap it
   if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
     const raw = input as RawFileInput
     if (!raw.name) {

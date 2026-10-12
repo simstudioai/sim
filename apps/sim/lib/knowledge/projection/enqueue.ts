@@ -6,8 +6,8 @@ import {
 } from '@sim/db/knowledge-projection'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { type ScheduledPassResult, startScheduledPass } from '@/lib/core/async-jobs/scheduled-pass'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
-import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 
 const logger = createLogger('KnowledgeProjectionEnqueue')
 
@@ -58,47 +58,31 @@ function runInline(): void {
   })()
 }
 
-export interface KnowledgeProjectionSweepResult {
-  /** Whether a pass was started; the sweep starts none when nothing is marked. */
-  triggered: boolean
-  backend: 'trigger-dev' | 'inline' | null
-  jobId: string | null
-}
-
 /**
  * The knowledge projector's only trigger: one pass per window while marks need one, so marks are
  * settled within about a minute of their write, a document a pass gave up is retried by the next,
  * and an idle deployment starts no pass at all. The sweep first releases, on the pooled database,
- * the marks no pass is owed, so the always-on marking of writes never starts one. While indexed
- * organization search is off that is every mark without content to project, search-index ones
- * included, since nothing reads their mirrored source and ACL.
+ * the marks no pass is owed, so the always-on marking of writes never starts one.
+ * Search marks and permission-only marks are released without copying their rows. Only deferred
+ * ordinary-KB content admits a repair pass.
  */
-export async function enqueueKnowledgeProjectionSweep(): Promise<KnowledgeProjectionSweepResult> {
-  const scope = { searchIndexes: isIndexedOrgSearchEnabled() }
+export async function enqueueKnowledgeProjectionSweep(): Promise<ScheduledPassResult> {
   let release = { drained: false, empty: false }
   try {
-    release = await releaseSettledMarks(db.$client, Date.now() + MARK_RELEASE_BUDGET_MS, scope)
+    release = await releaseSettledMarks(db.$client, Date.now() + MARK_RELEASE_BUDGET_MS)
   } catch (error) {
     /** A release that failed leaves its marks for the next sweep; whether a pass is owed still stands. */
     logger.warn('Releasing settled projection marks failed', { error: getErrorMessage(error) })
   }
-  if (release.empty || !(await hasKnowledgeProjectionWork(db.$client, release, scope))) {
-    return { triggered: false, backend: null, jobId: null }
-  }
-  if (!isTriggerAvailable()) {
-    runInline()
-    return { triggered: true, backend: 'inline', jobId: null }
-  }
-  const [{ tasks }, { resolveTriggerRegion }] = await Promise.all([
-    import('@trigger.dev/sdk'),
-    import('@/lib/core/async-jobs/region'),
-  ])
-  const window = Math.floor(Date.now() / KNOWLEDGE_PROJECTION_SWEEP_INTERVAL_MS)
-  const handle = await tasks.trigger(KNOWLEDGE_PROJECTION_TASK_ID, undefined, {
-    idempotencyKey: `${KNOWLEDGE_PROJECTION_TASK_ID}:sweep:${window}`,
-    idempotencyKeyTTL: '5m',
-    region: await resolveTriggerRegion(),
-    ttl: '5m',
+  return startScheduledPass({
+    due: !release.empty && (await hasKnowledgeProjectionWork(db.$client)),
+    triggerAvailable: isTriggerAvailable,
+    startInline: runInline,
+    trigger: {
+      taskId: KNOWLEDGE_PROJECTION_TASK_ID,
+      keyPrefix: `${KNOWLEDGE_PROJECTION_TASK_ID}:sweep`,
+      intervalMs: KNOWLEDGE_PROJECTION_SWEEP_INTERVAL_MS,
+      options: { ttl: '5m' },
+    },
   })
-  return { triggered: true, backend: 'trigger-dev', jobId: handle.id }
 }

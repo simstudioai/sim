@@ -103,6 +103,13 @@ describe('managed MCP grant persistence', () => {
   })
 
   it('compares refresh writes with the encrypted token version', async () => {
+    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({
+      decrypted: JSON.stringify({
+        type: 'managed-mcp-oauth-token-set',
+        version: 1,
+        tokens: input.tokens,
+      }),
+    })
     queueTableRows(schemaMock.credential, [{ enrollmentId: 'enrollment-1' }])
     dbChainMockFns.returning.mockResolvedValue([{ id: 'mcp-cg-person' }])
     await saveManagedMcpRuntimeTokens('mcp-cg-person', input.tokens, 'previous-encrypted-token')

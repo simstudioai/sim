@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import type { V2KnowledgeDocumentSummary } from '@/lib/api/contracts/v2/knowledge'
 import type { KnowledgeDocumentUploadRecipe } from '@/lib/knowledge/upload-metadata'
@@ -176,7 +176,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       } else if (result?.status === 'rejected') {
         failed.push({
           file: files[idx],
-          error: result.reason instanceof Error ? result.reason : new Error(String(result.reason)),
+          error: toError(result.reason),
         })
       }
     })

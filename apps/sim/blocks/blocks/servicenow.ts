@@ -15,7 +15,6 @@ import {
   INCIDENT_STATE_OPTIONS,
   PRIORITY_OPTIONS,
 } from '@/tools/servicenow/constants'
-import type { ServiceNowResponse } from '@/tools/servicenow/types'
 import { getTrigger } from '@/triggers'
 
 const FILE_FIELD = ['uploadFile', 'fileReference'] as const
@@ -1923,7 +1922,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       'servicenow_webhook',
     ],
   },
-} satisfies BlockConfig<ServiceNowResponse>
+} satisfies BlockConfig
 
 export const ServiceNowV2Block: BlockConfig = {
   ...ServiceNowBlock,

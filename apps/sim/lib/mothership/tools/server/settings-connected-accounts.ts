@@ -9,14 +9,12 @@ import {
   inviteOrganizationAccountPeopleBodySchema,
   listOrganizationAccountPeopleQuerySchema,
   startOrganizationAccountConnectionBodySchema,
-  updateOrganizationAccountIndexingBodySchema,
   updateOrganizationAccountWorkspaceAccessBodySchema,
 } from '@/lib/api/contracts/organization-accounts'
 import {
   getOrganizationAccountWorkspaceAccess,
   updateOrganizationAccountWorkspaceAccess,
 } from '@/lib/credential-groups/application/organization-access'
-import { updateOrganizationAccountIndexing } from '@/lib/credential-groups/application/organization-account-indexing'
 import {
   addOrganizationAccountMcpProvider,
   inviteOrganizationAccountPeople,
@@ -150,17 +148,6 @@ export const connectedAccountSettingsActions = {
         input: { ...input, organizationId: settingsOrganizationId(context) },
       })
       return { revision: result.revision, grants: result.grants }
-    }
-  ),
-  set_indexing: settingsOperation(
-    'write',
-    updateOrganizationAccountIndexingBodySchema,
-    async (context, input) => {
-      const result = await updateOrganizationAccountIndexing.execute({
-        principal: context.principal,
-        input: { ...input, organizationId: settingsOrganizationId(context) },
-      })
-      return { enabled: result.enabled, knowledgeBaseIds: result.knowledgeBaseIds }
     }
   ),
   add_mcp_provider: settingsOperation(

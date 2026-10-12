@@ -291,8 +291,8 @@ function throwInflateCapError(reason: 'entry' | 'total', entryName: string): nev
  * Filesystem-noise entries (`__MACOSX/`, `.DS_Store`, `Thumbs.db`) are extracted
  * verbatim unless `skipNoiseEntries` is set — the HTTP decompress route preserves
  * them; the agent-facing extract path drops them. Decompression is not byte-preserving,
- * so only an exact-empty archive classification can remain exact on extracted files;
- * every other classification becomes unknown without changing the extracted bytes.
+ * so every extracted file inherits the archive's full candidate set. Runtime consumers redact
+ * decoded content; direct opaque delivery still refuses known secret contributions.
  */
 export async function decompressArchiveBufferToWorkspaceFiles(
   buffer: Buffer,
@@ -321,10 +321,6 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     secretProvenance = { status: 'unknown' },
     notifyWorkspaceChange = true,
   } = opts
-  const extractedSecretProvenance: WorkspaceFileSecretProvenance =
-    secretProvenance.status === 'exact' && secretProvenance.entries.length === 0
-      ? secretProvenance
-      : { status: 'unknown' }
 
   assertCentralDirWithinCaps(buffer)
 
@@ -490,7 +486,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
             // Auto-suffix on collision: one leaf name that already exists must not
             // roll back an otherwise valid extraction.
             exactName: false,
-            secretProvenance: extractedSecretProvenance,
+            secretProvenance,
             notifyWorkspaceChange: false,
           },
         })

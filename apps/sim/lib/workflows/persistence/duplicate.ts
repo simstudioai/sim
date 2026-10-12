@@ -18,8 +18,9 @@ import {
   normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
 import { and, eq } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
+import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import {
   remapConditionIdsInSubBlocks,
   remapVariableIdsInSubBlocks,
@@ -50,7 +51,7 @@ interface DuplicateWorkflowOptions {
    * would require a second pooled connection while the caller's transaction
    * holds the first.
    */
-  tx?: DbOrTx
+  tx?: DbTransaction
   workflowIdMap?: Map<string, string>
 }
 
@@ -160,7 +161,7 @@ export async function duplicateWorkflow(
     }
   }
 
-  const duplicateWithinTransaction = async (tx: DbOrTx) => {
+  const duplicateWithinTransaction = async (tx: DbTransaction) => {
     // First verify the source workflow exists
     const sourceWorkflowRow = await tx
       .select()
@@ -199,7 +200,18 @@ export async function duplicateWorkflow(
       tx
     )
 
-    await tx.insert(workflow).values({
+    // Duplicate variables with new IDs and new workflowId
+    const variables: Record<string, Variable> = {}
+    const sourceVars = (source.variables as Record<string, Variable>) || {}
+    for (const [oldVarId, variable] of Object.entries(sourceVars) as [string, Variable][]) {
+      const newVarId = generateId()
+      varIdMapping.set(oldVarId, newVarId)
+      variables[newVarId] = { ...variable, id: newVarId, workflowId: newWorkflowId }
+    }
+
+    // A duplicate is a new workflow, so it takes the workspace's fork-sync policy rather
+    // than inheriting the source's participation, and starts unlocked like any new one.
+    await insertNewWorkflowRow(tx, {
       id: newWorkflowId,
       userId,
       workspaceId: targetWorkspaceId,
@@ -207,27 +219,8 @@ export async function duplicateWorkflow(
       sortOrder,
       name: deduplicatedName,
       description: description || source.description,
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      locked: false,
-      // Duplicate variables with new IDs and new workflowId
-      variables: (() => {
-        const sourceVars = (source.variables as Record<string, Variable>) || {}
-        const remapped: Record<string, Variable> = {}
-        for (const [oldVarId, variable] of Object.entries(sourceVars) as [string, Variable][]) {
-          const newVarId = generateId()
-          varIdMapping.set(oldVarId, newVarId)
-          remapped[newVarId] = {
-            ...variable,
-            id: newVarId,
-            workflowId: newWorkflowId,
-          }
-        }
-        return remapped
-      })(),
+      now,
+      variables,
     })
 
     // Copy all blocks from source workflow with new IDs

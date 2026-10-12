@@ -2,6 +2,7 @@ import type {
   DatabricksExecuteSqlResponse,
   DatabricksGetStatementParams,
 } from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getStatementTool: ToolConfig<
@@ -36,13 +37,8 @@ export const getStatementTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const host = params.host
-        .trim()
-        .replace(/^https?:\/\//, '')
-        .replace(/\/$/, '')
-      return `https://${host}/api/2.0/sql/statements/${params.statementId.trim()}`
-    },
+    url: (params) =>
+      databricksUrl(params.host, `/api/2.0/sql/statements/${params.statementId.trim()}`),
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',

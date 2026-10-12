@@ -61,4 +61,20 @@ Retrieve your LinkedIn profile information
 | `profile` | json | LinkedIn profile information |
 | `error` | string | Error message if operation failed |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a LinkedIn account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/linkedin` |
+| Environment variables | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `profile` | Access profile information |
+| `openid` | Standard authentication |
+| `email` | Access email address |
+| `w_member_social` | Post, comment, and like posts on your behalf |
+
 

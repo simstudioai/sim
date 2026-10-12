@@ -3,6 +3,7 @@ import {
   BOX_SERVICE_ACCOUNT_PROVIDER_ID,
   getClientCredentialAccountDescriptor,
   normalizeNetSuiteSuiteTalkOrigin,
+  normalizeOracleFusionApplicationOrigin,
   partitionClientCredentialFields,
   resolveClientCredentialAuthMethod,
   resolveSalesforceAuthMethod,
@@ -67,6 +68,41 @@ describe('normalizeNetSuiteSuiteTalkOrigin', () => {
     'https://user@1234567.suitetalk.api.netsuite.com',
   ])('rejects the non-authoritative SuiteTalk URL %j', (value) => {
     expect(normalizeNetSuiteSuiteTalkOrigin(value)).toBeUndefined()
+  })
+})
+
+describe('normalizeOracleFusionApplicationOrigin', () => {
+  it.each([
+    [' https://VISION.fa.us2.oraclecloud.com/ ', 'https://vision.fa.us2.oraclecloud.com'],
+    ['https://acme-prod.fa.ocs.oraclecloud.com', 'https://acme-prod.fa.ocs.oraclecloud.com'],
+    [
+      'https://pod.fa.eu-frankfurt-1.oraclecloud.com',
+      'https://pod.fa.eu-frankfurt-1.oraclecloud.com',
+    ],
+  ])('normalizes the supported application origin %j', (value, expected) => {
+    expect(normalizeOracleFusionApplicationOrigin(value)).toBe(expected)
+  })
+
+  it.each([
+    'http://vision.fa.us2.oraclecloud.com',
+    'https://vision.fa.us2.oraclecloud.com/path',
+    'https://vision.fa.us2.oraclecloud.com/path/..',
+    'https://vision.fa.us2.oraclecloud.com/./',
+    'https://vision.fa.us2.oraclecloud.com/%2e%2e/',
+    'https://vision.fa.us2.oraclecloud.com:443',
+    'https://vision.fa.us2.oraclecloud.com:8443',
+    'https://user@vision.fa.us2.oraclecloud.com',
+    'https://user:password@vision.fa.us2.oraclecloud.com',
+    'https://vision.fa.us2.oraclecloud.com?tenant=other',
+    'https://vision.fa.us2.oraclecloud.com#fragment',
+    'https://vision.fa.us2.oraclecloud.com.evil.example',
+    'https://vision.fa.us2.oraclecloud.co',
+    'https://fusion.example.com',
+    'https://fa.us2.oraclecloud.com',
+    'https://-vision.fa.us2.oraclecloud.com',
+    'https://vision.fa.-us2.oraclecloud.com',
+  ])('rejects the noncanonical Fusion Applications URL %j', (value) => {
+    expect(normalizeOracleFusionApplicationOrigin(value)).toBeUndefined()
   })
 })
 

@@ -17,12 +17,6 @@ vi.mock('@/lib/mcp/pinned-fetch', () => ({
   createPinnedPrivateMcpFetch: vi.fn(() => ({ fetch: vi.fn(), close: mockPinnedClose })),
 }))
 
-/**
- * Capture the notification handler registered via `client.setNotificationHandler()`.
- * This lets us simulate the MCP SDK delivering a `tools/list_changed` notification.
- */
-let capturedNotificationHandler: (() => Promise<void>) | null = null
-
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
   Client: vi.fn().mockImplementation(
     class {
@@ -32,11 +26,7 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
           close: vi.fn().mockResolvedValue(undefined),
           getServerVersion: vi.fn().mockReturnValue('2025-06-18'),
           getServerCapabilities: vi.fn().mockReturnValue({ tools: { listChanged: true } }),
-          setNotificationHandler: vi
-            .fn()
-            .mockImplementation((_schema: unknown, handler: () => Promise<void>) => {
-              capturedNotificationHandler = handler
-            }),
+          setNotificationHandler: vi.fn(),
           listTools: mockSdkListTools,
         })
       }
@@ -84,7 +74,6 @@ function createConfig(): McpServerConfig {
 
 describe('McpClient notification handler', () => {
   beforeEach(() => {
-    capturedNotificationHandler = null
     mockSdkConnect.mockResolvedValue(undefined)
     mockSdkListTools.mockResolvedValue({ tools: [] })
     // clearAllMocks resets call history but not implementations; re-establish the

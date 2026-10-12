@@ -2,7 +2,7 @@ import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
-import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import { uploadsCopilotMock } from '@sim/testing/mocks/uploads-copilot.mock'
 import {
   uploadsExecutionMock,
   uploadsExecutionMockFns,
@@ -18,8 +18,6 @@ vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
 import { exportGoogleSlidesPresentation } from '@/lib/internal/google-slides/operations'
-
-const { mockUploadCopilotFile } = uploadsCopilotMockFns
 
 const { mockUploadExecutionFile } = uploadsExecutionMockFns
 

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/search-integrations'
+import { hasSlackSearchUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   defaultLiveSearchPolicy,
@@ -82,12 +83,23 @@ export function LiveSearchSettings() {
     secretSource && GENERIC_SECRETS_META.name.toLowerCase().includes(search.toLowerCase())
   const availableToAdd = [
     ...LIVE_SEARCH_SOURCE_TYPES.filter(
-      ([type]) => LIVE_SEARCH_SCOPE_FIELDS[type] && !added.some((row) => row.connectorType === type)
+      ([type]) =>
+        (type !== 'zoom' ||
+          policies.data?.some((row) => row.connectorType === type && row.available !== false)) &&
+        LIVE_SEARCH_SCOPE_FIELDS[type] &&
+        !added.some((row) => row.connectorType === type)
     ).map(([type, meta]) => ({
       type,
       meta,
+      availabilityStatus:
+        (type !== 'hubspot' && type !== 'zoom') || accounts.isSuccess
+          ? undefined
+          : accounts.isError
+            ? ('error' as const)
+            : ('loading' as const),
       access: getLiveSearchAccessAvailability(type, availability.integrationAvailability, {
         memberAccessAvailable: searchAccess.memberScoped,
+        availableMcpConnectors: accounts.data?.availableMcpConnectors,
         mirroredAccessAvailable: searchAccess.sourceMirrored,
         oauthServiceAvailability: availability.oauthServiceAvailability,
         isIntegrationAvailabilityReady: availability.isIntegrationAvailabilityReady,
@@ -152,7 +164,16 @@ export function LiveSearchSettings() {
               const memberProvider = liveSearchMemberAccountProvider(type)
               const mcpProvider = liveSearchMcpConnector(type)
               const group = accounts.data?.credentialGroup
+              const slackOption = group?.options.find((option) => option.provider === 'slack')
+              const needsSlackSetup =
+                type === 'slack' &&
+                accounts.data &&
+                (group?.status !== 'active' ||
+                  slackOption?.status !== 'active' ||
+                  slackOption.configurationStatus !== 'ready' ||
+                  !hasSlackSearchUserScopes(slackOption.requiredScopes))
               const needsMemberSetup =
+                integration.available !== false &&
                 accounts.data &&
                 (memberProvider || mcpProvider) &&
                 (group?.status !== 'active' ||
@@ -181,7 +202,13 @@ export function LiveSearchSettings() {
                   iconVariant='custom'
                   icon={<IntegrationTile blockType={type} icon={meta.icon} />}
                   title={meta.name}
-                  description={scope}
+                  description={
+                    integration.available === false
+                      ? 'Currently unavailable'
+                      : needsSlackSetup
+                        ? 'Member accounts · Verify Search permissions'
+                        : scope
+                  }
                   trailing={
                     <div className='flex gap-2'>
                       {serviceAccount && (
@@ -194,7 +221,9 @@ export function LiveSearchSettings() {
                         </ChipLink>
                       )}
                       {type === 'slack' && (
-                        <Chip onClick={() => void setConnectedAccounts('slack')}>Slack app</Chip>
+                        <Chip onClick={() => void setConnectedAccounts('slack')}>
+                          {needsSlackSetup ? 'Verify permissions' : 'Slack app'}
+                        </Chip>
                       )}
                       {needsMemberSetup && (
                         <Chip
@@ -301,7 +330,17 @@ export function LiveSearchSettings() {
           )}
           pending={update.isPending}
           ready={availability.isIntegrationAvailabilityReady}
-          feedback={null}
+          feedback={
+            accounts.error ? (
+              <SettingsQueryErrorState
+                error={accounts.error}
+                fallback='Could not check account availability'
+                isRetrying={accounts.isFetching}
+                onRetry={() => void accounts.refetch()}
+                variant='inline'
+              />
+            ) : null
+          }
           onClose={() => setAdding(false)}
           onSelect={(type, mode) => {
             if (type === GENERIC_SECRETS_SOURCE_TYPE) {

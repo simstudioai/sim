@@ -26,7 +26,7 @@ import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
+import { useOAuthConnections } from '@/hooks/queries/oauth/connections'
 import { useTablesList } from '@/hooks/queries/tables'
 
 /** Lookup integration slug by OAuth service display name (case-insensitive). */
@@ -341,7 +341,7 @@ export function SuggestedActions({ onSelectPrompt, organizationId }: SuggestedAc
               type='button'
               onClick={() => handleSelect(action, i)}
               className={cn(
-                'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
+                'flex min-h-11 items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)] md:min-h-0',
                 i > 0 && 'border-t'
               )}
             >

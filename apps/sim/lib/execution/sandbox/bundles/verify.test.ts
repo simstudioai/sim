@@ -30,6 +30,23 @@ describe('sandbox bundles', () => {
     expect(typeof pdfLib.StandardFonts).toBe('object')
   })
 
+  it('vitest-expect evaluates in a bare context and fails with uncolored vitest messages', () => {
+    const bundle = loadCheckedInBundle('vitest-expect') as {
+      createExpect: () => (value: unknown) => { toEqual: (expected: unknown) => void }
+      fn: () => unknown
+    }
+    expect(typeof bundle.fn).toBe('function')
+    const sandboxExpect = bundle.createExpect()
+    let message = ''
+    try {
+      sandboxExpect({ channel: '#support' }).toEqual({ channel: '#billing' })
+    } catch (error) {
+      message = (error as Error).message
+    }
+    expect(message).toMatch(/channel: '#support'.*to deeply equal.*channel: '#billing'/)
+    expect(message).not.toContain('\u001b[')
+  })
+
   it('pptxgenjs evaluates in a bare context and exposes its constructor', () => {
     const source = readFileSync(new URL('./pptxgenjs.cjs', import.meta.url), 'utf-8')
     expect(typeof evaluateSandboxBundle(source, 'pptxgenjs')).toBe('function')

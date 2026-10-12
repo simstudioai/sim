@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { tableRowExecutions, userTableDefinitions, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray } from 'drizzle-orm'
 import { cancelledExecutionLogFields } from '@/lib/logs/execution/cancellation'
 import { appendTableEvent } from '@/lib/table/events'
@@ -68,10 +69,10 @@ interface WorkflowGroupExecutionTarget {
 }
 
 function getExecutionCorrelationSource(value: unknown): string | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  if (!isRecordLike(value)) return null
   const executionData = value as Record<string, unknown>
   const correlation = executionData.correlation
-  if (!correlation || typeof correlation !== 'object' || Array.isArray(correlation)) return null
+  if (!isRecordLike(correlation)) return null
   const source = (correlation as Record<string, unknown>).source
   return typeof source === 'string' ? source : null
 }

@@ -213,7 +213,7 @@ export const KnowledgeBlock: BlockConfig = {
       condition: getCohereRerankerApiKeyCondition(),
     },
 
-    // --- List Documents ---
+    // List Documents
     {
       id: 'search',
       title: 'Search',
@@ -294,7 +294,7 @@ export const KnowledgeBlock: BlockConfig = {
       },
     },
 
-    // --- Upload Chunk ---
+    // Upload Chunk
     {
       id: 'content',
       title: 'Chunk Content',
@@ -305,7 +305,7 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: 'upload_chunk' },
     },
 
-    // --- Create Document / Upsert Document ---
+    // Create Document / Upsert Document
     {
       id: 'name',
       title: 'Document Name',
@@ -338,7 +338,7 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: ['create_document', 'upsert_document'] },
     },
 
-    // --- Update Chunk / Delete Chunk ---
+    // Update Chunk / Delete Chunk
     {
       id: 'chunkId',
       title: 'Chunk ID',
@@ -366,7 +366,7 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: 'update_chunk' },
     },
 
-    // --- Connector operations ---
+    // Connector operations
     {
       id: 'connectorId',
       title: 'Connector ID',
@@ -376,7 +376,7 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_connector', 'trigger_sync'] },
     },
 
-    // --- List Chunks ---
+    // List Chunks
     {
       id: 'chunkSearch',
       title: 'Search',

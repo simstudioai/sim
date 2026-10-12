@@ -4,7 +4,7 @@ import type { CSSProperties } from 'react'
 import { AnimatedNumber, cn, Tooltip } from '@sim/emcn'
 import { cva, type VariantProps } from 'class-variance-authority'
 
-export const dashboardMetricValueVariants = cva(
+const dashboardMetricValueVariants = cva(
   'flex min-w-0 items-baseline gap-1 whitespace-nowrap text-[var(--text-body)] tabular-nums',
   {
     variants: {

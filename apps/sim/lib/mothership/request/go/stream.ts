@@ -1,7 +1,8 @@
 import { type Context, SpanStatusCode } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
+import { toRecordOrNull } from '@sim/utils/object'
+import { WORKER_STREAM_IDLE_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { CopilotSseCloseReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
@@ -65,8 +66,71 @@ export class CopilotBackendError extends Error {
   }
 }
 
+const BACKEND_UNAVAILABLE_MESSAGE =
+  'The agent service is temporarily unavailable. Please try again.'
+const BACKEND_REJECTED_MESSAGE = 'The agent service could not process this request.'
+
+/**
+ * The request never reached a worker: the connection failed before any response
+ * headers arrived. The network error stays on `cause` for logs.
+ */
+export class WorkerUnreachableError extends Error {
+  constructor(cause: unknown) {
+    super(BACKEND_UNAVAILABLE_MESSAGE, { cause })
+    this.name = 'WorkerUnreachableError'
+  }
+}
+
+/**
+ * The worker's response body failed mid-stream (the connection was reset or
+ * closed). The worker answered, so a retry reattaches under the short budget.
+ * The read error stays on `cause` for logs.
+ */
+export class WorkerStreamInterruptedError extends Error {
+  constructor(cause: unknown) {
+    super(BACKEND_UNAVAILABLE_MESSAGE, { cause })
+    this.name = 'WorkerStreamInterruptedError'
+  }
+}
+
+/**
+ * A worker rejection message the user can act on: short, one line, plain text,
+ * and free of identifiers (`userId`, `protocol_version_mismatch`) that only mean
+ * something to the code that raised them.
+ */
+function userFacingRejection(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const message = value.trim()
+  if (!message || message.length > 200 || /[<\n]/.test(message)) return undefined
+  if (/\b\w*[a-z][A-Z]\w*\b|\b\w+_\w+\b/.test(message)) return undefined
+  return message
+}
+
+/**
+ * What the user is told about a failed backend response. A 5xx or a gateway page
+ * is upstream detail and stays on the error for logs; a 4xx may carry the
+ * worker's own reason, which is shown when it is safe to.
+ */
+function backendErrorMessage(status: number, body: string): string {
+  if (status >= 500) return BACKEND_UNAVAILABLE_MESSAGE
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    return BACKEND_REJECTED_MESSAGE
+  }
+  // The worker puts its reason in `error`, or a code there and the reason in `message`.
+  const record = toRecordOrNull(parsed)
+  const reason = record && 'message' in record ? record.message : record?.error
+  return userFacingRejection(reason) ?? BACKEND_REJECTED_MESSAGE
+}
+
 export class BillingLimitError extends Error {
-  constructor(public readonly userId: string) {
+  /** `member` when the actor hit the cap their organization set, so the card names who can raise it. */
+  constructor(
+    public readonly userId: string,
+    public readonly scope?: 'actor' | 'payer' | 'member'
+  ) {
     super('Usage limit reached')
     this.name = 'BillingLimitError'
   }
@@ -95,6 +159,11 @@ export class StreamEndedWithoutTerminalError extends Error {
   }
 }
 
+/** No bytes, keepalives included, arrived from the worker within the idle timeout. */
+function workerStreamIdleError(): Error {
+  return new Error(`No bytes from the worker in ${WORKER_STREAM_IDLE_TIMEOUT_MS / 1000} s`)
+}
+
 /**
  * Options for the shared stream processing loop.
  */
@@ -117,6 +186,11 @@ export interface StreamLoopOptions extends OrchestratorOptions {
  * Handles: fetch -> parse -> normalize -> dedupe -> subagent routing -> handler dispatch.
  * Callers provide the fetch URL/options and can intercept events via onBeforeDispatch.
  * Feature-specific normalization runs through dedicated adapters before the raw event is forwarded.
+ *
+ * A leg has no wall clock unless the caller sets `timeout`. Its liveness is the
+ * worker's own traffic: while Sim waits for response headers or the next bytes,
+ * {@link WORKER_STREAM_IDLE_TIMEOUT_MS} of silence fails the leg as unreachable
+ * or interrupted, which the caller's retry window re-attaches.
  */
 export async function runStreamLoop(
   fetchUrl: string,
@@ -125,9 +199,21 @@ export async function runStreamLoop(
   execContext: ExecutionContext,
   options: StreamLoopOptions
 ): Promise<void> {
-  const { timeout = ORCHESTRATION_TIMEOUT_MS, abortSignal } = options
-  const timeoutSignal = AbortSignal.timeout(Math.ceil(timeout))
-  const requestSignal = abortSignal ? AbortSignal.any([abortSignal, timeoutSignal]) : timeoutSignal
+  const { timeout, abortSignal } = options
+  const idle = new AbortController()
+  let idleTimer: ReturnType<typeof setTimeout> | undefined
+  const armIdleTimeout = (onIdle?: () => void) => {
+    clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => {
+      idle.abort(workerStreamIdleError())
+      onIdle?.()
+    }, WORKER_STREAM_IDLE_TIMEOUT_MS)
+  }
+  const requestSignal = AbortSignal.any([
+    idle.signal,
+    ...(abortSignal ? [abortSignal] : []),
+    ...(timeout === undefined ? [] : [AbortSignal.timeout(Math.ceil(timeout))]),
+  ])
   const filePreviewAdapterState = createFilePreviewAdapterState()
   const attemptedInlineImages = new Set<string>()
 
@@ -140,6 +226,7 @@ export async function runStreamLoop(
   })
   const fetchStart = performance.now()
   let response: Response
+  armIdleTimeout()
   try {
     response = await fetchGo(fetchUrl, {
       ...fetchOptions,
@@ -158,7 +245,11 @@ export async function runStreamLoop(
       headersMs: Math.round(performance.now() - fetchStart),
     }
     context.trace.endSpan(fetchSpan, abortSignal?.aborted ? 'cancelled' : 'error')
-    throw error
+    if (idle.signal.aborted) throw new WorkerUnreachableError(idle.signal.reason)
+    if (requestSignal.aborted) throw error
+    throw new WorkerUnreachableError(error)
+  } finally {
+    clearTimeout(idleTimer)
   }
   const headersElapsedMs = Math.round(performance.now() - fetchStart)
   fetchSpan.attributes = {
@@ -169,16 +260,21 @@ export async function runStreamLoop(
 
   if (!response.ok) {
     context.trace.endSpan(fetchSpan, 'error')
-    const errorText = await response.text().catch(() => '')
+    // An error body is bounded by the same silence as the leg; a stalled one reads as empty.
+    armIdleTimeout()
+    const errorText = await new Promise<string>((resolve) => {
+      idle.signal.addEventListener('abort', () => resolve(''), { once: true })
+      response.text().then(resolve, () => resolve(''))
+    }).finally(() => clearTimeout(idleTimer))
 
     if (response.status === 402) {
       throw new BillingLimitError(execContext.userId)
     }
 
-    throw new CopilotBackendError(
-      `Copilot backend error (${response.status}): ${errorText || response.statusText}`,
-      { status: response.status, body: errorText || response.statusText }
-    )
+    throw new CopilotBackendError(backendErrorMessage(response.status, errorText), {
+      status: response.status,
+      body: errorText || response.statusText,
+    })
   }
 
   if (!response.body) {
@@ -244,7 +340,24 @@ export async function runStreamLoop(
   const rawReader = response.body.getReader()
   const reader: ReadableStreamDefaultReader<Uint8Array> = {
     async read() {
-      const result = await rawReader.read()
+      let result: ReadableStreamReadResult<Uint8Array>
+      armIdleTimeout(() => rawReader.cancel(idle.signal.reason).catch(() => {}))
+      try {
+        result = await rawReader.read()
+      } catch (error) {
+        if (idle.signal.aborted) {
+          endedOn = CopilotSseCloseReason.Timeout
+          throw new WorkerStreamInterruptedError(idle.signal.reason)
+        }
+        if (requestSignal.aborted) throw error
+        throw new WorkerStreamInterruptedError(error)
+      } finally {
+        clearTimeout(idleTimer)
+      }
+      if (idle.signal.aborted) {
+        endedOn = CopilotSseCloseReason.Timeout
+        throw new WorkerStreamInterruptedError(idle.signal.reason)
+      }
       if (!result.done && result.value) {
         const now = performance.now()
         const gap = now - counters.lastChunkMs
@@ -262,12 +375,15 @@ export async function runStreamLoop(
     },
   }
 
-  const timeoutId = setTimeout(() => {
-    context.errors.push('Request timed out')
-    context.streamComplete = true
-    endedOn = CopilotSseCloseReason.Timeout
-    reader.cancel().catch(() => {})
-  }, timeout)
+  const timeoutId =
+    timeout === undefined
+      ? undefined
+      : setTimeout(() => {
+          context.errors.push('Request timed out')
+          context.streamComplete = true
+          endedOn = CopilotSseCloseReason.Timeout
+          reader.cancel().catch(() => {})
+        }, timeout)
 
   try {
     await processSSEStream(reader, abortSignal, async (raw) => {
@@ -297,7 +413,7 @@ export async function runStreamLoop(
           context.errors.push(failureMessage)
           logger.error('Received invalid stream event on shared path', {
             reason: parsedEvent.reason,
-            message: parsedEvent.message,
+            detail: parsedEvent.message,
             errors: parsedEvent.errors,
           })
           throw new FatalSseEventError(failureMessage)
@@ -342,7 +458,7 @@ export async function runStreamLoop(
             agentId: streamEvent.scope?.agentId,
             code: errorPayload.code,
             provider: errorPayload.provider,
-            message: errorPayload.message,
+            errorMessage: errorPayload.message,
             error: errorPayload.error,
             displayMessage: errorPayload.displayMessage,
             data: errorPayload.data,
@@ -486,6 +602,7 @@ export async function runStreamLoop(
     flushSubagentThinkingBlock(context)
     flushThinkingBlock(context)
     clearTimeout(timeoutId)
+    clearTimeout(idleTimer)
 
     // Legacy TraceCollector span (consumed by the in-memory trace
     // collector, kept for backwards compatibility with existing

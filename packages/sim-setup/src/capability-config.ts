@@ -1089,6 +1089,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     REDDIT_CLIENT_ID: { input: 'text' },
     REDDIT_CLIENT_SECRET: { input: 'secret' },
   },
+  ramp: {
+    RAMP_CLIENT_ID: { input: 'text' },
+    RAMP_CLIENT_SECRET: { input: 'secret' },
+  },
   wealthbox: {
     WEALTHBOX_CLIENT_ID: { input: 'text' },
     WEALTHBOX_CLIENT_SECRET: { input: 'secret' },
@@ -1108,6 +1112,14 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
   hubspot: {
     HUBSPOT_CLIENT_ID: { input: 'text' },
     HUBSPOT_CLIENT_SECRET: { input: 'secret' },
+  },
+  'zoom-mcp': {
+    ZOOM_MCP_CLIENT_ID: { input: 'text' },
+    ZOOM_MCP_CLIENT_SECRET: { input: 'secret' },
+  },
+  'hubspot-mcp': {
+    HUBSPOT_MCP_CLIENT_ID: { input: 'text' },
+    HUBSPOT_MCP_CLIENT_SECRET: { input: 'secret' },
   },
   linkedin: {
     LINKEDIN_CLIENT_ID: { input: 'text' },

@@ -83,7 +83,7 @@ export const kalshiGetEventsTool: ToolConfig<KalshiGetEventsParams, KalshiGetEve
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_events')
+      handleKalshiError(data, 'get_events')
     }
 
     const events = data.events || []
@@ -242,7 +242,7 @@ export const kalshiGetEventsV2Tool: ToolConfig<KalshiGetEventsV2Params, KalshiGe
       const data = await response.json()
 
       if (!response.ok) {
-        handleKalshiError(data, response.status, 'get_events_v2')
+        handleKalshiError(data, 'get_events_v2')
       }
 
       const events = (data.events || []).map((e: Record<string, unknown>) => ({

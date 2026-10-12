@@ -69,8 +69,9 @@ export class ExecutionSnapshot {
     this.state = state
   }
 
-  toJSON(): string {
-    return JSON.stringify({
+  /** The value {@link toJSON} stringifies, built without serializing it. */
+  toSerializable(): Record<string, unknown> {
+    return {
       metadata: {
         ...this.metadata,
         principal: serializePrincipal(this.metadata.principal),
@@ -81,7 +82,11 @@ export class ExecutionSnapshot {
       workflowVariables: this.workflowVariables,
       selectedOutputs: this.selectedOutputs,
       state: this.state,
-    })
+    }
+  }
+
+  toJSON(): string {
+    return JSON.stringify(this.toSerializable())
   }
 
   static fromJSON(json: string): ExecutionSnapshot {

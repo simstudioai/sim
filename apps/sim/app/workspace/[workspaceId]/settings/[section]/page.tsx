@@ -111,9 +111,7 @@ export default async function WorkspaceSettingsSectionPage({
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <Suspense fallback={null}>
-        <SettingsPage section={parsed} />
-      </Suspense>
+      <SettingsPage section={parsed} />
     </HydrationBoundary>
   )
 }

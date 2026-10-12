@@ -22,7 +22,6 @@ const { dbState, makeChain } = vi.hoisted(() => {
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
-  checkSkillsUpdateAccess,
   getEditableSkillIds,
   getSkillActorContext,
   listSkillEditors,
@@ -177,48 +176,6 @@ describe('listSkillEditors', () => {
 
     expect(editors).toHaveLength(1)
     expect(editors[0]).toMatchObject({ id: 'row-1', userId: 'boss', isWorkspaceAdmin: true })
-  })
-})
-
-describe('checkSkillsUpdateAccess', () => {
-  it('returns nothing for an empty id list without querying', async () => {
-    const result = await checkSkillsUpdateAccess({ workspaceId: 'ws', userId: 'u', skillIds: [] })
-    expect(result.existingIds.size).toBe(0)
-    expect(result.denied).toEqual([])
-    expect(dbMock.select).not.toHaveBeenCalled()
-  })
-
-  it('partitions resolvable ids and denies skills without an editor row', async () => {
-    dbState.results = [
-      [
-        { id: 's-mine', name: 'mine' },
-        { id: 's-other', name: 'other' },
-      ],
-      [{ skillId: 's-mine' }],
-    ]
-    mockCheckWorkspaceAccess.mockResolvedValue(wsWrite)
-
-    const result = await checkSkillsUpdateAccess({
-      workspaceId: 'ws',
-      userId: 'u',
-      skillIds: ['s-mine', 's-other', 's-create'],
-    })
-
-    expect(result.existingIds).toEqual(new Set(['s-mine', 's-other']))
-    expect(result.denied).toEqual([{ id: 's-other', name: 'other' }])
-  })
-
-  it('denies nothing for workspace admins', async () => {
-    dbState.results = [[{ id: 's-any', name: 'any' }], []]
-    mockCheckWorkspaceAccess.mockResolvedValue(wsAdmin)
-
-    const result = await checkSkillsUpdateAccess({
-      workspaceId: 'ws',
-      userId: 'admin-user',
-      skillIds: ['s-any'],
-    })
-
-    expect(result.denied).toEqual([])
   })
 })
 

@@ -43,10 +43,14 @@ vi.mock('@/lib/mothership/request/session/controller-lease', async (original) =>
   ...(await original<typeof import('@/lib/mothership/request/session/controller-lease')>()),
   assertChatStreamLease: hoisted.assertLease,
 }))
-vi.mock('@/lib/mothership/request/lifecycle/controller-ownership', () => ({
+vi.mock('@/lib/mothership/request/lifecycle/controller-ownership', async (original) => ({
+  ...(await original<typeof import('@/lib/mothership/request/lifecycle/controller-ownership')>()),
   claimRunController: hoisted.claim,
 }))
-vi.mock('@/lib/mothership/request/session/buffer', () => ({ readEvents: hoisted.events }))
+vi.mock('@/lib/mothership/request/session/buffer', () => ({
+  readEvents: hoisted.events,
+  getLatestSeq: async () => null,
+}))
 vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 const mockResolveBillingAttribution = billingAttributionMockFns.mockResolveBillingAttribution
 const mockResolveOrganizationBillingAttribution =
@@ -184,6 +188,7 @@ describe('authorized chat stream recovery', () => {
       chatId: '22222222-2222-4222-8222-222222222222',
       previousToken: 'old-controller',
       token: 'stream\nnew-controller',
+      recoveryBackoff: expect.objectContaining({ attempts: 1 }),
     })
     expect(mocks.start).toHaveBeenCalledOnce()
     const params = mocks.start.mock.calls[0][0]

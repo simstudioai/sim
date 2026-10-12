@@ -1,9 +1,8 @@
 import { LatexIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { LatexResponse } from '@/tools/latex/types'
 
-export const LatexBlock: BlockConfig<LatexResponse> = {
+export const LatexBlock: BlockConfig = {
   type: 'latex',
   name: 'LaTeX',
   description: 'Compile LaTeX documents into PDFs',

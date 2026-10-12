@@ -412,3 +412,41 @@ describe('getApiKeyWithBYOK for Fireworks', () => {
     expect(result).toEqual({ apiKey: 'platform-fireworks-key', isBYOK: false })
   })
 })
+
+describe('getApiKeyWithBYOK for Nebius', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
+      decrypted: encrypted.replace('encrypted-', 'decrypted-'),
+    }))
+  })
+
+  it('uses the configured workspace key instead of a caller key', async () => {
+    dbChainMockFns.orderBy.mockResolvedValueOnce([storedKey('nebius-workspace')])
+    await expect(
+      getApiKeyWithBYOK(
+        'nebius',
+        'nebius/Qwen/Qwen3-30B-A3B-Instruct-2507',
+        uniqueWorkspaceId(),
+        'caller-key'
+      )
+    ).resolves.toEqual({
+      apiKey: 'decrypted-nebius-workspace',
+      isBYOK: true,
+      scope: 'workspace',
+    })
+  })
+
+  it('fails closed when a configured Nebius key cannot be decrypted', async () => {
+    dbChainMockFns.orderBy.mockResolvedValueOnce([storedKey('nebius-corrupt')])
+    mockDecryptSecret.mockRejectedValueOnce(new Error('cannot decrypt'))
+    await expect(
+      getApiKeyWithBYOK(
+        'nebius',
+        'nebius/Qwen/Qwen3-30B-A3B-Instruct-2507',
+        uniqueWorkspaceId(),
+        'caller-key'
+      )
+    ).rejects.toThrow('Configured BYOK credentials are unavailable')
+  })
+})

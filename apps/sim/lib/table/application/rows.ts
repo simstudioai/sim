@@ -1,10 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import {
-  type Principal,
-  resolvePrincipalAttribution,
-  resolvePrincipalSubjectUserId,
-} from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -77,10 +73,6 @@ import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
-import {
-  getTableQueryAvailability,
-  TABLE_QUERY_UNAVAILABLE_REASON,
-} from '@/lib/table/query-availability'
 import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
@@ -100,7 +92,6 @@ import type { FindRowMatch, RowWriteOptions } from '@/lib/table/rows/service'
 import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { predicateToStorage, resolveFilterSelectValues } from '@/lib/table/select-values'
 import { coerceRowValues } from '@/lib/table/validation'
-import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export class TableRowsValidationError extends OrchestrationError {
@@ -110,13 +101,6 @@ export class TableRowsValidationError extends OrchestrationError {
   ) {
     super('validation', message)
     this.name = 'TableRowsValidationError'
-  }
-}
-
-export class TableV2FeatureDisabledError extends OrchestrationError {
-  constructor() {
-    super('forbidden', TABLE_QUERY_UNAVAILABLE_REASON)
-    this.name = 'TableV2FeatureDisabledError'
   }
 }
 
@@ -535,7 +519,6 @@ export interface QueryTableRowsInput extends TableScopedInput, RunStateReadInput
   columns?: string[]
   includeTotal?: boolean
   allowExpandedLimit?: boolean
-  requireV2Feature?: boolean
   includePersistedSecretProvenance?: boolean
 }
 
@@ -559,22 +542,6 @@ export const queryTableRows = defineAuthorizedTableUseCase({
       input.includePersistedSecretProvenance
     )
     try {
-      if (input.requireV2Feature) {
-        const orgId = await getWorkspaceOrganizationId(context.workspaceId)
-        if (
-          !(
-            await getTableQueryAvailability({
-              // An actorless run has no user to match a per-user rule against, and a
-              // missing one resolves the admin clause to `false` without a query — so
-              // the gate only ever narrows here, never widens.
-              userId: resolvePrincipalSubjectUserId(principal),
-              orgId,
-            })
-          ).enabled
-        ) {
-          throw new TableV2FeatureDisabledError()
-        }
-      }
       if (input.limit !== undefined && !input.allowExpandedLimit) {
         requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_QUERY_LIMIT, 'Limit')
       } else if (
@@ -975,6 +942,22 @@ export const createTableRows = defineAuthorizedTableUseCase({
       }),
     }
   },
+  projectAudit: ({ context, result }) => {
+    const inserted = result.kind === 'single' ? 1 : result.rows.length
+    if (inserted === 0) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: context.tableId,
+      resourceName: context.table.name,
+      description: `Inserted ${inserted} row(s) into table "${context.table.name}"`,
+      metadata: {
+        op: result.kind === 'single' ? 'insert' : 'batch_insert',
+        rowsInserted: inserted,
+        ...(result.kind === 'single' ? { rowId: result.row.id } : {}),
+      },
+    }
+  },
   afterSuccess: ({ context, input, result }) => {
     // Narrowed on the input, not the result: only the single-row variant carries
     // an actor, and the two discriminants always agree.
@@ -1028,6 +1011,21 @@ export const replaceTableRows = defineAuthorizedTableUseCase({
       rowWriteOptions(input)
     )
     return { table: context.table, ...result }
+  },
+  projectAudit: ({ context, result }) => {
+    if (result.deletedCount === 0 && result.insertedCount === 0) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: context.tableId,
+      resourceName: context.table.name,
+      description: `Replaced rows in table "${context.table.name}"`,
+      metadata: {
+        op: 'replace_rows',
+        rowsDeleted: result.deletedCount,
+        rowsInserted: result.insertedCount,
+      },
+    }
   },
   afterSuccess: ({ context, result }) => {
     if (result.deletedCount > 0 || result.insertedCount > 0) {
@@ -1282,6 +1280,17 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       }),
     }
   },
+  projectAudit: ({ context, result }) => {
+    if (!result.changed) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: context.tableId,
+      resourceName: context.table.name,
+      description: `Updated a row in table "${context.table.name}"`,
+      metadata: { op: 'update', rowId: result.row.id, rowsUpdated: 1 },
+    }
+  },
   afterSuccess: ({ context, input, result }) => {
     if (result.changed) signalTableRowsChangedByActor(context.tableId, input.actorClientId)
   },
@@ -1334,6 +1343,17 @@ export const updateTableRows = defineAuthorizedTableUseCase({
       return { table: context.table, ...result }
     } catch (error) {
       rethrowQueryValidation(error)
+    }
+  },
+  projectAudit: ({ context, result }) => {
+    if (result.affectedCount === 0) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: context.tableId,
+      resourceName: context.table.name,
+      description: `Updated ${result.affectedCount} row(s) in table "${context.table.name}"`,
+      metadata: { op: 'update_by_filter', rowsUpdated: result.affectedCount },
     }
   },
   afterSuccess: ({ context, result }) => {
@@ -1464,6 +1484,14 @@ export const deleteTableRow = defineAuthorizedTableUseCase({
     await deleteRow(context.table, input.rowId, requestId(input))
     return { table: context.table, deletedRowId: input.rowId }
   },
+  projectAudit: ({ context, result }) => ({
+    action: AuditAction.TABLE_UPDATED,
+    resourceType: AuditResourceType.TABLE,
+    resourceId: context.tableId,
+    resourceName: context.table.name,
+    description: `Deleted a row from table "${context.table.name}"`,
+    metadata: { op: 'delete', rowId: result.deletedRowId, rowsDeleted: 1 },
+  }),
   afterSuccess: ({ context, input }) =>
     signalTableRowsChangedByActor(context.tableId, input.actorClientId),
 })
@@ -1607,5 +1635,18 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
       }),
     }
   },
+  projectAudit: ({ context, result }) => ({
+    action: AuditAction.TABLE_UPDATED,
+    resourceType: AuditResourceType.TABLE,
+    resourceId: context.tableId,
+    resourceName: context.table.name,
+    description: `${result.operation === 'insert' ? 'Inserted' : 'Updated'} a row in table "${context.table.name}"`,
+    metadata: {
+      op: 'upsert',
+      upsertOperation: result.operation,
+      rowId: result.row.id,
+      ...(result.operation === 'insert' ? { rowsInserted: 1 } : { rowsUpdated: 1 }),
+    },
+  }),
   afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),
 })

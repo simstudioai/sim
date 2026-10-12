@@ -14,11 +14,6 @@
  */
 
 // Suppress console logs from imported modules - only JSON should go to stdout
-const originalConsole = {
-  log: console.log,
-  warn: console.warn,
-  error: console.error,
-}
 console.log = () => {}
 console.warn = () => {}
 console.error = () => {}

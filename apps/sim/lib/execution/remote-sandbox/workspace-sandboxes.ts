@@ -293,12 +293,6 @@ export async function listWorkspaceSandboxesPage(params: {
   return { data: await attachBuildStatus(page.data), nextCursorKeys: page.nextCursorKeys }
 }
 
-/** The whole set, name-ordered, for the surfaces that render every sandbox at once. */
-export async function listWorkspaceSandboxes(workspaceId: string): Promise<Sandbox[]> {
-  const page = await listWorkspaceSandboxesPage({ workspaceId })
-  return page.data
-}
-
 /**
  * Reads one sandbox back, scoped to its workspace. Fetches the single row rather
  * than filtering a full list — this runs after every create and update.

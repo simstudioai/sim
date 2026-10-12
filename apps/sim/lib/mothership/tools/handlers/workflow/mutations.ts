@@ -16,69 +16,28 @@ import {
 } from '@/lib/mothership/tool-executor/types'
 import type {
   CancelWorkflowRunParams,
-  CreateWorkflowParams,
   GenerateApiKeyParams,
-  MoveWorkflowParams,
-  RenameWorkflowParams,
   RunBlockParams,
   RunFromBlockParams,
   RunWorkflowParams,
   RunWorkflowUntilBlockParams,
-  SetBlockEnabledParams,
-  SetGlobalWorkflowVariablesParams,
-  VariableOperation,
 } from '@/lib/mothership/tools/handlers/param-types'
 import { requireCopilotWorkspace } from '@/lib/mothership/tools/server/workspace-scope'
-import { presentWorkflowLogs } from '@/lib/mothership/tools/workflow-output'
-import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
+import {
+  boundRunResultForModel,
+  presentWorkflowLogsForModel,
+} from '@/lib/mothership/tools/workflow-output'
 import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
-import { createWorkflow } from '@/lib/workflows/application/create-workflow'
-import { moveWorkflowsBulk } from '@/lib/workflows/application/move-workflows-bulk'
 import {
   runBlockFromCopilot,
   runFromBlockFromCopilot,
   runWorkflowFromCopilot,
   runWorkflowUntilBlockFromCopilot,
 } from '@/lib/workflows/application/run-workflow-from-copilot'
-import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
-import {
-  applyWorkflowVariableOperations,
-  setWorkflowBlockEnabled,
-} from '@/lib/workflows/application/update-workflow-content'
-import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowMutations')
-
-/** Above this a Function block's `input.code` is echoed upstream JSON, not code worth reading. */
-const LOG_CODE_INPUT_MAX_CHARS = 240
-/** Any other echoed input string over this is data the caller already has, or can fetch. */
-const LOG_INPUT_STRING_MAX_CHARS = 2_000
-const LOG_INPUT_KEEP_CHARS = 200
-
-/**
- * Compacts the block inputs echoed back in `logs`. A Function block's `input.code` embeds the
- * fully serialized upstream rows, so a seven-block run repeated the same rows several times
- * across ~14k chars of tool result. Outputs are never touched — they are what the run was for —
- * and the full input stays one `logs get <executionId> --trace` away.
- */
-function compactBlockLogInputs(logs: unknown, executionId: string | undefined): unknown {
-  if (!Array.isArray(logs)) return logs
-  const reference = executionId ?? '<executionId>'
-  return logs.map((entry) => {
-    if (!isPlainRecord(entry) || !isPlainRecord(entry.input)) return entry
-    const input: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(entry.input)) {
-      const limit = key === 'code' ? LOG_CODE_INPUT_MAX_CHARS : LOG_INPUT_STRING_MAX_CHARS
-      input[key] =
-        typeof value === 'string' && value.length > limit
-          ? `${value.slice(0, LOG_INPUT_KEEP_CHARS)} …[${value.length} chars, see logs get ${reference} --trace]`
-          : value
-    }
-    return { ...entry, input }
-  })
-}
 
 function stripBinaryFields(value: unknown): unknown {
   if (value === null || value === undefined) return value
@@ -164,29 +123,38 @@ function buildExecutionOutput(
     error?: string
     status?: ExecutionResultStatus
   },
+  registry: ResolvedSecretTraceRegistry | undefined,
   phase: ToolEffectPhase,
   extra?: Record<string, unknown>,
   select?: string[]
 ): ToolCallResult {
   const executionId = result.metadata?.executionId
   const output = stripBinaryFields(result.output)
-  const logs = compactBlockLogInputs(stripBinaryFields(result.logs), executionId)
+  const logs = stripBinaryFields(result.logs)
   const lifted = isEmptyOutput(output) ? lastBlockOutput(logs) : undefined
+  const error = result.success
+    ? undefined
+    : result.error || failedBlockError(logs) || 'Workflow execution failed'
   // A caller that names the outputs it wants gets those and nothing else: a seven-block
   // run otherwise costs ~14K chars of logs to learn one headline.
   return {
     success: result.success,
-    output: {
+    output: boundRunResultForModel(
+      {
+        executionId,
+        success: result.success,
+        ...extra,
+        output: lifted ? lifted.output : output,
+        ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
+        ...presentWorkflowLogsForModel(logs, executionId, registry, select, {
+          previewLongInputs: true,
+        }),
+      },
+      error,
       executionId,
-      success: result.success,
-      ...extra,
-      output: lifted ? lifted.output : output,
-      ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
-      ...presentWorkflowLogs(logs, select),
-    },
-    error: result.success
-      ? undefined
-      : result.error || failedBlockError(logs) || 'Workflow execution failed',
+      registry
+    ),
+    error,
     effect: executionEffect(phase, executionId),
   }
 }
@@ -215,7 +183,10 @@ function failedBlockError(logs: unknown): string | undefined {
   return undefined
 }
 
-function buildExecutionError(error: unknown): ToolCallResult {
+function buildExecutionError(
+  error: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined
+): ToolCallResult {
   if (hasExecutionResult(error)) {
     return buildExecutionOutput(
       {
@@ -223,6 +194,7 @@ function buildExecutionError(error: unknown): ToolCallResult {
         success: false,
         error: error.executionResult.error || 'Workflow execution failed',
       },
+      registry,
       settledPhase(error.executionResult.status)
     )
   }
@@ -289,63 +261,6 @@ function assertWorkflowMutationNotAborted(
   }
 }
 
-export async function executeCreateWorkflow(
-  params: CreateWorkflowParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const name = typeof params?.name === 'string' ? params.name.trim() : ''
-    if (!name) {
-      return { success: false, error: 'name is required' }
-    }
-    if (name.length > 200) {
-      return { success: false, error: 'Workflow name must be 200 characters or less' }
-    }
-    const workspaceId = requireCopilotWorkspace(context, params?.workspaceId)
-
-    const folderPath = typeof params?.folderPath === 'string' ? params.folderPath.trim() : ''
-    const folderId =
-      typeof params?.folderId === 'string' && params.folderId.trim() ? params.folderId.trim() : null
-    let canonicalFolderPath: string | undefined
-    if (folderPath) {
-      const relativePath = workflowFolderRelativePath(folderPath)
-      canonicalFolderPath = relativePath
-        ? `/${encodeVfsPathSegments(decodeVfsPathSegments(relativePath))}`
-        : '/'
-    }
-
-    assertWorkflowMutationNotAborted(context)
-
-    const result = await executeCopilotWorkflowUseCase(context, createWorkflow, {
-      workspaceId,
-      name,
-      ...(canonicalFolderPath !== undefined ? { folderPath: canonicalFolderPath } : { folderId }),
-    })
-    const copilotSanitizedWorkflowState = sanitizeForCopilot({
-      blocks: result.normalizedState.blocks || {},
-      edges: result.normalizedState.edges || [],
-      loops: result.normalizedState.loops || {},
-      parallels: result.normalizedState.parallels || {},
-    } as WorkflowState)
-
-    return {
-      success: true,
-      output: {
-        workflowId: result.workflow.id,
-        workflowName: result.workflow.name,
-        workspaceId: result.workflow.workspaceId,
-        folderId: result.workflow.folderId,
-        ...(copilotSanitizedWorkflowState ? { copilotSanitizedWorkflowState } : {}),
-      },
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: messageForCopilotWorkflowError(error, 'Failed to create workflow'),
-    }
-  }
-}
-
 export async function executeRunWorkflow(
   params: RunWorkflowParams,
   context: ExecutionContext
@@ -370,9 +285,15 @@ export async function executeRunWorkflow(
       lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, settledPhase(result.status), undefined, params.select)
+    return buildExecutionOutput(
+      result,
+      context.resolvedSecretTraceRegistry,
+      settledPhase(result.status),
+      undefined,
+      params.select
+    )
   } catch (error) {
-    return buildExecutionError(error)
+    return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
 }
 
@@ -415,94 +336,6 @@ export async function executeCancelWorkflowRun(
   }
 }
 
-export async function executeSetGlobalWorkflowVariables(
-  params: SetGlobalWorkflowVariablesParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowId = params.workflowId || context.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
-    const operations: VariableOperation[] = Array.isArray(params.operations)
-      ? params.operations
-      : []
-
-    assertWorkflowMutationNotAborted(context)
-    const result = await executeCopilotWorkflowUseCase(context, applyWorkflowVariableOperations, {
-      workflowId,
-      assertedWorkspaceId: context.workspaceId,
-      operations,
-    })
-
-    return { success: true, output: { updated: result.updated } }
-  } catch (error) {
-    return { success: false, error: messageForCopilotWorkflowError(error) }
-  }
-}
-
-export async function executeRenameWorkflow(
-  params: RenameWorkflowParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowId = params.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
-    const name = typeof params.name === 'string' ? params.name.trim() : ''
-    if (!name) {
-      return { success: false, error: 'name is required' }
-    }
-    if (name.length > 200) {
-      return { success: false, error: 'Workflow name must be 200 characters or less' }
-    }
-
-    assertWorkflowMutationNotAborted(context)
-    await executeCopilotWorkflowUseCase(context, updateWorkflow, {
-      workflowId,
-      assertedWorkspaceId: context.workspaceId,
-      name,
-    })
-
-    return { success: true, output: { workflowId, name } }
-  } catch (error) {
-    return {
-      success: false,
-      error: messageForCopilotWorkflowError(error, 'Failed to rename workflow'),
-    }
-  }
-}
-
-export async function executeMoveWorkflow(
-  params: MoveWorkflowParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowIds = params.workflowIds
-    if (!workflowIds || workflowIds.length === 0) {
-      return { success: false, error: 'workflowIds is required' }
-    }
-    if (!context.workspaceId) {
-      return { success: false, error: 'Workspace context is required' }
-    }
-
-    assertWorkflowMutationNotAborted(context)
-    const result = await executeCopilotWorkflowUseCase(context, moveWorkflowsBulk, {
-      workspaceId: context.workspaceId,
-      workflowIds,
-      folderId: params.folderId || null,
-    })
-
-    return {
-      success: result.moved.length > 0,
-      output: { moved: result.moved, failed: result.failed, folderId: result.folderId },
-    }
-  } catch (error) {
-    return { success: false, error: messageForCopilotWorkflowError(error) }
-  }
-}
-
 export async function executeRunWorkflowUntilBlock(
   params: RunWorkflowUntilBlockParams,
   context: ExecutionContext
@@ -533,12 +366,13 @@ export async function executeRunWorkflowUntilBlock(
 
     return buildExecutionOutput(
       result,
+      context.resolvedSecretTraceRegistry,
       settledPhase(result.status),
       { stoppedAfterBlockId: params.stopAfterBlockId },
       params.select
     )
   } catch (error) {
-    return buildExecutionError(error)
+    return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
 }
 
@@ -614,69 +448,14 @@ export async function executeRunFromBlock(
 
     return buildExecutionOutput(
       result,
+      context.resolvedSecretTraceRegistry,
       settledPhase(result.status),
       { startBlockId: params.startBlockId },
       params.select
     )
   } catch (error) {
-    return buildExecutionError(error)
+    return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
-}
-
-export async function executeSetBlockEnabled(
-  params: SetBlockEnabledParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowId = params.workflowId || context.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
-    if (!params.blockId) {
-      return { success: false, error: 'blockId is required' }
-    }
-    if (typeof params.enabled !== 'boolean') {
-      return { success: false, error: 'enabled must be a boolean' }
-    }
-
-    assertWorkflowMutationNotAborted(context)
-    const result = await executeCopilotWorkflowUseCase(context, setWorkflowBlockEnabled, {
-      workflowId,
-      assertedWorkspaceId: context.workspaceId,
-      blockId: params.blockId,
-      enabled: params.enabled,
-    })
-
-    return {
-      success: true,
-      output: {
-        workflowId,
-        workflowName: result.workflowName,
-        blockId: params.blockId,
-        enabled: params.enabled,
-        affectedBlockIds: result.affectedBlockIds,
-        copilotSanitizedWorkflowState: sanitizeForCopilot(result.state),
-        ...(!result.changed
-          ? {
-              message: `Block ${params.blockId} is already ${params.enabled ? 'enabled' : 'disabled'}`,
-            }
-          : {}),
-      },
-    }
-  } catch (error) {
-    return { success: false, error: messageForCopilotWorkflowError(error) }
-  }
-}
-
-/**
- * Strip the `workflows/` VFS prefix from a folder path, returning the
- * folder-relative remainder. `workflows` (or an empty path) maps to the
- * workspace root and yields an empty string.
- */
-function workflowFolderRelativePath(rawPath: string): string {
-  const trimmed = rawPath.trim().replace(/^\/+|\/+$/g, '')
-  if (!trimmed || trimmed === 'workflows') return ''
-  return trimmed.startsWith('workflows/') ? trimmed.slice('workflows/'.length) : trimmed
 }
 
 export async function executeRunBlock(
@@ -706,11 +485,12 @@ export async function executeRunBlock(
 
     return buildExecutionOutput(
       result,
+      context.resolvedSecretTraceRegistry,
       settledPhase(result.status),
       { blockId: params.blockId },
       params.select
     )
   } catch (error) {
-    return buildExecutionError(error)
+    return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
 }

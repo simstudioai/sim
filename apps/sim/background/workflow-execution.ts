@@ -16,6 +16,7 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
   capExecutionTimeoutMs,
   createTimeoutAbortController,
@@ -277,7 +278,7 @@ export async function executeWorkflowJob(
           timeoutController.isTimedOut() &&
           timeoutController.timeoutMs
         ) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
           logger.info(`[${requestId}] Workflow execution timed out`, {
             timeoutMs: timeoutController.timeoutMs,
           })
@@ -306,10 +307,10 @@ export async function executeWorkflowJob(
           metadata: payload.metadata,
         }
       } catch (error: unknown) {
-        logger.error(
-          `[${requestId}] Workflow execution failed: ${workflowId}`,
-          loggingSession.projectDiagnosticError(error, { executionId })
-        )
+        logFailureOnce(logger, `[${requestId}] Workflow execution failed: ${workflowId}`, error, {
+          metadata: () => loggingSession.projectDiagnosticError(error),
+          executionId,
+        })
 
         if (error instanceof ExecutionTimeoutError) throw error
 

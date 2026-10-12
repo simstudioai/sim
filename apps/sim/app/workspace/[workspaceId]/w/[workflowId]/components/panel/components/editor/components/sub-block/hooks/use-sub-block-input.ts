@@ -5,7 +5,6 @@ import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { checkTagTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 
 const logger = createLogger('useSubBlockInput')
 
@@ -134,13 +133,11 @@ export interface UseSubBlockInputResult {
     /** Create tag select handler for a field */
     createTagSelectHandler: (
       fieldId: string,
-      fieldValue: string,
       onFieldChange: (newValue: string) => void
     ) => (newValue: string) => void
     /** Create env var select handler for a field */
     createEnvVarSelectHandler: (
       fieldId: string,
-      fieldValue: string,
       onFieldChange: (newValue: string) => void
     ) => (newValue: string) => void
   }
@@ -177,8 +174,6 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
     isStreaming,
     onStreamingEnd,
   })
-
-  const emitTagSelection = useTagSelection(blockId, subBlockId)
 
   // Local content enables immediate UI updates and streaming text display
   const [localContent, setLocalContent] = useState<string>('')
@@ -394,22 +389,6 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
     // Intentionally empty; consumers may mirror scroll to overlays if needed
   }, [])
 
-  // Helper to apply selected value coming from popovers
-  const applySelectedValue = useCallback(
-    (newValue: string, isTagSelection: boolean) => {
-      if (onChange) {
-        onChange(newValue)
-      } else if (!isPreview) {
-        if (isTagSelection) {
-          emitTagSelection(newValue)
-        } else {
-          setStoreValue(newValue)
-        }
-      }
-    },
-    [onChange, isPreview, emitTagSelection, setStoreValue]
-  )
-
   // Field-level state tracking for array-based inputs
   const [fieldStates, setFieldStates] = useState<Record<string, FieldState>>({})
 
@@ -535,7 +514,7 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
 
   // Create tag select handler for a field
   const createTagSelectHandler = useCallback(
-    (fieldId: string, fieldValue: string, onFieldChange: (newValue: string) => void) => {
+    (fieldId: string, onFieldChange: (newValue: string) => void) => {
       return (newValue: string) => {
         if (!isPreview && !disabled) {
           onFieldChange(newValue)
@@ -548,7 +527,7 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
 
   // Create env var select handler for a field
   const createEnvVarSelectHandler = useCallback(
-    (fieldId: string, fieldValue: string, onFieldChange: (newValue: string) => void) => {
+    (fieldId: string, onFieldChange: (newValue: string) => void) => {
       return (newValue: string) => {
         if (!isPreview && !disabled) {
           onFieldChange(newValue)

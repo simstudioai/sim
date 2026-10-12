@@ -8,9 +8,6 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { materializeInlineExecutionValue } from '@/lib/execution/payloads/inline-materialization.server'
 import type { ExecutionMaterializationContext } from '@/lib/execution/payloads/materialization.server'
-import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { nextWorkflowSortOrder } from '@/lib/workflows/sort-order'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 import type { ExecutionResult } from '@/executor/types'
 
@@ -434,70 +431,6 @@ export async function validateWorkflowPermissions(
 
 // ── Workflow CRUD ──
 
-export interface CreateWorkflowInput {
-  userId: string
-  workspaceId: string
-  name: string
-  description?: string | null
-  folderId?: string | null
-}
-
-export async function createWorkflowRecord(params: CreateWorkflowInput) {
-  const { userId, workspaceId, name, description = null, folderId = null } = params
-  const workflowId = generateId()
-  const now = new Date()
-
-  const duplicateConditions = [
-    eq(workflowTable.workspaceId, workspaceId),
-    isNull(workflowTable.archivedAt),
-    eq(workflowTable.name, name),
-    ...(folderId ? [eq(workflowTable.folderId, folderId)] : [isNull(workflowTable.folderId)]),
-  ]
-  const [duplicateWorkflow] = await db
-    .select({ id: workflowTable.id })
-    .from(workflowTable)
-    .where(and(...duplicateConditions))
-    .limit(1)
-  if (duplicateWorkflow) {
-    throw new Error(
-      `A workflow named "${name}" already exists in this folder. Use a different name.`
-    )
-  }
-
-  const sortOrder = await nextWorkflowSortOrder(workspaceId, folderId)
-
-  await db.insert(workflowTable).values({
-    id: workflowId,
-    userId,
-    workspaceId,
-    folderId,
-    sortOrder,
-    name,
-    description,
-    lastSynced: now,
-    createdAt: now,
-    updatedAt: now,
-    isDeployed: false,
-    runCount: 0,
-    variables: {},
-  })
-
-  const { workflowState } = buildDefaultWorkflowArtifacts()
-  const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState, {
-    /**
-     * Actorless: `buildDefaultWorkflowArtifacts` produces the platform's starter
-     * graph, so there is no caller-chosen block type for a group to judge.
-     */
-    workspaceId: null,
-    subjectUserId: null,
-  })
-  if (!saveResult.success) {
-    throw new Error(saveResult.error || 'Failed to save workflow state')
-  }
-
-  return { workflowId, name, workspaceId, folderId, sortOrder, createdAt: now, updatedAt: now }
-}
-
 export async function updateWorkflowRecord(
   workflowId: string,
   updates: { name?: string; description?: string; folderId?: string | null }
@@ -525,24 +458,6 @@ export async function setWorkflowVariables(workflowId: string, variables: Record
 }
 
 // ── Folder CRUD ──
-
-export async function verifyFolderWorkspace(
-  folderId: string,
-  workspaceId: string
-): Promise<boolean> {
-  const [row] = await db
-    .select({ id: folderTable.id })
-    .from(folderTable)
-    .where(
-      and(
-        eq(folderTable.id, folderId),
-        eq(folderTable.workspaceId, workspaceId),
-        eq(folderTable.resourceType, 'workflow')
-      )
-    )
-    .limit(1)
-  return Boolean(row)
-}
 
 export async function listFolders(workspaceId: string) {
   return db

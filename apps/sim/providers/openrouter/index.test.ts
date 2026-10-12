@@ -14,14 +14,10 @@ import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/pr
 import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCapabilities, mockSupportsNative, mockCheckForced, mockCreateStream } = vi.hoisted(
-  () => ({
-    mockCapabilities: vi.fn(),
-    mockSupportsNative: vi.fn(),
-    mockCheckForced: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
-    mockCreateStream: vi.fn(),
-  })
-)
+const { mockCapabilities, mockSupportsNative } = vi.hoisted(() => ({
+  mockCapabilities: vi.fn(),
+  mockSupportsNative: vi.fn(),
+}))
 
 vi.mock('openai', () => openaiMock)
 
@@ -38,8 +34,6 @@ vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 vi.mock('@/providers/openrouter/utils', () => ({
   supportsNativeStructuredOutputs: mockSupportsNative,
   getOpenRouterModelCapabilities: mockCapabilities,
-  createReadableStreamFromOpenAIStream: mockCreateStream,
-  checkForForcedToolUsage: mockCheckForced,
 }))
 
 vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
@@ -51,6 +45,7 @@ import { openRouterProvider } from '@/providers/openrouter/index'
 import type { OpenRouterReasoningDetail } from '@/providers/openrouter/reasoning'
 import type { ProviderRequest, ProviderResponse, ProviderToolConfig } from '@/providers/types'
 
+const mockCheckForced = providersUtilsMockFns.mockCheckForForcedToolUsageOpenAI
 const mockCreate = openaiMockFns.mockChatCompletionsCreate
 providersMock.MAX_TOOL_ITERATIONS = 10
 providersModelsMockFns.mockGetMaxOutputTokensForModel.mockReturnValue(100)
@@ -137,9 +132,6 @@ describe('openRouterProvider.executeRequest', () => {
     mockCreate.mockReset()
     mockExecuteTool.mockReset()
     mockSupportsNative.mockResolvedValue(false)
-    mockCreateStream.mockReturnValue(
-      new ReadableStream({ start: (controller) => controller.close() })
-    )
   })
 
   it.each([
@@ -479,14 +471,13 @@ describe('openRouterProvider.executeRequest', () => {
   })
 
   it('streams directly when there are no tools and sends usage opt-in', async () => {
-    mockCreate.mockResolvedValueOnce({})
+    mockCreate.mockResolvedValueOnce((async function* () {})())
 
     const res = await openRouterProvider.executeRequest({ ...baseRequest, stream: true })
 
     const payload = mockCreate.mock.calls[0][0]
     expect(payload.stream).toBe(true)
     expect(payload.stream_options).toEqual({ include_usage: true })
-    expect(mockCreateStream).toHaveBeenCalledTimes(1)
     expect(res).toHaveProperty('stream')
     expect(res).toHaveProperty('execution.output.model', 'anthropic/claude-3.5-sonnet')
   })

@@ -1,8 +1,7 @@
 import { DatagmaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { DatagmaResponse } from '@/tools/datagma/types'
 
-export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
+export const DatagmaBlock: BlockConfig = {
   type: 'datagma',
   name: 'Datagma',
   description: 'Find verified B2B emails, mobile phones, and enrich person or company profiles',

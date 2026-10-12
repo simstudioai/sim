@@ -25,7 +25,6 @@ vi.mock('@/lib/table/constants', () => ({
   TABLE_LIMITS: { DELETE_SNAPSHOT_BATCH_MAX_BYTES: 32 * 1024 * 1024 },
 }))
 vi.mock('@/lib/table/service', () => ({ withLockedTable: mockWithLockedTable }))
-vi.mock('@/lib/table/ttl-availability', () => ({ isTableRowTtlEnabled: vi.fn(async () => true) }))
 vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: vi.fn() }))
 
 import { runCleanupTableRowTtl } from '@/background/cleanup-table-row-ttl'

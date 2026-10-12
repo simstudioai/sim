@@ -16,15 +16,7 @@ failure (always)      { "error": { "code": "...", "message": "...", "details"?: 
 
 Nothing else at the top level. No `success: true`, no bare `{ "error": "string" }`, no HTML.
 
-That promise is worth stating as a rule because it has been broken five separate ways, each time by a route or a builder taking a shortcut that looked local:
-
-- `GET /workflows?limit=1.5` returned **500**. The contract was copied from a sibling and lost its `.int()`, so a fractional limit passed validation and reached Postgres as `LIMIT 2.5`.
-- A malformed JSON body returned **`{"error":"Request body must be valid JSON"}`** — a bare string. The envelope was a per-route opt-in that only 8 routes remembered.
-- `GET /api/v2/nonexistent` returned a **full HTML 404 document**, because no route file matched and the request fell through to the app's global not-found page.
-- Four collections returned `nextCursor` while **silently discarding** any `limit` the caller sent, because Zod strips unknown keys unless the schema is `.strict()`.
-- Handing back a `nextCursor` from any timestamp-sorted list and passing it straight in returned **500**. The value was validated and bound — but bound with no SQL type, into `date_trunc`, which is overloaded, so Postgres could resolve no overload. Validation was never the missing half; the type was.
-
-Each was one line. The rules below are the generalisations.
+Each rule below guards a caller-visible failure: a non-integer `limit` reaching SQL, a non-envelope error body, an HTML 404 for unknown paths, an unapplied `limit` stripped by non-strict Zod, and an untyped bound parameter into an overloaded SQL function.
 
 ## Where the machinery lives
 
@@ -38,11 +30,11 @@ Each was one line. The rules below are the generalisations.
 
 ## Rule 1 — the envelope is produced by helpers, never by hand
 
-`v2Data`, `v2CursorList`, and `v2Error` in `response.ts` are the only things that build a v2 body. They also set `Cache-Control: private, no-store`, which every v2 response needs because every v2 response is authed per-caller data.
+`v2Data`, `v2Error`, and the typed error helpers in `response.ts` (`v2ValidationError`, `v2RateLimitError`, `v2HttpError`, `v2InsufficientScope`, `v2HeadNoEffect`, `v2UploadDataPlaneError`) are the only things that build a v2 body. They also set `Cache-Control: private, no-store`, which every v2 response needs because every v2 response is authed per-caller data.
 
 A route built with `defineV2JsonRoute` gets this for free: its `present` returns the *body shape* and the builder renders it. Never call `NextResponse.json` from a v2 route.
 
-**The envelope must hold for every failure mode, including the ones that happen before your handler runs.** That is what the four bugs above have in common. Defaults for the transport-level failures live on the builder — `v2PayloadTooLargeResponse` (413) and `v2InvalidJsonResponse` (400) — precisely so a route cannot forget them.
+**The envelope must hold for every failure mode, including the ones that happen before your handler runs.** Defaults for the transport-level failures live on the builder — `v2PayloadTooLargeResponse` (413) and `v2InvalidJsonResponse` (400) — precisely so a route cannot forget them.
 
 ## Rule 2 — status codes mean specific things
 
@@ -62,7 +54,7 @@ Two of these carry real design weight:
 
 **404 is deliberately overloaded.** A workspace the caller cannot reach answers `404 "Workspace not found"`, never 403 — a 403 would confirm the resource exists. `createV2ResourceConcealmentPolicy` does this by mapping a cross-tenant authorization failure to `v2Error('NOT_FOUND', ...)`. The unknown-path catch-all at `app/api/v2/[[...segments]]/route.ts` answers with the same body on purpose.
 
-**500 is never caller-reachable.** Any input a caller can send must be rejected at the contract boundary with a 400. If you can construct a query string or body that produces a 500, that is a bug in the contract, not something to wrap in a `try`/`catch`. `v2ErrorForOrchestration` also replaces the message on an unclassified failure with a generic one, so internal detail never leaks. A caller-reachable 500 has shipped three times — a fractional `limit` reaching `LIMIT 2.5`, a plain `HEAD` tripping the builder's method guard, and a keyset cursor's timestamp reaching `date_trunc` as an untyped placeholder — so treat "a well-formed request produced a 500" as the highest-severity class of defect on this surface.
+**500 is never caller-reachable.** Any input a caller can send must be rejected at the contract boundary with a 400. If you can construct a query string or body that produces a 500, that is a bug in the contract, not something to wrap in a `try`/`catch`. `v2ErrorForOrchestration` also replaces the message on an unclassified failure with a generic one, so internal detail never leaks. Treat any well-formed request that produces a 500 as the highest-severity defect on this surface: non-integer numerics, a method guard rejecting the `HEAD`-on-`GET` pairing, and untyped placeholders into SQL functions are the known shapes.
 
 **Validating a value is only half of it; the value also has to reach SQL with a type.** A bound parameter arrives as `unknown` and takes its type from context. Against a typed column (`sort_order > $1`) that inference always succeeds, which is why the gap stays invisible almost everywhere — but as an argument to an overloaded function it can resolve to nothing at all. So: **if a bound value is an argument to a SQL function rather than one side of a comparison, write its type down** (`lib/api/list-query.ts`, `timestampKey`, casts from the column).
 
@@ -75,11 +67,11 @@ And this class survives a green test suite — `keysetAfter` returned well-forme
 
 **A 403 a caller can act on names its cause in `error.details.code` — but not every 403 does yet.** One status covers several different remedies — raise a member's role, issue a personal key instead of a workspace-scoped one, re-point a workspace key, buy an enterprise plan, delete a resource to get under a quota — and prose is not branchable, so a client that must tell them apart was string-matching messages, which turns every reword into a silent break. A handful of domain refusals still throw a bare `OrchestrationError('forbidden', …)` and reach the wire with no code, so **write client code that treats `details.code` as optional**, and read `openapi/shared.ts`'s `FORBIDDEN_DESCRIPTION` for the current position rather than assuming the sweep is finished. For code you are *writing*, the rule below is unconditional.
 
-The vocabulary is a closed set, `FORBIDDEN_DETAIL_CODES` in `lib/core/application/forbidden.ts`, with a `Record` of descriptions beside it that the generated OpenAPI 403 description is built from. Adding a member fails to compile until it is documented, so a code cannot reach the wire unpublished. Do not invent a code at a route: throw `ForbiddenOperationError(code, message)` from the domain and let `v2CaughtOrchestrationError` — the function every v2 error policy falls through to — attach it. `InsufficientWorkspacePermissionsError`, `PersonalApiKeysDisabledError`, `WorkspaceApiKeyAuthorizationError`, and `PrincipalKindAuthorizationError` already carry theirs.
+The vocabulary is the closed tuple `FORBIDDEN_DETAIL_CODES` in `lib/core/application/forbidden.ts` (each member TSDoc-documented), published to OpenAPI as the `V2ForbiddenDetailCode` enum via `v2ForbiddenDetailCodeSchema`. A new code needs a documented entry there and is warranted only when the remedy differs. Do not invent a code at a route: throw `ForbiddenOperationError(code, message)` from the domain and let `v2CaughtOrchestrationError` — the function every v2 error policy falls through to — attach it. `InsufficientWorkspacePermissionsError`, `PersonalApiKeysDisabledError`, `WorkspaceApiKeyAuthorizationError`, and `PrincipalKindAuthorizationError` already carry theirs.
 
 The cross-tenant refusals (`NoWorkspaceAccessError`, `WorkspaceApiKeyScopeAuthorizationError`, `DelegatedWorkspaceAuthorizationError`) deliberately carry **no** code. They are concealed as 404, and naming their cause would hand back the resource-existence signal the concealment exists to withhold.
 
-Use the shared sets in `contracts/v2/openapi/shared.ts` — `RESOURCE_ERRORS`, `RESOURCE_CONFLICT_ERRORS`, `RESOURCE_MUTATION_ERRORS` — rather than assembling a per-operation list; all three already include `Forbidden`, and hand-assembled lists are how three knowledge reads and three upload operations quietly lost it.
+Use the shared sets in `contracts/v2/openapi/shared.ts` — `RESOURCE_ERRORS`, `RESOURCE_CONFLICT_ERRORS`, `RESOURCE_MUTATION_ERRORS` — rather than assembling a per-operation list; all three already include `Forbidden`, which hand-assembled lists drop.
 
 **HEAD is answered by the `GET` handler, not rejected.** Next aliases a missing `HEAD` export onto `GET` and drops the body when sending, so a route's `GET` legitimately runs with `request.method === 'HEAD'`. The builders' method guard accepts that pairing via `methodMatchesContract`; any other mismatch stays a hard error. Never hand-write a `HEAD` export to "fix" this.
 
@@ -95,7 +87,7 @@ Build the query slice from the shared helper, never by hand:
 ...v2PaginationFields({ description: 'Maximum widgets to return per page.' })
 ```
 
-That gives `limit` (integer, 1..`V2_MAX_PAGE_SIZE`, defaulting to `V2_DEFAULT_PAGE_SIZE` = 50) and an opaque `cursor`. Re-declaring `limit: z.coerce.number()...` inline is how the 500 happened; there is one schema so the family cannot drift again.
+That gives `limit` (integer, 1..`V2_MAX_PAGE_SIZE`, defaulting to `V2_DEFAULT_PAGE_SIZE` = 50) and an opaque `cursor`. Never re-declare `limit: z.coerce.number()...` inline; inline schemas drift from `.int()`.
 
 Three cursor schemes exist. Two are the shared codecs in `response.ts`, both opaque base64-JSON, and which of them you use is decided by what the read can express, not by taste:
 
@@ -120,7 +112,7 @@ Before documenting a second `order`-style exception, check every other endpoint 
 
 ## Rule 4 — reject what you do not implement
 
-**Every contract declares a `query`, even when the endpoint takes none** — `query: noInputSchema` (`z.object({}).strict()`), never omission. `parseRequest` validates the query slice only when the contract declares one, so an omitted `query` means "never look at the query string", not "takes no query params". The two were indistinguishable, which is how 69 contracts ended up accepting anything without anyone deciding they should: `GET /workflows/{id}?bogus=1` answered 200 while every list answered 400 for the same shape. `query-declaration.test.ts` sweeps the tree so contract 70 fails at authoring time rather than shipping unvalidated.
+**Every contract declares a `query`, even when the endpoint takes none** — `query: noInputSchema` (`z.object({}).strict()`), never omission. `parseRequest` validates the query slice only when the contract declares one, so an omitted `query` means "never look at the query string", not "takes no query params". An omitted `query` silently accepts any query string; `query-declaration.test.ts` fails a contract that omits it.
 
 Unknown query params are a 400. That is safe for first-party callers — the two SDKs send only `includeOutput`/`selectedOutputs`, both declared; the UI makes no v2 calls; `requestJson` appends nothing implicitly and there is no v2 cache buster — and it matches the already-strict body slice. Third-party callers appending a tracking tag or cache buster do break, which is why `api-reference/getting-started.mdx` documents the behavior rather than leaving it to be discovered from a 400.
 
@@ -240,7 +232,7 @@ Run this against any new or changed v2 endpoint.
 - [ ] Validation messages name the field and echo the valid set.
 - [ ] Response schema matches every field the route actually emits.
 - [ ] OpenAPI description regenerated and truthful about pagination.
-- [ ] `bun run type-check`, `bun run check:api-validation`, `bun run check:openapi` pass.
+- [ ] `bun run type-check` (apps/sim) and `bun run check:audits` pass (includes `check:api-validation:strict`, `check:openapi`, `check:v2-route-table`, `check:cli-api`, `check:mcp-operations`).
 
 ## Known gap
 

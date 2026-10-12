@@ -1476,7 +1476,7 @@ export interface SlackGetThreadRepliesResponse extends ToolResponse {
   }
 }
 
-export interface SlackScheduledMessage {
+interface SlackScheduledMessage {
   id: string
   channel_id: string
   post_at: number
@@ -1529,50 +1529,3 @@ export interface SlackSetConversationPurposeResponse extends ToolResponse {
     purpose: string
   }
 }
-
-export type SlackResponse =
-  | SlackCanvasResponse
-  | SlackMessageReaderResponse
-  | SlackMessageResponse
-  | SlackDownloadResponse
-  | SlackUpdateMessageResponse
-  | SlackDeleteMessageResponse
-  | SlackAddReactionResponse
-  | SlackRemoveReactionResponse
-  | SlackListChannelsResponse
-  | SlackListMembersResponse
-  | SlackListUsersResponse
-  | SlackGetUserResponse
-  | SlackEphemeralMessageResponse
-  | SlackGetMessageResponse
-  | SlackGetThreadResponse
-  | SlackSetStatusResponse
-  | SlackSetTitleResponse
-  | SlackSetSuggestedPromptsResponse
-  | SlackSetAgentSessionStatusV2Response
-  | SlackRenameAgentSessionV2Response
-  | SlackSetSuggestedPromptsV2Response
-  | SlackGetPermalinkResponse
-  | SlackGetChannelHistoryResponse
-  | SlackGetThreadRepliesResponse
-  | SlackGetChannelInfoResponse
-  | SlackGetUserPresenceResponse
-  | SlackEditCanvasResponse
-  | SlackCreateChannelCanvasResponse
-  | SlackGetCanvasResponse
-  | SlackListCanvasesResponse
-  | SlackLookupCanvasSectionsResponse
-  | SlackDeleteCanvasResponse
-  | SlackCreateConversationResponse
-  | SlackInviteToConversationResponse
-  | SlackOpenViewResponse
-  | SlackUpdateViewResponse
-  | SlackPushViewResponse
-  | SlackPublishViewResponse
-  | SlackScheduleMessageResponse
-  | SlackListScheduledMessagesResponse
-  | SlackDeleteScheduledMessageResponse
-  | SlackArchiveConversationResponse
-  | SlackRenameConversationResponse
-  | SlackSetConversationTopicResponse
-  | SlackSetConversationPurposeResponse

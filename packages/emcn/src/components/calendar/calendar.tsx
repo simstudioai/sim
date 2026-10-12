@@ -5,9 +5,9 @@ import { z } from 'zod'
 import { ChevronLeft, ChevronRight } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Chip, chipVariants } from '../chip/chip'
-import { chipContentLabelClass } from '../chip/chip-chrome'
+import { chipContentLabelClass } from '../chip/chrome'
 import { ChipTimePicker } from '../chip-time-picker/chip-time-picker'
-import { CalendarDayCell } from './calendar-day-cell'
+import { CalendarDayCell } from './day-cell'
 
 const MONTHS = [
   'January',
@@ -55,7 +55,7 @@ function toDateString(year: number, month: number, day: number): string {
  * is parsed as local time to avoid the off-by-one day that `new Date('2026-05-08')`
  * (UTC midnight) produces in negative-offset timezones.
  */
-export function parseDateValue(value: string | Date | undefined): Date | null {
+function parseDateValue(value: string | Date | undefined): Date | null {
   if (!value) return null
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
   if (/^\d{4}-\d{2}-\d{2}/.test(value)) {

@@ -89,8 +89,8 @@ describe('processDocumentsWithQueue billing attribution', () => {
   })
 
   it('rejects missing workspace attribution without enqueueing', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { userId: 'knowledge-owner', workspaceId: 'workspace-1' },
+    dbChainMockFns.limit.mockResolvedValue([
+      { isSearchIndex: false, userId: 'knowledge-owner', workspaceId: 'workspace-1' },
     ])
 
     await expect(
@@ -112,8 +112,8 @@ describe('processDocumentsWithQueue billing attribution', () => {
   })
 
   it('rejects mismatched workspace attribution without enqueueing', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { userId: 'knowledge-owner', workspaceId: 'workspace-2' },
+    dbChainMockFns.limit.mockResolvedValue([
+      { isSearchIndex: false, userId: 'knowledge-owner', workspaceId: 'workspace-2' },
     ])
 
     await expect(
@@ -130,8 +130,8 @@ describe('processDocumentsWithQueue billing attribution', () => {
   })
 
   it('rejects a knowledge base without a workspace or organization owner', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { userId: 'legacy-owner', workspaceId: null, organizationId: null },
+    dbChainMockFns.limit.mockResolvedValue([
+      { isSearchIndex: false, userId: 'legacy-owner', workspaceId: null, organizationId: null },
     ])
 
     await expect(

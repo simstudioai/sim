@@ -1,34 +1,12 @@
-import { type McpOperationPolicy, normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 /**
  * Shared MCP utilities - safe for both client and server.
  * No server-side dependencies (database, fs, etc.) should be imported here.
  */
 
+import { normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 import { isMcpTool, MCP } from '@/executor/constants'
 
 export const MCP_SERVER_ADVANCED_TOOL_TYPE = 'mcp-server-advanced' as const
-
-export interface McpServerAdvancedToolBinding {
-  type: typeof MCP_SERVER_ADVANCED_TOOL_TYPE
-  params: {
-    serverId: string
-  }
-  operationPolicy?: McpOperationPolicy
-  usageControl?: 'auto' | 'force' | 'none'
-}
-
-export function isMcpServerAdvancedToolBinding(
-  value: unknown
-): value is McpServerAdvancedToolBinding {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const binding = value as { type?: unknown; params?: unknown }
-  if (binding.type !== MCP_SERVER_ADVANCED_TOOL_TYPE) return false
-  if (!binding.params || typeof binding.params !== 'object' || Array.isArray(binding.params)) {
-    return false
-  }
-  const serverId = (binding.params as { serverId?: unknown }).serverId
-  return typeof serverId === 'string' && serverId.trim().length > 0
-}
 
 /** Rejects ambiguous server-wide bindings while leaving legacy MCP entries untouched. */
 export function assertValidMcpServerToolBindings(value: unknown): void {

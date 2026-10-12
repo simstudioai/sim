@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { TikTokResponse } from '@/tools/tiktok/types'
 import { getTrigger } from '@/triggers'
 
 const TIKTOK_TOOL_IDS = new Set([
@@ -25,7 +24,7 @@ const TIKTOK_OPERATION_INPUT_KEYS = [
 /** Video to upload, whichever mode the card is in. */
 const VIDEO_FILE_FIELD = ['videoFile', 'videoFileRef'] as const
 
-export const TikTokBlock: BlockConfig<TikTokResponse> = {
+export const TikTokBlock: BlockConfig = {
   type: 'tiktok',
   name: 'TikTok',
   description: 'Access TikTok profiles and videos, and upload inbox drafts',

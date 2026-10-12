@@ -48,7 +48,6 @@ import {
   resendInvitation,
   resendWorkspaceInvitation,
 } from '@/lib/invitations/application/manage-invitation'
-import { invitationManagementErrorPolicy } from '@/lib/invitations/management-error-policy'
 
 const mocks = {
   orgAdmin: billingOrganizationMockFns.mockIsOrganizationOwnerOrAdmin,
@@ -231,14 +230,7 @@ it.each([
   { status: 404, code: 'not_found' },
   { status: 409, code: 'conflict' },
   { status: 502, code: 'internal' },
-])(
-  'projects typed invitation status $status without losing domain metadata',
-  ({ status, code }) => {
-    const error = new InvitationManagementError(status, 'Action unavailable', true)
-    expect(asOrchestrationError(error)).toMatchObject({ code, message: 'Action unavailable' })
-    expect(invitationManagementErrorPolicy.project(error)).toEqual({
-      status,
-      body: { error: 'Action unavailable', upgradeRequired: true },
-    })
-  }
-)
+])('maps typed invitation status $status to its orchestration code', ({ status, code }) => {
+  const error = new InvitationManagementError(status, 'Action unavailable', true)
+  expect(asOrchestrationError(error)).toMatchObject({ code, message: 'Action unavailable' })
+})

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { isMetadataOnlyBlockType, isTriggerBlockType } from '@/executor/constants'
-import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
+import { extractBaseBlockId } from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('PathConstructor')

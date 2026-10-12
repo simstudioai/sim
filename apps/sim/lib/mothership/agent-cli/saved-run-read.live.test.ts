@@ -95,7 +95,7 @@ import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { resolveCopilotWorkspaceFileReference } from '@/lib/mothership/application/execute-file-use-case'
 import {
   areStreamToolExecutionsSettled,
-  claimSimToolExecution,
+  claimToolExecution,
   claimWorkflowToolExecution,
   closeStreamToolAdmission,
   completeAsyncToolCall,
@@ -1750,7 +1750,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         status: 'running',
       })
       const owner = { runId, toolCallId, ownerToken, userId: 'run-reader' }
-      expect(await claimSimToolExecution(owner)).toEqual({ outcome: 'claimed' })
+      expect(await claimToolExecution(owner)).toEqual({ outcome: 'claimed' })
       return { owner, chatId, streamId }
     }
 
@@ -1811,7 +1811,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       ).rejects.toThrow('outcome is unknown')
       expect(await revokeExpiredSimToolExecutions(owner)).toHaveLength(1)
       expect(await revokeExpiredSimToolExecutions(owner)).toEqual([])
-      expect(await claimSimToolExecution({ ...owner, ownerToken: generateId() })).toEqual({
+      expect(await claimToolExecution({ ...owner, ownerToken: generateId() })).toEqual({
         outcome: 'existing',
       })
       const saved = await readTool(owner.toolCallId)
@@ -2058,7 +2058,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         })
         expect(await claimWorkflowToolExecution(toolCallId, executionId, 'client')).not.toBeNull()
         expect(
-          await claimSimToolExecution({
+          await claimToolExecution({
             runId,
             toolCallId,
             userId: 'run-reader',
@@ -2132,7 +2132,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       ])
       const priorExecutionId = generateId()
       await claimWorkflowToolExecution(priorToolId, priorExecutionId, 'client')
-      await claimSimToolExecution({
+      await claimToolExecution({
         runId,
         toolCallId,
         userId: 'run-reader',
@@ -2175,7 +2175,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       })
       expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'sim')).not.toBeNull()
       expect(
-        await claimSimToolExecution({
+        await claimToolExecution({
           runId,
           toolCallId,
           userId: 'run-reader',

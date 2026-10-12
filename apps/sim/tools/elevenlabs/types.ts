@@ -18,7 +18,7 @@ export interface ElevenLabsTtsResponse extends ToolResponse {
 }
 
 /** Voice settings shared by get/edit settings and embedded voice objects. */
-export interface ElevenLabsVoiceSettings {
+interface ElevenLabsVoiceSettings {
   stability?: number | null
   similarity_boost?: number | null
   style?: number | null
@@ -97,7 +97,7 @@ export interface ElevenLabsEditVoiceSettingsResponse extends ToolResponse {
   }
 }
 
-export interface ElevenLabsModelLanguage {
+interface ElevenLabsModelLanguage {
   languageId: string | null
   name: string | null
 }
@@ -170,13 +170,3 @@ export interface ElevenLabsAudioResponse extends ToolResponse {
     audioFile?: UserFile
   }
 }
-
-export type ElevenLabsBlockResponse =
-  | ElevenLabsTtsResponse
-  | ElevenLabsListVoicesResponse
-  | ElevenLabsGetVoiceResponse
-  | ElevenLabsGetVoiceSettingsResponse
-  | ElevenLabsEditVoiceSettingsResponse
-  | ElevenLabsListModelsResponse
-  | ElevenLabsGetUserResponse
-  | ElevenLabsAudioResponse

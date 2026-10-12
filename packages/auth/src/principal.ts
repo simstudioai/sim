@@ -12,7 +12,7 @@ export type Principal =
   | SlackAppPrincipal
 
 /** Verified app-wide ingress authority; installation lookup grants no human access. */
-export interface SlackAppPrincipal {
+interface SlackAppPrincipal {
   kind: 'slack_app'
   appId: string
   appRevision: string
@@ -94,7 +94,7 @@ export interface ExternalUserSubject {
 }
 
 /** Email address proven by a deployment's OTP or SSO authentication gate. */
-export interface AuthenticatedEmailSubject {
+interface AuthenticatedEmailSubject {
   kind: 'authenticated_email'
   email: string
 }
@@ -106,7 +106,7 @@ interface ActorlessSystemPrincipal {
   workflowId: string
 }
 
-export interface ChatSystemPrincipal {
+interface ChatSystemPrincipal {
   kind: 'system'
   serviceId: 'chat'
   workspaceId: string
@@ -124,10 +124,7 @@ export interface WebhookSystemPrincipal {
   subject?: ExternalUserSubject
 }
 
-export type SystemPrincipal =
-  | ActorlessSystemPrincipal
-  | ChatSystemPrincipal
-  | WebhookSystemPrincipal
+type SystemPrincipal = ActorlessSystemPrincipal | ChatSystemPrincipal | WebhookSystemPrincipal
 
 interface DelegatedPrincipalBase {
   kind: 'delegated'
@@ -153,7 +150,7 @@ export interface SubjectDelegatedPrincipal extends DelegatedPrincipalBase {
   subjectUserId: string
 }
 
-export interface WorkflowExecutionDelegationContext {
+interface WorkflowExecutionDelegationContext {
   kind: 'workflow_execution'
   workflowId: string
   executionId?: string
@@ -847,3 +844,15 @@ export function resolvePrincipalAttribution(
       throw new PrincipalSubjectUserRequiredError(actor.kind)
   }
 }
+
+/** User ID every request acts as when `DISABLE_AUTH` is enabled. */
+export const ANONYMOUS_USER_ID = '00000000-0000-0000-0000-000000000000'
+
+/** The user record behind {@link ANONYMOUS_USER_ID}, shared by the app and the realtime server. */
+export const ANONYMOUS_USER = {
+  id: ANONYMOUS_USER_ID,
+  name: 'Anonymous',
+  email: 'anonymous@localhost',
+  emailVerified: true,
+  image: null,
+} as const

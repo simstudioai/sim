@@ -410,7 +410,10 @@ describe('managed OAuth token resolution', () => {
   })
 
   it('allows Search reads when Slack retains a broader grant', async () => {
-    seedSlackSearchCredential('option-1', 'active', SLACK_MANAGED_USER_SCOPES)
+    seedSlackSearchCredential('option-1', 'active', [
+      ...SLACK_MANAGED_USER_SCOPES,
+      ...SLACK_SEARCH_USER_SCOPES,
+    ])
     await expect(
       resolveManagedOAuthToken({
         credentialId: 'credential-1',

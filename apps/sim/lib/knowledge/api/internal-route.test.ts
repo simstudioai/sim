@@ -1,5 +1,5 @@
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
-import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import type { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -12,8 +12,6 @@ import {
   resolveInternalKnowledgeBillingAttribution,
 } from '@/lib/knowledge/api/internal-route'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
-
-const capture = posthogServerMockFns.mockCaptureServerEvent
 
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 

@@ -284,7 +284,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         />
       )}
       {isRenaming ? (
-        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
+        <div className='flex size-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
             isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
@@ -305,7 +305,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           />
         </div>
       ) : readOnly ? (
-        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
+        <div className='flex size-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
             isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
@@ -318,7 +318,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           />
         </div>
       ) : (
-        <div className='flex h-full w-full min-w-0 items-center'>
+        <div className='flex size-full min-w-0 items-center'>
           <button
             type='button'
             className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-hidden'
@@ -338,7 +338,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           </button>
           <button
             type='button'
-            className='flex h-full shrink-0 cursor-pointer items-center pr-2.5 pl-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--text-primary)] group-hover:opacity-100'
+            className='flex h-full shrink-0 cursor-pointer items-center pr-2.5 pl-0.5 text-[var(--text-muted)] opacity-0 pointer-coarse:opacity-100 transition-opacity hover:text-[var(--text-primary)] group-hover:opacity-100 max-md:min-w-8 max-md:justify-center max-md:opacity-100'
             onClick={handleChevronClick}
             draggable={false}
             aria-label='Column options'
@@ -369,7 +369,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         </div>
       )}
       <div
-        className='-right-[3px] absolute top-0 z-[1] h-full w-[6px] cursor-col-resize'
+        className='-right-[3px] absolute top-0 z-[1] hidden h-full w-[6px] cursor-col-resize md:block'
         draggable={false}
         onDragStart={(e) => e.stopPropagation()}
         onPointerDown={handleResizePointerDown}

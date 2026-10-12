@@ -1,9 +1,8 @@
 import { ElevenLabsIcon, YouTubeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { YouTubeResponse } from '@/tools/youtube/types'
 
-export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
+export const YouTubeBlock: BlockConfig = {
   type: 'youtube',
   name: 'YouTube',
   description: 'Interact with YouTube videos, channels, and playlists',

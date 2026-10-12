@@ -39,6 +39,7 @@ const mockAgentSession = {
 }
 const mockSdk = {
   defineTool: vi.fn((tool) => tool),
+  SettingsManager: { inMemory: () => ({}) },
   SessionManager: { inMemory: vi.fn(() => ({})) },
   createAgentSession: mockCreateAgentSession,
 }

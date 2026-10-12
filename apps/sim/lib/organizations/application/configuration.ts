@@ -107,12 +107,15 @@ function configuredRetention(
 export const getOrganizationWhitelabel = defineOrganizationConfigurationUseCase({
   operation: organizationConfigurationOperations.readWhitelabel,
   async execute({ input }: { input: OrganizationInput }) {
-    const [row] = await db
-      .select({ settings: organization.whitelabelSettings })
-      .from(organization)
-      .where(eq(organization.id, input.organizationId))
-      .limit(1)
-    return requireOrganization(row).settings ?? {}
+    const [[row], isEnterprise] = await Promise.all([
+      db
+        .select({ settings: organization.whitelabelSettings })
+        .from(organization)
+        .where(eq(organization.id, input.organizationId))
+        .limit(1),
+      isOrganizationFeatureEntitled(input.organizationId, isWhitelabelingEnabled),
+    ])
+    return { isEnterprise, settings: requireOrganization(row).settings ?? {} }
   },
 })
 

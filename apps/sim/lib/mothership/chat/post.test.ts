@@ -216,6 +216,7 @@ vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScop
 vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
 import { chatOperations } from '@/lib/mothership/application/operations'
+import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { handleUnifiedChatPost } from './post'
 
@@ -265,8 +266,7 @@ describe('handleUnifiedChatPost', () => {
         expect(response.status).toBe(enabled ? 200 : 400)
         if (enabled)
           expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-            expect.objectContaining({ mode: 'plan' }),
-            expect.anything()
+            expect.objectContaining({ mode: 'plan' })
           )
         else expect(buildCopilotRequestPayload).not.toHaveBeenCalled()
       } finally {
@@ -385,8 +385,7 @@ describe('handleUnifiedChatPost', () => {
       expect.objectContaining({ organizationId: 'org-1', mode: 'agent' })
     )
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: 'org-1', mode: 'agent' }),
-      expect.anything()
+      expect.objectContaining({ organizationId: 'org-1', mode: 'agent' })
     )
     expect(getEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
   })
@@ -439,8 +438,7 @@ describe('handleUnifiedChatPost', () => {
       organizationId: 'org-1',
     })
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: 'org-1', mode: 'assistant', contexts: [] }),
-      expect.anything()
+      expect.objectContaining({ organizationId: 'org-1', mode: 'assistant', contexts: [] })
     )
     expect(createSSEStream).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -502,8 +500,7 @@ describe('handleUnifiedChatPost', () => {
               source: { type: 'base64', media_type: 'image/png', data: 'aW1hZ2U=' },
             },
           ],
-        }),
-        expect.anything()
+        })
       )
       expect(admitTurn).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -717,8 +714,7 @@ describe('handleUnifiedChatPost', () => {
             },
           ],
         }),
-      }),
-      expect.anything()
+      })
     )
     expect(createSSEStream).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -765,7 +761,7 @@ describe('handleUnifiedChatPost', () => {
   it.each([
     ['agent', 'assistant'],
     ['assistant', 'agent'],
-  ] as const)('keeps the same chat when switching from %s to %s', async (previousMode, mode) => {
+  ] as const)('keeps the same chat when switching from %s to %s', async (_previousMode, mode) => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ model: null }])
     getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     listPersonal.mockResolvedValue({ credentials: [{ id: 'mine', providerId: 'google-drive' }] })
@@ -818,10 +814,10 @@ describe('handleUnifiedChatPost', () => {
     ['high', 'high'],
     ['xhigh', 'xhigh'],
     ['max', 'xhigh'],
-    ['low', 'medium'],
-    ['none', 'medium'],
+    ['low', 'low'],
+    ['none', 'low'],
   ])(
-    'enforces the default model and effort range on submitted %s effort',
+    'leaves the model to the worker and enforces the effort range on submitted %s effort',
     async (effort, expected) => {
       flags.models.mockResolvedValue(false)
       const response = await handleUnifiedChatPost(
@@ -836,13 +832,47 @@ describe('handleUnifiedChatPost', () => {
         })
       )
       expect(response.status).toBe(200)
-      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-        expect.objectContaining({
-          effort: expected,
-          modelSelection: { model: 'gpt-6-astra', fastMode: false },
-        }),
-        expect.anything()
+      const { requestPayload } = createSSEStream.mock.lastCall?.[0] ?? {}
+      expect(requestPayload?.effort).toBe(expected)
+      expect(JSON.stringify(requestPayload)).not.toContain('modelSelection')
+    }
+  )
+
+  const solSelection = { model: 'gpt-6-sol', fastMode: false } as const
+  it.each([
+    { stored: null, sent: undefined, runs: 'high', modelSelection: undefined },
+    { stored: 'medium', sent: undefined, runs: 'medium', modelSelection: undefined },
+    { stored: 'low', sent: undefined, runs: 'low', modelSelection: undefined },
+    { stored: 'high', sent: 'low', runs: 'low', modelSelection: undefined },
+    { stored: 'high', sent: 'max', runs: 'xhigh', modelSelection: undefined },
+    { stored: 'none', sent: undefined, runs: 'low', modelSelection: solSelection },
+    { stored: 'high', sent: 'none', runs: 'low', modelSelection: solSelection },
+  ] as const)(
+    'runs a chat whose stored effort choice is $stored at $runs when the send names $sent with $modelSelection',
+    async ({ stored, sent, runs, modelSelection }) => {
+      flags.models.mockResolvedValue(Boolean(modelSelection))
+      resolveOrCreateChat.mockResolvedValue({
+        chatId: 'chat-1',
+        chat: { id: 'chat-1', effort: stored },
+        isNew: false,
+      })
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Continue',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+            ...(modelSelection ? { modelSelection } : {}),
+            ...(sent ? { effort: sent } : {}),
+          }),
+        })
       )
+      expect(response.status).toBe(200)
+      const { requestPayload } = createSSEStream.mock.lastCall?.[0] ?? {}
+      expect(requestPayload?.effort).toBe(runs)
+      expect(requestPayload?.modelSelection).toEqual(modelSelection)
+      expect(admitTurn.mock.calls[0][0].input.effortChoice).toBe(sent && runs)
     }
   )
 
@@ -871,8 +901,7 @@ describe('handleUnifiedChatPost', () => {
         userId: 'user-1',
         workflowId: 'wf-1',
         workspaceId: 'ws-1',
-      }),
-      { selectedModel: 'claude-opus-4-8' }
+      })
     )
     const workflowParams = buildCopilotRequestPayload.mock.calls[0]![0] as Record<string, unknown>
     expect(workflowParams).not.toHaveProperty('workspaceContext')
@@ -941,8 +970,7 @@ describe('handleUnifiedChatPost', () => {
         modelSelection: { model: 'gpt-6-astra', fastMode: true },
         userId: 'user-1',
         workspaceId: 'ws-1',
-      }),
-      { selectedModel: '' }
+      })
     )
     const workspaceParams = buildCopilotRequestPayload.mock.calls[0]![0] as Record<string, unknown>
     expect(workspaceParams.workspaceContext).toBeUndefined()
@@ -1021,8 +1049,7 @@ describe('handleUnifiedChatPost', () => {
       expect.objectContaining({
         terminalCapable: true,
         terminals,
-      }),
-      { selectedModel: '' }
+      })
     )
   })
 
@@ -1264,8 +1291,7 @@ describe('handleUnifiedChatPost', () => {
 
     expect(response.status).toBe(200)
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-      expect.objectContaining({ mcpServerIds: ['mcp-server-1'] }),
-      { selectedModel: '' }
+      expect.objectContaining({ mcpServerIds: ['mcp-server-1'] })
     )
     // The tools ride the tool array every turn, so re-expanding the listing for
     // an inherited server would only duplicate what the model already sees.
@@ -1298,8 +1324,7 @@ describe('handleUnifiedChatPost', () => {
 
     expect(response.status).toBe(200)
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-      expect.objectContaining({ mcpServerIds: ['mcp-server-1', 'mcp-server-2'] }),
-      { selectedModel: '' }
+      expect.objectContaining({ mcpServerIds: ['mcp-server-1', 'mcp-server-2'] })
     )
   })
 
@@ -1667,6 +1692,29 @@ describe('handleUnifiedChatPost', () => {
       expect(createSSEStream).not.toHaveBeenCalled()
       expect(releaseChatSendClaim).toHaveBeenCalledOnce()
       expect(response.headers.get('x-mothership-chat-id')).toBeNull()
+    })
+
+    /**
+     * Another attempt with this id took the claim while this one was still
+     * preparing, and may admit the turn. The client must keep the message under
+     * this id, so the answer names it, as a duplicate's does.
+     */
+    it('answers a send superseded at admission as a duplicate naming its id', async () => {
+      admitTurn.mockRejectedValueOnce(new ChatSendSupersededError())
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toMatchObject({ activeStreamId: 'msg-1' })
+      expect(createSSEStream).not.toHaveBeenCalled()
     })
 
     it('keeps the claim once a turn is actually streaming', async () => {

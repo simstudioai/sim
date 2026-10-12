@@ -261,7 +261,7 @@ describe('live search administration', () => {
   it('opens Slack setup in Sources instead of its redirected service-account page', async () => {
     mocks.policies.mockReturnValue({ data: [{ connectorType: 'slack', approved: true }] })
     await render()
-    await act(async () => button('Slack app')!.click())
+    await act(async () => button('Verify permissions')!.click())
     expect(mockPush).not.toHaveBeenCalled()
     expect(container.querySelector('a[href*="providers/slack"]')).toBeNull()
     await act(async () =>

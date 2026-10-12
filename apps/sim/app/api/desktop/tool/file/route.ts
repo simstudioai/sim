@@ -4,6 +4,7 @@ import {
   readBrowserUploadFileContract,
   saveBrowserDownloadContract,
 } from '@/lib/api/contracts/desktop-browser-files'
+import { isOffAppHost } from '@/lib/api/mcp/host-routing'
 import { parseRequest } from '@/lib/api/server'
 import {
   defineInternalBinaryRoute,
@@ -31,7 +32,7 @@ export const dynamic = 'force-dynamic'
  * The desktop main process fetches one file a claimed `browser_upload_file` call attaches to a
  * page. The call's persisted arguments name the file; the request only picks which of them.
  */
-export const POST = defineInternalBinaryRoute({
+const readUploadFile = defineInternalBinaryRoute({
   contract: readBrowserUploadFileContract,
   auth: internalSessionAuth,
   operation: readBrowserUploadFile.operation,
@@ -49,6 +50,14 @@ export const POST = defineInternalBinaryRoute({
   }),
 })
 
+/** Off the proxy (see `proxy.ts`), so the dedicated MCP host is refused here, as the proxy would. */
+function notFoundOffAppHost(): NextResponse {
+  return NextResponse.json(withRequestId({ error: 'Not found' }), { status: 404 })
+}
+
+export const POST: typeof readUploadFile = (request, context) =>
+  isOffAppHost(request) ? Promise.resolve(notFoundOffAppHost()) : readUploadFile(request, context)
+
 /**
  * PUT /api/desktop/tool/file?toolCallId=…&name=…
  *
@@ -58,6 +67,7 @@ export const POST = defineInternalBinaryRoute({
  * re-validates and claims that call.
  */
 export const PUT = withRouteHandler(async (request: NextRequest) => {
+  if (isOffAppHost(request)) return notFoundOffAppHost()
   let principal
   try {
     principal = await internalSessionAuth.authenticate()
@@ -67,8 +77,13 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
     }
     throw error
   }
-  const declaredLength = Number(request.headers.get('content-length'))
-  if (!Number.isFinite(declaredLength) || declaredLength > BROWSER_FILE_TRANSFER_MAX_BYTES) {
+  // Shells already in use may send a download without a declared length; that stays accepted.
+  const lengthHeader = request.headers.get('content-length')
+  const declaredLength = lengthHeader === null ? null : Number(lengthHeader)
+  if (
+    declaredLength !== null &&
+    (!Number.isFinite(declaredLength) || declaredLength > BROWSER_FILE_TRANSFER_MAX_BYTES)
+  ) {
     return NextResponse.json(withRequestId({ error: 'Download is too large to save' }), {
       status: 413,
     })
@@ -97,6 +112,13 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       })
     }
     throw error
+  }
+  // Anything between the device and here that cut the body short must not become a saved file.
+  if (declaredLength !== null && content.length !== declaredLength) {
+    return NextResponse.json(
+      withRequestId({ error: 'The download did not arrive whole; nothing was saved' }),
+      { status: 400 }
+    )
   }
 
   try {

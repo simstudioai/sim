@@ -152,9 +152,6 @@ describe('listWorkspaceFiles', () => {
     resetDbChainMock()
   })
 
-  const lastProjection = () =>
-    Object.keys((dbChainMockFns.select.mock.calls.at(-1)?.[0] ?? {}) as Record<string, unknown>)
-
   it('caps the rows read when the caller only needs to fit a budget', async () => {
     queueTableRows(schemaMock.workspaceFiles, [buildRow()])
 

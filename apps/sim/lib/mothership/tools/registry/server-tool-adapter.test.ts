@@ -120,9 +120,7 @@ describe('server tool adapter authority boundary', () => {
 })
 
 it('forwards canonical open-resource effects without replacing target assertions or injecting a workflow', async () => {
-  const resources = [
-    { type: 'workflow', id: 'flow', title: 'Canonical', workspaceId: 'workspace-1' },
-  ]
+  const resources = [{ type: 'workflow', id: 'flow', title: 'Canonical' }]
   mocks.routeExecution.mockResolvedValue({ resources })
   const params = {
     workspaceId: 'asserted-workspace',

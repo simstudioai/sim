@@ -52,11 +52,11 @@ export const BLOCK_DIMENSIONS = {
  * host, the border SVG viewBox (`preserveAspectRatio='none'`, so a mismatch
  * paints the outline stretched), and autolayout all resolve through them.
  */
-export const NOTE_BLOCK_MIN_HEIGHT =
+const NOTE_BLOCK_MIN_HEIGHT =
   BLOCK_DIMENSIONS.HEADER_HEIGHT +
   BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING +
   BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
-export const NOTE_BLOCK_MAX_HEIGHT =
+const NOTE_BLOCK_MAX_HEIGHT =
   BLOCK_DIMENSIONS.HEADER_HEIGHT + BLOCK_DIMENSIONS.NOTE_CONTENT_VIEWPORT_HEIGHT
 
 /** Clamps a note's total height to the bounds the card itself honours. */
@@ -84,7 +84,7 @@ export const estimateNoteBlockHeight = (content: string) => {
  * A container's box, and the gutter it keeps around the blocks inside it.
  *
  * The single source for both halves of that: the layout math that sizes a
- * container and clamps its children, and the card's own DOM. `subflow-node-view`
+ * container and clamps its children, and the card's own DOM. `subflow/node-view`
  * renders its header and content box straight from these, so the gap the
  * geometry reserves is the gap the container actually paints. They used to be
  * separate — the same four numbers as Tailwind literals in the view — and had
@@ -113,8 +113,8 @@ export const CONTAINER_DIMENSIONS = {
 } as const
 
 /**
- * Handle position constants - must match CSS in workflow-block-view.tsx,
- * sub-block-row-view.tsx, and subflow-node.tsx
+ * Handle position constants - must match CSS in workflow-block/block-view.tsx,
+ * workflow-block/sub-block-row-view.tsx, and subflow/node-view.tsx
  */
 export const HANDLE_POSITIONS = {
   /** Error knob center inset from the card's right edge. */

@@ -1,9 +1,8 @@
 import { SecretsManagerIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { SecretsManagerBaseResponse } from '@/tools/secrets_manager/types'
 
-export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
+export const SecretsManagerBlock: BlockConfig = {
   type: 'secrets_manager',
   name: 'AWS Secrets Manager',
   description: 'Connect to AWS Secrets Manager',

@@ -131,9 +131,9 @@ describe.each([false, true])('image input rules (collaborative=%s)', (collaborat
 })
 
 describe.each([
-  { name: 'image', extension: 'image', source: '![Audit image](https://example.com/logo.png)' },
-  { name: 'link', extension: 'markdownLinkInputRule', source: '[Audit link](https://example.com)' },
-])('$name input-rule event boundaries', ({ name, extension, source }) => {
+  { name: 'image', source: '![Audit image](https://example.com/logo.png)' },
+  { name: 'link', source: '[Audit link](https://example.com)' },
+])('$name input-rule event boundaries', ({ name, source }) => {
   function assertConverted(editor: Editor) {
     expect(editor.getHTML()).toContain(
       name === 'image' ? 'src="https://example.com/logo.png"' : 'href="https://example.com"'

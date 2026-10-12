@@ -23,6 +23,7 @@ import {
 import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
 import type { TerminalTabState } from '@sim/terminal-protocol'
 import { useQueries } from '@tanstack/react-query'
+import { requestBrowserOmniboxFocus } from '@/lib/browser-agent/omnibox-focus'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
 import {
   openBrowserTab,
@@ -159,7 +160,7 @@ const NO_RESOURCE_NAMES = new Map<string, string>()
 function useResourceNameLookup(
   workspaceId: string | undefined,
   resources: MothershipResource[]
-): { names: Map<string, string>; fileTypes: Map<string, string> } {
+): Map<string, string> {
   const enabled = resources.length > 0
   const owners = [
     ...new Set(
@@ -193,9 +194,8 @@ function useResourceNameLookup(
   })
 
   return useMemo(() => {
-    if (!enabled) return { names: NO_RESOURCE_NAMES, fileTypes: NO_RESOURCE_NAMES }
+    if (!enabled) return NO_RESOURCE_NAMES
     const map = new Map<string, string>()
-    const fileTypes = new Map<string, string>()
     for (const w of workflows ?? []) if (w.name.trim()) map.set(`workflow:${w.id}`, w.name)
     for (const [index, result] of ownedWorkflows.entries()) {
       for (const workflow of result.data ?? [])
@@ -203,13 +203,10 @@ function useResourceNameLookup(
           map.set(`workflow:${workflow.id}`, workflow.name)
     }
     for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
-    for (const f of files ?? []) {
-      map.set(`file:${f.id}`, f.name)
-      fileTypes.set(f.id, f.type)
-    }
+    for (const file of files ?? []) map.set(`file:${file.id}`, file.name)
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
-    return { names: map, fileTypes }
+    return map
   }, [enabled, workflows, tables, files, knowledgeBases, folders, ownedWorkflows, owners])
 }
 
@@ -254,7 +251,7 @@ export function ResourceTabs({
   onAddResourceClose,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
-  const { names: nameLookup, fileTypes } = useResourceNameLookup(workspaceId, resources)
+  const nameLookup = useResourceNameLookup(workspaceId, resources)
   const {
     selectResource,
     addResource: onAddResource,
@@ -319,8 +316,7 @@ export function ResourceTabs({
         icon: getResourceConfig(resource.type).renderTabIcon(
           resource,
           'size-[16px] shrink-0',
-          desktopScopeId,
-          resource.type === 'file' ? fileTypes.get(resource.id) : undefined
+          desktopScopeId
         ),
         active: activeId === getChatResourceSelectionId(resource),
         selected: selectedIds.size > 1 && selectedIds.has(getChatResourceSelectionId(resource)),
@@ -330,7 +326,6 @@ export function ResourceTabs({
   }, [
     resources,
     nameLookup,
-    fileTypes,
     browserTabs,
     terminalTabs,
     settledCommands,
@@ -348,7 +343,9 @@ export function ResourceTabs({
       if (resource.type === 'browser') {
         void openBrowserTab(desktopScopeId)
           .then((state) => {
-            if (state?.activeTabId) selectResource(state.activeTabId)
+            if (!state?.activeTabId) return
+            requestBrowserOmniboxFocus(state.activeTabId, state.scopeId)
+            selectResource(state.activeTabId)
           })
           .catch(() => toast.error('Could not open a new browser tab. Please try again.'))
         return
@@ -366,7 +363,6 @@ export function ResourceTabs({
       // The chat owner handles optimistic state and its single ordered persistence queue.
       onAddResource(resource)
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [desktopScopeId, onAddResource, selectResource]
   )
 
@@ -480,7 +476,6 @@ export function ResourceTabs({
         anchorIdRef.current = null
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       activeId,
       chatId,
@@ -577,7 +572,6 @@ export function ResourceTabs({
         ).catch(() => toast.error('Could not reorder that terminal. Please try again.'))
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [chatId, desktopScopeId, resources, onReorderResources]
   )
 

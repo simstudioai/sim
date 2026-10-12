@@ -4,7 +4,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { ConfluenceResponse } from '@/tools/confluence/types'
 import { getTrigger } from '@/triggers'
 
 /** Canonical basic/advanced pair for the page target, shared by both versions. */
@@ -22,7 +21,7 @@ const SPACE_KEY_FIELD = ['spaceKeySelector', 'manualSpaceKey'] as const
 /** Canonical upload/reference pair for an attachment's file. V2 only. */
 const ATTACHMENT_FILE_FIELD = ['attachmentFileUpload', 'attachmentFileReference'] as const
 
-export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
+export const ConfluenceBlock: BlockConfig = {
   type: 'confluence',
   name: 'Confluence (Legacy)',
   description: 'Interact with Confluence',
@@ -426,7 +425,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   },
 }
 
-export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
+export const ConfluenceV2Block: BlockConfig = {
   ...ConfluenceBlock,
   sunset: undefined,
   type: 'confluence_v2',
@@ -605,7 +604,6 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Page Operations
         { label: 'Read Page', id: 'read' },
         { label: 'Create Page', id: 'create' },
         { label: 'Update Page', id: 'update' },
@@ -613,57 +611,44 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         { label: 'List Pages in Space', id: 'list_pages_in_space' },
         { label: 'Get Page Children', id: 'get_page_children' },
         { label: 'Get Page Ancestors', id: 'get_page_ancestors' },
-        // Version Operations
         { label: 'List Page Versions', id: 'list_page_versions' },
         { label: 'Get Page Version', id: 'get_page_version' },
-        // Page Property Operations
         { label: 'List Page Properties', id: 'list_page_properties' },
         { label: 'Create Page Property', id: 'create_page_property' },
         { label: 'Delete Page Property', id: 'delete_page_property' },
-        // Search Operations
         { label: 'Search Content', id: 'search' },
         { label: 'Search in Space', id: 'search_in_space' },
-        // Blog Post Operations
         { label: 'List Blog Posts', id: 'list_blogposts' },
         { label: 'Get Blog Post', id: 'get_blogpost' },
         { label: 'Create Blog Post', id: 'create_blogpost' },
         { label: 'Update Blog Post', id: 'update_blogpost' },
         { label: 'Delete Blog Post', id: 'delete_blogpost' },
         { label: 'List Blog Posts in Space', id: 'list_blogposts_in_space' },
-        // Comment Operations
         { label: 'Create Comment', id: 'create_comment' },
         { label: 'List Comments', id: 'list_comments' },
         { label: 'Update Comment', id: 'update_comment' },
         { label: 'Delete Comment', id: 'delete_comment' },
-        // Attachment Operations
         { label: 'Upload Attachment', id: 'upload_attachment' },
         { label: 'List Attachments', id: 'list_attachments' },
         { label: 'Delete Attachment', id: 'delete_attachment' },
-        // Label Operations
         { label: 'List Labels', id: 'list_labels' },
         { label: 'Add Label', id: 'add_label' },
         { label: 'Delete Label', id: 'delete_label' },
         { label: 'Get Pages by Label', id: 'get_pages_by_label' },
         { label: 'List Space Labels', id: 'list_space_labels' },
-        // Space Operations
         { label: 'Get Space', id: 'get_space' },
         { label: 'Create Space', id: 'create_space' },
         { label: 'Update Space', id: 'update_space' },
         { label: 'Delete Space', id: 'delete_space' },
         { label: 'List Spaces', id: 'list_spaces' },
-        // Space Property Operations
         { label: 'List Space Properties', id: 'list_space_properties' },
         { label: 'Create Space Property', id: 'create_space_property' },
         { label: 'Delete Space Property', id: 'delete_space_property' },
-        // Space Permission Operations
         { label: 'List Space Permissions', id: 'list_space_permissions' },
-        // Page Descendant Operations
         { label: 'Get Page Descendants', id: 'get_page_descendants' },
-        // Task Operations
         { label: 'List Tasks', id: 'list_tasks' },
         { label: 'Get Task', id: 'get_task' },
         { label: 'Update Task', id: 'update_task' },
-        // User Operations
         { label: 'Get User', id: 'get_user' },
       ],
       value: () => 'read',
@@ -1230,7 +1215,6 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       },
     },
 
-    // Trigger subBlocks
     ...getTrigger('confluence_page_created').subBlocks,
     ...getTrigger('confluence_page_updated').subBlocks,
     ...getTrigger('confluence_page_removed').subBlocks,
@@ -1285,7 +1269,6 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
   },
   tools: {
     access: [
-      // Page Tools
       'confluence_retrieve',
       'confluence_update',
       'confluence_create_page',
@@ -1293,64 +1276,49 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       'confluence_list_pages_in_space',
       'confluence_get_page_children',
       'confluence_get_page_ancestors',
-      // Version Tools
       'confluence_list_page_versions',
       'confluence_get_page_version',
-      // Property Tools
       'confluence_list_page_properties',
       'confluence_create_page_property',
       'confluence_delete_page_property',
-      // Search Tools
       'confluence_search',
       'confluence_search_in_space',
-      // Blog Post Tools
       'confluence_list_blogposts',
       'confluence_get_blogpost',
       'confluence_create_blogpost',
       'confluence_list_blogposts_in_space',
-      // Comment Tools
       'confluence_create_comment',
       'confluence_list_comments',
       'confluence_update_comment',
       'confluence_delete_comment',
-      // Attachment Tools
       'confluence_upload_attachment',
       'confluence_list_attachments',
       'confluence_delete_attachment',
-      // Label Tools
       'confluence_list_labels',
       'confluence_add_label',
       'confluence_delete_label',
       'confluence_get_pages_by_label',
       'confluence_list_space_labels',
-      // Space Tools
       'confluence_get_space',
       'confluence_create_space',
       'confluence_update_space',
       'confluence_delete_space',
       'confluence_list_spaces',
-      // Space Property Tools
       'confluence_list_space_properties',
       'confluence_create_space_property',
       'confluence_delete_space_property',
-      // Space Permission Tools
       'confluence_list_space_permissions',
-      // Page Descendant Tools
       'confluence_get_page_descendants',
-      // Task Tools
       'confluence_list_tasks',
       'confluence_get_task',
       'confluence_update_task',
-      // Blog Post Update/Delete
       'confluence_update_blogpost',
       'confluence_delete_blogpost',
-      // User Tools
       'confluence_get_user',
     ],
     config: {
       tool: (params) => {
         switch (params.operation) {
-          // Page Operations
           case 'read':
             return 'confluence_retrieve'
           case 'create':
@@ -1365,24 +1333,20 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             return 'confluence_get_page_children'
           case 'get_page_ancestors':
             return 'confluence_get_page_ancestors'
-          // Version Operations
           case 'list_page_versions':
             return 'confluence_list_page_versions'
           case 'get_page_version':
             return 'confluence_get_page_version'
-          // Property Operations
           case 'list_page_properties':
             return 'confluence_list_page_properties'
           case 'create_page_property':
             return 'confluence_create_page_property'
           case 'delete_page_property':
             return 'confluence_delete_page_property'
-          // Search Operations
           case 'search':
             return 'confluence_search'
           case 'search_in_space':
             return 'confluence_search_in_space'
-          // Blog Post Operations
           case 'list_blogposts':
             return 'confluence_list_blogposts'
           case 'get_blogpost':
@@ -1395,7 +1359,6 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             return 'confluence_delete_blogpost'
           case 'list_blogposts_in_space':
             return 'confluence_list_blogposts_in_space'
-          // Comment Operations
           case 'create_comment':
             return 'confluence_create_comment'
           case 'list_comments':
@@ -1404,14 +1367,12 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             return 'confluence_update_comment'
           case 'delete_comment':
             return 'confluence_delete_comment'
-          // Attachment Operations
           case 'upload_attachment':
             return 'confluence_upload_attachment'
           case 'list_attachments':
             return 'confluence_list_attachments'
           case 'delete_attachment':
             return 'confluence_delete_attachment'
-          // Label Operations
           case 'list_labels':
             return 'confluence_list_labels'
           case 'add_label':
@@ -1422,7 +1383,6 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             return 'confluence_get_pages_by_label'
           case 'list_space_labels':
             return 'confluence_list_space_labels'
-          // Space Operations
           case 'get_space':
             return 'confluence_get_space'
           case 'create_space':
@@ -1433,27 +1393,22 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             return 'confluence_delete_space'
           case 'list_spaces':
             return 'confluence_list_spaces'
-          // Space Property Operations
           case 'list_space_properties':
             return 'confluence_list_space_properties'
           case 'create_space_property':
             return 'confluence_create_space_property'
           case 'delete_space_property':
             return 'confluence_delete_space_property'
-          // Space Permission Operations
           case 'list_space_permissions':
             return 'confluence_list_space_permissions'
-          // Page Descendant Operations
           case 'get_page_descendants':
             return 'confluence_get_page_descendants'
-          // Task Operations
           case 'list_tasks':
             return 'confluence_list_tasks'
           case 'get_task':
             return 'confluence_get_task'
           case 'update_task':
             return 'confluence_update_task'
-          // User Operations
           case 'get_user':
             return 'confluence_get_user'
           default:
@@ -1811,61 +1766,47 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     added: { type: 'boolean', description: 'Addition status' },
     removed: { type: 'boolean', description: 'Removal status' },
     updated: { type: 'boolean', description: 'Update status' },
-    // Search & List Results
     results: { type: 'array', description: 'Search results' },
     pages: { type: 'array', description: 'List of pages' },
     children: { type: 'array', description: 'List of child pages' },
     ancestors: { type: 'array', description: 'List of ancestor pages' },
-    // Comment Results
     comments: { type: 'array', description: 'List of comments' },
     commentId: { type: 'string', description: 'Comment identifier' },
-    // Attachment Results
     attachments: { type: 'array', description: 'List of attachments' },
     attachmentId: { type: 'string', description: 'Attachment identifier' },
     fileSize: { type: 'number', description: 'Attachment file size in bytes' },
     mediaType: { type: 'string', description: 'Attachment MIME type' },
     downloadUrl: { type: 'string', description: 'Attachment download URL' },
-    // Label Results
     labels: { type: 'array', description: 'List of labels' },
     labelName: { type: 'string', description: 'Label name' },
     labelId: { type: 'string', description: 'Label identifier' },
-    // Space Results
     spaces: { type: 'array', description: 'List of spaces' },
     spaceId: { type: 'string', description: 'Space identifier' },
     name: { type: 'string', description: 'Space name' },
     key: { type: 'string', description: 'Space key' },
     type: { type: 'string', description: 'Space or content type' },
     status: { type: 'string', description: 'Space status' },
-    // Blog Post Results
     blogPosts: { type: 'array', description: 'List of blog posts' },
     blogPostId: { type: 'string', description: 'Blog post identifier' },
-    // Version Results
     versions: { type: 'array', description: 'List of page versions' },
     version: { type: 'json', description: 'Version information' },
     versionNumber: { type: 'number', description: 'Version number' },
-    // Property Results
     properties: { type: 'array', description: 'List of page properties' },
     propertyId: { type: 'string', description: 'Property identifier' },
     propertyKey: { type: 'string', description: 'Property key' },
     propertyValue: { type: 'json', description: 'Property value' },
-    // User Results
     accountId: { type: 'string', description: 'Atlassian account ID' },
     displayName: { type: 'string', description: 'User display name' },
     email: { type: 'string', description: 'User email address' },
     accountType: { type: 'string', description: 'Account type (atlassian, app, customer)' },
     profilePicture: { type: 'string', description: 'Path to user profile picture' },
     publicName: { type: 'string', description: 'User public name' },
-    // Task Results
     tasks: { type: 'array', description: 'List of tasks' },
     taskId: { type: 'string', description: 'Task identifier' },
-    // Descendant Results
     descendants: { type: 'array', description: 'List of descendant pages' },
-    // Permission Results
     permissions: { type: 'array', description: 'List of space permissions' },
-    // Space Property Results
     homepageId: { type: 'string', description: 'Space homepage ID' },
     description: { type: 'json', description: 'Space description' },
-    // Pagination
     nextCursor: { type: 'string', description: 'Cursor for fetching next page of results' },
   },
 }

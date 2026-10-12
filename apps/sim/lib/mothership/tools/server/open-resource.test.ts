@@ -87,7 +87,6 @@ describe('resource opening authorization boundary', () => {
       'Canonical knowledge',
       'Workflow run',
     ])
-    expect(result.resources.every((resource) => resource.workspaceId === 'ws-a')).toBe(true)
     for (const read of Object.values(mocks))
       expect(read).toHaveBeenCalledWith(
         expect.objectContaining({

@@ -5,15 +5,10 @@ import {
   workflowContextMock,
   workflowContextMockFns,
 } from '@sim/testing/mocks/workflow-context.mock'
-import {
-  workflowsPersistenceUtilsMock,
-  workflowsPersistenceUtilsMockFns,
-} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  replace: vi.fn(),
   requireMutable: vi.fn(),
 }))
 
@@ -24,20 +19,11 @@ vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
-vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
-vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
-  replaceWorkflowNormalizedState: mocks.replace,
-}))
 vi.mock('@/lib/workflows/application/workflow-mutability', () => ({
   requireMutableWorkflow: mocks.requireMutable,
 }))
 
-import {
-  applyWorkflowVariableOperations,
-  setWorkflowBlockEnabled,
-} from '@/lib/workflows/application/update-workflow-content'
-
-const mockLoadNormalized = workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+import { applyWorkflowVariableOperations } from '@/lib/workflows/application/update-workflow-content'
 
 const mockRecordAudit = auditMockFns.mockRecordAudit
 const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
@@ -155,60 +141,4 @@ describe('applyWorkflowVariableOperations', () => {
 
     expect(mockResolveContext).not.toHaveBeenCalled()
   })
-})
-
-describe('setWorkflowBlockEnabled', () => {
-  const BLOCK = {
-    id: 'block-1',
-    type: 'agent',
-    name: 'Triage',
-    position: { x: 0, y: 0 },
-    subBlocks: {},
-    outputs: {},
-    enabled: true,
-    data: {},
-  }
-
-  beforeEach(() => {
-    resetDbChainMock()
-    mockResolveContext.mockResolvedValue(context)
-    mockResolvePermission.mockResolvedValue('write')
-    mocks.requireMutable.mockResolvedValue(undefined)
-    mockLoadNormalized.mockResolvedValue({
-      blocks: { 'block-1': BLOCK },
-      edges: [],
-      loops: {},
-      parallels: {},
-    })
-    mocks.replace.mockResolvedValue({
-      warnings: [],
-      state: { blocks: { 'block-1': { ...BLOCK, enabled: false } }, edges: [] },
-    })
-  })
-
-  /**
-   * The graph is produced inside the primitive's transaction, not handed to it
-   * pre-read: the editor's own save takes the same row lock, so a graph read
-   * before the lock can be a stale copy that this write — a whole graph, not a
-   * delta — would persist over a concurrent autosave.
-   */
-  it('re-reads and re-decides inside the write transaction', async () => {
-    await setWorkflowBlockEnabled.execute({
-      principal,
-      input: { workflowId: 'workflow-1', blockId: 'block-1', enabled: false },
-    })
-
-    const { state } = mocks.replace.mock.calls[0]![0]
-    expect(typeof state).toBe('function')
-
-    mockLoadNormalized.mockClear()
-    const tx = Symbol('tx')
-    await expect(state(tx)).resolves.toEqual({
-      blocks: { 'block-1': { ...BLOCK, enabled: false } },
-      edges: [],
-    })
-    expect(mockLoadNormalized).toHaveBeenCalledWith('workflow-1', tx)
-  })
-
-  /** The returned state is what was persisted, not what was proposed. */
 })

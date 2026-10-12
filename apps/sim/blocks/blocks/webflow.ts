@@ -2,7 +2,6 @@ import { WebflowIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { WebflowResponse } from '@/tools/webflow/types'
 import { getTrigger } from '@/triggers'
 
 /** CMS collection, whichever mode the card is in. */
@@ -11,7 +10,7 @@ const COLLECTION_FIELD = ['collectionSelector', 'manualCollectionId'] as const
 /** CMS item, whichever mode the card is in. */
 const ITEM_FIELD = ['itemSelector', 'manualItemId'] as const
 
-export const WebflowBlock: BlockConfig<WebflowResponse> = {
+export const WebflowBlock: BlockConfig = {
   type: 'webflow',
   name: 'Webflow',
   description: 'Manage Webflow CMS collections',

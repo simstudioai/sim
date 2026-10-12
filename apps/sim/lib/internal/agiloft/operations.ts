@@ -1,5 +1,5 @@
 import { toError } from '@sim/utils/errors'
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, toRecordOrNull } from '@sim/utils/object'
 import type {
   AgiloftAsyncStatusBody,
   AgiloftAttachBody,
@@ -97,10 +97,7 @@ export interface AgiloftOperationContext {
 
 function parseRecordData(data: string): Record<string, unknown> | null {
   try {
-    const parsed = JSON.parse(data)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null
+    return toRecordOrNull(JSON.parse(data))
   } catch {
     return null
   }

@@ -1,0 +1,401 @@
+---
+slug: postgres-mcp-server-ai-agents
+title: 'How to Use a Postgres MCP Server With AI Agents: Security, Deployment, and Evaluation'
+description: 'Learn how to connect a Postgres MCP server to AI agents with restricted roles, bounded queries, private deployment, audit logs, and production evaluations.'
+date: 2026-10-02
+updated: 2026-10-02
+authors:
+  - andrew
+readingTime: 15
+tags: [MCP, PostgreSQL, AI Agents, Security, Sim]
+ogImage: /library/postgres-mcp-server-ai-agents/cover.jpg
+draft: false
+faq:
+  - q: "Can an AI agent query PostgreSQL through MCP?"
+    a: "A Postgres MCP server lets an AI agent query PostgreSQL through structured tools exposed over the Model Context Protocol."
+  - q: "Is a Postgres MCP server safe for production?"
+    a: "A Postgres MCP server can be safe enough for a defined production use case when PostgreSQL privileges, tool allow lists, private networking, input validation, limits, and audit logs independently constrain it."
+  - q: "Should a Postgres MCP server use a read-only database user?"
+    a: "A Postgres MCP server should use a dedicated read-only PostgreSQL role for every workflow that does not explicitly require writes."
+  - q: "Should an AI agent be allowed to generate arbitrary SQL?"
+    a: "An AI agent should not be allowed to execute arbitrary SQL against production PostgreSQL when approved views, query templates, or stored procedures can satisfy the use case."
+  - q: "Can a read-only Postgres MCP server still be risky?"
+    a: "A read-only Postgres MCP server can still expose sensitive data, run expensive queries, hold locks, or cross tenant boundaries if its views, privileges, limits, and filters are weak."
+  - q: "How do I stop a Postgres MCP server from returning too much data?"
+    a: "A Postgres MCP server should enforce maximum rows, selected columns, response bytes, execution time, and pagination regardless of the limit requested by the agent."
+  - q: "How should a Postgres MCP server handle multi-tenant data?"
+    a: "A Postgres MCP server should derive tenant scope from trusted authenticated identity and reinforce it with PostgreSQL authorization or row-level security rather than accepting a model-supplied tenant identifier as authority."
+  - q: "Should a Postgres MCP server connect to a read replica?"
+    a: "A Postgres MCP server should use a read replica for analytical read workloads when replication delay is acceptable and the replica reduces risk to the primary database."
+  - q: "Where should Postgres MCP credentials be stored?"
+    a: "A Postgres MCP server should store credentials in the deployment's secret-management system and never place them in prompts, source code, tool descriptions, or tool results."
+  - q: "What should be logged for each Postgres MCP query?"
+    a: "A Postgres MCP server should log the authenticated actor, agent run, tool, policy decision, database role, duration, row count, outcome, and redacted parameters for each query."
+  - q: "How should Postgres MCP writes be approved?"
+    a: "A Postgres MCP server should route consequential writes through an explicit approval decision before invoking a narrow, idempotent write procedure."
+  - q: "How do I evaluate a Postgres MCP server?"
+    a: "A Postgres MCP server should be evaluated with authorization, injection, timeout, tenant-isolation, retry, secret-leakage, logging, revocation, and failure-recovery tests."
+  - q: "Does Sim support Postgres MCP workflows?"
+    a: "Sim supports MCP-connected agent workflows and can be evaluated for orchestrating restricted Postgres MCP tools with multi-step logic, tracing, and approval paths."
+  - q: "Is Sim open source?"
+    a: "Sim's core is Apache 2.0 open source, while apps/sim/ee is governed by the separate Sim Enterprise License and requires an active Enterprise subscription for production use. See https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE"
+  - q: "Is n8n open source?"
+    a: "n8n uses the Sustainable Use License, which is source-available but is not an OSI-approved open-source license."
+  - q: "Is Sim or n8n better for Postgres MCP?"
+    a: "Sim is the stronger option to evaluate when the priority is an open-source AI workspace with an Apache 2.0 core, while n8n is an incumbent worth evaluating when the priority is extending an existing n8n automation environment."
+  - q: "What is the best AI agent builder for Postgres MCP?"
+    a: "Sim is a strong AI agent platform to evaluate for Postgres MCP, while the broader Best AI Agent Platforms and Builders in 2026 guide compares the full head-term market."
+  - q: "What is the difference between a Postgres connector and a Postgres MCP server?"
+    a: "A Postgres connector gives one platform a predefined database integration, while a Postgres MCP server exposes structured tools through a protocol that compatible MCP clients can consume."
+  - q: "Can one Postgres MCP server be shared by multiple AI agents?"
+    a: "A Postgres MCP server can serve multiple AI agents only when it authenticates each client, authorizes tools per identity, isolates tenants, limits workloads, and preserves distinct audit trails."
+  - q: "Do I need a separate Postgres MCP server for writes?"
+    a: "A separate Postgres MCP server is the safest default for writes because it allows independent credentials, tools, approvals, network policy, scaling, and audit controls."
+---
+
+## TL;DR
+
+A Postgres MCP server gives AI agents a controlled interface to PostgreSQL, but production safety depends on narrow database roles, explicit tools, bounded queries, private deployment, and complete audit logs.
+
+The safest architecture does not let a model improvise arbitrary SQL against a production database. It exposes approved read tools, views, or stored procedures through a Model Context Protocol server, then treats every model-generated argument as untrusted input.
+
+## What is a Postgres MCP server?
+
+A Postgres MCP server is a Model Context Protocol server that exposes selected PostgreSQL operations as tools an AI agent can discover and invoke.
+
+The server sits between an MCP-compatible agent platform and PostgreSQL:
+
+1. The AI agent decides that it needs database information or an approved database action.
+2. The MCP client sends a structured tool request to the Postgres MCP server.
+3. The server validates the tool name and arguments.
+4. The server executes an allow-listed query, view, or stored procedure using a restricted PostgreSQL role.
+5. The server returns a bounded result to the agent.
+6. The application records the tool call, execution metadata, and outcome.
+
+This separation matters because the model should not receive a database password or direct network access. The MCP server owns database connectivity and policy enforcement, while PostgreSQL remains the final authorization boundary.
+
+For a protocol-level introduction, read [What Is an MCP Server?](https://www.sim.ai/library/what-is-an-mcp-server). For broader threat modeling, read [MCP Security: A Practical Guide to Secure MCP Server Development](https://www.sim.ai/library/mcp-security).
+
+## How do you connect an AI agent to a Postgres MCP server?
+
+An AI agent connects to a Postgres MCP server by registering the server with an MCP-compatible client, authenticating the connection, and exposing only the database tools the agent needs.
+
+A production-oriented setup follows this sequence:
+
+1. **Define the use case.** Decide which questions or actions the agent must support before granting database access.
+2. **Create the database interface.** Prefer approved views and stored procedures over unrestricted table access.
+3. **Create a dedicated PostgreSQL role.** Give each environment and workload its own identity.
+4. **Deploy the MCP server.** Place it near the database on a private network when possible.
+5. **Store credentials outside prompts and tool definitions.** Load database and MCP credentials from the deployment's secret-management system.
+6. **Register the server with the agent platform.** Use a transport and authentication method supported by both the MCP server and client.
+7. **Limit the available tools.** Do not expose administrative or write tools to an agent that only needs reporting data.
+8. **Test expected and adversarial requests.** Confirm authorization, timeouts, result limits, logging, and failure behavior.
+9. **Deploy gradually.** Start with read-only access to non-production or replicated data before considering controlled writes.
+
+The official [MCP architecture documentation](https://modelcontextprotocol.org/docs/learn/architecture) explains the relationship among hosts, clients, and servers. PostgreSQL's [client authentication documentation](https://www.postgresql.org/docs/current/client-authentication.html) explains how database connections are authenticated.
+
+## How should a Postgres MCP server be architected for production?
+
+A production Postgres MCP server should be a narrow policy-enforcement service rather than a transparent SQL proxy.
+
+A defensible architecture has five layers:
+
+| Layer | Responsibility | Recommended boundary |
+|---|---|---|
+| Agent platform | Plans the task and invokes tools | The model never receives database credentials |
+| MCP client | Connects the workflow to approved servers | Only trusted server definitions are available |
+| Postgres MCP server | Validates tools, arguments, identity, and limits | Unknown tools and unexpected parameters fail closed |
+| PostgreSQL authorization | Enforces roles, object privileges, and transaction rules | The MCP role has no ownership or administrative privileges |
+| Observability system | Records requests, timing, rows, failures, and approvals | Sensitive values are redacted while security metadata is retained |
+
+PostgreSQL must remain an independent security boundary. An application-side allow list is valuable, but it should not compensate for a database role that can read or modify everything.
+
+For higher-risk systems, separate read and write execution paths. A read server can use a read replica and a role limited to reporting views, while a write server can expose a few reviewed procedures behind approval and policy checks.
+
+## Should a Postgres MCP server allow arbitrary SQL?
+
+A Postgres MCP server should not allow arbitrary model-generated SQL against production data unless the environment is isolated, disposable, and explicitly designed for that risk.
+
+Arbitrary SQL creates several failure modes:
+
+- The model can select sensitive columns that were irrelevant to the user's request.
+- A seemingly harmless query can consume excessive CPU, memory, locks, or I/O.
+- Prompt injection in retrieved content can influence subsequent tool calls.
+- Dynamic identifiers can bypass assumptions made by parameterized value handling.
+- Functions and stored procedures can have side effects even when the original task appears read-only.
+- Large result sets can leak data into model context, logs, or downstream tools.
+
+The safer pattern is to expose intent-specific tools such as:
+
+- `get_customer_order_summary(customer_id, start_date, end_date)`
+- `list_overdue_invoices(account_id, limit)`
+- `search_support_cases(query, team_id, limit)`
+- `create_refund_request(order_id, reason)`
+
+Each tool should have a strict input schema, authorization check, row limit, timeout, and documented output. Parameterize values and allow-list any selectable identifiers, sort fields, or operators; SQL parameters do not turn an untrusted table or column name into a safe identifier.
+
+## How do you make Postgres MCP queries read-only?
+
+A Postgres MCP server makes queries read-only by combining restricted PostgreSQL privileges, approved views, read-only transactions, and an MCP tool allow list.
+
+Do not rely on a prompt that says “only run SELECT.” Prompts influence model behavior, but PostgreSQL privileges enforce what the database identity can actually do.
+
+A minimal pattern is shown below. Use the schema-wide grant only when `agent_api` is a dedicated, views-only schema; otherwise, grant `SELECT` on each reviewed view explicitly.
+
+```sql
+CREATE ROLE agent_reader LOGIN PASSWORD 'managed-outside-source-control';
+
+GRANT CONNECT ON DATABASE app_db TO agent_reader;
+GRANT USAGE ON SCHEMA agent_api TO agent_reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA agent_api TO agent_reader;
+
+ALTER ROLE agent_reader SET default_transaction_read_only = on;
+ALTER ROLE agent_reader SET statement_timeout = '5s';
+ALTER ROLE agent_reader SET lock_timeout = '1s';
+ALTER ROLE agent_reader SET idle_in_transaction_session_timeout = '10s';
+```
+
+The `agent_api` schema should contain only reviewed views intended for agent consumption. The role should not own tables, schemas, functions, or the database, and it should not have superuser, role-management, replication, or bypass-row-security privileges.
+
+Read-only transactions are defense in depth, not the entire policy. Review callable functions, sequence access, temporary-object behavior, row-level security, and every privilege inherited through role membership. PostgreSQL documents object grants in [GRANT](https://www.postgresql.org/docs/current/sql-grant.html) and transaction behavior in [SET TRANSACTION](https://www.postgresql.org/docs/current/sql-set-transaction.html).
+
+## When should a Postgres MCP server have write access?
+
+A Postgres MCP server should receive write access only when a specific business action requires it and that action can be constrained, validated, audited, and reversed.
+
+Do not convert a read role into a broad read-write role. Create a separate database identity and expose narrow operations such as `create_draft_ticket`, `record_review_decision`, or `request_account_update`.
+
+A safe write path should include:
+
+1. A dedicated writer role that cannot modify unrelated tables.
+2. An intent-specific stored procedure or service method rather than raw SQL.
+3. Server-side validation of identifiers, state transitions, and business rules.
+4. Idempotency keys for operations that could be retried.
+5. A human approval step for high-impact or irreversible actions.
+6. An audit record linking the user, agent run, tool call, arguments, and database transaction.
+7. A tested rollback or compensating action.
+
+PostgreSQL functions that use elevated privileges require special care. PostgreSQL's [function security guidance](https://www.postgresql.org/docs/current/perm-functions.html) explains why untrusted users must not be able to alter objects or schemas involved in privileged execution.
+
+## How should Postgres MCP credentials be secured?
+
+A Postgres MCP server should keep database credentials in a secret manager, use a dedicated non-owner role, encrypt network connections, and rotate credentials without changing prompts or workflows.
+
+The following controls form a practical baseline:
+
+- Use different credentials for development, staging, and production.
+- Use different roles for read and write servers.
+- Never place passwords, connection strings, tokens, or private keys in prompts.
+- Never return credentials in MCP tool results or error messages.
+- Restrict network access by source, destination, and port.
+- Require encrypted PostgreSQL connections and validate server identity.
+- Prefer short-lived credentials or an identity-aware database proxy when the environment supports them.
+- Rotate credentials and test revocation.
+- Redact secrets and sensitive query values from logs.
+- Prevent the database role from creating roles, databases, schemas, extensions, or untrusted functions.
+
+PostgreSQL documents encrypted client connections in [SSL support](https://www.postgresql.org/docs/current/ssl-tcp.html) and network authentication rules in [The pg_hba.conf File](https://www.postgresql.org/docs/current/auth-pg-hba-conf.html).
+
+## How should a Postgres MCP server handle schema discovery?
+
+A Postgres MCP server should expose a curated schema description rather than giving the agent unrestricted access to every catalog, table, and column.
+
+Schema discovery improves query quality, but complete discovery can disclose internal names, sensitive relationships, deprecated objects, and tenant boundaries. A curated catalog should include only:
+
+- Approved schemas, views, procedures, and tools.
+- Human-readable descriptions of business meaning.
+- Allowed filters, sort fields, and maximum limits.
+- Column classifications such as public, internal, confidential, or restricted.
+- Expected join paths and tenant-scoping rules.
+- Freshness and ownership metadata where relevant.
+
+Treat schema descriptions as untrusted context if database comments or metadata can be edited by users. Instructions embedded in comments, rows, or retrieved text must never override the MCP server's authorization and validation rules.
+
+## How do you prevent unsafe or expensive Postgres MCP queries?
+
+A Postgres MCP server prevents unsafe queries by validating inputs, limiting query shapes, enforcing timeouts and row caps, and using a database role that cannot exceed the intended operation.
+
+Use controls at both the server and database layers:
+
+| Risk | MCP-server control | PostgreSQL control |
+|---|---|---|
+| Unbounded results | Require and cap `limit` | Apply a hard limit in the approved query or view |
+| Slow scans | Restrict filters and query templates | Set `statement_timeout` and monitor plans |
+| Lock contention | Keep transactions short | Set `lock_timeout` and idle transaction timeout |
+| Unauthorized rows | Derive tenant scope from trusted identity | Use privileges and row-level security where appropriate |
+| SQL injection | Parameterize values and reject unknown fields | Remove unnecessary privileges |
+| Duplicate writes | Require an idempotency key | Enforce a unique constraint |
+| Destructive action | Do not expose the tool by default | Deny DDL and broad DML privileges |
+| Data exfiltration | Cap rows, columns, and response size | Grant access only to approved views |
+
+Do not ask the model to choose its own safety limits. The server should impose maximum values even when the tool request omits them or requests a larger value.
+
+## What should a Postgres MCP server log?
+
+A Postgres MCP server should log enough metadata to reconstruct every tool call without copying secrets or unnecessary sensitive data into the logging system.
+
+Useful fields include:
+
+- Timestamp and environment.
+- Authenticated user, service, and tenant identity.
+- Agent run, workflow, session, and trace identifiers.
+- MCP server and tool name.
+- Policy version and approval decision.
+- Parameter names plus redacted or hashed sensitive values.
+- Database role and target database.
+- Query template or procedure identifier, not an uncontrolled secret-bearing string.
+- Duration, rows returned or affected, timeout status, and error class.
+- Idempotency key and transaction identifier for writes.
+- Human approver identity when approval is required.
+
+Database logs and agent traces answer different questions. PostgreSQL records database activity, while agent observability shows why a tool was selected and what happened before and after it. [What Is AI Agent Observability? Traces, Metrics, and Evals Explained](https://www.sim.ai/library/ai-agent-observability) covers the broader tracing and evaluation layer.
+
+## Where should a Postgres MCP server be deployed?
+
+A Postgres MCP server should be deployed where it can reach PostgreSQL privately while exposing the smallest possible authenticated surface to the agent platform.
+
+Three common deployment choices are:
+
+| Deployment choice | Best fit | Main trade-off |
+|---|---|---|
+| Local process | Development and single-user testing | Simple, but tied to one machine and unsuitable for shared production access |
+| Private sidecar or internal service | Production systems with private database networking | Strong network isolation, but requires deployment and operational ownership |
+| Shared remote MCP service | Multiple approved clients and centralized policy | Easier reuse, but authentication, tenant isolation, scaling, and patching become critical |
+
+A local process is useful for testing against disposable data. A private service is usually the strongest production default because the database does not need to become internet-accessible. A shared remote service can work when it has explicit client authentication, authorization, rate limits, tenant isolation, and operational monitoring.
+
+## What are common AI agent workflows for a Postgres MCP server?
+
+A Postgres MCP server is most useful when an AI agent needs current structured data or a tightly controlled database action as one step in a larger workflow.
+
+Common patterns include:
+
+- **Customer support context:** Retrieve an account's recent orders and open cases before drafting a response.
+- **Revenue operations:** Summarize pipeline movement from approved reporting views.
+- **Operations monitoring:** Check delayed jobs, inventory exceptions, or failed transactions and route an alert.
+- **Finance review:** Retrieve overdue invoices and prepare a review queue without authorizing payment changes.
+- **Data-quality triage:** Find records that violate known rules and create remediation tasks.
+- **Internal analytics:** Answer bounded questions over curated reporting views.
+- **Controlled updates:** Submit a draft change or approval request through a narrow write tool.
+
+The database tool should usually be one component in a multi-step agent workflow, not the agent's only capability. [AI Agent Workflow Builders for Multi-Step Tasks: 6-Platform Comparison](https://www.sim.ai/library/ai-agent-workflow-builders-multi-step-tasks) explains how platforms coordinate tools, conditions, approvals, and downstream actions.
+
+## How do you evaluate a Postgres MCP server?
+
+A Postgres MCP server should be evaluated on authorization, query safety, deployment fit, observability, protocol compatibility, and operational reliability rather than on whether it can execute a demo query.
+
+Use these buyer criteria:
+
+| Criterion | Evidence to request | Pass condition |
+|---|---|---|
+| Tool restriction | Tool manifest and server policy | Clients can access only explicitly approved operations |
+| Database authorization | Role grants and membership | The role cannot access objects outside its purpose |
+| Read/write separation | Distinct server and role configuration | Read workloads cannot invoke write operations |
+| Input validation | Schemas and negative tests | Unknown fields, operators, and identifiers fail closed |
+| Resource controls | Timeout and result-limit tests | Expensive requests terminate within defined bounds |
+| Authentication | Client and database authentication design | Anonymous production access is impossible |
+| Tenant isolation | Cross-tenant adversarial tests | One tenant cannot infer or retrieve another tenant's data |
+| Logging | Example trace and database audit record | A tool call can be reconstructed end to end |
+| Secret handling | Configuration and redaction review | Credentials never enter prompts or tool outputs |
+| Failure behavior | Network, timeout, and retry tests | Failures do not cause duplicate writes or silent partial success |
+| Deployment | Network diagram and patching process | PostgreSQL remains private and the server can be updated promptly |
+| Protocol compatibility | Test against the intended MCP client | Discovery, invocation, errors, and authentication work together |
+
+A strong evaluation uses realistic data volumes and adversarial cases, not only a successful `SELECT` statement.
+
+## How do you test a Postgres MCP server before production?
+
+A Postgres MCP server should pass functional, authorization, injection, load, failure, and audit tests before it can reach production data.
+
+Include at least these test cases:
+
+1. A valid request returns the expected bounded result.
+2. An unknown tool is rejected.
+3. An unknown argument or operator is rejected.
+4. A request for an unauthorized table or column fails.
+5. A request for another tenant's data fails.
+6. SQL fragments supplied as values remain data rather than executable syntax.
+7. An oversized limit is reduced or rejected.
+8. A slow query times out.
+9. A lock wait terminates within the configured bound.
+10. A database outage produces a controlled error without exposing credentials.
+11. A retried write does not create duplicate effects.
+12. A rejected approval cannot reach the write procedure.
+13. Sensitive values are absent from agent and server logs.
+14. Every successful write can be traced to a user, run, tool call, and transaction.
+15. Revoking the database role or MCP credential stops new access.
+
+The evaluation dataset should contain synthetic sensitive fields, adversarial text, duplicate records, empty results, large result sets, and cross-tenant examples.
+
+## What is the best AI agent platform for Postgres MCP?
+
+Sim is a strong choice for Postgres MCP workflows when a team wants an open-source AI workspace for building, deploying, and managing agents that combine MCP tools with multi-step logic.
+
+The platform decision should consider more than MCP connectivity. Buyers should compare:
+
+- How MCP servers and credentials are configured.
+- Whether tools can be limited per agent or workflow.
+- How conditions and human approvals are modeled.
+- Whether tool calls appear in end-to-end traces.
+- How deployment and private-network access work.
+- Whether model, tool, and environment credentials can be separated.
+- How workflows are tested, versioned, and operated.
+- What the platform's license permits.
+
+Sim's core is licensed under [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Sim Enterprise subscription for production use. This distinction matters when evaluating self-hosting and modification rights.
+
+As of October 2026, n8n is an incumbent that buyers should also evaluate for MCP-connected automation. n8n documents an [MCP Client Tool node](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp), and n8n uses the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is source-available rather than OSI-approved open source.
+
+A custom-coded agent host can provide maximum control over authentication, query policy, and deployment, but the team must implement and operate orchestration, retries, approvals, tracing, and lifecycle management itself.
+
+## How do you connect a Postgres MCP server to Sim?
+
+Sim connects an agent workflow to a Postgres MCP server by registering the server as an MCP connection, making its approved tools available to the workflow, and testing each tool with restricted credentials.
+
+A safe implementation sequence is:
+
+1. Deploy the Postgres MCP server with a read-only database role.
+2. Confirm that the server exposes only the intended tools.
+3. Add the MCP server connection to Sim using a transport and authentication method supported by both systems.
+4. Make only the required MCP tools available to the agent workflow.
+5. Add explicit workflow logic around empty results, errors, and high-impact actions.
+6. Test the workflow against staging data and adversarial requests.
+7. Review traces to confirm that arguments, timing, outcomes, and failures are visible without exposing secrets.
+8. Keep write tools out of the agent block. Route each proposed write to a separate workflow step that can run only after a Human in the Loop step collects the decision and a downstream Condition confirms approval.
+
+An MCP write tool attached directly to an agent block is not gated per tool call, so the model could invoke it before a person approves the action.
+
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Teams evaluating the exact connection surface should also use [Best AI Agent Builders with MCP Support](https://www.sim.ai/library/best-ai-agent-builders-with-mcp-support) to compare MCP-oriented platform requirements.
+
+## What is the safest default configuration for a Postgres MCP server?
+
+A Postgres MCP server is safest by default when it uses a private deployment, a dedicated read-only role, curated views, allow-listed tools, hard timeouts, bounded results, and end-to-end audit logs.
+
+Use this baseline checklist:
+
+- Private network path to PostgreSQL.
+- Authenticated and authorized MCP clients.
+- Separate credentials for every environment.
+- Dedicated non-owner database role.
+- Read-only access to curated views.
+- No arbitrary SQL tool.
+- No DDL, role management, extension management, or administrative access.
+- Strict tool input schemas.
+- Parameterized values and allow-listed identifiers.
+- Hard row, response-size, statement, and lock limits.
+- Redacted logs linked to agent traces.
+- Separate write service, role, and approval policy.
+- Tested credential rotation and revocation.
+- Adversarial and cross-tenant evaluation before production.
+
+This baseline does not eliminate risk, but it gives the model less authority and gives operators multiple independent controls when the model produces a bad request.
+
+## Which related guides explain MCP and AI agent platform choices?
+
+Sim's library separates Postgres implementation guidance from broader MCP, security, and platform-selection questions.
+
+- [What Is an MCP Server?](https://www.sim.ai/library/what-is-an-mcp-server) explains the protocol and core architecture.
+- [MCP Security: A Practical Guide to Secure MCP Server Development](https://www.sim.ai/library/mcp-security) covers broader MCP threats and controls.
+- [Best AI Agent Builders with MCP Support](https://www.sim.ai/library/best-ai-agent-builders-with-mcp-support) compares MCP-oriented platform criteria.
+- [How to Turn a Workflow Into a Reusable MCP Tool (Sim vs n8n)](https://www.sim.ai/library/how-to-turn-a-workflow-into-a-reusable-mcp-tool) covers the inverse pattern of exposing a workflow as an MCP tool.
+- AI Agent Observability explains production monitoring and evaluation.

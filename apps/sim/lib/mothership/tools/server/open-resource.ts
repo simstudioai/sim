@@ -5,14 +5,17 @@ import {
   openResourceOutputSchema,
 } from '@/lib/api/contracts/mothership-resource-tools'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { readWorkspaceDashboard } from '@/lib/dashboards/application/dashboards'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { logDelegationPolicy } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { readLogDetailUseCase } from '@/lib/logs/application/read-log-detail'
 import { createCopilotApplicationAdapter } from '@/lib/mothership/application/application-adapter'
+import { executeDashboardUseCase } from '@/lib/mothership/application/execute-dashboard-use-case'
 import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-file-use-case'
 import { executeCopilotKnowledgeUseCase } from '@/lib/mothership/application/execute-knowledge-use-case'
 import { executeCopilotTableUseCase } from '@/lib/mothership/application/execute-table-use-case'
+import { executeWorkflowTestUseCase } from '@/lib/mothership/application/execute-workflow-test-use-case'
 import { executeCopilotWorkflowUseCase } from '@/lib/mothership/application/execute-workflow-use-case'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
@@ -24,6 +27,7 @@ import {
 } from '@/lib/mothership/tools/server/base-tool'
 import { readTableDefinitionUseCase } from '@/lib/table/application/tables'
 import { readTableViewUseCase } from '@/lib/table/application/views'
+import { getWorkflowTestDetail } from '@/lib/workflow-tests/application/tests'
 import { readWorkflowMetadata } from '@/lib/workflows/application/read-workflow'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 
@@ -54,7 +58,7 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
       assertServerToolNotAborted(context)
       if (resource.viewId && resource.type !== 'table')
         throw new OrchestrationError('validation', 'Saved views apply only to tables')
-      const base = { type: resource.type, id: resource.id, workspaceId }
+      const base = { type: resource.type, id: resource.id }
       switch (resource.type) {
         case 'workflow': {
           const { workflow } = await executeCopilotWorkflowUseCase(context, readWorkflowMetadata, {
@@ -83,6 +87,23 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
             title: table.name,
             ...(resource.viewId ? { viewId: resource.viewId } : {}),
           })
+          break
+        }
+        case 'dashboard': {
+          const { dashboard } = await executeDashboardUseCase(context, readWorkspaceDashboard, {
+            workspaceId,
+          })
+          if (dashboard?.id !== resource.id)
+            throw new OrchestrationError('not_found', 'Dashboard not found')
+          resources.push({ ...base, title: dashboard.name })
+          break
+        }
+        case 'test': {
+          const { test } = await executeWorkflowTestUseCase(context, getWorkflowTestDetail, {
+            workspaceId,
+            name: resource.id,
+          })
+          resources.push({ ...base, title: test.title })
           break
         }
         case 'file': {

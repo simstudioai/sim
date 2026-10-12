@@ -245,7 +245,6 @@ describe('hydrateUserFilesWithBase64', () => {
         'user-1',
         undefined,
         'knowledge-base',
-        false,
         { knowledgeAccess: access }
       )
     }

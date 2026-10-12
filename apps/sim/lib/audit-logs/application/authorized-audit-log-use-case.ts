@@ -12,9 +12,16 @@ import {
   type OperationUseCase,
   PersonalApiKeysDisabledError,
 } from '@/lib/core/application'
+import {
+  recordProjectedUseCaseAuditEntries,
+  type WorkspaceUseCaseAuditEntry,
+} from '@/lib/core/application/authorized-workspace-use-case'
 import { isCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  OrchestrationError,
+  type OrchestrationRequestContext,
+} from '@/lib/core/orchestration/types'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
@@ -33,7 +40,9 @@ interface AuthorizedAuditLogDefinition<O extends AuditLogOperation, I, R> {
     principal: AuditLogPrincipal
     input: I
     context: AuthorizedAuditLogContext
+    request?: OrchestrationRequestContext
   }): Promise<R>
+  projectAudit?(args: { input: I; result: R }): WorkspaceUseCaseAuditEntry
 }
 
 function requireAuditLogPrincipal(
@@ -92,7 +101,7 @@ export function defineAuthorizedAuditLogUseCase<const O extends AuditLogOperatio
   return {
     operation: definition.operation,
     delegationAudience: 'sim:audit-logs',
-    async execute({ principal, input }) {
+    async execute({ principal, input, request }) {
       requireAuditLogPrincipal(principal, definition.operation)
       requireOAuthOperationScope(principal, definition.operation)
       const actorUserId = auditActorUserId(principal)
@@ -155,11 +164,24 @@ export function defineAuthorizedAuditLogUseCase<const O extends AuditLogOperatio
       )
       const access = await resolveEnterpriseAuditAccess(actorUserId, organizationId)
       if (!access.success) throw new ForbiddenOperationError(access.code, access.message)
-      return definition.execute({
+      const result = await definition.execute({
         principal,
         input,
+        request,
         context: { ...access.context, actorUserId, ...(workspaceId ? { workspaceId } : {}) },
       })
+      const entry = definition.projectAudit?.({ input, result })
+      if (entry) {
+        recordProjectedUseCaseAuditEntries(
+          definition.operation,
+          workspaceId ?? null,
+          principal,
+          request,
+          [entry],
+          organizationId
+        )
+      }
+      return result
     },
   }
 }

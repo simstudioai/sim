@@ -102,7 +102,7 @@ export const kalshiGetOrdersTool: ToolConfig<KalshiGetOrdersParams, KalshiGetOrd
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_orders')
+      handleKalshiError(data, 'get_orders')
     }
 
     const orders = data.orders || []
@@ -286,7 +286,7 @@ export const kalshiGetOrdersV2Tool: ToolConfig<KalshiGetOrdersV2Params, KalshiGe
       const data = await response.json()
 
       if (!response.ok) {
-        handleKalshiError(data, response.status, 'get_orders_v2')
+        handleKalshiError(data, 'get_orders_v2')
       }
 
       const rawOrders = data.orders || []

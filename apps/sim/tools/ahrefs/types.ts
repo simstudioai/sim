@@ -1,21 +1,21 @@
-// Common types for Ahrefs API tools
 import type { ToolResponse } from '@/tools/types'
 
-// Common parameters for all Ahrefs tools
 interface AhrefsBaseParams {
   apiKey: string
 }
 
-// Target mode for analysis
-export type AhrefsTargetMode = 'domain' | 'prefix' | 'subdomains' | 'exact'
+type AhrefsTargetMode = 'domain' | 'prefix' | 'subdomains' | 'exact'
 
-// Historical scope for backlink-profile endpoints (no `date` param on these endpoints)
-export type AhrefsHistory = 'live' | 'all_time' | string // `since:YYYY-MM-DD` is also valid
+/**
+ * Historical scope for backlink-profile endpoints (no `date` param on these endpoints).
+ * `since:YYYY-MM-DD` is also valid.
+ */
+type AhrefsHistory = 'live' | 'all_time' | string
 
-// Domain Rating tool types
 export interface AhrefsDomainRatingParams extends AhrefsBaseParams {
   target: string
-  date?: string // Date in YYYY-MM-DD format, defaults to today
+  /** Date in YYYY-MM-DD format, defaults to today */
+  date?: string
 }
 
 export interface AhrefsDomainRatingResponse extends ToolResponse {
@@ -25,7 +25,6 @@ export interface AhrefsDomainRatingResponse extends ToolResponse {
   }
 }
 
-// Backlinks tool types
 export interface AhrefsBacklinksParams extends AhrefsBaseParams {
   target: string
   mode?: AhrefsTargetMode
@@ -49,11 +48,11 @@ export interface AhrefsBacklinksResponse extends ToolResponse {
   }
 }
 
-// Backlinks Stats tool types
 export interface AhrefsBacklinksStatsParams extends AhrefsBaseParams {
   target: string
   mode?: AhrefsTargetMode
-  date?: string // Date in YYYY-MM-DD format, defaults to today
+  /** Date in YYYY-MM-DD format, defaults to today */
+  date?: string
 }
 
 interface AhrefsBacklinksStatsResult {
@@ -69,7 +68,6 @@ export interface AhrefsBacklinksStatsResponse extends ToolResponse {
   }
 }
 
-// Referring Domains tool types
 export interface AhrefsReferringDomainsParams extends AhrefsBaseParams {
   target: string
   mode?: AhrefsTargetMode
@@ -92,12 +90,12 @@ export interface AhrefsReferringDomainsResponse extends ToolResponse {
   }
 }
 
-// Organic Keywords tool types
 export interface AhrefsOrganicKeywordsParams extends AhrefsBaseParams {
   target: string
   country?: string
   mode?: AhrefsTargetMode
-  date?: string // Date in YYYY-MM-DD format, defaults to today
+  /** Date in YYYY-MM-DD format, defaults to today */
+  date?: string
   limit?: number
 }
 
@@ -116,12 +114,12 @@ export interface AhrefsOrganicKeywordsResponse extends ToolResponse {
   }
 }
 
-// Top Pages tool types
 export interface AhrefsTopPagesParams extends AhrefsBaseParams {
   target: string
   country?: string
   mode?: AhrefsTargetMode
-  date?: string // Date in YYYY-MM-DD format, defaults to today
+  /** Date in YYYY-MM-DD format, defaults to today */
+  date?: string
   limit?: number
 }
 
@@ -139,7 +137,6 @@ export interface AhrefsTopPagesResponse extends ToolResponse {
   }
 }
 
-// Keyword Overview tool types
 export interface AhrefsKeywordOverviewParams extends AhrefsBaseParams {
   keyword: string
   country?: string
@@ -172,7 +169,6 @@ export interface AhrefsKeywordOverviewResponse extends ToolResponse {
   }
 }
 
-// Broken Backlinks tool types
 export interface AhrefsBrokenBacklinksParams extends AhrefsBaseParams {
   target: string
   mode?: AhrefsTargetMode
@@ -193,12 +189,13 @@ export interface AhrefsBrokenBacklinksResponse extends ToolResponse {
   }
 }
 
-// Metrics tool types (single-call organic + paid search overview)
+/** Metrics tool types (single-call organic + paid search overview) */
 export interface AhrefsMetricsParams extends AhrefsBaseParams {
   target: string
   country?: string
   mode?: AhrefsTargetMode
-  date?: string // Date in YYYY-MM-DD format, defaults to today
+  /** Date in YYYY-MM-DD format, defaults to today */
+  date?: string
 }
 
 interface AhrefsMetricsResult {
@@ -218,12 +215,12 @@ export interface AhrefsMetricsResponse extends ToolResponse {
   }
 }
 
-// Organic Competitors tool types
 export interface AhrefsOrganicCompetitorsParams extends AhrefsBaseParams {
   target: string
   country?: string
   mode?: AhrefsTargetMode
-  date?: string // Date in YYYY-MM-DD format, defaults to today
+  /** Date in YYYY-MM-DD format, defaults to today */
+  date?: string
   limit?: number
 }
 
@@ -242,16 +239,15 @@ export interface AhrefsOrganicCompetitorsResponse extends ToolResponse {
   }
 }
 
-// Rank Tracker device type
-export type AhrefsRankTrackerDevice = 'desktop' | 'mobile'
+type AhrefsRankTrackerDevice = 'desktop' | 'mobile'
 
-// Rank Tracker search volume calculation mode
-export type AhrefsVolumeMode = 'monthly' | 'average'
+/** Rank Tracker search volume calculation mode */
+type AhrefsVolumeMode = 'monthly' | 'average'
 
-// Rank Tracker Overview tool types
 export interface AhrefsRankTrackerOverviewParams extends AhrefsBaseParams {
   projectId: number
-  date: string // Date in YYYY-MM-DD format (required by the API)
+  /** Date in YYYY-MM-DD format (required by the API) */
+  date: string
   device: AhrefsRankTrackerDevice
   dateCompared?: string
   volumeMode?: AhrefsVolumeMode
@@ -275,14 +271,14 @@ export interface AhrefsRankTrackerOverviewResponse extends ToolResponse {
   }
 }
 
-// Rank Tracker SERP Overview tool types
 export interface AhrefsRankTrackerSerpOverviewParams extends AhrefsBaseParams {
   projectId: number
   keyword: string
   country: string
   device: AhrefsRankTrackerDevice
   topPositions?: number
-  date?: string // ISO date-time (YYYY-MM-DDThh:mm:ss)
+  /** ISO date-time (YYYY-MM-DDThh:mm:ss) */
+  date?: string
   locationId?: number
   languageCode?: string
 }
@@ -309,7 +305,6 @@ export interface AhrefsRankTrackerSerpOverviewResponse extends ToolResponse {
   }
 }
 
-// Rank Tracker Competitors Overview tool types
 export interface AhrefsRankTrackerCompetitorsOverviewParams extends AhrefsBaseParams {
   projectId: number
   date: string
@@ -341,7 +336,6 @@ export interface AhrefsRankTrackerCompetitorsOverviewResponse extends ToolRespon
   }
 }
 
-// Rank Tracker Competitors Stats tool types
 export interface AhrefsRankTrackerCompetitorsStatsParams extends AhrefsBaseParams {
   projectId: number
   date: string
@@ -366,9 +360,9 @@ export interface AhrefsRankTrackerCompetitorsStatsResponse extends ToolResponse 
   }
 }
 
-// Batch Analysis tool types
 export interface AhrefsBatchAnalysisParams extends AhrefsBaseParams {
-  targets: string // Comma-separated list of domains/URLs
+  /** Comma-separated list of domains/URLs */
+  targets: string
   mode?: AhrefsTargetMode
   protocol?: 'both' | 'http' | 'https'
   country?: string
@@ -394,10 +388,10 @@ export interface AhrefsBatchAnalysisResponse extends ToolResponse {
   }
 }
 
-// Site Audit Page Explorer tool types
 export interface AhrefsSiteAuditPageExplorerParams extends AhrefsBaseParams {
   projectId: number
-  date?: string // ISO date-time (YYYY-MM-DDThh:mm:ss), defaults to most recent crawl
+  /** ISO date-time (YYYY-MM-DDThh:mm:ss), defaults to most recent crawl */
+  date?: string
   limit?: number
   offset?: number
   issueId?: string
@@ -420,7 +414,6 @@ export interface AhrefsSiteAuditPageExplorerResponse extends ToolResponse {
   }
 }
 
-// Domain Rating History tool types
 export interface AhrefsDomainRatingHistoryParams extends AhrefsBaseParams {
   target: string
   dateFrom: string
@@ -439,7 +432,6 @@ export interface AhrefsDomainRatingHistoryResponse extends ToolResponse {
   }
 }
 
-// Metrics History tool types
 export interface AhrefsMetricsHistoryParams extends AhrefsBaseParams {
   target: string
   dateFrom: string
@@ -464,7 +456,6 @@ export interface AhrefsMetricsHistoryResponse extends ToolResponse {
   }
 }
 
-// Referring Domains History tool types
 export interface AhrefsRefdomainsHistoryParams extends AhrefsBaseParams {
   target: string
   dateFrom: string
@@ -484,7 +475,6 @@ export interface AhrefsRefdomainsHistoryResponse extends ToolResponse {
   }
 }
 
-// Keywords History tool types
 export interface AhrefsKeywordsHistoryParams extends AhrefsBaseParams {
   target: string
   dateFrom: string
@@ -509,7 +499,6 @@ export interface AhrefsKeywordsHistoryResponse extends ToolResponse {
   }
 }
 
-// Related Terms tool types
 export interface AhrefsRelatedTermsParams extends AhrefsBaseParams {
   keyword: string
   country?: string
@@ -535,7 +524,6 @@ export interface AhrefsRelatedTermsResponse extends ToolResponse {
   }
 }
 
-// Anchors tool types
 export interface AhrefsAnchorsParams extends AhrefsBaseParams {
   target: string
   mode?: AhrefsTargetMode
@@ -558,12 +546,12 @@ export interface AhrefsAnchorsResponse extends ToolResponse {
   }
 }
 
-// Paid Pages tool types
 export interface AhrefsPaidPagesParams extends AhrefsBaseParams {
   target: string
   country?: string
   mode?: AhrefsTargetMode
-  date?: string // Date in YYYY-MM-DD format, defaults to today
+  /** Date in YYYY-MM-DD format, defaults to today */
+  date?: string
   limit?: number
 }
 
@@ -581,29 +569,3 @@ export interface AhrefsPaidPagesResponse extends ToolResponse {
     paidPages: AhrefsPaidPage[]
   }
 }
-
-// Union type for all possible responses
-export type AhrefsResponse =
-  | AhrefsDomainRatingResponse
-  | AhrefsBacklinksResponse
-  | AhrefsBacklinksStatsResponse
-  | AhrefsReferringDomainsResponse
-  | AhrefsOrganicKeywordsResponse
-  | AhrefsTopPagesResponse
-  | AhrefsKeywordOverviewResponse
-  | AhrefsBrokenBacklinksResponse
-  | AhrefsMetricsResponse
-  | AhrefsOrganicCompetitorsResponse
-  | AhrefsRankTrackerOverviewResponse
-  | AhrefsRankTrackerSerpOverviewResponse
-  | AhrefsRankTrackerCompetitorsOverviewResponse
-  | AhrefsRankTrackerCompetitorsStatsResponse
-  | AhrefsBatchAnalysisResponse
-  | AhrefsSiteAuditPageExplorerResponse
-  | AhrefsDomainRatingHistoryResponse
-  | AhrefsMetricsHistoryResponse
-  | AhrefsRefdomainsHistoryResponse
-  | AhrefsKeywordsHistoryResponse
-  | AhrefsRelatedTermsResponse
-  | AhrefsAnchorsResponse
-  | AhrefsPaidPagesResponse

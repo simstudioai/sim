@@ -5,8 +5,10 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockShouldRequireApiKey, mockRequiresFamilyCredentials } = vi.hoisted(() => ({
-  mockShouldRequireApiKey: vi.fn((model: string) => false),
-  mockRequiresFamilyCredentials: vi.fn((provider: string | null | undefined) => false),
+  mockShouldRequireApiKey: vi.fn<(model: string) => boolean>(() => false),
+  mockRequiresFamilyCredentials: vi.fn<(provider: string | null | undefined) => boolean>(
+    () => false
+  ),
 }))
 
 vi.mock('@/blocks/utils', () => ({

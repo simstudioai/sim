@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import { EdgeManager } from '@/executor/execution/edge-manager'
-import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
+import {
+  buildCompletedExecutionState,
+  isLiveExecutionState,
+  serializePauseSnapshot,
+} from '@/executor/execution/snapshot-serializer'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -305,5 +309,114 @@ describe('serializePauseSnapshot', () => {
 
     expect(serialized.metadata.userId).toBe('workspace-billing-owner')
     expect(serialized.metadata.capabilityGovernedUserId).toBe('requesting-member')
+  })
+})
+
+describe('buildCompletedExecutionState', () => {
+  /** The state a completed run used to carry: the pause snapshot's state, JSON round-tripped. */
+  function jsonClonedState(context: ExecutionContext): unknown {
+    return JSON.parse(serializePauseSnapshot(context, []).snapshot).state
+  }
+
+  function contextWithOutput(output: unknown): ExecutionContext {
+    return createContext({
+      blockStates: new Map([['block-1', { output, executed: true, executionTime: 5 }]]),
+      executedBlocks: new Set(['block-1']),
+      blockLogs: [
+        {
+          blockId: 'block-1',
+          blockName: 'Block',
+          blockType: 'function',
+          startedAt: '2026-01-01T00:00:00.000Z',
+          endedAt: '2026-01-01T00:00:01.000Z',
+          durationMs: 1000,
+          success: true,
+          executionOrder: 1,
+          output,
+          input: { note: undefined, list: [undefined, 1] },
+        },
+      ] as ExecutionContext['blockLogs'],
+    })
+  }
+
+  const shared = { rows: [{ id: 1, at: new Date(0) }] }
+  const cyclic: Record<string, unknown> = { a: 1 }
+  cyclic.self = cyclic
+  const cycleBehindToJSON: Record<string, unknown> = { toJSON: () => ({ safe: true }) }
+  cycleBehindToJSON.self = cycleBehindToJSON
+
+  it.each([
+    ['a subtree shared twice', { first: shared, second: shared }],
+    ['a cycle hidden behind toJSON', { value: cycleBehindToJSON }],
+    [
+      'a boxed number carrying a BigInt property',
+      { value: Object.assign(Object(1), { big: BigInt(1) }) },
+    ],
+    ['an object that only inherits from BigInt', { value: Object.create(BigInt.prototype) }],
+    [
+      'a proxy whose getPrototypeOf trap throws',
+      {
+        value: new Proxy(
+          { a: 1 },
+          {
+            getPrototypeOf: () => {
+              throw new Error('JSON.stringify never asks for the prototype')
+            },
+          }
+        ),
+      },
+    ],
+  ])('serializes like the JSON-cloned pause state for %s', (_name, output) => {
+    const context = contextWithOutput(output)
+    expect(JSON.stringify(buildCompletedExecutionState(context))).toBe(
+      JSON.stringify(jsonClonedState(context))
+    )
+  })
+
+  const numberLookalike = Object.create(Number.prototype)
+  numberLookalike.self = numberLookalike
+
+  it.each([
+    ['a cycle', cyclic],
+    ['a BigInt', { big: BigInt(1) }],
+    ['a cycle in an object that only inherits from Number', { value: numberLookalike }],
+    [
+      'a BigInt wrapper whose prototype was swapped',
+      { value: Object.setPrototypeOf(Object(BigInt(1)), {}) },
+    ],
+    [
+      'a BigInt wrapper whose prototype was reset to Object.prototype',
+      { value: Object.setPrototypeOf(Object(BigInt(1)), Object.prototype) },
+    ],
+    [
+      'a Number wrapper that converts to a BigInt',
+      { value: Object.assign(Object(1), { [Symbol.toPrimitive]: () => BigInt(1) }) },
+    ],
+  ])('throws like the pause snapshot for %s', (_name, output) => {
+    const context = contextWithOutput(output)
+    expect(() => jsonClonedState(context)).toThrow(TypeError)
+    expect(() => buildCompletedExecutionState(context)).toThrow(TypeError)
+  })
+
+  it('shares block outputs with the run instead of cloning them', () => {
+    const output = { rows: [{ id: 1 }] }
+    const context = contextWithOutput(output)
+    const state = buildCompletedExecutionState(context)
+
+    expect(state.blockLogs[0].output).toBe(output)
+    expect(state.blockStates['block-1'].output).toBe(output)
+
+    context.blockLogs[0].endedAt = 'later'
+    expect(state.blockLogs[0].endedAt).toBe('2026-01-01T00:00:01.000Z')
+  })
+
+  it('marks completed state as live through spreads but not through JSON', () => {
+    const context = contextWithOutput({ rows: [{ id: 1 }] })
+    const state = buildCompletedExecutionState(context)
+
+    expect(isLiveExecutionState(state)).toBe(true)
+    expect(isLiveExecutionState({ ...state, sourceExecutionId: 'other' })).toBe(true)
+    expect(isLiveExecutionState(jsonClonedState(context))).toBe(false)
+    expect(JSON.stringify(state)).toBe(JSON.stringify(jsonClonedState(context)))
   })
 })

@@ -1,6 +1,6 @@
 # Federated Search access and connector behavior
 
-This describes the live enterprise-search path. Credential Groups and ordinary knowledge-base indexing retain their existing behavior. Live Search is enabled by default; only an explicit `SIM_SEARCH_LIVE=false` selects the legacy indexed backend, which is kept dormant in `../indexed/` (see its README). Live Search sources do not create content-indexing jobs, and queued content or persisted-directory jobs stop before crawling, embedding, or building ACL snapshots. Ordinary KB jobs remain enabled. Administrators can still maintain GitLab CSV grants, and request-time source permission checks remain required.
+This describes the live enterprise-search path. Credential Groups and ordinary knowledge-base indexing retain their existing behavior. Enterprise Search uses this live backend. The legacy indexed backend and its runtime toggle have been removed. Live Search sources do not create content-indexing jobs, and queued content or persisted-directory jobs stop before crawling, embedding, or building ACL snapshots. Ordinary KB jobs remain enabled. Administrators can still maintain GitLab CSV grants, and request-time source permission checks remain required.
 
 ## Admin and member surfaces
 
@@ -32,6 +32,8 @@ For an explicit source user list, source-side verification tries those users' de
 
 The source credential must be able to read the file. Selected folders, accessible subfolders, shared-drive IDs, and file types are checked using source-side metadata. Folder queries narrow candidate retrieval; metadata verification remains authoritative. A member's personal file outside the configured source scope is excluded even if their OAuth token can read it. Folder expansion and ancestry traversal are bounded and may report partial coverage.
 
+Text-bearing PDF and DOCX files are downloaded with the member credential after checking `capabilities.canDownload`, then parsed with the shared document parsers. The download is capped at 4 MiB of decoded bytes; PDF extraction is complete or unavailable, with a 100-page and 1 MiB text limit. DOCX archives are checked before parsing (10 MiB total expanded, 4 MiB per entry), with a 1 MiB extracted-text limit. Complete DOCX reads additionally bound the expanded conversion graph to 50,000 nodes and 2 MiB of model strings before HTML rendering, use built-in styles without embedding image bytes, and reject conversion failures instead of retrying a lossy fallback. MIME/signature mismatches, password protection, malformed files, and documents with no extractable text fail explicitly; this path does not perform OCR. Existing source links and bounded comments/replies remain in successful reads. Other unsupported binary formats return labeled metadata only.
+
 ### Gmail
 
 Member mode searches the connected mailbox using Gmail message search operators. Service mode requires Workspace delegation and verifies the connected mailbox's email through Gmail, then validates its active Directory identity/customer and any selected source user list. Delegation targets that same mailbox; it never substitutes another user's mailbox. The admin label picker browses the delegated administrator's mailbox but stores label names, since custom label IDs differ between mailboxes.
@@ -42,7 +44,9 @@ For a source configured with **Labels = INBOX**:
 2. Fetch each candidate's metadata under the source's delegated token for that member's mailbox.
 3. Check the message's current `labelIds` against INBOX. Custom labels are resolved in that mailbox; labels may differ across users.
 4. Apply the source's rolling date range, Promotions/Social exclusions, and custom Gmail query. A custom query is verified through a source-side message search restricted by the message's RFC Message-ID, followed by exact Gmail message-ID matching.
-5. Return only verified messages. Reading a result fetches that individual message through the member's connection and rechecks the source boundary; it does not expose other messages in the thread.
+5. Return only verified messages. Reading a result keeps that message as the anchor, derives its thread from a fresh provider response, and fetches thread metadata before selecting at most seven sibling candidates. Every sibling passes the same source boundary before its body is fetched. The anchor and all included siblings are checked again against current source settings before any conversation content is returned; stale labels from the read cannot authorize the final response.
+
+Conversation output is chronological and attributes each message to its author, timestamp and message URL. Search filters identify the anchor; context may have different timestamps or wording, while organization source restrictions always apply to each message. Each formatted message is capped at 24,000 characters. MIME traversal is capped at 32 levels and 256 parts, chooses one alternative body, and excludes named attachments. Missing external bodies are labeled as previews. The reader marks omitted or truncated context explicitly and does not download attachments. Thread metadata and each body use the shared response-size limit and request budget.
 
 Selected labels are alternatives. Source date/query settings are authoritative result checks; pagination may be necessary to find more allowed candidates. Custom-query pages are reduced to fit the additional permission-check requests while preserving Gmail's continuation token. The existing source defaults exclude Promotions and Social unless disabled. Google documents that API search matches messages and differs from Gmail UI thread matching and alias expansion: [Gmail filtering guide](https://developers.google.com/workspace/gmail/api/guides/filtering).
 
@@ -90,7 +94,7 @@ Content types, code branch/tag, path prefix, file extensions, and issue state/la
 
 ## Adding a live Search connector
 
-A workspace KB connector and a live Search provider are different runtime integrations. `listDocuments`/`getDocument`, hashes, chunks, and embeddings remain the KB contract; adding those functions alone does not implement live Search. There are currently thirteen live providers, while the broader KB registry contains additional providers that are not advertised for Search.
+A workspace KB connector and a live Search provider are different runtime integrations. `listDocuments`/`getDocument`, hashes, chunks, and embeddings remain the KB contract; adding those functions alone does not implement live Search. The live provider catalog is independent of the broader KB registry, which contains additional providers that are not advertised for Search.
 
 ### Registration and ownership
 
@@ -119,13 +123,14 @@ Self-managed GitLab is resolved from the saved source's validated host/project i
 | Provider | Search | Read | Service boundary |
 | --- | --- | --- | --- |
 | Drive | `GET /drive/v3/files` with Drive `q` | File metadata, Docs/Slides exports, Sheets values, or supported text media | Delegated Drive file visibility and configured folders/types |
-| Gmail | `GET /gmail/v1/users/me/messages` with Gmail operators | That exact message with `format=full` | Same-mailbox delegation, labels, date range, category and custom-query checks |
+| Gmail | `GET /gmail/v1/users/me/messages` with Gmail operators | Anchor plus up to seven independently authorized conversation messages | Same-mailbox delegation, labels, date range, category and custom-query checks |
 | Calendar | CalendarList then `/calendars/{id}/events` | `/calendars/{id}/events/{eventId}` | Same-user delegation, selected calendars, event window/query |
 | Slack | `POST /api/assistant.search.context` | `conversations.replies` or `files.info` preview | Member only; Slack enforces the connected user's grant |
 | Jira | `POST /ex/jira/{cloudId}/rest/api/3/search/jql` | `/rest/api/3/issue/{key}` under that cloud site | Member only |
 | Confluence | `/ex/confluence/{cloudId}/wiki/rest/api/search` with CQL | v2 `/wiki/api/v2/pages/{id}` or `/blogposts/{id}` (`body-format=view`); a space reads as its homepage | Same site, spaces, current type/status/labels, source readability |
 | GitHub | `/search/issues`, `/search/code`, `/search/repositories`, `/search/commits` | Issue, repository, commit, or contents endpoint for returned kind | Added repositories; installation coverage/stable IDs and code filters |
 | GitLab | Configured `/api/v4/projects/{project}/search`, or supported date listing | Project issue/MR/wiki/file endpoint | Current request-local admin ACL evidence or saved CSV grants, plus content filters |
+| Lucid | MCP `search` for titles; `lucid_search_document` within a known document | Bounded complete `fetch` pages/regions | Member only; official read-only MCP, current grant and stable document version |
 | Linear | GraphQL `searchIssues` including comments/archived, or dated `issues` listing | Issue description and paginated comments | Member only; current OAuth grant |
 | Fireflies | MCP `fireflies_get_transcripts` with `scope: all` | Transcript sentences plus summary | Member only; fixed official OAuth server |
 | Granola | MCP meeting query or date listing, hydrated cited meetings | Notes and transcript when available | Member only; source evidence and explicit bounded coverage |
@@ -133,6 +138,28 @@ Self-managed GitLab is resolved from the saved source's validated host/project i
 | Coda | Personal MCP `search`; REST `/apis/v1/docs` title-search compatibility | MCP read allowlist; REST compatibility document/page reads | Selected parent doc and current source-token visibility; optional Enterprise org membership |
 
 GitHub members use App user tokens. The deployment App needs read permissions for Contents, Issues, and Pull requests for full supported search/read coverage, plus Metadata, organization Members, and user Email addresses for existing setup/identity checks. Installation tokens used to prove repository coverage stay narrowed to contents/metadata; do not use them to replace the member's content grant.
+
+### Lucid
+
+Uses the official `https://mcp.lucid.app/mcp/readonly` server with dynamic OAuth registration through the existing managed-MCP member flow. No custom OAuth client, new env variables, email-identity exception or schema change is required. Only search, document-text search, metadata and content fetch are allowlisted; feedback submission is excluded. Lucid enforces an account boundary and does not expose externally owned documents even when shared.
+
+Document search is title-oriented, relevance-ranked, capped at 200 provider candidates and 10 current metadata reads, with no continuation. A known document UUID or Lucid URL in `project` enables literal case-insensitive shape-text search. Modification-date filters and sorting cover the retrieved candidates; status and guidance disclose that limitation. Metadata previews are not diagram evidence.
+
+Reads preserve provider page/region JSON, including node and edge properties, without interpreting layout as connectivity or fetching image/link references. The adapter validates all declared page regions, current document identity and revision, and rejects incomplete, changed or oversized reads. It permits at most 8 region calls plus a manifest and two metadata calls within the shared 12-call budget; output is capped at 512 KiB of UTF-8 JSON. Signed revisions bind read continuations to the original version. Comments, rendered images and Lucidscale are outside this integration.
+
+`test-search-lucid-e2e.ts` exercises the production MCP transport, payload parser and adapter over loopback HTTP with synthetic provider responses and writes `SEARCH_LUCID_REPORT_PATH`. It is separate from real-account acceptance; do not present deterministic fixtures as live Lucid evidence.
+
+### Zoom Search rollout
+
+Zoom Search defaults off for organization-scoped rollout. Enable selected organizations through the `feature-flags` AppConfig profile:
+
+```json
+{
+  "zoom-search": { "enabled": false, "orgIds": ["<approved-organization-id>"] }
+}
+```
+
+Only the canonical organization ID participates in this rollout check. For local or self-hosted deployments, `ZOOM_SEARCH=true` enables Zoom Search for all otherwise eligible organization-owned scopes; personal workspaces without an organization cannot use managed connected accounts. Leave that boolean fallback off for an organization-targeted rollout. Setup, enrollment and retrieval enforce the flag. The dedicated Zoom MCP Search connector is gated wherever it is invoked, including generic MCP tools; the standard workflow Zoom OAuth/tools remain available. Disabling the flag preserves saved grants and conversations while denying subsequent Search use; existing approvals can still be removed and connected accounts disconnected. Other providers retain the shared Search and credential-group availability policies without a separate provider rollout gate.
 
 ### Shared invariants
 

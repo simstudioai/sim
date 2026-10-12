@@ -1,4 +1,5 @@
 import { cn } from '@sim/emcn'
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import { HeroAnnouncementChip } from '@/app/(landing)/components/hero/components/hero-announcement-chip'
 import { LandingHeroHeader } from '@/app/(landing)/components/hero/components/hero-header'
 import { HeroPlatformStage } from '@/app/(landing)/components/hero/components/hero-platform-stage'
@@ -31,9 +32,9 @@ export function Hero() {
     >
       <p className='sr-only'>
         Sim is the open-source AI workspace where teams build, deploy, and manage AI agents for
-        their organization. Connect hundreds of integrations and every major LLM, then govern
-        access, spend, data, and deployment from one place. Build visually, conversationally, or
-        with code, and run Sim in your own cloud.
+        their organization. Connect {INTEGRATION_COUNT_LABEL} integrations and every major LLM, then
+        govern access, spend, data, and deployment from one place. Build visually, conversationally,
+        or with code, and run Sim in your own cloud.
       </p>
 
       <div className={HOME_INSET}>

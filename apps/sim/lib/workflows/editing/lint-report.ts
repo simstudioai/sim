@@ -5,6 +5,7 @@ import { getTableById } from '@/lib/table/service'
 import {
   collectDanglingBlockOutputReferences,
   collectTableBlockFieldIssues,
+  collectUnquotedJsonStringReferences,
   collectWorkflowFieldIssues,
   collectWorkflowTableIds,
   hasWorkflowEntryBlock,
@@ -121,10 +122,14 @@ export async function buildWorkflowLintReport(
     ...(options.tables?.unresolvedReferences ?? []),
   ]
 
-  // Pure graph check, so it runs for every caller: a dangling block-output
+  // Pure graph checks, so they run for every caller: a dangling block-output
   // reference passes literal text through at run time on the surfaces that
-  // do not fail loudly (API bodies, agent prompts).
-  unresolvedReferences.push(...collectDanglingBlockOutputReferences(graph))
+  // do not fail loudly (API bodies, agent prompts), and an unquoted string
+  // reference makes a JSON field unparseable only once the block runs.
+  unresolvedReferences.push(
+    ...collectDanglingBlockOutputReferences(graph),
+    ...collectUnquotedJsonStringReferences(graph)
+  )
 
   if (scope.subjectUserId) {
     for (const collect of [collectUnresolvedReferences, collectUnresolvedAgentToolReferences]) {

@@ -1,8 +1,7 @@
 import { GammaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { GammaResponse } from '@/tools/gamma/types'
 
-export const GammaBlock: BlockConfig<GammaResponse> = {
+export const GammaBlock: BlockConfig = {
   type: 'gamma',
   name: 'Gamma',
   description: 'Generate presentations, documents, and webpages with AI',

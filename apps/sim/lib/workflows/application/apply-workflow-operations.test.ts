@@ -80,6 +80,7 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
 vi.mock('@/lib/workflows/editing/lint', () => ({
   collectWorkflowFieldIssues: () => [],
   collectDanglingBlockOutputReferences: () => [],
+  collectUnquotedJsonStringReferences: () => [],
   lintEditedWorkflowState: hoisted.lintGraph,
 }))
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
@@ -88,7 +89,7 @@ vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveM
 vi.mock('@/blocks/visibility/server-context', () => ({
   withBlockVisibility: (_state: unknown, run: () => unknown) => run(),
 }))
-vi.mock('@/stores/workflows/workflow/utils', () => ({
+vi.mock('@sim/workflow-persistence/subflow-helpers', () => ({
   generateLoopBlocks: () => ({}),
   generateParallelBlocks: () => ({}),
 }))

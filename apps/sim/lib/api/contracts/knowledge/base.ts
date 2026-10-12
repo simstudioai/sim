@@ -26,8 +26,12 @@ export type KnowledgeScope = z.output<typeof knowledgeScopeSchema>
 export const listKnowledgeBasesQuerySchema = z.object({
   workspaceId: z.string().min(1).optional(),
   scope: knowledgeScopeSchema.default('active'),
-  /** Adds `docCount` and `tokenCount` for the documents the caller can see; costs a document scan. */
-  includeCounts: booleanQueryFlagSchema.optional().default(false),
+  /**
+   * Adds `docCount` and `tokenCount` for the documents the caller can see; costs a document scan.
+   * Absent means counted: a page loaded before this flag existed requires both totals on every
+   * row, and current clients always send it.
+   */
+  includeCounts: booleanQueryFlagSchema.optional().default(true),
 })
 
 /**

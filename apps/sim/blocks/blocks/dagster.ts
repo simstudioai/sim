@@ -1,7 +1,6 @@
 import { DagsterIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { DagsterResponse } from '@/tools/dagster/types'
 
 /** Coerces a subBlock value to a finite number, returning undefined for empty or non-numeric input. */
 function toFiniteNumber(value: unknown): number | undefined {
@@ -10,7 +9,7 @@ function toFiniteNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-export const DagsterBlock: BlockConfig<DagsterResponse> = {
+export const DagsterBlock: BlockConfig = {
   type: 'dagster',
   name: 'Dagster',
   description: 'Orchestrate data pipelines and manage job runs with Dagster',
@@ -108,7 +107,6 @@ export const DagsterBlock: BlockConfig<DagsterResponse> = {
   },
 
   subBlocks: [
-    // ── Operation selector ─────────────────────────────────────────────────────
     {
       id: 'operation',
       title: 'Operation',
@@ -137,7 +135,6 @@ export const DagsterBlock: BlockConfig<DagsterResponse> = {
       value: () => 'launch_run',
     },
 
-    // ── Repository selectors (launch_run + schedule/sensor operations) ─────────
     {
       id: 'repositoryLocationName',
       title: 'Repository Location',
@@ -195,7 +192,6 @@ export const DagsterBlock: BlockConfig<DagsterResponse> = {
       },
     },
 
-    // ── Launch Run ─────────────────────────────────────────────────────────────
     {
       id: 'jobName',
       title: 'Job Name',
@@ -247,7 +243,6 @@ Return ONLY a valid JSON array - no explanations, no extra text.`,
       },
     },
 
-    // ── Run ID (shared: get_run, get_run_logs, terminate_run, delete_run, reexecute_run) ──
     {
       id: 'runId',
       title: 'Run ID',
@@ -263,7 +258,6 @@ Return ONLY a valid JSON array - no explanations, no extra text.`,
       },
     },
 
-    // ── Reexecute Run ──────────────────────────────────────────────────────────
     {
       id: 'strategy',
       title: 'Reexecution Strategy',
@@ -278,7 +272,6 @@ Return ONLY a valid JSON array - no explanations, no extra text.`,
       required: { field: 'operation', value: 'reexecute_run' },
     },
 
-    // ── Get Run Logs ───────────────────────────────────────────────────────────
     {
       id: 'afterCursor',
       title: 'After Cursor',
@@ -296,7 +289,6 @@ Return ONLY a valid JSON array - no explanations, no extra text.`,
       mode: 'advanced',
     },
 
-    // ── List Runs ──────────────────────────────────────────────────────────────
     {
       id: 'listRunsJobName',
       title: 'Job Name Filter',
@@ -375,7 +367,6 @@ Return ONLY the integer Unix timestamp in seconds - no explanations, no extra te
       mode: 'advanced',
     },
 
-    // ── Schedule operations ────────────────────────────────────────────────────
     {
       id: 'scheduleName',
       title: 'Schedule Name',
@@ -398,7 +389,6 @@ Return ONLY the integer Unix timestamp in seconds - no explanations, no extra te
       mode: 'advanced',
     },
 
-    // ── Sensor operations ──────────────────────────────────────────────────────
     {
       id: 'sensorName',
       title: 'Sensor Name',
@@ -421,7 +411,6 @@ Return ONLY the integer Unix timestamp in seconds - no explanations, no extra te
       mode: 'advanced',
     },
 
-    // ── Stop schedule / sensor (shared) ────────────────────────────────────────
     {
       id: 'instigationStateId',
       title: 'Instigator State ID',
@@ -431,7 +420,6 @@ Return ONLY the integer Unix timestamp in seconds - no explanations, no extra te
       required: { field: 'operation', value: ['stop_schedule', 'stop_sensor'] },
     },
 
-    // ── Asset operations ───────────────────────────────────────────────────────
     {
       id: 'assetKey',
       title: 'Asset Key',
@@ -520,7 +508,6 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
       mode: 'advanced',
     },
 
-    // ── Connection (common to all operations) ──────────────────────────────────
     {
       id: 'host',
       title: 'Host',
@@ -564,7 +551,6 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
       params: (params) => {
         const result: Record<string, unknown> = {}
 
-        // list_runs: type-coerce limit + time filters, remap job name filter and cursor
         if (params.operation === 'list_runs') {
           result.limit = toFiniteNumber(params.limit)
           result.jobName = params.listRunsJobName || undefined
@@ -573,17 +559,14 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
           result.cursor = params.runsCursor || undefined
         }
 
-        // get_run_logs: remap logsLimit → limit
         if (params.operation === 'get_run_logs') {
           result.limit = toFiniteNumber(params.logsLimit)
         }
 
-        // reexecute_run: remap runId → parentRunId
         if (params.operation === 'reexecute_run') {
           if (params.runId) result.parentRunId = params.runId
         }
 
-        // list_schedules / list_sensors: drop empty status filter
         if (params.operation === 'list_schedules' && !params.scheduleStatus) {
           result.scheduleStatus = undefined
         }
@@ -591,19 +574,16 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
           result.sensorStatus = undefined
         }
 
-        // list_assets: type-coerce limit and remap prefix/cursor
         if (params.operation === 'list_assets') {
           result.prefix = params.assetPrefix || undefined
           result.limit = toFiniteNumber(params.assetsLimit)
           result.cursor = params.assetsCursor || undefined
         }
 
-        // materialize_assets: remap asset job name → jobName
         if (params.operation === 'materialize_assets') {
           result.jobName = params.assetJobName
         }
 
-        // report_asset_materialization: remap report-prefixed fields to tool params
         if (params.operation === 'report_asset_materialization') {
           result.eventType = params.reportEventType || 'ASSET_MATERIALIZATION'
           result.partitionKeys = params.reportPartitionKeys || undefined
@@ -622,23 +602,18 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
       type: 'string',
       description: 'Dagster Cloud API token (optional for self-hosted instances)',
     },
-    // Launch Run
     repositoryLocationName: { type: 'string', description: 'Repository location name' },
     repositoryName: { type: 'string', description: 'Repository name' },
     jobName: { type: 'string', description: 'Job name to launch' },
     runConfigJson: { type: 'string', description: 'Run configuration as JSON' },
     tags: { type: 'string', description: 'Tags as JSON array of {key, value} objects' },
-    // Run ID operations
     runId: { type: 'string', description: 'Run ID' },
-    // Reexecute Run
     strategy: {
       type: 'string',
       description: 'Reexecution strategy (ALL_STEPS, FROM_FAILURE, FROM_ASSET_FAILURE)',
     },
-    // Get Run Logs
     afterCursor: { type: 'string', description: 'Pagination cursor for run logs' },
     logsLimit: { type: 'number', description: 'Maximum log events to return' },
-    // List Runs
     listRunsJobName: { type: 'string', description: 'Filter list_runs by job name' },
     statuses: { type: 'string', description: 'Comma-separated run statuses to filter by' },
     createdAfter: {
@@ -651,18 +626,14 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
     },
     runsCursor: { type: 'string', description: 'Run ID cursor for list_runs pagination' },
     limit: { type: 'number', description: 'Maximum results to return' },
-    // Schedules
     scheduleName: { type: 'string', description: 'Schedule name' },
     scheduleStatus: {
       type: 'string',
       description: 'Filter schedules by status (RUNNING or STOPPED)',
     },
-    // Sensors
     sensorName: { type: 'string', description: 'Sensor name' },
     sensorStatus: { type: 'string', description: 'Filter sensors by status (RUNNING or STOPPED)' },
-    // Stop schedule / sensor
     instigationStateId: { type: 'string', description: 'InstigationState ID for stop operations' },
-    // Assets
     assetKey: { type: 'string', description: 'Slash-delimited asset key' },
     assetJobName: { type: 'string', description: 'Asset job to launch for materialization' },
     assetSelection: {
@@ -684,9 +655,7 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
   },
 
   outputs: {
-    // Launch Run / Reexecute Run / Delete Run / Get Run
     runId: { type: 'string', description: 'Run ID' },
-    // Get Run
     jobName: { type: 'string', description: 'Job name the run belongs to' },
     status: { type: 'string', description: 'Run or schedule/sensor status' },
     mode: { type: 'string', description: 'Execution mode of the run' },
@@ -699,17 +668,13 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
     canTerminate: { type: 'boolean', description: 'Whether the run can be terminated' },
     runConfigYaml: { type: 'string', description: 'Run configuration as YAML' },
     tags: { type: 'json', description: 'Run tags as array of {key, value} objects' },
-    // List Runs
     runs: {
       type: 'json',
       description: 'List of runs (runId, jobName, status, tags, startTime, endTime)',
     },
-    // List Jobs
     jobs: { type: 'json', description: 'List of jobs (name, repositoryName)' },
-    // Terminate Run
     success: { type: 'boolean', description: 'Whether termination succeeded' },
     message: { type: 'string', description: 'Termination status or error message' },
-    // Get Run Logs
     events: {
       type: 'json',
       description: 'Log events (type, message, timestamp, level, stepKey, eventType)',
@@ -722,24 +687,18 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
       type: 'boolean',
       description: 'Whether more items are available beyond this page',
     },
-    // List Schedules
     schedules: {
       type: 'json',
       description:
         'List of schedules (name, cronSchedule, jobName, status, id, description, executionTimezone)',
     },
-    // List Sensors
     sensors: {
       type: 'json',
       description: 'List of sensors (name, sensorType, status, id, description)',
     },
-    // Start/Stop schedule or sensor
     id: { type: 'string', description: 'Instigator state ID of the schedule or sensor' },
-    // Get Run / Get Asset (asset key selection)
     assetSelection: { type: 'json', description: 'Asset keys targeted by the run' },
-    // List Assets
     assets: { type: 'json', description: 'List of assets (assetKey, path)' },
-    // Get Asset
     assetKey: { type: 'string', description: 'Slash-joined asset key' },
     path: { type: 'json', description: 'Asset key path segments' },
     groupName: { type: 'string', description: 'Asset group name' },

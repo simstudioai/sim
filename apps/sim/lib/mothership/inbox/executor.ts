@@ -6,7 +6,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import { getActivelyBannedUserIds, isEmailBlocked } from '@/lib/auth/ban'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
-import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
+import { persistCopilotChatTurn } from '@/lib/mothership/chat/messages-store'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
@@ -19,7 +19,7 @@ import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
-import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
+import type { AgentMailAttachment, InboxTask } from '@/lib/mothership/inbox/types'
 import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
 import { requestChatTitle } from '@/lib/mothership/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
@@ -83,19 +83,21 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     return
   }
 
-  let chatId = inboxTask.chatId
+  let chatId: string | null = null
   let responseSent = false
 
   try {
-    const [[claimed], actor] = await Promise.all([
+    const [[claimed], actor, workspaceChatId] = await Promise.all([
       db
         .update(mothershipInboxTask)
         .set({ status: 'processing', processingStartedAt: new Date() })
         .where(and(eq(mothershipInboxTask.id, taskId), eq(mothershipInboxTask.status, 'received')))
         .returning({ id: mothershipInboxTask.id }),
       resolveInboxExecutionActor(inboxTask.fromEmail, ws),
+      resolveWorkspaceChatId(inboxTask),
     ])
     const userId = actor.executionUserId
+    chatId = workspaceChatId
 
     if (!claimed) {
       logger.info('Task already claimed by another execution, skipping', { taskId })
@@ -279,6 +281,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     if (chatId) {
       await persistChatMessages(
         chatId,
+        ws.id,
         userMessageId,
         messageContent,
         {
@@ -345,6 +348,38 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       }
     }
   }
+}
+
+/**
+ * The chat a task continues, only when it is a live chat in the task's
+ * workspace. A reply inherits its parent task's chat, so a chat from any other
+ * workspace (or one since deleted) is dropped and the run starts a fresh chat
+ * instead of writing across tenants.
+ */
+async function resolveWorkspaceChatId(
+  inboxTask: Pick<InboxTask, 'id' | 'workspaceId' | 'chatId'>
+): Promise<string | null> {
+  if (!inboxTask.chatId) return null
+
+  const [chat] = await db
+    .select({ id: copilotChats.id })
+    .from(copilotChats)
+    .where(
+      and(
+        eq(copilotChats.id, inboxTask.chatId),
+        eq(copilotChats.workspaceId, inboxTask.workspaceId),
+        isNull(copilotChats.deletedAt)
+      )
+    )
+    .limit(1)
+  if (chat) return chat.id
+
+  logger.warn('Dropping inbox task chat that is not live in the task workspace', {
+    taskId: inboxTask.id,
+    chatId: inboxTask.chatId,
+    workspaceId: inboxTask.workspaceId,
+  })
+  return null
 }
 
 /**
@@ -423,6 +458,7 @@ async function resolveInboxExecutionActor(
  */
 async function persistChatMessages(
   chatId: string,
+  workspaceId: string,
   userMessageId: string,
   userContent: string,
   result: OrchestratorResult,
@@ -439,20 +475,7 @@ async function persistChatMessages(
 
     // Best-effort: the email response is the primary deliverable, so a failure
     // here is logged (in the catch below) rather than failing the task.
-    await db.transaction(async (tx) => {
-      const [updated] = await tx
-        .update(copilotChats)
-        .set({ updatedAt: new Date() })
-        .where(eq(copilotChats.id, chatId))
-        .returning({ model: copilotChats.model })
-      if (!updated) return
-      await appendCopilotChatMessages(
-        chatId,
-        [userMessage, assistantMessage],
-        { chatModel: updated.model ?? null },
-        tx
-      )
-    })
+    await persistCopilotChatTurn(chatId, [userMessage, assistantMessage], { workspaceId })
   } catch (err) {
     logger.error('Failed to persist chat messages', {
       chatId,

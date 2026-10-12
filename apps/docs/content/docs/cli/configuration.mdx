@@ -40,7 +40,7 @@ sim profile add acme --workspace 7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28
 ```bash
 sim configure --set-endpoint http://localhost:3000 --profile dev
 sim configure --set-workspace 5c81f3a6-0e27-4b94-8d15-a7f60c39b2e8 --profile dev
-sim configure --set-output json
+sim configure --set-output table
 ```
 
 | Option | What it sets |
@@ -64,7 +64,7 @@ Each setting resolves independently, and the first match wins:
 | 1 | Command-line flag — `--endpoint`, `--workspace`, `--output` |
 | 2 | Environment — `SIM_ENDPOINT`, `SIM_API_KEY`, `SIM_WORKSPACE`, `SIM_OUTPUT` |
 | 3 | `~/.sim/config` for the selected profile and `~/.sim/credentials` for its `auth_profile`, when set |
-| 4 | Built-in default — `https://www.sim.ai` and `table` |
+| 4 | Built-in default — `https://www.sim.ai` and `json` |
 
 `sim whoami` prints the winning source for each setting:
 

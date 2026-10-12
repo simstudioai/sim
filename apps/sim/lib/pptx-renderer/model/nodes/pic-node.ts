@@ -35,7 +35,7 @@ const CROP_DIVISOR = 100000
 export function parsePicNode(picNode: SafeXmlNode): PicNodeData {
   const base = parseBaseProps(picNode)
 
-  // --- Blip fill ---
+  // Blip fill
   const blipFill = picNode.child('blipFill')
   const blip = blipFill.child('blip')
 
@@ -43,7 +43,7 @@ export function parsePicNode(picNode: SafeXmlNode): PicNodeData {
   const blipEmbed = blip.attr('embed') ?? blip.attr('r:embed')
   const blipLink = blip.attr('link') ?? blip.attr('r:link')
 
-  // --- Crop (srcRect) ---
+  // Crop (srcRect)
   const srcRect = blipFill.child('srcRect')
   let crop: CropRect | undefined
   if (srcRect.exists()) {
@@ -61,7 +61,7 @@ export function parsePicNode(picNode: SafeXmlNode): PicNodeData {
     }
   }
 
-  // --- Shape properties (fill + line) ---
+  // Shape properties (fill + line)
   const spPr = picNode.child('spPr')
   const solidFill = spPr.child('solidFill')
   const gradFill = spPr.child('gradFill')
@@ -70,7 +70,7 @@ export function parsePicNode(picNode: SafeXmlNode): PicNodeData {
   const ln = spPr.child('ln')
   const line = ln.exists() ? ln : undefined
 
-  // --- Video / Audio detection ---
+  // Video / Audio detection
   const nvPicPr = picNode.child('nvPicPr')
   const nvPr = nvPicPr.child('nvPr')
 

@@ -416,7 +416,7 @@ export class WorkflowDiffEngine {
       // This ensures the nodes arrays in loops/parallels contain the correct (remapped) block IDs,
       // which is critical for variable resolution in the tag dropdown.
       const { generateLoopBlocks, generateParallelBlocks } = await import(
-        '@/stores/workflows/workflow/utils'
+        '@sim/workflow-persistence/subflow-helpers'
       )
 
       // Build the proposed state

@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { cn, scrollFadeAttributes, scrollFadeXClass, useScrollEdges } from '@sim/emcn'
 import { EChartsView } from '@/components/charts/echarts-view'
+import type { ChartAnnotations } from '@/lib/charts/annotations'
 import {
   bindTimeSeriesInteractions,
   type ChartReadout,
@@ -13,17 +14,20 @@ import { dashboardTimeLabel } from '@/lib/dashboards/time'
 interface TimeSeriesChartProps extends Omit<TimeSeriesInteractionOptions, 'onReadout'> {
   label: string
   option: Record<string, unknown>
+  annotations?: ChartAnnotations
 }
 
-export function TimeSeriesChart({ label, option, ...config }: TimeSeriesChartProps) {
+export function TimeSeriesChart({ label, option, annotations, ...config }: TimeSeriesChartProps) {
   const valuesRef = useRef<HTMLDivElement>(null)
   const edges = useScrollEdges(valuesRef, { axis: 'x' })
   const [readout, setReadout] = useState<ChartReadout | null>(null)
+  const hasValues = Boolean(readout?.values.length)
   return (
     <div className='h-full min-w-0'>
       <div
+        role={hasValues ? 'group' : undefined}
         className='mb-2 flex h-8 min-w-0 items-center justify-between gap-4 text-sm tabular-nums'
-        aria-label={`${label} values`}
+        aria-label={hasValues ? `${label} values` : undefined}
       >
         <div
           ref={valuesRef}
@@ -56,6 +60,7 @@ export function TimeSeriesChart({ label, option, ...config }: TimeSeriesChartPro
       <EChartsView
         label={label}
         option={option}
+        annotations={annotations}
         className='h-[240px]'
         revision={JSON.stringify({
           ...config.range,

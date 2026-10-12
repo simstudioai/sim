@@ -5,6 +5,7 @@ import type { CompetitorProfile } from '@/lib/compare/data/types'
 export const openaiAgentkitProfile: CompetitorProfile = {
   id: 'openai-agentkit',
   name: 'OpenAI AgentKit',
+  mentions: ['AgentKit'],
   website: 'https://openai.com/index/introducing-agentkit/',
   brand: {
     icon: OpenAIIcon,

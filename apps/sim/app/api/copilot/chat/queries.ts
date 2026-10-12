@@ -5,10 +5,14 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/work
 import { toError } from '@sim/utils/errors'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
 import { buildEffectiveChatTranscript } from '@/lib/mothership/chat/effective-transcript'
 import { getAccessibleCopilotChat } from '@/lib/mothership/chat/lifecycle'
-import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
+import {
+  type LiveTurnSnapshot,
+  readLiveTurnSnapshot,
+} from '@/lib/mothership/chat/live-turn-snapshot'
+import { compactToolCallParams, normalizeMessage } from '@/lib/mothership/chat/persisted-message'
+import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -16,9 +20,6 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
-import { readFilePreviewSessions } from '@/lib/mothership/request/session'
-import { readEvents } from '@/lib/mothership/request/session/buffer'
-import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
@@ -32,6 +33,7 @@ function transformChat(chat: {
   model: string | null
   messages: unknown
   config?: unknown
+  effort?: MothershipEffort | null
   conversationId?: string | null
   resources?: unknown
   createdAt: Date | null
@@ -44,6 +46,7 @@ function transformChat(chat: {
     messages: Array.isArray(chat.messages) ? chat.messages : [],
     messageCount: Array.isArray(chat.messages) ? chat.messages.length : 0,
     config: chat.config || null,
+    effort: chat.effort ?? null,
     ...('conversationId' in chat ? { activeStreamId: chat.conversationId || null } : {}),
     ...('resources' in chat
       ? { resources: Array.isArray(chat.resources) ? chat.resources : [] }
@@ -87,43 +90,10 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
-      let streamSnapshot: {
-        events: ReturnType<typeof toStreamBatchEvent>[]
-        previewSessions: Awaited<ReturnType<typeof readFilePreviewSessions>>
-        status: string
-      } | null = null
+      let streamSnapshot: LiveTurnSnapshot | null = null
       if (chat.conversationId) {
         try {
-          const [events, previewSessions, run] = await Promise.all([
-            readEvents(chat.conversationId, '0'),
-            readFilePreviewSessions(chat.conversationId).catch((error) => {
-              logger.warn('Failed to read preview sessions for copilot chat', {
-                chatId,
-                conversationId: chat.conversationId,
-                error: toError(error).message,
-              })
-              return []
-            }),
-            getLatestRunForStream(chat.conversationId, authenticatedUserId).catch((error) => {
-              logger.warn('Failed to fetch latest run for copilot chat snapshot', {
-                chatId,
-                conversationId: chat.conversationId,
-                error: toError(error).message,
-              })
-              return null
-            }),
-          ])
-
-          streamSnapshot = {
-            events: events.map(toStreamBatchEvent),
-            previewSessions,
-            status:
-              typeof run?.status === 'string'
-                ? run.status
-                : events.length > 0
-                  ? 'active'
-                  : 'unknown',
-          }
+          streamSnapshot = await readLiveTurnSnapshot(chat.conversationId, authenticatedUserId)
         } catch (error) {
           logger.warn('Failed to load copilot chat stream snapshot', {
             chatId,
@@ -142,7 +112,7 @@ export async function GET(req: NextRequest) {
         messages: normalizedMessages,
         activeStreamId: chat.conversationId || null,
         ...(streamSnapshot ? { streamSnapshot } : {}),
-      })
+      }).map(compactToolCallParams)
 
       logger.info(`Retrieved chat ${chatId}`)
       return NextResponse.json({

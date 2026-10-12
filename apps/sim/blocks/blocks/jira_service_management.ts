@@ -2,7 +2,6 @@ import { JiraServiceManagementIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { JsmResponse } from '@/tools/jsm/types'
 import { getTrigger } from '@/triggers'
 
 /** Operations that accept Atlassian's `start`/`limit` pagination query params. */
@@ -57,7 +56,7 @@ const SERVICE_DESK_FIELD = ['serviceDeskSelector', 'serviceDeskId'] as const
 /** Canonical basic/advanced pair for the request type. */
 const REQUEST_TYPE_FIELD = ['requestTypeSelector', 'requestTypeId'] as const
 
-export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
+export const JiraServiceManagementBlock: BlockConfig = {
   type: 'jira_service_management',
   name: 'Jira Service Management',
   description: 'Interact with Jira Service Management',

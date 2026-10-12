@@ -544,7 +544,8 @@ export const v2NonRootFolderPathSchema = canonicalFolderPathSchema(requireNonRoo
   maxLength: MAX_FOLDER_PATH_BYTES,
 })
 
-function normalizeFolderPathInput(path: string): string {
+/** Adds the leading slash a folder path may omit; validation stays with the canonical schemas. */
+export function normalizeFolderPathInput(path: string): string {
   return path.length === 0 || path.startsWith('/') ? path : `/${path}`
 }
 

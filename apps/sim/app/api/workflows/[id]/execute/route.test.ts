@@ -1,3 +1,5 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { createRouteContext } from '@sim/testing/helpers/http'
 import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
 import {
@@ -549,6 +551,29 @@ describe('workflow execute async route', () => {
     })
     expect(executionOptions.snapshot.input).toEqual({ input: { token: 'secret-value' } })
     expect(executionOptions.snapshot.input).not.toHaveProperty(PRIVATE_SECRET_PROVENANCE_FIELD)
+  })
+
+  it('holds a synchronous response until the run log and its cost are finalized', async () => {
+    configureExecutionCaller(EXECUTION_CALLERS[4])
+    const finalizer = createDeferred<void>()
+    loggingSessionMockFns.mockWaitForPostExecution.mockReturnValue(finalizer.promise)
+
+    let responded = false
+    const pending = POST(
+      createInternalProvenanceRequest(),
+      createRouteContext({ id: 'workflow-1' })
+    )
+    void pending.then(() => {
+      responded = true
+    })
+    await vi.waitFor(() => {
+      expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalled()
+    })
+    await flushMacrotask()
+    expect(responded).toBe(false)
+
+    finalizer.resolve()
+    expect((await pending).status).toBe(200)
   })
 
   it('queues authenticated workflow input provenance without exposing the private sidecar as input', async () => {

@@ -42,7 +42,7 @@ export function createKnowledgeMcpHandlers() {
           maxBodyBytes: 64 * 1024,
         })
         if (!parsed.success) return parsed.response
-        const index = await readSearchIndex.execute({
+        await readSearchIndex.execute({
           principal: admission.auth.principal,
           input: parsed.data.params,
           request,
@@ -51,7 +51,6 @@ export function createKnowledgeMcpHandlers() {
           request,
           auth: admission.auth,
           ...parsed.data.params,
-          searchIndexId: index.knowledgeBaseId,
         })
         return await serveStatelessMcp(server, request, parsed.data.body)
       } catch (error) {

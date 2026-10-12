@@ -891,7 +891,6 @@ export function useUndoRedo() {
               userId,
             })
 
-            // Send parent update to server
             addToQueue({
               id: opId,
               operation: {
@@ -909,7 +908,6 @@ export function useUndoRedo() {
               userId,
             })
 
-            // Update position and parent locally using batch method
             useWorkflowStore.getState().batchUpdateBlocksWithParent([
               {
                 id: blockId,
@@ -957,7 +955,6 @@ export function useUndoRedo() {
             break
           }
 
-          // Collect all edge operations first
           const allEdgesToAdd: Edge[] = []
           const allEdgeIdsToRemove: string[] = []
           const existingEdgeIds = new Set(useWorkflowStore.getState().edges.map((edge) => edge.id))
@@ -980,7 +977,6 @@ export function useUndoRedo() {
             }
           }
 
-          // Apply edge operations in batch
           if (allEdgesToAdd.length > 0) {
             addToQueue({
               id: generateId(),
@@ -1009,7 +1005,6 @@ export function useUndoRedo() {
             })
           }
 
-          // Update positions and parents locally in batch
           const blockUpdates = validUpdates.map((update) => ({
             id: update.blockId,
             position: update.newPosition,
@@ -1017,7 +1012,6 @@ export function useUndoRedo() {
           }))
           useWorkflowStore.getState().batchUpdateBlocksWithParent(blockUpdates)
 
-          // Send batch update to server
           addToQueue({
             id: opId,
             operation: {
@@ -1061,8 +1055,6 @@ export function useUndoRedo() {
             userId,
           })
 
-          // Use setBlockEnabled to directly restore to previous state
-          // This restores all affected blocks including children of containers
           validBlockIds.forEach((blockId) => {
             useWorkflowStore.getState().setBlockEnabled(blockId, previousStates[blockId])
           })
@@ -1089,8 +1081,7 @@ export function useUndoRedo() {
             userId,
           })
 
-          // Use setBlockHandles to directly restore to previous state
-          // This is more robust than conditional toggle in collaborative scenarios
+          // Set directly rather than toggling: more robust in collaborative scenarios
           validBlockIds.forEach((blockId) => {
             useWorkflowStore.getState().setBlockHandles(blockId, previousStates[blockId])
           })
@@ -1119,8 +1110,6 @@ export function useUndoRedo() {
             userId,
           })
 
-          // Use setBlockLocked to directly restore to previous state
-          // This restores all affected blocks including children of containers
           validBlockIds.forEach((blockId) => {
             useWorkflowStore.getState().setBlockLocked(blockId, previousStates[blockId])
           })
@@ -1145,11 +1134,8 @@ export function useUndoRedo() {
           const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
           const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
 
-          // Set flag to skip recording during this operation
-
           window.__skipDiffRecording = true
           try {
-            // Restore baseline state and broadcast to everyone
             if (baselineSnapshot && activeWorkflowId) {
               logger.info('Restoring baseline state', {
                 blockCount: Object.keys(baselineSnapshot.blocks || {}).length,
@@ -1157,7 +1143,6 @@ export function useUndoRedo() {
 
               useWorkflowStore.getState().replaceWorkflowState(baselineSnapshot)
 
-              // Extract and set subblock values
               const subBlockValues: Record<string, Record<string, any>> = {}
               Object.entries(baselineSnapshot.blocks || {}).forEach(
                 ([blockId, block]: [string, any]) => {
@@ -1171,7 +1156,6 @@ export function useUndoRedo() {
               )
               useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
 
-              // Broadcast state change to other users
               logger.info('Broadcasting baseline state to other users')
               await enqueueReplaceWorkflowState({
                 workflowId: activeWorkflowId,
@@ -1180,7 +1164,6 @@ export function useUndoRedo() {
               })
             }
 
-            // Clear diff state (local UI only)
             logger.info('Clearing diff UI state')
             useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
           } finally {
@@ -1198,18 +1181,14 @@ export function useUndoRedo() {
           const { useWorkflowDiffStore } = await import('@/stores/workflow-diff/store')
           const diffStore = useWorkflowDiffStore.getState()
 
-          // Restore the workflow state with diff markers
           const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
           const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-
-          // Set flag to skip recording during this operation
 
           window.__skipDiffRecording = true
           try {
             // Apply the before-accept state (with markers for this user)
             useWorkflowStore.getState().replaceWorkflowState(beforeAccept)
 
-            // Extract and set subblock values
             const subBlockValues: Record<string, Record<string, any>> = {}
             Object.entries(beforeAccept.blocks || {}).forEach(([blockId, block]: [string, any]) => {
               subBlockValues[blockId] = {}
@@ -1230,7 +1209,6 @@ export function useUndoRedo() {
               operationId: opId,
             })
 
-            // Get baseline from the original apply-diff operation
             const { baselineSnapshot: originalBaseline } = acceptDiffOp.data
 
             // Restore diff state with baseline (local UI only)
@@ -1260,7 +1238,6 @@ export function useUndoRedo() {
             // Apply the before-reject state (with markers for this user)
             useWorkflowStore.getState().replaceWorkflowState(beforeReject)
 
-            // Extract and set subblock values
             const subBlockValues: Record<string, Record<string, any>> = {}
             Object.entries(beforeReject.blocks || {}).forEach(([blockId, block]: [string, any]) => {
               subBlockValues[blockId] = {}
@@ -1389,7 +1366,6 @@ export function useUndoRedo() {
           break
         }
         case UNDO_REDO_OPERATIONS.BATCH_REMOVE_EDGES: {
-          // Redo batch-remove-edges: remove all edges again
           const batchRemoveOp = entry.operation as BatchRemoveEdgesOperation
           const { edgeSnapshots } = batchRemoveOp.data
 
@@ -1416,7 +1392,6 @@ export function useUndoRedo() {
           break
         }
         case UNDO_REDO_OPERATIONS.BATCH_ADD_EDGES: {
-          // Redo batch-add-edges: add all edges again
           const batchAddOp = entry.operation as BatchAddEdgesOperation
           const { edgeSnapshots } = batchAddOp.data
 
@@ -1470,7 +1445,6 @@ export function useUndoRedo() {
           break
         }
         case UNDO_REDO_OPERATIONS.UPDATE_PARENT: {
-          // Redo parent update means applying the new parent and position
           const updateOp = entry.operation as UpdateParentOperation
           const { blockId, newParentId, newPosition, affectedEdges } = updateOp.data
 
@@ -1500,7 +1474,6 @@ export function useUndoRedo() {
               }
             }
 
-            // Send position update to server
             addToQueue({
               id: generateId(),
               operation: {
@@ -1518,7 +1491,6 @@ export function useUndoRedo() {
               userId,
             })
 
-            // Send parent update to server
             addToQueue({
               id: opId,
               operation: {
@@ -1536,7 +1508,6 @@ export function useUndoRedo() {
               userId,
             })
 
-            // Update position and parent locally using batch method
             useWorkflowStore.getState().batchUpdateBlocksWithParent([
               {
                 id: blockId,
@@ -1580,7 +1551,6 @@ export function useUndoRedo() {
             break
           }
 
-          // Collect all edge operations first
           const allEdgesToAdd: Edge[] = []
           const allEdgeIdsToRemove: string[] = []
           const existingEdgeIds = new Set(useWorkflowStore.getState().edges.map((edge) => edge.id))
@@ -1618,7 +1588,6 @@ export function useUndoRedo() {
             })
           }
 
-          // Update positions and parents locally in batch
           const blockUpdates = validUpdates.map((update) => ({
             id: update.blockId,
             position: update.newPosition,
@@ -1641,7 +1610,6 @@ export function useUndoRedo() {
             useWorkflowStore.getState().batchAddEdges(allEdgesToAdd)
           }
 
-          // Send batch update to server
           addToQueue({
             id: opId,
             operation: {
@@ -1715,7 +1683,6 @@ export function useUndoRedo() {
             userId,
           })
 
-          // Use setBlockHandles to directly set to toggled state
           // Redo sets to !previousStates (the state after the original toggle)
           validBlockIds.forEach((blockId) => {
             useWorkflowStore.getState().setBlockHandles(blockId, !previousStates[blockId])
@@ -1767,8 +1734,6 @@ export function useUndoRedo() {
           const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
           const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
 
-          // Set flag to skip recording during this operation
-
           window.__skipDiffRecording = true
           try {
             // Manually apply the proposed state and set up diff store (similar to setProposedChanges but with original baseline)
@@ -1777,7 +1742,6 @@ export function useUndoRedo() {
             // Apply proposed state WITH markers locally (for this user's diff UI)
             useWorkflowStore.getState().replaceWorkflowState(proposedState)
 
-            // Extract and set subblock values
             const subBlockValues: Record<string, Record<string, any>> = {}
             Object.entries(proposedState.blocks || {}).forEach(
               ([blockId, block]: [string, any]) => {
@@ -1822,8 +1786,6 @@ export function useUndoRedo() {
           const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
           const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
 
-          // Set flag to skip recording during this operation
-
           window.__skipDiffRecording = true
           try {
             // Clear diff state FIRST to prevent flash of colors (local UI only)
@@ -1841,7 +1803,6 @@ export function useUndoRedo() {
             // Apply the after-accept state (without markers) and broadcast
             useWorkflowStore.getState().replaceWorkflowState(afterAccept)
 
-            // Extract and set subblock values
             const subBlockValues: Record<string, Record<string, any>> = {}
             Object.entries(afterAccept.blocks || {}).forEach(([blockId, block]: [string, any]) => {
               subBlockValues[blockId] = {}
@@ -1853,7 +1814,6 @@ export function useUndoRedo() {
             })
             useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
 
-            // Broadcast state change to other users
             await enqueueReplaceWorkflowState({
               workflowId: activeWorkflowId,
               state: afterAccept,
@@ -1891,7 +1851,6 @@ export function useUndoRedo() {
             // Apply the after-reject state (baseline) and broadcast
             useWorkflowStore.getState().replaceWorkflowState(afterReject)
 
-            // Extract and set subblock values
             const subBlockValues: Record<string, Record<string, any>> = {}
             Object.entries(afterReject.blocks || {}).forEach(([blockId, block]: [string, any]) => {
               subBlockValues[blockId] = {}
@@ -1903,7 +1862,6 @@ export function useUndoRedo() {
             })
             useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
 
-            // Broadcast state change to other users
             await enqueueReplaceWorkflowState({
               workflowId: activeWorkflowId,
               state: afterReject,

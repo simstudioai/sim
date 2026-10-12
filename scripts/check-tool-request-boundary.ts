@@ -213,10 +213,6 @@ interface ImportedBinding {
   source: string
 }
 
-function resolveIdentifier(name: string, resolver: SelfHopResolver): SyntaxNode | undefined {
-  return resolver.locals?.get(name) ?? resolver.bindings.get(name)
-}
-
 function resolveScopedIdentifier(
   name: string,
   resolver: SelfHopResolver

@@ -34,9 +34,9 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -116,7 +116,7 @@ export const GET = withRouteHandler(
         error,
         organizationId,
       })
-      return internalErrorResponse('Failed to list permission groups')
+      return adminInternalErrorResponse('Failed to list permission groups')
     }
   })
 )
@@ -138,7 +138,7 @@ export const DELETE = withRouteHandler(
     // narrows the type (avoiding a non-null assertion) and stays correct even if
     // the contract changes.
     if (!organizationId) {
-      return badRequestResponse('organizationId is required')
+      return adminBadRequestResponse('organizationId is required')
     }
     const reason = rawReason || 'Enterprise plan churn cleanup'
 
@@ -203,7 +203,7 @@ export const DELETE = withRouteHandler(
         error,
         organizationId,
       })
-      return internalErrorResponse('Failed to delete permission groups')
+      return adminInternalErrorResponse('Failed to delete permission groups')
     }
   })
 )

@@ -7,31 +7,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 
 const { mockMaterializeSecrets } = vi.hoisted(() => ({
-  mockMaterializeSecrets: vi
-    .fn()
-    .mockResolvedValue({ envVars: { API_KEY: 'test-value' }, catalogEntries: [] }),
+  mockMaterializeSecrets: vi.fn().mockResolvedValue({
+    envVars: { API_KEY: 'test-value' },
+    catalogEntries: [
+      { name: 'API_KEY', plaintext: 'test-value', encryptedValue: 'mock-encrypted-test-value' },
+    ],
+  }),
 }))
 
 vi.mock('@/tools', () => toolsMock)
 vi.mock('@/lib/mothership/tools/secret-mount-materializer.server', () => ({
   materializeCopilotCodeSecrets: mockMaterializeSecrets,
   CopilotCodeSecretAccessError: class extends Error {},
-}))
-vi.mock('@/executor/utils/resolved-secret-trace-registry', () => ({
-  ResolvedSecretTraceRegistry: class {
-    getUnredactedSecretNames() {
-      return []
-    }
-    exportProvenance() {
-      return { complete: true }
-    }
-    exportProvenanceForValue() {
-      return { complete: true }
-    }
-    getResolvedSecretUsage() {
-      return []
-    }
-  },
 }))
 vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage: vi.fn() }))
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)

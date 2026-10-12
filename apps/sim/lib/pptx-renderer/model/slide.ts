@@ -295,11 +295,11 @@ export function parseSlide(
 ): SlideData {
   const cSld = root.child('cSld')
 
-  // --- Background ---
+  // Background
   const bg = cSld.child('bg')
   const background = bg.exists() ? bg : undefined
 
-  // --- Parse shape tree children ---
+  // Parse shape tree children
   const spTree = cSld.child('spTree')
   const nodes: SlideNode[] = []
 
@@ -310,10 +310,10 @@ export function parseSlide(
     }
   }
 
-  // --- Layout relationship ---
+  // Layout relationship
   const layoutIndex = findLayoutRel(rels)
 
-  // --- showMasterSp: if "0", layout/master shapes should not be rendered on this slide ---
+  // showMasterSp: if "0", layout/master shapes should not be rendered on this slide
   const showMasterSpAttr = root.attr('showMasterSp')
   const showMasterSp = showMasterSpAttr !== '0'
 

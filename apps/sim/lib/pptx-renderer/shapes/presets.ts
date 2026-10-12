@@ -128,8 +128,6 @@ function mirrorAbsolutePathVertically(path: string, height: number): string {
   return out.join(' ')
 }
 
-// Preset shape registry
-
 export const presetShapes: Map<string, PresetShapeGenerator> = new Map()
 
 presetShapes.set('rect', (w, h) => `M0,0 L${w},0 L${w},${h} L0,${h} Z`)
@@ -3573,7 +3571,6 @@ presetShapes.set('sun', (w, h, adjustments) => {
   const g16 = 100000 - g12
   const g17 = 100000 - g13
   const g18 = 100000 - g14
-  // Pixel coordinates
   const hc = w / 2
   const vc = h / 2
   const ox1 = (w * 18436) / 21600
@@ -3654,9 +3651,8 @@ presetShapes.set('moon', (w, h, adjustments) => {
 })
 
 presetShapes.set('lightningBolt', (w, h) => {
-  // Calibrated against OOXML preset rendering (PowerPoint PDF export):
-  // the old simplified 7-point bolt was too wide and lacked the inner notches.
-  // This normalized 11-point contour follows the default lightningBolt geometry.
+  // Calibrated against PowerPoint PDF export of the OOXML preset: this normalized
+  // 11-point contour follows the default lightningBolt geometry, inner notches included.
   return [
     `M${w * 0.3895},${h * 0.0}`,
     `L${w * 0.0},${h * 0.1821}`,
@@ -3881,16 +3877,11 @@ presetShapes.set('rightBrace', (w, h, adjustments) => {
 
 presetShapes.set('actionButtonBlank', (w, h) => `M0,0 L${w},0 L${w},${h} L0,${h} Z`)
 
-// Fallback rectangle for action buttons without multiPathPresets entry yet
-// actionButtonSound fallback removed — uses multiPathPresets entry below
-
 // Multi-path action button presets are registered after the multiPathPresets Map
 // declaration (see below in the multiPathPresets section).
 
 // Action button icon paths (rendered as a second <path> with contrasting fill)
 const actionButtonIcons = new Map<string, (w: number, h: number) => string>()
-
-// actionButtonHome icon removed — uses multiPathPresets entry below
 
 actionButtonIcons.set('actionButtonForwardNext', (w, h) => {
   // Right-pointing triangle (▶)
@@ -3966,8 +3957,6 @@ actionButtonIcons.set('actionButtonEnd', (w, h) => {
   ].join(' ')
 })
 
-// actionButtonHelp icon removed — uses multiPathPresets entry below
-
 actionButtonIcons.set('actionButtonInformation', (w, h) => {
   // Info icon (i)
   const cx = w / 2
@@ -3997,10 +3986,6 @@ actionButtonIcons.set('actionButtonDocument', (w, h) => {
   ].join(' ')
 })
 
-// actionButtonSound icon removed — uses multiPathPresets entry below
-
-// actionButtonMovie icon is now rendered via multiPathPresets (see below).
-
 /**
  * Get the SVG path for the icon overlay of an action button.
  * Returns undefined if the shape is not an action button or is actionButtonBlank.
@@ -4015,7 +4000,6 @@ export function getActionButtonIconPath(
   return generator?.(w, h)
 }
 
-// Some shapes are known by multiple names in different OOXML versions
 // flowChartOfflineStorage: registered as multiPathPreset (see below)
 
 // ribbon is implemented as multiPathPreset (see multiPathPresets below)
@@ -4368,10 +4352,6 @@ presetShapes.set('funnel', (w, h) => {
   return `${body} ${inset}`
 })
 
-/**
- * Get the SVG path for a preset shape, falling back to a simple rectangle
- * if the shape type is not implemented.
- */
 // Preset shape overlays — additional paths for 3D-like shapes (lighter top face, etc.)
 
 interface PresetOverlay {
@@ -4575,23 +4555,8 @@ multiPathPresets.set('actionButtonReturn', (w, h) => {
   // Outline path (path 2 in OOXML spec — traces shape with different arc winding)
   // Starts from right outer edge, traces clockwise: outer right → outer bottom → outer left → inner left → inner bottom → inner right → arrow
   // Arc A: from (g22, g20), wR=g17 hR=g17 stAng=0° swAng=90°
-  //   center = (g22-g17, g20) = (g22-g17, g20), endpoint = (g22-g17, g20+g17)
-  //   g22-g17 = g11+g14-g17 = g11 + g13*7/8 - g13*3/8 = g11 + g13/2 = g25 + g13/8 = hc? No.
-  //   Actually: g22 = g11+g14, g14 = g13*7/8, g17 = g13*3/8
-  //   g22 - g17 = g11 + g13*7/8 - g13*3/8 = g11 + g13*4/8 = g11 + g13/2 = hc (since hc = g11 + dx2 = g11 + g13/2)
-  //   Hmm wait, dx2 = ss*3/8 and g13 = ss*3/4. So g13/2 = ss*3/8 = dx2. So hc = g11 + dx2 = g11 + g13/2. Yes!
-  //   endpoint = (hc, g20+g17) = (hc, g10)? g20+g17 = (g9+g16)+g17 = g9+g13*5/8+g13*3/8 = g9+g13 = g9+ss*3/4
-  //   g10 = vc+dx2. g9+g13 = (vc-dx2) + 2*dx2 = vc+dx2 = g10. Yes! endpoint = (hc, g10) ✓ but wait...
-  //   Actually stAng=0° means start angle is 0°. center = (g22 - g17*cos(0), g20 - g17*sin(0)) = (g22-g17, g20).
-  //   endAng = 0+90 = 90°. endX = center.x + g17*cos(90°) = g22-g17. endY = center.y + g17*sin(90°) = g20+g17.
-  //   So endpoint = (g22-g17, g20+g17). Let's verify: g22-g17 = g11+g14-g17 = g11+g13*(7/8-3/8) = g11+g13/2 = g25+g13/8
-  //   Hmm, g25 = g11+g17 = g11+g13*3/8. g11+g13/2 = g11+g13*4/8. That's not g25, it's g25 + g13/8.
-  //   Actually let me just compute: g11+g13/2. g13/2 is not one of the named guides.
-  //   OK, the spec says after this arc: lnTo (g25, g10). So endpoint.x must be something, then line to g25.
-  //   endpoint.x = g22-g17 = g11+g14-g17 = g11+g13*7/8-g13*3/8 = g11+g13*4/8 = g11+g13/2.
-  //   Then lnTo (g25, g10) where g25 = g11+g13*3/8.
-  //   endpointY = g20+g17 = g10. So endpoint = (g11+g13/2, g10).
-  //   Line from there to (g25, g10) is horizontal. Makes sense.
+  //   center = (g22-g17, g20), endpoint = (g22-g17, g20+g17) = (g11+g13/2, g10),
+  //   then a horizontal lnTo (g25, g10).
   // Arc B: from (g25, g10), wR=g17 hR=g17 stAng=90° swAng=90°
   //   center = (g25, g10-g17), endAng=180°
   //   endX = g25+g17*cos(180°) = g25-g17 = g11+g17-g17 = g11
@@ -4600,15 +4565,11 @@ multiPathPresets.set('actionButtonReturn', (w, h) => {
   // Arc C: from (g26, g20), wR=g27 hR=g27 stAng=180° swAng=-90°
   //   center = (g26+g27, g20) = (g26+g27, g20). g26+g27 = g11+g18+g13/8 = g11+g13/4+g13/8 = g11+g13*3/8 = g25
   //   endAng = 180-90 = 90°. endX = g25+g27*cos(90°) = g25. endY = g20+g27*sin(90°) = g20+g27 = g19.
-  //   endpoint = (g25, g19). Hmm, but spec says lnTo(hc, g19) after this arc.
-  //   Wait: lnTo before spec says `<lnTo><pt x="hc" y="g19"/></lnTo>`. So endpoint is (g25, g19), then line to (hc, g19).
-  //   Hmm actually spec says: `<lnTo><pt x="hc" y="g19" /></lnTo>`.
-  //   Wait no: `L(hc, g19)` in the spec.
+  //   endpoint = (g25, g19), then lnTo (hc, g19).
   // Arc D: from (hc, g19), wR=g27 hR=g27 stAng=90° swAng=-90°
   //   center = (hc, g19-g27), endAng = 0°.
   //   endX = hc+g27*cos(0°) = hc+g27. g19-g27 = g20. endY = g20+g27*sin(0°) = g20.
-  //   endpoint = (hc+g27, g20). Hmm, but g24 = g11+g16 = g11+g13*5/8.
-  //   hc+g27 = g11+g13/2+g13/8 = g11+g13*5/8 = g24. So endpoint = (g24, g20).
+  //   hc+g27 = g11+g13*5/8 = g24, so endpoint = (g24, g20).
   //   Then lnTo (g24, g21). Then lnTo (hc, g21). Then lnTo (g23, g9). Close.
 
   const outline = [
@@ -5576,7 +5537,7 @@ multiPathPresets.set('accentcallout3', (w, h, adjustments) => {
   ]
 })
 
-// --- callout1/2/3: filled rect (no stroke) + callout line segments ---
+// callout1/2/3: filled rect (no stroke) + callout line segments
 multiPathPresets.set('callout1', (w, h, adjustments) => {
   const y1 = (h * (adjustments?.get('adj1') ?? 18750)) / 100000
   const x1 = (w * (adjustments?.get('adj2') ?? -8333)) / 100000
@@ -5616,7 +5577,7 @@ multiPathPresets.set('callout3', (w, h, adjustments) => {
   ]
 })
 
-// --- borderCallout2/3: filled+stroked rect + callout line segments ---
+// borderCallout2/3: filled+stroked rect + callout line segments
 multiPathPresets.set('bordercallout2', (w, h, adjustments) => {
   const y1 = (h * (adjustments?.get('adj1') ?? 18750)) / 100000
   const x1 = (w * (adjustments?.get('adj2') ?? -8333)) / 100000
@@ -5645,7 +5606,7 @@ multiPathPresets.set('bordercallout3', (w, h, adjustments) => {
   ]
 })
 
-// --- accentBorderCallout1/2/3: filled+stroked rect + accent bar + callout line ---
+// accentBorderCallout1/2/3: filled+stroked rect + accent bar + callout line
 multiPathPresets.set('accentbordercallout1', (w, h, adjustments) => {
   const y1 = (h * (adjustments?.get('adj1') ?? 18750)) / 100000
   const x1 = (w * (adjustments?.get('adj2') ?? -8333)) / 100000
@@ -5744,7 +5705,7 @@ function ooArcTo(
   return { svg: `A${wR},${hR} 0 ${largeArc},${sweepFlag} ${ex},${ey}`, x: ex, y: ey }
 }
 
-// --- ribbon (OOXML spec: 3 paths with arcTo, adj1=16667, adj2=50000) ---
+// ribbon (OOXML spec: 3 paths with arcTo, adj1=16667, adj2=50000)
 // Ribbon with tails at top, front panel at bottom. Three paths: body, darkenLess folds, outline.
 multiPathPresets.set('ribbon', (w, h, adjustments) => {
   const adj1Raw = adjustments?.get('adj1') ?? 16667
@@ -5938,7 +5899,7 @@ multiPathPresets.set('ribbon', (w, h, adjustments) => {
   ]
 })
 
-// --- ribbon2 (OOXML spec: 3 paths, inverted ribbon with tails at bottom) ---
+// ribbon2 (OOXML spec: 3 paths, inverted ribbon with tails at bottom)
 multiPathPresets.set('ribbon2', (w, h, adjustments) => {
   const adj1Raw = adjustments?.get('adj1') ?? 16667
   const adj2Raw = adjustments?.get('adj2') ?? 50000
@@ -6129,7 +6090,7 @@ multiPathPresets.set('ribbon2', (w, h, adjustments) => {
   ]
 })
 
-// --- horizontalScroll (OOXML spec: 3 paths with arcTo) ---
+// horizontalScroll (OOXML spec: 3 paths with arcTo)
 multiPathPresets.set('horizontalscroll', (w, h, adjustments) => {
   const adjVal = adjustments?.get('adj') ?? 12500
   const a = Math.min(Math.max(adjVal, 0), 25000)
@@ -6159,11 +6120,7 @@ multiPathPresets.set('horizontalscroll', (w, h, adjustments) => {
   p1.push(arc.svg)
   cx = arc.x
   cy = arc.y
-  // lnTo (x4, ch2) — but after the arc we should be at (x4, 0)… wait
-  // Actually: arcTo from (w, ch2) with stAng=0 swAng=90° → center=(w-ch2, ch2), end=(w-ch2, 0)=x4,0
-  // Then lnTo (x4, ch2)... hmm, this goes from top-right curl area
-  // Let me re-read: lnTo pt x="x4" y="ch2"... that doesn't match. Wait, the lnTo goes DOWN.
-  // After arc: we're at (x4, 0). lnTo (x4, ch2):
+  // The arc ends at (x4, ch): center (x4, ch2), swept 90° from stAng=0. lnTo back up to (x4, ch2).
   p1.push(`L${x4},${ch2}`)
   // arcTo wR=ch4 hR=ch4 stAng=0 swAng=cd2(180°)
   arc = ooArcTo(x4, ch2, ch4, ch4, 0, 180)
@@ -6314,7 +6271,7 @@ multiPathPresets.set('horizontalscroll', (w, h, adjustments) => {
   ]
 })
 
-// --- verticalScroll (OOXML spec: 3 paths with arcTo) ---
+// verticalScroll (OOXML spec: 3 paths with arcTo)
 multiPathPresets.set('verticalscroll', (w, h, adjustments) => {
   const adjVal = adjustments?.get('adj') ?? 12500
   const a = Math.min(Math.max(adjVal, 0), 25000)
@@ -6502,6 +6459,10 @@ export function getMultiPathPreset(
   return gen ? gen(w, h, adjustments) : null
 }
 
+/**
+ * Get the SVG path for a preset shape, falling back to a simple rectangle
+ * if the shape type is not implemented.
+ */
 export function getPresetShapePath(
   shapeType: string,
   w: number,
@@ -6516,7 +6477,6 @@ export function getPresetShapePath(
   if (generator) {
     return generator(w, h, adjustments)
   }
-  // Fallback: simple rectangle
   logger.warn('Unknown preset shape, falling back to rectangle', { shapeType })
   return `M0,0 L${w},0 L${w},${h} L0,${h} Z`
 }

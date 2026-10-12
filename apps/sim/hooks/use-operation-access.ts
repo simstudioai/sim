@@ -1,6 +1,9 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
+import type { RefetchOptions } from '@tanstack/react-query'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { resolveAgentDefaultModel } from '@/lib/permission-groups/model-access'
 import {
   collectDeniedOperationIds,
   isOperationAllowed,
@@ -11,9 +14,14 @@ import {
   pickDefaultOperation,
   type SeedValueGate,
 } from '@/lib/permission-groups/operation-access'
+import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 export interface OperationAccess {
+  agentDefaultModel: string | null
+  isAgentDefaultReady: boolean
+  refetchModelSettings: (options?: RefetchOptions) => Promise<void>
   /**
    * Whether the permission config is still loading. Every list this module
    * filters reads as unrestricted until it resolves, so a surface that
@@ -71,11 +79,43 @@ export interface OperationAccess {
  * canvas search, block creation — agrees.
  */
 export function useOperationAccess(): OperationAccess {
-  const { isToolAllowed, isModelUsable, isLoading } = usePermissionConfig()
+  const { hosted } = useDeploymentShape()
+  const {
+    config,
+    isToolAllowed,
+    isModelUsable,
+    isLoading,
+    isPermissionFetching,
+    isPermissionReady,
+    refetchPermissionConfig,
+  } = usePermissionConfig()
+  const blacklistedProviders = useBlacklistedProviders()
+  const refetchModelSettings = useCallback(
+    async (options?: RefetchOptions) => {
+      await Promise.all([refetchPermissionConfig(options), blacklistedProviders.refetch(options)])
+    },
+    [refetchPermissionConfig, blacklistedProviders.refetch]
+  )
 
   return useMemo(() => {
     const isReady = !isLoading
+    const isAgentDefaultReady =
+      isReady &&
+      isPermissionReady &&
+      !isPermissionFetching &&
+      (!config.defaultAgentModel || blacklistedProviders.isSuccess)
     return {
+      isAgentDefaultReady,
+      refetchModelSettings,
+      agentDefaultModel:
+        isAgentDefaultReady && blacklistedProviders.isSuccess
+          ? resolveAgentDefaultModel(config, {
+              allowAuto: hosted,
+              availableProviderIds: Object.keys(PROVIDER_DEFINITIONS).filter(
+                (provider) => !blacklistedProviders.data.blacklistedProviders.includes(provider)
+              ),
+            })
+          : null,
       isPermissionLoading: isLoading,
       getDeniedOperations: (block, operationIds) =>
         isReady
@@ -95,5 +135,16 @@ export function useOperationAccess(): OperationAccess {
           : isModelUsable(value)
       },
     }
-  }, [isToolAllowed, isModelUsable, isLoading])
+  }, [
+    config,
+    isToolAllowed,
+    isModelUsable,
+    isLoading,
+    isPermissionFetching,
+    isPermissionReady,
+    refetchModelSettings,
+    hosted,
+    blacklistedProviders.isSuccess,
+    blacklistedProviders.data,
+  ])
 }

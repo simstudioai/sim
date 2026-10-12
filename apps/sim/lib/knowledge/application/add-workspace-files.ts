@@ -1,11 +1,11 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-secret-provenance-telemetry'
+import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
 import { PROVENANCE_MAX_ENTRIES } from '@/lib/execution/provenance-limits'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
@@ -81,6 +81,7 @@ interface AddWorkspaceFilesContext extends ActiveKnowledgeBaseContext {
 interface PreparedWorkspaceFile {
   reference: string
   file: WorkspaceFileRecord
+  unrecordedProvenance: boolean
 }
 
 async function prepareWorkspaceFile(
@@ -110,7 +111,7 @@ async function prepareWorkspaceFile(
   const fileTypeError = validateFileType(file.name, file.type)
   if (fileTypeError) throw new OrchestrationError('validation', fileTypeError.message)
 
-  await assertImportProvenance(context.workspaceId, {
+  const unrecordedProvenance = await assertImportProvenance(context.workspaceId, {
     fileId: file.id,
     key: file.key,
     context: file.storageContext ?? 'workspace',
@@ -120,26 +121,25 @@ async function prepareWorkspaceFile(
   return {
     reference,
     file,
+    unrecordedProvenance,
   }
 }
 
 async function assertImportProvenance(
   workspaceId: string,
   identity: WorkspaceFileSecretProvenanceIdentity
-): Promise<void> {
+): Promise<boolean> {
   const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, identity)
-  if (provenance.status !== 'exact' || provenance.entries.length > 0) {
-    reportDurableSecretProvenanceRefusal({
-      surface: 'knowledge',
-      cause: 'knowledge-workspace-file-source-unavailable',
-      workspaceId,
-      resourceId: identity.fileId,
-    })
+  if (
+    provenance.status === 'unknown' ||
+    (provenance.status === 'exact' && provenance.entries.length > 0)
+  ) {
     throw new OrchestrationError(
       'validation',
       'Workspace file secret provenance prevents knowledge ingestion'
     )
   }
+  return provenance.status === 'unrecorded'
 }
 
 export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase({
@@ -220,6 +220,8 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
       try {
         const requestId = generateRequestId()
         const current = await prepareWorkspaceFile(principal, context, candidate.file.id, 'id')
+        const unrecordedSources = new Set<string>()
+        if (current.unrecordedProvenance) unrecordedSources.add(current.file.id)
         const readSignal = AbortSignal.timeout(SOURCE_READ_TIMEOUT_MS)
         const signal = input.cancellationSignal
           ? AbortSignal.any([readSignal, input.cancellationSignal])
@@ -242,7 +244,9 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
         }
         for (const identity of contributors) {
           signal.throwIfAborted()
-          await assertImportProvenance(context.workspaceId, identity)
+          if (await assertImportProvenance(context.workspaceId, identity)) {
+            unrecordedSources.add(identity.fileId)
+          }
         }
         const documentId = generateId()
         const storedFile = await uploadKnowledgeArtifact({
@@ -270,6 +274,7 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
         ) {
           throw new OrchestrationError('conflict', 'Workspace file changed during knowledge import')
         }
+        if (finalized.unrecordedProvenance) unrecordedSources.add(finalized.file.id)
         input.cancellationSignal?.throwIfAborted()
         const document = await createSingleDocument(
           {
@@ -293,6 +298,14 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
             processing: { processingOptions: {}, billingAttribution },
           }
         )
+        if (unrecordedSources.size > 0) {
+          reportDurableSecretProvenanceUnrecorded({
+            surface: 'workspace-file',
+            workspaceId: context.workspaceId,
+            actorUserId: resolvePrincipalAuditAttribution(principal).actorId ?? undefined,
+            recordCount: unrecordedSources.size,
+          })
+        }
         added.push({
           documentId: document.id,
           filename: document.filename,

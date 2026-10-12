@@ -27,10 +27,9 @@ vi.mock('@/lib/billing', () => ({
   updateUserUsageLimit: hoisted.userUpdate,
 }))
 vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
-vi.mock(
-  '@/lib/billing/application/organization-billing-summary/get-organization-billing-summary',
-  () => ({ getOrganizationBillingSummary: { execute: hoisted.summary } })
-)
+vi.mock('@/lib/billing/application/organization-billing/get-organization-billing-summary', () => ({
+  getOrganizationBillingSummary: { execute: hoisted.summary },
+}))
 vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
 vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)

@@ -2,7 +2,6 @@ import { AsanaIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { AsanaResponse } from '@/tools/asana/types'
 
 const WORKSPACE_FIELD = ['workspaceSelector', 'workspace'] as const
 const GET_TASKS_WORKSPACE_FIELD = ['getTasksWorkspaceSelector', 'getTasks_workspace'] as const
@@ -11,7 +10,7 @@ const CREATE_PROJECT_WORKSPACE_FIELD = [
   'createProject_workspace',
 ] as const
 
-export const AsanaBlock: BlockConfig<AsanaResponse> = {
+export const AsanaBlock: BlockConfig = {
   type: 'asana',
   name: 'Asana',
   description: 'Interact with Asana',

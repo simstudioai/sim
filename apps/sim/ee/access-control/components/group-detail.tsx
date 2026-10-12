@@ -30,7 +30,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
 import {
   isFeatureInertForGroup,
@@ -39,7 +41,7 @@ import {
   PLATFORM_FEATURES,
 } from '@/lib/permission-groups/features'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { resolveAgentDefaultModel } from '@/lib/permission-groups/model-access'
 import {
   groupSearchParam,
   groupSearchUrlKeys,
@@ -50,14 +52,18 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { MemberRow } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { getAllBlocks } from '@/blocks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { BlockConfig } from '@/blocks/types'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { AgentDefault } from '@/ee/access-control/components/agent-default'
+import { ProjectIssueRestrictions } from '@/ee/access-control/components/project-issue-restrictions'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {
   type PermissionGroup,
@@ -715,6 +721,7 @@ export function GroupDetail({
   onBack,
   onDeleted,
 }: GroupDetailProps) {
+  const { hosted } = useDeploymentShape()
   const updatePermissionGroup = useUpdatePermissionGroup()
   const deletePermissionGroup = useDeletePermissionGroup()
   const removeMember = useRemovePermissionGroupMember()
@@ -775,7 +782,7 @@ export function GroupDetail({
     viewingGroup.id
   )
   const { data: roster } = useOrganizationRoster(organizationId)
-  const { data: blacklistedProvidersData } = useBlacklistedProviders({ enabled: true })
+  const blacklistedProviders = useBlacklistedProviders()
 
   // Recompute when custom (deploy-as-block) blocks or the viewer's block
   // visibility hydrate into the overlay.
@@ -815,11 +822,16 @@ export function GroupDetail({
   const visibleBlocks = useMemo(() => allBlocks.filter((b) => !b.hideFromToolbar), [allBlocks])
 
   const allProviderIds = useMemo(() => {
-    const allIds = getAllProviderIds()
-    const blacklist = blacklistedProvidersData?.blacklistedProviders ?? []
-    if (blacklist.length === 0) return allIds
-    return allIds.filter((id) => !blacklist.includes(id.toLowerCase()))
-  }, [blacklistedProvidersData])
+    if (!blacklistedProviders.isSuccess) return []
+    const blacklist = blacklistedProviders.data.blacklistedProviders
+    return getAllProviderIds().filter((id) => !blacklist.includes(id.toLowerCase()))
+  }, [blacklistedProviders.data, blacklistedProviders.isSuccess])
+  const isAgentDefaultValid =
+    !editingConfig.defaultAgentModel ||
+    !!resolveAgentDefaultModel(editingConfig, {
+      allowAuto: hosted,
+      availableProviderIds: allProviderIds,
+    })
 
   /** Maps every tool id to ALL block types that expose it (some tools are shared across blocks). */
   const toolBlockTypes = useMemo(() => {
@@ -870,9 +882,19 @@ export function GroupDetail({
     }))
   }, [platformCategories])
 
-  const hasConfigChanges = useMemo(() => {
-    return JSON.stringify(viewingGroup.config) !== JSON.stringify(editingConfig)
-  }, [viewingGroup.config, editingConfig])
+  const hasConfigChanges = (Object.keys(editingConfig) as (keyof PermissionGroupConfig)[]).some(
+    (key) => {
+      const saved = viewingGroup.config[key]
+      const edited = editingConfig[key]
+      if (!Array.isArray(saved) || !Array.isArray(edited)) return saved !== edited
+      const savedMembers = new Set(saved)
+      const editedMembers = new Set(edited)
+      return (
+        savedMembers.size !== editedMembers.size ||
+        [...savedMembers].some((member) => !editedMembers.has(member))
+      )
+    }
+  )
 
   // Both buffers are seeded trimmed and compared against a trimmed baseline. The
   // contract trims name and description on write, but a row stored before those
@@ -885,7 +907,11 @@ export function GroupDetail({
   const descriptionChanged = trimmedDescription !== (viewingGroup.description ?? '').trim()
   const hasChanges = hasConfigChanges || nameChanged || descriptionChanged
 
-  const guard = useSettingsUnsavedGuard({ isDirty: hasChanges })
+  const guard = useSettingsUnsavedGuard({
+    isDirty: hasChanges,
+    navigationBlocked: updatePermissionGroup.isPending || deletePermissionGroup.isPending,
+    onDiscard: () => handleDiscardConfig(),
+  })
 
   const allBlockTypes = useMemo(() => allBlocks.map((b) => b.type), [allBlocks])
 
@@ -1263,7 +1289,7 @@ export function GroupDetail({
 
   /** Persists the editing buffer — name/description are only sent when they changed. */
   const handleSaveConfig = async () => {
-    if (!trimmedName) return
+    if (!trimmedName || !isAgentDefaultValid) return
     try {
       const result = await updatePermissionGroup.mutateAsync({
         id: viewingGroup.id,
@@ -1461,7 +1487,7 @@ export function GroupDetail({
             saving: updatePermissionGroup.isPending,
             onSave: handleSaveConfig,
             onDiscard: handleDiscardConfig,
-            saveDisabled: !trimmedName,
+            saveDisabled: !trimmedName || !isAgentDefaultValid,
           }),
           {
             id: 'delete',
@@ -1616,50 +1642,71 @@ export function GroupDetail({
           </>
         )}
 
-        {configTab === 'providers' && (
-          <div className='flex flex-col gap-7'>
-            <div className='flex items-center gap-2'>
-              <ChipInput
-                icon={Search}
-                placeholder='Search providers...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='min-w-0 flex-1'
+        {configTab === 'providers' &&
+          (blacklistedProviders.isError ? (
+            <SettingsQueryErrorState
+              error={blacklistedProviders.error}
+              fallback='Could not load provider availability'
+              isRetrying={blacklistedProviders.isFetching}
+              onRetry={() => void blacklistedProviders.refetch()}
+              variant='inline'
+            />
+          ) : !blacklistedProviders.isSuccess ? (
+            <SettingsEmptyState variant='inline'>Loading providers</SettingsEmptyState>
+          ) : (
+            <div className='flex flex-col gap-7'>
+              <AgentDefault
+                config={editingConfig}
+                providerIds={allProviderIds}
+                workspaceId={workspaceId}
+                onChange={(defaultAgentModel) =>
+                  setEditingConfig((prev) => ({ ...prev, defaultAgentModel }))
+                }
               />
-              <StatusFilterChip
-                value={statusFilter}
-                onChange={(next) => void setStatusFilter(next)}
-              />
-              <Chip
-                onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
-                disabled={filteredProviders.length === 0}
-              >
-                {filteredProvidersAllAllowed ? 'Deselect All' : 'Select All'}
-              </Chip>
-            </div>
-            {filteredProviders.length === 0 ? (
-              <SettingsEmptyState variant='inline'>
-                No providers match your filters.
-              </SettingsEmptyState>
-            ) : (
-              <div className='flex flex-col gap-0.5'>
-                {filteredProviders.map((providerId) => (
-                  <ProviderRow
-                    key={providerId}
-                    providerId={providerId}
-                    isProviderAllowed={isProviderAllowed(providerId)}
-                    onToggleProvider={() => toggleProvider(providerId)}
-                    deniedCount={deniedCountByProvider[providerId] ?? 0}
-                    workspaceId={workspaceId}
-                    isAllowed={isModelAllowed}
-                    onToggle={toggleModel}
-                    onSetDenied={setModelsDenied}
-                  />
-                ))}
+              <div className='flex items-center gap-2'>
+                <ChipInput
+                  icon={Search}
+                  placeholder='Search providers...'
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className='min-w-0 flex-1'
+                />
+                <StatusFilterChip
+                  value={statusFilter}
+                  onChange={(next) => void setStatusFilter(next)}
+                />
+                <Chip
+                  onClick={() =>
+                    setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)
+                  }
+                  disabled={filteredProviders.length === 0}
+                >
+                  {filteredProvidersAllAllowed ? 'Deselect All' : 'Select All'}
+                </Chip>
               </div>
-            )}
-          </div>
-        )}
+              {filteredProviders.length === 0 ? (
+                <SettingsEmptyState variant='inline'>
+                  No providers match your filters.
+                </SettingsEmptyState>
+              ) : (
+                <div className='flex flex-col gap-0.5'>
+                  {filteredProviders.map((providerId) => (
+                    <ProviderRow
+                      key={providerId}
+                      providerId={providerId}
+                      isProviderAllowed={isProviderAllowed(providerId)}
+                      onToggleProvider={() => toggleProvider(providerId)}
+                      deniedCount={deniedCountByProvider[providerId] ?? 0}
+                      workspaceId={workspaceId}
+                      isAllowed={isModelAllowed}
+                      onToggle={toggleModel}
+                      onSetDenied={setModelsDenied}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
 
         {configTab === 'blocks' && (
           <div className='flex flex-col gap-7'>
@@ -1845,6 +1892,16 @@ export function GroupDetail({
                 </div>
               </SettingsSection>
             ))}
+            <ProjectIssueRestrictions
+              organizationId={organizationId}
+              value={editingConfig.deniedPartialAccessProjectIssues}
+              onChange={(value) =>
+                setEditingConfig((previous) => ({
+                  ...previous,
+                  deniedPartialAccessProjectIssues: value,
+                }))
+              }
+            />
           </div>
         )}
       </SettingsPanel>
@@ -1881,12 +1938,6 @@ export function GroupDetail({
           pending: deletePermissionGroup.isPending,
           pendingLabel: 'Deleting...',
         }}
-      />
-
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
       />
     </>
   )

@@ -2,7 +2,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { CalendlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -25,7 +24,7 @@ function parseJsonArray(value: unknown, field: string): unknown {
   }
 }
 
-export const CalendlyBlock: BlockConfig<ToolResponse> = {
+export const CalendlyBlock: BlockConfig = {
   type: 'calendly',
   name: 'Calendly',
   description: 'Manage Calendly scheduling and events',

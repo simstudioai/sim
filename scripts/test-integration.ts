@@ -11,6 +11,7 @@ import { generateId } from '@sim/utils/id'
  * Creates and removes its own Postgres and Redis containers, provisions the schema the way CI does,
  * and runs `vitest run --mode integration` in `packages/db` and `apps/sim` with `TEST_DATABASE_URL`
  * and `TEST_REDIS_URL`; it never reads an application DSN.
+ * Set INTEGRATION_DB_PROVISION=migrate to exercise the versioned SQL migration path.
  * Set KNOWLEDGE_SCALE_TEST=true for the opt-in scale suite; its JSON report is saved in tmpdir.
  * Optional positional `apps/sim` Vitest filename filters limit a diagnostic run (and skip
  * `packages/db`); omit them for full validation.
@@ -20,6 +21,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const container = `sim-integration-test-${generateId()}`
 const redisContainer = `${container}-redis`
 const database = 'sim_test'
+const provision = process.env.INTEGRATION_DB_PROVISION ?? 'push'
+if (provision !== 'push' && provision !== 'migrate')
+  throw new Error('INTEGRATION_DB_PROVISION must be push or migrate')
 const scale = process.env.KNOWLEDGE_SCALE_TEST === 'true'
 const searchPerformance = process.env.KNOWLEDGE_SEARCH_PERFORMANCE_TEST === 'true'
 const testFilters = process.argv.slice(2)
@@ -158,12 +162,12 @@ try {
     TEST_REDIS_URL: `redis://${redisEndpoint}`,
     ...(scale ? { KNOWLEDGE_SCALE_REPORT_FILE: scaleReportFile } : {}),
   }
-  run('bun', ['run', 'db:push'], { cwd: path.join(root, 'packages/db'), env: environment })
+  run('bun', ['run', `db:${provision}`], { cwd: path.join(root, 'packages/db'), env: environment })
   run(
-    'bunx',
+    'bun',
     [
-      'vitest',
       'run',
+      'test',
       '--mode',
       'integration',
       ...(scale ? ['lib/knowledge/__integration__/scale.integration.ts'] : testFilters),
@@ -174,7 +178,7 @@ try {
     }
   )
   if (!scale && testFilters.length === 0) {
-    run('bunx', ['vitest', 'run', '--mode', 'integration'], {
+    run('bun', ['run', 'test', '--mode', 'integration'], {
       cwd: path.join(root, 'packages/db'),
       env: environment,
     })

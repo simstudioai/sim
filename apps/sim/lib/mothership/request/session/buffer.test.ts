@@ -72,8 +72,8 @@ const createRedisStub = () => {
       const numKeys = Number(args[1])
       const keys = args.slice(2, 2 + numKeys) as string[]
       const argv = args.slice(2 + numKeys) as Array<string | number>
-      const leased = String(args[0]).includes("if redis.call('GET', KEYS[3]) ~= ARGV[7]")
-      if (leased && values.get(keys[2]) !== argv[6]) return Promise.resolve([-1])
+      const leased = String(args[0]).includes("if redis.call('GET', KEYS[3]) ~= ARGV[8]")
+      if (leased && values.get(keys[2]) !== argv[7]) return Promise.resolve([-1])
 
       if (api.budgetRefusal) return Promise.resolve(api.budgetRefusal)
 
@@ -81,7 +81,7 @@ const createRedisStub = () => {
       const eventLimit = Number(argv[1])
       const lastSeq = String(argv[5])
       const entries = sortedSets.get(eventsKey) ?? []
-      for (let i = leased ? 7 : 6; i < argv.length; i += 2) {
+      for (let i = leased ? 8 : 7; i < argv.length; i += 2) {
         const score = Number(argv[i])
         const value = String(argv[i + 1])
         if (!entries.some((entry) => entry.value === value)) entries.push({ score, value })
@@ -239,7 +239,7 @@ describe('mothership-stream-outbox', () => {
     expect(eventsKey).toBe('mothership_stream:stream-1:events')
     expect(seqKey).toBe('mothership_stream:stream-1:seq')
     expect(ownerKey).toBe('execution:redis-budget:copilot_stream:stream-1')
-    // ARGV: [ttl, eventLimit, ownerLimit, userLimit, budgetTtl, lastSeq, ...zaddArgs]
+    // ARGV: [ttl, eventLimit, ownerLimit, userLimit, budgetTtl, lastSeq, retainedBytes, ...zaddArgs]
     expect(argv[1]).toBe(100_000)
   })
 

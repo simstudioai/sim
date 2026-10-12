@@ -449,4 +449,23 @@ Delete a file (or folder) from a SharePoint document library
 | `deleted` | boolean | Whether the file was deleted |
 | `itemId` | string | The ID of the deleted file |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a SharePoint account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/sharepoint` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `Sites.Read.All` | Read documents and list items in all SharePoint sites |
+| `Sites.ReadWrite.All` | Create, edit, and delete documents and list items in all SharePoint sites |
+| `Sites.Manage.All` | Create and delete lists and document libraries in all SharePoint sites |
+| `offline_access` | Access account when not using the application |
+
 

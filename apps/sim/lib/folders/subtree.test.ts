@@ -5,7 +5,6 @@ import {
   collectFolderDepths,
   type FolderNode,
   indexFolderChildren,
-  selectFolderSubtreeRows,
 } from '@/lib/folders/subtree'
 
 const tree: FolderNode[] = [
@@ -96,13 +95,5 @@ describe('collectFolderDepths', () => {
     const withCycle: FolderNode[] = [...cyclic, { id: 'a', parentId: 'b' }]
 
     expect(() => collectFolderDepths(withCycle, 'root')).not.toThrow()
-  })
-})
-
-describe('selectFolderSubtreeRows', () => {
-  it('derives depth from the full tree, so a filtered row set cannot orphan descendants', () => {
-    const rows = [{ id: 'draft' }]
-
-    expect(selectFolderSubtreeRows(rows, depthTree, 'reports')).toEqual([{ id: 'draft' }])
   })
 })

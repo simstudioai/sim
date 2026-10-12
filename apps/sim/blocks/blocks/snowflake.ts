@@ -2,7 +2,6 @@ import { SnowflakeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalJsonInput, parseOptionalNumberInput } from '@/blocks/utils'
-import type { SnowflakeStatementResponse } from '@/tools/snowflake/types'
 import { SNOWFLAKE_WAREHOUSE_SIZES } from '@/tools/snowflake/types'
 
 const sqlSubmissionOperations = [
@@ -238,7 +237,7 @@ function resolveCopyOnError(value: unknown, threshold: unknown): string | undefi
   return `SKIP_FILE_${number}${value === 'SKIP_FILE_PERCENT' ? '%' : ''}`
 }
 
-export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
+export const SnowflakeBlock: BlockConfig = {
   type: 'snowflake',
   name: 'Snowflake',
   description: 'Query data, ask Cortex Analyst, and manage warehouses and tasks in Snowflake',

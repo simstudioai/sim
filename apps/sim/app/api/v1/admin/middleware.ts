@@ -1,6 +1,6 @@
 import type { NextRequest, NextResponse } from 'next/server'
 import { authenticateAdminRequest } from '@/app/api/v1/admin/auth'
-import { notConfiguredResponse, unauthorizedResponse } from '@/app/api/v1/admin/responses'
+import { adminNotConfiguredResponse, adminUnauthorizedResponse } from '@/app/api/v1/admin/responses'
 
 export type AdminRouteHandler = (request: NextRequest) => Promise<NextResponse>
 
@@ -19,9 +19,9 @@ export function withAdminAuth(handler: AdminRouteHandler): AdminRouteHandler {
 
     if (!auth.authenticated) {
       if (auth.notConfigured) {
-        return notConfiguredResponse()
+        return adminNotConfiguredResponse()
       }
-      return unauthorizedResponse(auth.error)
+      return adminUnauthorizedResponse(auth.error)
     }
 
     return handler(request)
@@ -40,9 +40,9 @@ export function withAdminAuthParams<TParams>(
 
     if (!auth.authenticated) {
       if (auth.notConfigured) {
-        return notConfiguredResponse()
+        return adminNotConfiguredResponse()
       }
-      return unauthorizedResponse(auth.error)
+      return adminUnauthorizedResponse(auth.error)
     }
 
     return handler(request, context)

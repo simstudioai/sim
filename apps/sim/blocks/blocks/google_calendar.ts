@@ -3,13 +3,12 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
-import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'
 import { getTrigger } from '@/triggers'
 
 const CALENDAR_FIELD = ['calendarId', 'manualCalendarId'] as const
 const DESTINATION_CALENDAR_FIELD = ['destinationCalendar', 'manualDestinationCalendarId'] as const
 
-export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
+export const GoogleCalendarBlock: BlockConfig = {
   type: 'google_calendar',
   name: 'Google Calendar (Legacy)',
   description: 'Manage Google Calendar events',
@@ -1064,7 +1063,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   },
 }
 
-export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
+export const GoogleCalendarV2Block: BlockConfig = {
   ...GoogleCalendarBlock,
   sunset: undefined,
   type: 'google_calendar_v2',

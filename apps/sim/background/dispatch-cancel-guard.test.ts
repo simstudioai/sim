@@ -57,8 +57,7 @@ import { runRowCascadeLoop } from '@/background/workflow-column-execution'
 
 const { mockGetRowById } = tableRowsServiceMockFns
 const { mockExecuteWorkflow } = executeWorkflowMockFns
-const { mockPickNextEligibleGroupForRow, mockStashCellContextForResume } =
-  tableWorkflowColumnsMockFns
+const { mockPickNextEligibleGroupForRow } = tableWorkflowColumnsMockFns
 
 const mockGetTableById = tableServiceMockFns.mockGetTableById
 const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState

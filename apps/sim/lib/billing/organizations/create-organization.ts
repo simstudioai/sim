@@ -3,7 +3,7 @@ import { member, organization } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne } from 'drizzle-orm'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 
 const ORGANIZATION_SLUG_REGEX = /^[a-z0-9-_]+$/
 
@@ -80,7 +80,7 @@ export async function createOrganizationWithOwner(
  * check and the insert across two transactions allows duplicate slugs.
  */
 export async function createOrganizationWithOwnerTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   { ownerUserId, name, slug, metadata = {} }: CreateOrganizationWithOwnerParams
 ): Promise<CreateOrganizationWithOwnerResult> {
   validateOrganizationSlugOrThrow(slug)

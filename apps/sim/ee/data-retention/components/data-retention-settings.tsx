@@ -22,6 +22,7 @@ import { generateId } from '@sim/utils/id'
 import { CustomPatternsEditor } from '@/components/pii/custom-patterns-editor'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { UpdateOrganizationDataRetentionBody } from '@/lib/api/contracts/organization'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -42,7 +43,6 @@ import {
   sanitizeCustomPatterns,
   stripNerEntities,
 } from '@/lib/guardrails/pii-entities'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
@@ -50,7 +50,6 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import {
   type DataRetentionResponse,
   useOrganizationRetention,
@@ -523,131 +522,133 @@ function PolicyDetail({
             : []),
         ]}
       >
-        {!isOrg && (
-          <SettingsSection label='Workspaces'>
-            <div className='flex items-center justify-between gap-3'>
-              <span className='min-w-0 text-[var(--text-muted)] text-small'>
-                {draft.workspaceIds.length > 0
-                  ? `Overrides ${draft.workspaceIds.length} workspace${draft.workspaceIds.length === 1 ? '' : 's'}`
-                  : 'Select the workspaces this override applies to'}
-              </span>
-              <ChipDropdown
-                multiple
-                showAllOption={false}
-                allLabel='Select workspaces'
-                value={draft.workspaceIds}
-                onChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
-                options={workspaceOptions}
-                className='shrink-0'
-              />
-            </div>
-          </SettingsSection>
-        )}
-
-        <SettingsSection label='Retention'>
-          <div className='flex flex-col gap-3'>
-            <div className='flex items-center justify-between gap-3'>
-              <span className='text-[var(--text-muted)] text-small'>Log retention</span>
-              <RetentionSelect
-                allowInherit={!isOrg}
-                value={draft.logDays}
-                onChange={(logDays) => onChange({ ...draft, logDays })}
-              />
-            </div>
-            <div className='flex items-center justify-between gap-3'>
-              <span className='text-[var(--text-muted)] text-small'>Soft deletion cleanup</span>
-              <RetentionSelect
-                allowInherit={!isOrg}
-                value={draft.softDeleteDays}
-                onChange={(softDeleteDays) => onChange({ ...draft, softDeleteDays })}
-              />
-            </div>
-            <div className='flex items-center justify-between gap-3'>
-              <span className='text-[var(--text-muted)] text-small'>Task cleanup</span>
-              <RetentionSelect
-                allowInherit={!isOrg}
-                value={draft.taskCleanupDays}
-                onChange={(taskCleanupDays) => onChange({ ...draft, taskCleanupDays })}
-              />
-            </div>
-          </div>
-        </SettingsSection>
-
-        <SettingsSection
-          label='PII redaction'
-          action={
-            showPiiGrid ? (
-              <Chip
-                onClick={() =>
-                  onChange({
-                    ...draft,
-                    piiStages: {
-                      ...draft.piiStages,
-                      [activeStage]: {
-                        ...draft.piiStages[activeStage],
-                        entityTypes: [],
-                        // Clearing entity types leaves any custom patterns intact,
-                        // so the stage stays enabled while patterns remain.
-                        enabled: (draft.piiStages[activeStage].customPatterns?.length ?? 0) > 0,
-                      },
-                    },
-                  })
-                }
-                disabled={draft.piiStages[activeStage].entityTypes.length === 0}
-              >
-                Deselect all
-              </Chip>
-            ) : undefined
-          }
-        >
-          <div className='flex flex-col gap-4'>
-            {!isOrg && (
+        <fieldset disabled={isSaving} className='flex min-w-0 flex-col gap-7'>
+          {!isOrg && (
+            <SettingsSection label='Workspaces'>
               <div className='flex items-center justify-between gap-3'>
-                <span className='text-[var(--text-muted)] text-small'>
-                  Inherit the organization defaults or set workspace-specific redaction
+                <span className='min-w-0 text-[var(--text-muted)] text-small'>
+                  {draft.workspaceIds.length > 0
+                    ? `Overrides ${draft.workspaceIds.length} workspace${draft.workspaceIds.length === 1 ? '' : 's'}`
+                    : 'Select the workspaces this override applies to'}
                 </span>
-                <ChipSwitch
-                  value={draft.piiOverride ? 'override' : 'inherit'}
-                  onChange={(mode) => onChange({ ...draft, piiOverride: mode === 'override' })}
-                  aria-label='PII redaction override mode'
-                  options={[
-                    { value: 'inherit', label: 'Inherit' },
-                    { value: 'override', label: 'Override' },
-                  ]}
+                <ChipDropdown
+                  multiple
+                  showAllOption={false}
+                  allLabel='Select workspaces'
+                  value={draft.workspaceIds}
+                  onChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
+                  options={workspaceOptions}
+                  className='shrink-0'
                 />
               </div>
-            )}
-            {!isOrg && draft.piiOverride && (
-              <span className='text-[var(--text-muted)] text-caption'>
-                Overriding replaces all three redaction stages for this workspace.
-              </span>
-            )}
-            {showPiiGrid && (
-              <>
-                <ChipSwitch
-                  value={activeStage}
-                  onChange={setActiveStage}
-                  aria-label='Redaction stage'
-                  options={PII_STAGE_META.map((stage) => ({
-                    value: stage.key,
-                    label: stage.label,
-                  }))}
+            </SettingsSection>
+          )}
+
+          <SettingsSection label='Retention'>
+            <div className='flex flex-col gap-3'>
+              <div className='flex items-center justify-between gap-3'>
+                <span className='text-[var(--text-muted)] text-small'>Log retention</span>
+                <RetentionSelect
+                  allowInherit={!isOrg}
+                  value={draft.logDays}
+                  onChange={(logDays) => onChange({ ...draft, logDays })}
                 />
-                <PiiStagePanel
-                  stageKey={activeStage}
-                  description={activeStageMeta.description}
-                  value={draft.piiStages[activeStage]}
-                  onChange={(next) =>
+              </div>
+              <div className='flex items-center justify-between gap-3'>
+                <span className='text-[var(--text-muted)] text-small'>Soft deletion cleanup</span>
+                <RetentionSelect
+                  allowInherit={!isOrg}
+                  value={draft.softDeleteDays}
+                  onChange={(softDeleteDays) => onChange({ ...draft, softDeleteDays })}
+                />
+              </div>
+              <div className='flex items-center justify-between gap-3'>
+                <span className='text-[var(--text-muted)] text-small'>Task cleanup</span>
+                <RetentionSelect
+                  allowInherit={!isOrg}
+                  value={draft.taskCleanupDays}
+                  onChange={(taskCleanupDays) => onChange({ ...draft, taskCleanupDays })}
+                />
+              </div>
+            </div>
+          </SettingsSection>
+
+          <SettingsSection
+            label='PII redaction'
+            action={
+              showPiiGrid ? (
+                <Chip
+                  onClick={() =>
                     onChange({
                       ...draft,
-                      piiStages: { ...draft.piiStages, [activeStage]: next },
+                      piiStages: {
+                        ...draft.piiStages,
+                        [activeStage]: {
+                          ...draft.piiStages[activeStage],
+                          entityTypes: [],
+                          // Clearing entity types leaves any custom patterns intact,
+                          // so the stage stays enabled while patterns remain.
+                          enabled: (draft.piiStages[activeStage].customPatterns?.length ?? 0) > 0,
+                        },
+                      },
                     })
                   }
-                />
-              </>
-            )}
-          </div>
-        </SettingsSection>
+                  disabled={draft.piiStages[activeStage].entityTypes.length === 0}
+                >
+                  Deselect all
+                </Chip>
+              ) : undefined
+            }
+          >
+            <div className='flex flex-col gap-4'>
+              {!isOrg && (
+                <div className='flex items-center justify-between gap-3'>
+                  <span className='text-[var(--text-muted)] text-small'>
+                    Inherit the organization defaults or set workspace-specific redaction
+                  </span>
+                  <ChipSwitch
+                    value={draft.piiOverride ? 'override' : 'inherit'}
+                    onChange={(mode) => onChange({ ...draft, piiOverride: mode === 'override' })}
+                    aria-label='PII redaction override mode'
+                    options={[
+                      { value: 'inherit', label: 'Inherit' },
+                      { value: 'override', label: 'Override' },
+                    ]}
+                  />
+                </div>
+              )}
+              {!isOrg && draft.piiOverride && (
+                <span className='text-[var(--text-muted)] text-caption'>
+                  Overriding replaces all three redaction stages for this workspace.
+                </span>
+              )}
+              {showPiiGrid && (
+                <>
+                  <ChipSwitch
+                    value={activeStage}
+                    onChange={setActiveStage}
+                    aria-label='Redaction stage'
+                    options={PII_STAGE_META.map((stage) => ({
+                      value: stage.key,
+                      label: stage.label,
+                    }))}
+                  />
+                  <PiiStagePanel
+                    stageKey={activeStage}
+                    description={activeStageMeta.description}
+                    value={draft.piiStages[activeStage]}
+                    onChange={(next) =>
+                      onChange({
+                        ...draft,
+                        piiStages: { ...draft.piiStages, [activeStage]: next },
+                      })
+                    }
+                  />
+                </>
+              )}
+            </div>
+          </SettingsSection>
+        </fieldset>
       </SettingsPanel>
 
       <ChipConfirmModal
@@ -724,7 +725,11 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
   const editingChanged =
     editing !== null &&
     normalizePolicyDraft(editing.draft) !== normalizePolicyDraft(editing.original)
-  const guard = useSettingsUnsavedGuard({ isDirty: editingChanged })
+  const guard = useSettingsUnsavedGuard({
+    isDirty: editingChanged,
+    navigationBlocked: updateMutation.isPending,
+    onDiscard: handleDiscard,
+  })
 
   const overrideWorkspaceIds = Array.from(
     new Set([...overrides.map((o) => o.workspaceId), ...piiOverrides.map((p) => p.workspaceId)])
@@ -862,7 +867,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
   }
 
   async function savePolicy() {
-    if (!editing) return
+    if (!editing || updateMutation.isPending) return
     const draft = editing.draft
     try {
       if (draft.isOrgDefault) {
@@ -962,7 +967,9 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
           isSaving={updateMutation.isPending}
           canRemove={!editing.draft.isOrgDefault && !editing.isNew}
           workspaceOptions={workspacePickerOptions(editing.draft)}
-          onChange={(draft) => setEditing({ ...editing, draft })}
+          onChange={(draft) => {
+            if (!updateMutation.isPending) setEditing({ ...editing, draft })
+          }}
           onBack={() => guard.guardBack(closeEditing)}
           onDiscard={handleDiscard}
           onSave={savePolicy}
@@ -994,11 +1001,6 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
           </SettingsSection>
         </SettingsPanel>
       )}
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
-      />
     </>
   )
 }

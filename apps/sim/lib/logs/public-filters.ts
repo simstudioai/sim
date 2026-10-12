@@ -1,6 +1,6 @@
 import { jobExecutionLogs, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, eq, gte, inArray, lte, or, type SQL, sql } from 'drizzle-orm'
-import { escapeLikePattern } from '@/lib/api/list-query'
 import { handledErrorSpanCondition } from '@/lib/logs/handled-errors'
 import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
 
@@ -64,9 +64,10 @@ export function buildLogFilters(filters: LogFilters): SQL<unknown> {
 
   conditions.push(eq(workflowExecutionLogs.workspaceId, filters.workspaceId))
 
-  // Workflow IDs filter
+  // The log's own column, not the joined `workflow.id`: the FK nulls it on delete, so
+  // both select the same rows, but only this side reaches the log indexes.
   if (filters.workflowIds && filters.workflowIds.length > 0) {
-    conditions.push(inArray(workflow.id, filters.workflowIds))
+    conditions.push(inArray(workflowExecutionLogs.workflowId, filters.workflowIds))
   }
 
   // Folder IDs filter

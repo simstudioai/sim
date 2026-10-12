@@ -1,7 +1,6 @@
 import { PeopleDataLabsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { PdlPersonEnrichResponse } from '@/tools/pdl/types'
 
 /** Mutually exclusive person identifiers — first one supplied is the match key. */
 const PERSON_MATCH_FIELD = ['email', 'profile', 'phone', 'first_name'] as const
@@ -12,7 +11,7 @@ const COMPANY_CLEAN_FIELD = ['company_name', 'website', 'company_profile'] as co
 /** SQL and Elasticsearch DSL are alternate ways to express one search. */
 const SEARCH_QUERY_FIELD = ['sql', 'query'] as const
 
-export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
+export const PeopleDataLabsBlock: BlockConfig = {
   type: 'peopledatalabs',
   name: 'People Data Labs',
   description: 'Enrich and search people and companies',

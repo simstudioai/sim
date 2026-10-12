@@ -208,20 +208,6 @@ export interface ChunkData {
   updatedAt: string
 }
 
-interface ChunksPagination {
-  total: number
-  limit: number
-  offset: number
-  hasMore: boolean
-}
-
-interface DocumentsPagination {
-  total: number
-  limit: number
-  offset: number
-  hasMore: boolean
-}
-
 /** The member engine's states, as stored on `knowledge_connector.member_sync_status`. */
 export const MEMBER_SYNC_STATUSES = ['idle', 'pending', 'running', 'error', 'disabled'] as const
 export type MemberSyncStatus = (typeof MEMBER_SYNC_STATUSES)[number]

@@ -2,7 +2,6 @@ import { isRecordLike } from '@sim/utils/object'
 import { InstantlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { InstantlyResponse } from '@/tools/instantly/types'
 import { getTrigger } from '@/triggers'
 
 const LEAD_LIST_OPERATIONS = ['list_leads'] as const
@@ -56,7 +55,7 @@ const INSTANTLY_TRIGGER_IDS = [
   'instantly_supersearch_enrichment_completed',
 ] as const
 
-export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
+export const InstantlyBlock: BlockConfig = {
   type: 'instantly',
   name: 'Instantly',
   description: 'Manage Instantly leads, campaigns, emails, and lead lists',

@@ -362,4 +362,46 @@ describe('Error Extractors', () => {
       )
     })
   })
+
+  describe('wiza-errors', () => {
+    it('extracts the message nested under status', () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        statusText: 'Bad Request',
+        data: { status: { code: 400, message: 'The size parameter is not allowed.' } },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.WIZA_ERRORS)).toBe(
+        'The size parameter is not allowed.'
+      )
+    })
+
+    it('falls back to a top-level message', () => {
+      const errorInfo: ErrorInfo = { status: 401, data: { message: 'Unauthorized' } }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.WIZA_ERRORS)).toBe('Unauthorized')
+    })
+
+    it('keeps plain-text bodies', () => {
+      const errorInfo: ErrorInfo = { status: 502, data: 'Bad gateway' }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.WIZA_ERRORS)).toBe('Bad gateway')
+    })
+
+    it('ignores a non-string top-level message', () => {
+      const errorInfo: ErrorInfo = { status: 422, data: { message: ['bad filter'] } }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.WIZA_ERRORS)).toBe(
+        'Request failed with status 422'
+      )
+    })
+
+    it('falls back to the status when Wiza sends an empty message', () => {
+      const errorInfo: ErrorInfo = { status: 400, data: { status: { code: 400, message: '' } } }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.WIZA_ERRORS)).toBe(
+        'Request failed with status 400'
+      )
+    })
+  })
 })

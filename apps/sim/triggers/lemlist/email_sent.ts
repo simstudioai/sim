@@ -23,7 +23,7 @@ export const lemlistEmailSentTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'lemlist_email_sent',
     triggerOptions: lemlistTriggerOptions,
-    setupInstructions: lemlistSetupInstructions('emailsSent'),
+    setupInstructions: lemlistSetupInstructions(),
     extraFields: buildLemlistExtraFields('lemlist_email_sent'),
   }),
 

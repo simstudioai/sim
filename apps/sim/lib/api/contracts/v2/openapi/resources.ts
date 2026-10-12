@@ -32,6 +32,7 @@ import {
 } from '@/lib/api/contracts/v2/mcp-servers'
 import { v2GetMetaContract } from '@/lib/api/contracts/v2/meta'
 import { accessRequestOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/access-requests'
+import { credentialMemberOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/credential-members'
 import { organizationUsageOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/organization-usage'
 import { organizationOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/organizations'
 import { permissionGroupOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/permission-groups'
@@ -51,6 +52,7 @@ import {
   withErrorExamples,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
+import { ssoOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/sso'
 import { workspaceInvitationOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-invitations'
 import { workspacePermissionOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-permissions'
 import {
@@ -246,11 +248,6 @@ const TOOL_EXECUTION_EXAMPLE = {
   output: { ts: '1718191234.004500' },
   error: null,
 } as const
-
-const SANDBOX_ADMIN_PLAN_NOTE =
-  'Requires a workspace admin on Max or Enterprise; lower plans return `403` with `error.details.code: WORKSPACE_PLAN_CAPABILITY_REQUIRED`.'
-const SANDBOX_BUILD_BUDGET_NOTE =
-  'Creates and updates share a write budget; bursts return `429` with `Retry-After`.'
 
 const TOOL_DETAIL_EXAMPLE = {
   ...TOOL_SUMMARY_EXAMPLE,
@@ -2105,8 +2102,8 @@ const declaredRoutes = [
       applicationOperation: toolExecutionOperations.execute,
       operationId: 'executeTool',
       summary: 'Run Tool',
-      description: `Run a built-in tool using published parameter IDs. Sim resolves \`credentialId\`, hosted keys, and whole-value \`{{VAR_NAME}}\` references for \`user-only\` parameters; other values pass through verbatim. Third-party refusal returns \`200\` with \`status: "failed"\`; the error envelope covers API failures. Hidden or missing tools return \`404\`; disallowed integrations return \`403\` with \`error.details.code: INTEGRATION_NOT_ALLOWED\`. Hosted-key use is billed to the workspace. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
+      description: `Run a built-in tool using published parameter IDs. Sim resolves \`credentialId\`, hosted keys, and whole-value \`{{VAR_NAME}}\` references for \`user-only\` parameters; other values pass through verbatim. Third-party refusal returns \`200\` with \`status: "failed"\`; the error envelope covers API failures. Hidden or missing tools return \`404\`; disallowed integrations return \`403\` with \`error.details.code: INTEGRATION_NOT_ALLOWED\`. Hosted-key use is billed to the workspace; a call that would use a hosted key from a workspace over its usage or billing limits returns \`402\`. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded'],
       success: { description: 'The outcome of the tool call.' },
     }),
     {
@@ -2170,6 +2167,8 @@ const declaredRoutes = [
   ),
   ...permissionGroupOpenApiRoutes,
   ...organizationOpenApiRoutes,
+  ...ssoOpenApiRoutes,
+  ...credentialMemberOpenApiRoutes,
   ...workspacePermissionOpenApiRoutes,
   ...workspaceInvitationOpenApiRoutes,
   ...organizationUsageOpenApiRoutes,

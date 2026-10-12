@@ -2,7 +2,7 @@ import type { A2AAgentCardOutput, A2ATaskOutput } from '@/lib/a2a/client'
 import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
-export interface A2ABaseParams {
+interface A2ABaseParams {
   agentUrl: string
   apiKey?: string
 }

@@ -182,7 +182,7 @@ describe('cleanup-failed', () => {
       queueTableRows(workflow, [{ id: 'wf-1' }])
       queueTableRows(workflowBlocks, [draftBlockRow('failed-kb')])
 
-      const affected = await clearFailedReferencesInWorkflows('child-ws', failedByKind(), 'test')
+      const affected = await clearFailedReferencesInWorkflows('child-ws', failedByKind())
 
       expect([...affected]).toEqual(['wf-1'])
       expect(updates()).toHaveLength(1)

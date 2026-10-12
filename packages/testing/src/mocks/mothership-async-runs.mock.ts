@@ -32,8 +32,13 @@ export const mothershipAsyncRunsMockFns = {
   mockUpsertAsyncToolCall: vi.fn(),
   mockGetAsyncToolCall: vi.fn(),
   mockMarkAsyncToolRunning: vi.fn(),
-  mockClaimSimToolExecution: vi.fn(),
+  mockClaimToolExecution: vi.fn(),
+  mockClaimDesktopToolCall: vi.fn(),
   mockRenewSimToolExecutionLease: vi.fn(),
+  /** No chat-view lease by default: a pending call keeps its plain wait budget. */
+  mockGetChatViewDesktopLeaseRemainingMs: vi.fn(
+    async (_toolCallId: string): Promise<number | null> => null
+  ),
   mockRevokeExpiredSimToolExecutions: vi.fn(),
   mockSettleSimToolExecution: vi.fn(),
   mockSettleClientWorkflowToolExecution: vi.fn(),
@@ -58,10 +63,10 @@ export const mothershipAsyncRunsMockFns = {
   ),
   mockClaimWorkflowToolExecution: vi.fn(),
   mockReleaseWorkflowToolExecutionClaim: vi.fn(),
-  mockClaimPendingAsyncToolCall: vi.fn(),
   mockClaimBrowserDownloadSave: vi.fn(),
   mockCompleteAsyncToolCall: vi.fn(),
   mockCompleteOwnedSimToolCall: vi.fn(),
+  mockCompleteOwnedDesktopToolCall: vi.fn(),
   mockCompletePendingAsyncToolCall: vi.fn(),
   mockCompleteClaimedAsyncToolCall: vi.fn(),
   mockDetachAsyncToolCall: vi.fn(),
@@ -92,8 +97,11 @@ export const mothershipAsyncRunsMock = {
   upsertAsyncToolCall: mothershipAsyncRunsMockFns.mockUpsertAsyncToolCall,
   getAsyncToolCall: mothershipAsyncRunsMockFns.mockGetAsyncToolCall,
   markAsyncToolRunning: mothershipAsyncRunsMockFns.mockMarkAsyncToolRunning,
-  claimSimToolExecution: mothershipAsyncRunsMockFns.mockClaimSimToolExecution,
+  claimToolExecution: mothershipAsyncRunsMockFns.mockClaimToolExecution,
+  claimDesktopToolCall: mothershipAsyncRunsMockFns.mockClaimDesktopToolCall,
   renewSimToolExecutionLease: mothershipAsyncRunsMockFns.mockRenewSimToolExecutionLease,
+  getChatViewDesktopLeaseRemainingMs:
+    mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs,
   revokeExpiredSimToolExecutions: mothershipAsyncRunsMockFns.mockRevokeExpiredSimToolExecutions,
   settleSimToolExecution: mothershipAsyncRunsMockFns.mockSettleSimToolExecution,
   settleClientWorkflowToolExecution:
@@ -112,10 +120,10 @@ export const mothershipAsyncRunsMock = {
   claimWorkflowToolExecution: mothershipAsyncRunsMockFns.mockClaimWorkflowToolExecution,
   releaseWorkflowToolExecutionClaim:
     mothershipAsyncRunsMockFns.mockReleaseWorkflowToolExecutionClaim,
-  claimPendingAsyncToolCall: mothershipAsyncRunsMockFns.mockClaimPendingAsyncToolCall,
   claimBrowserDownloadSave: mothershipAsyncRunsMockFns.mockClaimBrowserDownloadSave,
   completeAsyncToolCall: mothershipAsyncRunsMockFns.mockCompleteAsyncToolCall,
   completeOwnedSimToolCall: mothershipAsyncRunsMockFns.mockCompleteOwnedSimToolCall,
+  completeOwnedDesktopToolCall: mothershipAsyncRunsMockFns.mockCompleteOwnedDesktopToolCall,
   completePendingAsyncToolCall: mothershipAsyncRunsMockFns.mockCompletePendingAsyncToolCall,
   completeClaimedAsyncToolCall: mothershipAsyncRunsMockFns.mockCompleteClaimedAsyncToolCall,
   detachAsyncToolCall: mothershipAsyncRunsMockFns.mockDetachAsyncToolCall,

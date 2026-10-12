@@ -5,23 +5,9 @@ import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connecto
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
-  overview: vi.fn(),
-  adminOverview: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/application/organization-search-overview', () => ({
-  readOrganizationSearchOverview: {
-    operation: { id: 'knowledge.search.integrations.overview' },
-    execute: mocks.adminOverview,
-  },
 }))
 vi.mock('@/lib/knowledge/application/search-sources', () => ({
   listSearchSources: { operation: { id: 'knowledge.search.sources.list' }, execute: mocks.execute },
-}))
-vi.mock('@/lib/knowledge/application/search-source-overview', () => ({
-  readSearchSourceOverview: {
-    operation: { id: 'knowledge.search.sources.overview' },
-    execute: mocks.overview,
-  },
 }))
 vi.mock('@/lib/knowledge/application/search', () => knowledgeSearchUseCaseMock)
 vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
@@ -29,8 +15,6 @@ vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
 }))
 
 import { NoWorkspaceAccessError } from '@/lib/core/application/workspace-authorization'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { GET as getAdminOverview } from '@/app/api/knowledge/sim-search/integrations/overview/route'
 import { GET } from '@/app/api/knowledge/sim-search/sources/route'
 
 const WORKSPACE_ID = '7d28e5e2-fb03-4118-9c52-4ab77ccff369'
@@ -42,15 +26,7 @@ const source = {
   accessMode: 'admin',
   availability: 'available',
   enabled: true,
-  isSyncing: false,
-  lastSyncAt: null,
-  hasSyncError: false,
-  hasViewerDocuments: false,
-  viewerFailedDocumentCount: 0,
-  viewerEmailVerified: true,
-  viewerAccounts: [],
-  connectionRequired: false,
-  viewerMembership: null,
+  isGitHubInstallation: false,
 } satisfies SearchSourceSummary
 
 beforeEach(() => {
@@ -110,23 +86,5 @@ describe('Search pagination boundary', () => {
     )
     expect(response.status).toBe(400)
     expect(mocks.execute).not.toHaveBeenCalled()
-  })
-})
-
-describe('organization administration overview boundary', () => {
-  it('preserves a role refusal without exposing health data', async () => {
-    mocks.adminOverview.mockRejectedValue(
-      new OrchestrationError('forbidden', 'Organization administrator access is required')
-    )
-    const response = await getAdminOverview(
-      createMockRequest(
-        'GET',
-        undefined,
-        {},
-        `http://localhost/api/knowledge/sim-search/integrations/overview?organizationId=${WORKSPACE_ID}`
-      )
-    )
-    expect(response.status).toBe(403)
-    expect(await response.json()).not.toHaveProperty('data')
   })
 })

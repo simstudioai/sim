@@ -33,13 +33,7 @@ function mergeWorkspaceFileSecretProvenance(
   if (provenances.some((provenance) => provenance.status === 'unknown')) {
     return { status: 'unknown' }
   }
-  if (provenances.some((provenance) => provenance.status === 'unrecorded')) {
-    return provenances.some(
-      (provenance) => provenance.status === 'exact' && provenance.entries.length > 0
-    )
-      ? { status: 'unknown' }
-      : { status: 'unrecorded' }
-  }
+  const unrecorded = provenances.some((provenance) => provenance.status === 'unrecorded')
   const entries = new Map<string, MockSecretProvenanceEntry>()
   let bytes = 0
   for (const provenance of provenances) {
@@ -68,7 +62,9 @@ function mergeWorkspaceFileSecretProvenance(
       entries.set(key, entry)
     }
   }
-  return { status: 'exact', entries: [...entries.values()] }
+  return unrecorded && entries.size === 0
+    ? { status: 'unrecorded' }
+    : { status: 'exact', entries: [...entries.values()] }
 }
 
 /**
@@ -94,6 +90,7 @@ export const workspaceFileSecretProvenanceMockFns = {
   mockInitializeWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockPreserveWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockSnapshotWorkspaceFileSecretProvenanceInTx: vi.fn(),
+  mockWorkspaceFileSecretProvenanceFromSnapshot: vi.fn(),
   mockApplyWorkspaceFileSecretProvenancePolicyInTx: vi.fn(),
   mockCopyWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockMarkWorkspaceFileSecretProvenanceUnknown: vi.fn(),
@@ -137,6 +134,7 @@ export const workspaceFileSecretProvenanceMock = {
   initializeWorkspaceFileSecretProvenanceInTx: fns.mockInitializeWorkspaceFileSecretProvenanceInTx,
   preserveWorkspaceFileSecretProvenanceInTx: fns.mockPreserveWorkspaceFileSecretProvenanceInTx,
   snapshotWorkspaceFileSecretProvenanceInTx: fns.mockSnapshotWorkspaceFileSecretProvenanceInTx,
+  workspaceFileSecretProvenanceFromSnapshot: fns.mockWorkspaceFileSecretProvenanceFromSnapshot,
   applyWorkspaceFileSecretProvenancePolicyInTx:
     fns.mockApplyWorkspaceFileSecretProvenancePolicyInTx,
   copyWorkspaceFileSecretProvenanceInTx: fns.mockCopyWorkspaceFileSecretProvenanceInTx,

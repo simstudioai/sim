@@ -29,7 +29,7 @@ export const GET = withRouteHandler(
   withMcpAuth(
     'read',
     'deploy.mcp'
-  )(async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  )(async (_request: NextRequest, { workspaceId, requestId }) => {
     try {
       logger.info(`[${requestId}] Listing workflow MCP servers for workspace ${workspaceId}`)
 

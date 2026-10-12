@@ -41,7 +41,7 @@ export interface HarmonicSavedSearch {
   updatedAt: string
 }
 
-export interface HarmonicContactMetadata {
+interface HarmonicContactMetadata {
   emails?: unknown
   phone_numbers?: unknown
   exec_emails?: unknown
@@ -56,7 +56,7 @@ export interface HarmonicLocationMetadata {
   country?: unknown
 }
 
-export interface HarmonicSocialMetadata {
+interface HarmonicSocialMetadata {
   url?: unknown
 }
 

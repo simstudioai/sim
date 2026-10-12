@@ -27,7 +27,7 @@ vi.mock('../../context', () => ({
  * command reads its deadline from, so a `--wait-timeout 3600` test costs
  * nothing and the poll schedule is exactly what the assertions say it is.
  */
-vi.mock('../../helpers', () => ({
+vi.mock('@sim/utils/helpers', () => ({
   sleep: (ms: number) => {
     sleeps.push(ms)
     clock.now += ms

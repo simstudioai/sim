@@ -38,8 +38,6 @@ vi.mock('@/providers/azure-openai/utils', () => ({
   extractBaseUrl: vi.fn((url: string) => url),
   extractDeploymentFromUrl: vi.fn(() => null),
   extractApiVersionFromUrl: vi.fn(() => null),
-  createReadableStreamFromAzureOpenAIStream: vi.fn(),
-  checkForForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
 }))
 vi.mock('@/providers/models', () => providersModelsMock)
 vi.mock('@/providers/attachments', () => providersAttachmentsMock)

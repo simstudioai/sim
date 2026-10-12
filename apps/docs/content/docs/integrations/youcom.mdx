@@ -1,0 +1,297 @@
+---
+title: You.com
+description: Search, read, and research the web with You.com
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="youcom"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[You.com](https://you.com/) provides web search and research APIs that return live, cited results built for AI agents.
+
+With the You.com block, you can:
+
+- **Search the web and news**: Get results with short snippets, only the passages that answer your query, or full page content. Filter by date, country, language, and domain.
+- **Read pages**: Fetch any URL as Markdown or HTML, with site metadata.
+- **Get cited answers**: Ask a question and get a written answer with numbered citations and the supporting excerpts.
+- **Run deep research**: Investigate complex or financial questions across many sources, optionally returning structured fields. Long runs can work in the background and be checked later.
+- **Find images and track usage**: Search images (early-access keys only) and check your remaining API credit balance.
+
+Create an API key on the [You.com platform](https://you.com/platform) and paste it into the block.
+
+In Sim, the You.com block lets your agents answer from the live web, write cited research briefs, monitor news, and load fresh pages into a knowledge base.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate You.com into the workflow. Search the web and news with query-relevant highlights or full page content, fetch page contents, get cited answers, run deep or financial research, search images, and check API credit balance.
+
+
+
+## Actions
+
+### You.com Search
+
+Search the web and news with You.com, returning LLM-ready results with optional query-relevant highlights or full page content.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query. Supports search operators such as site: and filetype: |
+| `count` | number | No | Maximum results to return per section \(web and news\). Defaults to 10 |
+| `offset` | number | No | Page offset in multiples of count, from 0 to 9. Defaults to 0 |
+| `freshness` | string | No | Result recency: day, week, month, year, or a range like 2025-01-01to2025-12-31 |
+| `country` | string | No | Two-letter country code that sets the geographic focus \(e.g., US, GB, DE\) |
+| `language` | string | No | BCP 47 language code for results \(e.g., EN, FR, ZH-HANS\). Defaults to EN |
+| `safesearch` | string | No | Content moderation filter: off, moderate, or strict. Defaults to moderate |
+| `knowledge` | string | No | Set to core to also return knowledge results from licensed data providers |
+| `includeDomains` | string | No | Comma-separated domains to restrict results to \(up to 500\). Cannot be combined with exclude or boost domains |
+| `excludeDomains` | string | No | Comma-separated domains to remove from results \(up to 500\) |
+| `boostDomains` | string | No | Comma-separated domains to rank higher without filtering others \(up to 500\) |
+| `extractionMode` | string | No | Content to extract per result: highlights \(query-relevant passages\) or full_page. Omit for snippets only |
+| `extractionSource` | string | No | Where full_page content comes from: blend \(cache, then live crawl\), cache, or fetch. Defaults to blend |
+| `extractionFormats` | string | No | Comma-separated full_page formats: markdown, html, or both. Defaults to markdown |
+| `crawlTimeout` | number | No | Seconds to wait for page content when crawling, from 1 to 60. Defaults to 10 |
+| `apiKey` | string | Yes | You.com API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `web` | array | Web results |
+|   ↳ `url` | string | URL of the result |
+|   ↳ `title` | string | Title of the result |
+|   ↳ `description` | string | Brief description of the result |
+|   ↳ `snippets` | array | Short keyword-centered fragments \(omitted when highlights extraction is used\) |
+|   ↳ `thumbnailUrl` | string | Thumbnail URL |
+|   ↳ `faviconUrl` | string | Favicon URL of the result's domain |
+|   ↳ `pageAge` | string | Age of the result |
+|   ↳ `highlights` | array | Query-relevant passages \(highlights extraction only\) |
+|   ↳ `html` | string | Full page HTML \(full_page only\) |
+|   ↳ `markdown` | string | Full page Markdown \(full_page only\) |
+| `news` | array | News results |
+|   ↳ `url` | string | URL of the article |
+|   ↳ `title` | string | Title of the article |
+|   ↳ `description` | string | Brief description of the article |
+|   ↳ `thumbnailUrl` | string | Thumbnail URL |
+|   ↳ `pageAge` | string | UTC publication timestamp |
+|   ↳ `html` | string | Full page HTML \(full_page only\) |
+|   ↳ `markdown` | string | Full page Markdown \(full_page only\) |
+| `knowledge` | array | Knowledge results from licensed data providers \(when knowledge is core\) |
+|   ↳ `type` | string | Kind of knowledge result \(currently answer\) |
+|   ↳ `title` | string | Title of the knowledge result |
+|   ↳ `description` | string | Knowledge drawn from licensed data |
+|   ↳ `asOf` | string | Date the data covers \(YYYY-MM-DD\) |
+|   ↳ `attribution` | array | Data provider credits |
+|     ↳ `name` | string | Data provider name |
+|     ↳ `sourceDescription` | string | Description of the provider |
+| `searchUuid` | string | Unique ID of the search |
+| `query` | string | Query used to retrieve the results |
+| `latency` | number | Search latency in seconds |
+
+### You.com Get Contents
+
+Fetch the HTML, Markdown, and page metadata of one or more web pages with You.com.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | Yes | Comma-separated URLs to fetch content from |
+| `formats` | string | No | Comma-separated formats to return: markdown, html, metadata \(JSON-LD and OpenGraph site info\) |
+| `crawlTimeout` | number | No | Seconds to wait for page content, from 1 to 60. Defaults to 10 |
+| `maxAge` | number | No | Maximum age in seconds of cached content before the page is re-fetched. Defaults to no limit |
+| `apiKey` | string | Yes | You.com API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pages` | array | Content of each fetched page |
+|   ↳ `url` | string | URL of the fetched page |
+|   ↳ `title` | string | Title of the page |
+|   ↳ `html` | string | Page HTML \(html format\) |
+|   ↳ `markdown` | string | Page Markdown \(markdown format\) |
+|   ↳ `siteName` | string | OpenGraph site name \(metadata format\) |
+|   ↳ `faviconUrl` | string | Favicon URL of the page's domain \(metadata format\) |
+
+### You.com Answer
+
+Get a synthesized answer to a question with numbered citations and the web results used to write it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The question to answer |
+| `freshness` | string | No | Result recency: day, week, month, year, or a range like 2025-01-01to2025-12-31 |
+| `country` | string | No | Two-letter country code that sets the geographic focus \(e.g., US, GB, DE\) |
+| `language` | string | No | BCP 47 language code for results \(e.g., EN, FR, DE\) |
+| `safesearch` | string | No | Content moderation filter: off, moderate, or strict. Defaults to moderate |
+| `includeDomains` | string | No | Comma-separated domains to restrict results to \(up to 500\). Cannot be combined with exclude or boost domains |
+| `excludeDomains` | string | No | Comma-separated domains to remove from results \(up to 500\) |
+| `boostDomains` | string | No | Comma-separated domains to rank higher without filtering others \(up to 500\) |
+| `apiKey` | string | Yes | You.com API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | string | Synthesized answer with numbered inline citations referencing citations |
+| `citations` | array | Sources cited in the answer, in citation order |
+|   ↳ `source` | string | URL of the cited source |
+|   ↳ `excerpts` | array | Verbatim excerpts from the source that support the answer |
+| `results` | array | All web results considered while writing the answer, cited or not |
+|   ↳ `url` | string | URL of the source webpage |
+|   ↳ `title` | string | Title of the source webpage |
+|   ↳ `snippets` | array | Text snippets previewing the content |
+|   ↳ `description` | string | Brief description |
+|   ↳ `thumbnailUrl` | string | Thumbnail URL |
+|   ↳ `pageAge` | string | Age of the result |
+
+### You.com Research
+
+Run multi-step web research on a question and get a thorough, cited answer, or start it as a background task.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | Research question or complex query \(up to 40,000 characters\) |
+| `researchEffort` | string | No | Depth of research: lite \(&lt;10s\), standard \(10-30s\), deep \(&lt;120s\), exhaustive \(&lt;300s\), or frontier \(always runs in the background and returns a task ID\). Defaults to standard |
+| `outputSchema` | json | No | JSON Schema for structured output in content. Every object needs additionalProperties: false and all properties required. Not supported with lite |
+| `background` | boolean | No | Run as a background task and return a task ID to poll with Get Research Task. Always on for frontier |
+| `includeDomains` | string | No | Comma-separated domains the research may use \(up to 500\). Cannot be combined with exclude or boost domains |
+| `excludeDomains` | string | No | Comma-separated domains the research must not search or visit \(up to 500\) |
+| `boostDomains` | string | No | Comma-separated domains to rank higher without filtering others \(up to 500\) |
+| `freshness` | string | No | Source recency: day, week, month, year, or a range like 2025-01-01to2025-12-31 |
+| `country` | string | No | Two-letter country code that focuses web results \(e.g., US, GB, DE\) |
+| `apiKey` | string | Yes | You.com API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | json | Markdown answer with numbered inline citations, or an object matching the output schema when one was supplied |
+| `contentType` | string | Format of content: text \(Markdown\) or object \(structured output\) |
+| `sources` | array | Web sources used to generate the answer |
+|   ↳ `url` | string | URL of the source webpage |
+|   ↳ `title` | string | Title of the source webpage |
+|   ↳ `snippets` | array | Excerpts from the source used to generate the answer |
+| `warnings` | array | Warnings raised during research, such as source access issues or partial results |
+| `taskId` | string | Background task ID to pass to Get Research Task \(background only\) |
+| `status` | string | Background task status: queued, running, completed, failed, or cancelled \(background only\) |
+| `streamUrl` | string | URL path of the task progress event stream \(background only\) |
+| `createdAt` | string | When the background task was created, RFC 3339 \(background only\) |
+
+### You.com Get Research Task
+
+Get the status of a background research task and, once completed, its cited answer and sources.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the background research task |
+| `apiKey` | string | Yes | You.com API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | ID of the background research task |
+| `taskType` | string | Task type \(research\) |
+| `status` | string | Task status: queued, running, completed, failed, or cancelled |
+| `createdAt` | string | When the task was created, RFC 3339 |
+| `updatedAt` | string | When the task was last updated, RFC 3339 |
+| `completedAt` | string | When the task reached a terminal status, RFC 3339 |
+| `error` | string | Diagnostic message when failed |
+| `taskInput` | json | Original request parameters submitted for the task |
+|   ↳ `input` | string | Research question that was submitted |
+|   ↳ `researchEffort` | string | Research effort level submitted |
+|   ↳ `background` | boolean | Whether background mode was requested |
+|   ↳ `outputSchema` | json | Structured output schema submitted |
+|   ↳ `sourceControl` | json | Source control configuration submitted |
+|   ↳ `type` | string | Task type \(research\) |
+| `content` | json | Markdown answer with numbered inline citations, or an object matching the output schema when one was supplied |
+| `contentType` | string | Format of content: text \(Markdown\) or object \(structured output\) |
+| `sources` | array | Web sources used to generate the answer |
+|   ↳ `url` | string | URL of the source webpage |
+|   ↳ `title` | string | Title of the source webpage |
+|   ↳ `snippets` | array | Excerpts from the source used to generate the answer |
+| `warnings` | array | Warnings raised during research, such as source access issues or partial results |
+
+### You.com Finance Research
+
+Research a financial question across earnings reports, SEC filings, analyst coverage, and market news, and get a cited answer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | Financial research question \(up to 40,000 characters\) |
+| `researchEffort` | string | No | Depth of research: deep \(&lt;120s\) or exhaustive \(&lt;300s\). Defaults to deep |
+| `apiKey` | string | Yes | You.com API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Markdown answer with numbered inline citations referencing sources |
+| `contentType` | string | Format of content \(text\) |
+| `sources` | array | Web sources used to generate the answer |
+|   ↳ `url` | string | URL of the source webpage |
+|   ↳ `title` | string | Title of the source webpage |
+|   ↳ `snippets` | array | Excerpts from the source used to generate the answer |
+| `warnings` | array | Warnings raised during research, such as source access issues or partial results |
+
+### You.com Search Images
+
+Find image URLs for a query with You.com. Beta, and limited to You.com early-access API keys.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Image search query. Supports site:, filetype: \(e.g., filetype:png\), and OR |
+| `count` | number | No | Maximum number of images to return, from 1 to 100. Defaults to 10 |
+| `apiKey` | string | Yes | You.com API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `images` | array | Image results |
+|   ↳ `title` | string | Title of the image result |
+|   ↳ `pageUrl` | string | URL of the page containing the image |
+|   ↳ `imageUrl` | string | Direct URL to the image |
+|   ↳ `thumbnail` | string | Proxy-hosted thumbnail URL |
+|   ↳ `largeThumbnail` | string | Larger resized image URL; fall back to thumbnail or imageUrl if it fails |
+| `query` | string | Query that was submitted |
+| `searchUuid` | string | Unique ID of the search |
+
+### You.com Get Account Balance
+
+Get the remaining You.com API credit balance for the account or organization that owns the API key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | You.com API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accountId` | string | Stable hashed ID of the billing entity \(user or organization\) |
+| `accountType` | string | Billing entity type \(account\) |
+| `balance` | number | Remaining credit balance in cents \(divide by 100 for USD\) |
+
+

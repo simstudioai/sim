@@ -209,6 +209,15 @@ export const mcpServerOperations = {
     capability: 'mcp_tools.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
+  /** Pointing a server at another host or path; deployed workflows pin servers by id. */
+  changeDestination: defineWorkspaceOperation({
+    id: 'mcp_servers.change_destination',
+    oauthScope: 'api:write',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    capability: 'mcp_tools.use',
+    ...HUMAN_PRINCIPAL_POLICY,
+  }),
   delete: defineWorkspaceOperation({
     id: 'mcp_servers.delete',
     oauthScope: 'api:write',

@@ -1,7 +1,7 @@
-import { dbReplica } from '@sim/db'
 import { jobExecutionLogs } from '@sim/db/schema'
 import { and, inArray, isNotNull } from 'drizzle-orm'
-import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { DATA_DRAIN_LIMITS } from '@/lib/data-drains/limits'
 import {
   decodeTimeCursor,
   encodeTimeCursor,
@@ -9,7 +9,7 @@ import {
   timeCursorPredicate,
   timeCursorStabilityBound,
 } from '@/lib/data-drains/sources/cursor'
-import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
+import { readBoundedSourcePage, workspaceInOrganization } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 
@@ -20,33 +20,37 @@ type JobLogRow = typeof jobExecutionLogs.$inferSelect
  * `totalDurationMs`, `executionData`) are not exported until finalized.
  */
 async function* pages(input: SourcePageInput): AsyncIterable<JobLogRow[]> {
-  const workspaceIds = await getOrganizationWorkspaceIds(input.organizationId)
-  if (workspaceIds.length === 0) return
-
   let cursor = decodeTimeCursor(input.cursor)
   while (!input.signal.aborted) {
     const cursorClause = timeCursorPredicate(jobExecutionLogs.endedAt, jobExecutionLogs.id, cursor)
 
-    const rows = await dbReplica
-      .select()
-      .from(jobExecutionLogs)
-      .where(
-        and(
-          inArray(jobExecutionLogs.workspaceId, workspaceIds),
-          isNotNull(jobExecutionLogs.endedAt),
-          timeCursorStabilityBound(jobExecutionLogs.endedAt),
-          cursorClause
-        )
-      )
-      .orderBy(...timeCursorOrderBy(jobExecutionLogs.endedAt, jobExecutionLogs.id))
-      .limit(input.chunkSize)
+    const orderBy = timeCursorOrderBy(jobExecutionLogs.endedAt, jobExecutionLogs.id)
+    const rows = await readBoundedSourcePage({
+      table: jobExecutionLogs,
+      idColumn: jobExecutionLogs.id,
+      condition: and(
+        workspaceInOrganization(jobExecutionLogs.workspaceId, input.organizationId),
+        isNotNull(jobExecutionLogs.endedAt),
+        timeCursorStabilityBound(jobExecutionLogs.endedAt),
+        cursorClause
+      ),
+      orderBy,
+      chunkSize: input.chunkSize,
+      read: (tx, ids) =>
+        tx
+          .select()
+          .from(jobExecutionLogs)
+          .where(inArray(jobExecutionLogs.id, ids))
+          .orderBy(...orderBy),
+    })
 
     if (rows.length === 0) return
-    const displayExecutionData = await mapWithConcurrency(rows, MATERIALIZE_CONCURRENCY, (row) =>
+    const displayExecutionData = await mapWithConcurrency(rows, 2, (row) =>
       materializeExecutionDataForDisplay(row.executionData as Record<string, unknown> | null, {
         workspaceId: row.workspaceId,
         workflowId: null,
         executionId: row.executionId,
+        maxBytes: DATA_DRAIN_LIMITS.maxRowBytes,
       })
     )
     for (let index = 0; index < rows.length; index += 1) {
@@ -55,7 +59,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<JobLogRow[]> {
     yield rows
     const last = rows[rows.length - 1]
     cursor = { ts: last.endedAt!.toISOString(), id: last.id }
-    if (rows.length < input.chunkSize) return
+    if (rows.length < Math.min(input.chunkSize, DATA_DRAIN_LIMITS.pageRows)) return
   }
 }
 

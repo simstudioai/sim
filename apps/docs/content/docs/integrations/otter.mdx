@@ -1,0 +1,524 @@
+---
+title: Otter.ai
+description: Read Otter.ai meeting conversations, transcripts, and summaries
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="otter"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Otter.ai](https://otter.ai/) is an AI meeting assistant that records, transcribes, and summarizes conversations.
+
+With the Otter block, you can:
+
+- **Read conversations**: List conversations and read each one's summary, action items, insights, outline, and transcript
+- **Get recordings**: Get audio download links and import recordings for transcription
+- **Browse your workspace**: List channels and their members, read workspace details, and list conversations across the workspace
+
+To connect, enter an API key from an Otter Enterprise workspace. The Otter triggers can also start a workflow when a conversation finishes processing or is shared.
+
+In Sim, the Otter block lets your agents act on your meetings: send action items to your task tracker, post summaries to Slack, or save transcripts to a knowledge base.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Otter.ai into your workflow to list and read meeting conversations with their summaries, action items, insights, outlines, and transcripts, get audio download links, import recordings, and browse channels and workspace details. Otter can also trigger workflows when a conversation finishes processing or is shared. Requires an Otter Enterprise workspace.
+
+
+
+## Actions
+
+### Otter List Conversations
+
+List Otter conversations for the authenticated user, most recent first, optionally including shared conversations or filtering by channel.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Otter API key |
+| `includeShared` | boolean | No | Include conversations shared with the user \(default false\). Automatically true when a channel ID is provided. |
+| `channelId` | string | No | Only return conversations in this channel. Overrides includeShared. |
+| `limit` | number | No | Number of conversations per page \(1-100\) |
+| `cursor` | string | No | Pagination cursor \(nextCursor from a previous response\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | array | Conversations, most recent first |
+|   ↳ `id` | string | Conversation ID |
+|   ↳ `title` | string | Conversation title |
+|   ↳ `url` | string | URL to view the conversation in Otter |
+|   ↳ `owner` | object | Conversation owner |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | Full name |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `processStatus` | object | Processing status of generated data \(e.g., "finished"\); a field is null when not yet available |
+|     ↳ `abstractSummary` | string | Summary status |
+|     ↳ `actionItem` | string | Action item status |
+|     ↳ `outline` | string | Outline status |
+|   ↳ `calendarGuests` | array | Guests invited to the associated calendar event |
+|     ↳ `name` | string | Guest name |
+|     ↳ `email` | string | Guest email |
+|     ↳ `permission` | string | Guest permission \(present in webhook payloads\) |
+|   ↳ `sharedEmails` | array | Users or email addresses the conversation is shared with |
+|     ↳ `email` | string | Shared email address |
+|     ↳ `user` | object | Otter user for the email, if any |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | Full name |
+|       ↳ `firstName` | string | First name |
+|       ↳ `lastName` | string | Last name |
+|       ↳ `email` | string | Email address |
+|     ↳ `permission` | string | Share permission \(e.g., collaborate\) |
+|   ↳ `sharedChannels` | array | Channels the conversation is shared with |
+|     ↳ `channel` | object | The channel |
+|       ↳ `id` | string | Channel ID |
+|       ↳ `name` | string | Channel name |
+|       ↳ `memberCount` | number | Number of channel members |
+|       ↳ `owner` | object | Channel owner |
+|         ↳ `id` | string | User ID |
+|         ↳ `name` | string | Full name |
+|         ↳ `firstName` | string | First name |
+|         ↳ `lastName` | string | Last name |
+|         ↳ `email` | string | Email address |
+|       ↳ `discoverability` | string | Channel visibility, such as private or workspace \(public\) |
+|     ↳ `permission` | string | Share permission \(e.g., collaborate\) |
+|   ↳ `abstractSummary` | string | AI-generated summary of the conversation |
+|   ↳ `confJoinUrl` | string | Meeting join URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
+| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+| `hasMore` | boolean | Whether more pages are available |
+| `nextCursor` | string | Cursor for the next page; pass it as Cursor to continue |
+
+### Otter Get Conversation
+
+Get an Otter conversation with its summary and details, plus any requested action items, insights, outline, and transcript.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Otter API key |
+| `conversationId` | string | Yes | The Otter conversation ID |
+| `include` | string | Yes | Comma-separated related data to include: action_items, insights, outline, transcript, or all \(e.g., "insights,transcript"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Conversation ID |
+| `title` | string | Conversation title |
+| `url` | string | URL to view the conversation in Otter |
+| `owner` | object | Conversation owner |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+| `createdAt` | string | When the conversation was created |
+| `processStatus` | object | Processing status of generated data \(e.g., "finished"\); a field is null when not yet available |
+|   ↳ `abstractSummary` | string | Summary status |
+|   ↳ `actionItem` | string | Action item status |
+|   ↳ `outline` | string | Outline status |
+| `calendarGuests` | array | Guests invited to the associated calendar event |
+|   ↳ `name` | string | Guest name |
+|   ↳ `email` | string | Guest email |
+|   ↳ `permission` | string | Guest permission \(present in webhook payloads\) |
+| `sharedEmails` | array | Users or email addresses the conversation is shared with |
+|   ↳ `email` | string | Shared email address |
+|   ↳ `user` | object | Otter user for the email, if any |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | Full name |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `permission` | string | Share permission \(e.g., collaborate\) |
+| `sharedChannels` | array | Channels the conversation is shared with |
+|   ↳ `channel` | object | The channel |
+|     ↳ `id` | string | Channel ID |
+|     ↳ `name` | string | Channel name |
+|     ↳ `memberCount` | number | Number of channel members |
+|     ↳ `owner` | object | Channel owner |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | Full name |
+|       ↳ `firstName` | string | First name |
+|       ↳ `lastName` | string | Last name |
+|       ↳ `email` | string | Email address |
+|     ↳ `discoverability` | string | Channel visibility, such as private or workspace \(public\) |
+|   ↳ `permission` | string | Share permission \(e.g., collaborate\) |
+| `abstractSummary` | string | AI-generated summary of the conversation |
+| `confJoinUrl` | string | Meeting join URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
+| `actionItems` | array | AI-detected action items \(null unless requested with include\) |
+|   ↳ `id` | string | Action item ID |
+|   ↳ `text` | string | Action item text |
+|   ↳ `assignee` | object | Assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | Full name |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `status` | object | Completion status |
+|     ↳ `completed` | boolean | Whether completed |
+|     ↳ `createdAt` | string | When created |
+|     ↳ `lastModifiedAt` | string | When last modified |
+|     ↳ `completedAt` | string | When completed |
+| `insights` | array | Key topics discussed \(null unless requested with include\) |
+|   ↳ `topic` | string | Insight topic \(e.g., Decisions\) |
+|   ↳ `text` | array | Insight points |
+| `outline` | array | Meeting outline sections \(null unless requested with include\) |
+|   ↳ `section` | string | Section heading |
+|   ↳ `text` | array | Section points |
+| `transcript` | object | Full transcript \(null unless requested with include\) |
+|   ↳ `content` | string | Transcript text |
+|   ↳ `format` | string | Transcript format \(e.g., txt\) |
+| `customPrompt` | object | Output of a custom prompt configured in Otter, if any |
+|   ↳ `label` | string | Prompt label |
+|   ↳ `output` | string | Prompt output |
+| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+
+### Otter Get Conversation Audio
+
+Get the MP3 audio download link for an Otter conversation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Otter API key |
+| `conversationId` | string | Yes | The Otter conversation ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | Download URL for the conversation MP3 audio |
+| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+
+### Otter Import Recording
+
+Import an audio or video recording into Otter as a new conversation from a publicly reachable file URL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Otter API key |
+| `fileUrl` | string | Yes | URL of the recording to import \(e.g., https://example.com/call.mp4) |
+| `name` | string | No | Name for the new conversation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Import status \(e.g., success\) |
+| `completedAt` | string | When the import completed |
+| `file` | string | Name of the imported file |
+
+### Otter List Channels
+
+List the Otter channels available to the authenticated user, in alphabetical order.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Otter API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channels` | array | Channels, in alphabetical order by name |
+|   ↳ `id` | string | Channel ID |
+|   ↳ `name` | string | Channel name |
+|   ↳ `memberCount` | number | Number of channel members |
+|   ↳ `owner` | object | Channel owner |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | Full name |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `discoverability` | string | Channel visibility, such as private or workspace \(public\) |
+| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+
+### Otter List Channel Members
+
+List the members of an Otter channel, in alphabetical order.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Otter API key |
+| `channelId` | string | Yes | The Otter channel ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Channel members, in alphabetical order by name |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+
+### Otter Get Workspace
+
+Get the Otter workspace of the authenticated user, including its ID, name, owner, member count, handle, and type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Otter API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workspaceId` | number | Workspace ID \(the id field\); pass it to List Workspace Conversations |
+| `name` | string | Workspace name |
+| `owner` | object | Workspace owner |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+| `memberCount` | number | Number of workspace members |
+| `handle` | string | Workspace handle \(e.g., a domain such as otter.ai\) |
+| `type` | string | Workspace type \(e.g., business\) |
+| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+
+### Otter List Workspace Conversations
+
+List every conversation in an Otter workspace, most recent first. Requires an Otter Super Admin API key in a workspace with Super Admin enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Otter API key of a Super Admin |
+| `workspaceId` | string | Yes | The Otter workspace ID \(the id returned by Get Workspace\) |
+| `limit` | number | No | Number of conversations per page \(1-100\) |
+| `cursor` | string | No | Pagination cursor \(nextCursor from a previous response\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | array | Workspace conversations, most recent first |
+|   ↳ `id` | string | Conversation ID |
+|   ↳ `title` | string | Conversation title |
+|   ↳ `url` | string | URL to view the conversation in Otter |
+|   ↳ `owner` | object | Conversation owner |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | Full name |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `processStatus` | object | Processing status of generated data \(e.g., "finished"\); a field is null when not yet available |
+|     ↳ `abstractSummary` | string | Summary status |
+|     ↳ `actionItem` | string | Action item status |
+|     ↳ `outline` | string | Outline status |
+|   ↳ `calendarGuests` | array | Guests invited to the associated calendar event |
+|     ↳ `name` | string | Guest name |
+|     ↳ `email` | string | Guest email |
+|     ↳ `permission` | string | Guest permission \(present in webhook payloads\) |
+|   ↳ `sharedEmails` | array | Users or email addresses the conversation is shared with |
+|     ↳ `email` | string | Shared email address |
+|     ↳ `user` | object | Otter user for the email, if any |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | Full name |
+|       ↳ `firstName` | string | First name |
+|       ↳ `lastName` | string | Last name |
+|       ↳ `email` | string | Email address |
+|     ↳ `permission` | string | Share permission \(e.g., collaborate\) |
+|   ↳ `sharedChannels` | array | Channels the conversation is shared with |
+|     ↳ `channel` | object | The channel |
+|       ↳ `id` | string | Channel ID |
+|       ↳ `name` | string | Channel name |
+|       ↳ `memberCount` | number | Number of channel members |
+|       ↳ `owner` | object | Channel owner |
+|         ↳ `id` | string | User ID |
+|         ↳ `name` | string | Full name |
+|         ↳ `firstName` | string | First name |
+|         ↳ `lastName` | string | Last name |
+|         ↳ `email` | string | Email address |
+|       ↳ `discoverability` | string | Channel visibility, such as private or workspace \(public\) |
+|     ↳ `permission` | string | Share permission \(e.g., collaborate\) |
+|   ↳ `abstractSummary` | string | AI-generated summary of the conversation |
+|   ↳ `confJoinUrl` | string | Meeting join URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
+| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+| `hasMore` | boolean | Whether more pages are available |
+| `nextCursor` | string | Cursor for the next page; pass it as Cursor to continue |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Otter Conversation Completed
+
+Trigger workflow when an Otter conversation shared to the webhook source finishes processing
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Webhook event \(e.g., conversation_completed or conversation_shared\) |
+| `webhookName` | string | Name of the Otter webhook, if set |
+| `sourceType` | string | Where the webhook listens: workspace or channel |
+| `source` | json | The webhook source; for a channel source \(id, name, memberCount, owner, discoverability\) |
+| `createdBy` | object | createdBy output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+| `retrievedAt` | string | When Otter assembled the payload \(ISO 8601\) |
+| `id` | string | Conversation ID |
+| `title` | string | Conversation title |
+| `url` | string | URL to view the conversation in Otter |
+| `owner` | object | owner output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+| `createdAt` | string | When the conversation was created |
+| `processStatus` | object | processStatus output from the tool |
+|   ↳ `abstractSummary` | string | Summary processing status |
+|   ↳ `actionItem` | string | Action item processing status |
+|   ↳ `outline` | string | Outline processing status |
+| `calendarGuests` | json | Calendar event guests \(name, email, permission\) |
+| `sharedEmails` | json | Users or emails the conversation is shared with \(email, user \{id, name, firstName, lastName, email\}, permission\) |
+| `sharedChannels` | json | Channels the conversation is shared with \(channel \{id, name, memberCount, owner, discoverability\}, permission\) |
+| `abstractSummary` | string | AI-generated summary of the conversation |
+| `confJoinUrl` | string | Meeting join URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
+| `actionItems` | json | Action items \(id, text, assignee \{id, name, firstName, lastName, email\}, status \{completed, createdAt, lastModifiedAt, completedAt\}\) |
+| `insights` | json | Key topics discussed \(topic, text\[\]\) |
+| `outline` | json | Meeting outline sections \(section, text\[\]\) |
+| `transcript` | object | transcript output from the tool |
+|   ↳ `content` | string | Full transcript text |
+|   ↳ `format` | string | Transcript format \(e.g., txt\) |
+| `customPrompt` | object | customPrompt output from the tool |
+|   ↳ `label` | string | Custom prompt label |
+|   ↳ `output` | string | Custom prompt output |
+| `payload` | json | Full raw webhook body as delivered by Otter |
+
+
+---
+
+### Otter Conversation Shared
+
+Trigger workflow when an existing Otter conversation is shared to the webhook source
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Webhook event \(e.g., conversation_completed or conversation_shared\) |
+| `webhookName` | string | Name of the Otter webhook, if set |
+| `sourceType` | string | Where the webhook listens: workspace or channel |
+| `source` | json | The webhook source; for a channel source \(id, name, memberCount, owner, discoverability\) |
+| `createdBy` | object | createdBy output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+| `retrievedAt` | string | When Otter assembled the payload \(ISO 8601\) |
+| `id` | string | Conversation ID |
+| `title` | string | Conversation title |
+| `url` | string | URL to view the conversation in Otter |
+| `owner` | object | owner output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+| `createdAt` | string | When the conversation was created |
+| `processStatus` | object | processStatus output from the tool |
+|   ↳ `abstractSummary` | string | Summary processing status |
+|   ↳ `actionItem` | string | Action item processing status |
+|   ↳ `outline` | string | Outline processing status |
+| `calendarGuests` | json | Calendar event guests \(name, email, permission\) |
+| `sharedEmails` | json | Users or emails the conversation is shared with \(email, user \{id, name, firstName, lastName, email\}, permission\) |
+| `sharedChannels` | json | Channels the conversation is shared with \(channel \{id, name, memberCount, owner, discoverability\}, permission\) |
+| `abstractSummary` | string | AI-generated summary of the conversation |
+| `confJoinUrl` | string | Meeting join URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
+| `actionItems` | json | Action items \(id, text, assignee \{id, name, firstName, lastName, email\}, status \{completed, createdAt, lastModifiedAt, completedAt\}\) |
+| `insights` | json | Key topics discussed \(topic, text\[\]\) |
+| `outline` | json | Meeting outline sections \(section, text\[\]\) |
+| `transcript` | object | transcript output from the tool |
+|   ↳ `content` | string | Full transcript text |
+|   ↳ `format` | string | Transcript format \(e.g., txt\) |
+| `customPrompt` | object | customPrompt output from the tool |
+|   ↳ `label` | string | Custom prompt label |
+|   ↳ `output` | string | Custom prompt output |
+| `payload` | json | Full raw webhook body as delivered by Otter |
+
+
+---
+
+### Otter Webhook
+
+Trigger workflow on any Otter workspace webhook event
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Webhook event \(e.g., conversation_completed or conversation_shared\) |
+| `webhookName` | string | Name of the Otter webhook, if set |
+| `sourceType` | string | Where the webhook listens: workspace or channel |
+| `source` | json | The webhook source; for a channel source \(id, name, memberCount, owner, discoverability\) |
+| `createdBy` | object | createdBy output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+| `retrievedAt` | string | When Otter assembled the payload \(ISO 8601\) |
+| `id` | string | Conversation ID |
+| `title` | string | Conversation title |
+| `url` | string | URL to view the conversation in Otter |
+| `owner` | object | owner output from the tool |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+| `createdAt` | string | When the conversation was created |
+| `processStatus` | object | processStatus output from the tool |
+|   ↳ `abstractSummary` | string | Summary processing status |
+|   ↳ `actionItem` | string | Action item processing status |
+|   ↳ `outline` | string | Outline processing status |
+| `calendarGuests` | json | Calendar event guests \(name, email, permission\) |
+| `sharedEmails` | json | Users or emails the conversation is shared with \(email, user \{id, name, firstName, lastName, email\}, permission\) |
+| `sharedChannels` | json | Channels the conversation is shared with \(channel \{id, name, memberCount, owner, discoverability\}, permission\) |
+| `abstractSummary` | string | AI-generated summary of the conversation |
+| `confJoinUrl` | string | Meeting join URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
+| `actionItems` | json | Action items \(id, text, assignee \{id, name, firstName, lastName, email\}, status \{completed, createdAt, lastModifiedAt, completedAt\}\) |
+| `insights` | json | Key topics discussed \(topic, text\[\]\) |
+| `outline` | json | Meeting outline sections \(section, text\[\]\) |
+| `transcript` | object | transcript output from the tool |
+|   ↳ `content` | string | Full transcript text |
+|   ↳ `format` | string | Transcript format \(e.g., txt\) |
+| `customPrompt` | object | customPrompt output from the tool |
+|   ↳ `label` | string | Custom prompt label |
+|   ↳ `output` | string | Custom prompt output |
+| `payload` | json | Full raw webhook body as delivered by Otter |
+

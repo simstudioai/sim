@@ -8,12 +8,11 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { ssoSettingsOperations } from '@/lib/auth/sso/application/operations'
 import {
   readSsoRequirement,
-  readSsoRequirementOperation,
   type SsoRequirement,
   setSsoRequirement,
-  setSsoRequirementOperation,
 } from '@/lib/auth/sso/application/sso-requirement'
 
 const present = (requirement: SsoRequirement) => ({ success: true as const, data: requirement })
@@ -22,7 +21,7 @@ const present = (requirement: SsoRequirement) => ({ success: true as const, data
 export const GET = defineInternalJsonRoute({
   contract: getOrganizationSsoPolicyContract,
   auth: internalSessionAuth,
-  operation: readSsoRequirementOperation,
+  operation: ssoSettingsOperations.readRequirement,
   rateLimit: internalRateLimits.none({ reason: 'Settings read behind organization membership' }),
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params }) => ({ organizationId: params.id }),
@@ -34,7 +33,7 @@ export const GET = defineInternalJsonRoute({
 export const PUT = defineInternalJsonRoute({
   contract: updateOrganizationSsoPolicyContract,
   auth: internalSessionAuth,
-  operation: setSsoRequirementOperation,
+  operation: ssoSettingsOperations.setRequirement,
   rateLimit: internalRateLimits.user({ bucketName: 'sso-set-requirement' }),
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params, body }) => ({ organizationId: params.id, requireSso: body.requireSso }),

@@ -34,12 +34,7 @@ import { POST } from '@/app/api/workflows/[id]/log/route'
 
 const { mockGetWorkspaceBilledAccountUserId } = workspacesUtilsMockFns
 const { mockResolveBillingAttribution } = billingAttributionMockFns
-const {
-  mockStart,
-  mockSetResolvedSecretTraceRegistry,
-  mockSafeComplete,
-  mockSafeCompleteWithError,
-} = loggingSessionMockFns
+const { mockStart, mockSetResolvedSecretTraceRegistry, mockSafeComplete } = loggingSessionMockFns
 
 const makeRequest = (workflowId: string, body: unknown) =>
   createMockRequest({

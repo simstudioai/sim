@@ -9,6 +9,7 @@ import {
   requireSlackSearchConversationSender,
   resolveSlackSearchChatRecord,
 } from '@/lib/knowledge/application/slack-search/chat'
+import { SLACK_SEARCH_TURN_EVENT } from '@/lib/knowledge/application/slack-search/turn-event'
 import {
   SLACK_SEARCH_CONCURRENCY,
   SLACK_SEARCH_MAX_DURATION_SECONDS,
@@ -21,7 +22,6 @@ import {
 } from '@/lib/slack-search/conversation'
 import { type SlackSearchJob, slackSearchJobSchema } from '@/lib/slack-search/types'
 
-export const SLACK_SEARCH_TURN_EVENT = 'slack-search.turn'
 export function slackSearchTurnOutboxId(turnId: string) {
   return `slack-search-turn:${turnId}`
 }

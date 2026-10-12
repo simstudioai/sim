@@ -21,13 +21,6 @@ const connectorKeys = {
   details: (knowledgeBaseId?: string) => [...connectorKeys.all(knowledgeBaseId), 'detail'] as const,
   detail: (knowledgeBaseId?: string, connectorId?: string) =>
     [...connectorKeys.details(knowledgeBaseId), connectorId ?? ''] as const,
-  progress: (knowledgeBaseId?: string, connectorId?: string, scope?: MockResourceScope) =>
-    [
-      ...connectorKeys.progresses(knowledgeBaseId, connectorId),
-      scope ? resourceScopeKey(scope) : '',
-    ] as const,
-  progresses: (knowledgeBaseId?: string, connectorId?: string) =>
-    [...connectorKeys.detail(knowledgeBaseId, connectorId), 'progress'] as const,
 }
 
 const searchIndexKeys = {
@@ -55,7 +48,7 @@ const mutationHook = () => vi.fn((..._args: unknown[]): unknown => createMutatio
  * - `mockIsConnectorSyncingOrPending` is the real predicate (`status` `pending`/`syncing`, or
  *   `memberSyncStatus` `pending`/`running`).
  * - Query hooks (`useConnectorList`, `useConnectorDetail`, `useSearchIndex`,
- *   `useSearchSourceOverview`, `useOrganizationSearchOverview`, `useSearchSources`,
+ *   `useSearchSources`,
  *   `useConnectorDocuments`) return a fresh {@link createQueryResultMock} (`data: undefined`,
  *   `isPending: true`).
  * - Every mutation hook returns a fresh {@link createMutationResultMock} (`idle`, no-op
@@ -82,8 +75,6 @@ export const kbConnectorsQueriesMockFns = {
   mockUseCreateConnector: mutationHook(),
   mockUseUpdateConnector: mutationHook(),
   mockUseSearchIndex: queryHook(),
-  mockUseSearchSourceOverview: queryHook(),
-  mockUseOrganizationSearchOverview: queryHook(),
   mockUseSearchSources: queryHook(),
   mockUseStartConnectorMemberEnrollment: mutationHook(),
   mockUseUpdateConnectorAccess: mutationHook(),
@@ -92,7 +83,6 @@ export const kbConnectorsQueriesMockFns = {
   mockUseConnectorDocuments: queryHook(),
   mockUseExcludeConnectorDocument: mutationHook(),
   mockUseRestoreConnectorDocument: mutationHook(),
-  mockUseConnectSimSearchConnector: mutationHook(),
   mockUsePrepareSearchSource: mutationHook(),
 }
 
@@ -121,8 +111,6 @@ export const kbConnectorsQueriesMock = {
   useCreateConnector: kbConnectorsQueriesMockFns.mockUseCreateConnector,
   useUpdateConnector: kbConnectorsQueriesMockFns.mockUseUpdateConnector,
   useSearchIndex: kbConnectorsQueriesMockFns.mockUseSearchIndex,
-  useSearchSourceOverview: kbConnectorsQueriesMockFns.mockUseSearchSourceOverview,
-  useOrganizationSearchOverview: kbConnectorsQueriesMockFns.mockUseOrganizationSearchOverview,
   useSearchSources: kbConnectorsQueriesMockFns.mockUseSearchSources,
   useStartConnectorMemberEnrollment:
     kbConnectorsQueriesMockFns.mockUseStartConnectorMemberEnrollment,
@@ -132,6 +120,5 @@ export const kbConnectorsQueriesMock = {
   useConnectorDocuments: kbConnectorsQueriesMockFns.mockUseConnectorDocuments,
   useExcludeConnectorDocument: kbConnectorsQueriesMockFns.mockUseExcludeConnectorDocument,
   useRestoreConnectorDocument: kbConnectorsQueriesMockFns.mockUseRestoreConnectorDocument,
-  useConnectSimSearchConnector: kbConnectorsQueriesMockFns.mockUseConnectSimSearchConnector,
   usePrepareSearchSource: kbConnectorsQueriesMockFns.mockUsePrepareSearchSource,
 }

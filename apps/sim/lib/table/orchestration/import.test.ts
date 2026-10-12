@@ -4,7 +4,7 @@
  */
 import { Readable } from 'node:stream'
 import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
-import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
 import {
   tableJobsServiceMock,
   tableJobsServiceMockFns,
@@ -33,7 +33,6 @@ vi.mock('@/lib/table/events', () => tableEventsMock)
 
 import { performCreateTableFromCsv, performTableCsvImport } from '@/lib/table/orchestration/import'
 
-const mockSignalSchemaChanged = tableEventsMockFns.mockSignalTableSchemaChanged
 const mockMarkTableJobRunning = tableJobsServiceMockFns.mockMarkTableJobRunning
 const mockReleaseJobClaim = tableJobsServiceMockFns.mockReleaseJobClaim
 const mockGetMaxRowsPerTable = tableBillingMockFns.mockGetMaxRowsPerTable

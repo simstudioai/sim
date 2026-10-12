@@ -24,11 +24,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({ root: '' }))
 vi.mock('@/lib/core/config/trigger-runtime', () => ({ isInsideTriggerRun: () => false }))
-/** Pinned to Live Search, whatever `SIM_SEARCH_LIVE` the run was started with. */
-vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  isLiveEnterpriseSearchEnabled: true,
-}))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
   get UPLOAD_DIR_SERVER() {
     return fixture.root
@@ -41,10 +36,8 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
-import {
-  KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT,
-  recoverKnowledgeDocumentProcessing,
-} from '@/lib/knowledge/documents/processing-recovery'
+import { recoverKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-recovery'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
 type FixtureIds = ReturnType<typeof createKnowledgeAclFixtureIds>

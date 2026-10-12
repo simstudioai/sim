@@ -383,6 +383,16 @@
               "pattern": "^[A-Za-z0-9._:-]+$",
               "description": "Unique workflow run identifier."
             }
+          },
+          {
+            "name": "includeWorkflowState",
+            "in": "query",
+            "required": false,
+            "description": "Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.",
+            "schema": {
+              "description": "Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -856,6 +866,9 @@
           "ORGANIZATION_MEMBERSHIP_REQUIRED",
           "ORGANIZATION_ADMIN_REQUIRED",
           "ENTERPRISE_PLAN_REQUIRED",
+          "SSO_DISABLED",
+          "SSO_DOMAIN_NOT_VERIFIED",
+          "SSO_PROVIDER_LIMIT_REACHED",
           "ORGANIZATION_PLAN_REQUIRED",
           "AUDIT_LOGS_DISABLED",
           "ACCESS_REQUESTS_DISABLED",
@@ -1602,7 +1615,7 @@
                 "type": "null"
               }
             ],
-            "description": "Workflow graph captured for the run, or null if unavailable. Sensitive values are redacted to null; environment-variable references may be preserved."
+            "description": "Workflow graph captured for the run, or null if unavailable or includeWorkflowState=false. Sensitive values are redacted to null; environment-variable references may be preserved."
           },
           "traceSpans": {
             "type": "array",

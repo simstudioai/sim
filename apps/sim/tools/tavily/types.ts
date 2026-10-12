@@ -148,8 +148,6 @@ export interface TavilySearchParams {
   auto_parameters?: boolean
 }
 
-export type TavilyResponse = TavilySearchResponse | TavilyExtractResponse
-
 /**
  * Parameters for the Tavily Crawl tool.
  */

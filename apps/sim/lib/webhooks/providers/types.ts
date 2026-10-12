@@ -167,6 +167,16 @@ export interface WebhookProviderHandler {
   /** Format error responses (some providers need special formats). */
   formatErrorResponse?(error: string, status: number): NextResponse
 
+  /**
+   * Answer a deterministic admission rejection (`lib/core/admission/rejection`)
+   * with an empty `200`, dropping the delivery. Only for senders that resend
+   * non-2xx deliveries aggressively and whose events go stale before a person
+   * could lift the block; senders that retry over days (Stripe, Meta) or whose
+   * callers read the status (generic) keep the error. Polling always gets the
+   * raw rejection.
+   */
+  acknowledgeAdmissionRejections?: boolean
+
   /** Return true to skip this event (filtering by event type, collection, etc.). */
   shouldSkipEvent?(ctx: EventFilterContext): boolean
 
@@ -178,6 +188,12 @@ export interface WebhookProviderHandler {
 
   /** Extract unique identifier for idempotency dedup. */
   extractIdempotencyId?(body: unknown): string | null
+
+  /**
+   * Deliveries carry no identifier unless the user configures one (e.g. a generic webhook's
+   * idempotency field), so a delivery without a header or body id is expected, not anomalous.
+   */
+  deliveryIdOptional?: boolean
 
   /** Custom success response after queuing. Return null for default `{message: "Webhook processed"}`. */
   formatSuccessResponse?(providerConfig: Record<string, unknown>): NextResponse | null
@@ -199,6 +215,9 @@ export interface WebhookProviderHandler {
 
   /** Create an external webhook subscription (e.g., register with Telegram, Airtable, etc.). */
   createSubscription?(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined>
+
+  /** Activate a prepared subscription only after its provider-managed credentials are durable. */
+  activateSubscription?(ctx: SubscriptionContext): Promise<void>
 
   /** Delete an external webhook subscription during cleanup. Strict outbox cleanup should throw. */
   deleteSubscription?(ctx: DeleteSubscriptionContext): Promise<void>

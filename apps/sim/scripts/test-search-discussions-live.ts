@@ -11,7 +11,7 @@ import {
   type WorkspaceSearchFilters,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge'
-import { readGitHub, searchGitHub } from '@/lib/sim-search/live/github'
+import { exceedsGitHubTextLimit, readGitHub, searchGitHub } from '@/lib/sim-search/live/github'
 import { array, object, string } from '@/lib/sim-search/live/http'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import type { NativeClient, NativePage } from '@/lib/sim-search/live/types'
@@ -178,6 +178,9 @@ const client: NativeClient = {
       for (const item of Array.isArray(value) ? value : [value]) query.append(key, item)
     const endpoint = `${path}${query.size ? `?${query}` : ''}`
     return githubApi(endpoint, 'adapter')
+  },
+  async bytes() {
+    throw new Error('Unexpected binary request in a PR read')
   },
   async text() {
     throw new Error('Unexpected text request in a PR read')
@@ -478,7 +481,13 @@ try {
     const payload: unknown = JSON.parse(buffer.toString('utf8', 0, length))
     cases = queryCasesSchema.parse(payload)
     for (const test of cases)
-      for (const query of [test.query, ...test.oracleQueries]) assertRepositoryScope(query)
+      for (const query of [test.query, ...test.oracleQueries]) {
+        assertRepositoryScope(query)
+        assert.ok(
+          !exceedsGitHubTextLimit(query),
+          `Case "${test.name}" exceeds GitHub's 256-character search text limit`
+        )
+      }
   } finally {
     await file.close()
   }

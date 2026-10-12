@@ -8,11 +8,11 @@ import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-h
 import type { BlockState, ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import {
   buildBranchNodeId,
+  buildLoopSentinelEndId,
+  buildLoopSentinelStartId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-  buildSentinelEndId,
-  buildSentinelStartId,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 vi.mock('@/tools', () => toolsMock)
@@ -466,11 +466,11 @@ describe('ConditionBlockHandler', () => {
           subflowType === 'loop' ? mockBlock.id : buildBranchNodeId(mockBlock.id, 0)
         const sentinelStartId =
           subflowType === 'loop'
-            ? buildSentinelStartId(subflowId)
+            ? buildLoopSentinelStartId(subflowId)
             : buildParallelSentinelStartId(subflowId)
         const sentinelEndId =
           subflowType === 'loop'
-            ? buildSentinelEndId(subflowId)
+            ? buildLoopSentinelEndId(subflowId)
             : buildParallelSentinelEndId(subflowId)
         const conditionNode = dag.nodes.get(conditionNodeId)!
         mockContext.currentVirtualBlockId = conditionNodeId

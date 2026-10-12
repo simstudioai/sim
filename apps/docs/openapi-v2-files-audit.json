@@ -790,11 +790,11 @@
             "name": "offset",
             "in": "query",
             "required": false,
-            "description": "First line to return, 1-based. Absent starts at the first line.",
+            "description": "First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.",
             "schema": {
-              "description": "First line to return, 1-based. Absent starts at the first line.",
+              "description": "First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.",
               "type": "integer",
-              "minimum": 1,
+              "minimum": 0,
               "maximum": 9007199254740991
             }
           },
@@ -1241,11 +1241,11 @@
             "name": "offset",
             "in": "query",
             "required": false,
-            "description": "First line to return, 1-based. Absent starts at the first line.",
+            "description": "First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.",
             "schema": {
-              "description": "First line to return, 1-based. Absent starts at the first line.",
+              "description": "First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.",
               "type": "integer",
-              "minimum": 1,
+              "minimum": 0,
               "maximum": 9007199254740991
             }
           },
@@ -3836,6 +3836,9 @@
           "ORGANIZATION_MEMBERSHIP_REQUIRED",
           "ORGANIZATION_ADMIN_REQUIRED",
           "ENTERPRISE_PLAN_REQUIRED",
+          "SSO_DISABLED",
+          "SSO_DOMAIN_NOT_VERIFIED",
+          "SSO_PROVIDER_LIMIT_REACHED",
           "ORGANIZATION_PLAN_REQUIRED",
           "AUDIT_LOGS_DISABLED",
           "ACCESS_REQUESTS_DISABLED",
@@ -4119,13 +4122,6 @@
           "revision": {
             "description": "Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.",
             "type": "string"
-          },
-          "diagnostics": {
-            "description": "For a dashboard file, the YAML parse errors in the written content. Empty when it parses; the file is saved either way. Absent for other file types.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         },
         "required": [
@@ -4143,7 +4139,7 @@
         ],
         "additionalProperties": false,
         "title": "Created file",
-        "description": "A newly created workspace file, with the revision it produced and any dashboard parse errors."
+        "description": "A newly created workspace file, with the revision it produced."
       },
       "V2CreatedFileResponse": {
         "type": "object",
@@ -4156,7 +4152,7 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "Created file response",
-        "description": "A newly created workspace file, with the revision it produced and any dashboard parse errors.",
+        "description": "A newly created workspace file, with the revision it produced.",
         "examples": [
           {
             "data": {
@@ -5963,13 +5959,6 @@
           "revision": {
             "description": "Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.",
             "type": "string"
-          },
-          "diagnostics": {
-            "description": "For a dashboard file, the YAML parse errors in the written content. Empty when it parses; the file is saved either way. Absent for other file types.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         },
         "required": ["file", "lineCount"],
@@ -6372,13 +6361,6 @@
           "revision": {
             "description": "Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.",
             "type": "string"
-          },
-          "diagnostics": {
-            "description": "For a dashboard file, the YAML parse errors in the written content. Empty when it parses; the file is saved either way. Absent for other file types.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         },
         "required": [

@@ -1,9 +1,7 @@
 import type { ComponentType } from 'react'
 import { cn } from '@sim/emcn'
-import {
-  RESOURCE_TILE_BASE,
-  RESOURCE_TILE_PLAIN,
-} from '@/app/workspace/[workspaceId]/components/resource-tile'
+import { getManagedMcpConnectorBgColor } from '@/lib/credential-groups/managed-mcp-connectors'
+import { BrandTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { getBlock } from '@/blocks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 
@@ -50,11 +48,11 @@ const SHOWCASE_TILES = [
 ] as const
 
 /**
- * Resolves the brand background color for a block type from the block registry.
- * Returns `null` when the block is unknown or has no brand color configured.
+ * Resolves the brand background color for workflow blocks and managed MCP connectors.
+ * Returns `null` when neither catalog provides a brand color.
  */
 function resolveBrandTileBg(blockType: string): string | null {
-  return getBlock(blockType)?.bgColor || null
+  return getBlock(blockType)?.bgColor || getManagedMcpConnectorBgColor(blockType) || null
 }
 
 interface IntegrationTileProps {
@@ -64,23 +62,14 @@ interface IntegrationTileProps {
 }
 
 /**
- * Brand-colored square tile that renders a block's icon. The unframed variant
+ * Brand-colored square tile that renders an integration's icon. The unframed variant
  * is a 36px tile used in list rows and headers; the framed variant adds an
  * outer 44px halo used inside the showcase grid.
  */
 export function IntegrationTile({ blockType, icon: Icon, framed = false }: IntegrationTileProps) {
   const brandBg = resolveBrandTileBg(blockType)
 
-  if (!framed) {
-    return (
-      <div
-        className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}
-        style={brandBg ? { background: brandBg } : undefined}
-      >
-        <Icon className={getTileIconColorClass(brandBg)} />
-      </div>
-    )
-  }
+  if (!framed) return <BrandTile icon={Icon} background={brandBg} />
 
   return (
     <div className='size-11 shrink-0 rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-xs dark:bg-[var(--surface-5)]'>

@@ -30,6 +30,7 @@ import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
+import { parseOwnedFileReference } from '@/lib/workspace-files/owned-files'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import {
   compileDoc,
@@ -112,7 +113,6 @@ const EXT_TO_MIME: Record<string, string> = {
   '.json': 'application/json',
   '.csv': 'text/csv',
   '.chart': 'text/x-sim-chart',
-  '.dashboard': 'text/x-sim-dashboard',
   '.pptx': PPTX_MIME,
   '.docx': DOCX_MIME,
   '.pdf': PDF_MIME,
@@ -351,6 +351,10 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
+          const owned = parseOwnedFileReference(target.fileName)
+          if (owned) {
+            return { success: false, message: owned.kind.createHint(target.fileName) }
+          }
           const { folderSegments, leafName } = splitWorkspaceFilePath(target.fileName)
           const fileName = leafName
           const content = normalized.content ?? ''

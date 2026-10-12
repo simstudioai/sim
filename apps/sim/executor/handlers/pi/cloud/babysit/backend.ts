@@ -6,8 +6,8 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { truncate } from '@sim/utils/string'
-import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import { type PiSandboxRunner, withPiSandbox } from '@/lib/execution/remote-sandbox'
 import {
   resolvePiRunLifetimeMs,
@@ -297,7 +297,7 @@ function isQuotedGitPath(path: string): boolean {
  * the net guard alone let the reported `diff` grow to megabytes across rounds.
  */
 function capDiff(text: string): string {
-  return text.length > MAX_DIFF_BYTES ? `${text.slice(0, MAX_DIFF_BYTES)}\n[diff truncated]` : text
+  return truncate(text, MAX_DIFF_BYTES, '\n[diff truncated]')
 }
 
 function mergeRoundTotals(total: PiRunTotals, round: PiRunTotals): void {
@@ -620,7 +620,7 @@ async function waitForHeadConvergence(
     if (snapshot.headSha === newSha) return 'converged'
     if (snapshot.headSha !== previousSha) return 'third_party'
     if (attempt < options.convergenceAttempts - 1) {
-      await sleepUntilAborted(options.convergenceWaitMs, signal)
+      await interruptibleSleep(options.convergenceWaitMs, signal)
       if (signal.aborted) throw new Error('Pi run aborted')
     }
   }
@@ -647,7 +647,7 @@ async function waitWithSandboxProbe(
   let remainingMs = durationMs
   while (remainingMs > 0) {
     const intervalMs = Math.min(remainingMs, SANDBOX_PROBE_INTERVAL_MS)
-    await sleepUntilAborted(intervalMs, signal)
+    await interruptibleSleep(intervalMs, signal)
     if (signal.aborted) throw new Error('Pi run aborted')
     const probe = await raceAbort(runner.run('true', { timeoutMs: FINALIZE_TIMEOUT_MS }), signal)
     if (probe.exitCode !== 0) throw new Error('Babysit sandbox stopped responding')

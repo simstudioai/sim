@@ -16,7 +16,7 @@ Because enrichments run on Sim's hosted keys by default, **every provider tool y
 |------|------|-------|
 | 1 | Pick the data-source tool(s) for each output | `tools/{service}/` + `tools/registry.ts` |
 | 2 | **Verify each tool has `hosting`; if not, run `/add-hosted-key`** | `tools/{service}/{action}.ts` |
-| 3 | Write the enrichment definition | `enrichments/{name}/{name}.ts` + `index.ts` |
+| 3 | Write the enrichment definition | `enrichments/{id}/{id}.ts` + `index.ts` |
 | 4 | Register it | `enrichments/registry.ts` |
 | 5 | Verify | tsc / biome / manual run |
 
@@ -27,7 +27,7 @@ Because enrichments run on Sim's hosted keys by default, **every provider tool y
 - **`enrichments/run.ts`** — the server-only cascade runner. Calls `executeTool(provider.toolId, { ...params, _context: { workspaceId, userId } })`, accumulates hosted-key cost, returns the first non-empty mapped result. **You do not edit this** — it works for any registry entry.
 - **`enrichments/registry.ts`** — `ENRICHMENT_REGISTRY` / `ALL_ENRICHMENTS` / `getEnrichment`. Register new entries here.
 
-Outputs automatically become table columns; billing, the catalog/sidebar UI, the column meta-header icon, and per-row execution all work with no extra wiring.
+Outputs automatically become table columns; billing, the catalog/sidebar UI, and per-row execution work with no extra wiring.
 
 ## Step 1: Pick the data-source tool(s)
 
@@ -37,7 +37,7 @@ For each output the enrichment produces, decide which existing tool provides it.
 - Its `params` accept what you can derive from table columns (read the tool's `params`).
 - Its `outputs` / `transformResponse` actually expose the field you need (read the real output shape — don't assume).
 
-Order providers **cheapest / most-likely-to-hit first**; the cascade stops at the first non-empty result. Apollo / LinkedIn are not hosted-safe (ToS) — don't use them.
+Order providers **cheapest / most-likely-to-hit first**; the cascade stops at the first non-empty result. Apollo and LinkedIn APIs are not hosted-safe (ToS) — never call them as providers.
 
 ## Step 2: Verify hosted-key support — chain to `/add-hosted-key` if missing
 
@@ -60,7 +60,7 @@ Why it matters: the cascade runner only bills (and only reads `output.cost.total
 
 ## Step 3: Write the enrichment definition
 
-Create `apps/sim/enrichments/{name}/{name}.ts` and a barrel `index.ts`. Mirror the entries registered in `enrichments/registry.ts`.
+Create `apps/sim/enrichments/{id}/{id}.ts` and a barrel `index.ts`. Mirror the entries registered in `enrichments/registry.ts`.
 
 ```typescript
 import { SomeIcon } from '@sim/emcn/icons'
@@ -104,12 +104,12 @@ export const myEnrichment: EnrichmentConfig = {
 ```
 
 ```typescript
-// apps/sim/enrichments/{name}/index.ts
+// apps/sim/enrichments/{id}/index.ts
 export { myEnrichment } from './my-enrichment'
 ```
 
 Rules:
-- Keep the file **client-safe**: import only `@sim/emcn/icons`, `@sim/utils/*`, `@/enrichments/providers`, and the types. **Never import `@/tools`** here — the runner does the tool call.
+- Keep the file **client-safe**: import only `@sim/emcn/icons`, `@sim/utils/*`, `@/enrichments/providers`, `@/enrichments/provider-failures/*`, and the types. **Never import `@/tools`** here — the runner does the tool call.
 - `buildParams` returns `null` when inputs are insufficient (provider skipped). `mapOutput` returns `null`/empty for a miss (falls through). Use `filterUndefined` when assembling optional tool params; coerce numbers explicitly (don't pass `''` to number outputs).
 - Output `id`s are the keys `mapOutput` returns; output `name`s are the default column names (the user can rename them in the config).
 
@@ -118,7 +118,7 @@ Rules:
 In `apps/sim/enrichments/registry.ts`, import and add the entry (catalog order is registration order):
 
 ```typescript
-import { myEnrichment } from '@/enrichments/my-enrichment'
+import { myEnrichment } from '@/enrichments/{id}'
 
 export const ENRICHMENT_REGISTRY: EnrichmentRegistry = {
   // ...existing

@@ -7,10 +7,13 @@ import type { z } from 'zod'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { resolveTurnDesktopDevice } from '@/lib/desktop/application/executor'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { insertRunSegment, withRunAdmissionLock } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
+import { withChatEffortChoice } from '@/lib/mothership/chat/intent'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import {
@@ -18,6 +21,7 @@ import {
   type UserMessageParams,
 } from '@/lib/mothership/chat/persisted-message'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
+import type { MothershipEffort } from '@/lib/mothership/model-options'
 import { StreamRecoveryConfigSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
 import {
   assertChatStreamLease,
@@ -34,6 +38,24 @@ interface AdmitTurnInput {
   lease: ChatStreamLease
   sendClaim: { normalizedKey: string; claimToken: string }
   notifyWorkspaceStatus: boolean
+  /** The effort this send picked, kept as the chat's choice for later turns. */
+  effortChoice?: MothershipEffort
+  /** The composer's desktop, offered for its background executor to run this turn's desktop tools. */
+  desktopDeviceId?: string
+}
+
+/**
+ * The desktop a turn runs on, if any. Only a workspace chat runs on a desktop in the background:
+ * its sidebar shows the status and an approval notification links back to it. An organization
+ * chat stays with its chat view.
+ */
+export async function turnDesktopDevice(
+  principal: SessionPrincipal,
+  workspaceId: string | null | undefined,
+  offeredDeviceId: string | undefined
+): Promise<string | null> {
+  if (!offeredDeviceId || !workspaceId) return null
+  return resolveTurnDesktopDevice(principal, offeredDeviceId)
 }
 
 /** The accepted message, its start intent and retry destination commit together. */
@@ -79,13 +101,17 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
       else await requireOrganizationSearchAvailable(organizationId)
     }
     await assertChatStreamLease(input.lease)
+    const desktopDeviceId = await turnDesktopDevice(principal, workspaceId, input.desktopDeviceId)
+    const turnConfig = sql`COALESCE(${copilotChats.config}, '{}'::jsonb) || jsonb_build_object('conversationMode', ${request.mode ?? 'agent'}::text)`
     return withRunAdmissionLock(userId, request.messageId, async (tx) => {
       const [chat] = await tx
         .update(copilotChats)
         .set({
           conversationId: request.messageId,
           updatedAt: new Date(),
-          config: sql`COALESCE(${copilotChats.config}, '{}'::jsonb) || jsonb_build_object('conversationMode', ${request.mode ?? 'agent'}::text)`,
+          config: input.effortChoice
+            ? withChatEffortChoice(turnConfig, input.effortChoice)
+            : turnConfig,
         })
         .where(
           and(
@@ -117,6 +143,7 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
         organizationId,
         streamId: request.messageId,
         workflowId: request.workflowId,
+        desktopDeviceId,
         requestContext: {
           requestId: input.requestId,
           controllerToken: input.lease.value,
@@ -141,8 +168,7 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
           )
         )
         .returning({ key: idempotencyKey.key })
-      if (!claim)
-        throw new OrchestrationError('conflict', 'This send was superseded; retry the message')
+      if (!claim) throw new ChatSendSupersededError()
       return run
     })
   },

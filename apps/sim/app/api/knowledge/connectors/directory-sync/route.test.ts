@@ -4,7 +4,6 @@ import {
   hasMockCondition,
   resetEnvFlagsMock,
   schemaMock,
-  setEnvFlags,
 } from '@sim/testing'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
 import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
@@ -107,24 +106,6 @@ describe('connector directory sync scheduler', () => {
 
     await expect(run()).resolves.toMatchObject({ dispatched: 1, failed: 1 })
   })
-
-  it.each([true, false])(
-    'excludes Search directories from scheduled pages only when live Search is %s',
-    async (liveSearch) => {
-      setEnvFlags({ isLiveEnterpriseSearchEnabled: liveSearch })
-      mockConnectorRows.mockResolvedValue([])
-      await run()
-      expect(
-        hasMockCondition(
-          mockWhere.mock.calls[0][0],
-          (node) =>
-            node.type === 'eq' &&
-            node.left === schemaMock.knowledgeBase.isSearchIndex &&
-            node.right === false
-        )
-      ).toBe(liveSearch)
-    }
-  )
 
   it('does not enqueue a connector another scheduler claimed or paused', async () => {
     mockConnectorRows.mockResolvedValue([connector()])

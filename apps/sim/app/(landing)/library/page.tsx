@@ -1,21 +1,19 @@
 import type { Metadata } from 'next'
-import { selectVisiblePosts } from '@/lib/content/index-list'
+import { notFound } from 'next/navigation'
+import { resolveContentPage, selectVisiblePosts } from '@/lib/content/index-list'
 import { getAllPostMeta } from '@/lib/library/registry'
 import { buildCollectionPageJsonLd, buildIndexMetadata, LIBRARY_SECTION } from '@/lib/library/seo'
 import { ContentIndexPage } from '@/app/(landing)/components'
 
-/**
- * Filtered/paginated variants render genuinely different lists, but only the
- * bare index is indexable — see `buildIndexMetadata` in `@/lib/content/seo`
- * for the shared noindex policy.
- */
 export async function generateMetadata({
   searchParams,
 }: {
   searchParams: Promise<{ page?: string; tag?: string }>
 }): Promise<Metadata> {
   const { page, tag } = await searchParams
-  const pageNum = Math.max(1, Number(page || 1))
+  const posts = await getAllPostMeta()
+  const pageNum = resolveContentPage(posts, { page, tag })
+  if (pageNum === null) notFound()
   return buildIndexMetadata({ tag, pageNum })
 }
 
@@ -25,8 +23,9 @@ export default async function LibraryIndex({
   searchParams: Promise<{ page?: string; tag?: string }>
 }) {
   const { page, tag } = await searchParams
-  const pageNum = Math.max(1, Number(page || 1))
   const posts = await getAllPostMeta()
+  const pageNum = resolveContentPage(posts, { page, tag })
+  if (pageNum === null) notFound()
 
   return (
     <ContentIndexPage

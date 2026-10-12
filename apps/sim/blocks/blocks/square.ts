@@ -3,7 +3,6 @@ import { SquareIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { SquareResponse } from '@/tools/square/types'
 
 const CUSTOMER_NAME_FIELD = ['givenName', 'companyName', 'nickname'] as const
 
@@ -11,7 +10,7 @@ const CUSTOMER_CONTACT_FIELD = ['emailAddress', 'phoneNumber'] as const
 
 const CATALOG_IMAGE_FIELD = ['uploadFile', 'fileRef'] as const
 
-export const SquareBlock: BlockConfig<SquareResponse> = {
+export const SquareBlock: BlockConfig = {
   type: 'square',
   name: 'Square',
   description: 'Process payments and manage Square commerce data',

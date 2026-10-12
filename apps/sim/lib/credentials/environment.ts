@@ -17,7 +17,7 @@ import { and, asc, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'd
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { isManagedCredentialGroupBindingLive } from '@/lib/credential-groups/credentials'
 import { lockPersonalEnvMap } from '@/lib/credentials/env-locks'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   getEffectiveWorkspacePermission,
   hasWorkspaceAdminAccess,
@@ -526,11 +526,11 @@ export async function upsertPersonalEnvCredentialForUser(params: {
   userId: string
   envKey: string
   updatedAt: Date
-  executor?: DbOrTx
+  executor?: DbTransaction
 }): Promise<void> {
   const { userId, envKey, updatedAt } = params
 
-  const upsert = async (tx: DbOrTx) => {
+  const upsert = async (tx: DbTransaction) => {
     await acquireUserBillingIdentityLock(tx, userId)
     const workspaceIds = (await getUserWorkspaceIds(userId, tx)).sort()
     if (workspaceIds.length === 0) return
@@ -655,11 +655,11 @@ export async function getPersonalEnvCredentialMetadata(params: {
 export async function deletePersonalEnvCredentialForUser(params: {
   userId: string
   envKey: string
-  executor?: DbOrTx
+  executor?: DbTransaction
 }): Promise<void> {
   const { userId, envKey } = params
 
-  const remove = async (tx: DbOrTx) => {
+  const remove = async (tx: DbTransaction) => {
     await acquireUserBillingIdentityLock(tx, userId)
     await tx
       .delete(credential)

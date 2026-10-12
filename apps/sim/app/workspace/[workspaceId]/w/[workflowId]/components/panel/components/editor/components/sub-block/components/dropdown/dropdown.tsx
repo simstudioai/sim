@@ -397,7 +397,7 @@ export const Dropdown = memo(function Dropdown({
       }
 
       return []
-    } catch (error) {
+    } catch {
       return []
     }
   }

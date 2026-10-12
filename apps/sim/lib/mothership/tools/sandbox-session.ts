@@ -4,8 +4,14 @@ import { resolve } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import { env } from '@/lib/core/config/env'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import {
+  type DurableSecretProvenance,
+  EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
+} from '@/lib/execution/durable-secret-provenance'
 import type { SandboxSessionRequest } from '@/lib/execution/remote-sandbox/types'
 import { WorkbenchBootstrap } from '@/lib/mothership/generated/workbench'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
@@ -13,8 +19,42 @@ import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import { sandboxResourceEndpoint } from '@/lib/mothership/tools/sandbox-resources'
 import { getSimConnection } from '@/lib/mothership/transport/connection'
+import {
+  containsResolvedSecret,
+  createResolvedSecretMatcher,
+  type ResolvedSecretMatcher,
+} from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('MothershipSandboxSession')
+
+/** Scans parsed sandbox JSON without copying the payload or consuming the call stack. */
+function containsSessionCredential(value: unknown, matcher: ResolvedSecretMatcher): boolean {
+  function* fields(record: Record<string, unknown>): Generator<unknown> {
+    for (const key in record) {
+      if (!Object.hasOwn(record, key)) continue
+      yield key
+      yield record[key]
+    }
+  }
+
+  const pending: Iterator<unknown>[] = [[value].values()]
+  while (pending.length > 0) {
+    const next = pending[pending.length - 1].next()
+    if (next.done) {
+      pending.pop()
+      continue
+    }
+    const current = next.value
+    if (typeof current === 'string') {
+      if (containsResolvedSecret(current, matcher)) return true
+    } else if (Array.isArray(current)) {
+      pending.push(current.values())
+    } else if (current !== null && typeof current === 'object') {
+      pending.push(fields(toRecord(current)))
+    }
+  }
+  return false
+}
 
 /** Public runtime and private bootstrap share an immutable release directory. */
 async function workbenchCli(
@@ -79,11 +119,28 @@ export async function buildMothershipSandboxSession(args: {
   if (getSimConnection().mode === 'checkpoint') return { key: args.sessionKey }
   const cli = await workbenchCli(args.userId, args.signal)
   let cliEnvs: Record<string, string> | undefined
+  let outputProvenance: SandboxSessionRequest['outputProvenance']
   try {
     const apiKey = `mothership-sandbox:${generateId()}`
     const endpoint = env.MOTHERSHIP_SANDBOX_CLI_ENDPOINT?.trim() || getBaseUrl()
     const scopedEndpoint = await sandboxResourceEndpoint(endpoint, args, apiKey)
     if (scopedEndpoint !== endpoint) {
+      const provenance: DurableSecretProvenance = {
+        status: 'exact',
+        entries: [
+          {
+            name: 'SIM_API_KEY',
+            encryptedValue: (await encryptSecret(apiKey)).encrypted,
+            sourceUserId: args.userId,
+            ...(args.workspaceId ? { sourceWorkspaceId: args.workspaceId } : {}),
+          },
+        ],
+      }
+      const matcher = createResolvedSecretMatcher([{ plaintext: apiKey, replacement: '' }])
+      outputProvenance = (value) =>
+        matcher && containsSessionCredential(value, matcher)
+          ? provenance
+          : EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
       cliEnvs = {
         SIM_API_KEY: apiKey,
         ...(args.organizationId
@@ -101,6 +158,6 @@ export async function buildMothershipSandboxSession(args: {
   return {
     key: args.sessionKey,
     cli,
-    ...(cliEnvs ? { envs: cliEnvs } : {}),
+    ...(cliEnvs ? { envs: cliEnvs, outputProvenance } : {}),
   }
 }

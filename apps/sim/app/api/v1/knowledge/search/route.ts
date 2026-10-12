@@ -24,7 +24,6 @@ import {
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
-import { usesIndexedRetrieval } from '@/lib/sim-search/indexed/gate'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
 import { handleError, resolveV1KnowledgeReadAccess } from '@/app/api/v1/knowledge/utils'
 import {
@@ -251,7 +250,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         accessProvider,
         searchMode,
         boostRecency,
-        indexedRetrieval: usesIndexedRetrieval(accessibleKbs),
         structuredFilters,
       })
     } else if (hasQuery) {
@@ -268,7 +266,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         accessProvider,
         searchMode,
         boostRecency,
-        indexedRetrieval: usesIndexedRetrieval(accessibleKbs),
         query,
         queryVector: {
           vector: JSON.stringify(queryEmbeddingResult.embedding),

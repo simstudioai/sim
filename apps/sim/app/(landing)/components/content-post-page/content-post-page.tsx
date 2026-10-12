@@ -1,21 +1,14 @@
+import type { ReactNode } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@sim/emcn'
 import Image from 'next/image'
 import Link from 'next/link'
 import { FAQ } from '@/lib/content/faq'
 import type { ContentMeta, ContentPost } from '@/lib/content/schema'
 import { BackLink } from '@/app/(landing)/components/back-link'
+import { ContentRelatedPosts } from '@/app/(landing)/components/content-post-page/content-related-posts'
+import { formatPostDate } from '@/app/(landing)/components/content-utils'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { ShareButton } from '@/app/(landing)/components/share-button'
-
-/** Renders an ISO date as "Jul 1, 2026". Pinned to UTC so the day matches the frontmatter date in every reader's timezone. */
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-}
 
 interface ContentPostPageProps {
   /** Route base path, e.g. `/blog` or `/library`. */
@@ -25,7 +18,8 @@ interface ContentPostPageProps {
   post: ContentPost
   related: ContentMeta[]
   graphJsonLd: Record<string, unknown>
-  shareUrl: string
+  /** Section-specific content rendered below the article body, above related posts. */
+  afterArticle?: ReactNode
 }
 
 /**
@@ -39,7 +33,7 @@ export function ContentPostPage({
   post,
   related,
   graphJsonLd,
-  shareUrl,
+  afterArticle,
 }: ContentPostPageProps) {
   const Article = post.Content
   const modifiedIso = post.updated ?? post.date
@@ -92,7 +86,7 @@ export function ContentPostPage({
                   dateTime={post.date}
                   itemProp='datePublished'
                 >
-                  {formatDate(post.date)}
+                  {formatPostDate(post.date)}
                 </time>
                 {showUpdated ? (
                   <>
@@ -104,7 +98,7 @@ export function ContentPostPage({
                       dateTime={modifiedIso}
                       itemProp='dateModified'
                     >
-                      Updated {formatDate(modifiedIso)}
+                      Updated {formatPostDate(modifiedIso)}
                     </time>
                   </>
                 ) : (
@@ -134,7 +128,7 @@ export function ContentPostPage({
                 ))}
               </div>
               <div className='ml-auto'>
-                <ShareButton url={shareUrl} title={post.title} />
+                <ShareButton url={post.canonical} title={post.title} />
               </div>
             </div>
           </div>
@@ -152,41 +146,14 @@ export function ContentPostPage({
             </div>
           </div>
 
+          {afterArticle ? (
+            <div className='mx-auto max-w-[900px] px-6 pb-16'>{afterArticle}</div>
+          ) : null}
+
           {related.length > 0 && (
             <>
               <div className='h-px w-full bg-[var(--border)]' />
-              <nav aria-label='Related posts' className='flex flex-col sm:flex-row'>
-                {related.map((p) => (
-                  <Link
-                    key={p.slug}
-                    href={`${basePath}/${p.slug}`}
-                    className='group flex flex-1 flex-col gap-4 border-[var(--border)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--surface-hover)] sm:border-t-0 sm:border-l sm:first:border-l-0'
-                  >
-                    <div className='relative aspect-video w-full overflow-hidden rounded-[5px]'>
-                      <Image
-                        src={p.ogImage}
-                        alt={p.title}
-                        fill
-                        sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw'
-                        className='object-cover'
-                        loading='lazy'
-                        unoptimized
-                      />
-                    </div>
-                    <div className='flex flex-col gap-2'>
-                      <span className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em]'>
-                        {formatDate(p.date)}
-                      </span>
-                      <h3 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
-                        {p.title}
-                      </h3>
-                      <p className='line-clamp-2 text-[var(--text-secondary)] text-sm leading-[150%]'>
-                        {p.description}
-                      </p>
-                    </div>
-                  </Link>
-                ))}
-              </nav>
+              <ContentRelatedPosts basePath={basePath} posts={related} />
             </>
           )}
         </div>

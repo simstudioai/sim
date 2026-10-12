@@ -1,8 +1,5 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import {
-  billingSubscriptionMock,
-  billingSubscriptionMockFns,
-} from '@sim/testing/mocks/billing-subscription.mock'
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
 import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
 import {
   workflowsPersistenceUtilsMock,
@@ -30,8 +27,6 @@ import {
   publishCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
 
-const mockIsOrganizationFeatureEntitled =
-  billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled
 const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
 
 const publishParams = {

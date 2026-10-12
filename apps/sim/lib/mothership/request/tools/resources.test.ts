@@ -24,6 +24,7 @@ vi.mock('@/lib/mothership/resources/persistence', () => ({
 
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
+import type { StreamEvent } from '@/lib/mothership/request/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 
 describe('handleResourceSideEffects', () => {
@@ -97,31 +98,35 @@ describe('handleResourceSideEffects', () => {
       })
     }
   )
-  it.each(['workspace-a'])('addresses extracted exports to admitted %s', async (workspaceId) => {
-    const resource = { type: 'file' as const, id: 'export', title: 'decisions.csv' }
-    mocks.extractResourcesFromToolResult.mockReturnValue([resource])
-    const onEvent = vi.fn()
-    await handleResourceSideEffects(
-      'run_function',
-      undefined,
-      { success: true, output: {} },
-      { success: true, output: {} },
-      'org-chat',
-      onEvent,
-      () => false,
-      workspaceId
-    )
-    expect(mocks.persistChatResources).toHaveBeenCalledWith('org-chat', [
-      { ...resource, workspaceId },
-    ])
-    expect(onEvent).toHaveBeenCalledWith({
-      type: 'resource',
-      payload: {
-        op: 'upsert',
-        resource: { ...resource, workspaceId },
-      },
-    })
-  })
+  it.each([
+    { chat: 'organization', organizationId: 'org', expected: { workspaceId: 'workspace-a' } },
+    { chat: 'workspace', organizationId: undefined, expected: {} },
+  ])(
+    'addresses extracted exports in a $chat chat like its open tabs',
+    async ({ organizationId, expected }) => {
+      const resource = { type: 'file' as const, id: 'export', title: 'decisions.csv' }
+      mocks.extractResourcesFromToolResult.mockReturnValue([resource])
+      const events: StreamEvent[] = []
+      await handleResourceSideEffects(
+        'run_function',
+        undefined,
+        { success: true, output: {} },
+        { success: true, output: {} },
+        'chat',
+        (event) => {
+          events.push(event)
+        },
+        () => false,
+        { organizationId, workspaceId: 'workspace-a' }
+      )
+      expect(events).toEqual([
+        {
+          type: 'resource',
+          payload: { op: 'upsert', resource: { ...resource, ...expected } },
+        },
+      ])
+    }
+  )
 })
 
 it('emits authorized Search results beside the persisted address, never inside it', async () => {

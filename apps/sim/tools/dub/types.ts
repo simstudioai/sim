@@ -338,22 +338,3 @@ export interface DubListFoldersResponse extends ToolResponse {
     count: number
   }
 }
-
-export type DubResponse =
-  | DubCreateLinkResponse
-  | DubGetLinkResponse
-  | DubUpdateLinkResponse
-  | DubUpsertLinkResponse
-  | DubDeleteLinkResponse
-  | DubListLinksResponse
-  | DubGetAnalyticsResponse
-  | DubGetLinksCountResponse
-  | DubGetEventsResponse
-  | DubBulkCreateLinksResponse
-  | DubBulkUpdateLinksResponse
-  | DubBulkDeleteLinksResponse
-  | DubGetQrCodeResponse
-  | DubListDomainsResponse
-  | DubListTagsResponse
-  | DubCreateTagResponse
-  | DubListFoldersResponse

@@ -14,6 +14,7 @@ import {
   toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { truncate } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ACTIVITY_ICON_SLOT_CLASS,
@@ -60,7 +61,7 @@ function argsPreview(params: Record<string, unknown> | undefined): string | unde
   if (!params || Object.keys(params).length === 0) return undefined
   try {
     const json = JSON.stringify(params, null, 2)
-    return json.length > 600 ? `${json.slice(0, 600)}…` : json
+    return truncate(json, 600, '…')
   } catch {
     return undefined
   }

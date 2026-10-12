@@ -1,9 +1,8 @@
 import { GreenhouseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { GreenhouseResponse } from '@/tools/greenhouse/types'
 import { getTrigger } from '@/triggers'
 
-export const GreenhouseBlock: BlockConfig<GreenhouseResponse> = {
+export const GreenhouseBlock: BlockConfig = {
   type: 'greenhouse',
   name: 'Greenhouse',
   description: 'Manage candidates, jobs, and applications in Greenhouse',

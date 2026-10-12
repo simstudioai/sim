@@ -869,8 +869,6 @@ Get information about the user and their Google Drive (storage quota, capabiliti
 | `exportFormats` | json | Map of Google Workspace MIME types and their exportable formats |
 | `maxUploadSize` | string | Maximum upload size in bytes |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -910,4 +908,22 @@ Triggers when files are created, modified, or deleted in Google Drive
 |   ↳ `starred` | boolean | Whether file is starred |
 | `eventType` | string | Change type: "created", "modified", or "deleted" |
 | `timestamp` | string | Event timestamp in ISO format |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Google Drive account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-drive` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files you open or create with Sim |
+| `https://www.googleapis.com/auth/drive` | View, edit, create, and delete all Google Drive files |
+
 

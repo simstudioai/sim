@@ -75,7 +75,7 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
     }),
   },
 
-  transformResponse: async (response: Response, params?: GoogleFormsGetResponsesParams) => {
+  transformResponse: async (response: Response) => {
     const data = (await response.json()) as unknown
 
     if (!response.ok) {

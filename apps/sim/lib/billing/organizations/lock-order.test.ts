@@ -11,12 +11,14 @@ import {
   organization,
   outboxEvent,
   permissions,
+  projectMembershipRollout,
   subscription as subscriptionTable,
   user,
   userStats,
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { billingSubscriptionSyncMock } from '@sim/testing/mocks/billing-subscription-sync.mock'
 import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -42,6 +44,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { attachOwnedWorkspacesToOrganizationTx } from '@/lib/workspaces/organization-workspaces'
 
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/billing/webhooks/subscription-sync', () => billingSubscriptionSyncMock)
 
 /**
  * A superset row that satisfies every read in the join path: a paid org sub, a
@@ -179,11 +182,14 @@ describe('workspace payer-change transaction lock ordering', () => {
   it('locks nonzero workspaces before join billing or aggregate payer changes', async () => {
     const ops: Array<{ op: 'lock' | 'payer-transfer' | 'update'; table: unknown }> = []
     let memberSelectCount = 0
-    const rowsForTable = (table: unknown): unknown[] => {
+    const rowsForTable = (table: unknown, fields?: Record<string, unknown>): unknown[] => {
+      if (table === projectMembershipRollout) return [{ phase: 'column' }]
       if (table === workspace) {
+        if (fields?.id === workspace.projectId) return [{ id: null }]
         return [
           {
             id: 'workspace-1',
+            projectId: null,
             billedAccountUserId: 'user-1',
             organizationId: null,
             storageUsedBytes: 128,
@@ -201,7 +207,7 @@ describe('workspace payer-change transaction lock ordering', () => {
       if (table === userStats) return [{ currentPeriodCost: '5' }]
       return []
     }
-    const select = () => {
+    const select = (fields?: Record<string, unknown>) => {
       let table: unknown
       const chain = {
         from(source: unknown) {
@@ -214,20 +220,24 @@ describe('workspace payer-change transaction lock ordering', () => {
         orderBy() {
           return chain
         },
+        as() {
+          return table
+        },
         for() {
           ops.push({ op: 'lock', table })
           return chain
         },
-        limit: async () => rowsForTable(table),
+        limit: async () => rowsForTable(table, fields),
         then(resolve: (rows: unknown[]) => unknown, reject: (error: unknown) => unknown) {
-          return Promise.resolve(rowsForTable(table)).then(resolve, reject)
+          return Promise.resolve(rowsForTable(table, fields)).then(resolve, reject)
         },
       }
       return chain
     }
     const tx = {
-      execute: async () => [],
+      execute: async () => [{ marker: true, complete: false }],
       select,
+      selectDistinct: select,
       insert: () => ({
         values: () => ({
           onConflictDoUpdate: async () => undefined,

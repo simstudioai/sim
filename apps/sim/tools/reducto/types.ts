@@ -61,7 +61,7 @@ interface ReductoGranularConfidence {
 /**
  * Block type classification
  */
-export type ReductoBlockType =
+type ReductoBlockType =
   | 'Header'
   | 'Footer'
   | 'Title'

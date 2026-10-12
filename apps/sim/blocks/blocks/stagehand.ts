@@ -4,7 +4,7 @@ import type { StagehandAgentResponse, StagehandExtractResponse } from '@/tools/s
 
 export type StagehandResponse = StagehandExtractResponse | StagehandAgentResponse
 
-export const StagehandBlock: BlockConfig<StagehandResponse> = {
+export const StagehandBlock: BlockConfig = {
   type: 'stagehand',
   name: 'Stagehand',
   description: 'Web automation and data extraction',

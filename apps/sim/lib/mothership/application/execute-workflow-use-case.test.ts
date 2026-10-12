@@ -12,7 +12,7 @@ import {
   executeCopilotWorkflowUseCase,
   messageForCopilotWorkflowError,
 } from '@/lib/mothership/application/execute-workflow-use-case'
-import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
+import { COPILOT_APPLICATION_DELEGATION_TTL_MS } from '@/lib/mothership/auth/application-delegation'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 
 const trustedContext = {
@@ -54,7 +54,7 @@ describe('Copilot Workflow application adapter', () => {
         delegationId: 'copilot-tool:tool-call-1',
         audience: 'sim:workflows',
         issuedAt: new Date('2026-01-01T00:00:00Z'),
-        expiresAt: new Date(Date.now() + ORCHESTRATION_TIMEOUT_MS),
+        expiresAt: new Date(Date.now() + COPILOT_APPLICATION_DELEGATION_TTL_MS),
         resourceScope: { chatId: 'chat-1', executionId: 'execution-1' },
       },
       input: { workflowId: 'workflow-1', assertedWorkspaceId: 'workspace-1' },

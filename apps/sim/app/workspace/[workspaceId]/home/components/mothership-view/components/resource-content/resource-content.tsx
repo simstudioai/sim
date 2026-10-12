@@ -15,6 +15,8 @@ import {
   FileX,
   Folder as FolderIcon,
   Library,
+  Loader,
+  Send,
   Square,
   SquareArrowUpRight,
   Workflow as WorkflowIcon,
@@ -23,6 +25,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { DashboardResource } from '@/components/dashboards/dashboard-resource'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { useSession } from '@/lib/auth/auth-client'
@@ -38,24 +41,28 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
-import type {
-  GenericResourceData,
-  MothershipResource,
-} from '@/app/workspace/[workspaceId]/home/types'
+import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { LogDetailsContent } from '@/app/workspace/[workspaceId]/logs/components'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
 } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
+import {
+  TestsFeatureGate,
+  TestView,
+  useTestRunAction,
+} from '@/app/workspace/[workspaceId]/tests/components'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
@@ -64,6 +71,7 @@ import { exportTable } from '@/hooks/queries/tables'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow } from '@/hooks/queries/utils/workflow-list-query'
+import { useWorkflowTest } from '@/hooks/queries/workflow-tests'
 import { useWorkflows, WORKFLOW_STATE_STALE_TIME } from '@/hooks/queries/workflows'
 import { useAddressedWorkspaceFileRecord, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { createWorkspaceFileContentSource } from '@/hooks/use-file-content-source'
@@ -74,6 +82,13 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
+
+const WORKFLOW_LOADING = (
+  <div role='status' className='flex h-full items-center justify-center'>
+    <Loader animate className='size-[18px] text-[var(--text-icon)]' />
+    <span className='sr-only'>Loading workflow</span>
+  </div>
+)
 
 const LOADING_SKELETON = (
   <div className='flex h-full flex-col gap-2 p-6'>
@@ -111,7 +126,6 @@ interface ResourceContentProps {
   previewMode?: PreviewMode
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
-  genericResourceData?: GenericResourceData
   previewContextKey?: string
   onNotFound?: (resourceId: string) => void
   /**
@@ -185,7 +199,6 @@ export const ResourceContent = memo(function ResourceContent({
   previewMode,
   previewSession,
   isAgentResponding,
-  genericResourceData,
   previewContextKey,
   onNotFound,
   visible = true,
@@ -297,6 +310,21 @@ export const ResourceContent = memo(function ResourceContent({
         />
       )
 
+    case 'dashboard':
+      return <DashboardResource key={resource.id} workspaceId={workspaceId} />
+    case 'test':
+      return (
+        <TestsFeatureGate>
+          <div className='flex h-full flex-col overflow-hidden'>
+            <TestView
+              key={resource.id}
+              workspaceId={workspaceId}
+              name={resource.id}
+              previewMode={previewMode ?? 'preview'}
+            />
+          </div>
+        </TestsFeatureGate>
+      )
     case 'file':
       return (
         <EmbeddedFile
@@ -347,9 +375,7 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'generic':
-      return (
-        <GenericResourceContent key={resource.id} data={genericResourceData ?? { entries: [] }} />
-      )
+      return <GenericResourceContent key={resource.id} />
 
     case 'browser':
       // One panel serves every browser tab of the chat: the desktop app
@@ -391,6 +417,7 @@ export function ResourceActions({
     case 'file':
       return (
         <EmbeddedFileActions
+          key={`${workspaceId}:${resource.id}`}
           workspaceId={workspaceId}
           fileId={resource.id}
           filePath={resource.path}
@@ -401,6 +428,10 @@ export function ResourceActions({
       return (
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
       )
+    case 'dashboard':
+      return <EmbeddedDashboardActions workspaceId={workspaceId} />
+    case 'test':
+      return <EmbeddedTestActions workspaceId={workspaceId} name={resource.id} />
     case 'table':
       return <EmbeddedTableActions workspaceId={workspaceId} tableId={resource.id} />
     case 'log':
@@ -518,6 +549,83 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   )
 }
 
+interface EmbeddedDashboardActionsProps {
+  workspaceId: string
+}
+
+function EmbeddedDashboardActions({ workspaceId }: EmbeddedDashboardActionsProps) {
+  const router = useRouter()
+  const dashboardsEnabled = useFeatureFlag('dashboards')
+  if (!dashboardsEnabled) return null
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <TabStripAction
+          variant='subtle'
+          onClick={() => router.push(`/workspace/${workspaceId}/dashboards`)}
+          aria-label='Open dashboard'
+        >
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+        </TabStripAction>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Open dashboard</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
+interface EmbeddedTestActionsProps {
+  workspaceId: string
+  name: string
+}
+
+/** Runs the test the tab shows, and opens its page. */
+function EmbeddedTestActions({ workspaceId, name }: EmbeddedTestActionsProps) {
+  const openInternalLink = useOpenInternalLink()
+  const testsEnabled = useFeatureFlag('workflow-tests')
+  const detail = useWorkflowTest(workspaceId, name)
+  const run = useTestRunAction({
+    workspaceId,
+    name,
+    running: detail.data?.latestRun?.status === 'running',
+  })
+  if (!testsEnabled) return null
+  return (
+    <>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <TabStripAction
+            variant='subtle'
+            onClick={run.onSelect}
+            disabled={run.disabled}
+            aria-label={run.text}
+          >
+            <PlayOutline className={RESOURCE_TAB_ICON_CLASS} />
+          </TabStripAction>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>{run.text}</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <TabStripAction
+            variant='subtle'
+            onClick={() => openInternalLink(`/workspace/${workspaceId}/tests/${name}`)}
+            aria-label='Open test'
+          >
+            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+          </TabStripAction>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Open test</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </>
+  )
+}
+
 interface EmbeddedKnowledgeBaseActionsProps {
   workspaceId: string
   knowledgeBaseId: string
@@ -619,6 +727,8 @@ function EmbeddedFileActions({
   downloadSourceRef,
 }: EmbeddedFileActionsProps) {
   const router = useRouter()
+  const { canEdit } = useUserPermissionsContext()
+  const [isShareOpen, setIsShareOpen] = useState(false)
   const { data: files = [], isLoading: listLoading } = useWorkspaceFiles(workspaceId)
   const listedFile = files.find(
     (file) =>
@@ -674,6 +784,35 @@ function EmbeddedFileActions({
           <p>Download</p>
         </Tooltip.Content>
       </Tooltip.Root>
+      {file && !isUpload && canEdit && (
+        <>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <TabStripAction
+                variant='subtle'
+                onClick={() => setIsShareOpen(true)}
+                aria-label='Share file'
+              >
+                <Send className={RESOURCE_TAB_ICON_CLASS} />
+              </TabStripAction>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='bottom'>
+              <p>Share</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
+          {isShareOpen && (
+            <ShareModal
+              key={file.id}
+              open
+              onOpenChange={setIsShareOpen}
+              workspaceId={workspaceId}
+              fileId={file.id}
+              fileName={file.name}
+              initialShare={file.share ?? null}
+            />
+          )}
+        </>
+      )}
     </>
   )
 }
@@ -692,7 +831,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
   }
 
   return (
-    <Suspense fallback={LOADING_SKELETON}>
+    <Suspense fallback={WORKFLOW_LOADING}>
       <Workflow workspaceId={workspaceId} workflowId={workflowId} embedded />
     </Suspense>
   )
@@ -724,7 +863,7 @@ function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowPr
     )
   }, [canonical, queryClient, workflowId, workspaceId])
 
-  if (isCanonicalPending) return LOADING_SKELETON
+  if (isCanonicalPending) return WORKFLOW_LOADING
 
   if (canonical?.workspaceId && canonical.workspaceId !== workspaceId) {
     return (
@@ -741,7 +880,7 @@ function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowPr
     )
   }
 
-  if (canonical?.workspaceId === workspaceId && !canonical.archivedAt) return LOADING_SKELETON
+  if (canonical?.workspaceId === workspaceId && !canonical.archivedAt) return WORKFLOW_LOADING
 
   return (
     <div className='flex h-full flex-col items-center justify-center gap-3'>

@@ -1,5 +1,6 @@
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import type { ReadFileTextResponse } from 'sim/embed'
 import { listCatalogTools } from '@/lib/catalog/application/list-tools'
 import { readBlockCatalog } from '@/lib/catalog/application/read-block-catalog'
@@ -430,7 +431,7 @@ function compilePattern(raw: string, ignoreCase: boolean): (line: string) => boo
 }
 
 function clip(line: string): string {
-  return line.length > MAX_LINE_CHARS ? `${line.slice(0, MAX_LINE_CHARS)}… [line truncated]` : line
+  return truncate(line, MAX_LINE_CHARS, '… [line truncated]')
 }
 
 function didYouMean(scope: string): string {

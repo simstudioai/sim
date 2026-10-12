@@ -17,19 +17,9 @@ mechanics (global mocks, `@sim/testing`, performance rules).
 
 ## The three rules
 
-1. **Never write unit tests after you write code.** A test written to describe code that already
-   exists restates the implementation, passes on the first run, and proves nothing. If the change
-   needs proof, prove it end to end.
-2. **Prefer E2E tests; use them to verify complex features.** Exercise the real boundary — real
-   Postgres/Redis (`*.integration.ts`), a running app over real HTTP, or the packaged desktop app
-   (Playwright). Every E2E run ends with a **verifiable, repeatable artifact**: a JSON report of
-   checks with pass/fail and durations, an HTTP status log, a trace, or a screenshot, written to a
-   path the caller controls (`<SUITE>_REPORT_PATH`) and uploaded by CI on failure.
-   `apps/sim/scripts/test-scim-e2e.ts` is the reference shape.
-3. **If you must test a system in isolation, write the failure modes down first, then write the
-   code.** List every way the unit can fail (bad input, boundary, concurrency, partial failure,
-   permission denial, resource cap). Each listed mode becomes one test that fails before the code
-   exists. A mode you cannot list is not a test you should write.
+CLAUDE.md → Testing sets them: no unit tests after the code; prefer E2E at the real boundary,
+ending in a verifiable artifact; list failure modes before testing in isolation. A mode you cannot
+list is not a test you should write. This skill enforces them.
 
 ## Authoring gate
 

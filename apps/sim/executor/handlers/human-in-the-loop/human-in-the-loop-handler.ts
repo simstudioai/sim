@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import type { CanonicalGroup } from '@/lib/workflows/subblocks/visibility'
+import {
+  buildCanonicalIndex,
+  type CanonicalGroup,
+  isCanonicalPair,
+  scopeCanonicalModesForTool,
+} from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { BlockOutput } from '@/blocks/types'
 import {
@@ -25,11 +30,6 @@ import { parseObjectStrings } from '@/executor/utils/json'
 import { buildBlockToolParamsTransform } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
-import {
-  buildCanonicalIndex,
-  isCanonicalPair,
-  scopeCanonicalModesForTool,
-} from '@/tools/params-resolver'
 import { getTool } from '@/tools/utils'
 
 const logger = createLogger('HumanInTheLoopBlockHandler')

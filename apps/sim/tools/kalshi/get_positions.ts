@@ -98,7 +98,7 @@ export const kalshiGetPositionsTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_positions')
+      handleKalshiError(data, 'get_positions')
     }
 
     const positions = data.market_positions || data.positions || []
@@ -255,7 +255,7 @@ export const kalshiGetPositionsV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_positions_v2')
+      handleKalshiError(data, 'get_positions_v2')
     }
 
     const marketPositions = (data.market_positions || []).map((p: Record<string, unknown>) => ({

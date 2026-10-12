@@ -13,6 +13,8 @@ export type PanelTab = 'copilot' | 'editor' | 'toolbar'
 export interface PanelState {
   panelWidth: number
   setPanelWidth: (width: number) => void
+  isMobilePanelOpen: boolean
+  setIsMobilePanelOpen: (open: boolean) => void
   activeTab: PanelTab
   setActiveTab: (tab: PanelTab) => void
   _hasHydrated: boolean
@@ -79,6 +81,7 @@ export type ChatContext =
       columnIds?: string[]
     } & WorkspaceOwned)
   | ({ kind: 'file'; fileId: string; label: string } & WorkspaceOwned)
+  | ({ kind: 'dashboard'; dashboardId: string; label: string } & WorkspaceOwned)
   | ({
       kind: 'file_selection'
       fileId: string

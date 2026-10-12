@@ -16,7 +16,8 @@ vi.mock('@/lib/billing/plans', () => ({
 
 vi.mock('@/lib/billing/stripe-payment-method', () => stripePaymentMethodMock)
 
-import { billingOutboxHandlers, OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
+import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
 
 const stripeMock = {
   subscriptions: {

@@ -2,7 +2,6 @@ import { AzureIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { MicrosoftAdResponse } from '@/tools/microsoft_ad/types'
 
 /** Operations that act on a single user and therefore require the User ID field. */
 const USER_ID_OPERATIONS = [
@@ -124,7 +123,7 @@ const DIRECTORY_ROLE_OPERATIONS = [
   'remove_directory_role_member',
 ]
 
-export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
+export const MicrosoftAdBlock: BlockConfig = {
   type: 'microsoft_ad',
   name: 'Azure AD',
   description: 'Manage identities, licenses, roles, and access in Azure AD (Microsoft Entra ID)',

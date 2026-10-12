@@ -6,13 +6,13 @@ export interface AppConfigConnectionConfig {
   secretAccessKey: string
 }
 
-export interface AppConfigApplication {
+interface AppConfigApplication {
   id: string
   name: string
   description: string | null
 }
 
-export interface AppConfigEnvironment {
+interface AppConfigEnvironment {
   applicationId: string
   id: string
   name: string
@@ -20,7 +20,7 @@ export interface AppConfigEnvironment {
   state: string | null
 }
 
-export interface AppConfigConfigurationProfile {
+interface AppConfigConfigurationProfile {
   applicationId: string
   id: string
   name: string
@@ -31,7 +31,7 @@ export interface AppConfigConfigurationProfile {
   validatorTypes: string[]
 }
 
-export interface AppConfigDeploymentSummary {
+interface AppConfigDeploymentSummary {
   deploymentNumber: number | null
   configurationName: string | null
   configurationVersion: string | null
@@ -46,7 +46,7 @@ export interface AppConfigDeploymentSummary {
   versionLabel: string | null
 }
 
-export interface AppConfigDeploymentDetail {
+interface AppConfigDeploymentDetail {
   applicationId: string
   environmentId: string
   deploymentStrategyId: string
@@ -61,7 +61,7 @@ export interface AppConfigDeploymentDetail {
   completedAt: string | null
 }
 
-export interface AppConfigDeploymentStrategy {
+interface AppConfigDeploymentStrategy {
   id: string
   name: string
   description: string | null
@@ -72,7 +72,7 @@ export interface AppConfigDeploymentStrategy {
   replicateTo: string | null
 }
 
-export interface AppConfigHostedConfigurationVersionSummary {
+interface AppConfigHostedConfigurationVersionSummary {
   applicationId: string | null
   configurationProfileId: string | null
   versionNumber: number | null

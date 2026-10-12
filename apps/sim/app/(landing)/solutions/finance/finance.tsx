@@ -1,3 +1,4 @@
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import {
   PlatformHeroVisual,
   SolutionsPage,
@@ -37,8 +38,7 @@ const FINANCE_CONFIG: SolutionsPageConfig = {
     heading: 'Automate invoice processing, reconciliation, and close with AI agents in Sim.',
     description:
       'Sim is the open-source AI workspace where finance teams build AI agents for invoice processing, reconciliation, and close. Human approvals, anomaly detection, and full audit trails guard every run.',
-    summary:
-      'Sim is the open-source AI workspace where finance teams build, deploy, and manage AI agents for invoice processing, reconciliation, and financial reporting. Agents run with human approvals, anomaly detection, and full audit trails across hundreds of integrations.',
+    summary: `Sim is the open-source AI workspace where finance teams build, deploy, and manage AI agents for invoice processing, reconciliation, and financial reporting. Agents run with human approvals, anomaly detection, and full audit trails across ${INTEGRATION_COUNT_LABEL} integrations.`,
     visual: (
       <PlatformHeroVisual>
         <FinanceHeroLoop />

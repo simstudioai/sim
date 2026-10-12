@@ -9,7 +9,6 @@ authors:
 readingTime: 9
 tags: [AI Agents, No-Code, Web Automation, TinyFish, Sim]
 ogImage: /library/why-no-code-ai-agents-need-live-web-access/cover.jpg
-canonical: https://www.sim.ai/library/why-no-code-ai-agents-need-live-web-access
 draft: false
 faq:
   - q: "What happens when a site rate-limits or blocks a request?"
@@ -19,7 +18,7 @@ faq:
   - q: "How should I handle portal credentials in Vault?"
     a: "Store credentials in Vault and reference the Vault item from the TinyFish block instead of placing secrets in prompts or workflow fields. Scope workflow and workspace access to the people and runs that need those credentials. Review your platform’s access and retention controls before using production accounts."
   - q: "Do I need to migrate off my current no-code tool?"
-    a: "No. TinyFish provides a web access layer through an API key. You can call it from an existing builder through a native integration, an HTTP block, or custom code. The Sim integration (https://sim.ai/integrations/tinyfish) provides one working example."
+    a: "No. TinyFish provides a web access layer through an API key. You can call it from an existing builder through a native integration, an HTTP block, or custom code. The Sim integration (https://www.sim.ai/integrations/tinyfish) provides one working example."
 ---
 
 ## TL;DR
@@ -71,7 +70,7 @@ Estimate spend by running a representative workflow against the sites you expect
 
 ## Wiring TinyFish into Sim
 
-Sim provides a working example of this two-layer setup. Its [TinyFish integration](https://sim.ai/integrations/tinyfish) adds live web capabilities through one workflow block. If you are new to visual agents, start with [how to create an AI agent](https://www.sim.ai/library/how-to-create-an-ai-agent) or compare the [best no-code AI agent builders](https://www.sim.ai/library/best-no-code-ai-agent-builders-2026).
+Sim provides a working example of this two-layer setup. Its [TinyFish integration](https://www.sim.ai/integrations/tinyfish) adds live web capabilities through one workflow block. If you are new to visual agents, start with [how to create an AI agent](https://www.sim.ai/library/how-to-create-an-ai-agent) or compare the [best no-code AI agent builders](https://www.sim.ai/library/best-no-code-ai-agent-builders-2026).
 
 The block exposes nine tools that cover agent runs, web retrieval, Vault items, and browser profiles. Run Agent and Start Agent Run launch work, while Get Run, Cancel Run, and List Runs manage execution. Search finds current web results, and Fetch URLs retrieves page content. List Vault Items and List Browser Profiles expose the stored resources available to the workflow.
 
@@ -115,4 +114,4 @@ You can swap the visual builder without rebuilding web access or add TinyFish to
 
 ## Where to start
 
-Add a dedicated live-web layer when your workflow needs current data, authenticated sessions, or browser interaction. Try the TinyFish block in [Sim](https://sim.ai) for a visual setup, or connect a [TinyFish API key](https://docs.tinyfish.ai/) directly to your existing agent framework. Choose Search, Fetch, Browser, or Agent based on the pages your workflow must reach.
+Add a dedicated live-web layer when your workflow needs current data, authenticated sessions, or browser interaction. Try the TinyFish block in [Sim](https://www.sim.ai) for a visual setup, or connect a [TinyFish API key](https://docs.tinyfish.ai/) directly to your existing agent framework. Choose Search, Fetch, Browser, or Agent based on the pages your workflow must reach.

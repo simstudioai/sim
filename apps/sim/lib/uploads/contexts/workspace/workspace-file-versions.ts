@@ -657,11 +657,13 @@ export function getWorkspaceFileVersion(
 
 /**
  * The provenance captured with one stored version's bytes, which a revert reinstates; null when the
- * row is gone, so a caller never reinstates a classification it did not read.
+ * row is gone or no longer matches captured bytes. Reverts can use the version alone; downloads
+ * bind the classification to the storage key they opened.
  */
 export async function getWorkspaceFileVersionProvenance(
   fileId: string,
-  version: number
+  version: number,
+  expectedKey?: string
 ): Promise<WorkspaceFileSecretProvenanceSnapshot | null> {
   const [row] = await db
     .select({
@@ -669,7 +671,13 @@ export async function getWorkspaceFileVersionProvenance(
       entries: workspaceFileVersion.secretProvenanceEntries,
     })
     .from(workspaceFileVersion)
-    .where(and(eq(workspaceFileVersion.fileId, fileId), eq(workspaceFileVersion.version, version)))
+    .where(
+      and(
+        eq(workspaceFileVersion.fileId, fileId),
+        eq(workspaceFileVersion.version, version),
+        expectedKey !== undefined ? eq(workspaceFileVersion.key, expectedKey) : undefined
+      )
+    )
     .limit(1)
   if (!row) return null
   return { status: toSnapshotStatus(row.status), entries: row.entries }

@@ -5,12 +5,16 @@ import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
   type PollingProviderHandler,
+  type PollOutcome,
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
+  PollAdmissionRefusedError,
   resolveOAuthCredential,
+  skipAdmissionRefusedPoll,
+  throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -82,7 +86,7 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
   provider: 'google-drive',
   label: 'Google Drive',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
 
@@ -93,7 +97,7 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
 
       // First poll (or re-seed after 410): seed page token, preserve any existing known file IDs.
       if (!config.pageToken) {
-        const startPageToken = await getStartPageToken(accessToken, config, requestId, logger)
+        const startPageToken = await getStartPageToken(accessToken, config)
         await updateWebhookProviderConfig(
           webhookId,
           { pageToken: startPageToken, knownFileIds: config.knownFileIds ?? [] },
@@ -106,12 +110,7 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
         return 'success'
       }
 
-      const { changes, newStartPageToken } = await fetchChanges(
-        accessToken,
-        config,
-        requestId,
-        logger
-      )
+      const { changes, newStartPageToken } = await fetchChanges(accessToken, config)
 
       if (!changes.length) {
         await updateWebhookProviderConfig(webhookId, { pageToken: newStartPageToken }, logger)
@@ -174,6 +173,9 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError) {
+        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+      }
       if (error instanceof Error && error.name === 'DrivePageTokenInvalidError') {
         await updateWebhookProviderConfig(webhookId, { pageToken: undefined }, logger)
         await markWebhookSuccess(webhookId, logger)
@@ -208,9 +210,7 @@ function isDriveRateLimitError(status: number, errorData: Record<string, unknown
 
 async function getStartPageToken(
   accessToken: string,
-  config: GoogleDriveWebhookConfig,
-  requestId: string,
-  logger: Logger
+  config: GoogleDriveWebhookConfig
 ): Promise<string> {
   const params = new URLSearchParams()
   if (config.includeSharedDrives) {
@@ -241,9 +241,7 @@ async function getStartPageToken(
 
 async function fetchChanges(
   accessToken: string,
-  config: GoogleDriveWebhookConfig,
-  requestId: string,
-  logger: Logger
+  config: GoogleDriveWebhookConfig
 ): Promise<{ changes: DriveChangeEntry[]; newStartPageToken: string }> {
   const allChanges: DriveChangeEntry[] = []
   let currentPageToken = config.pageToken!
@@ -406,6 +404,7 @@ async function processChanges(
         )
 
         if (!result.success) {
+          throwIfAdmissionRefused(result)
           logger.error(
             `[${requestId}] Failed to process webhook for file ${change.fileId}:`,
             result.statusCode,
@@ -422,6 +421,7 @@ async function processChanges(
       )
       processedCount++
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(
         `[${requestId}] Error processing change for file ${change.fileId}:`,

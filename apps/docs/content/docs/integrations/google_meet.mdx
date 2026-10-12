@@ -141,4 +141,20 @@ List participants of a conference record
 | `nextPageToken` | string | Token for next page of results |
 | `totalSize` | number | Total number of participants |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Google Meet account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-meet` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/meetings.space.created` | Create and manage Google Meet meeting spaces created by Sim |
+| `https://www.googleapis.com/auth/meetings.space.readonly` | View information about your Google Meet conferences |
+
 

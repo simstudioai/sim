@@ -44,7 +44,6 @@ export const credentialGroupsCredentialsMockFns = {
   mockLoadCredentialGroupEnrollmentAccess: vi.fn(),
   mockLoadCredentialGroupEnrollmentAccessForSubject: vi.fn(),
   mockLoadCredentialGroupCredentialListContext: vi.fn(),
-  mockLoadWorkspaceAccountsCredentialListContext: vi.fn(),
   mockLoadManagedCredentialGroupBinding: vi.fn(),
   mockListCredentialGroupCredentialReferences: vi.fn(),
   mockListCredentialGroupOptionCredentialReferences: vi.fn(),
@@ -71,8 +70,6 @@ export const credentialGroupsCredentialsMock = {
     credentialGroupsCredentialsMockFns.mockLoadCredentialGroupEnrollmentAccessForSubject,
   loadCredentialGroupCredentialListContext:
     credentialGroupsCredentialsMockFns.mockLoadCredentialGroupCredentialListContext,
-  loadWorkspaceAccountsCredentialListContext:
-    credentialGroupsCredentialsMockFns.mockLoadWorkspaceAccountsCredentialListContext,
   loadManagedCredentialGroupBinding:
     credentialGroupsCredentialsMockFns.mockLoadManagedCredentialGroupBinding,
   listCredentialGroupCredentialReferences:

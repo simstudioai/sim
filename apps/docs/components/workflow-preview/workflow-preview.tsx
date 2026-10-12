@@ -224,7 +224,7 @@ function PreviewFlow({
         autoPanOnNodeDrag={false}
         proOptions={PRO_OPTIONS}
         minZoom={0.1}
-        className='h-full w-full [--text-muted:var(--text-secondary)]! [--xy-background-color:var(--bg)]'
+        className='size-full [--text-muted:var(--text-secondary)]! [--xy-background-color:var(--bg)]'
       >
         <FitViewAfterInit options={interactive ? LIGHTBOX_FIT_VIEW_OPTIONS : FIT_VIEW_OPTIONS} />
       </ReactFlow>
@@ -329,7 +329,7 @@ export function WorkflowPreview({
         className='fixed inset-0 m-auto h-[86dvh] max-h-none w-[92vw] max-w-none overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] p-0 text-[var(--text-body)] backdrop:bg-black/70 backdrop:backdrop-blur-sm'
       >
         {expanded && (
-          <div className='relative flex h-full w-full flex-col sm:flex-row'>
+          <div className='relative flex size-full flex-col sm:flex-row'>
             <div className='relative min-h-0 min-w-0 flex-1'>
               <div className='pointer-events-none absolute top-0 right-0 left-0 z-10 flex items-center justify-between px-4 py-3'>
                 <span className='text-[var(--text-muted)] text-small'>{workflow.name}</span>

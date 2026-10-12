@@ -49,26 +49,11 @@ export async function getWorkspaceBilledAccountUserId(workspaceId: string): Prom
 }
 
 /**
- * The organization that owns a workspace (null for personal workspaces). Used to
- * gate features by org cohort — the flag model allowlists org ids, and API routes
- * only carry a `workspaceId`, so this resolves the one from the other.
- */
-export async function getWorkspaceOrganizationId(workspaceId: string): Promise<string | null> {
-  if (!workspaceId) return null
-  const rows = await db
-    .select({ organizationId: workspaceTable.organizationId })
-    .from(workspaceTable)
-    .where(eq(workspaceTable.id, workspaceId))
-    .limit(1)
-  return rows[0]?.organizationId ?? null
-}
-
-/**
  * Workspaces the user administers purely through organization owner/admin role,
  * with no explicit permission row required. Empty when the user is not an org
  * owner/admin. Implements the workspace-permission inheritance model.
  */
-export async function getOrgAdminWorkspaceRows(
+async function getOrgAdminWorkspaceRows(
   userId: string,
   scope: WorkspaceScope = 'active',
   organizationId?: string
@@ -160,16 +145,6 @@ export async function listAccessibleWorkspaceRowsForUser(
   return [...elevatedExplicit, ...derived].sort(
     (a, b) => b.workspace.createdAt.getTime() - a.workspace.createdAt.getTime()
   )
-}
-
-export async function listUserWorkspaces(userId: string, scope: WorkspaceScope = 'active') {
-  const rows = await listAccessibleWorkspaceRowsForUser(userId, scope)
-
-  return rows.map(({ workspace: ws, permissionType }) => ({
-    workspaceId: ws.id,
-    workspaceName: ws.name,
-    role: ws.ownerId === userId ? 'owner' : permissionType,
-  }))
 }
 
 export interface ReassignBilledAccountResult {

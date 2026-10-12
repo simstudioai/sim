@@ -136,15 +136,6 @@ export function formatApiKeyForDisplay(apiKey: string): string {
   return `...${last4}`
 }
 
-/**
- * Validates API key format (basic validation)
- * @param apiKey - The API key to validate
- * @returns boolean - true if the format appears valid
- */
-export function isValidApiKeyFormat(apiKeyValue: string): boolean {
-  return typeof apiKeyValue === 'string' && apiKeyValue.length > 10 && apiKeyValue.length < 200
-}
-
 export async function createWorkspaceApiKey(params: {
   workspaceId: string
   userId: string

@@ -89,6 +89,8 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
 vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => ({
+  reportDurableSecretProvenanceUnrecorded: vi.fn(),
+  reportDurableSecretProvenanceUnrecordedBatch: vi.fn(),
   reportDurableSecretProvenanceWrite: vi.fn(),
   reportDurableSecretProvenanceRefusal: vi.fn(),
 }))
@@ -237,7 +239,7 @@ describe('appended file provenance', () => {
   })
 
   it.each([
-    { predecessor: 'unrecorded', secret: true, expectedStatus: 'unknown' },
+    { predecessor: 'unrecorded', secret: true, expectedStatus: 'exact' },
     { predecessor: 'exact', secret: true, expectedStatus: 'exact' },
     { predecessor: 'legacy', secret: true, expectedStatus: 'exact' },
     { predecessor: 'unrecorded', secret: false, expectedStatus: 'unrecorded' },
@@ -315,7 +317,7 @@ describe('appended file provenance', () => {
         view: 'complete',
         value: `before:${content}`,
       })
-      expect(permitted).toBe(expectedStatus === 'exact')
+      expect(permitted).toBe(expectedStatus !== 'unknown')
       if (permitted) {
         expect(projectResolvedSecretModelContent(`before:${content}`, registry)).toEqual({
           safe: true,
@@ -326,7 +328,7 @@ describe('appended file provenance', () => {
         joinedRow(persisted.status, persisted.entries, persisted.contentUpdatedAt),
       ])
       expect(await isOpaqueWorkspaceFileEgressSafe('workspace-1', IDENTITY)).toBe(
-        expectedStatus === 'exact' && !secret
+        expectedStatus !== 'unknown' && !secret
       )
     }
   )
@@ -352,7 +354,7 @@ describe('execution-file content provenance', () => {
 
   it.each([
     { status: 'exact', version: 1, stale: false, complete: true },
-    { status: 'unrecorded', version: 1, stale: false, complete: false },
+    { status: 'unrecorded', version: 1, stale: false, complete: true },
     { status: 'unknown', version: 1, stale: false, complete: false },
     { status: 'unknown', version: null, stale: false, complete: true },
     { status: 'exact', version: 1, stale: true, complete: false },

@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
@@ -9,7 +9,6 @@ import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
-import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import {
   getMothershipAttachmentPreviewUrl,
@@ -36,6 +35,7 @@ import {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
+import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import { searchFiltersFromParams } from '@/app/workspace/[workspaceId]/home/search-params'
 import type {
@@ -48,6 +48,7 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
+import { useHydrated } from '@/hooks/use-hydrated'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 import type { ChatContext } from '@/stores/panel'
@@ -74,18 +75,15 @@ interface OrganizationHomeProps {
   syncChatUrl?: boolean
 }
 
-const subscribeToClient = () => () => {}
-const clientSnapshot = () => true
-const serverSnapshot = () => false
-
 /** Home chooses the conversation mode before its first message. */
 export function OrganizationHome(props: OrganizationHomeProps) {
   const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
   const { data: session } = useSession()
-  const isClient = useSyncExternalStore(subscribeToClient, clientSnapshot, serverSnapshot)
+  const isClient = useHydrated()
+  const isRestoredChatEntry = useRestoredChatEntry({ chatId: props.chatId })
   if (!mothershipAvailable || (!canBuild && !searchAccess.memberScoped)) return null
   /** Preferences are browser-persisted and keyed by user; never paint a guessed mode first. */
-  if (!isClient || !session?.user?.id) return <HomeFallback />
+  if (isRestoredChatEntry || !isClient || !session?.user?.id) return <HomeFallback />
   return (
     <OrganizationHomeContent
       key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}`}
@@ -159,9 +157,8 @@ function OrganizationHomeContent({
   const hasChat = Boolean(chatId || chat.messages.length)
   const canSelectMode =
     !hasChat && mothershipAvailable && canBuild && (searchAccess.memberScoped || planEnabled)
-  const liveSearch = getDeploymentShape().features.liveEnterpriseSearch === true
   const assistantSearchLevel = 'fast'
-  const panel = useChatResourcePanel(chat, controller)
+  const panel = useChatResourcePanel(chat, controller, userId)
   const addResource = panel.addResourceFromUser
   /** Restore only an explicitly selected results tab on an empty Home; closing it clears the URL. */
   useEffect(() => {
@@ -277,7 +274,7 @@ function OrganizationHomeContent({
         ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       })
     }
-  }, [chatId, organization.id, requestMode, sendMessage, assistantSearchLevel, liveSearch])
+  }, [chatId, organization.id, requestMode, sendMessage, assistantSearchLevel])
 
   const send = (
     message: string,
@@ -361,7 +358,7 @@ function OrganizationHomeContent({
 
   const hostLanding = hasChat ? undefined : landing?.(requestMode)
   const content = (
-    <div className='flex h-full min-h-0 min-w-[min(480px,100%)] flex-1 flex-col bg-[var(--bg)]'>
+    <div className='flex h-full min-h-0 @max-[960px]/chat-panel:min-w-0 min-w-0 flex-1 flex-col bg-[var(--bg)] md:min-w-[min(480px,100%)]'>
       {hasChat ? (
         <MothershipChat
           onViewSources={(messageId, requestId) =>
@@ -416,11 +413,7 @@ function OrganizationHomeContent({
           chatId={chat.resolvedChatId}
           composer={composer}
           onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
-          initialScrollBlocked={
-            (requestMode !== 'assistant' || liveSearch) &&
-            chat.resources.length > 0 &&
-            panel.isResourceCollapsed
-          }
+          initialScrollBlocked={panel.initialScrollBlocked}
         />
       ) : (
         <OrganizationLanding
@@ -435,7 +428,7 @@ function OrganizationHomeContent({
         >
           {hostLanding?.accessory}
           {composer}
-          <div className='absolute inset-x-0 top-full'>
+          <div className='relative md:absolute md:inset-x-0 md:top-full'>
             {requestMode === 'agent' ? (
               <SuggestedActions
                 organizationId={organization.id}

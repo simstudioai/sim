@@ -240,14 +240,3 @@ export interface YouTubeVideoCategoriesResponse extends ToolResponse {
     totalResults: number
   }
 }
-
-export type YouTubeResponse =
-  | YouTubeSearchResponse
-  | YouTubeVideoDetailsResponse
-  | YouTubeChannelInfoResponse
-  | YouTubePlaylistItemsResponse
-  | YouTubeCommentsResponse
-  | YouTubeChannelVideosResponse
-  | YouTubeChannelPlaylistsResponse
-  | YouTubeTrendingResponse
-  | YouTubeVideoCategoriesResponse

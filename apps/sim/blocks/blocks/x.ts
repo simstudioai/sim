@@ -127,46 +127,37 @@ export const XBlock: BlockConfig = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Tweet Operations
         { label: 'Create Tweet', id: 'x_create_tweet' },
         { label: 'Delete Tweet', id: 'x_delete_tweet' },
         { label: 'Search Tweets', id: 'x_search_tweets' },
         { label: 'Get Tweets by IDs', id: 'x_get_tweets_by_ids' },
         { label: 'Get Quote Tweets', id: 'x_get_quote_tweets' },
         { label: 'Hide Reply', id: 'x_hide_reply' },
-        // User Tweet Operations
         { label: 'Get User Tweets', id: 'x_get_user_tweets' },
         { label: 'Get User Mentions', id: 'x_get_user_mentions' },
         { label: 'Get User Timeline', id: 'x_get_user_timeline' },
-        // Engagement Operations
         { label: 'Like / Unlike', id: 'x_manage_like' },
         { label: 'Retweet / Unretweet', id: 'x_manage_retweet' },
         { label: 'Get Liked Tweets', id: 'x_get_liked_tweets' },
         { label: 'Get Liking Users', id: 'x_get_liking_users' },
         { label: 'Get Retweeted By', id: 'x_get_retweeted_by' },
-        // Bookmark Operations
         { label: 'Get Bookmarks', id: 'x_get_bookmarks' },
         { label: 'Create Bookmark', id: 'x_create_bookmark' },
         { label: 'Delete Bookmark', id: 'x_delete_bookmark' },
-        // User Operations
         { label: 'Get My Profile', id: 'x_get_me' },
         { label: 'Search Users', id: 'x_search_users' },
         { label: 'Get Followers', id: 'x_get_followers' },
         { label: 'Get Following', id: 'x_get_following' },
-        // User Relationship Operations
         { label: 'Follow / Unfollow', id: 'x_manage_follow' },
         { label: 'Block / Unblock', id: 'x_manage_block' },
         { label: 'Get Blocked Users', id: 'x_get_blocking' },
         { label: 'Mute / Unmute', id: 'x_manage_mute' },
-        // Trends Operations
         { label: 'Get Trends by Location', id: 'x_get_trends_by_woeid' },
         { label: 'Get Personalized Trends', id: 'x_get_personalized_trends' },
-        // Usage Operations
         { label: 'Get API Usage', id: 'x_get_usage' },
       ],
       value: () => 'x_create_tweet',
     },
-    // --- OAuth Credential ---
     {
       id: 'credential',
       title: 'X Account',
@@ -185,7 +176,6 @@ export const XBlock: BlockConfig = {
       mode: 'advanced',
       placeholder: 'Enter credential ID',
     },
-    // --- Create Tweet fields ---
     {
       id: 'text',
       title: 'Tweet Text',
@@ -233,7 +223,6 @@ export const XBlock: BlockConfig = {
       condition: { field: 'operation', value: 'x_create_tweet' },
       mode: 'advanced',
     },
-    // --- Tweet ID field (shared by multiple operations) ---
     {
       id: 'tweetId',
       title: 'Tweet ID',
@@ -268,7 +257,6 @@ export const XBlock: BlockConfig = {
         ],
       },
     },
-    // --- Hide Reply toggle ---
     {
       id: 'hidden',
       title: 'Hidden',
@@ -280,7 +268,6 @@ export const XBlock: BlockConfig = {
       value: () => 'true',
       condition: { field: 'operation', value: 'x_hide_reply' },
     },
-    // --- Tweet IDs (batch lookup) ---
     {
       id: 'ids',
       title: 'Tweet IDs',
@@ -289,7 +276,6 @@ export const XBlock: BlockConfig = {
       condition: { field: 'operation', value: 'x_get_tweets_by_ids' },
       required: true,
     },
-    // --- Search query fields ---
     {
       id: 'query',
       title: 'Search Query',
@@ -310,7 +296,6 @@ export const XBlock: BlockConfig = {
       condition: { field: 'operation', value: 'x_search_tweets' },
       mode: 'advanced',
     },
-    // --- User ID field (shared by many operations) ---
     {
       id: 'userId',
       title: 'User ID',
@@ -357,7 +342,6 @@ export const XBlock: BlockConfig = {
         ],
       },
     },
-    // --- Target User ID (for follow/block/mute) ---
     {
       id: 'targetUserId',
       title: 'Target User ID',
@@ -372,7 +356,6 @@ export const XBlock: BlockConfig = {
         value: ['x_manage_follow', 'x_manage_block', 'x_manage_mute'],
       },
     },
-    // --- Action dropdowns for manage operations ---
     {
       id: 'action',
       title: 'Action',
@@ -428,7 +411,6 @@ export const XBlock: BlockConfig = {
       value: () => 'mute',
       condition: { field: 'operation', value: 'x_manage_mute' },
     },
-    // --- Exclude filter (for user tweets/timeline) ---
     {
       id: 'exclude',
       title: 'Exclude',
@@ -440,7 +422,6 @@ export const XBlock: BlockConfig = {
       },
       mode: 'advanced',
     },
-    // --- Time range fields (shared by tweet search and user tweet operations) ---
     {
       id: 'startTime',
       title: 'Start Time',
@@ -501,7 +482,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // --- Max Results (shared by many operations) ---
     {
       id: 'maxResults',
       title: 'Max Results',
@@ -527,7 +507,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // --- Pagination Token (shared by many operations) ---
     {
       id: 'paginationToken',
       title: 'Pagination Token',
@@ -551,7 +530,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // --- Next Token (for search operations that use nextToken instead of paginationToken) ---
+    // Next Token (for search operations that use nextToken instead of paginationToken)
     {
       id: 'nextToken',
       title: 'Pagination Token',
@@ -563,7 +542,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // --- Trends fields ---
     {
       id: 'woeid',
       title: 'WOEID',
@@ -580,7 +558,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'x_get_trends_by_woeid' },
       mode: 'advanced',
     },
-    // --- Usage fields ---
     {
       id: 'days',
       title: 'Days',
@@ -657,7 +634,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'X account credential' },
-    // Tweet fields
     text: { type: 'string', description: 'Tweet text content' },
     replyToTweetId: { type: 'string', description: 'Tweet ID to reply to' },
     quoteTweetId: { type: 'string', description: 'Tweet ID to quote' },
@@ -666,33 +642,26 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     tweetId: { type: 'string', description: 'Tweet identifier' },
     ids: { type: 'string', description: 'Comma-separated tweet IDs' },
     hidden: { type: 'string', description: 'Hide or unhide reply' },
-    // User fields
     userId: { type: 'string', description: 'User identifier' },
     targetUserId: { type: 'string', description: 'Target user identifier' },
-    // Action fields
     action: { type: 'string', description: 'Action to perform (like/unlike, etc.)' },
     retweetAction: { type: 'string', description: 'Retweet action' },
     followAction: { type: 'string', description: 'Follow action' },
     blockAction: { type: 'string', description: 'Block action' },
     muteAction: { type: 'string', description: 'Mute action' },
-    // Search/filter fields
     query: { type: 'string', description: 'Search query' },
     sortOrder: { type: 'string', description: 'Sort order' },
     exclude: { type: 'string', description: 'Exclusion filter' },
-    // Time/pagination fields
     startTime: { type: 'string', description: 'Start time filter' },
     endTime: { type: 'string', description: 'End time filter' },
     maxResults: { type: 'number', description: 'Maximum results' },
     paginationToken: { type: 'string', description: 'Pagination token' },
     nextToken: { type: 'string', description: 'Next page token' },
-    // Trends fields
     woeid: { type: 'string', description: 'Where On Earth ID' },
     maxTrends: { type: 'number', description: 'Maximum trends to return' },
-    // Usage fields
     days: { type: 'number', description: 'Days of usage data' },
   },
   outputs: {
-    // Create Tweet outputs
     id: {
       type: 'string',
       description: 'Created tweet ID',
@@ -703,37 +672,31 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       description: 'Text of the created tweet',
       condition: { field: 'operation', value: 'x_create_tweet' },
     },
-    // Delete Tweet output
     deleted: {
       type: 'boolean',
       description: 'Whether the tweet was deleted',
       condition: { field: 'operation', value: 'x_delete_tweet' },
     },
-    // Bookmark outputs
     bookmarked: {
       type: 'boolean',
       description: 'Whether the tweet is bookmarked',
       condition: { field: 'operation', value: ['x_create_bookmark', 'x_delete_bookmark'] },
     },
-    // Hide Reply output
     hidden: {
       type: 'boolean',
       description: 'Whether the reply is hidden',
       condition: { field: 'operation', value: 'x_hide_reply' },
     },
-    // Like output
     liked: {
       type: 'boolean',
       description: 'Whether the tweet is liked',
       condition: { field: 'operation', value: 'x_manage_like' },
     },
-    // Retweet output
     retweeted: {
       type: 'boolean',
       description: 'Whether the tweet is retweeted',
       condition: { field: 'operation', value: 'x_manage_retweet' },
     },
-    // Follow output
     following: {
       type: 'boolean',
       description: 'Whether following the user',
@@ -744,19 +707,16 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       description: 'Whether a follow request is pending',
       condition: { field: 'operation', value: 'x_manage_follow' },
     },
-    // Block output
     blocking: {
       type: 'boolean',
       description: 'Whether blocking the user',
       condition: { field: 'operation', value: 'x_manage_block' },
     },
-    // Mute output
     muting: {
       type: 'boolean',
       description: 'Whether muting the user',
       condition: { field: 'operation', value: 'x_manage_mute' },
     },
-    // Tweet list outputs (shared by many operations)
     tweets: {
       type: 'json',
       description: 'Array of tweets',
@@ -774,7 +734,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         ],
       },
     },
-    // User list outputs
     users: {
       type: 'json',
       description: 'Array of users',
@@ -790,13 +749,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         ],
       },
     },
-    // Single user output
     user: {
       type: 'json',
       description: 'User profile data',
       condition: { field: 'operation', value: 'x_get_me' },
     },
-    // Pagination metadata
     meta: {
       type: 'json',
       description: 'Pagination metadata (resultCount, nextToken)',
@@ -819,7 +776,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         ],
       },
     },
-    // Trends outputs
     trends: {
       type: 'json',
       description: 'Array of trending topics',
@@ -828,7 +784,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: ['x_get_trends_by_woeid', 'x_get_personalized_trends'],
       },
     },
-    // Usage outputs
     capResetDay: {
       type: 'number',
       description: 'Day of month when usage cap resets',

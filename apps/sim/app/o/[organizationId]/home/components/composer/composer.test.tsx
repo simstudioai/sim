@@ -1,10 +1,12 @@
 /** @vitest-environment jsdom */
-import { act, type ComponentProps, useState } from 'react'
+import { act, type ComponentProps, useEffect, useState } from 'react'
+import { ToastProvider } from '@sim/emcn'
 import {
   createMockDeploymentShape,
   deploymentShapeMock,
   deploymentShapeMockFns,
 } from '@sim/testing/mocks/deployment-shape.mock'
+import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import {
   organizationProviderMock,
   organizationProviderMockFns,
@@ -16,7 +18,6 @@ import type { useSpeechToText } from '@/hooks/use-speech-to-text'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 
 const mocks = vi.hoisted(() => ({
-  live: false,
   plan: false,
   advanced: false,
   speech: vi.fn<typeof useSpeechToText>(),
@@ -57,9 +58,7 @@ vi.mock('@/hooks/queries/skills', () => ({
   }),
 }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
-vi.mock('@/blocks/integration-matcher', () => ({
-  getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
-}))
+vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/plus-menu-dropdown',
   async () => {
@@ -86,13 +85,13 @@ vi.mock('@/hooks/use-chat-input-focus', () => ({ useChatInputFocus: vi.fn() }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 
 import { Composer } from '@/app/o/[organizationId]/home/components/composer/composer'
+import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 
-const liveShape = () =>
-  createMockDeploymentShape({ features: { liveEnterpriseSearch: mocks.live } })
-deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(liveShape)
-deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(liveShape)
+const deploymentShape = () => createMockDeploymentShape()
+deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(deploymentShape)
+deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape)
 organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
   organization: { id: 'organization-a' },
 })
@@ -103,12 +102,8 @@ let queryClient: QueryClient
 
 beforeEach(() => {
   mocks.advanced = false
-  useMothershipEffortStore.setState({
-    effort: 'high',
-    modelSelection: { model: 'gpt-6-astra', fastMode: false },
-  })
+  useMothershipEffortStore.getState().reset()
   mocks.plan = false
-  mocks.live = false
   vi.clearAllMocks()
   mocks.workspaces = [
     {
@@ -177,7 +172,7 @@ beforeEach(() => {
   mocks.speech.mockReturnValue({
     isSupported: true,
     isListening: false,
-    audioLevelsRef: { current: new Float32Array(5) },
+    audioLevels: new Float32Array(5),
     toggleListening: mocks.toggleListening,
     resetTranscript: mocks.resetTranscript,
   })
@@ -188,6 +183,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await act(async () => root.unmount())
+  vi.useRealTimers()
   container.remove()
   queryClient.clear()
 })
@@ -236,7 +232,8 @@ async function render(
         <FeatureFlagsProvider
           flags={{
             dashboards: false,
-            'table-row-ttl': false,
+            'workflow-tests': false,
+            changelog: false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
             'org-project-view': false,
@@ -252,6 +249,110 @@ async function render(
 function fileList(files: File[]): FileList {
   return Object.assign(files, { item: (index: number) => files[index] ?? null })
 }
+
+it.each([
+  { searchEnabled: true, planEnabled: true, modes: ['assistant', 'agent', 'plan', 'assistant'] },
+  { searchEnabled: true, planEnabled: false, modes: ['assistant', 'agent', 'assistant'] },
+  { searchEnabled: false, planEnabled: true, modes: ['agent', 'plan', 'agent'] },
+  { searchEnabled: true, planEnabled: true, withDocument: true, modes: ['agent', 'plan', 'agent'] },
+] satisfies {
+  searchEnabled: boolean
+  planEnabled: boolean
+  withDocument?: boolean
+  modes: ChatRequestMode[]
+}[])(
+  'cycles available modes without losing the draft or selection (Search: $searchEnabled, Plan: $planEnabled, document: $withDocument)',
+  async ({ searchEnabled, planEnabled, modes, withDocument = false }) => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
+    let currentMode = modes[0]
+    function Harness() {
+      const [mode, setMode] = useState(modes[0])
+      currentMode = mode
+      const [value, setValue] = useState('Summarize this draft')
+      const files = useFileAttachments({
+        userId: 'user-a',
+        organizationId: 'organization-a',
+        requestMode: mode,
+      })
+      const { restoreAttachedFiles } = files
+      useEffect(() => {
+        if (withDocument) {
+          restoreAttachedFiles([
+            {
+              id: 'document-a',
+              name: 'Draft.pdf',
+              type: 'application/pdf',
+              size: 1024,
+              key: 'sample/draft.pdf',
+              path: '',
+              uploading: false,
+            },
+          ])
+        }
+      }, [restoreAttachedFiles])
+      return (
+        <Composer
+          requestMode={mode}
+          searchEnabled={searchEnabled}
+          showModeSelector
+          onModeChange={setMode}
+          value={value}
+          onChange={setValue}
+          files={files}
+          isInitialView
+          isSending={false}
+          onStop={() => {}}
+          onSubmit={() => {}}
+        />
+      )
+    }
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <FeatureFlagsProvider
+            flags={{
+              dashboards: false,
+              'workflow-tests': false,
+              changelog: false,
+              'mothership-model-selector': false,
+              'mothership-plan-mode': planEnabled,
+            }}
+          >
+            <Harness />
+            <ToastProvider />
+          </FeatureFlagsProvider>
+        </QueryClientProvider>
+      )
+    )
+    const input = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+    await act(async () => {
+      input.focus()
+      input.setSelectionRange(10, 14, 'backward')
+    })
+    for (const expectedMode of modes.slice(1)) {
+      const event = new KeyboardEvent('keydown', {
+        key: 'Tab',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+      await act(async () => {
+        container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!.dispatchEvent(event)
+      })
+      await act(async () => vi.advanceTimersToNextFrame())
+      const nextInput = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+      expect(currentMode).toBe(expectedMode)
+      expect(event.defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(nextInput)
+      expect(nextInput.value).toBe('Summarize this draft')
+      expect([
+        nextInput.selectionStart,
+        nextInput.selectionEnd,
+        nextInput.selectionDirection,
+      ]).toEqual([10, 14, 'backward'])
+    }
+  }
+)
 
 async function paste(files: File[]) {
   const event = new Event('paste', { bubbles: true, cancelable: true })
@@ -307,7 +408,8 @@ it('keeps restored queued skills scoped when replacing a draft', async () => {
         <FeatureFlagsProvider
           flags={{
             dashboards: false,
-            'table-row-ttl': false,
+            'workflow-tests': false,
+            changelog: false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
             'org-project-view': false,

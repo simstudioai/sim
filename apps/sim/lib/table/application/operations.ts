@@ -109,20 +109,6 @@ function stagedWriteOperation<const Id extends string>(id: Id) {
   })
 }
 
-function delegatedWriteOperation<const Id extends string>(
-  id: Id,
-  capability: OperationDeclarableCapability
-) {
-  return defineWorkspaceOperation({
-    id,
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability,
-    principalKinds: ['delegated'],
-    delegatedServices: ['copilot'],
-  })
-}
-
 export const tableOperations = {
   list: toolReadOperation('tables.list'),
   read: toolReadOperation('tables.read'),
@@ -179,11 +165,6 @@ export const tableOperations = {
   readRun: readOperation('tables.runs.read'),
   cancelRuns: writeOperation('tables.runs.cancel'),
   createImport: stagedWriteOperation('tables.imports.create'),
-  createFromWorkspaceFile: delegatedWriteOperation(
-    'tables.imports.create_from_workspace_file',
-    'tables.create'
-  ),
-  importWorkspaceFile: delegatedWriteOperation('tables.imports.workspace_file', 'tables.use'),
   readImport: stagedReadOperation('tables.imports.read', 'tables.use', 'api:read'),
   createImportParts: stagedWriteOperation('tables.imports.create_parts'),
   completeImport: stagedWriteOperation('tables.imports.complete'),

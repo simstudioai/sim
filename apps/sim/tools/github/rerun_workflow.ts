@@ -58,7 +58,7 @@ export const rerunWorkflowTool: ToolConfig<RerunWorkflowParams, RerunWorkflowRes
     }),
   },
 
-  transformResponse: async (response, params) => {
+  transformResponse: async (_response, params) => {
     if (!params) {
       return {
         success: false,

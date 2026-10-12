@@ -14,11 +14,6 @@ export interface ApiSuccessResponse {
   [key: string]: any
 }
 
-interface ApiErrorResponse {
-  error: string
-  message?: string
-}
-
 export interface FileResponse {
   buffer: Buffer
   contentType: string
@@ -40,7 +35,7 @@ export class InvalidRequestError extends Error {
   }
 }
 
-export const contentTypeMap: Record<string, string> = {
+const contentTypeMap: Record<string, string> = {
   txt: 'text/plain',
   csv: 'text/csv',
   json: 'application/json',
@@ -318,7 +313,7 @@ export function createConditionalFileResponse(
   return response
 }
 
-export function createErrorResponse(error: Error, status = 500): NextResponse {
+export function createFileErrorResponse(error: Error, status = 500): NextResponse {
   const statusCode =
     error instanceof FileNotFoundError
       ? 404

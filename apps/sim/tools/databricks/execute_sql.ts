@@ -2,6 +2,7 @@ import type {
   DatabricksExecuteSqlParams,
   DatabricksExecuteSqlResponse,
 } from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksExecuteSqlResponse> =
@@ -65,13 +66,7 @@ export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksEx
     },
 
     request: {
-      url: (params) => {
-        const host = params.host
-          .trim()
-          .replace(/^https?:\/\//, '')
-          .replace(/\/$/, '')
-        return `https://${host}/api/2.0/sql/statements/`
-      },
+      url: (params) => databricksUrl(params.host, '/api/2.0/sql/statements/'),
       method: 'POST',
       headers: (params) => ({
         'Content-Type': 'application/json',

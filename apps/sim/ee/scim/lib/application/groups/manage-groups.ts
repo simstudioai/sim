@@ -4,7 +4,7 @@ import { scimGroup } from '@sim/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   defineAuthorizedScimUseCase,
   type ScimUseCaseArgs,
@@ -54,7 +54,7 @@ import {
  */
 function withGroupWrite<T>(
   context: ScimUseCaseContext,
-  work: (tx: DbOrTx) => Promise<T>
+  work: (tx: DbTransaction) => Promise<T>
 ): Promise<T> {
   return db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, context.organizationId)

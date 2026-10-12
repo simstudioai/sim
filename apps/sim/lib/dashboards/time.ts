@@ -17,18 +17,20 @@ export function relativeDashboardRange(range: DashboardRange, now: number): Dash
   return { from: new Date(now - RANGE_MS[range]).toISOString(), to: new Date(now).toISOString() }
 }
 
+/** A UTC instant written with or without a trailing `Z`, normalized to ISO. */
+export function parseDashboardInstant(value: string): string {
+  const normalized = value.endsWith('Z') ? value.slice(0, -1) : value
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{3})?)?$/.test(normalized))
+    throw new Error('Choose a complete start and end date')
+  const date = new Date(`${normalized}Z`)
+  if (!Number.isFinite(date.getTime()) || !date.toISOString().startsWith(normalized))
+    throw new Error('Invalid UTC date and time')
+  return date.toISOString()
+}
+
 /** URL bounds are instants; legacy offset-free URLs continue to mean UTC. */
 export function parseDashboardCustomRange(from: string, to: string): DashboardTimeRange {
-  const instant = (value: string) => {
-    const normalized = value.endsWith('Z') ? value.slice(0, -1) : value
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{3})?)?$/.test(normalized))
-      throw new Error('Choose a complete start and end date')
-    const date = new Date(`${normalized}Z`)
-    if (!Number.isFinite(date.getTime()) || !date.toISOString().startsWith(normalized))
-      throw new Error('Invalid UTC date and time')
-    return date.toISOString()
-  }
-  const range = { from: instant(from), to: instant(to) }
+  const range = { from: parseDashboardInstant(from), to: parseDashboardInstant(to) }
   if (range.from >= range.to) throw new Error('The start must be earlier than the end')
   return range
 }
@@ -71,6 +73,51 @@ export function dashboardZoomRange(
   const to = Math.min(Math.round(Math.max(...bounds)), Date.parse(range.to))
   if (to - from < 1000) return null
   return { from: new Date(from).toISOString(), to: new Date(to).toISOString() }
+}
+
+export const DASHBOARD_RANGE_LABELS: Record<DashboardRange, string> = {
+  '1h': 'Last hour',
+  '24h': 'Last 24 hours',
+  '7d': 'Last 7 days',
+  '30d': 'Last 30 days',
+  '90d': 'Last 90 days',
+}
+
+/** Compact dates for a range; times appear only when it starts and ends on the same day. */
+export function dashboardRangeText(range: DashboardTimeRange, timeZone: string): string {
+  const from = new Date(range.from)
+  const to = new Date(Date.parse(range.to) - 1)
+  const fromLocal = zonedWallClock(from, timeZone)
+  const toLocal = zonedWallClock(to, timeZone)
+  if (fromLocal === toLocal) {
+    // Same wall-clock minute (e.g. a DST fall-back repeat): formatRange would collapse both ends,
+    // so show each inclusive end exactly, down to milliseconds if seconds still collide.
+    const exact = (fractionalSecondDigits?: 3) =>
+      new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        fractionalSecondDigits,
+        hourCycle: 'h23',
+        timeZoneName: 'short',
+      })
+    const seconds = exact()
+    const format = seconds.format(from) === seconds.format(to) ? exact(3) : seconds
+    return `${format.format(from)} – ${format.format(to)}`
+  }
+  const sameDay = fromLocal.slice(0, 10) === toLocal.slice(0, 10)
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    month: 'short',
+    day: 'numeric',
+    year: fromLocal.slice(0, 4) === toLocal.slice(0, 4) ? undefined : 'numeric',
+    hour: sameDay ? '2-digit' : undefined,
+    minute: sameDay ? '2-digit' : undefined,
+    hourCycle: 'h23',
+  }).formatRange(from, to)
 }
 
 export function dashboardTimeLabel(instant: number | string, timeZone: string): string {

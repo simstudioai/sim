@@ -215,11 +215,6 @@ export function zonedWallClock(instant: Date, timeZone: string): string {
   return `${formatIsoYear(wall.year)}-${pad(wall.month)}-${pad(wall.day)}T${pad(wall.hour)}:${pad(wall.minute)}`
 }
 
-/** The current wall-clock time in `timeZone` as a naive `yyyy-MM-ddTHH:mm` string. */
-export function wallClockNow(timeZone: string): string {
-  return zonedWallClock(new Date(), timeZone)
-}
-
 /**
  * A `Date` whose device-local fields (year…minute) equal the wall-clock time of
  * `instant` in `timeZone`. It deliberately does NOT represent the same instant —

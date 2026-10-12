@@ -9,30 +9,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type StreamUsage = { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 
-const { streamOnComplete } = vi.hoisted(() => ({
-  streamOnComplete: {
-    current: undefined as undefined | ((content: string, usage: StreamUsage) => void),
-  },
-}))
-
 vi.mock('openai', () => openaiMock)
 vi.mock('@/providers', () => providersMock)
 vi.mock('@/providers/models', () => providersModelsMock)
 vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
-vi.mock('@/providers/ollama-cloud/utils', () => ({
-  createReadableStreamFromOllamaCloudStream: (
-    _stream: unknown,
-    onComplete: (content: string, usage: StreamUsage) => void
-  ) => {
-    streamOnComplete.current = onComplete
-    return new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.close()
-      },
-    })
-  },
-}))
+
 vi.mock('@/providers/utils', () => providersUtilsMock)
 vi.mock('@/tools', () => toolsMock)
 
@@ -81,7 +63,6 @@ const baseRequest: ProviderRequest = {
 
 describe('ollamaCloudProvider.executeRequest', () => {
   beforeEach(() => {
-    streamOnComplete.current = undefined
     mockCreate.mockResolvedValue(completion({ content: 'hello' }))
     mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })
   })

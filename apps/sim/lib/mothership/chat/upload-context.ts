@@ -1,10 +1,10 @@
 import type { ChatContextItem } from '@/lib/mothership/generated/protocol'
-import { encodeVfsSegment } from '@/lib/mothership/vfs/path-utils'
 import {
   buildArchiveExtractGuidance,
   isArchiveFileName,
   resolveEffectiveMimeType,
 } from '@/lib/uploads/utils/file-utils'
+import { encodeVfsSegment } from '@/lib/vfs/path'
 
 /** The same chat upload path works for CLI reads, code mounts and image references. */
 export function buildUploadedFileContext(

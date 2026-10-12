@@ -57,6 +57,37 @@ describe('desktop surface availability', () => {
     ).toBeUndefined()
   })
 
+  it('offers a turn to the background executor only when the shell has a registered one', async () => {
+    setDesktopPreferencesSnapshot({
+      ...ENABLED_PREFERENCES,
+      browserEnabled: false,
+      terminalEnabled: false,
+    })
+    const offerFrom = async (bridge: Record<string, unknown>) => {
+      installBridge({ localFiles: vi.fn(), ...bridge })
+      const { desktopCapabilities } = await getDesktopChatCapabilities('chat-1')
+      return { deviceId: desktopCapabilities?.deviceId, executor: desktopCapabilities?.executor }
+    }
+    const unset = { deviceId: undefined, executor: undefined }
+
+    expect(await offerFrom({})).toEqual(unset)
+    expect(await offerFrom({ desktopExecutor: { getDevice: vi.fn(async () => null) } })).toEqual(
+      unset
+    )
+    expect(
+      await offerFrom({
+        desktopExecutor: { getDevice: vi.fn(async () => Promise.reject(new Error('IPC closed'))) },
+      })
+    ).toEqual(unset)
+    expect(
+      await offerFrom({
+        desktopExecutor: {
+          getDevice: vi.fn(async () => ({ deviceId: 'device-1', protocolVersion: 1 })),
+        },
+      })
+    ).toEqual({ deviceId: 'device-1', executor: 1 })
+  })
+
   it('bounds terminal hints before adding them to a chat request', async () => {
     const oversizedValue = 'x'.repeat(1100)
     installBridge({

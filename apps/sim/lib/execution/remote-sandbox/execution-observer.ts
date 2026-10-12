@@ -1,8 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/session-process'
 
 interface SandboxExecutionObserver {
-  sessionInputsSafe?(): boolean
+  sessionInputProvenance?(): boolean | DurableSecretProvenance
   hold(work: Promise<unknown>): void
   unsettled(processId?: string): void
   claimProcess?(process: SessionProcessIdentity): Promise<void>
@@ -49,20 +50,25 @@ export async function prepareSandboxSessionAccess(
 }
 
 /** The trusted tool adapter supplies current input evidence while preserving execution ownership. */
-export function observeSandboxSessionInputs<T>(safe: () => boolean, execute: () => T): T {
+export function observeSandboxSessionInputs<T>(
+  safe: () => boolean | DurableSecretProvenance,
+  execute: () => T
+): T {
   const current = executionObserver.getStore()
   return executionObserver.run(
     {
       hold: (work) => current?.hold(work),
       unsettled: (id) => current?.unsettled(id),
       ...current,
-      sessionInputsSafe: safe,
+      sessionInputProvenance: safe,
     },
     execute
   )
 }
 
-/** Unobserved arbitrary code cannot certify scratch files as safe. */
-export function sandboxSessionInputsSafe(): boolean {
-  return executionObserver.getStore()?.sessionInputsSafe?.() === true
+/** Trusted input evidence is sampled immediately before the machine receives the bytes. */
+export function sandboxSessionInputProvenance(): DurableSecretProvenance {
+  const value = executionObserver.getStore()?.sessionInputProvenance?.()
+  if (typeof value === 'object') return value
+  return value === true ? { status: 'exact', entries: [] } : { status: 'unknown' }
 }

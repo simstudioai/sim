@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { getDesktopBridge, getDesktopShellVersion } from '@/lib/desktop'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
 import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
 
 interface PreferenceRowProps {
@@ -32,6 +33,8 @@ export function Desktop() {
   const workspaceId = params.workspaceId as string
   const [preferences, setPreferences] = useState<DesktopPreferences | null>(null)
   const [pendingPreference, setPendingPreference] = useState<DesktopPreferenceKey | null>(null)
+  /** Whether Sim runs chats on this device in the background; only then can sleep matter. */
+  const [runsInBackground, setRunsInBackground] = useState(false)
   const updateState = useDesktopUpdateState()
   const shellVersion = getDesktopShellVersion()
 
@@ -45,6 +48,11 @@ export function Desktop() {
       .getPreferences()
       .then(setPreferences)
       .catch(() => toast.error('Could not load desktop settings'))
+    void bridge.desktopExecutor
+      ?.getDevice()
+      .then((device) => setRunsInBackground(device !== null))
+      .catch(() => setRunsInBackground(false))
+    return bridge.settings.onFullFileAccessChanged?.(setPreferences)
   }, [router, workspaceId])
 
   const updatePreference = async (key: DesktopPreferenceKey, value: boolean) => {
@@ -60,12 +68,27 @@ export function Desktop() {
     }
   }
 
+  const { pending: preventSleepPending, mutate: setPreventSleep } = useDesktopPreferenceMutation(
+    async (bridge, enabled: boolean) => bridge.settings.setPreventSleepWhileRunning?.(enabled),
+    'Could not update desktop settings',
+    setPreferences
+  )
+
+  const { pending: fullFileAccessPending, mutate: setFullFileAccess } =
+    useDesktopPreferenceMutation(
+      async (bridge, enabled: boolean) => bridge.settings.setFullFileAccess?.(enabled),
+      'Could not save file access settings. Your previous setting may return after restarting Sim.',
+      setPreferences
+    )
+
   if (!preferences) {
     return null
   }
 
   const notificationsDisabled =
     !preferences.notificationsEnabled || pendingPreference === 'notificationsEnabled'
+  const supportsPreventSleep =
+    runsInBackground && Boolean(getDesktopBridge()?.settings.setPreventSleepWhileRunning)
 
   return (
     <SettingsPanel>
@@ -90,6 +113,15 @@ export function Desktop() {
             disabled={pendingPreference !== null}
             onCheckedChange={(checked) => void updatePreference('launchAtLogin', checked)}
           />
+          {supportsPreventSleep && (
+            <PreferenceRow
+              id='desktop-prevent-sleep'
+              label='Prevent sleep while a chat is running'
+              checked={preferences.preventSleepWhileRunning ?? true}
+              disabled={preventSleepPending}
+              onCheckedChange={(checked) => void setPreventSleep(checked)}
+            />
+          )}
           <PreferenceRow
             id='desktop-tray-enabled'
             label='Show Sim in Control Center'
@@ -106,6 +138,18 @@ export function Desktop() {
           />
         </div>
       </SettingsSection>
+
+      {getDesktopBridge()?.settings.setFullFileAccess && (
+        <SettingsSection label='Local files'>
+          <PreferenceRow
+            id='desktop-full-file-access'
+            label='Full file access'
+            checked={preferences.fullFileAccess ?? false}
+            disabled={fullFileAccessPending}
+            onCheckedChange={(checked) => void setFullFileAccess(checked)}
+          />
+        </SettingsSection>
+      )}
 
       <SettingsSection label='Notifications'>
         <div className='flex flex-col gap-3'>

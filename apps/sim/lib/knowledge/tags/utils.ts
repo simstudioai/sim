@@ -62,15 +62,6 @@ export function coerceTagFilterValue(
 }
 
 /**
- * Escapes the LIKE metacharacters in a tag filter value so a `%` or `_` a
- * caller typed matches itself instead of acting as a wildcard. Both filter
- * builders pair this with `ESCAPE '\'`.
- */
-export function escapeLikePattern(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
-}
-
-/**
  * Compiles a date tag filter as a half-open range on the raw column, which a
  * btree on the slot serves; a `column::date` comparison never can. Date slots
  * are `timestamp` without time zone, so a row's calendar day is its value

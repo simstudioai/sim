@@ -2,7 +2,6 @@ import { AirtableIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { AirtableResponse } from '@/tools/airtable/types'
 import { getTrigger } from '@/triggers'
 
 /** Canonical account pair — an advanced-mode card only fills `manualCredential`. */
@@ -12,7 +11,7 @@ const BASE_FIELD = ['baseSelector', 'baseId'] as const
 /** Canonical table pair — the picker in basic mode, the raw table id in advanced. */
 const TABLE_FIELD = ['tableSelector', 'tableId'] as const
 
-export const AirtableBlock: BlockConfig<AirtableResponse> = {
+export const AirtableBlock: BlockConfig = {
   type: 'airtable',
   name: 'Airtable',
   description: 'Read, create, and update Airtable',
@@ -458,7 +457,6 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
     typecast: { type: 'boolean', description: 'Auto-convert string values to field types' },
     recordIds: { type: 'json', description: 'Record IDs to delete' }, // Required for delete
   },
-  // Output structure depends on the operation, covered by AirtableResponse union type
   outputs: {
     bases: { type: 'json', description: 'List of accessible Airtable bases' },
     tables: { type: 'json', description: 'Table schemas with fields and views' },

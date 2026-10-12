@@ -12,6 +12,7 @@ import { vi } from 'vitest'
  * ```
  */
 export const knowledgeSearchIntegrationPolicyMockFns = {
+  mockLockOrganizationSearchApproval: vi.fn(),
   mockListOrganizationSearchApprovals: vi.fn(),
   mockRequireOrganizationSearchApproval: vi.fn(),
   mockSearchIntegrationAccessCondition: vi.fn(),
@@ -26,6 +27,8 @@ export const knowledgeSearchIntegrationPolicyMockFns = {
  * ```
  */
 export const knowledgeSearchIntegrationPolicyMock = {
+  lockOrganizationSearchApproval:
+    knowledgeSearchIntegrationPolicyMockFns.mockLockOrganizationSearchApproval,
   listOrganizationSearchApprovals:
     knowledgeSearchIntegrationPolicyMockFns.mockListOrganizationSearchApprovals,
   requireOrganizationSearchApproval:

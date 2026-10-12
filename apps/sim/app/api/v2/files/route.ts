@@ -94,11 +94,10 @@ export const POST = defineV2JsonRoute({
     exactName: true,
   }),
   useCase: createWorkspaceFile,
-  present: async ({ file, diagnostics }) => ({
+  present: async ({ file }) => ({
     data: {
       ...(await toV2File(file)),
       ...workspaceFileRevisionField(file),
-      ...(diagnostics ? { diagnostics } : {}),
     },
   }),
 })

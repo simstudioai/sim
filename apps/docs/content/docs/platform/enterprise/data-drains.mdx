@@ -6,7 +6,7 @@ description: Continuously export workflow logs, audit logs, and Chat data to you
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
-Data Drains let organization owners and admins on Enterprise plans continuously export Sim data to a destination they control — a customer-owned S3 bucket, Google Cloud Storage bucket, Azure Blob container, BigQuery table, Snowflake table, Datadog logs intake, or an HTTPS webhook. A drain runs on a schedule, picks up only new rows since its last successful run, and writes them to the destination. Viewing drain configuration and run history is restricted to owners and admins as well, since destinations expose internal bucket names, table identifiers, and webhook URLs.
+Data Drains let organization owners and admins on Enterprise plans continuously export Sim data to a destination they control — a customer-owned S3 bucket, Google Cloud Storage bucket, Azure Blob container, BigQuery table, Snowflake table, Datadog logs intake, or an HTTPS webhook. A drain runs on a schedule, picks up rows after its last acknowledged delivery, and writes them to the destination. Viewing drain configuration and run history is restricted to owners and admins as well, since destinations expose internal bucket names, table identifiers, and webhook URLs.
 
 Drains are independent of [Data Retention](/platform/enterprise/data-retention) but designed to compose with it — see [Pairing with Data Retention](#pairing-with-data-retention) below.
 
@@ -38,12 +38,12 @@ A drain exports exactly one source. To export multiple sources, create multiple 
 | **Workflow logs** | Workflow execution records (one row per execution, only after the run reaches a terminal state). |
 | **Job logs** | Background job records (deployed APIs, schedules, webhooks). Only terminal-state rows are exported. |
 | **Audit logs** | Organization- and workspace-scoped audit events — logins, permission changes, resource creation/deletion, drain configuration changes. |
-| **Chats** | Chat history. |
-| **Chat runs** | Chat run records (terminal state only). |
+| **Chats** | Chat snapshots, including organization-owned chats outside a workspace. |
+| **Chat runs** | Chat run records (terminal state only), with safe correlation context. Internal controller tokens and billing recovery receipts are excluded. |
 
 Each row is delivered as a single line of NDJSON. The shape of each row is part of the public schema and stable across versions; every row carries an `id` field that downstream consumers can use to dedupe.
 
-Drains select new rows by their creation cursor and deliver them at least once. A failed run can deliver a row again, so consumers should deduplicate by its `id`. Mutable fields on **Chats** (messages, title, `lastSeenAt`) are a point-in-time snapshot and won't be re-emitted if the chat is later updated. Treat the export as append-only and reconstitute current state from your own system of record if you need it.
+Workflow, job, and Chat run drains advance by their terminal timestamp; audit and Chat drains advance by creation time. A new drain exports all retained history. Reads use the primary database and leave a five-minute stability window before selecting new records. This reduces late-commit gaps but is not a change-data-capture guarantee. Drains deliver rows at least once. A failed run can deliver a row again, so consumers should deduplicate by its `id`. Mutable fields on **Chats** (messages, title, `lastSeenAt`) are a point-in-time snapshot and won't be re-emitted if the chat is later updated. Treat the export as append-only and reconstitute current state from your own system of record if you need it.
 
 ---
 
@@ -111,7 +111,7 @@ Inserts each row into a target VARIANT column via the Snowflake SQL API v2 with 
 - **Role** *(optional)* — Snowflake role to assume.
 - **Private key (PEM)** — PKCS8-encoded RSA private key. Register the matching public key on the Snowflake user via `ALTER USER ... SET RSA_PUBLIC_KEY = '...'`.
 
-Each chunk becomes a single `INSERT INTO "DB"."SCHEMA"."TABLE" ("col") VALUES (PARSE_JSON(?)), ...` with one TEXT binding per row. Identifiers are quoted to preserve case. The destination handles Snowflake's async 202-then-poll pattern transparently. Per-row JSON payloads are capped at 16 MB to match Snowflake's VARIANT limit.
+Each chunk becomes a single `INSERT INTO "DB"."SCHEMA"."TABLE" ("col") SELECT PARSE_JSON(column1) FROM VALUES (?), ...` with one TEXT binding per row. Identifiers are quoted to preserve case. The destination handles Snowflake's async 202-then-poll pattern transparently. Per-row JSON payloads are capped at 16 MB to match Snowflake's VARIANT limit.
 
 ### Datadog Logs
 
@@ -122,7 +122,7 @@ POSTs each row as a log entry to Datadog's v2 logs intake.
 - **Tags** *(optional)* — comma-separated `ddtags` appended to every entry alongside auto-injected `sim_drain_id:`, `sim_run_id:`, and `sim_source:` tags.
 - **API key** — a Datadog API key (not an Application key) with logs-write permission.
 
-Top-level row fields are auto-indexed as Datadog log attributes. The reserved fields `ddsource`, `service`, `ddtags`, and `message` are always set by Sim and override anything in the row. Payloads above 1 KB are gzip-compressed. Enforced limits match Datadog's intake: 5 MB per request (post-compression), 1000 entries per request, 1 MB per entry.
+Top-level row fields are auto-indexed as Datadog log attributes. The reserved fields `ddsource`, `service`, `ddtags`, and `message` are always set by Sim and override anything in the row. Payloads above 1 KB are gzip-compressed. Enforced limits match Datadog's intake: 5 MB of uncompressed JSON per request, 1000 entries per request, and 1 MB per entry. Expanded log entries are split into bounded requests before compression.
 
 ### HTTPS Webhook
 
@@ -168,9 +168,11 @@ You can also disable a drain with the **Enabled** toggle (it stops running but i
 
 ## Delivery semantics
 
-Drains use an **opaque cursor** that advances only on full success. If a delivery fails partway through a run, the cursor is unchanged and the next run replays from the last successful position.
+Drains use an **opaque cursor** that checkpoints each acknowledged chunk. If a later chunk fails, the next run resumes after the last acknowledged checkpoint. A crash between remote delivery and checkpointing can replay a chunk.
 
-This is **at-least-once delivery**. Combined with the `id` field on every row and the `Idempotency-Key` header on every webhook chunk, downstream systems can dedupe deterministically.
+A database claim prevents overlapping runs for the same drain and fences stale workers. Each run is bounded to 10,000 rows, 100 chunks, 100 MB of NDJSON, and a 20-minute work window, with a 25-minute hard deadline. A queued run that reaches a window limit schedules a continuation. Chunks are capped at 4 MB; individual database records, chat transcripts, and execution archives are capped at 1 MB before materialization. Oversized records fail visibly without advancing past them. Missing execution archives also fail rather than reporting an incomplete record as delivered.
+
+This is **at-least-once delivery**. Deduplicate by the source row’s `id`. The webhook `Idempotency-Key` protects retries of a chunk within one run; a replay in a later run has a new run ID. A destination that partially accepts a request may also repeat previously accepted rows on retry.
 
 The **last 10 runs** for each drain are visible by expanding its row in the settings page, with status, row count, bytes written, destination locator (`s3://...` or webhook URL), and the error message if it failed.
 
@@ -180,7 +182,7 @@ The **last 10 runs** for each drain are visible by expanding its row in the sett
 
 - Destination credentials are encrypted at rest using the same key-rotation–aware encryption that protects OAuth tokens.
 - Credentials are **never** returned by the Sim API after creation. Updates accept new credentials; omitting them leaves the existing encrypted blob in place.
-- Webhook URLs are SSRF-validated: HTTPS-only, no private/loopback/metadata IPs, with the resolved IP pinned to defeat DNS rebinding.
+- Webhook URLs and the final S3 SDK hostname are SSRF-validated with the resolved IP pinned to the connection. Private, loopback, and metadata IPs are rejected. S3 signed request paths are preserved without following redirects. A configured outbound gateway that cannot preserve signed request targets fails closed.
 - Every create, update, delete, manual run, and test-connection call is recorded in the [Audit Log](/platform/enterprise/audit-logs).
 
 ---
@@ -218,7 +220,7 @@ After data lands in your bucket or webhook system, archive lifecycle (transition
   },
   {
     question: "What happens if my credentials stop working mid-run?",
-    answer: "The run fails, the drain cursor does not advance, and the failed run is recorded with the error. Once you fix the credentials with an Update or by re-creating the drain, the next run replays from where the last successful run left off."
+    answer: "The run fails and is recorded with the error. Already acknowledged chunks retain their checkpoints. Once you update the credentials, the next run resumes from the last acknowledged position; an uncheckpointed delivery may be repeated."
   },
   {
     question: "What format is the data in?",
@@ -264,4 +266,4 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
   https://sim.example.com/api/cron/run-data-drains
 ```
 
-Each due drain is then fanned out as a `run-data-drain` background job, so the deployment also needs `TRIGGER_DEV_ENABLED` and a configured Trigger.dev project. Without it the dispatcher still claims the work and enqueues it to the database, but nothing drains that queue for this job type, so the runs stay pending and never execute. See [background jobs](/platform/self-hosting/background-jobs).
+Each due drain is dispatched as a `run-data-drain` background job. With Trigger.dev enabled, it runs in the configured Trigger.dev project. Otherwise the database queue executes the registered drain runner. Per-drain database claims apply in both modes. The database fallback limits active drain jobs to two per app process; Trigger.dev workers use serialized per-drain jobs. See [background jobs](/platform/self-hosting/background-jobs).

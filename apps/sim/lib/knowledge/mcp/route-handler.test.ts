@@ -23,6 +23,7 @@ import {
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { rateLimiterMock } from '@sim/testing/mocks/rate-limiter.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { simSearchConnectorsMock } from '@sim/testing/mocks/sim-search-connectors.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { v2ApiKeyAuthModuleMock, v2RouteMocks } from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -60,11 +61,7 @@ vi.mock('@/lib/knowledge/application/connector-access', () => ({
 }))
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/connectors/registry', () => ({ CONNECTOR_META_REGISTRY: {} }))
-vi.mock('@/lib/sim-search/connectors', () => ({
-  SIM_SEARCH_KNOWLEDGE_BASE_NAME: 'Sim Search',
-  canConnectPersonally: vi.fn(),
-  missingSetupFields: vi.fn(),
-}))
+vi.mock('@/lib/sim-search/connectors', () => simSearchConnectorsMock)
 
 import { V2ApiKeyUnauthenticatedError } from '@/lib/api/server/routes/v2-api-key-auth'
 import { OAUTH_ACCESS_TOKEN_PREFIX } from '@/lib/auth/oauth-provider'
@@ -160,7 +157,7 @@ describe('organization MCP request admission', () => {
     expect(mocks.index).not.toHaveBeenCalled()
   })
 
-  it('admits a current personal-key member and binds the canonical organization index', async () => {
+  it('admits a current personal-key member for the canonical organization', async () => {
     const result = await post()
     expect(result.status).toBe(200)
     expect(result.headers.get('Cache-Control')).toBe('private, no-store')
@@ -169,7 +166,7 @@ describe('organization MCP request admission', () => {
       knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable
     ).toHaveBeenCalledExactlyOnceWith('org-1')
     expect(mocks.createServer).toHaveBeenCalledWith(
-      expect.objectContaining({ auth, organizationId: 'org-1', searchIndexId: 'index-1' })
+      expect.objectContaining({ auth, organizationId: 'org-1' })
     )
     expect(mocks.close).toHaveBeenCalledOnce()
     expect(v2RouteMocks.authenticate).toHaveBeenCalledWith(

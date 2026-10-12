@@ -1,0 +1,571 @@
+---
+title: PlanetScale
+description: Manage PlanetScale databases, branches, backups, and deploy requests
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="planetscale"
+  color="#111111"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[PlanetScale](https://planetscale.com/) is a managed database platform for MySQL (built on Vitess) and PostgreSQL. It uses Git-style branches for schema changes and deploy requests to review and ship those changes safely.
+
+With the PlanetScale block, you can:
+
+- **Inspect databases and branches**: List the databases in an organization, read database details, and list or read branches
+- **Manage branches**: Create development branches from a parent, restore a backup into a new branch, or delete branches you no longer need
+- **Work with backups**: Create on-demand backups, list backups for a branch, and check a backup's state, size, and expiration
+- **Ship schema changes (Vitess)**: Create deploy requests, review or approve them, queue them for deployment, and close them
+
+To connect, create a service token in your PlanetScale organization settings and grant it access to the databases and actions your workflow needs. Enter the service token ID, the service token, and your organization slug in the block.
+
+In Sim, the PlanetScale block lets your agents manage database operations as part of a workflow: spin up a branch when a pull request opens, take a backup before a release, report on backup health every day, or open and track a deploy request for a schema change. To run SQL queries against a database, use the MySQL or PostgreSQL block.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Manage PlanetScale databases and branches, create and inspect backups, and create, review, queue, and close Vitess deploy requests. Authenticate with an organization service token. Deploy-request actions require a Vitess database; SQL queries are available through the MySQL and PostgreSQL integrations.
+
+
+
+## Actions
+
+### PlanetScale List Databases
+
+List databases
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `q` | string | No | Search term to filter databases by name |
+| `page` | number | No | If provided, specifies the page offset of returned results |
+| `perPage` | number | No | If provided, specifies the number of returned results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | json | Pagination metadata |
+|   ↳ `currentPage` | number | current page |
+|   ↳ `perPage` | number | per page |
+|   ↳ `nextPage` | number | next page |
+|   ↳ `totalCount` | number | total count |
+|   ↳ `totalPages` | number | total pages |
+| `databases` | array | databases |
+|   ↳ `id` | string | The ID of the database |
+|   ↳ `name` | string | Name of the database |
+|   ↳ `kind` | string | The kind of database |
+|   ↳ `state` | string | State of the database |
+|   ↳ `ready` | boolean | If the database is ready to be used |
+|   ↳ `defaultBranch` | string | The default branch for the database |
+|   ↳ `branchesCount` | number | The total number of database branches |
+|   ↳ `deletionProtected` | boolean | Whether deletion protection is enabled for the database |
+|   ↳ `requireApprovalForDeploy` | boolean | Whether an approval is required to deploy schema changes to this database |
+|   ↳ `createdAt` | string | When the database was created |
+|   ↳ `updatedAt` | string | When the database was last updated |
+|   ↳ `htmlUrl` | string | The URL to see this database's branches in the web UI |
+
+### PlanetScale Get Database
+
+Get a database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | Database name slug from `list_databases`. Example: `app-db`. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `database` | json | Database details |
+|   ↳ `id` | string | The ID of the database |
+|   ↳ `name` | string | Name of the database |
+|   ↳ `kind` | string | The kind of database |
+|   ↳ `state` | string | State of the database |
+|   ↳ `ready` | boolean | If the database is ready to be used |
+|   ↳ `defaultBranch` | string | The default branch for the database |
+|   ↳ `branchesCount` | number | The total number of database branches |
+|   ↳ `deletionProtected` | boolean | Whether deletion protection is enabled for the database |
+|   ↳ `requireApprovalForDeploy` | boolean | Whether an approval is required to deploy schema changes to this database |
+|   ↳ `createdAt` | string | When the database was created |
+|   ↳ `updatedAt` | string | When the database was last updated |
+|   ↳ `htmlUrl` | string | The URL to see this database's branches in the web UI |
+
+### PlanetScale List Branches
+
+List branches
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | Database name slug from `list_databases`. Example: `app-db`. |
+| `q` | string | No | Search branches by name |
+| `production` | boolean | No | Filter branches by production status |
+| `safeMigrations` | boolean | No | Filter branches by safe migrations \(DDL protection\) |
+| `order` | string | No | Order branches by created_at time |
+| `page` | number | No | If provided, specifies the page offset of returned results |
+| `perPage` | number | No | If provided, specifies the number of returned results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | json | Pagination metadata |
+|   ↳ `currentPage` | number | current page |
+|   ↳ `perPage` | number | per page |
+|   ↳ `nextPage` | number | next page |
+|   ↳ `totalCount` | number | total count |
+|   ↳ `totalPages` | number | total pages |
+| `branches` | array | branches |
+|   ↳ `id` | string | The ID of the branch |
+|   ↳ `name` | string | The name of the branch |
+|   ↳ `kind` | string | The kind of branch |
+|   ↳ `state` | string | The current state of the branch |
+|   ↳ `ready` | boolean | Whether or not the branch is ready to serve queries |
+|   ↳ `production` | boolean | Whether or not the branch is a production branch |
+|   ↳ `safeMigrations` | boolean | Whether or not the branch has safe migrations enabled |
+|   ↳ `deletionProtected` | boolean | Whether deletion protection is enabled for the branch |
+|   ↳ `parentBranch` | string | The name of the parent branch from which the branch was created |
+|   ↳ `createdAt` | string | When the branch was created |
+|   ↳ `updatedAt` | string | When the branch was last updated |
+|   ↳ `htmlUrl` | string | Planetscale app URL for the branch |
+
+### PlanetScale Get Branch
+
+Get a branch
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | Database name slug from `list_databases`. Example: `app-db`. |
+| `branch` | string | Yes | Branch name from `list_branches`. Example: `main`. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `branch` | json | Branch details |
+|   ↳ `id` | string | The ID of the branch |
+|   ↳ `name` | string | The name of the branch |
+|   ↳ `kind` | string | The kind of branch |
+|   ↳ `state` | string | The current state of the branch |
+|   ↳ `ready` | boolean | Whether or not the branch is ready to serve queries |
+|   ↳ `production` | boolean | Whether or not the branch is a production branch |
+|   ↳ `safeMigrations` | boolean | Whether or not the branch has safe migrations enabled |
+|   ↳ `deletionProtected` | boolean | Whether deletion protection is enabled for the branch |
+|   ↳ `parentBranch` | string | The name of the parent branch from which the branch was created |
+|   ↳ `createdAt` | string | When the branch was created |
+|   ↳ `updatedAt` | string | When the branch was last updated |
+|   ↳ `htmlUrl` | string | Planetscale app URL for the branch |
+
+### PlanetScale Create Branch
+
+Create a branch
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | The name of the database the branch belongs to |
+| `name` | string | Yes | The name of the branch to create |
+| `deletionProtected` | boolean | No | Whether deletion protection is enabled for the branch |
+| `parentBranch` | string | No | The name of the parent branch. Defaults to the database's default branch if not provided. |
+| `backupId` | string | No | If provided, restores the backup's schema and data to the new branch. Must have `restore_production_branch_backup\(s\)` or `restore_backup\(s\)` access to do this. |
+| `region` | string | No | The region to create the branch in. If not provided, the branch will be created in the default region for its database. |
+| `restorePoint` | string | No | Restore from a point-in-time recovery timestamp \(e.g. 2023-01-01T00:00:00Z\). Available only for PostgreSQL databases. |
+| `replicas` | number | No | For PostgreSQL backup restores and point-in-time recovery, the number of additional replicas from 0 to 8, subject to the target cluster size. 0 creates a single-node branch. If omitted, the target cluster size's minimum is used. |
+| `seedData` | string | No | If provided, restores the last successful backup's schema and data to the new branch. Must have `restore_production_branch_backup\(s\)` or `restore_backup\(s\)` access to do this, in addition to Data Branching™ being enabled for the branch. |
+| `clusterSize` | string | No | The database cluster size. Required when backupId is provided, optional otherwise. Options: PS_10, PS_20, PS_40, ..., PS_2800 |
+| `majorVersion` | string | No | For PostgreSQL and Neki databases, the PostgreSQL major version to use for the branch. Defaults to the major version of the parent branch if it exists or the database's default branch major version. Ignored for branches restored from backups. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `branch` | json | Branch details |
+|   ↳ `id` | string | The ID of the branch |
+|   ↳ `name` | string | The name of the branch |
+|   ↳ `kind` | string | The kind of branch |
+|   ↳ `state` | string | The current state of the branch |
+|   ↳ `ready` | boolean | Whether or not the branch is ready to serve queries |
+|   ↳ `production` | boolean | Whether or not the branch is a production branch |
+|   ↳ `safeMigrations` | boolean | Whether or not the branch has safe migrations enabled |
+|   ↳ `deletionProtected` | boolean | Whether deletion protection is enabled for the branch |
+|   ↳ `parentBranch` | string | The name of the parent branch from which the branch was created |
+|   ↳ `createdAt` | string | When the branch was created |
+|   ↳ `updatedAt` | string | When the branch was last updated |
+|   ↳ `htmlUrl` | string | Planetscale app URL for the branch |
+
+### PlanetScale Delete Branch
+
+Delete a branch
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | The name of the database the branch belongs to |
+| `branch` | string | Yes | The name of the branch |
+| `deleteDescendants` | boolean | No | If true, recursively delete all descendant branches along with this branch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the branch was deleted |
+
+### PlanetScale List Backups
+
+List backups
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | The name of the database the branch belongs to |
+| `branch` | string | Yes | The name of the branch |
+| `all` | boolean | No | Whether to include all backups, including deleted ones |
+| `state` | string | No | Filter backups by state |
+| `policy` | string | No | Filter backups by backup policy ID |
+| `from` | string | No | Filter backups started after this date \(e.g. 2023-01-01T00:00:00Z\) |
+| `to` | string | No | Filter backups started before this date \(e.g. 2023-01-31T23:59:59Z\) |
+| `runningAt` | string | No | Filter backups that are running during a specific time \(e.g. 2023-01-01T00:00:00Z..2023-01-01T23:59:59Z\) |
+| `production` | boolean | No | Filter backups by production branch |
+| `page` | number | No | If provided, specifies the page offset of returned results |
+| `perPage` | number | No | If provided, specifies the number of returned results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | json | Pagination metadata |
+|   ↳ `currentPage` | number | current page |
+|   ↳ `perPage` | number | per page |
+|   ↳ `nextPage` | number | next page |
+|   ↳ `totalCount` | number | total count |
+|   ↳ `totalPages` | number | total pages |
+| `backups` | array | backups |
+|   ↳ `id` | string | The ID of the backup |
+|   ↳ `name` | string | The name of the backup |
+|   ↳ `state` | string | The current state of the backup |
+|   ↳ `size` | number | The size of the backup in bytes |
+|   ↳ `estimatedStorageCost` | number | The estimated storage cost of the backup |
+|   ↳ `protected` | boolean | Whether or not the backup is protected from deletion |
+|   ↳ `createdAt` | string | When the backup was created |
+|   ↳ `updatedAt` | string | When the backup was last updated |
+|   ↳ `startedAt` | string | When the backup started |
+|   ↳ `completedAt` | string | When the backup completed |
+|   ↳ `expiresAt` | string | When the backup expires |
+
+### PlanetScale Get Backup
+
+Get a backup
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `backupId` | string | Yes | The ID for the backup |
+| `database` | string | Yes | The name of the database the branch belongs to |
+| `branch` | string | Yes | The name of the branch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `backup` | json | Backup details |
+|   ↳ `id` | string | The ID of the backup |
+|   ↳ `name` | string | The name of the backup |
+|   ↳ `state` | string | The current state of the backup |
+|   ↳ `size` | number | The size of the backup in bytes |
+|   ↳ `estimatedStorageCost` | number | The estimated storage cost of the backup |
+|   ↳ `protected` | boolean | Whether or not the backup is protected from deletion |
+|   ↳ `createdAt` | string | When the backup was created |
+|   ↳ `updatedAt` | string | When the backup was last updated |
+|   ↳ `startedAt` | string | When the backup started |
+|   ↳ `completedAt` | string | When the backup completed |
+|   ↳ `expiresAt` | string | When the backup expires |
+
+### PlanetScale Create Backup
+
+Create a backup
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | The name of the database the branch belongs to |
+| `branch` | string | Yes | The name of the branch |
+| `name` | string | No | Name for the backup |
+| `retentionUnit` | string | No | Unit for the retention period of the backup |
+| `retentionValue` | number | No | Value between `1` and `1000` for the retention period of the backup \(i.e retention_value `6` and retention_unit `hour` means 6 hours\) |
+| `emergency` | boolean | No | Whether the backup is an immediate backup that may affect database performance. Emergency backups are only supported for PostgreSQL databases. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `backup` | json | Backup details |
+|   ↳ `id` | string | The ID of the backup |
+|   ↳ `name` | string | The name of the backup |
+|   ↳ `state` | string | The current state of the backup |
+|   ↳ `size` | number | The size of the backup in bytes |
+|   ↳ `estimatedStorageCost` | number | The estimated storage cost of the backup |
+|   ↳ `protected` | boolean | Whether or not the backup is protected from deletion |
+|   ↳ `createdAt` | string | When the backup was created |
+|   ↳ `updatedAt` | string | When the backup was last updated |
+|   ↳ `startedAt` | string | When the backup started |
+|   ↳ `completedAt` | string | When the backup completed |
+|   ↳ `expiresAt` | string | When the backup expires |
+
+### PlanetScale List Deploy Requests
+
+List deploy requests (Vitess only)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | The name of the deploy request's database |
+| `state` | string | No | Filter by state of the deploy request \(open, closed, deployed\) |
+| `branch` | string | No | Filter by the name of the branch the deploy request is created from |
+| `intoBranch` | string | No | Filter by the name of the branch the deploy request will be merged into |
+| `deployedAt` | string | No | Filter deploy requests by the date they were deployed. \(e.g. 2023-01-01T00:00:00Z..2023-01-31T23:59:59Z\) |
+| `runningAt` | string | No | Filter deploy requests by the date they were running. \(e.g. 2023-01-01T00:00:00Z..2023-01-31T23:59:59Z\) |
+| `page` | number | No | If provided, specifies the page offset of returned results |
+| `perPage` | number | No | If provided, specifies the number of returned results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | json | Pagination metadata |
+|   ↳ `currentPage` | number | current page |
+|   ↳ `perPage` | number | per page |
+|   ↳ `nextPage` | number | next page |
+|   ↳ `totalCount` | number | total count |
+|   ↳ `totalPages` | number | total pages |
+| `deployRequests` | array | deploy requests |
+|   ↳ `id` | string | The ID of the deploy request |
+|   ↳ `number` | number | The number of the deploy request |
+|   ↳ `branch` | string | The name of the branch the deploy request was created from |
+|   ↳ `intoBranch` | string | The name of the branch the deploy request will be merged into |
+|   ↳ `state` | string | Whether the deploy request is open or closed |
+|   ↳ `deploymentState` | string | The deployment state of the deploy request |
+|   ↳ `approved` | boolean | Whether or not the deploy request is approved |
+|   ↳ `numComments` | number | The number of comments on the deploy request |
+|   ↳ `notes` | string | Notes on the deploy request |
+|   ↳ `createdAt` | string | When the deploy request was created |
+|   ↳ `updatedAt` | string | When the deploy request was last updated |
+|   ↳ `closedAt` | string | When the deploy request was closed |
+|   ↳ `deployedAt` | string | When the deploy request was deployed |
+|   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
+
+### PlanetScale Get Deploy Request
+
+Get a deploy request (Vitess only)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | The name of the deploy request's database |
+| `deployRequestNumber` | number | Yes | The number of the deploy request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deployRequest` | json | DeployRequest details |
+|   ↳ `id` | string | The ID of the deploy request |
+|   ↳ `number` | number | The number of the deploy request |
+|   ↳ `branch` | string | The name of the branch the deploy request was created from |
+|   ↳ `intoBranch` | string | The name of the branch the deploy request will be merged into |
+|   ↳ `state` | string | Whether the deploy request is open or closed |
+|   ↳ `deploymentState` | string | The deployment state of the deploy request |
+|   ↳ `approved` | boolean | Whether or not the deploy request is approved |
+|   ↳ `numComments` | number | The number of comments on the deploy request |
+|   ↳ `notes` | string | Notes on the deploy request |
+|   ↳ `createdAt` | string | When the deploy request was created |
+|   ↳ `updatedAt` | string | When the deploy request was last updated |
+|   ↳ `closedAt` | string | When the deploy request was closed |
+|   ↳ `deployedAt` | string | When the deploy request was deployed |
+|   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
+
+### PlanetScale Create Deploy Request
+
+Create a deploy request (Vitess only)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | The name of the deploy request's database |
+| `branch` | string | Yes | The name of the branch the deploy request is created from |
+| `intoBranch` | string | Yes | The name of the branch the deploy request will be merged into |
+| `notes` | string | No | Notes about the deploy request |
+| `autoCutover` | boolean | No | Whether or not to enable auto_cutover for the deploy request. When enabled, will auto cutover to the new schema as soon as it is ready. |
+| `autoDeleteBranch` | boolean | No | Whether or not to enable auto_delete_branch for the deploy request. When enabled, will delete the branch once the DR successfully completes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deployRequest` | json | DeployRequest details |
+|   ↳ `id` | string | The ID of the deploy request |
+|   ↳ `number` | number | The number of the deploy request |
+|   ↳ `branch` | string | The name of the branch the deploy request was created from |
+|   ↳ `intoBranch` | string | The name of the branch the deploy request will be merged into |
+|   ↳ `state` | string | Whether the deploy request is open or closed |
+|   ↳ `deploymentState` | string | The deployment state of the deploy request |
+|   ↳ `approved` | boolean | Whether or not the deploy request is approved |
+|   ↳ `numComments` | number | The number of comments on the deploy request |
+|   ↳ `notes` | string | Notes on the deploy request |
+|   ↳ `createdAt` | string | When the deploy request was created |
+|   ↳ `updatedAt` | string | When the deploy request was last updated |
+|   ↳ `closedAt` | string | When the deploy request was closed |
+|   ↳ `deployedAt` | string | When the deploy request was deployed |
+|   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
+
+### PlanetScale Review Deploy Request
+
+Review a deploy request (Vitess only)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | The name of the database the deploy request belongs to |
+| `deployRequestNumber` | number | Yes | The number of the deploy request |
+| `state` | string | No | Whether the review is a comment or approval. Service tokens must have corresponding access \(either `approve_deploy_request` or `review_deploy_request`\) |
+| `body` | string | No | Deploy request review comments |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `review` | json | Review details |
+|   ↳ `id` | string | The ID of the review |
+|   ↳ `state` | string | Whether the review is a comment or approval |
+|   ↳ `body` | string | The text body of the review |
+|   ↳ `createdAt` | string | When the review was created |
+|   ↳ `updatedAt` | string | When the review was last updated |
+
+### PlanetScale Queue Deploy Request
+
+Queue a deploy request (Vitess only)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | The name of the deploy request's database |
+| `deployRequestNumber` | number | Yes | The number of the deploy request |
+| `instantDdl` | boolean | No | Whether or not to deploy the request with instant DDL. Defaults to false. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deployRequest` | json | DeployRequest details |
+|   ↳ `id` | string | The ID of the deploy request |
+|   ↳ `number` | number | The number of the deploy request |
+|   ↳ `branch` | string | The name of the branch the deploy request was created from |
+|   ↳ `intoBranch` | string | The name of the branch the deploy request will be merged into |
+|   ↳ `state` | string | Whether the deploy request is open or closed |
+|   ↳ `deploymentState` | string | The deployment state of the deploy request |
+|   ↳ `approved` | boolean | Whether or not the deploy request is approved |
+|   ↳ `numComments` | number | The number of comments on the deploy request |
+|   ↳ `notes` | string | Notes on the deploy request |
+|   ↳ `createdAt` | string | When the deploy request was created |
+|   ↳ `updatedAt` | string | When the deploy request was last updated |
+|   ↳ `closedAt` | string | When the deploy request was closed |
+|   ↳ `deployedAt` | string | When the deploy request was deployed |
+|   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
+
+### PlanetScale Close Deploy Request
+
+Close a deploy request (Vitess only)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serviceTokenId` | string | Yes | PlanetScale service token ID |
+| `serviceToken` | string | Yes | PlanetScale service token secret |
+| `organization` | string | Yes | PlanetScale organization slug |
+| `database` | string | Yes | The name of the deploy request's database |
+| `deployRequestNumber` | number | Yes | The number of the deploy request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deployRequest` | json | DeployRequest details |
+|   ↳ `id` | string | The ID of the deploy request |
+|   ↳ `number` | number | The number of the deploy request |
+|   ↳ `branch` | string | The name of the branch the deploy request was created from |
+|   ↳ `intoBranch` | string | The name of the branch the deploy request will be merged into |
+|   ↳ `state` | string | Whether the deploy request is open or closed |
+|   ↳ `deploymentState` | string | The deployment state of the deploy request |
+|   ↳ `approved` | boolean | Whether or not the deploy request is approved |
+|   ↳ `numComments` | number | The number of comments on the deploy request |
+|   ↳ `notes` | string | Notes on the deploy request |
+|   ↳ `createdAt` | string | When the deploy request was created |
+|   ↳ `updatedAt` | string | When the deploy request was last updated |
+|   ↳ `closedAt` | string | When the deploy request was closed |
+|   ↳ `deployedAt` | string | When the deploy request was deployed |
+|   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
+
+

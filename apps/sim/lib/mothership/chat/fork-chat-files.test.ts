@@ -3,13 +3,9 @@ import {
   workspaceFileManagerMock,
   workspaceFileManagerMockFns,
 } from '@sim/testing/mocks/workspace-file-manager.mock'
-import {
-  workspaceFileSecretProvenanceMock,
-  workspaceFileSecretProvenanceMockFns,
-} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import { workspaceFileSecretProvenanceMock } from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCopyWorkspaceFileSecretProvenanceInTx } = workspaceFileSecretProvenanceMockFns
 const { mockGenerateWorkspaceFileKey: mockGenerateKey } = workspaceFileManagerMockFns
 const { mockDownloadFile, mockUploadFile } = storageServiceMockFns
 

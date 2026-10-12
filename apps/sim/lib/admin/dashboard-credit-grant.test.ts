@@ -50,7 +50,6 @@ vi.mock('@/lib/billing/enterprise-provisioning', () => ({
   getLatestEnterpriseProvisionings: vi.fn(async () => new Map()),
 }))
 vi.mock('@/lib/billing/enterprise-outbox', () => ({
-  ENTERPRISE_METADATA_SYNC_EVENT_TYPE: 'stripe.sync-enterprise-metadata',
   resolveEnterpriseMetadataIntent: vi.fn(),
 }))
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)

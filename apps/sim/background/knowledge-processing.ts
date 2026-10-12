@@ -319,12 +319,13 @@ export const processDocument = task({
   id: 'knowledge-process-document',
   maxDuration: envNumber(env.KB_CONFIG_MAX_DURATION, 600),
   /**
-   * Sized from production telemetry: peak sampled RSS 902 MB and peak 1.2 vCPU
-   * across a corpus where no document exceeded 2 GB, so `medium-2x` holds ~4x
-   * memory and ~1.7x CPU headroom over the observed worst case. The prior
-   * `large-1x` reserved 8 GB against a worst case using an eighth of it.
+   * Sized from production telemetry: p99.9 sampled RSS ~740 MB and peak just
+   * under 2 GB, so `medium-1x` (2 GB) holds the overwhelming majority and the
+   * rare document past it escalates through `outOfMemory` below. Processing waits on embedding and storage calls far
+   * more than it computes, so the single vCPU stretches a CPU-bound parse
+   * slightly but halves the wall-clock rate every run is billed at.
    */
-  machine: 'medium-2x',
+  machine: 'medium-1x',
   retry: {
     /**
      * The ceiling for thrown errors: database retries use all of it, and

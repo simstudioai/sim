@@ -480,9 +480,7 @@ const nonEmptyFilterSchema = domainObjectSchema<Filter>().refine(
   { message: 'Filter must not be empty' }
 )
 
-const filterSchema = domainObjectSchema<Filter>()
-
-/* --------------------------- v2 predicate grammar --------------------------- */
+// v2 predicate grammar
 
 /**
  * Body cap for the row-query routes. A query body is a predicate tree plus a
@@ -2327,4 +2325,19 @@ export const bulkDeleteTablesContract = defineRouteContract({
       })
     ),
   },
+})
+
+const foldTableRowChangesResponseSchema = z.object({
+  success: z.literal(true),
+  folded: z.number().int().min(0),
+  skipped: z.number().int().min(0),
+  budgetExhausted: z.boolean(),
+})
+
+export type FoldTableRowChangesResponse = z.output<typeof foldTableRowChangesResponseSchema>
+
+export const foldTableRowChangesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/cron/fold-table-row-changes',
+  response: { mode: 'json', schema: foldTableRowChangesResponseSchema },
 })

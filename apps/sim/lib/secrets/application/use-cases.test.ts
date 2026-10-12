@@ -8,6 +8,7 @@ import {
   credentialsEnvironmentMock,
   credentialsEnvironmentMockFns,
 } from '@sim/testing/mocks/credentials-environment.mock'
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
@@ -28,7 +29,6 @@ const { mocks: hoisted } = vi.hoisted(() => ({
     setPersonal: vi.fn(),
     deletePersonal: vi.fn(),
     listCredentials: vi.fn(),
-    readWorkspaceValues: vi.fn(),
     secretUsage: vi.fn(),
     scanReferences: vi.fn(),
   },
@@ -51,7 +51,6 @@ vi.mock('@/lib/secrets/usage/queries', () => ({
 vi.mock('@/lib/credentials/secret-values', () => ({
   deletePersonalSecret: hoisted.deletePersonal,
   deleteWorkspaceSecret: vi.fn(),
-  readWorkspaceSecretValues: hoisted.readWorkspaceValues,
   setPersonalSecret: hoisted.setPersonal,
   setWorkspaceSecret: hoisted.setWorkspace,
   updateWorkspaceSecretMetadata: hoisted.updateWorkspaceMetadata,
@@ -136,7 +135,6 @@ describe('secret application use cases', () => {
     mocks.personalMetadata.mockResolvedValue(null)
     mocks.deletePersonal.mockResolvedValue(true)
     mocks.listCredentials.mockResolvedValue({ data: [secret], nextCursorKeys: null })
-    mocks.readWorkspaceValues.mockResolvedValue({})
     mocks.secretUsage.mockResolvedValue({ entries: [] })
   })
 
@@ -145,8 +143,15 @@ describe('secret application use cases', () => {
       data: [secret, visibleSecret, personalSecret],
       nextCursorKeys: null,
     })
-    mocks.readWorkspaceValues.mockResolvedValue({
-      [visibleSecret.envKey]: 'https://staging.example.com',
+    environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot.mockResolvedValueOnce({
+      personalEncrypted: {},
+      personalDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+      workspaceEncrypted: { [visibleSecret.envKey]: 'encrypted-visible' },
+      workspaceDecrypted: { [visibleSecret.envKey]: 'https://staging.example.com' },
+      workspaceUnredactedKeys: [visibleSecret.envKey],
     })
 
     const result = await listSecretsUseCase.execute({
@@ -159,11 +164,37 @@ describe('secret application use cases', () => {
       },
     })
 
-    expect(mocks.readWorkspaceValues).toHaveBeenCalledWith({
-      workspaceId: workspace.workspaceId,
-      names: [visibleSecret.envKey],
-    })
     expect(result.values).toEqual({ [visibleSecret.envKey]: 'https://staging.example.com' })
+  })
+
+  it('withholds a visible value shared with a protected secret', async () => {
+    mocks.listCredentials.mockResolvedValue({ data: [visibleSecret], nextCursorKeys: null })
+    environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot.mockResolvedValueOnce({
+      personalEncrypted: {},
+      personalDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+      workspaceEncrypted: {
+        [visibleSecret.envKey]: 'encrypted-visible',
+        HIDDEN: 'encrypted-hidden',
+      },
+      workspaceDecrypted: {
+        [visibleSecret.envKey]: 'shared-protected-value',
+        HIDDEN: 'shared-protected-value',
+      },
+      workspaceUnredactedKeys: [visibleSecret.envKey],
+    })
+    const result = await listSecretsUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        limit: 50,
+      },
+    })
+    expect(result.values).toEqual({})
   })
 
   it('rejects workspace keys before resolving or reading secret state', async () => {

@@ -4,7 +4,7 @@ import {
 } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
-import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import {
   workflowContextMock,
@@ -89,9 +89,6 @@ const mockResolveWorkspaceContext =
   workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
 const mockResolveWorkflowContext =
   workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
-const mockNotifyWorkflowUpdated = realtimeNotifyMockFns.mockNotifyWorkflowUpdated
-const mockNotifyWorkspaceWorkflowsChanged =
-  realtimeNotifyMockFns.mockNotifyWorkspaceWorkflowsChanged
 
 const WORKSPACE_ID = 'workspace-1'
 const WORKFLOW_ID = 'workflow-1'

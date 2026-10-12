@@ -9,7 +9,6 @@ authors:
 readingTime: 8
 tags: [AI Agents, Multi-Agent Systems, Agent Orchestration, Sim]
 ogImage: /library/can-ai-agents-talk-to-each-other-multi-agent-communication-explained/cover.jpg
-canonical: https://www.sim.ai/library/can-ai-agents-talk-to-each-other-multi-agent-communication-explained
 draft: false
 faq:
   - q: "What is an Agent2Agent protocol?"
@@ -35,7 +34,7 @@ AI agents communicate by exchanging structured messages, tool calls, or shared s
 
 A single LLM call with tools does not necessarily create a multi-agent system. In a tool-using agent, one model controls the reasoning loop and calls functions that perform bounded operations. A multi-agent system gives separate agents their own instructions, execution loops, or state, then defines how they pass work or information between those boundaries.
 
-An agent-to-agent protocol specifies the format and rules for those exchanges. Implementations may exchange a direct request and response or transfer control through an orchestrator. They may instead coordinate through a common record or messages published for later processing. Choose the pattern based on the coordination requirement. Direct calls provide immediate results, shared state preserves context, and message passing supports independent execution. Platforms such as [Sim](https://sim.ai) provide an [AI agent orchestration](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained) layer that coordinates these exchanges without treating them as an unstructured conversation.
+An agent-to-agent protocol specifies the format and rules for those exchanges. Implementations may exchange a direct request and response or transfer control through an orchestrator. They may instead coordinate through a common record or messages published for later processing. Choose the pattern based on the coordination requirement. Direct calls provide immediate results, shared state preserves context, and message passing supports independent execution. Platforms such as [Sim](https://www.sim.ai) provide an [AI agent orchestration](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained) layer that coordinates these exchanges without treating them as an unstructured conversation.
 
 ## The four core communication patterns
 

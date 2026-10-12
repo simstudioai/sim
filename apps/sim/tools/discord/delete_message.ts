@@ -50,7 +50,7 @@ export const discordDeleteMessageTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async () => {
     return {
       success: true,
       output: {

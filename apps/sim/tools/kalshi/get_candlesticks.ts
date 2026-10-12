@@ -82,7 +82,7 @@ export const kalshiGetCandlesticksTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_candlesticks')
+      handleKalshiError(data, 'get_candlesticks')
     }
 
     const candlesticks = data.candlesticks || []
@@ -224,7 +224,7 @@ export const kalshiGetCandlesticksV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_candlesticks_v2')
+      handleKalshiError(data, 'get_candlesticks_v2')
     }
 
     const mapBidAsk = (obj: Record<string, unknown> | null): BidAskDistribution => ({

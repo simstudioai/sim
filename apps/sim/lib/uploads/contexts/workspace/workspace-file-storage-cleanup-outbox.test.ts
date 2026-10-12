@@ -15,10 +15,10 @@ vi.mock('@/lib/core/outbox/service', () => ({
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
+import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import {
   enqueueWorkspaceFileStorageCleanups,
   processWorkspaceFileStorageCleanupsNow,
-  WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
   workspaceFileStorageCleanupOutboxHandlers,
 } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 

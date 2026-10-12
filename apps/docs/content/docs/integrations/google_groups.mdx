@@ -419,4 +419,20 @@ Update the settings for a Google Group including access permissions, moderation,
 | `whoCanDiscoverGroup` | string | Who can discover the group |
 | `defaultSender` | string | Default sender identity |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Google Groups account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-groups` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/admin.directory.group` | Manage Google Workspace groups |
+| `https://www.googleapis.com/auth/admin.directory.group.member` | Manage Google Workspace group memberships |
+
 

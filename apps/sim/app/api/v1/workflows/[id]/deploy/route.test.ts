@@ -6,7 +6,7 @@
 
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { createRouteContext } from '@sim/testing/helpers/http'
-import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { v1LogsMetaMock } from '@sim/testing/mocks/v1-logs-meta.mock'
 import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
@@ -30,7 +30,6 @@ import { DELETE, POST } from '@/app/api/v1/workflows/[id]/deploy/route'
 
 const { mockPerformFullDeploy, mockPerformFullUndeploy } = workflowsOrchestrationMockFns
 
-const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 const { mockCheckRateLimit, mockValidateWorkspaceAccess } = v1MiddlewareMockFns
 
 const WORKFLOW_ID = 'wf-1'

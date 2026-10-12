@@ -146,5 +146,3 @@ export interface WealthboxTaskRequestBody {
     type: string
   }>
 }
-
-export type WealthboxResponse = WealthboxReadResponse | WealthboxWriteResponse

@@ -98,4 +98,16 @@ export const forkOperations = {
     id: 'workspaces.fork.exclusions',
     oauthScope: 'api:write',
   }),
+  /**
+   * Admin on the calling workspace is sufficient; the write fans out to the whole lineage
+   * because the default must be uniform, and it never moves an existing workflow.
+   *
+   * permission-group-exempt: the new-workflow fork-sync default is workspace configuration governed by the admin role.
+   */
+  syncDefault: defineWorkspaceOperation({
+    ...adminPolicy,
+    capability: 'none',
+    id: 'workspaces.fork.sync_default',
+    oauthScope: 'api:write',
+  }),
 } as const

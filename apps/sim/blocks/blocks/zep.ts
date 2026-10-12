@@ -1,8 +1,7 @@
 import { ZepIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { ZepResponse } from '@/tools/zep/types'
 
-export const ZepBlock: BlockConfig<ZepResponse> = {
+export const ZepBlock: BlockConfig = {
   type: 'zep',
   name: 'Zep',
   description: 'Long-term memory for AI agents',

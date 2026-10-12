@@ -52,9 +52,7 @@ async function authorizeWorkspaceSection(
           workspace.organizationId
         )
       : null,
-    section === 'forks'
-      ? isForkingAvailableForWorkspace(workspace.organizationId, input.userId)
-      : false,
+    section === 'forks' ? isForkingAvailableForWorkspace(workspace.organizationId) : false,
     section === 'custom-blocks' && workspace.organizationId
       ? isCustomBlocksEligibleForOrganization(workspace.organizationId)
       : false,

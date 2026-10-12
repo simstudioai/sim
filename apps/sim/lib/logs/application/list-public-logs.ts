@@ -13,7 +13,7 @@ import {
   logProjectionSubjectUserId,
   projectExecutionData,
   resolveLogFieldProjection,
-} from '@/lib/logs/log-projection'
+} from '@/lib/logs/projection'
 import type { LogFilters } from '@/lib/logs/public-filters'
 import {
   type PublicLogListRow,

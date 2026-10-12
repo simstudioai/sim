@@ -96,12 +96,11 @@ function vfsPath(file: MockWorkspaceFilePathFields): string {
  *
  * I/O functions are bare `vi.fn()`s. Pure helpers default to ports of the real logic:
  * `matchesWorkspaceFilePattern`, `parseWorkspaceFileKey`, `suffixedName` are faithful;
- * the VFS helpers (`normalizeWorkspaceFileReference`, `workspaceFileVfsPath`,
- * `getSandboxWorkspaceFilePath`, `parseChatUploadReference`, `findWorkspaceFileRecord`)
- * percent-encode with `encodeURIComponent` and split folder paths on `/` (no escaped-slash
- * folder names). `generateWorkspaceFileKey` is deterministic —
- * `workspace/{workspaceId}/generated-{fileName}` — which `parseWorkspaceFileKey` does
- * not recognize (no timestamp/random segment).
+ * the VFS helpers (`workspaceFileVfsPath`, `getSandboxWorkspaceFilePath`,
+ * `parseChatUploadReference`, `findWorkspaceFileRecord`) percent-encode with
+ * `encodeURIComponent` and split folder paths on `/` (no escaped-slash folder names).
+ * `generateWorkspaceFileKey` is deterministic — `workspace/{workspaceId}/generated-{fileName}`
+ * — which `parseWorkspaceFileKey` does not recognize (no timestamp/random segment).
  *
  * @example
  * ```ts
@@ -130,9 +129,6 @@ export const workspaceFileManagerMockFns = {
   mockGetWorkspaceFileByName: vi.fn(),
   mockListWorkspaceFiles: vi.fn(),
   mockQueryWorkspaceFiles: vi.fn(),
-  mockNormalizeWorkspaceFileReference: vi.fn((fileReference: string) =>
-    referenceSegments(fileReference).join('/')
-  ),
   mockWorkspaceFileVfsPath: vi.fn(vfsPath),
   mockGetSandboxWorkspaceFilePath: vi.fn(
     (file: MockWorkspaceFilePathFields) => `/home/user/${vfsPath(file)}`
@@ -171,7 +167,6 @@ export const workspaceFileManagerMockFns = {
   mockUpdateWorkspaceFileContent: vi.fn(),
   mockDeleteWorkspaceFileVersion: vi.fn(),
   mockRenameWorkspaceFile: vi.fn(),
-  mockMoveRenameWorkspaceFile: vi.fn(),
   mockDeleteWorkspaceFile: vi.fn(),
   mockPurgeCreatedWorkspaceFile: vi.fn(),
   mockRestoreWorkspaceFile: vi.fn(),
@@ -205,7 +200,6 @@ export const workspaceFileManagerMock = {
   getWorkspaceFileByName: fns.mockGetWorkspaceFileByName,
   listWorkspaceFiles: fns.mockListWorkspaceFiles,
   queryWorkspaceFiles: fns.mockQueryWorkspaceFiles,
-  normalizeWorkspaceFileReference: fns.mockNormalizeWorkspaceFileReference,
   workspaceFileVfsPath: fns.mockWorkspaceFileVfsPath,
   getSandboxWorkspaceFilePath: fns.mockGetSandboxWorkspaceFilePath,
   parseChatUploadReference: fns.mockParseChatUploadReference,
@@ -222,7 +216,6 @@ export const workspaceFileManagerMock = {
   updateWorkspaceFileContent: fns.mockUpdateWorkspaceFileContent,
   deleteWorkspaceFileVersion: fns.mockDeleteWorkspaceFileVersion,
   renameWorkspaceFile: fns.mockRenameWorkspaceFile,
-  moveRenameWorkspaceFile: fns.mockMoveRenameWorkspaceFile,
   deleteWorkspaceFile: fns.mockDeleteWorkspaceFile,
   purgeCreatedWorkspaceFile: fns.mockPurgeCreatedWorkspaceFile,
   restoreWorkspaceFile: fns.mockRestoreWorkspaceFile,

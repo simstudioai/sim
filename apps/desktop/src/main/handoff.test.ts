@@ -162,6 +162,24 @@ describe('createHandoffManager', () => {
 })
 
 describe('connect handoff account pinning', () => {
+  it('keeps a source request correlated across the browser and native completion', async () => {
+    const deps = makeDeps()
+    const manager = createHandoffManager(deps, makeCallbacks())
+    try {
+      const requestId = manager.prepareSourceConnect()
+      expect(await manager.beginConnect('source', { sourceRequestId: requestId })).toBe(true)
+      const landing = new URL(vi.mocked(deps.openExternal).mock.calls[0][0])
+      expect(landing.searchParams.get('sourceRequestId')).toBe(requestId)
+      expect(landing.searchParams.get('user')).toBe('user-1')
+      expect(manager.consumeConnect(landing.searchParams.get('state')!)).toEqual({
+        sourceRequestId: requestId,
+      })
+      expect(manager.consumeConnect(landing.searchParams.get('state')!)).toBeNull()
+    } finally {
+      manager.clear()
+    }
+  })
+
   it('pins the connect flow to the account the app is signed in as', async () => {
     // The OAuth flow runs in the browser under the BROWSER's session, which is
     // a different row from the app's — without this the credential would attach

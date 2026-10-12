@@ -443,11 +443,9 @@ describe('file manage folder wiring', () => {
       )
 
       expect(response.status).toBe(200)
-      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
-        'workspace-1',
-        'a-self',
-        undefined
-      )
+      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'a-self', {
+        includeOwnedFiles: true,
+      })
     })
 
     it('refuses an ambiguous name instead of editing an arbitrary file', async () => {
@@ -484,11 +482,9 @@ describe('file manage folder wiring', () => {
         })
       )
 
-      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
-        'workspace-1',
-        'a-self',
-        undefined
-      )
+      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'a-self', {
+        includeOwnedFiles: true,
+      })
     })
   })
 
@@ -582,7 +578,7 @@ describe('file manage folder wiring', () => {
     expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
       'workspace-1',
       'notes-in-reports',
-      undefined
+      { includeOwnedFiles: true }
     )
   })
 
@@ -806,6 +802,21 @@ describe('file manage operations', () => {
         contents: [lines[lineNumber - 1]],
         lineRanges: [{ offset: lineNumber, lineCount: 1, totalLinesExact: true }],
       },
+    })
+  })
+  it('reads offset 0 as the first line of each selected file', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'content',
+        workspaceId: 'workspace-1',
+        fileId: 'file-1',
+        offset: 0,
+        limit: 1,
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      data: { contents: ['content:file-1.txt'], lineRanges: [{ offset: 1, lineCount: 1 }] },
     })
   })
   it('does not bypass complete extraction limits with a raw-text fallback', async () => {

@@ -1,3 +1,5 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import type { GuardrailsMaskBatchResult } from '@/lib/api/contracts'
@@ -7,6 +9,8 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
+
+const logger = createLogger('PiiMaskClient')
 
 /**
  * Max in-flight mask-batch requests per call. Each request is a CPU-heavy NER
@@ -75,6 +79,39 @@ function isRetryableChunkError(error: unknown): boolean {
 }
 
 /**
+ * Statuses that mean the service is down rather than that one request was bad:
+ * the load balancer has no healthy target (502/503/504), or the mask-batch route
+ * could not reach Presidio (503). A 500 is retried but never read as an outage —
+ * Presidio answers 500 for deterministic per-input failures too (an over-long text
+ * spaCy refuses), and one such chunk must not scrub the rest of the payload.
+ */
+const OUTAGE_STATUSES = new Set([502, 503, 504])
+
+function isOutageError(error: unknown): boolean {
+  if (error instanceof MaskChunkHttpError) {
+    return OUTAGE_STATUSES.has(error.status)
+  }
+  return isRetryableChunkError(error)
+}
+
+interface MaskPIIBatchOptions {
+  /**
+   * When set, a chunk that cannot be masked has each of its strings replaced with
+   * this value instead of rejecting the call, so one bad chunk costs only its own
+   * strings. After an outage (see {@link OUTAGE_STATUSES}) exhausts a chunk's
+   * retries, chunks not yet sent are replaced the same way.
+   */
+  failedChunkPlaceholder?: string
+}
+
+interface MaskPIIBatchResult {
+  /** Masked strings, aligned 1:1 with the input. */
+  masked: string[]
+  /** How many of them are {@link MaskPIIBatchOptions.failedChunkPlaceholder} instead. */
+  scrubbedCount: number
+}
+
+/**
  * Mask PII across many strings via the internal app-container endpoint.
  *
  * Only the app task reaches the Presidio service (it holds `PII_URL`), but the
@@ -83,36 +120,68 @@ function isRetryableChunkError(error: unknown): boolean {
  * Strings are grouped into byte/count-budgeted chunks (keeping each request far
  * under the 10MB Next body limit) and the chunks are sent with bounded
  * concurrency, so a large payload fans out rather than serializing; order is
- * preserved, so the returned array matches `texts` length.
+ * preserved, so the returned `masked` array matches `texts` length.
  *
  * Transient chunk failures (network errors, 408/429/5xx) retry with jittered
  * backoff (see {@link MAX_CHUNK_ATTEMPTS}); only a deterministic failure or an
- * exhausted retry budget rejects, so the caller can apply its own fail-safe
- * (scrubbing rather than leaking).
+ * exhausted retry budget fails a chunk. By default a failed chunk rejects the
+ * whole call, so the caller can apply its own fail-safe (scrubbing rather than
+ * leaking); see {@link MaskPIIBatchOptions.failedChunkPlaceholder} to contain
+ * the damage to that chunk instead.
  */
 export async function maskPIIBatchViaHttp(
   texts: string[],
   entityTypes: string[],
   language?: string,
-  customPatterns?: CustomPiiPattern[]
-): Promise<string[]> {
-  if (texts.length === 0) return []
+  customPatterns?: CustomPiiPattern[],
+  options: MaskPIIBatchOptions = {}
+): Promise<MaskPIIBatchResult> {
+  if (texts.length === 0) return { masked: [], scrubbedCount: 0 }
 
   const url = `${getInternalApiBaseUrl()}/api/guardrails/mask-batch`
+  const placeholder = options.failedChunkPlaceholder
   const masked = new Array<string>(texts.length)
+  let serviceUnavailable = false
+  let scrubbedCount = 0
+  let firstFailure: unknown
+
+  const scrubChunk = (indices: number[], value: string) => {
+    for (const i of indices) masked[i] = value
+    scrubbedCount += indices.length
+  }
 
   await mapWithConcurrency(chunkIndicesByBudget(texts), CHUNK_CONCURRENCY, async (indices) => {
-    const chunk = indices.map((i) => texts[i])
-    const out = await postChunk(url, chunk, entityTypes, language, customPatterns)
-    if (out.length !== chunk.length) {
-      throw new Error('PII mask-batch returned an unexpected result')
+    if (serviceUnavailable && placeholder !== undefined) {
+      scrubChunk(indices, placeholder)
+      return
     }
-    indices.forEach((originalIndex, k) => {
-      masked[originalIndex] = out[k]
-    })
+    try {
+      const chunk = indices.map((i) => texts[i])
+      const out = await postChunk(url, chunk, entityTypes, language, customPatterns)
+      if (out.length !== chunk.length) {
+        throw new Error('PII mask-batch returned an unexpected result')
+      }
+      indices.forEach((originalIndex, k) => {
+        masked[originalIndex] = out[k]
+      })
+    } catch (error) {
+      if (placeholder === undefined) throw error
+      if (isOutageError(error)) serviceUnavailable = true
+      firstFailure ??= error
+      scrubChunk(indices, placeholder)
+    }
   })
 
-  return masked
+  if (scrubbedCount > 0) {
+    logger.error('PII masking failed for some chunks; replaced their strings', {
+      error: getErrorMessage(firstFailure),
+      scrubbedCount,
+      stringCount: texts.length,
+      serviceUnavailable,
+    })
+  }
+
+  return { masked, scrubbedCount }
 }
 
 async function postChunk(

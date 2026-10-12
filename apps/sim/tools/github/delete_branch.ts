@@ -47,7 +47,7 @@ export const deleteBranchTool: ToolConfig<DeleteBranchParams, DeleteBranchRespon
     }),
   },
 
-  transformResponse: async (response, params) => {
+  transformResponse: async (_response, params) => {
     if (!params) {
       return {
         success: false,

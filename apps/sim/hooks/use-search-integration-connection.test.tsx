@@ -22,9 +22,8 @@ const m = vi.hoisted(() => ({
         type: 'link'
         provider: string
         connectorType: string
-        connectorId?: string
-        connectionMode?: 'live'
-        optionId?: string
+        connectionMode: 'live'
+        optionId: string
       }
     | undefined,
 }))
@@ -32,7 +31,8 @@ const target = {
   type: 'link',
   provider: 'gmail',
   connectorType: 'gmail',
-  connectorId: 'source',
+  connectionMode: 'live',
+  optionId: 'gmail-option',
 } as const
 vi.mock('@tanstack/react-query', () => reactQueryMock)
 vi.mock('@/hooks/queries/personal-search-integrations', () => ({
@@ -41,9 +41,7 @@ vi.mock('@/hooks/queries/personal-search-integrations', () => ({
   usePersonalSearchIntegrations: (query: { completionId?: string }) => ({
     data: {
       connections: [{ accounts: m.accounts }],
-      available: [
-        { target: m.requestedTarget?.connectionMode === 'live' ? m.requestedTarget : target },
-      ],
+      available: [{ target: m.requestedTarget ?? target }],
       completedCredentialId: m.receipts.get(query.completionId ?? '') ?? null,
     },
     isSuccess: !m.queryError,
@@ -123,8 +121,6 @@ beforeEach(() => {
   m.refetch.mockResolvedValue({ isSuccess: true, data: { connections: [] } })
   m.mutate.mockResolvedValue({
     url: 'https://provider.test/authorize',
-    connectorId: 'source',
-    knowledgeBaseId: 'kb',
   })
   container = document.createElement('div')
   document.body.append(container)
@@ -138,20 +134,6 @@ afterEach(() => {
 })
 
 describe('Search connection card lifecycle', () => {
-  it('confirms account-first setup against inventory and reflects later revocation', () => {
-    m.requestedTarget = { type: 'link', provider: 'jira', connectorType: 'jira' }
-    render()
-    act(() => connection().completeSetup({ connectorId: 'new-source', credentialId: 'mine' }))
-    expect(connection().connectorId).toBe('new-source')
-    expect(connection().connected).toBe(false)
-    expect(m.mutate).not.toHaveBeenCalled()
-    m.accounts = [{ credentialId: 'mine', status: 'connected' }]
-    render()
-    expect(connection().connected).toBe(true)
-    m.accounts = [{ credentialId: 'mine', status: 'reconnect_needed' }]
-    render()
-    expect(connection().connected).toBe(false)
-  })
   it('starts OAuth only on click and completes only when its receipt and current account agree', async () => {
     render()
     expect(m.mutate).not.toHaveBeenCalled()
@@ -245,24 +227,6 @@ describe('Search connection card lifecycle', () => {
     render()
     expect(connection().connected).toBe(true)
     expect(windows[1].close).toHaveBeenCalled()
-  })
-  it('retries the exact source created by the first attempt after cancellation or reload', async () => {
-    m.requestedTarget = { type: 'link', provider: 'gmail', connectorType: 'gmail' }
-    render()
-    await act(async () => {
-      await connection().connect()
-    })
-    expect(m.mutate.mock.calls[0][0].target.connectorId).toBeUndefined()
-    act(() => connection().cancel())
-    act(() => root.unmount())
-    root = createRoot(container)
-    render()
-    expect(connection().available).toBe(true)
-    await act(async () => {
-      await connection().connect()
-    })
-    expect(m.mutate.mock.calls[1][0].target.connectorId).toBe('source')
-    expect(m.mutate.mock.calls[1][0].target.credentialId).toBeUndefined()
   })
   it('keeps failed starts actionable and rejects stale data after authorization errors', async () => {
     render()

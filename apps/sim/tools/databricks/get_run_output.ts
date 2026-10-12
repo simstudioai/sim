@@ -2,6 +2,7 @@ import type {
   DatabricksGetRunOutputParams,
   DatabricksGetRunOutputResponse,
 } from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getRunOutputTool: ToolConfig<
@@ -36,13 +37,8 @@ export const getRunOutputTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const host = params.host
-        .trim()
-        .replace(/^https?:\/\//, '')
-        .replace(/\/$/, '')
-      return `https://${host}/api/2.1/jobs/runs/get-output?run_id=${params.runId}`
-    },
+    url: (params) =>
+      databricksUrl(params.host, `/api/2.1/jobs/runs/get-output?run_id=${params.runId}`),
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',

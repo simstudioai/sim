@@ -5,10 +5,12 @@ import {
   getOAuthRefreshCoordinationIdentity,
 } from '@/lib/oauth/refresh-coordination'
 import {
-  clearDeadFlag,
-  getRecentTerminalError,
   isCredentialRevocationError,
   isTerminalRefreshError,
+} from '@/lib/oauth/refresh-error-codes'
+import {
+  clearDeadFlag,
+  getRecentTerminalError,
   markCredentialDead,
 } from '@/lib/oauth/terminal-errors'
 

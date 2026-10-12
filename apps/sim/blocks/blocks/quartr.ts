@@ -1,7 +1,6 @@
 import { QuartrIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
 
 const ALL_LIST_OPERATIONS = [
   'list_companies',
@@ -47,7 +46,7 @@ const UPDATED_RANGE_LIST_OPERATIONS = ['list_companies', ...DATE_RANGE_LIST_OPER
 
 const COMPANY_FILTER_FIELD = ['tickers', 'companyIds'] as const
 
-export const QuartrBlock: BlockConfig<ToolResponse> = {
+export const QuartrBlock: BlockConfig = {
   type: 'quartr',
   name: 'Quartr',
   description: 'Access earnings calls, transcripts, filings, and slides',

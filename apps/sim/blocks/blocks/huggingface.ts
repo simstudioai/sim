@@ -1,9 +1,8 @@
 import { HuggingFaceIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { HuggingFaceChatResponse } from '@/tools/huggingface/types'
 
-export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
+export const HuggingFaceBlock: BlockConfig = {
   type: 'huggingface',
   name: 'Hugging Face',
   description: 'Use Hugging Face Inference API',

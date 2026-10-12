@@ -121,7 +121,7 @@ export function parseBaseProps(spNode: SafeXmlNode): Omit<BaseNodeData, 'nodeTyp
   const id = cNvPr.attr('id') ?? ''
   const name = cNvPr.attr('name') ?? ''
 
-  // --- Transform ---
+  // Transform
   const xfrm = findXfrm(spNode)
   const off = xfrm.child('off')
   const ext = xfrm.child('ext')
@@ -140,10 +140,10 @@ export function parseBaseProps(spNode: SafeXmlNode): Omit<BaseNodeData, 'nodeTyp
   const flipH = xfrm.attr('flipH') === '1' || xfrm.attr('flipH') === 'true'
   const flipV = xfrm.attr('flipV') === '1' || xfrm.attr('flipV') === 'true'
 
-  // --- Placeholder ---
+  // Placeholder
   const placeholder = parsePlaceholder(nvPr)
 
-  // --- Shape-level hyperlink action (cNvPr > a:hlinkClick) ---
+  // Shape-level hyperlink action (cNvPr > a:hlinkClick)
   let hlinkClick: HlinkAction | undefined
   const hlinkNode = cNvPr.child('hlinkClick')
   if (hlinkNode.exists()) {

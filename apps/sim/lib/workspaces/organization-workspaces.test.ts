@@ -7,7 +7,7 @@ import {
   organizationMembershipMock,
   organizationMembershipMockFns,
 } from '@sim/testing/mocks/organization-membership.mock'
-import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
+import { tableBillingMock } from '@sim/testing/mocks/table-billing.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAcquireInvitationMutationLocks, mockChangeWorkspaceStoragePayersInTx } = vi.hoisted(
@@ -47,7 +47,6 @@ const {
   mockAcquireOrganizationMutationLock,
 } = organizationMembershipMockFns
 const { mockSyncUsageLimitsFromSubscription } = billingUsageMockFns
-const { mockInvalidateWorkspaceTableLimitsCache } = tableBillingMockFns
 
 idMockFns.mockGenerateId.mockReturnValue('generated-id')
 idMockFns.mockGenerateShortId.mockReturnValue('short-id')
@@ -192,6 +191,7 @@ describe('organization workspace helpers', () => {
         { id: 'ws-1', ownerId: 'creator-1', billedAccountUserId: 'old-owner' },
       ])
       queueTableRows(schemaMock.invitation, [{ id: 'invite-pending' }, { id: 'invite-terminal' }])
+      queueTableRows(schemaMock.workspace, [{ id: null }])
       queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
 
       const result =
@@ -329,6 +329,7 @@ describe('organization workspace helpers', () => {
       { id: 'ws-2', ownerId: 'creator-2', billedAccountUserId: 'old-owner' },
     ])
     queueTableRows(schemaMock.invitation, [{ id: 'invite-2' }])
+    queueTableRows(schemaMock.workspace, [{ id: null }])
     queueTableRows(schemaMock.workspace, [{ id: 'ws-2' }])
 
     const result = await detachOrganizationWorkspaces('org-1')

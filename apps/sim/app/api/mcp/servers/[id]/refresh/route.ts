@@ -161,7 +161,7 @@ export const POST = withRouteHandler(
   withMcpAuth<{ id: string }>(
     'write',
     'mcp_tools.use'
-  )(async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  )(async (_request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     try {
       const paramsValidation = mcpServerIdParamsSchema.safeParse(await params)
       if (!paramsValidation.success) return validationErrorResponse(paramsValidation.error)

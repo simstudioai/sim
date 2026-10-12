@@ -5,6 +5,7 @@ import {
   MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
   PRIVATE_SECRET_PROVENANCE_FIELD,
 } from '@/lib/execution/private-tool-metadata'
+import { MAX_FUNCTION_CODE_LENGTH } from '@/lib/function-execution/limits'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
 import { createLLMToolSchema, createUserToolSchema } from '@/tools/params'
 
@@ -57,6 +58,24 @@ describe('Function Execute Tool', () => {
 
     expect(body.code).toBe('const x = 40;\nreturn x + 2;')
     expect(body.timeout).toBe(DEFAULT_EXECUTION_TIMEOUT_MS)
+  })
+
+  it('sends display code the route accepts when inlined references outgrow the source cap', () => {
+    const inlinedValue = 'x'.repeat(MAX_FUNCTION_CODE_LENGTH)
+    const body = buildFunctionExecuteBody({
+      code: 'return __blockRef_0.length',
+      sourceCode: `return "${inlinedValue}".length`,
+      contextVariables: { __blockRef_0: inlinedValue },
+    })
+
+    expect(functionExecuteBodySchema.safeParse(body).success).toBe(true)
+    expect(body.sourceCode).toBeUndefined()
+
+    const withinCap = buildFunctionExecuteBody({
+      code: 'return __blockRef_0',
+      sourceCode: 'return <api.data>',
+    })
+    expect(withinCap.sourceCode).toBe('return <api.data>')
   })
 
   it('preserves reference context and large-value authorization', () => {

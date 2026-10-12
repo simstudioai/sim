@@ -244,7 +244,6 @@ interface ClerkSessionOutput {
   updatedAt: number
 }
 
-// List Users
 export interface ClerkListUsersParams {
   secretKey: string
   limit?: number
@@ -266,7 +265,6 @@ export interface ClerkListUsersResponse extends ToolResponse {
   }
 }
 
-// Get User
 export interface ClerkGetUserParams {
   secretKey: string
   userId: string
@@ -305,7 +303,6 @@ export interface ClerkGetUserResponse extends ToolResponse {
   }
 }
 
-// Create User
 export interface ClerkCreateUserParams {
   secretKey: string
   emailAddress?: string | string[]
@@ -341,7 +338,6 @@ export interface ClerkCreateUserResponse extends ToolResponse {
   }
 }
 
-// Update User
 export interface ClerkUpdateUserParams {
   secretKey: string
   userId: string
@@ -379,7 +375,6 @@ export interface ClerkUpdateUserResponse extends ToolResponse {
   }
 }
 
-// Delete User
 export interface ClerkDeleteUserParams {
   secretKey: string
   userId: string
@@ -394,7 +389,6 @@ export interface ClerkDeleteUserResponse extends ToolResponse {
   }
 }
 
-// List Organizations
 export interface ClerkListOrganizationsParams {
   secretKey: string
   limit?: number
@@ -412,7 +406,6 @@ export interface ClerkListOrganizationsResponse extends ToolResponse {
   }
 }
 
-// Get Organization
 export interface ClerkGetOrganizationParams {
   secretKey: string
   organizationId: string
@@ -437,7 +430,6 @@ export interface ClerkGetOrganizationResponse extends ToolResponse {
   }
 }
 
-// Create Organization
 export interface ClerkCreateOrganizationParams {
   secretKey: string
   name: string
@@ -467,7 +459,6 @@ export interface ClerkCreateOrganizationResponse extends ToolResponse {
   }
 }
 
-// List Sessions
 export interface ClerkListSessionsParams {
   secretKey: string
   userId?: string
@@ -493,7 +484,6 @@ export interface ClerkListSessionsResponse extends ToolResponse {
   }
 }
 
-// Get Session
 export interface ClerkGetSessionParams {
   secretKey: string
   sessionId: string
@@ -515,7 +505,6 @@ export interface ClerkGetSessionResponse extends ToolResponse {
   }
 }
 
-// Revoke Session
 export interface ClerkRevokeSessionParams {
   secretKey: string
   sessionId: string
@@ -537,7 +526,6 @@ export interface ClerkRevokeSessionResponse extends ToolResponse {
   }
 }
 
-// Update Organization
 export interface ClerkUpdateOrganizationParams {
   secretKey: string
   organizationId: string
@@ -566,7 +554,6 @@ export interface ClerkUpdateOrganizationResponse extends ToolResponse {
   }
 }
 
-// Delete Organization
 export interface ClerkDeleteOrganizationParams {
   secretKey: string
   organizationId: string
@@ -586,7 +573,7 @@ export interface ClerkDeleteOrganizationResponse extends ToolResponse {
  * `public_user_data` mirrors the OpenAPI spec (richer than the @clerk/backend SDK's
  * resource class, which omits `username`/`banned`/the deprecated `profile_image_url`).
  */
-export interface ClerkOrganizationMembershipPublicUserData {
+interface ClerkOrganizationMembershipPublicUserData {
   user_id: string
   first_name: string | null
   last_name: string | null
@@ -629,7 +616,6 @@ interface ClerkOrganizationMembershipOutput {
   updatedAt: number
 }
 
-// List Organization Memberships
 export interface ClerkListOrganizationMembershipsParams {
   secretKey: string
   organizationId: string
@@ -647,7 +633,6 @@ export interface ClerkListOrganizationMembershipsResponse extends ToolResponse {
   }
 }
 
-// Add Organization Member (create membership)
 export interface ClerkAddOrganizationMemberParams {
   secretKey: string
   organizationId: string
@@ -659,7 +644,6 @@ export interface ClerkAddOrganizationMemberResponse extends ToolResponse {
   output: ClerkOrganizationMembershipOutput & { success: boolean }
 }
 
-// Update Organization Membership (change role)
 export interface ClerkUpdateOrganizationMembershipParams {
   secretKey: string
   organizationId: string
@@ -671,7 +655,6 @@ export interface ClerkUpdateOrganizationMembershipResponse extends ToolResponse 
   output: ClerkOrganizationMembershipOutput & { success: boolean }
 }
 
-// Remove Organization Member (delete membership)
 export interface ClerkRemoveOrganizationMemberParams {
   secretKey: string
   organizationId: string
@@ -685,7 +668,7 @@ export interface ClerkRemoveOrganizationMemberResponse extends ToolResponse {
 /**
  * Clerk Organization Invitation object.
  */
-export interface ClerkOrganizationInvitationPublicUserData {
+interface ClerkOrganizationInvitationPublicUserData {
   user_id: string
   first_name: string | null
   last_name: string | null
@@ -730,7 +713,6 @@ interface ClerkOrganizationInvitationOutput {
   updatedAt: number
 }
 
-// Create Organization Invitation
 export interface ClerkCreateOrganizationInvitationParams {
   secretKey: string
   organizationId: string
@@ -748,7 +730,6 @@ export interface ClerkCreateOrganizationInvitationResponse extends ToolResponse 
   output: ClerkOrganizationInvitationOutput & { success: boolean }
 }
 
-// List Organization Invitations
 export interface ClerkListOrganizationInvitationsParams {
   secretKey: string
   organizationId: string
@@ -778,7 +759,6 @@ interface ClerkUserModerationOutput {
   updatedAt: number
 }
 
-// Ban User
 export interface ClerkBanUserParams {
   secretKey: string
   userId: string
@@ -788,7 +768,6 @@ export interface ClerkBanUserResponse extends ToolResponse {
   output: ClerkUserModerationOutput & { success: boolean }
 }
 
-// Unban User
 export interface ClerkUnbanUserParams {
   secretKey: string
   userId: string
@@ -798,7 +777,6 @@ export interface ClerkUnbanUserResponse extends ToolResponse {
   output: ClerkUserModerationOutput & { success: boolean }
 }
 
-// Lock User
 export interface ClerkLockUserParams {
   secretKey: string
   userId: string
@@ -808,7 +786,6 @@ export interface ClerkLockUserResponse extends ToolResponse {
   output: ClerkUserModerationOutput & { success: boolean }
 }
 
-// Unlock User
 export interface ClerkUnlockUserParams {
   secretKey: string
   userId: string
@@ -832,7 +809,6 @@ export interface ClerkOAuthAccessToken {
   scopes?: string[]
 }
 
-// Get User OAuth Access Token
 export interface ClerkGetUserOauthTokenParams {
   secretKey: string
   userId: string
@@ -895,7 +871,6 @@ interface ClerkBlocklistIdentifierOutput {
   updatedAt: number
 }
 
-// List Allowlist Identifiers
 export interface ClerkListAllowlistIdentifiersParams {
   secretKey: string
   limit?: number
@@ -910,7 +885,6 @@ export interface ClerkListAllowlistIdentifiersResponse extends ToolResponse {
   }
 }
 
-// Create Allowlist Identifier
 export interface ClerkCreateAllowlistIdentifierParams {
   secretKey: string
   identifier: string
@@ -921,7 +895,6 @@ export interface ClerkCreateAllowlistIdentifierResponse extends ToolResponse {
   output: ClerkAllowlistIdentifierOutput & { success: boolean }
 }
 
-// Delete Allowlist Identifier
 export interface ClerkDeleteAllowlistIdentifierParams {
   secretKey: string
   identifierId: string
@@ -936,7 +909,6 @@ export interface ClerkDeleteAllowlistIdentifierResponse extends ToolResponse {
   }
 }
 
-// List Blocklist Identifiers
 export interface ClerkListBlocklistIdentifiersParams {
   secretKey: string
 }
@@ -949,7 +921,6 @@ export interface ClerkListBlocklistIdentifiersResponse extends ToolResponse {
   }
 }
 
-// Create Blocklist Identifier
 export interface ClerkCreateBlocklistIdentifierParams {
   secretKey: string
   identifier: string
@@ -959,7 +930,6 @@ export interface ClerkCreateBlocklistIdentifierResponse extends ToolResponse {
   output: ClerkBlocklistIdentifierOutput & { success: boolean }
 }
 
-// Delete Blocklist Identifier
 export interface ClerkDeleteBlocklistIdentifierParams {
   secretKey: string
   identifierId: string
@@ -1002,7 +972,6 @@ interface ClerkJwtTemplateOutput {
   updatedAt: number
 }
 
-// List JWT Templates
 export interface ClerkListJwtTemplatesParams {
   secretKey: string
 }
@@ -1015,7 +984,6 @@ export interface ClerkListJwtTemplatesResponse extends ToolResponse {
   }
 }
 
-// Get JWT Template
 export interface ClerkGetJwtTemplateParams {
   secretKey: string
   templateId: string
@@ -1052,7 +1020,6 @@ interface ClerkActorTokenOutput {
   updatedAt: number
 }
 
-// Create Actor Token
 export interface ClerkCreateActorTokenParams {
   secretKey: string
   userId: string
@@ -1065,7 +1032,6 @@ export interface ClerkCreateActorTokenResponse extends ToolResponse {
   output: ClerkActorTokenOutput & { success: boolean }
 }
 
-// Revoke Actor Token
 export interface ClerkRevokeActorTokenParams {
   secretKey: string
   actorTokenId: string
@@ -1074,40 +1040,3 @@ export interface ClerkRevokeActorTokenParams {
 export interface ClerkRevokeActorTokenResponse extends ToolResponse {
   output: ClerkActorTokenOutput & { success: boolean }
 }
-
-// Generic response type for the block
-export type ClerkResponse =
-  | ClerkListUsersResponse
-  | ClerkGetUserResponse
-  | ClerkCreateUserResponse
-  | ClerkUpdateUserResponse
-  | ClerkDeleteUserResponse
-  | ClerkListOrganizationsResponse
-  | ClerkGetOrganizationResponse
-  | ClerkCreateOrganizationResponse
-  | ClerkUpdateOrganizationResponse
-  | ClerkDeleteOrganizationResponse
-  | ClerkListSessionsResponse
-  | ClerkGetSessionResponse
-  | ClerkRevokeSessionResponse
-  | ClerkListOrganizationMembershipsResponse
-  | ClerkAddOrganizationMemberResponse
-  | ClerkUpdateOrganizationMembershipResponse
-  | ClerkRemoveOrganizationMemberResponse
-  | ClerkCreateOrganizationInvitationResponse
-  | ClerkListOrganizationInvitationsResponse
-  | ClerkBanUserResponse
-  | ClerkUnbanUserResponse
-  | ClerkLockUserResponse
-  | ClerkUnlockUserResponse
-  | ClerkGetUserOauthTokenResponse
-  | ClerkListAllowlistIdentifiersResponse
-  | ClerkCreateAllowlistIdentifierResponse
-  | ClerkDeleteAllowlistIdentifierResponse
-  | ClerkListBlocklistIdentifiersResponse
-  | ClerkCreateBlocklistIdentifierResponse
-  | ClerkDeleteBlocklistIdentifierResponse
-  | ClerkListJwtTemplatesResponse
-  | ClerkGetJwtTemplateResponse
-  | ClerkCreateActorTokenResponse
-  | ClerkRevokeActorTokenResponse

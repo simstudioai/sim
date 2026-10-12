@@ -40,7 +40,7 @@ describe('Markdown export image rewriting', () => {
 
   it('returns large documents verbatim before parsing or fetching assets', async () => {
     const content = Buffer.from(
-      '![image](/api/files/view/image-1)\n' + 'a'.repeat(MAX_EXPORT_MARKDOWN_PARSE_BYTES)
+      `![image](/api/files/view/image-1)\n${'a'.repeat(MAX_EXPORT_MARKDOWN_PARSE_BYTES)}`
     )
     const result = await createMarkdownExport({
       content,

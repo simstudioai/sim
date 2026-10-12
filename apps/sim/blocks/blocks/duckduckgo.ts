@@ -1,9 +1,8 @@
 import { DuckDuckGoIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { DuckDuckGoResponse } from '@/tools/duckduckgo/types'
 
-export const DuckDuckGoBlock: BlockConfig<DuckDuckGoResponse> = {
+export const DuckDuckGoBlock: BlockConfig = {
   type: 'duckduckgo',
   name: 'DuckDuckGo',
   description: 'Search with DuckDuckGo',

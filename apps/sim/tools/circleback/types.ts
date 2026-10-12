@@ -286,7 +286,7 @@ export const CALENDAR_EVENT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** A meeting attendee mapped to Sim's output shape. */
-export interface CirclebackAttendee {
+interface CirclebackAttendee {
   profileId: number
   name: string | null
   title: string | null
@@ -297,14 +297,14 @@ export interface CirclebackAttendee {
 }
 
 /** A mapped tag. */
-export interface CirclebackTag {
+interface CirclebackTag {
   id: number
   name: string
   description: string | null
 }
 
 /** An assignee reference on an action item. */
-export interface CirclebackAssignee {
+interface CirclebackAssignee {
   profileId: number
   name: string | null
   title: string | null
@@ -313,7 +313,7 @@ export interface CirclebackAssignee {
 }
 
 /** A full meeting mapped to Sim's output shape. */
-export interface CirclebackMeeting {
+interface CirclebackMeeting {
   id: string
   name: string | null
   createdAt: string
@@ -339,7 +339,7 @@ export interface CirclebackMeeting {
 }
 
 /** A standalone action item mapped to Sim's output shape. */
-export interface CirclebackActionItem {
+interface CirclebackActionItem {
   id: number
   title: string
   description: string
@@ -351,7 +351,7 @@ export interface CirclebackActionItem {
 }
 
 /** A person mapped to Sim's output shape. */
-export interface CirclebackPerson {
+interface CirclebackPerson {
   id: number
   title: string | null
   companyId: number | null
@@ -362,7 +362,7 @@ export interface CirclebackPerson {
 }
 
 /** An external link mapped to Sim's output shape. */
-export interface CirclebackExternalLink {
+interface CirclebackExternalLink {
   url: string
   objectType: string
   type: string

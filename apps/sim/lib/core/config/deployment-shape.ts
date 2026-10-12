@@ -13,7 +13,6 @@ import {
   isDataRetentionEnabled,
   isHosted,
   isInboxEnabled,
-  isLiveEnterpriseSearchEnabled,
   isSandboxesEnabled,
   isScimEnabled,
   isSessionPoliciesEnabled,
@@ -89,7 +88,6 @@ export function resolveDeploymentShape(): DeploymentShape {
     azureConfigured: isAzureConfigured,
     cohereConfigured: isCohereConfigured,
     features: {
-      liveEnterpriseSearch: isLiveEnterpriseSearchEnabled,
       accessControl: isAccessControlEnabled,
       auditLogs: isAuditLogsEnabled,
       customBlocks: isCustomBlocksEnabled,

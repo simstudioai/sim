@@ -58,6 +58,7 @@ export const CAPABILITY_IDS = [
   'copilot.tool_auto_approval',
   'sandboxes.use',
   'knowledge.export',
+  'project_issues.use',
 ] as const
 
 export type PermissionGroupCapability = (typeof CAPABILITY_IDS)[number]
@@ -431,6 +432,14 @@ export const CAPABILITY_RULES = {
     describe: 'Exporting a knowledge base',
     deniedBy: (config) => config.disableKnowledgeBaseExport || config.hideKnowledgeBaseTab,
   },
+  'project_issues.use': {
+    kind: 'parameterized',
+    configKeys: ['deniedPartialAccessProjectIssues'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Project Issues access',
+    deniedBy: (config: PermissionGroupConfig, projectId: string) =>
+      config.deniedPartialAccessProjectIssues.includes(projectId),
+  },
 } satisfies { readonly [K in PermissionGroupCapability]: CapabilityRule }
 
 /**
@@ -453,16 +462,15 @@ export type StaticPermissionGroupCapability = {
  * any capability and every gate would silently never fire. Nothing at runtime
  * would look wrong, so it is asserted here.
  *
- * The aliases below are deliberately unexported: the constraint on
- * {@link Assert} is checked where the alias is declared, so an export bought
- * nothing but the appearance of a consumer that never existed. They are unused
- * on purpose, and deleting one deletes the proof.
+ * The constraint on {@link Assert} is checked where each alias below is
+ * declared. They are exported only so the unused-variable lint treats them as
+ * live; nothing imports them, and deleting one deletes the proof.
  */
 type Assert<T extends true> = T
 
-type AssertsStaticCapabilityResolves = Assert<
+export type AssertsStaticCapabilityResolves = Assert<
   'tables.use' extends StaticPermissionGroupCapability ? true : false
 >
-type AssertsParameterizedCapabilityIsExcluded = Assert<
+export type AssertsParameterizedCapabilityIsExcluded = Assert<
   'deploy.chat.auth_mode' extends StaticPermissionGroupCapability ? false : true
 >

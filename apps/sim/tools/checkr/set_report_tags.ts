@@ -1,0 +1,65 @@
+import {
+  type CheckrReportTagsResponse,
+  type CheckrSetReportTagsParams,
+  TAGS_OUTPUTS,
+} from '@/tools/checkr/types'
+import {
+  CHECKR_API_KEY_PARAM,
+  CHECKR_ERROR_EXTRACTOR,
+  checkrHeaders,
+  checkrId,
+  checkrUrl,
+  mapTags,
+  parseCheckrStringList,
+} from '@/tools/checkr/utils'
+import type { ToolConfig } from '@/tools/types'
+
+export const checkrSetReportTagsTool: ToolConfig<
+  CheckrSetReportTagsParams,
+  CheckrReportTagsResponse
+> = {
+  id: 'checkr_set_report_tags',
+  name: 'Checkr Set Report Tags',
+  description: 'Replace all tags on a report with the given list. Pass [] to remove every tag.',
+  version: '1.0.0',
+  errorExtractor: CHECKR_ERROR_EXTRACTOR,
+
+  params: {
+    ...CHECKR_API_KEY_PARAM,
+    reportId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'ID of the report',
+    },
+    tags: {
+      type: 'array',
+      items: { type: 'string' },
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Complete list of tags; an empty list removes every tag',
+    },
+  },
+
+  request: {
+    url: (params) => checkrUrl(`/reports/${checkrId(params.reportId, 'reportId')}/tags`),
+    method: 'PUT',
+    headers: (params) => checkrHeaders(params.apiKey),
+    body: (params) => {
+      const tags = parseCheckrStringList(params.tags)
+      if (!tags) {
+        throw new Error(
+          'Provide tags as a list of strings. Pass an empty list to remove every tag.'
+        )
+      }
+      return { tags }
+    },
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return { success: true, output: mapTags(data) }
+  },
+
+  outputs: TAGS_OUTPUTS,
+}

@@ -68,8 +68,3 @@ export interface LemlistSendEmailResponse extends ToolResponse {
     ok: boolean
   }
 }
-
-export type LemlistResponse =
-  | LemlistGetActivitiesResponse
-  | LemlistGetLeadResponse
-  | LemlistSendEmailResponse

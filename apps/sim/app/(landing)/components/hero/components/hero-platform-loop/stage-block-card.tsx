@@ -350,7 +350,7 @@ export function StageBlockCard({
           if (onSelect) handleKeyboardActivation(event, () => onSelect(block.id))
         }}
         className={cn(
-          'relative h-full w-full rounded-2xl',
+          'relative size-full rounded-2xl',
           onSelect && 'cursor-pointer focus-visible:outline-none'
         )}
       >

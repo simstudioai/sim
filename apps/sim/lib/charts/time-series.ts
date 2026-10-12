@@ -30,12 +30,6 @@ export interface TimeSeriesInteractionOptions {
   onZoom?: (range: DashboardTimeRange) => void
 }
 
-/** Cartesian charts with one horizontal time axis share dashboard interactions. */
-export function isTimeSeriesOption(option: Record<string, unknown>): boolean {
-  const axes = Array.isArray(option.xAxis) ? option.xAxis : [option.xAxis]
-  return axes.length === 1 && toRecord(axes[0]).type === 'time'
-}
-
 /** Use ECharts' resolved encodings and colors, including transformed datasets. */
 export function readTimeSeriesTooltip(
   params: unknown,

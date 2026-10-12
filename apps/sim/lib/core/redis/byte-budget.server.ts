@@ -8,9 +8,12 @@ import type { Logger } from '@sim/logger'
  * budget the execution event buffer has enforced since it was written, which the
  * copilot stream buffer now shares rather than inventing a bound of its own.
  *
- * A quota is the right bound for a buffer whose contents must stay contiguous: the
- * copilot replay chain and an execution's event history are read from a cursor, so
- * the write that would breach the ceiling is refused and the buffer stops growing.
+ * A quota is the right bound for a buffer whose contents must stay contiguous: an
+ * execution's event history is read from a cursor, so the write that would breach
+ * the ceiling is refused and the buffer stops growing. The copilot replay ring trims
+ * its oldest events by bytes below its ceiling instead, refunding what it drops, so a
+ * long run slides rather than refuses; a reader behind the trim is re-synced from the
+ * worker's run log, and ends with a replay gap only when that log cannot serve it.
  * A live-update feed is bounded differently — see `lib/realtime/event-log.ts`, whose
  * readers already handle a prune by refetching, so it drops oldest-first instead.
  *
@@ -67,6 +70,13 @@ export interface RedisBudgetLimits {
  * already dropped and eventually pin the user at their ceiling until they went a full
  * window without writing. User counters therefore get a fixed window: set on
  * creation, never extended.
+ *
+ * Because a trim refunds both counters, the user counter bounds bytes HELD across a
+ * user's owners, not bytes written per hour: a single long copilot stream holds at most
+ * its ring's byte target however much it writes. Bytes of owners that ended stay counted
+ * until the window lapses. The reset is not reconciled with what is still held, so
+ * right after it a user can hold up to about twice the cap: the bytes the lapsed
+ * window counted plus a fresh cap.
  */
 const REDIS_BUDGET_TTL_SECONDS = 60 * 60
 
@@ -79,8 +89,8 @@ const LIMITS: Record<RedisBudgetOwnerKind, Omit<RedisBudgetLimits, 'ttlSeconds'>
   },
   /**
    * A copilot turn streams text and tool frames, not payloads — a single frame past
-   * 1 MB is already pathological. The owner ceiling is what a long agentic session
-   * may retain for replay across its whole hour.
+   * 1 MB is already pathological. The owner ceiling bounds what one stream retains
+   * for replay; the ring trims its oldest events to stay below it.
    */
   copilot_stream: {
     maxSingleWriteBytes: 1 * 1024 * 1024,

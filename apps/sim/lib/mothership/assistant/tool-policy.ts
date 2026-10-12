@@ -1,4 +1,3 @@
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import type { ToolMetadata } from '@/tools/metadata'
 
@@ -14,7 +13,7 @@ const CREDENTIAL_PARAMS = new Set(['credential', 'credentialId', 'oauthCredentia
 /** Assistant uses the regular integration registry, with authentication supplied by the caller's account. */
 export function isAssistantIntegrationTool(tool: ToolMetadata | undefined): boolean {
   if (!tool) return false
-  tool = projectAssistantConnectedAccountTool(tool, isLiveEnterpriseSearchEnabled)
+  tool = projectAssistantConnectedAccountTool(tool)
   const tokenBinding = tool.personalToken
   const supportsToken =
     tokenBinding && tool.params[tokenBinding.tokenParam] && tool.params[tokenBinding.hostParam]
@@ -35,7 +34,7 @@ export function isAssistantIntegrationTool(tool: ToolMetadata | undefined): bool
 }
 
 export function isAssistantIntegrationParameter(tool: ToolMetadata, name: string): boolean {
-  tool = projectAssistantConnectedAccountTool(tool, isLiveEnterpriseSearchEnabled)
+  tool = projectAssistantConnectedAccountTool(tool)
   if (CREDENTIAL_PARAMS.has(name)) return true
   if (name === tool.personalToken?.tokenParam || name === tool.personalToken?.hostParam)
     return false

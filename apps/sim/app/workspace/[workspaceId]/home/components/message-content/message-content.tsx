@@ -624,8 +624,15 @@ export function parseBlocks(blocks: ContentBlock[], isStreaming = false): Messag
   )
 }
 
-function joinRenderableText(parts: string[]): string {
-  return parts.filter(Boolean).join('\n\n')
+/** Returns independently rendered text segments, excluding agent groups and other UI segments. */
+export function getOrchestratorMessageTextSegments(
+  blocks: ContentBlock[],
+  fallbackContent: string
+): string[] {
+  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
+  if (parsed.length === 0) return [fallbackContent]
+
+  return parsed.map((segment) => (segment.type === 'text' ? segment.content : '')).filter(Boolean)
 }
 
 /** Returns only top-level orchestrator text, excluding agent groups and other UI segments. */
@@ -633,12 +640,7 @@ export function getOrchestratorMessageText(
   blocks: ContentBlock[],
   fallbackContent: string
 ): string {
-  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
-  if (parsed.length === 0) return fallbackContent
-
-  return joinRenderableText(
-    parsed.map((segment) => (segment.type === 'text' ? segment.content : ''))
-  )
+  return getOrchestratorMessageTextSegments(blocks, fallbackContent).join('\n\n')
 }
 
 function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {

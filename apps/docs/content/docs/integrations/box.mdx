@@ -86,8 +86,17 @@ Get detailed information about a file in Box
 | `createdAt` | string | Creation timestamp |
 | `modifiedAt` | string | Last modified timestamp |
 | `createdBy` | object | User who created the file |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `login` | string | User email/login |
 | `modifiedBy` | object | User who last modified the file |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `login` | string | User email/login |
 | `ownedBy` | object | User who owns the file |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `login` | string | User email/login |
 | `parentId` | string | Parent folder ID |
 | `parentName` | string | Parent folder name |
 | `sharedLink` | json | Shared link details |
@@ -261,8 +270,17 @@ Update file info in Box (rename, move, change description, add tags)
 | `createdAt` | string | Creation timestamp |
 | `modifiedAt` | string | Last modified timestamp |
 | `createdBy` | object | User who created the file |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `login` | string | User email/login |
 | `modifiedBy` | object | User who last modified the file |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `login` | string | User email/login |
 | `ownedBy` | object | User who owns the file |
+|   ↳ `id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `login` | string | User email/login |
 | `parentId` | string | Parent folder ID |
 | `parentName` | string | Parent folder name |
 | `sharedLink` | json | Shared link details |
@@ -303,7 +321,16 @@ Create a new Box Sign request to send documents for e-signature
 | `name` | string | Sign request name |
 | `shortId` | string | Human-readable short ID |
 | `signers` | array | List of signers |
+|   ↳ `email` | string | Signer email address |
+|   ↳ `role` | string | Signer role \(signer, approver, final_copy_reader\) |
+|   ↳ `hasViewedDocument` | boolean | Whether the signer has viewed the document |
+|   ↳ `signerDecision` | json | Signer decision details \(type, finalized_at, additional_info\) |
+|   ↳ `embedUrl` | string | URL for embedded signing experience |
+|   ↳ `order` | number | Order in signing sequence |
 | `sourceFiles` | array | Source files for signing |
+|   ↳ `id` | string | File ID |
+|   ↳ `type` | string | File type |
+|   ↳ `name` | string | File name |
 | `emailSubject` | string | Custom email subject line |
 | `emailMessage` | string | Custom email message body |
 | `daysValid` | number | Number of days the request is valid |
@@ -331,7 +358,16 @@ Get the details and status of a Box Sign request
 | `name` | string | Sign request name |
 | `shortId` | string | Human-readable short ID |
 | `signers` | array | List of signers |
+|   ↳ `email` | string | Signer email address |
+|   ↳ `role` | string | Signer role \(signer, approver, final_copy_reader\) |
+|   ↳ `hasViewedDocument` | boolean | Whether the signer has viewed the document |
+|   ↳ `signerDecision` | json | Signer decision details \(type, finalized_at, additional_info\) |
+|   ↳ `embedUrl` | string | URL for embedded signing experience |
+|   ↳ `order` | number | Order in signing sequence |
 | `sourceFiles` | array | Source files for signing |
+|   ↳ `id` | string | File ID |
+|   ↳ `type` | string | File type |
+|   ↳ `name` | string | File name |
 | `emailSubject` | string | Custom email subject line |
 | `emailMessage` | string | Custom email message body |
 | `daysValid` | number | Number of days the request is valid |
@@ -361,7 +397,16 @@ List all Box Sign requests
 |   ↳ `name` | string | Sign request name |
 |   ↳ `shortId` | string | Human-readable short ID |
 |   ↳ `signers` | array | List of signers |
+|     ↳ `email` | string | Signer email address |
+|     ↳ `role` | string | Signer role \(signer, approver, final_copy_reader\) |
+|     ↳ `hasViewedDocument` | boolean | Whether the signer has viewed the document |
+|     ↳ `signerDecision` | json | Signer decision details \(type, finalized_at, additional_info\) |
+|     ↳ `embedUrl` | string | URL for embedded signing experience |
+|     ↳ `order` | number | Order in signing sequence |
 |   ↳ `sourceFiles` | array | Source files for signing |
+|     ↳ `id` | string | File ID |
+|     ↳ `type` | string | File type |
+|     ↳ `name` | string | File name |
 |   ↳ `emailSubject` | string | Custom email subject line |
 |   ↳ `emailMessage` | string | Custom email message body |
 |   ↳ `daysValid` | number | Number of days the request is valid |
@@ -391,7 +436,16 @@ Cancel a pending Box Sign request
 | `name` | string | Sign request name |
 | `shortId` | string | Human-readable short ID |
 | `signers` | array | List of signers |
+|   ↳ `email` | string | Signer email address |
+|   ↳ `role` | string | Signer role \(signer, approver, final_copy_reader\) |
+|   ↳ `hasViewedDocument` | boolean | Whether the signer has viewed the document |
+|   ↳ `signerDecision` | json | Signer decision details \(type, finalized_at, additional_info\) |
+|   ↳ `embedUrl` | string | URL for embedded signing experience |
+|   ↳ `order` | number | Order in signing sequence |
 | `sourceFiles` | array | Source files for signing |
+|   ↳ `id` | string | File ID |
+|   ↳ `type` | string | File type |
+|   ↳ `name` | string | File name |
 | `emailSubject` | string | Custom email subject line |
 | `emailMessage` | string | Custom email message body |
 | `daysValid` | number | Number of days the request is valid |
@@ -415,5 +469,19 @@ Resend a Box Sign request to signers who have not yet signed
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Success confirmation message |
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Box account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/box` |
+| Environment variables | `BOX_CLIENT_ID`, `BOX_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `root_readwrite` | Read and write all files and folders in Box account |
+| `sign_requests.readwrite` | Create and manage Box Sign e-signature requests |
 
 

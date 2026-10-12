@@ -37,10 +37,9 @@ export const PI_SEARCH_TRUNCATED_MESSAGE =
  * Searches one Pi block execution may make. Pi's agent loop has no turn ceiling of its own, so
  * without this a model that starts looping — or is talked into it by an injected instruction in a
  * diff or a result — keeps spending the workspace's own provider quota until Sim's execution
- * timeout. The neighbouring ceilings are the precedent: `MAX_TOOL_CALLS` in `cloud-review-tools.ts`
- * and `MAX_TOOL_ITERATIONS` in `providers/index.ts`. Sized well above what genuine research needs,
- * since exceeding it fails the tool call. Stated as a number in the Pi block docs
- * (`workflows/blocks/pi.mdx`), so change both.
+ * timeout. The neighbouring ceiling is the precedent: `MAX_TOOL_CALLS` in `cloud-review-tools.ts`.
+ * Sized well above what genuine research needs, since exceeding it fails the tool call. Stated as a
+ * number in the Pi block docs (`workflows/blocks/pi.mdx`), so change both.
  *
  * Scope is one **block execution**, not one workflow run: the counter lives in the tool spec, and
  * both adapters build a fresh spec per execution (`buildPiSearchToolSpec` from `pi-handler.ts`, and

@@ -140,7 +140,7 @@ export const kalshiAmendOrderTool: ToolConfig<KalshiAmendOrderParams, KalshiAmen
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'amend_order')
+      handleKalshiError(data, 'amend_order')
     }
 
     return {
@@ -341,7 +341,7 @@ export const kalshiAmendOrderV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'amend_order_v2')
+      handleKalshiError(data, 'amend_order_v2')
     }
 
     const mapOrder = (order: any): KalshiAmendOrderV2Order => ({

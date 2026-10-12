@@ -20,6 +20,7 @@ import { AuthHeader, SupportFooter } from '@/app/(auth)/components'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
 import { OAuthConnectLink } from '@/app/credential-groups/enroll/[token]/oauth-reconnect-link'
 import { CredentialGroupOAuthToast } from '@/app/credential-groups/enroll/[token]/oauth-toast'
+import { SourceCompletion } from '@/app/desktop/connect/source-completion'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
@@ -53,6 +54,7 @@ function PageShell({ children }: PageShellProps) {
 }
 
 interface UnavailableInvitationProps {
+  token?: string
   rateLimited?: boolean
   message?: string
   recoveryHref?: string
@@ -60,6 +62,7 @@ interface UnavailableInvitationProps {
 }
 
 function UnavailableInvitation({
+  token,
   rateLimited = false,
   message,
   recoveryHref = APP_ENTRY_PATH,
@@ -67,6 +70,7 @@ function UnavailableInvitation({
 }: UnavailableInvitationProps) {
   return (
     <PageShell>
+      {token && <SourceCompletion kind='enrollment' id={token} error='unavailable' />}
       <div className='my-auto py-16 text-center'>
         <AuthHeader
           title={rateLimited ? 'Too many requests' : 'Invitation unavailable'}
@@ -86,16 +90,19 @@ function UnavailableInvitation({
 }
 
 interface UnavailableSearchConnectionProps {
+  token: string
   returnHref: string
   returnLabel: string
 }
 
 function UnavailableSearchConnection({
+  token,
   returnHref,
   returnLabel,
 }: UnavailableSearchConnectionProps) {
   return (
     <PageShell>
+      <SourceCompletion kind='enrollment' id={token} error='unavailable' />
       <AuthHeader
         title='Connection unavailable'
         description='Ask an admin to check this source’s connected account settings, then start a new connection.'
@@ -128,15 +135,15 @@ export default async function CredentialGroupEnrollmentPage({
   params,
   searchParams,
 }: CredentialGroupEnrollmentPageProps) {
+  const { token } = await params
   const requestHeaders = await headers()
   const limited = await enforcePublicCredentialGroupIpRateLimit(
     { headers: requestHeaders },
     'metadata'
   )
-  if (limited) return <UnavailableInvitation rateLimited />
+  if (limited) return <UnavailableInvitation token={token} rateLimited />
 
-  const { token } = await params
-  if (!token || token.length > 128) return <UnavailableInvitation />
+  if (!token || token.length > 128) return <UnavailableInvitation token={token} />
   const resolvedSearchParams = await searchParams
   const callback = new URLSearchParams()
   for (const key of ['returnTo', 'optionId']) {
@@ -151,13 +158,14 @@ export default async function CredentialGroupEnrollmentPage({
   if (!session.user.emailVerified)
     return (
       <UnavailableInvitation
+        token={token}
         message='Verify your Sim email address before connecting your accounts.'
         recoveryHref={`/verify?redirectAfter=${encodeURIComponent(callbackUrl)}`}
         recoveryLabel='Verify email'
       />
     )
   const principal = await authenticateCredentialGroupEnrollment(token)
-  if (!principal) return <UnavailableInvitation />
+  if (!principal) return <UnavailableInvitation token={token} />
   const returnToSearch = resolvedSearchParams.returnTo === 'search'
   const returnToAccounts = resolvedSearchParams.returnTo === 'accounts'
   const focused = returnToSearch || returnToAccounts
@@ -176,9 +184,9 @@ export default async function CredentialGroupEnrollmentPage({
         return { enrollment: null }
       throw error
     })
-  if (!enrollmentResult) return <UnavailableInvitation />
+  if (!enrollmentResult) return <UnavailableInvitation token={token} />
   if ('enrollmentError' in enrollmentResult)
-    return <UnavailableInvitation message={enrollmentResult.enrollmentError} />
+    return <UnavailableInvitation token={token} message={enrollmentResult.enrollmentError} />
   const { enrollment } = enrollmentResult
   const canReturnToSearch =
     returnToSearch &&
@@ -190,7 +198,13 @@ export default async function CredentialGroupEnrollmentPage({
       : 'Open knowledge bases'
     : 'Open Sim'
   if (!enrollment)
-    return <UnavailableSearchConnection returnHref={returnHref} returnLabel={returnLabel} />
+    return (
+      <UnavailableSearchConnection
+        token={token}
+        returnHref={returnHref}
+        returnLabel={returnLabel}
+      />
+    )
 
   const oauthStatus = getSearchParam(resolvedSearchParams, 'oauth')
   const connectedOptionId = getSearchParam(resolvedSearchParams, 'connected')
@@ -207,7 +221,13 @@ export default async function CredentialGroupEnrollmentPage({
     ? activeOptions.find((option) => option.id === focusedOptionId)
     : undefined
   if (focused && !focusedOption)
-    return <UnavailableSearchConnection returnHref={returnHref} returnLabel={returnLabel} />
+    return (
+      <UnavailableSearchConnection
+        token={token}
+        returnHref={returnHref}
+        returnLabel={returnLabel}
+      />
+    )
   const visibleOptions = focusedOption ? [focusedOption] : activeOptions
   const focusedConnected =
     focusedOption?.connections[0]?.status === 'connected' &&
@@ -235,6 +255,15 @@ export default async function CredentialGroupEnrollmentPage({
           : null
   return (
     <PageShell>
+      {(oauthMessage ||
+        connectedOption?.connections.some((connection) => connection.status === 'connected') ||
+        connectedMcpServer?.connection?.status === 'connected') && (
+        <SourceCompletion
+          kind='enrollment'
+          id={token}
+          error={oauthMessage ? 'failed' : undefined}
+        />
+      )}
       {notification && (
         <Suspense fallback={null}>
           <CredentialGroupOAuthToast {...notification} />

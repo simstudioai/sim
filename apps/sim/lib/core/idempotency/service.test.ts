@@ -1,10 +1,12 @@
+import { flushMicrotasks } from '@sim/testing/helpers/async'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisDelMock, redisEvalMock } = vi.hoisted(() => ({
+const { redisDelMock, redisEvalMock, redisGetMock } = vi.hoisted(() => ({
   redisDelMock: vi.fn(),
   redisEvalMock: vi.fn(),
+  redisGetMock: vi.fn(),
 }))
 
 vi.mock('@/lib/core/storage', () => ({
@@ -22,7 +24,11 @@ import {
   webhookIdempotency,
 } from '@/lib/core/idempotency/service'
 
-redisConfigMockFns.mockGetRedisClient.mockReturnValue({ del: redisDelMock, eval: redisEvalMock })
+redisConfigMockFns.mockGetRedisClient.mockReturnValue({
+  del: redisDelMock,
+  eval: redisEvalMock,
+  get: redisGetMock,
+})
 
 const SEVEN_DAYS_SECONDS = 60 * 60 * 24 * 7
 
@@ -32,6 +38,8 @@ afterEach(() => {
 
 beforeEach(() => {
   resetDbChainMock()
+  redisEvalMock.mockReset()
+  redisGetMock.mockReset()
 })
 
 describe('IdempotencyService.createWebhookIdempotencyKey', () => {
@@ -302,6 +310,78 @@ describe('IdempotencyService in-progress deadlines', () => {
     const condition = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)?.[0])
     expect(condition).toContain('retry me')
     expect(condition.match(/::jsonb/g)).toHaveLength(2)
+  })
+})
+
+describe('IdempotencyService duplicate of an in-progress operation', () => {
+  const liveClaim = () =>
+    JSON.stringify({
+      success: false,
+      status: 'in-progress',
+      startedAt: Date.now(),
+      inProgressExpiresAt: Date.now() + WEBHOOK_IN_PROGRESS_LEASE_SECONDS * 1000,
+      claimToken: 'other-holder',
+    })
+
+  it('returns in-progress at once instead of polling the live holder when skipping', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
+    const holder = liveClaim()
+    redisEvalMock.mockResolvedValueOnce([0, holder])
+    redisGetMock.mockResolvedValue(holder)
+    const operation = vi.fn()
+    const settled = vi.fn()
+
+    void webhookIdempotency
+      .executeOrSkipInProgress('gmail', 'wh_1:running-delivery', operation)
+      .then(settled, settled)
+    await flushMicrotasks(10)
+
+    expect(settled).toHaveBeenCalledExactlyOnceWith({ outcome: 'in-progress' })
+    expect(operation).not.toHaveBeenCalled()
+    expect(redisGetMock).not.toHaveBeenCalled()
+  })
+
+  it('still replays a completed result and rethrows a failed one when skipping', async () => {
+    const service = new IdempotencyService({ forceStorage: 'redis' })
+    redisEvalMock
+      .mockResolvedValueOnce([
+        0,
+        JSON.stringify({ success: true, status: 'completed', result: 'first-run' }),
+      ])
+      .mockResolvedValueOnce([
+        0,
+        JSON.stringify({ success: false, status: 'failed', error: 'first run failed' }),
+      ])
+
+    await expect(service.executeOrSkipInProgress('provider', 'done', vi.fn())).resolves.toEqual({
+      outcome: 'resolved',
+      result: 'first-run',
+    })
+    await expect(service.executeOrSkipInProgress('provider', 'failed', vi.fn())).rejects.toThrow(
+      'first run failed'
+    )
+  })
+
+  it('keeps waiting for the live holder by default, so a Stripe-style caller never acknowledges early', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
+    const service = new IdempotencyService({ forceStorage: 'redis' })
+    const holder = liveClaim()
+    redisEvalMock.mockResolvedValueOnce([0, holder])
+    redisGetMock
+      .mockResolvedValueOnce(holder)
+      .mockResolvedValueOnce(
+        JSON.stringify({ success: true, status: 'completed', result: 'holder-result' })
+      )
+    const settled = vi.fn()
+
+    void service.executeWithIdempotency('stripe', 'evt_1', vi.fn()).then(settled, settled)
+    await flushMicrotasks(10)
+    expect(settled).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(settled).toHaveBeenCalledExactlyOnceWith('holder-result')
   })
 })
 

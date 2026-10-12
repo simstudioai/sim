@@ -294,7 +294,9 @@ export async function handleSubscriptionDeleted(
 
         // Then claim the terminal period BEFORE computing or charging: this
         // reads the row's fresh period (webhook payloads can be stale across
-        // a rollover) and serializes with the cycle-close sweep. A lagging
+        // a rollover), serializes with the cycle-close sweep, and marks the
+        // terminal period settled so a still-running request's later charge
+        // is refused instead of landing after the final invoice. A lagging
         // marker here means the close above deferred OR a rollover committed
         // in between — run the close once more (it settles a freshly elapsed
         // period; a deferred close defers again, loudly), then seal so the

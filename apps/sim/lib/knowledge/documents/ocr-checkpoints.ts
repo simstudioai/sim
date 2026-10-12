@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { deferOutboxHandler, type OutboxHandler } from '@/lib/core/outbox/service'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT } from '@/lib/knowledge/documents/checkpoint-events'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import type { OcrRequestPolicy } from '@/lib/knowledge/documents/ocr-request-policy'
 import {
@@ -26,8 +27,6 @@ const MAX_HEADER_BYTES = 1024
 const MAX_CHECKPOINT_TEXT_BYTES = 20 * 1024 * 1024
 const CHECKPOINT_KEY_PATTERN =
   /^knowledge-ocr-checkpoints\/v1\/[a-f0-9]{64}\/\d{1,5}--?\d{1,5}\.txt$/
-
-export const OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT = 'knowledge.document.ocr-checkpoint.expire'
 
 /** Canonical internal processing identity, never populated from a public request. */
 export interface OcrCheckpointContext {

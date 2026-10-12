@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-26",
+  "updatedAt": "2026-10-09",
   "integrations": [
     {
       "type": "onepassword",
@@ -836,24 +836,6 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["spreadsheet", "automation"]
-    },
-    {
-      "type": "airweave",
-      "slug": "airweave",
-      "name": "Airweave",
-      "description": "Search your synced data collections",
-      "longDescription": "Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.",
-      "bgColor": "#6366F1",
-      "iconName": "AirweaveIcon",
-      "docsUrl": "https://docs.sim.ai/integrations/airweave",
-      "operations": [],
-      "operationCount": 0,
-      "triggers": [],
-      "triggerCount": 0,
-      "authType": "api-key",
-      "category": "tools",
-      "integrationType": "search",
-      "tags": ["vector-search", "knowledge-base"]
     },
     {
       "type": "algolia",
@@ -3734,8 +3716,13 @@
       "bgColor": "#181C1E",
       "iconName": "BrowserUseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/browser_use",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Browser Use",
+          "description": "Runs a browser automation task using BrowserUse"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -3748,7 +3735,7 @@
       "slug": "buffer",
       "name": "Buffer",
       "description": "Schedule and publish social media posts across connected channels",
-      "longDescription": "Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channels, and capture content ideas using the Buffer API.",
+      "longDescription": "Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channel settings, check daily limits and post metrics, and capture content ideas using the Buffer API.",
       "bgColor": "#FFFFFF",
       "iconName": "BufferIcon",
       "docsUrl": "https://docs.sim.ai/integrations/buffer",
@@ -3778,6 +3765,18 @@
           "description": "List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)"
         },
         {
+          "name": "Get Channel",
+          "description": "Get one connected channel, including its posting schedule, limits and network settings"
+        },
+        {
+          "name": "Get Aggregated Post Metrics",
+          "description": "Aggregate published post metrics across an organization or selected channels over a date range of up to 365 days"
+        },
+        {
+          "name": "Get Daily Posting Limits",
+          "description": "Check sent and scheduled post counts against each channel’s daily limit for a date"
+        },
+        {
           "name": "Create Idea",
           "description": "Save a content idea to a Buffer organization for later drafting and scheduling"
         },
@@ -3794,7 +3793,7 @@
           "description": "Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4180,6 +4179,405 @@
       "tags": ["enrichment", "data-analytics"]
     },
     {
+      "type": "checkr",
+      "slug": "checkr",
+      "name": "Checkr",
+      "description": "Run and manage background checks with Checkr",
+      "longDescription": "Integrate Checkr into the workflow. Create and update candidates, send background check invitations, order and upgrade reports, read screening results and assessments, manage report tags, run the adverse action process, schedule recurring checks and continuous monitoring, look up packages, geos, nodes, programs, documents, and users, and react to report, invitation, candidate, verification, adverse action, and continuous check webhooks.",
+      "bgColor": "#009BB5",
+      "iconName": "CheckrIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/checkr",
+      "operations": [
+        {
+          "name": "List Candidates",
+          "description": "List candidates, optionally filtered by email, name, custom ID, adjudication, dates, geo, or program. Candidates with non-US work locations are not returned."
+        },
+        {
+          "name": "Get Candidate",
+          "description": "Retrieve a candidate by ID, including their report and geo IDs."
+        },
+        {
+          "name": "Create Candidate",
+          "description": "Create a candidate to screen. Only email is required when the candidate will be invited; ordering a report directly also needs name, date of birth, and the PII its package requires."
+        },
+        {
+          "name": "Update Candidate",
+          "description": "Update a candidate. Once a report is ordered only empty fields can change, except email, phone, previous driver license, copy requested, custom ID, and geo IDs."
+        },
+        {
+          "name": "Delete Candidate PII",
+          "description": "Request removal of a candidate's personally identifiable information. Fails if PII was already removed."
+        },
+        {
+          "name": "Invite Candidate",
+          "description": "Invite a candidate to complete a background check through the Checkr-hosted apply flow. Checkr emails the candidate a link to provide their information and consent."
+        },
+        {
+          "name": "List Invitations",
+          "description": "List invitations, optionally filtered by candidate or status."
+        },
+        {
+          "name": "Get Invitation",
+          "description": "Retrieve an invitation by ID, including its status and invitation URL."
+        },
+        {
+          "name": "Cancel Invitation",
+          "description": "Cancel a pending invitation so the candidate can no longer complete it."
+        },
+        {
+          "name": "Order Report",
+          "description": "Order a background check report for a candidate using a package. Use only when you collect the candidate’s PII and consent yourself; otherwise create an invitation. Packages with international screenings must use invitations."
+        },
+        {
+          "name": "Get Report",
+          "description": "Retrieve a report by ID, including its status, result, adjudication, and the IDs of each screening it ran."
+        },
+        {
+          "name": "Update Report",
+          "description": "Upgrade a report to a different package or mark it as engaged. Provide a package, an adjudication, or both."
+        },
+        {
+          "name": "Complete Report",
+          "description": "Complete a report now, canceling any pending or suspended screenings. Canceled screenings record a cancellation reason."
+        },
+        {
+          "name": "Get Report ETA",
+          "description": "Retrieve the estimated completion date for a report."
+        },
+        {
+          "name": "Get Report Checkpoints",
+          "description": "Retrieve checkpoint progress for an Enterprise Progressive report, including which checkpoint is waiting on a review action."
+        },
+        {
+          "name": "Apply Report Review Action",
+          "description": "Continue or skip the remaining screenings on a report that is paused awaiting a review action."
+        },
+        {
+          "name": "Get Report Tags",
+          "description": "List the tags on a report."
+        },
+        {
+          "name": "Add Report Tag",
+          "description": "Add a tag to a report, keeping its existing tags."
+        },
+        {
+          "name": "Set Report Tags",
+          "description": "Replace all tags on a report with the given list. Pass [] to remove every tag."
+        },
+        {
+          "name": "Remove Report Tag",
+          "description": "Remove a tag from a report."
+        },
+        {
+          "name": "List Adverse Items",
+          "description": "List the adverse items on a report that can be cited in an adverse action. The report must have a consider result and no active adverse action."
+        },
+        {
+          "name": "List Assessments",
+          "description": "List the Assess results for a report, including the ruleset applied and which rule flagged each record. Requires Checkr Assess."
+        },
+        {
+          "name": "List Verifications",
+          "description": "List the verifications on a report, such as requests for the candidate to confirm their SSN or upload an ID."
+        },
+        {
+          "name": "Get Verification",
+          "description": "Retrieve a verification by ID."
+        },
+        {
+          "name": "List Report Addresses",
+          "description": "List the address history found for a report."
+        },
+        {
+          "name": "Get Screening",
+          "description": "Retrieve the results of one screening in a report, such as an SSN trace, county criminal search, or motor vehicle report. Get the screening ID from the report."
+        },
+        {
+          "name": "Create Adverse Action",
+          "description": "Start the adverse action process on a report by sending the pre-adverse action notice. The report must have a consider result and no active adverse action."
+        },
+        {
+          "name": "List Adverse Actions",
+          "description": "List the adverse actions for a report, optionally filtered by context."
+        },
+        {
+          "name": "Get Adverse Action",
+          "description": "Retrieve an adverse action by ID, including its status and notice delivery state."
+        },
+        {
+          "name": "Cancel Adverse Action",
+          "description": "Cancel an adverse action so the post-adverse action notice is not sent."
+        },
+        {
+          "name": "List Packages",
+          "description": "List the background check packages on the account, with their slugs, prices, and included screenings."
+        },
+        {
+          "name": "Get Package",
+          "description": "Retrieve a package by ID, including its slug, price, and screenings."
+        },
+        {
+          "name": "List Geos",
+          "description": "List geos (work locations used for compliance), optionally filtered by name or state."
+        },
+        {
+          "name": "Get Geo",
+          "description": "Retrieve a geo by ID."
+        },
+        {
+          "name": "Create Geo",
+          "description": "Create a geo to group candidates by work location. A geo with the same name and state already existing returns an error."
+        },
+        {
+          "name": "Update Geo",
+          "description": "Add a city to a geo. A geo’s city can only be set once."
+        },
+        {
+          "name": "Delete Geo",
+          "description": "Delete a geo."
+        },
+        {
+          "name": "List Nodes",
+          "description": "List the nodes in the account hierarchy. Hierarchy-enabled accounts need a node custom ID to order reports and invitations."
+        },
+        {
+          "name": "Get Node",
+          "description": "Retrieve an account hierarchy node by its custom ID."
+        },
+        {
+          "name": "List Programs",
+          "description": "List programs, which group packages and geos, optionally filtered by name."
+        },
+        {
+          "name": "Get Program",
+          "description": "Retrieve a program by ID, including its package and geo IDs."
+        },
+        {
+          "name": "List Counties",
+          "description": "List US counties for one or more states, with their FIPS codes. Use the county names in report self-disclosures."
+        },
+        {
+          "name": "Schedule Recurring Check",
+          "description": "Schedule a recurring background check for a candidate, running a package every interval starting on a date."
+        },
+        {
+          "name": "List Subscriptions",
+          "description": "List recurring check subscriptions, optionally filtered by candidate, status, or creation date."
+        },
+        {
+          "name": "Get Subscription",
+          "description": "Retrieve a subscription by ID, including its schedule and next occurrence."
+        },
+        {
+          "name": "Update Subscription",
+          "description": "Change the package, schedule, node, or work locations of a subscription."
+        },
+        {
+          "name": "Cancel Subscription",
+          "description": "Cancel a subscription so no further recurring checks run."
+        },
+        {
+          "name": "Create Continuous Check",
+          "description": "Enroll a candidate in continuous criminal or motor vehicle monitoring so new records trigger a report."
+        },
+        {
+          "name": "List Continuous Checks",
+          "description": "List the continuous checks a candidate is enrolled in."
+        },
+        {
+          "name": "Get Continuous Check",
+          "description": "Retrieve a continuous check by ID."
+        },
+        {
+          "name": "Update Continuous Check",
+          "description": "Change the node or work locations of a continuous check."
+        },
+        {
+          "name": "Cancel Continuous Check",
+          "description": "Cancel a continuous check to stop monitoring the candidate."
+        },
+        {
+          "name": "List Candidate Documents",
+          "description": "List documents a candidate provided, such as driver licenses and consent forms. Download links expire after 15 minutes."
+        },
+        {
+          "name": "Get Document",
+          "description": "Retrieve a report or candidate document by ID, including a download link valid for 15 minutes."
+        },
+        {
+          "name": "Get Account",
+          "description": "Retrieve the authenticated Checkr account, including whether it is authorized to order checks and which screenings are available."
+        },
+        {
+          "name": "List Users",
+          "description": "List the users on the Checkr account and their roles."
+        }
+      ],
+      "operationCount": 56,
+      "triggers": [
+        {
+          "id": "checkr_report_completed",
+          "name": "Checkr Report Completed",
+          "description": "Trigger workflow when a report is completed"
+        },
+        {
+          "id": "checkr_report_created",
+          "name": "Checkr Report Created",
+          "description": "Trigger workflow when a report is created"
+        },
+        {
+          "id": "checkr_report_updated",
+          "name": "Checkr Report Updated",
+          "description": "Trigger workflow when a report is updated, such as an ETA change or drug screening update"
+        },
+        {
+          "id": "checkr_report_upgraded",
+          "name": "Checkr Report Upgraded",
+          "description": "Trigger workflow when a report is upgraded to another package"
+        },
+        {
+          "id": "checkr_report_suspended",
+          "name": "Checkr Report Suspended",
+          "description": "Trigger workflow when a report is suspended awaiting candidate documentation"
+        },
+        {
+          "id": "checkr_report_resumed",
+          "name": "Checkr Report Resumed",
+          "description": "Trigger workflow when a suspended report resumes"
+        },
+        {
+          "id": "checkr_report_paused",
+          "name": "Checkr Report Paused",
+          "description": "Trigger workflow when a report pauses awaiting a review action"
+        },
+        {
+          "id": "checkr_report_canceled",
+          "name": "Checkr Report Canceled",
+          "description": "Trigger workflow when a report is canceled"
+        },
+        {
+          "id": "checkr_report_disputed",
+          "name": "Checkr Report Disputed",
+          "description": "Trigger workflow when a candidate disputes a report"
+        },
+        {
+          "id": "checkr_report_dispute_completed",
+          "name": "Checkr Report Dispute Completed",
+          "description": "Trigger workflow when a report dispute is resolved"
+        },
+        {
+          "id": "checkr_report_engaged",
+          "name": "Checkr Report Engaged",
+          "description": "Trigger workflow when a report is adjudicated as engaged"
+        },
+        {
+          "id": "checkr_invitation_created",
+          "name": "Checkr Invitation Created",
+          "description": "Trigger workflow when an invitation is created"
+        },
+        {
+          "id": "checkr_invitation_completed",
+          "name": "Checkr Invitation Completed",
+          "description": "Trigger workflow when a candidate completes an invitation"
+        },
+        {
+          "id": "checkr_invitation_expired",
+          "name": "Checkr Invitation Expired",
+          "description": "Trigger workflow when an invitation expires"
+        },
+        {
+          "id": "checkr_invitation_deleted",
+          "name": "Checkr Invitation Canceled",
+          "description": "Trigger workflow when an invitation is canceled"
+        },
+        {
+          "id": "checkr_candidate_created",
+          "name": "Checkr Candidate Created",
+          "description": "Trigger workflow when a candidate is created"
+        },
+        {
+          "id": "checkr_candidate_updated",
+          "name": "Checkr Candidate Updated",
+          "description": "Trigger workflow when a candidate is updated"
+        },
+        {
+          "id": "checkr_adverse_action_created",
+          "name": "Checkr Adverse Action Created",
+          "description": "Trigger workflow when an adverse action is created"
+        },
+        {
+          "id": "checkr_adverse_action_completed",
+          "name": "Checkr Adverse Action Completed",
+          "description": "Trigger workflow when the post-adverse action notice is sent"
+        },
+        {
+          "id": "checkr_adverse_action_canceled",
+          "name": "Checkr Adverse Action Canceled",
+          "description": "Trigger workflow when an adverse action is canceled"
+        },
+        {
+          "id": "checkr_adverse_action_notice_not_delivered",
+          "name": "Checkr Adverse Action Notice Not Delivered",
+          "description": "Trigger workflow when an adverse action notice cannot be delivered"
+        },
+        {
+          "id": "checkr_verification_created",
+          "name": "Checkr Verification Created",
+          "description": "Trigger workflow when a candidate is asked to verify information or upload a document"
+        },
+        {
+          "id": "checkr_verification_completed",
+          "name": "Checkr Verification Completed",
+          "description": "Trigger workflow when a candidate completes a verification"
+        },
+        {
+          "id": "checkr_verification_processed",
+          "name": "Checkr Verification Processed",
+          "description": "Trigger workflow when a verification is processed and a decision is made"
+        },
+        {
+          "id": "checkr_continuous_check_subscription_error",
+          "name": "Checkr Continuous Check Enrollment Error",
+          "description": "Trigger workflow when enrolling a candidate in Continuous MVR fails"
+        },
+        {
+          "id": "checkr_continuous_check_confirmation_required",
+          "name": "Checkr Continuous Check Confirmation Required",
+          "description": "Trigger workflow when a candidate is unenrolled from Continuous MVR and must be re-enrolled"
+        },
+        {
+          "id": "checkr_report_pre_adverse_action",
+          "name": "Checkr Report Pre-Adverse Action Sent",
+          "description": "Trigger workflow when the pre-adverse action notice for a report is sent"
+        },
+        {
+          "id": "checkr_report_post_adverse_action",
+          "name": "Checkr Report Post-Adverse Action Sent",
+          "description": "Trigger workflow when the post-adverse action notice for a report is sent"
+        },
+        {
+          "id": "checkr_adverse_action_paused",
+          "name": "Checkr Adverse Action Paused",
+          "description": "Trigger workflow when delivery of a post-adverse action notice is paused"
+        },
+        {
+          "id": "checkr_adverse_action_resumed",
+          "name": "Checkr Adverse Action Resumed",
+          "description": "Trigger workflow when a paused adverse action resumes"
+        },
+        {
+          "id": "checkr_webhook",
+          "name": "Checkr All Events",
+          "description": "Trigger workflow on any Checkr event"
+        }
+      ],
+      "triggerCount": 31,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "hr",
+      "tags": ["hiring", "identity", "webhooks"]
+    },
+    {
       "type": "circleback",
       "slug": "circleback",
       "name": "Circleback",
@@ -4366,8 +4764,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "ClayIcon",
       "docsUrl": "https://docs.sim.ai/integrations/clay",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Clay Populate",
+          "description": "Populate Clay with data from a JSON file. Enables direct communication and notifications with timestamp tracking and channel confirmation."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -7617,8 +8020,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "DuckDuckGoIcon",
       "docsUrl": "https://docs.sim.ai/integrations/duckduckgo",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "DuckDuckGo Search",
+          "description": "Search the web using DuckDuckGo Instant Answers API. Returns instant answers, abstracts, and related topics for your query. Free to use without an API key."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -8129,8 +8537,33 @@
       "bgColor": "#7B4DFF",
       "iconName": "EmbeddingsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/embeddings",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "OpenAI Embeddings",
+          "description": "Generate embeddings from text using OpenAI's embedding models"
+        },
+        {
+          "name": "OpenRouter Embeddings",
+          "description": "Generate embeddings through OpenRouter"
+        },
+        {
+          "name": "Gemini Embeddings",
+          "description": "Generate embeddings from text using Google's Gemini embedding models"
+        },
+        {
+          "name": "Cohere Embeddings",
+          "description": "Generate embeddings from text using Cohere's embedding models"
+        },
+        {
+          "name": "Mistral Embeddings",
+          "description": "Generate embeddings from text using Mistral's embedding models"
+        },
+        {
+          "name": "Ollama Embeddings",
+          "description": "Generate embeddings on a self-hosted Ollama server"
+        }
+      ],
+      "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -8360,8 +8793,13 @@
       "bgColor": "#000000",
       "iconName": "ExtendIcon",
       "docsUrl": "https://docs.sim.ai/integrations/extend",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Extend Document Parser",
+          "description": "Parse and extract content from documents using Extend AI"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -9661,7 +10099,7 @@
       "operations": [
         {
           "name": "List Customers",
-          "description": "List all Google Ads customer accounts accessible by the authenticated user"
+          "description": "List Google Ads accounts directly accessible by the authenticated user; query customer_client for manager subaccounts"
         },
         {
           "name": "List Campaigns",
@@ -10449,8 +10887,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "GooglePagespeedIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_pagespeed",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Google PageSpeed Analyze",
+          "description": "Analyze a webpage for performance, accessibility, SEO, and best practices using Google PageSpeed Insights."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -10467,8 +10910,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "GoogleIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_search",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Google Search",
+          "description": "Search the web with the Custom Search API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -11410,10 +11858,6 @@
           "description": "Query repositories in natural language and get answers with relevant code references. Greptile uses AI to understand your codebase and answer questions."
         },
         {
-          "name": "Search",
-          "description": "Search repositories in natural language and get relevant code references without generating an answer. Useful for finding specific code locations."
-        },
-        {
           "name": "Index Repository",
           "description": "Submit a repository to be indexed by Greptile. Indexing must complete before the repository can be queried. Small repos take 3-5 minutes, larger ones can take over an hour."
         },
@@ -11422,7 +11866,7 @@
           "description": "Check the indexing status of a repository. Use this to verify if a repository is ready to be queried or to monitor indexing progress."
         }
       ],
-      "operationCount": 4,
+      "operationCount": 3,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -11839,8 +12283,13 @@
       "bgColor": "#0B0F19",
       "iconName": "HuggingFaceIcon",
       "docsUrl": "https://docs.sim.ai/integrations/huggingface",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Hugging Face Chat",
+          "description": "Generate completions using Hugging Face Inference API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -14439,8 +14888,13 @@
       "bgColor": "#D6D3C7",
       "iconName": "LinkupIcon",
       "docsUrl": "https://docs.sim.ai/integrations/linkup",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Linkup Search",
+          "description": "Search the web for information using Linkup"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -15625,6 +16079,82 @@
       "tags": ["spreadsheet", "microsoft-365"]
     },
     {
+      "type": "intune",
+      "slug": "microsoft-intune",
+      "name": "Microsoft Intune",
+      "description": "Manage devices, application inventory, and compliance with Microsoft Intune",
+      "longDescription": "Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account and an active Intune tenant license. Remote actions depend on device platform and the connected administrator’s Intune permissions.",
+      "bgColor": "#FFFFFF",
+      "iconName": "IntuneIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/intune",
+      "operations": [
+        {
+          "name": "List Devices",
+          "description": "Read one page of devices from Microsoft Intune"
+        },
+        {
+          "name": "Get Device",
+          "description": "Read device details from Microsoft Intune"
+        },
+        {
+          "name": "List Detected Apps",
+          "description": "Read one page of detected apps from Microsoft Intune"
+        },
+        {
+          "name": "Get Detected App",
+          "description": "Read detected app details from Microsoft Intune"
+        },
+        {
+          "name": "List App Devices",
+          "description": "Read one page of managed devices that have a detected application installed"
+        },
+        {
+          "name": "List Compliance Policies",
+          "description": "Read one page of compliance policies from Microsoft Intune"
+        },
+        {
+          "name": "Get Compliance Policy",
+          "description": "Read common metadata for an Intune compliance policy"
+        },
+        {
+          "name": "List Compliance Policy Device Statuses",
+          "description": "Read one page of compliance policy device statuses from Microsoft Intune"
+        },
+        {
+          "name": "List Device Configurations",
+          "description": "Read one page of device configurations from Microsoft Intune"
+        },
+        {
+          "name": "Get Device Configuration",
+          "description": "Read common metadata for an Intune device configuration"
+        },
+        {
+          "name": "Sync Device",
+          "description": "Request a device check-in to receive pending Intune policies and actions"
+        },
+        {
+          "name": "Reboot Device",
+          "description": "Request a device restart after explicit confirmation; may interrupt the signed-in user"
+        },
+        {
+          "name": "Remote Lock Device",
+          "description": "Request a remote device lock after explicit confirmation on supported platforms"
+        },
+        {
+          "name": "Retire Device",
+          "description": "Retire a device after explicit confirmation, removing company data and management"
+        }
+      ],
+      "operationCount": 14,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "microsoft-intune",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["microsoft-365", "monitoring", "automation"]
+    },
+    {
       "type": "microsoft_planner",
       "slug": "microsoft-planner",
       "name": "Microsoft Planner",
@@ -16041,8 +16571,13 @@
       "bgColor": "#000000",
       "iconName": "MistralIcon",
       "docsUrl": "https://docs.sim.ai/integrations/mistral_parse",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Mistral PDF Parser",
+          "description": "Parse PDF documents using Mistral OCR API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -16423,8 +16958,81 @@
       "bgColor": "#FFFFFF",
       "iconName": "NotionIcon",
       "docsUrl": "https://docs.sim.ai/integrations/notion",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Read Page",
+          "description": "Read content from a Notion page"
+        },
+        {
+          "name": "Read Database",
+          "description": "Read database information and structure from Notion"
+        },
+        {
+          "name": "Create Page",
+          "description": "Create a new page in Notion"
+        },
+        {
+          "name": "Update Page Properties",
+          "description": "Update properties of a Notion page"
+        },
+        {
+          "name": "Create Database",
+          "description": "Create a new database in Notion with custom properties"
+        },
+        {
+          "name": "Add Database Row",
+          "description": "Add a new row to a Notion database with specified properties"
+        },
+        {
+          "name": "Append Content",
+          "description": "Append content to a Notion page"
+        },
+        {
+          "name": "Append Block Children",
+          "description": "Append new block children (content) to a Notion page or block"
+        },
+        {
+          "name": "Retrieve Block",
+          "description": "Retrieve a single Notion block by its UUID, including its type-specific content"
+        },
+        {
+          "name": "Retrieve Block Children",
+          "description": "Retrieve the block children (content) of a Notion page or block"
+        },
+        {
+          "name": "Update Block",
+          "description": "Update the content or archived state of a single Notion block"
+        },
+        {
+          "name": "Delete Block",
+          "description": "Delete (move to trash) a single Notion block"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Create a comment on a Notion page or within an existing discussion thread"
+        },
+        {
+          "name": "List Comments",
+          "description": "List unresolved comments on a Notion page or block"
+        },
+        {
+          "name": "List Users",
+          "description": "List all users (members and bots) in the Notion workspace"
+        },
+        {
+          "name": "Retrieve User",
+          "description": "Retrieve a single Notion user by their UUID"
+        },
+        {
+          "name": "Query Database",
+          "description": "Query and filter Notion database entries with advanced filtering"
+        },
+        {
+          "name": "Search Workspace",
+          "description": "Search across all pages and databases in Notion workspace"
+        }
+      ],
+      "operationCount": 18,
       "triggers": [
         {
           "id": "notion_page_created",
@@ -16822,6 +17430,49 @@
       "tags": ["microsoft-365", "cloud", "document-processing"]
     },
     {
+      "type": "oracledb",
+      "slug": "oracle-database",
+      "name": "Oracle Database",
+      "description": "Connect directly to an Oracle Database",
+      "longDescription": "Query, modify, and inspect Oracle Database over Oracle Net using TCP or verified TCPS, with optional in-memory PEM wallet authentication.",
+      "bgColor": "#FFFFFF",
+      "iconName": "OracleIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracledb",
+      "operations": [
+        {
+          "name": "Query (SELECT)",
+          "description": "Run one read-only Oracle SELECT statement or ordinary SELECT CTE with optional named IN binds"
+        },
+        {
+          "name": "Insert Data",
+          "description": "Insert one JSON object as a row in an Oracle Database table using bound values"
+        },
+        {
+          "name": "Update Data",
+          "description": "Update Oracle Database rows selected by a required WHERE expression, using bound values for changed columns"
+        },
+        {
+          "name": "Delete Data",
+          "description": "Delete Oracle Database rows selected by a required WHERE expression"
+        },
+        {
+          "name": "Execute SQL",
+          "description": "Execute one allowed Oracle SQL statement: SELECT, INSERT, UPDATE, DELETE, MERGE, CREATE, ALTER, DROP, or EXPLAIN PLAN"
+        },
+        {
+          "name": "Introspect Schema",
+          "description": "Inspect accessible Oracle tables, columns, keys, non-primary-key indexes, and table-owning schemas using ALL_* dictionary views"
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
+    },
+    {
       "type": "netsuite",
       "slug": "oracle-netsuite",
       "name": "Oracle NetSuite",
@@ -16947,6 +17598,73 @@
       "category": "tools",
       "integrationType": "commerce",
       "tags": ["automation", "data-analytics", "payments"]
+    },
+    {
+      "type": "otter",
+      "slug": "otter-ai",
+      "name": "Otter.ai",
+      "description": "Read Otter.ai meeting conversations, transcripts, and summaries",
+      "longDescription": "Integrate Otter.ai into your workflow to list and read meeting conversations with their summaries, action items, insights, outlines, and transcripts, get audio download links, import recordings, and browse channels and workspace details. Otter can also trigger workflows when a conversation finishes processing or is shared. Requires an Otter Enterprise workspace.",
+      "bgColor": "#FFFFFF",
+      "iconName": "OtterIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/otter",
+      "operations": [
+        {
+          "name": "List Conversations",
+          "description": "List Otter conversations for the authenticated user, most recent first, optionally including shared conversations or filtering by channel."
+        },
+        {
+          "name": "Get Conversation",
+          "description": "Get an Otter conversation with its summary and details, plus any requested action items, insights, outline, and transcript."
+        },
+        {
+          "name": "Get Conversation Audio",
+          "description": "Get the MP3 audio download link for an Otter conversation."
+        },
+        {
+          "name": "Import Recording",
+          "description": "Import an audio or video recording into Otter as a new conversation from a publicly reachable file URL."
+        },
+        {
+          "name": "List Channels",
+          "description": "List the Otter channels available to the authenticated user, in alphabetical order."
+        },
+        {
+          "name": "List Channel Members",
+          "description": "List the members of an Otter channel, in alphabetical order."
+        },
+        {
+          "name": "Get Workspace",
+          "description": "Get the Otter workspace of the authenticated user, including its ID, name, owner, member count, handle, and type."
+        },
+        {
+          "name": "List Workspace Conversations",
+          "description": "List every conversation in an Otter workspace, most recent first. Requires an Otter Super Admin API key in a workspace with Super Admin enabled."
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [
+        {
+          "id": "otter_conversation_completed",
+          "name": "Otter Conversation Completed",
+          "description": "Trigger workflow when an Otter conversation shared to the webhook source finishes processing"
+        },
+        {
+          "id": "otter_conversation_shared",
+          "name": "Otter Conversation Shared",
+          "description": "Trigger workflow when an existing Otter conversation is shared to the webhook source"
+        },
+        {
+          "id": "otter_webhook",
+          "name": "Otter Webhook",
+          "description": "Trigger workflow on any Otter workspace webhook event"
+        }
+      ],
+      "triggerCount": 3,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["meeting", "note-taking", "speech-to-text"]
     },
     {
       "type": "outlook",
@@ -17959,6 +18677,593 @@
       "tags": ["enrichment", "data-analytics"]
     },
     {
+      "type": "plane",
+      "slug": "plane",
+      "name": "Plane",
+      "description": "Manage projects and work items in Plane",
+      "longDescription": "Connect Plane Cloud or a self-hosted Plane instance. API v2 is the default; choose API v1 for Community Edition or older instances. Actions with a current successor are consolidated. Unsupported version-specific inputs fail explicitly. Manage work items, projects, cycles, modules, states, labels, comments, links, attachments, pages, and webhooks. API v1 compatibility is available within supported current actions.",
+      "bgColor": "#FFFFFF",
+      "iconName": "PlaneIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/plane",
+      "operations": [
+        {
+          "name": "Add or remove cycle work items",
+          "description": "Add or remove cycle work items in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Add or remove module work items",
+          "description": "Add or remove module work items in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Archive a project",
+          "description": "Archive a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Archive a work item",
+          "description": "Archive a work item in Plane. Requires API v2."
+        },
+        {
+          "name": "Confirm a work item attachment upload",
+          "description": "Confirm a work item attachment upload in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a comment",
+          "description": "Create a comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a cycle",
+          "description": "Create a cycle in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a label",
+          "description": "Create a label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a link",
+          "description": "Create a link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a module",
+          "description": "Create a module in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a project",
+          "description": "Create a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a project page",
+          "description": "Create a project page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a state",
+          "description": "Create a state in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a webhook",
+          "description": "Create a webhook in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a work item",
+          "description": "Create a work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a work item attachment upload",
+          "description": "Create a work item attachment upload in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a comment",
+          "description": "Delete a comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a cycle",
+          "description": "Delete a cycle in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a label",
+          "description": "Delete a label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a link",
+          "description": "Delete a link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a module",
+          "description": "Delete a module in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a project",
+          "description": "Delete a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a project page",
+          "description": "Delete a project page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a state",
+          "description": "Delete a state in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a webhook",
+          "description": "Delete a webhook in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a work item",
+          "description": "Delete a work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete an attachment",
+          "description": "Delete an attachment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a comment",
+          "description": "Get a comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a cycle",
+          "description": "Get a cycle in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a label",
+          "description": "Get a label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a link",
+          "description": "Get a link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a module",
+          "description": "Get a module in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a project",
+          "description": "Get a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a project page",
+          "description": "Get a project page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a project summary",
+          "description": "Get a project summary in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a state",
+          "description": "Get a state in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a webhook",
+          "description": "Get a webhook in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a work item",
+          "description": "Get a work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a work item by identifier",
+          "description": "Get a work item by identifier in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an attachment",
+          "description": "Get an attachment in Plane. Requires API v2."
+        },
+        {
+          "name": "Get current user",
+          "description": "Get current user in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List attachments",
+          "description": "List attachments in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List comments",
+          "description": "List comments in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List cycles",
+          "description": "List cycles in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List labels",
+          "description": "List labels in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List links",
+          "description": "List links in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List modules",
+          "description": "List modules in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List project pages",
+          "description": "List project pages in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List projects",
+          "description": "List projects in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List states",
+          "description": "List states in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List webhooks",
+          "description": "List webhooks in Plane. Requires API v2."
+        },
+        {
+          "name": "List work items",
+          "description": "List work items in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List work items across a workspace",
+          "description": "List work items across a workspace in Plane. Requires API v2."
+        },
+        {
+          "name": "Regenerate a webhook secret",
+          "description": "Regenerate a webhook secret in Plane. Requires API v2."
+        },
+        {
+          "name": "Transfer work items between cycles",
+          "description": "Transfer work items between cycles in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Unarchive a project",
+          "description": "Unarchive a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Unarchive a work item",
+          "description": "Unarchive a work item in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a comment",
+          "description": "Update a comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a cycle",
+          "description": "Update a cycle in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a label",
+          "description": "Update a label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a link",
+          "description": "Update a link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a module",
+          "description": "Update a module in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a project",
+          "description": "Update a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a project page",
+          "description": "Update a project page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a state",
+          "description": "Update a state in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a webhook",
+          "description": "Update a webhook in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a work item",
+          "description": "Update a work item in Plane. Supports API v1 compatibility."
+        }
+      ],
+      "operationCount": 67,
+      "triggers": [
+        {
+          "id": "plane_webhook",
+          "name": "Plane All Events",
+          "description": "Trigger a workflow for any signed Plane event."
+        },
+        {
+          "id": "plane_project_created",
+          "name": "Plane Project Created",
+          "description": "Trigger a workflow for Plane project created events."
+        },
+        {
+          "id": "plane_project_updated",
+          "name": "Plane Project Updated",
+          "description": "Trigger a workflow for Plane project updated events."
+        },
+        {
+          "id": "plane_project_archived",
+          "name": "Plane Project Archived",
+          "description": "Trigger a workflow for Plane project archived events."
+        },
+        {
+          "id": "plane_project_deleted",
+          "name": "Plane Project Deleted",
+          "description": "Trigger a workflow for Plane project deleted events."
+        },
+        {
+          "id": "plane_cycle_created",
+          "name": "Plane Cycle Created",
+          "description": "Trigger a workflow for Plane cycle created events."
+        },
+        {
+          "id": "plane_cycle_updated",
+          "name": "Plane Cycle Updated",
+          "description": "Trigger a workflow for Plane cycle updated events."
+        },
+        {
+          "id": "plane_cycle_archived",
+          "name": "Plane Cycle Archived",
+          "description": "Trigger a workflow for Plane cycle archived events."
+        },
+        {
+          "id": "plane_cycle_deleted",
+          "name": "Plane Cycle Deleted",
+          "description": "Trigger a workflow for Plane cycle deleted events."
+        },
+        {
+          "id": "plane_module_created",
+          "name": "Plane Module Created",
+          "description": "Trigger a workflow for Plane module created events."
+        },
+        {
+          "id": "plane_module_updated",
+          "name": "Plane Module Updated",
+          "description": "Trigger a workflow for Plane module updated events."
+        },
+        {
+          "id": "plane_module_archived",
+          "name": "Plane Module Archived",
+          "description": "Trigger a workflow for Plane module archived events."
+        },
+        {
+          "id": "plane_module_deleted",
+          "name": "Plane Module Deleted",
+          "description": "Trigger a workflow for Plane module deleted events."
+        },
+        {
+          "id": "plane_milestone_created",
+          "name": "Plane Milestone Created",
+          "description": "Trigger a workflow for Plane milestone created events."
+        },
+        {
+          "id": "plane_milestone_updated",
+          "name": "Plane Milestone Updated",
+          "description": "Trigger a workflow for Plane milestone updated events."
+        },
+        {
+          "id": "plane_milestone_deleted",
+          "name": "Plane Milestone Deleted",
+          "description": "Trigger a workflow for Plane milestone deleted events."
+        },
+        {
+          "id": "plane_page_created",
+          "name": "Plane Page Created",
+          "description": "Trigger a workflow for Plane page created events."
+        },
+        {
+          "id": "plane_page_updated",
+          "name": "Plane Page Updated",
+          "description": "Trigger a workflow for Plane page updated events."
+        },
+        {
+          "id": "plane_page_archived",
+          "name": "Plane Page Archived",
+          "description": "Trigger a workflow for Plane page archived events."
+        },
+        {
+          "id": "plane_page_deleted",
+          "name": "Plane Page Deleted",
+          "description": "Trigger a workflow for Plane page deleted events."
+        },
+        {
+          "id": "plane_page_comment_created",
+          "name": "Plane Page Comment Created",
+          "description": "Trigger a workflow for Plane page comment created events."
+        },
+        {
+          "id": "plane_page_comment_updated",
+          "name": "Plane Page Comment Updated",
+          "description": "Trigger a workflow for Plane page comment updated events."
+        },
+        {
+          "id": "plane_page_comment_deleted",
+          "name": "Plane Page Comment Deleted",
+          "description": "Trigger a workflow for Plane page comment deleted events."
+        },
+        {
+          "id": "plane_workitem_created",
+          "name": "Plane Work Item Created",
+          "description": "Trigger a workflow for Plane work item created events."
+        },
+        {
+          "id": "plane_workitem_updated",
+          "name": "Plane Work Item Updated",
+          "description": "Trigger a workflow for Plane work item updated events."
+        },
+        {
+          "id": "plane_workitem_archived",
+          "name": "Plane Work Item Archived",
+          "description": "Trigger a workflow for Plane work item archived events."
+        },
+        {
+          "id": "plane_workitem_deleted",
+          "name": "Plane Work Item Deleted",
+          "description": "Trigger a workflow for Plane work item deleted events."
+        },
+        {
+          "id": "plane_workitem_comment_created",
+          "name": "Plane Work Item Comment Created",
+          "description": "Trigger a workflow for Plane work item comment created events."
+        },
+        {
+          "id": "plane_workitem_comment_updated",
+          "name": "Plane Work Item Comment Updated",
+          "description": "Trigger a workflow for Plane work item comment updated events."
+        },
+        {
+          "id": "plane_workitem_comment_deleted",
+          "name": "Plane Work Item Comment Deleted",
+          "description": "Trigger a workflow for Plane work item comment deleted events."
+        },
+        {
+          "id": "plane_workitem_link_created",
+          "name": "Plane Work Item Link Created",
+          "description": "Trigger a workflow for Plane work item link created events."
+        },
+        {
+          "id": "plane_workitem_link_updated",
+          "name": "Plane Work Item Link Updated",
+          "description": "Trigger a workflow for Plane work item link updated events."
+        },
+        {
+          "id": "plane_workitem_link_deleted",
+          "name": "Plane Work Item Link Deleted",
+          "description": "Trigger a workflow for Plane work item link deleted events."
+        },
+        {
+          "id": "plane_workitem_vote_created",
+          "name": "Plane Work Item Vote Created",
+          "description": "Trigger a workflow for Plane work item vote created events."
+        },
+        {
+          "id": "plane_workitem_vote_deleted",
+          "name": "Plane Work Item Vote Deleted",
+          "description": "Trigger a workflow for Plane work item vote deleted events."
+        },
+        {
+          "id": "plane_workitem_attachment_created",
+          "name": "Plane Work Item Attachment Created",
+          "description": "Trigger a workflow for Plane work item attachment created events."
+        },
+        {
+          "id": "plane_workitem_attachment_updated",
+          "name": "Plane Work Item Attachment Updated",
+          "description": "Trigger a workflow for Plane work item attachment updated events."
+        },
+        {
+          "id": "plane_workitem_attachment_deleted",
+          "name": "Plane Work Item Attachment Deleted",
+          "description": "Trigger a workflow for Plane work item attachment deleted events."
+        },
+        {
+          "id": "plane_workitem_relation_created",
+          "name": "Plane Work Item Relation Created",
+          "description": "Trigger a workflow for Plane work item relation created events."
+        },
+        {
+          "id": "plane_workitem_relation_deleted",
+          "name": "Plane Work Item Relation Deleted",
+          "description": "Trigger a workflow for Plane work item relation deleted events."
+        },
+        {
+          "id": "plane_workitem_dependency_created",
+          "name": "Plane Work Item Dependency Created",
+          "description": "Trigger a workflow for Plane work item dependency created events."
+        },
+        {
+          "id": "plane_workitem_dependency_deleted",
+          "name": "Plane Work Item Dependency Deleted",
+          "description": "Trigger a workflow for Plane work item dependency deleted events."
+        },
+        {
+          "id": "plane_workitem_page_link_created",
+          "name": "Plane Work Item Page Link Created",
+          "description": "Trigger a workflow for Plane work item page link created events."
+        },
+        {
+          "id": "plane_workitem_page_link_deleted",
+          "name": "Plane Work Item Page Link Deleted",
+          "description": "Trigger a workflow for Plane work item page link deleted events."
+        }
+      ],
+      "triggerCount": 44,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["project-management", "ticketing"]
+    },
+    {
+      "type": "planetscale",
+      "slug": "planetscale",
+      "name": "PlanetScale",
+      "description": "Manage PlanetScale databases, branches, backups, and deploy requests",
+      "longDescription": "Manage PlanetScale databases and branches, create and inspect backups, and create, review, queue, and close Vitess deploy requests. Authenticate with an organization service token. Deploy-request actions require a Vitess database; SQL queries are available through the MySQL and PostgreSQL integrations.",
+      "bgColor": "#111111",
+      "iconName": "PlanetScaleIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/planetscale",
+      "operations": [
+        {
+          "name": "List Databases",
+          "description": "List databases"
+        },
+        {
+          "name": "Get Database",
+          "description": "Get a database"
+        },
+        {
+          "name": "List Branches",
+          "description": "List branches"
+        },
+        {
+          "name": "Get Branch",
+          "description": "Get a branch"
+        },
+        {
+          "name": "Create Branch",
+          "description": "Create a branch"
+        },
+        {
+          "name": "Delete Branch",
+          "description": "Delete a branch"
+        },
+        {
+          "name": "List Backups",
+          "description": "List backups"
+        },
+        {
+          "name": "Get Backup",
+          "description": "Get a backup"
+        },
+        {
+          "name": "Create Backup",
+          "description": "Create a backup"
+        },
+        {
+          "name": "List Deploy Requests (Vitess)",
+          "description": "List deploy requests (Vitess only)"
+        },
+        {
+          "name": "Get Deploy Request (Vitess)",
+          "description": "Get a deploy request (Vitess only)"
+        },
+        {
+          "name": "Create Deploy Request (Vitess)",
+          "description": "Create a deploy request (Vitess only)"
+        },
+        {
+          "name": "Review Deploy Request (Vitess)",
+          "description": "Review a deploy request (Vitess only)"
+        },
+        {
+          "name": "Queue Deploy Request (Vitess)",
+          "description": "Queue a deploy request (Vitess only)"
+        },
+        {
+          "name": "Close Deploy Request (Vitess)",
+          "description": "Close a deploy request (Vitess only)"
+        }
+      ],
+      "operationCount": 15,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["cloud", "ci-cd", "automation"]
+    },
+    {
       "type": "polymarket",
       "slug": "polymarket",
       "name": "Polymarket",
@@ -18312,6 +19617,58 @@
       "tags": ["data-analytics", "monitoring", "feature-flags"]
     },
     {
+      "type": "powerbi",
+      "slug": "power-bi",
+      "name": "Power BI",
+      "description": "Query semantic models and manage reports and refreshes",
+      "longDescription": "Connect a home-tenant organizational account through the Power BI Microsoft connection to list named workspaces, inspect reports and semantic models, execute DAX queries, request standard refreshes, and read refresh history. Microsoft Graph connections cannot substitute for this delegated OAuth connection. Self-hosted installations use the shared Microsoft app registration and register /api/auth/oauth2/callback/microsoft-powerbi as a Web redirect URI. Workspace listing supports a result limit, offset, and OData filter; reports and semantic models return flat lists. Read-only models may contain only their ID and name, and paginated reports may omit their semantic-model ID. Missing optional fields are null and do not establish permission or feature availability. Keep results small with summaries or TOPN: provider JSON reads are limited to 20 MiB, and workflow tool responses have a stricter 10 MiB inline budget. My Workspace, cross-tenant guest configuration, Credential Groups, service principals, impersonation, enhanced refresh, report exports, dashboards, and triggers are outside this version.",
+      "bgColor": "#FFFFFF",
+      "iconName": "PowerBIIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/powerbi",
+      "operations": [
+        {
+          "name": "List Workspaces",
+          "description": "List accessible Power BI workspaces with optional OData filtering and pagination."
+        },
+        {
+          "name": "List Reports",
+          "description": "List reports in a Power BI workspace, including paginated reports."
+        },
+        {
+          "name": "Get Report",
+          "description": "Get report metadata from a Power BI workspace."
+        },
+        {
+          "name": "List Semantic Models",
+          "description": "List semantic models in a Power BI workspace; available metadata depends on permissions."
+        },
+        {
+          "name": "Get Semantic Model",
+          "description": "Get semantic model metadata from a Power BI workspace."
+        },
+        {
+          "name": "Execute DAX Query",
+          "description": "Execute one DAX query returning one table. Requires workspace access, Read/Build permissions, and the tenant Execute Queries setting. Reported errors fail the action even with HTTP 200. Direct tool responses retain partial rows and typed errors; failed workflows expose only the standard error output. Sim limits workflow tool responses to 10 MiB; use summaries or TOPN for larger results."
+        },
+        {
+          "name": "Refresh Semantic Model",
+          "description": "Request a standard asynchronous semantic model refresh and return acceptance immediately. Acceptance does not mean completion; use Get Refresh History separately to inspect status. Shared capacity allows eight refresh requests per day, including scheduled refreshes."
+        },
+        {
+          "name": "Get Refresh History",
+          "description": "Get recent semantic model refresh history; requires Write permission on the model. Unknown can mean a refresh is in progress or its completion state is unknown."
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "microsoft-powerbi",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics", "microsoft-365", "automation"]
+    },
+    {
       "type": "profound",
       "slug": "profound",
       "name": "Profound",
@@ -18486,8 +19843,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "PulseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/pulse",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Pulse Document Parser",
+          "description": "Parse documents (PDF, images, Office docs) using Pulse OCR API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -19225,6 +20587,98 @@
       "tags": ["cloud", "ci-cd"]
     },
     {
+      "type": "ramp",
+      "slug": "ramp",
+      "name": "Ramp",
+      "description": "Read spend, bills, cards, and reimbursements, and add transaction memos in Ramp",
+      "longDescription": "Connect Ramp to your agents to review company balances, employees, card transactions, physical and virtual cards, vendors, bills, and reimbursements. Add transaction memos and paginate through records with up to 100 results per request.",
+      "bgColor": "#E4F222",
+      "iconName": "RampIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/ramp",
+      "operations": [
+        {
+          "name": "Get Business",
+          "description": "Fetch the company information in Ramp"
+        },
+        {
+          "name": "Get Balance",
+          "description": "Fetch the company balance information in Ramp"
+        },
+        {
+          "name": "List Users",
+          "description": "List users in one page in Ramp"
+        },
+        {
+          "name": "Get User",
+          "description": "Fetch a user in Ramp"
+        },
+        {
+          "name": "List Transactions",
+          "description": "List transactions in one page in Ramp"
+        },
+        {
+          "name": "Get Transaction",
+          "description": "Fetch a transaction in Ramp"
+        },
+        {
+          "name": "List Physical Cards",
+          "description": "List physical cards in one page in Ramp"
+        },
+        {
+          "name": "Get Physical Card",
+          "description": "Fetch a physical card in Ramp"
+        },
+        {
+          "name": "List Virtual Cards",
+          "description": "List virtual cards in one page in Ramp"
+        },
+        {
+          "name": "Get Virtual Card",
+          "description": "Fetch a virtual card in Ramp"
+        },
+        {
+          "name": "List Vendors",
+          "description": "List vendors in one page in Ramp"
+        },
+        {
+          "name": "Get Vendor",
+          "description": "Fetch a vendor in Ramp"
+        },
+        {
+          "name": "List Bills",
+          "description": "List bills in one page in Ramp"
+        },
+        {
+          "name": "Get Bill",
+          "description": "Fetch a bill in Ramp"
+        },
+        {
+          "name": "List Reimbursements",
+          "description": "List reimbursements in one page in Ramp"
+        },
+        {
+          "name": "Get Reimbursement",
+          "description": "Fetch a reimbursement in Ramp"
+        },
+        {
+          "name": "Get Memo",
+          "description": "Fetch a transaction memo in Ramp"
+        },
+        {
+          "name": "Create Memo",
+          "description": "Upload a new memo for a transaction in Ramp"
+        }
+      ],
+      "operationCount": 18,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "ramp",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["payments", "data-analytics", "automation"]
+    },
+    {
       "type": "rb2b",
       "slug": "rb2b",
       "name": "RB2B",
@@ -19587,8 +21041,13 @@
       "bgColor": "#5c0c5c",
       "iconName": "ReductoIcon",
       "docsUrl": "https://docs.sim.ai/integrations/reducto",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Reducto PDF Parser",
+          "description": "Parse PDF documents using Reducto OCR API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -22009,8 +23468,13 @@
       "bgColor": "#2B3543",
       "iconName": "SerperIcon",
       "docsUrl": "https://docs.sim.ai/integrations/serper",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Web Search",
+          "description": "A powerful web search tool that provides access to Google search results through Serper.dev API. Supports different types of searches including regular web search, news, places, images, videos, and shopping. Returns comprehensive results including organic results, knowledge graph, answer box, people also ask, related searches, and top stories."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -22335,7 +23799,7 @@
       "slug": "shopify",
       "name": "Shopify",
       "description": "Manage products, orders, customers, and inventory in your Shopify store",
-      "longDescription": "Integrate Shopify into your workflow. Manage products, orders, customers, and inventory. Create, read, update, and delete products. List and manage orders. Handle customer data and adjust inventory levels.",
+      "longDescription": "Manage Shopify products and variants, orders, customers, inventory, collections, and merchant-managed fulfillment using Admin GraphQL API 2026-10. Discover fulfillment orders, ship selected items, update tracking, and check cancellation jobs. Continue list and nested results with the returned cursors. Product activation does not publish to sales channels. Orders normally cover the last 60 days; older orders and protected customer fields require Shopify approval and access. Expanded list details are optional and use smaller pages to stay within query-cost limits. Expanded order-update responses are opt-in and require product, protected-address, and fulfillment access.",
       "bgColor": "#FFFFFF",
       "iconName": "ShopifyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/shopify",
@@ -22414,18 +23878,46 @@
         },
         {
           "name": "Create Fulfillment",
-          "description": "Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (get this from the order details)."
+          "description": "Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (use List Fulfillment Orders to find it)."
         },
         {
           "name": "List Collections",
           "description": "List product collections from your Shopify store. Filter by title, type (custom/smart), or handle."
         },
         {
+          "name": "List Fulfillment Orders",
+          "description": "Find fulfillment order IDs and remaining items for an order at merchant-managed locations"
+        },
+        {
+          "name": "Get Fulfillment Order",
+          "description": "Read a fulfillment order and one page of line items for partial fulfillment"
+        },
+        {
+          "name": "Get Job",
+          "description": "Read Shopify job progress or the outcome and errors of an order cancellation"
+        },
+        {
+          "name": "Create Product Variants",
+          "description": "Create product variants with pricing, options, inventory attributes, and metafields"
+        },
+        {
+          "name": "Update Product Variants",
+          "description": "Update product variants with pricing, options, inventory attributes, and metafields"
+        },
+        {
+          "name": "Get Fulfillment",
+          "description": "Read shipment tracking and one page of fulfilled line items"
+        },
+        {
+          "name": "Update Fulfillment Tracking",
+          "description": "Update tracking numbers, URLs, or carrier for an existing fulfillment"
+        },
+        {
           "name": "Get Collection",
           "description": "Get a specific collection by ID, including its products. Use this to retrieve products within a collection."
         }
       ],
-      "operationCount": 21,
+      "operationCount": 28,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -23163,8 +24655,13 @@
       "bgColor": "#2D3748",
       "iconName": "SmtpIcon",
       "docsUrl": "https://docs.sim.ai/integrations/smtp",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "SMTP Send Mail",
+          "description": "Send emails via SMTP server"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -24626,15 +26123,15 @@
         },
         {
           "name": "Resume Subscription",
-          "description": "Resume a subscription that was scheduled for cancellation"
+          "description": "Resume a paused subscription"
         },
         {
           "name": "List Subscriptions",
-          "description": "List all subscriptions"
+          "description": "List one page of subscriptions. Follow starting_after while metadata.has_more is true."
         },
         {
           "name": "Search Subscriptions",
-          "description": "Search for subscriptions using query syntax"
+          "description": "Search one page of subscriptions using query syntax. Pass metadata.next_page as page to continue."
         },
         {
           "name": "Create Invoice",
@@ -25928,8 +27425,13 @@
       "bgColor": "#F22F46",
       "iconName": "TwilioIcon",
       "docsUrl": "https://docs.sim.ai/integrations/twilio_sms",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Twilio Send SMS",
+          "description": "Send text messages to single or multiple recipients using the Twilio API."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [
         {
           "id": "twilio_sms_received",
@@ -26245,7 +27747,7 @@
       "slug": "vanta",
       "name": "Vanta",
       "description": "Query compliance status and manage evidence in Vanta",
-      "longDescription": "Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Requires Vanta OAuth client credentials.",
+      "longDescription": "Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Select a saved Vanta credential created with your Vanta application client ID and client secret.",
       "bgColor": "#F8F4F3",
       "iconName": "VantaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/vanta",
@@ -26370,7 +27872,8 @@
       "operationCount": 29,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "vanta",
       "category": "tools",
       "integrationType": "security",
       "tags": ["monitoring", "automation", "document-processing"]
@@ -27356,6 +28859,57 @@
       "category": "tools",
       "integrationType": "communication",
       "tags": ["marketing", "messaging"]
+    },
+    {
+      "type": "youcom",
+      "slug": "you-com",
+      "name": "You.com",
+      "description": "Search, read, and research the web with You.com",
+      "longDescription": "Integrate You.com into the workflow. Search the web and news with query-relevant highlights or full page content, fetch page contents, get cited answers, run deep or financial research, search images, and check API credit balance.",
+      "bgColor": "#FFFFFF",
+      "iconName": "YouComIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/youcom",
+      "operations": [
+        {
+          "name": "Search",
+          "description": "Search the web and news with You.com, returning LLM-ready results with optional query-relevant highlights or full page content."
+        },
+        {
+          "name": "Get Contents",
+          "description": "Fetch the HTML, Markdown, and page metadata of one or more web pages with You.com."
+        },
+        {
+          "name": "Answer",
+          "description": "Get a synthesized answer to a question with numbered citations and the web results used to write it."
+        },
+        {
+          "name": "Research",
+          "description": "Run multi-step web research on a question and get a thorough, cited answer, or start it as a background task."
+        },
+        {
+          "name": "Get Research Task",
+          "description": "Get the status of a background research task and, once completed, its cited answer and sources."
+        },
+        {
+          "name": "Finance Research",
+          "description": "Research a financial question across earnings reports, SEC filings, analyst coverage, and market news, and get a cited answer."
+        },
+        {
+          "name": "Search Images",
+          "description": "Find image URLs for a query with You.com. Beta, and limited to You.com early-access API keys."
+        },
+        {
+          "name": "Get Account Balance",
+          "description": "Get the remaining You.com API credit balance for the account or organization that owns the API key."
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "llm", "agentic"]
     },
     {
       "type": "youtube",

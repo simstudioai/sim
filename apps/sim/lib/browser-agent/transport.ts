@@ -36,6 +36,7 @@ import type {
   SimDesktopBrowserAgentApi,
 } from '@sim/desktop-bridge'
 import { isPendingDesktopScopeId } from '@sim/desktop-bridge'
+import { browserToolTimeoutMessage } from '@sim/desktop-bridge/tool-results'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getDesktopBridge, isBrowserAgentEnabled } from '@/lib/desktop'
@@ -243,11 +244,7 @@ export async function executeBrowserTool(
                     error: toError(error).message,
                   })
                 }
-                reject(
-                  new BrowserOutcomeUnknownError(
-                    `The browser did not respond within ${timeoutMs}ms. Its outcome is unknown and the action may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.`
-                  )
-                )
+                reject(new BrowserOutcomeUnknownError(browserToolTimeoutMessage(timeoutMs)))
               }, timeoutMs)
             }),
           ])
@@ -659,6 +656,7 @@ export function setBrowserPanelOccluded(
  * with its left edge shifted by the divider's travel. Call at drag start with
  * the divider position (the panel's left edge in viewport CSS pixels); the
  * returned predictor reports a rect per pointer move, before layout runs.
+ * Pass the current scope with each prediction if a pending chat adopts its durable ID mid-drag.
  * Measured reports remain authoritative and correct any drift.
  *
  * Both `startDividerX` and every `dividerX` must be the panel's REAL viewport
@@ -673,10 +671,10 @@ export function setBrowserPanelOccluded(
 export function beginBrowserPanelDividerDrag(
   startDividerX: number,
   scopeId = currentBrowserScopeId()
-): ((dividerX: number) => void) | null {
+): ((dividerX: number, reportScopeId?: string) => void) | null {
   const base = latestPanelBoundsByScope.get(scopeId)
   if (!bridge() || !base) return null
-  return (dividerX: number) => {
+  return (dividerX: number, reportScopeId = scopeId) => {
     const dx = Math.round(dividerX - startDividerX)
     const width = base.width - dx
     if (width <= 0) return
@@ -686,7 +684,7 @@ export function beginBrowserPanelDividerDrag(
     reportBrowserPanelBounds(
       { x: base.x + dx, y: base.y, width, height: base.height },
       { viewportWidth: window.innerWidth, viewportHeight: window.innerHeight, widthRatio: 0 },
-      scopeId
+      reportScopeId
     )
   }
 }

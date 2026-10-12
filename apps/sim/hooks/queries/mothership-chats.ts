@@ -1,6 +1,11 @@
+import { toast } from '@sim/emcn'
+import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import {
   keepPreviousData,
+  MutationObserver,
+  mutationOptions,
+  type QueryClient,
   queryOptions,
   skipToken,
   useMutation,
@@ -10,30 +15,32 @@ import {
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
-  addMothershipChatResourceContract,
   deleteMothershipChatContract,
   forkMothershipChatContract,
   getMothershipChatContract,
   getMothershipChatResponseSchema,
+  getMothershipChatStreamStatusContract,
   listMothershipChatsContract,
   type MothershipChat,
   type MothershipChatScope,
   markMothershipChatReadContract,
-  removeMothershipChatResourceContract,
-  reorderMothershipChatResourcesContract,
   restoreMothershipChatContract,
+  type SetMothershipChatEffortBody,
+  setMothershipChatEffortContract,
   updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
+import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   type FilePreviewSession,
   isFilePreviewSession,
 } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/request/session/types'
-import { getChatResourceKey, type MothershipResource } from '@/lib/mothership/resources/types'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface MothershipChatMetadata {
@@ -55,6 +62,8 @@ export interface MothershipChatHistory {
   messages: PersistedMessage[]
   activeStreamId: string | null
   resources: MothershipResource[]
+  /** The effort the user picked for this chat; null or absent while it follows the default. */
+  effort?: MothershipEffort | null
   streamSnapshot?: {
     events: StreamBatchEvent[]
     previewSessions: FilePreviewSession[]
@@ -63,6 +72,17 @@ export interface MothershipChatHistory {
 }
 
 export type MothershipChatOwner = string | { organizationId: string }
+
+/** Reports which chats were deleted when another request in the batch failed. */
+export class MothershipChatDeleteError extends Error {
+  constructor(
+    readonly deletedChatIds: string[],
+    cause: Error
+  ) {
+    super(cause.message, { cause })
+    this.name = 'MothershipChatDeleteError'
+  }
+}
 
 export const mothershipChatKeys = {
   all: ['mothership-chats'] as const,
@@ -191,15 +211,8 @@ function parseChatHistory(value: unknown): MothershipChatHistory {
     messages: normalizeMessages(chat.messages),
     activeStreamId: chat.activeStreamId,
     resources: parseResources(chat.resources, `${chatContext}.resources`),
+    effort: getMothershipChatResponseSchema.shape.chat.shape.effort.parse(chat.effort ?? null),
     streamSnapshot: parseStrictStreamSnapshot(chat.streamSnapshot, `${chatContext}.streamSnapshot`),
-  }
-}
-
-function parseChatResourcesResponse(value: unknown): { resources: MothershipResource[] } {
-  assertValid(isRecordLike(value), 'Invalid chat resources response: body must be an object')
-
-  return {
-    resources: parseResources(value.resources, 'Invalid chat resources response: resources'),
   }
 }
 
@@ -270,7 +283,7 @@ export function useOrganizationMothershipChats(
   })
 }
 
-export async function fetchMothershipChatHistory(
+async function readMothershipChatHistory(
   chatId: string,
   signal?: AbortSignal
 ): Promise<MothershipChatHistory> {
@@ -296,6 +309,37 @@ export async function fetchMothershipChatHistory(
   }
 
   return parseChatHistory(await copilotRes.json())
+}
+
+/**
+ * Reads a chat from the server. A chat this tab saw deleted that the server
+ * returns again was restored, so it takes queued sends again. Only a read that
+ * began after the delete counts: one already in flight can return the chat from
+ * before it.
+ */
+export async function fetchMothershipChatHistory(
+  chatId: string,
+  signal?: AbortSignal
+): Promise<MothershipChatHistory> {
+  const deleteSeen = useMothershipQueueStore.getState().cleared[chatId]
+  const history = await readMothershipChatHistory(chatId, signal)
+  if (deleteSeen !== undefined) useMothershipQueueStore.getState().liftDelete(chatId, deleteSeen)
+  return history
+}
+
+/**
+ * The stream a chat's server copy still lists as active, read without the
+ * transcript — for polling until a finished turn is saved.
+ */
+export async function fetchMothershipChatActiveStreamId(
+  chatId: string,
+  signal?: AbortSignal
+): Promise<string | null> {
+  const data = await requestJson(getMothershipChatStreamStatusContract, {
+    params: { chatId },
+    signal,
+  })
+  return data.activeStreamId
 }
 
 export function mothershipChatHistoryQueryOptions(chatId: string | undefined) {
@@ -354,6 +398,12 @@ export function useRestoreMothershipChat(owner?: MothershipChatOwner) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: restoreChat,
+    /** The delete this restore undoes; one that lands while it is in flight stays. */
+    onMutate: (chatId) => ({ deleteSeen: useMothershipQueueStore.getState().cleared[chatId] }),
+    onSuccess: (_data, chatId, context) => {
+      if (context?.deleteSeen === undefined) return
+      useMothershipQueueStore.getState().liftDelete(chatId, context.deleteSeen)
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
     },
@@ -377,7 +427,10 @@ export function useDeleteMothershipChats(owner?: MothershipChatOwner) {
         })
       )
       const failed = results.find((result) => result.status === 'rejected')
-      if (failed) throw failed.reason
+      if (failed) {
+        const deletedChatIds = chatIds.filter((_, index) => results[index].status === 'fulfilled')
+        throw new MothershipChatDeleteError(deletedChatIds, toError(failed.reason))
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
@@ -421,142 +474,6 @@ export function useRenameMothershipChat(owner?: MothershipChatOwner) {
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerList(owner) })
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(variables.chatId) })
-    },
-  })
-}
-
-async function addChatResource(params: {
-  chatId: string
-  resource: MothershipResource
-}): Promise<{ resources: MothershipResource[] }> {
-  const data = await requestJson(addMothershipChatResourceContract, {
-    body: { chatId: params.chatId, resource: params.resource },
-  })
-  return parseChatResourcesResponse(data)
-}
-
-export function useAddChatResource(chatId?: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: addChatResource,
-    onMutate: async ({ resource }) => {
-      if (!chatId) return
-      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-      const previous = queryClient.getQueryData<MothershipChatHistory>(
-        mothershipChatKeys.detail(chatId)
-      )
-      if (previous) {
-        const exists = previous.resources.some(
-          (r) => getChatResourceKey(r) === getChatResourceKey(resource)
-        )
-        if (!exists) {
-          queryClient.setQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId), {
-            ...previous,
-            resources: [...previous.resources, resource],
-          })
-        }
-      }
-      return { previous }
-    },
-    onError: (_err, _variables, context) => {
-      if (context?.previous && chatId) {
-        queryClient.setQueryData(mothershipChatKeys.detail(chatId), context.previous)
-      }
-    },
-    onSettled: () => {
-      if (chatId) {
-        queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-      }
-    },
-  })
-}
-
-async function reorderChatResources(params: {
-  chatId: string
-  resources: MothershipResource[]
-}): Promise<{ resources: MothershipResource[] }> {
-  const data = await requestJson(reorderMothershipChatResourcesContract, {
-    body: { chatId: params.chatId, resources: params.resources },
-  })
-  return parseChatResourcesResponse(data)
-}
-
-export function useReorderChatResources(chatId?: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: reorderChatResources,
-    onMutate: async ({ resources }) => {
-      if (!chatId) return
-      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-      const previous = queryClient.getQueryData<MothershipChatHistory>(
-        mothershipChatKeys.detail(chatId)
-      )
-      if (previous) {
-        queryClient.setQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId), {
-          ...previous,
-          resources,
-        })
-      }
-      return { previous }
-    },
-    onError: (_err, _variables, context) => {
-      if (context?.previous && chatId) {
-        queryClient.setQueryData(mothershipChatKeys.detail(chatId), context.previous)
-      }
-    },
-    onSettled: () => {
-      if (chatId) {
-        queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-      }
-    },
-  })
-}
-
-async function removeChatResource(params: {
-  chatId: string
-  resourceType: MothershipResource['type']
-  resourceId: string
-  workspaceId?: string
-}): Promise<{ resources: MothershipResource[] }> {
-  const data = await requestJson(removeMothershipChatResourceContract, {
-    body: params,
-  })
-  return parseChatResourcesResponse(data)
-}
-
-export function useRemoveChatResource(chatId?: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: removeChatResource,
-    onMutate: async ({ resourceType, resourceId, workspaceId }) => {
-      if (!chatId) return
-      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-      const removed: MothershipChatHistory['resources'] = []
-      queryClient.setQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId), (prev) => {
-        if (!prev) return prev
-        const next: MothershipChatHistory['resources'] = []
-        for (const r of prev.resources) {
-          if (
-            getChatResourceKey(r) ===
-            getChatResourceKey({ type: resourceType, id: resourceId, workspaceId })
-          )
-            removed.push(r)
-          else next.push(r)
-        }
-        return removed.length > 0 ? { ...prev, resources: next } : prev
-      })
-      return { removed }
-    },
-    onError: (_err, _variables, context) => {
-      if (!chatId || !context?.removed.length) return
-      queryClient.setQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId), (prev) =>
-        prev ? { ...prev, resources: [...prev.resources, ...context.removed] } : prev
-      )
-    },
-    onSettled: () => {
-      if (chatId) {
-        queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-      }
     },
   })
 }
@@ -709,6 +626,70 @@ export function useSetMothershipChatPinned(owner?: MothershipChatOwner) {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerList(owner) })
+    },
+  })
+}
+
+async function setChatEffort({
+  chatId,
+  effort,
+}: SetMothershipChatEffortBody & { chatId: string }): Promise<void> {
+  await requestJson(setMothershipChatEffortContract, {
+    params: { chatId },
+    body: { effort },
+  })
+}
+
+/**
+ * Records the effort the user picked for a chat. The pick shows and sends at once from the
+ * session's pick map; saves for one chat run one at a time so the last pick is the one stored.
+ */
+export function useSetMothershipChatEffort(chatId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation(chatEffortMutationOptions(queryClient, chatId))
+}
+
+/**
+ * Saves a pick for a chat learned outside render, such as the chat a send just opened. It
+ * shares the hook's per-chat scope, so it lands in order with picks made in the composer.
+ */
+export function saveMothershipChatEffort(
+  queryClient: QueryClient,
+  chatId: string,
+  effort: MothershipEffort
+): void {
+  const observer = new MutationObserver(queryClient, chatEffortMutationOptions(queryClient, chatId))
+  // Detaching once the save settles lets the mutation cache collect it.
+  observer
+    .mutate(effort)
+    .catch(() => undefined)
+    .finally(() => observer.reset())
+}
+
+function chatEffortMutationOptions(queryClient: QueryClient, chatId: string | undefined) {
+  return mutationOptions({
+    mutationFn: (effort: MothershipEffort) => {
+      if (!chatId) throw new Error('A chat effort needs a chat')
+      return setChatEffort({ chatId, effort })
+    },
+    scope: { id: `mothership-chat-effort:${chatId ?? ''}` },
+    // Runs at once even while an earlier save for this chat holds the scope, so a failed
+    // save rolls back its own pick by token, never a later pick of the same value.
+    onMutate: (effort) => {
+      if (!chatId) return undefined
+      return { pick: useMothershipEffortStore.getState().setChatEffort(chatId, effort) }
+    },
+    onError: (_error, _effort, context) => {
+      if (!chatId || !context) return
+      if (useMothershipEffortStore.getState().dropChatEffort(chatId, context.pick)) {
+        toast.error("Couldn't change reasoning effort")
+      }
+    },
+    onSuccess: (_data, effort) => {
+      queryClient.setQueryData<MothershipChatHistory>(
+        mothershipChatKeys.detail(chatId),
+        (current) => current && { ...current, effort }
+      )
     },
   })
 }

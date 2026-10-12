@@ -2,7 +2,6 @@ import { omit } from '@sim/utils/object'
 import { DubIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { DubResponse } from '@/tools/dub/types'
 
 const GET_LINK_FIELD = ['linkId', 'getLinkExternalId', 'getLinkKey'] as const
 const BULK_UPDATE_TARGET_FIELD = ['bulkUpdateLinkIds', 'bulkUpdateExternalIds'] as const
@@ -1280,7 +1279,7 @@ export const DubBlock = {
       condition: { field: 'operation', value: 'create_tag' },
     },
   },
-} satisfies BlockConfig<DubResponse>
+} satisfies BlockConfig
 
 export const DubV2Block: BlockConfig = {
   ...DubBlock,

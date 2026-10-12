@@ -12,9 +12,15 @@ interface ConsoleEntryLike {
   [key: string]: unknown
 }
 
+const EMPTY_ENTRIES: ConsoleEntryLike[] = []
+
 const entriesByWorkflow: Record<string, ConsoleEntryLike[]> = {}
 
 const mockGetWorkflowEntries = vi.fn((workflowId: string) => entriesByWorkflow[workflowId] ?? [])
+
+const mockUseWorkflowConsoleEntries = vi.fn((workflowId?: string) =>
+  workflowId ? (entriesByWorkflow[workflowId] ?? EMPTY_ENTRIES) : EMPTY_ENTRIES
+)
 
 const mockAddConsole = vi.fn((entry: ConsoleEntryLike) => {
   const stored = { ...entry, id: entry.id ?? `mock-${generateRandomString(16)}` }
@@ -54,6 +60,7 @@ const mockWaitForConsoleHydration = vi.fn(async () => undefined)
 export function resetTerminalConsoleMock(): void {
   for (const key of Object.keys(entriesByWorkflow)) delete entriesByWorkflow[key]
   mockGetWorkflowEntries.mockClear()
+  mockUseWorkflowConsoleEntries.mockClear()
   mockAddConsole.mockClear()
   mockUpdateConsole.mockClear()
   mockCancelRunningEntries.mockClear()
@@ -93,6 +100,7 @@ const mockUseTerminalConsoleStore = Object.assign(
  */
 export const terminalConsoleMockFns = {
   mockGetWorkflowEntries,
+  mockUseWorkflowConsoleEntries,
   mockAddConsole,
   mockUpdateConsole,
   mockCancelRunningEntries,
@@ -120,6 +128,7 @@ export const terminalConsoleMockFns = {
  */
 export const terminalConsoleMock = {
   useTerminalConsoleStore: mockUseTerminalConsoleStore,
+  useWorkflowConsoleEntries: mockUseWorkflowConsoleEntries,
   consolePersistence: mockConsolePersistence,
   loadExecutionPointer: mockLoadExecutionPointer,
   saveExecutionPointer: mockSaveExecutionPointer,

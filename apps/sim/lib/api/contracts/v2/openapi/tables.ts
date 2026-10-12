@@ -87,7 +87,6 @@ const VIEW_ID = 'view_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07'
 const GROUP_ID = 'grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204'
 const IMPORT_ID = 'imp_4f6a8c0e2b1d43759a7c9e1f3b5d7082'
 const EXPORT_ID = 'exp_3e5f7a9c1b2d4068a0c2e4f6b8d0f193'
-const DISPATCH_ID = 'dsp_9a1c3e5f7b2d40689c4e6a8b0d2f4173'
 
 /**
  * Only for operations that genuinely reach a `lib/table/mutation-locks` assert

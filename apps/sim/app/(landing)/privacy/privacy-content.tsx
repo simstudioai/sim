@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { type LegalPageConfig, ProseLink } from '@/app/(landing)/components/prose-page'
 
 const INLINE_PATTERN =
@@ -48,7 +49,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
     {
       kind: 'paragraph',
       content: richText(
-        'This Privacy Policy describes how Sim ("we", "us", "our", or "the Service") collects, uses, discloses, and protects personal data, including data obtained from Google APIs (including Google Workspace APIs), and your rights and controls regarding that data. This Privacy Policy is provided for transparency and information purposes only, including to satisfy the information obligations in Articles 13 and 14 of the General Data Protection Regulation ("GDPR"). It does not create contractual obligations on you. Your use of the Service is governed by the [Terms of Service](https://sim.ai/terms).'
+        `This Privacy Policy describes how Sim ("we", "us", "our", or "the Service") collects, uses, discloses, and protects personal data, including data obtained from Google APIs (including Google Workspace APIs), and your rights and controls regarding that data. This Privacy Policy is provided for transparency and information purposes only, including to satisfy the information obligations in Articles 13 and 14 of the General Data Protection Regulation ("GDPR"). It does not create contractual obligations on you. Your use of the Service is governed by the [Terms of Service](${SITE_URL}/terms).`
       ),
     },
   ],
@@ -199,7 +200,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'The [Cookie Policy](https://sim.ai/cookie-policy) lists the Cookies set by Sim and its providers, their purposes, lifetimes, providers, and the methods for changing or withdrawing a choice.'
+            `The [Cookie Policy](${SITE_URL}/cookie-policy) lists the Cookies set by Sim and its providers, their purposes, lifetimes, providers, and the methods for changing or withdrawing a choice.`
           ),
         },
       ],
@@ -582,7 +583,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'You may change or withdraw consent at any time through the cookie preferences link. If Your browser or extension sends a Global Privacy Control signal, we treat it as a withdrawal of consent for analytics and marketing Cookies. The [Cookie Policy](https://sim.ai/cookie-policy) explains the technologies, providers, purposes, lifetimes, and available controls.'
+            `You may change or withdraw consent at any time through the cookie preferences link. If Your browser or extension sends a Global Privacy Control signal, we treat it as a withdrawal of consent for analytics and marketing Cookies. The [Cookie Policy](${SITE_URL}/cookie-policy) explains the technologies, providers, purposes, lifetimes, and available controls.`
           ),
         },
         {

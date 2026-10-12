@@ -1,14 +1,8 @@
 import { AppConfigIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type {
-  AppConfigGetConfigurationResponse,
-  AppConfigListApplicationsResponse,
-} from '@/tools/appconfig/types'
 
-export const AppConfigBlock: BlockConfig<
-  AppConfigListApplicationsResponse | AppConfigGetConfigurationResponse
-> = {
+export const AppConfigBlock: BlockConfig = {
   type: 'appconfig',
   name: 'AWS AppConfig',
   description: 'Manage and retrieve configuration with AWS AppConfig',

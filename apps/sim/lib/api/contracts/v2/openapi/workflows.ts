@@ -34,6 +34,7 @@ import {
   v2ApplyWorkflowOperationsContract,
   v2ApplyWorkflowVariablesContract,
   v2CancelWorkflowRunContract,
+  v2CompareWorkflowVersionsContract,
   v2CreateWorkflowContract,
   v2CreateWorkflowFolderContract,
   v2DeleteWorkflowContract,
@@ -138,9 +139,6 @@ const WORKFLOW_VERSION_EXAMPLE = {
  */
 const WORKFLOW_DEPLOYMENT_VS_CHAT =
   '`/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat.'
-
-const CHAT_VS_WORKFLOW_DEPLOYMENT =
-  '`/workflows/{workflowId}/deployment` controls API execution; this singleton path controls hosted chat. `PUT` creates or replaces it without a chat-id path.'
 
 const CHAT_DEPLOYMENT_EXAMPLE = {
   id: 'chat_01J8ZK3QW4M6X2R9T7B5C0V2',
@@ -623,6 +621,55 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2CompareWorkflowVersionsContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.compareVersions,
+      operationId: 'compareWorkflowVersionsV2',
+      summary: 'Compare Workflow Versions',
+      description:
+        'Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. Connections include stable block and port identifiers. The combined snapshots and the comparison result must each fit within 16 MiB.',
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: jsonSuccess('Changes from the base deployment to the target deployment.'),
+    }),
+    {
+      params: v2CompareWorkflowVersionsContract.params,
+      query: v2CompareWorkflowVersionsContract.query,
+      response: documentedSchema(
+        v2CompareWorkflowVersionsContract.response.schema,
+        'WorkflowVersionComparisonResponse',
+        'Workflow version comparison response',
+        'Changes from base to target, with credential values withheld.',
+        [
+          {
+            data: {
+              workflowId: WORKFLOW_ID,
+              base: 1,
+              target: 2,
+              diff: {
+                addedBlocks: [],
+                removedBlocks: [],
+                modifiedBlocks: [],
+                edgeChanges: { added: 0, removed: 0, addedDetails: [], removedDetails: [] },
+                loopChanges: { added: 0, removed: 0, modified: 0 },
+                parallelChanges: { added: 0, removed: 0, modified: 0 },
+                containerChanges: [],
+                variableChanges: {
+                  added: 0,
+                  removed: 0,
+                  modified: 0,
+                  addedNames: [],
+                  removedNames: [],
+                  modifiedNames: [],
+                },
+                hasChanges: false,
+              },
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2GetWorkflowVersionContract,
     workflowOperation({
       applicationOperation: workflowOperations.readVersion,
@@ -843,7 +890,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.deploy,
       operationId: 'deployWorkflow',
       summary: 'Deploy Workflow',
-      description: `Create and asynchronously activate a deployment version. Every call creates a new version; retrying after a timeout can create a duplicate. Read Get Workflow Deployment to check activation. A conflicting webhook path returns \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create and asynchronously activate a deployment version. Every call creates a new version; retrying after a timeout can create a duplicate. Read Get Workflow Deployment to check activation. \`lint\` reports advisory findings for the published version; they never block the deploy. A conflicting webhook path returns \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted deployment attempt.'),
     }),
@@ -877,6 +924,7 @@ const declaredRoutes = [
                 error: null,
               },
               version: 3,
+              lint: EMPTY_LINT_EXAMPLE,
             },
           },
         ]

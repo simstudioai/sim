@@ -3,19 +3,15 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, organization, user, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
-import { VECTOR_PROBE_DOCUMENT_LIMIT } from '@/lib/knowledge/search/candidates'
 import { retrieveKnowledgeSearch } from '@/lib/knowledge/search/queries'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
-import { resolveSearchAccessPlan } from '@/lib/sim-search/indexed/retrieval/access-plan'
-import { resolvePermittedDocuments } from '@/lib/sim-search/indexed/retrieval/permitted'
-import { forgetProjectionFilled } from '@/lib/sim-search/indexed/retrieval/projection-fill'
 
 describe('API-key KB block fan-out', () => {
   const ids = createKnowledgeAclFixtureIds()
@@ -92,8 +88,6 @@ describe('API-key KB block fan-out', () => {
   it.each([false, true])(
     'completes 18 concurrent KB searches with access checks intact (tag filter: %s)',
     async (withTags) => {
-      /** A cold process must also skip the global readiness probe for ordinary KBs. */
-      forgetProjectionFilled()
       const previousDebug = db.$client.options.debug
       const statements: string[] = []
       db.$client.options.debug = (_connection, query) => {
@@ -159,37 +153,4 @@ describe('API-key KB block fan-out', () => {
       }
     }
   )
-
-  it('bounds the permitted set by the requested bases, not by what the tokens reach elsewhere', async () => {
-    const crowded = generateId()
-    await db.insert(knowledgeBase).values({
-      id: crowded,
-      userId: ids.aliceId,
-      workspaceId: ids.workspaceId,
-      name: 'Crowded neighbour',
-    })
-    try {
-      /** Baseline tokens are shared by every tenant, so another base can hold more than the limit. */
-      await db.execute(sql`
-        INSERT INTO ${document} (id, knowledge_base_id, filename, file_url, file_size, mime_type,
-          processing_status, acl)
-        SELECT 'crowded-' || n, ${crowded}, 'crowded', 'https://fixture.invalid/crowded', 1,
-          'text/plain', 'completed', ARRAY['ws']::text[]
-        FROM generate_series(1, ${VECTOR_PROBE_DOCUMENT_LIMIT + 1}) AS n
-      `)
-      const access = { kind: 'user' as const, userId: ids.bobId, tokens: ['pub', 'ws'] }
-      const permitted = await resolvePermittedDocuments({
-        knowledgeBaseIds: [bases[0].id],
-        access,
-        accessPlan: await resolveSearchAccessPlan([bases[0].id], access),
-        filtered: false,
-      })
-      expect(permitted).toEqual({
-        kind: 'bounded',
-        documents: [{ id: bases[0].visible, connectorId: null }],
-      })
-    } finally {
-      await db.delete(knowledgeBase).where(eq(knowledgeBase.id, crowded))
-    }
-  })
 })

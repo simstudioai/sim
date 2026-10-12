@@ -109,7 +109,7 @@ export const kalshiGetFillsTool: ToolConfig<KalshiGetFillsParams, KalshiGetFills
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_fills')
+      handleKalshiError(data, 'get_fills')
     }
 
     const fills = data.fills || []
@@ -271,7 +271,7 @@ export const kalshiGetFillsV2Tool: ToolConfig<KalshiGetFillsV2Params, KalshiGetF
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_fills_v2')
+      handleKalshiError(data, 'get_fills_v2')
     }
 
     const fills = (data.fills || []).map((f: Record<string, unknown>) => ({

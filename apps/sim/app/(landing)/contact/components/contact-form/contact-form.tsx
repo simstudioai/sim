@@ -231,7 +231,7 @@ export function ContactForm() {
       >
         <div
           aria-hidden='true'
-          className='pointer-events-none absolute left-[-9999px] h-px w-px overflow-hidden opacity-0'
+          className='pointer-events-none absolute left-[-9999px] size-px overflow-hidden opacity-0'
         >
           <label htmlFor='contact-website'>Website</label>
           <input

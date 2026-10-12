@@ -2,7 +2,6 @@ import { BrexIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { BrexResponse } from '@/tools/brex/types'
 
 /** Coerces a required money-amount field to a finite number, throwing on blank/non-numeric input rather than silently sending 0 or NaN to Brex. */
 function toRequiredAmount(value: unknown, fieldLabel: string): number {
@@ -58,7 +57,7 @@ const PAGINATED_OPERATIONS = new Set([
  */
 const RECEIPT_FILE_FIELD = ['uploadReceiptFile', 'receiptFileReference'] as const
 
-export const BrexBlock: BlockConfig<BrexResponse> = {
+export const BrexBlock: BlockConfig = {
   type: 'brex',
   name: 'Brex',
   description: 'Manage expenses, receipts, transactions, and team data in Brex',

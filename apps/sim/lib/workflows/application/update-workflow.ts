@@ -13,12 +13,9 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import {
-  type ActiveWorkflowApplicationContext,
-  resolveActiveWorkflowApplicationContext,
-} from '@/lib/workflows/application/context'
+import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import {
   resolveWorkflowFolderPath,
@@ -62,19 +59,6 @@ interface WorkflowUpdateResult {
     runCount: number
     lastRunAt: Date | null
   }
-}
-
-function resolveWorkflowUpdateContext({
-  principal,
-  input,
-}: {
-  principal: Principal
-  input: UpdateWorkflowInput
-}) {
-  return resolveActiveWorkflowApplicationContext({
-    workflowId: input.workflowId,
-    assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-  })
 }
 
 async function requireMutableWorkflowUpdate(
@@ -262,7 +246,7 @@ async function notifyAfterWorkflowUpdate(args: {
 
 export const updateWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.update,
-  resolveContext: resolveWorkflowUpdateContext,
+  resolveContext: resolvePrincipalWorkflowContext<UpdateWorkflowInput>,
   execute: executeWorkflowUpdate,
   projectAudit: projectWorkflowUpdateAudit,
   afterSuccess: notifyAfterWorkflowUpdate,
@@ -270,7 +254,7 @@ export const updateWorkflow = defineAuthorizedWorkflowUseCase({
 
 export const updateWorkflowPolicy = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.updatePolicy,
-  resolveContext: resolveWorkflowUpdateContext,
+  resolveContext: resolvePrincipalWorkflowContext<UpdateWorkflowInput>,
   execute: executeWorkflowUpdate,
   projectAudit: projectWorkflowUpdateAudit,
   afterSuccess: notifyAfterWorkflowUpdate,

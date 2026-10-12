@@ -94,7 +94,7 @@ export const LogRocketBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Request Highlights fields ---
+    // Request Highlights fields
     {
       id: 'highlightsUserEmail',
       title: 'User Email',
@@ -153,7 +153,7 @@ export const LogRocketBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Get Highlights fields ---
+    // Get Highlights fields
     {
       id: 'highlightsRequestId',
       title: 'Request ID',
@@ -163,7 +163,7 @@ export const LogRocketBlock: BlockConfig = {
       condition: { field: 'operation', value: 'get_highlights' },
     },
 
-    // --- List Exported Sessions fields ---
+    // List Exported Sessions fields
     {
       id: 'exportLimit',
       title: 'Limit',
@@ -195,7 +195,7 @@ export const LogRocketBlock: BlockConfig = {
       },
     },
 
-    // --- Get Audit Logs fields ---
+    // Get Audit Logs fields
     {
       id: 'auditLimit',
       title: 'Limit',
@@ -213,7 +213,7 @@ export const LogRocketBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Identify User fields ---
+    // Identify User fields
     {
       id: 'profileUserId',
       title: 'User ID',
@@ -264,7 +264,7 @@ export const LogRocketBlock: BlockConfig = {
       },
     },
 
-    // --- Create Release fields ---
+    // Create Release fields
     {
       id: 'version',
       title: 'Version',

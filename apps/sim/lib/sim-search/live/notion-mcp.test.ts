@@ -153,6 +153,16 @@ describe('Notion live MCP boundary', () => {
     expect(page.partial).toBe(true)
   })
 
+  it('keeps AI search coverage partial when the result omits its search type', async () => {
+    const client: ManagedSearchMcpClient = {
+      call: async (name) =>
+        name === 'notion-get-tool-access'
+          ? { current_tool_access: { ai_search: { status: 'available' } } }
+          : { results: [result] },
+    }
+    expect(await searchNotionMcp(client, input)).toMatchObject({ partial: true })
+  })
+
   it('uses keyword search when AI access needs an upgrade without inventing unknown timestamps', async () => {
     const client: ManagedSearchMcpClient = {
       call: async (name) => {

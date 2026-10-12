@@ -116,7 +116,7 @@ export async function attachLargeFileRemoteUrls(
         )
       }
       context = resolveTrustedFileContext(file.key, file.context)
-      const hasAccess = await verifyFileAccess(file.key, request.userId, undefined, context, false)
+      const hasAccess = await verifyFileAccess(file.key, request.userId, undefined, context)
       if (!hasAccess) {
         throw new Error(`File "${file.name}" is not accessible for provider "${providerId}"`)
       }
@@ -188,7 +188,7 @@ async function assertFileAccessForUpload(
     throw new Error(`File "${file.name}" requires an authenticated user to upload`)
   }
   const context = resolveTrustedFileContext(file.key, file.context)
-  const hasAccess = await verifyFileAccess(file.key, userId, undefined, context, false)
+  const hasAccess = await verifyFileAccess(file.key, userId, undefined, context)
   if (!hasAccess) {
     throw new Error(`File "${file.name}" is not accessible`)
   }

@@ -2,7 +2,7 @@ import type { RawFileInput } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
-export type TextractProcessingMode = 'sync' | 'async'
+type TextractProcessingMode = 'sync' | 'async'
 
 export interface TextractParserInput {
   accessKeyId: string
@@ -28,7 +28,7 @@ export interface TextractParserV2Input {
   queries?: TextractQuery[]
 }
 
-export type TextractFeatureType = 'TABLES' | 'FORMS' | 'QUERIES' | 'SIGNATURES' | 'LAYOUT'
+type TextractFeatureType = 'TABLES' | 'FORMS' | 'QUERIES' | 'SIGNATURES' | 'LAYOUT'
 
 interface TextractQuery {
   Text: string
@@ -95,16 +95,6 @@ export interface TextractParserOutput extends ToolResponse {
   output: TextractNormalizedOutput
 }
 
-export interface TextractAnalyzeExpenseInput {
-  accessKeyId: string
-  secretAccessKey: string
-  region: string
-  processingMode?: TextractProcessingMode
-  filePath?: string
-  file?: RawFileInput
-  s3Uri?: string
-}
-
 export interface TextractAnalyzeExpenseV2Input {
   accessKeyId: string
   secretAccessKey: string
@@ -155,16 +145,6 @@ export interface TextractAnalyzeExpenseOutput extends ToolResponse {
     documentMetadata: TextractDocumentMetadata
     modelVersion?: string
   }
-}
-
-export interface TextractAnalyzeIdInput {
-  accessKeyId: string
-  secretAccessKey: string
-  region: string
-  filePath?: string
-  file?: RawFileInput
-  filePathBack?: string
-  fileBack?: RawFileInput
 }
 
 export interface TextractAnalyzeIdV2Input {

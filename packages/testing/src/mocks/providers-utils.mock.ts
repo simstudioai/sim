@@ -40,7 +40,7 @@ interface MockForcedToolUsage {
  * - `trackForcedToolUsage` / `checkForForcedToolUsageOpenAI` → nothing forced, used list unchanged;
  * - `enforceStrictSchema` and `filterBlacklistedModels` are identity; `isProviderBlacklisted`,
  *   `shouldBillModelUsage` and every `supports*`/`is*Model` capability check → `false`;
- * - `getProviderFromModel` → `'openai'`, `findProviderFromModel` → `null`;
+ * - `getProviderFromModel` → `'openai'`;
  * - `generateSchemaInstructions` → `'SCHEMA_INSTRUCTIONS'`;
  * - `getApiKey` returns the user key, else the real `PROVIDER_PLACEHOLDER_KEY`;
  * - the `MODELS_WITH_*` catalog constants are empty arrays and `providers` is `{}`.
@@ -63,14 +63,11 @@ export const providersUtilsMockFns = {
   mockUpdateTogetherProviderModels: vi.fn(async (_models: string[]): Promise<void> => {}),
   mockUpdateBasetenProviderModels: vi.fn(async (_models: string[]): Promise<void> => {}),
   mockGetBaseModelProviders: vi.fn((): Record<string, string> => ({})),
-  mockFindProviderFromModel: vi.fn((_model: string): string | null => null),
   mockGetProviderFromModel: vi.fn((_model: string): string => 'openai'),
   mockGetProvider: vi.fn((_id: string): unknown => undefined),
   mockGetAllProviderIds: vi.fn((): string[] => []),
-  mockGetProviderModels: vi.fn((_providerId: string): string[] => []),
   mockIsProviderBlacklisted: vi.fn((_providerId: string): boolean => false),
   mockFilterBlacklistedModels: vi.fn((models: string[]): string[] => models),
-  mockGetProviderIcon: vi.fn((_model: string): unknown => null),
   mockGenerateSchemaInstructions: vi.fn(
     (_schema: unknown, _schemaName?: string): string => 'SCHEMA_INSTRUCTIONS'
   ),
@@ -93,7 +90,6 @@ export const providersUtilsMockFns = {
   }),
   mockGetModelPricing: vi.fn((_modelId: string): unknown => null),
   mockFormatCost: vi.fn((_cost: number): string => '—'),
-  mockGetHostedModels: vi.fn((): string[] => []),
   mockShouldBillModelUsage: vi.fn((_model: string): boolean => false),
   mockGetApiKey: vi.fn(
     (_provider: string, _model: string, userProvidedKey?: string): string =>
@@ -124,7 +120,6 @@ export const providersUtilsMockFns = {
       usedForcedTools: string[] = []
     ): MockForcedToolUsage => ({ hasUsedForcedTool: false, usedForcedTools })
   ),
-  mockSupportsTemperature: vi.fn((_model: string): boolean => false),
   mockDescribeModelLevel: vi.fn((value: string | undefined): string => value || '(unset)'),
   mockSupportsReasoningEffort: vi.fn((_model: string): boolean => false),
   mockSupportsVerbosity: vi.fn((_model: string): boolean => false),
@@ -132,12 +127,6 @@ export const providersUtilsMockFns = {
   mockSupportsPromptCaching: vi.fn((_model: string): boolean => false),
   mockIsDeepResearchModel: vi.fn((_model: string): boolean => false),
   mockIsGemini3Model: vi.fn((_model: string): boolean => false),
-  mockGetMaxTemperature: vi.fn((_model: string): number | undefined => undefined),
-  mockSupportsToolUsageControl: vi.fn((_provider: string): boolean => false),
-  mockGetReasoningEffortValuesForModel: vi.fn((_model: string): string[] | null => null),
-  mockGetVerbosityValuesForModel: vi.fn((_model: string): string[] | null => null),
-  mockGetThinkingLevelsForModel: vi.fn((_model: string): string[] | null => null),
-  mockGetMaxOutputTokensForModel: vi.fn((_model: string): number => 4096),
   mockPrepareToolExecution: vi.fn(
     (
       _tool: unknown,
@@ -186,14 +175,11 @@ export const providersUtilsMock = {
   updateTogetherProviderModels: providersUtilsMockFns.mockUpdateTogetherProviderModels,
   updateBasetenProviderModels: providersUtilsMockFns.mockUpdateBasetenProviderModels,
   getBaseModelProviders: providersUtilsMockFns.mockGetBaseModelProviders,
-  findProviderFromModel: providersUtilsMockFns.mockFindProviderFromModel,
   getProviderFromModel: providersUtilsMockFns.mockGetProviderFromModel,
   getProvider: providersUtilsMockFns.mockGetProvider,
   getAllProviderIds: providersUtilsMockFns.mockGetAllProviderIds,
-  getProviderModels: providersUtilsMockFns.mockGetProviderModels,
   isProviderBlacklisted: providersUtilsMockFns.mockIsProviderBlacklisted,
   filterBlacklistedModels: providersUtilsMockFns.mockFilterBlacklistedModels,
-  getProviderIcon: providersUtilsMockFns.mockGetProviderIcon,
   generateSchemaInstructions: providersUtilsMockFns.mockGenerateSchemaInstructions,
   generateStructuredOutputInstructions:
     providersUtilsMockFns.mockGenerateStructuredOutputInstructions,
@@ -205,13 +191,11 @@ export const providersUtilsMock = {
   sumToolCosts: providersUtilsMockFns.mockSumToolCosts,
   getModelPricing: providersUtilsMockFns.mockGetModelPricing,
   formatCost: providersUtilsMockFns.mockFormatCost,
-  getHostedModels: providersUtilsMockFns.mockGetHostedModels,
   shouldBillModelUsage: providersUtilsMockFns.mockShouldBillModelUsage,
   getApiKey: providersUtilsMockFns.mockGetApiKey,
   prepareToolsWithUsageControl: providersUtilsMockFns.mockPrepareToolsWithUsageControl,
   isFunctionToolCall: providersUtilsMockFns.mockIsFunctionToolCall,
   trackForcedToolUsage: providersUtilsMockFns.mockTrackForcedToolUsage,
-  supportsTemperature: providersUtilsMockFns.mockSupportsTemperature,
   describeModelLevel: providersUtilsMockFns.mockDescribeModelLevel,
   supportsReasoningEffort: providersUtilsMockFns.mockSupportsReasoningEffort,
   supportsVerbosity: providersUtilsMockFns.mockSupportsVerbosity,
@@ -219,12 +203,6 @@ export const providersUtilsMock = {
   supportsPromptCaching: providersUtilsMockFns.mockSupportsPromptCaching,
   isDeepResearchModel: providersUtilsMockFns.mockIsDeepResearchModel,
   isGemini3Model: providersUtilsMockFns.mockIsGemini3Model,
-  getMaxTemperature: providersUtilsMockFns.mockGetMaxTemperature,
-  supportsToolUsageControl: providersUtilsMockFns.mockSupportsToolUsageControl,
-  getReasoningEffortValuesForModel: providersUtilsMockFns.mockGetReasoningEffortValuesForModel,
-  getVerbosityValuesForModel: providersUtilsMockFns.mockGetVerbosityValuesForModel,
-  getThinkingLevelsForModel: providersUtilsMockFns.mockGetThinkingLevelsForModel,
-  getMaxOutputTokensForModel: providersUtilsMockFns.mockGetMaxOutputTokensForModel,
   prepareToolExecution: providersUtilsMockFns.mockPrepareToolExecution,
   checkForForcedToolUsageOpenAI: providersUtilsMockFns.mockCheckForForcedToolUsageOpenAI,
 }

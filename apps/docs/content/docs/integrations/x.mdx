@@ -827,4 +827,31 @@ Get the API usage data for your X project
 |     ↳ `date` | string | Usage date in ISO 8601 format |
 |     ↳ `usage` | number | Number of tweets consumed |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a X account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/x` |
+| Environment variables | `X_CLIENT_ID`, `X_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `tweet.read` | Read tweets and timeline |
+| `tweet.write` | Post, repost, and delete tweets |
+| `tweet.moderate.write` | Hide and unhide replies to tweets |
+| `users.read` | Read user profiles and account information |
+| `follows.read` | View followers and following lists |
+| `follows.write` | Follow and unfollow users |
+| `bookmark.read` | View bookmarked tweets |
+| `bookmark.write` | Add and remove bookmarks |
+| `like.read` | View liked tweets and liking users |
+| `like.write` | Like and unlike tweets |
+| `block.read` | View blocked users |
+| `block.write` | Block and unblock users |
+| `mute.read` | View muted users |
+| `mute.write` | Mute and unmute users |
+| `offline.access` | Access account when not using the application |
+
 

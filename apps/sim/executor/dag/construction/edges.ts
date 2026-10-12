@@ -10,12 +10,12 @@ import {
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import {
   buildBranchNodeId,
+  buildLoopSentinelEndId,
+  buildLoopSentinelStartId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-  buildSentinelEndId,
-  buildSentinelStartId,
   normalizeNodeId,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('EdgeConstructor')
@@ -239,8 +239,8 @@ export class EdgeConstructor {
       }
 
       if (sourceIsLoopBlock) {
-        const sentinelEndId = buildSentinelEndId(originalSource)
-        const loopSentinelStartId = buildSentinelStartId(originalSource)
+        const sentinelEndId = buildLoopSentinelEndId(originalSource)
+        const loopSentinelStartId = buildLoopSentinelStartId(originalSource)
         if (!dag.nodes.has(sentinelEndId) || !dag.nodes.has(loopSentinelStartId)) {
           continue
         }
@@ -250,7 +250,7 @@ export class EdgeConstructor {
       }
 
       if (targetIsLoopBlock) {
-        const sentinelStartId = buildSentinelStartId(target)
+        const sentinelStartId = buildLoopSentinelStartId(target)
         if (!dag.nodes.has(sentinelStartId)) {
           continue
         }
@@ -315,8 +315,8 @@ export class EdgeConstructor {
 
       if (nodes.length === 0) continue
 
-      const sentinelStartId = buildSentinelStartId(loopId)
-      const sentinelEndId = buildSentinelEndId(loopId)
+      const sentinelStartId = buildLoopSentinelStartId(loopId)
+      const sentinelEndId = buildLoopSentinelEndId(loopId)
 
       if (!dag.nodes.has(sentinelStartId) || !dag.nodes.has(sentinelEndId)) {
         continue
@@ -405,7 +405,7 @@ export class EdgeConstructor {
       return buildParallelSentinelStartId(nodeId)
     }
     if (dag.loopConfigs.has(nodeId)) {
-      return buildSentinelStartId(nodeId)
+      return buildLoopSentinelStartId(nodeId)
     }
     return buildBranchNodeId(nodeId, 0)
   }
@@ -420,7 +420,7 @@ export class EdgeConstructor {
       return buildParallelSentinelEndId(nodeId)
     }
     if (dag.loopConfigs.has(nodeId)) {
-      return buildSentinelEndId(nodeId)
+      return buildLoopSentinelEndId(nodeId)
     }
     return buildBranchNodeId(nodeId, 0)
   }
@@ -518,7 +518,7 @@ export class EdgeConstructor {
   ): { resolvedId: string; node: DAGNode | undefined } {
     if (dag.loopConfigs.has(nodeId)) {
       const resolvedId =
-        sentinel === 'start' ? buildSentinelStartId(nodeId) : buildSentinelEndId(nodeId)
+        sentinel === 'start' ? buildLoopSentinelStartId(nodeId) : buildLoopSentinelEndId(nodeId)
       return { resolvedId, node: dag.nodes.get(resolvedId) }
     }
     if (dag.parallelConfigs.has(nodeId)) {
@@ -547,8 +547,8 @@ export class EdgeConstructor {
     const effective = new Set<string>()
     for (const nodeId of nodes) {
       if (dag.loopConfigs.has(nodeId)) {
-        effective.add(buildSentinelStartId(nodeId))
-        effective.add(buildSentinelEndId(nodeId))
+        effective.add(buildLoopSentinelStartId(nodeId))
+        effective.add(buildLoopSentinelEndId(nodeId))
       } else if (dag.parallelConfigs.has(nodeId)) {
         effective.add(buildParallelSentinelStartId(nodeId))
         effective.add(buildParallelSentinelEndId(nodeId))
@@ -679,8 +679,8 @@ export class EdgeConstructor {
     }
     if (dag.loopConfigs.has(nodeId)) {
       return {
-        startNode: dag.nodes.get(buildSentinelStartId(nodeId)),
-        endNode: dag.nodes.get(buildSentinelEndId(nodeId)),
+        startNode: dag.nodes.get(buildLoopSentinelStartId(nodeId)),
+        endNode: dag.nodes.get(buildLoopSentinelEndId(nodeId)),
       }
     }
     // Regular block — use branch template node for both
@@ -744,8 +744,8 @@ export class EdgeConstructor {
     }
 
     if (dag.loopConfigs.has(subflowId)) {
-      const sourceId = buildSentinelStartId(subflowId)
-      const targetId = buildSentinelEndId(subflowId)
+      const sourceId = buildLoopSentinelStartId(subflowId)
+      const targetId = buildLoopSentinelEndId(subflowId)
       if (dag.nodes.has(sourceId) && dag.nodes.has(targetId)) {
         this.addEdge(dag, sourceId, targetId, EDGE.LOOP_EXIT, undefined, {
           registerIncoming: false,

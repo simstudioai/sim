@@ -10,6 +10,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -105,19 +106,11 @@ import type {
   KnowledgeOperationSource,
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
-import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
-import { escapeLikePattern } from '@/lib/knowledge/tags/utils'
 import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
 import { ServiceAccountTokenError } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
-import {
-  canConnectPersonally,
-  personalSourceConfigFieldIds,
-  withSearchSourceDefaults,
-} from '@/lib/sim-search/connectors'
-import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { getConnectorMeta } from '@/connectors/registry'
 import type { ConnectorAuthConfig } from '@/connectors/types'
@@ -698,20 +691,17 @@ async function resolveConnectorApiKey(
   return value
 }
 
-async function executeCreateKnowledgeConnector(
-  {
-    principal,
-    input,
-    context,
-    request,
-  }: {
-    principal: Principal
-    input: CreateKnowledgeConnectorInput
-    context: ActiveKnowledgeResourceBaseContext
-    request?: OrchestrationRequestContext
-  },
-  approvedMemberSetup = false
-) {
+async function executeCreateKnowledgeConnector({
+  principal,
+  input,
+  context,
+  request,
+}: {
+  principal: Principal
+  input: CreateKnowledgeConnectorInput
+  context: ActiveKnowledgeResourceBaseContext
+  request?: OrchestrationRequestContext
+}) {
   const requestId = generateRequestId()
   const scope = resourceScopeFromOwner(context)
   const owner = resourceScopeFields(scope)
@@ -769,9 +759,7 @@ async function executeCreateKnowledgeConnector(
     if (!subjectUserId) {
       throw new OrchestrationError('forbidden', 'Permission-scoped access needs a signed-in admin')
     }
-    if (approvedMemberSetup && context.organizationId) {
-      await requireOrganizationSearchApproval(context.organizationId, input.connectorType)
-    } else if (context.organizationId)
+    if (context.organizationId)
       await requireOrganizationMembership(
         principal,
         context.organizationId,
@@ -895,76 +883,6 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
             syncIntervalMinutes: result.connector.syncIntervalMinutes,
             authMode: result.connector.credentialId ? 'oauth' : 'apiKey',
             accessMode: result.connector.accessMode,
-          },
-        },
-})
-
-/** Members may create only a personal-account source in an approved organization index. */
-export const createApprovedSearchSource = defineAuthorizedKnowledgeUseCase({
-  operation: knowledgeOperations.createApprovedSearchSource,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: {
-      knowledgeBaseId: string
-      assertedOrganizationId: string
-      connectorType: string
-      sourceConfig: Record<string, string>
-    }
-  }) => resolveActiveKnowledgeResourceContext(input, principal),
-  async execute({ principal, input, context, request }) {
-    const meta = getConnectorMeta(input.connectorType)
-    if (
-      !context.organizationId ||
-      !context.knowledgeBase.isSearchIndex ||
-      !meta ||
-      !canConnectPersonally(meta)
-    ) {
-      throw new OrchestrationError(
-        'forbidden',
-        'Only approved personal Search sources may be connected'
-      )
-    }
-    const allowedFields = personalSourceConfigFieldIds(meta)
-    if (Object.keys(input.sourceConfig).some((field) => !allowedFields.has(field))) {
-      throw new OrchestrationError(
-        'validation',
-        'Only the personal connection settings may be supplied'
-      )
-    }
-    return executeCreateKnowledgeConnector(
-      {
-        principal,
-        context,
-        request,
-        input: {
-          knowledgeBaseId: input.knowledgeBaseId,
-          assertedOrganizationId: input.assertedOrganizationId,
-          connectorType: input.connectorType,
-          sourceConfig: withSearchSourceDefaults(meta, input.sourceConfig),
-          accessMode: 'members',
-          syncIntervalMinutes: SIM_SEARCH_SYNC_INTERVAL_MINUTES,
-          reuseSearchSource: true,
-          source: 'ui',
-        },
-      },
-      true
-    )
-  },
-  projectAudit: ({ result, context }) =>
-    result.reused
-      ? []
-      : {
-          action: AuditAction.CONNECTOR_CREATED,
-          resourceType: AuditResourceType.CONNECTOR,
-          resourceId: result.connector.id,
-          resourceName: result.connector.connectorType,
-          metadata: {
-            knowledgeBaseId: context.knowledgeBaseId,
-            accessMode: 'members',
-            approvedMemberSetup: true,
           },
         },
 })
@@ -1371,6 +1289,9 @@ export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCas
     }
     const documentIds = [...new Set(input.documentIds)]
     const restoring = input.operation === 'restore'
+    if (restoring && !requiresConnectorIndexing(context.knowledgeBase.isSearchIndex)) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
+    }
     const updated = await db
       .update(document)
       .set({ userExcluded: !restoring, enabled: restoring })

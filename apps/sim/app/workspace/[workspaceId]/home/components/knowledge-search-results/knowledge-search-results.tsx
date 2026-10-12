@@ -6,9 +6,7 @@ import { useQueryStates } from 'nuqs'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/auth-client'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
-import { IndexedSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/indexed'
 import { SearchFilters } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/search-filters'
 import {
   groupResultsByDocument,
@@ -48,8 +46,7 @@ export function KnowledgeSearchResults({
   const scope: ResourceScope = suppliedScope ?? { kind: 'workspace', workspaceId: workspaceId! }
   const { data: session } = useSession()
   const trimmed = query.trim()
-  const { features } = useDeploymentShape()
-  const Results = features.liveEnterpriseSearch ? LiveSearchResults : IndexedSearchResults
+  const Results = LiveSearchResults
   return (
     <Results
       key={JSON.stringify([resourceScopeKey(scope), session?.user?.id, trimmed])}

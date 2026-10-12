@@ -10,7 +10,6 @@ import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streamin
 import { resetLocalToolIdCounterForTests } from '@/providers/tool-call-id'
 
 const mockCapture = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
-const mockRecordError = providersConversationHistoryMockFns.mockRecordProviderConversationToolError
 
 const mockExecuteTool = toolsMockFns.mockExecuteTool
 providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({

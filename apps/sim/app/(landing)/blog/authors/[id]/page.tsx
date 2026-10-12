@@ -6,6 +6,17 @@ import { ContentAuthorPage } from '@/app/(landing)/components'
 
 export const revalidate = 3600
 
+/**
+ * Unknown params must 404 before rendering: `notFound()` during render streams this segment's
+ * `loading.tsx` with a 200 status first.
+ */
+export const dynamicParams = false
+
+export async function generateStaticParams() {
+  const ids = new Set((await getAllPostMeta()).flatMap((p) => p.authors.map((a) => a.id)))
+  return [...ids].map((id) => ({ id }))
+}
+
 export async function generateMetadata({
   params,
 }: {

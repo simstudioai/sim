@@ -1,4 +1,5 @@
 import { document, embedding } from '@sim/db/schema'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { runSearchQuery } from '@/lib/knowledge/search/budget'
@@ -15,7 +16,6 @@ import {
 import {
   buildDateTagCondition,
   coerceTagFilterValue,
-  escapeLikePattern,
   uncompilableTagFilterError,
 } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'

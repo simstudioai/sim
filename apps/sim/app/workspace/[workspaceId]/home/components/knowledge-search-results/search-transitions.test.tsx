@@ -6,7 +6,6 @@ import {
   apiClientRequestMockFns,
 } from '@sim/testing/mocks/api-client-request.mock'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   kbConnectorsQueriesMock,
   kbConnectorsQueriesMockFns,
@@ -87,14 +86,6 @@ organizationProviderMockFns.mockUseOrganizationContext.mockImplementation(() => 
 kbConnectorsQueriesMockFns.mockUseSearchIndex.mockImplementation(() => ({
   data: { knowledgeBaseId: 'index' },
   isPending: false,
-}))
-kbConnectorsQueriesMockFns.mockUseSearchSourceOverview.mockImplementation(() => ({
-  data: {
-    providers: [
-      { connectorType: 'slack', isSyncing: false },
-      { connectorType: 'gmail', isSyncing: false },
-    ],
-  },
 }))
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
@@ -182,23 +173,6 @@ async function render({
   })
 }
 
-async function click(label: string) {
-  await act(async () => {
-    const trigger = container.querySelector<HTMLButtonElement>(
-      'button[aria-label^="Filter by source:"]'
-    )!
-    trigger.focus()
-    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
-    await vi.advanceTimersByTimeAsync(1)
-    const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
-      (element) => element.textContent === label
-    )
-    if (!item) throw new Error(`Missing source filter: ${label}`)
-    item.click()
-    await vi.advanceTimersByTimeAsync(1)
-  })
-}
-
 async function complete(
   index: number,
   { title = 'Release plan', partial = false, empty = false, count = 1 } = {}
@@ -235,48 +209,12 @@ async function complete(
   })
 }
 
-describe('search refinement with the real query cache and URL state', () => {
-  /** The source refinement chips belong to the indexed search results. */
-  beforeEach(() => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
-    resetDeploymentShape()
-  })
-  afterEach(() => {
-    resetEnvFlagsMock()
-    resetDeploymentShape()
-  })
-
-  it('does not restore cleared access data as a placeholder', async () => {
-    await render()
-    await complete(0)
-    await act(async () => {
-      void client.resetQueries({ queryKey: knowledgeKeys.searches() })
-      await vi.advanceTimersByTimeAsync(1)
-    })
-    expect(container.textContent).not.toContain('Release plan')
-    await click('Gmail')
-    expect(container.textContent).not.toContain('Release plan')
-  })
-
-  it('clears displayed placeholder data when access is reset during a refinement', async () => {
-    await render()
-    await complete(0)
-    await click('Gmail')
-    expect(container.textContent).toContain('Release plan')
-    await act(async () => {
-      void client.resetQueries({ queryKey: knowledgeKeys.searches() })
-      await vi.advanceTimersByTimeAsync(1)
-    })
-    expect(container.textContent).not.toContain('Release plan')
-  })
-})
-
 describe('live search submission feedback', () => {
   it.each(['launch', 'edited draft', ''])(
     'cancels with draft %j, ignores late results, and allows a fresh submission',
     async (draft) => {
       const shape = resolveDeploymentShape()
-      seedDeploymentShape({ ...shape, features: { ...shape.features, liveEnterpriseSearch: true } })
+      seedDeploymentShape({ ...shape, features: shape.features })
       await render({ organizationPage: true, params: '?q=launch' })
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1)
@@ -328,7 +266,7 @@ describe('live search submission feedback', () => {
 
   it('acknowledges the submitted query before exposing refinement controls', async () => {
     const shape = resolveDeploymentShape()
-    seedDeploymentShape({ ...shape, features: { ...shape.features, liveEnterpriseSearch: true } })
+    seedDeploymentShape({ ...shape, features: shape.features })
     await render({ organizationPage: true, params: '?q=launch' })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1)

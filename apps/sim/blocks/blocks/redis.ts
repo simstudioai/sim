@@ -1,54 +1,6 @@
 import { RedisIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type {
-  RedisCommandResponse,
-  RedisDeleteResponse,
-  RedisExistsResponse,
-  RedisExpireResponse,
-  RedisGetResponse,
-  RedisHDelResponse,
-  RedisHGetAllResponse,
-  RedisHGetResponse,
-  RedisHSetResponse,
-  RedisIncrbyResponse,
-  RedisIncrResponse,
-  RedisKeysResponse,
-  RedisLLenResponse,
-  RedisLPopResponse,
-  RedisLPushResponse,
-  RedisLRangeResponse,
-  RedisPersistResponse,
-  RedisRPopResponse,
-  RedisRPushResponse,
-  RedisSetnxResponse,
-  RedisSetResponse,
-  RedisTtlResponse,
-} from '@/tools/redis/types'
-
-type RedisResponse =
-  | RedisGetResponse
-  | RedisSetResponse
-  | RedisDeleteResponse
-  | RedisKeysResponse
-  | RedisCommandResponse
-  | RedisHSetResponse
-  | RedisHGetResponse
-  | RedisHGetAllResponse
-  | RedisHDelResponse
-  | RedisIncrResponse
-  | RedisIncrbyResponse
-  | RedisExpireResponse
-  | RedisTtlResponse
-  | RedisPersistResponse
-  | RedisLPushResponse
-  | RedisRPushResponse
-  | RedisLPopResponse
-  | RedisRPopResponse
-  | RedisLLenResponse
-  | RedisLRangeResponse
-  | RedisExistsResponse
-  | RedisSetnxResponse
 
 const KEY_OPERATIONS = [
   'get',
@@ -73,7 +25,7 @@ const KEY_OPERATIONS = [
   'ttl',
 ] as const
 
-export const RedisBlock: BlockConfig<RedisResponse> = {
+export const RedisBlock: BlockConfig = {
   type: 'redis',
   name: 'Redis',
   description: 'Key-value operations with Redis',
@@ -303,23 +255,25 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
       'redis_setnx',
     ],
     config: {
-      tool: (params) => {
+      tool: (params) => `redis_${params.operation}`,
+      params: (params) => {
+        const coerced: Record<string, number> = {}
         if (params.ex) {
-          params.ex = Number(params.ex)
+          coerced.ex = Number(params.ex)
         }
         if (params.seconds !== undefined) {
-          params.seconds = Number(params.seconds)
+          coerced.seconds = Number(params.seconds)
         }
         if (params.start !== undefined) {
-          params.start = Number(params.start)
+          coerced.start = Number(params.start)
         }
         if (params.stop !== undefined) {
-          params.stop = Number(params.stop)
+          coerced.stop = Number(params.stop)
         }
         if (params.increment !== undefined) {
-          params.increment = Number(params.increment)
+          coerced.increment = Number(params.increment)
         }
-        return `redis_${params.operation}`
+        return coerced
       },
     },
   },

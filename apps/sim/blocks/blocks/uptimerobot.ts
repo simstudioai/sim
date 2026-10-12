@@ -2,7 +2,6 @@ import { UptimeRobotIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { UptimeRobotMonitorResponse } from '@/tools/uptimerobot/types'
 
 /** Incidents narrow by monitor id or by monitor name — whichever the user filled. */
 const INCIDENT_MONITOR_FIELD = ['monitorId', 'monitorName'] as const
@@ -11,7 +10,7 @@ const MONITOR_EDIT_OPS = ['create_monitor', 'update_monitor']
 const MAINTENANCE_EDIT_OPS = ['create_maintenance_window', 'update_maintenance_window']
 const PSP_EDIT_OPS = ['create_psp', 'update_psp']
 
-export const UptimeRobotBlock: BlockConfig<UptimeRobotMonitorResponse> = {
+export const UptimeRobotBlock: BlockConfig = {
   type: 'uptimerobot',
   name: 'UptimeRobot',
   description: 'Monitor uptime, manage incidents, maintenance windows, and status pages',

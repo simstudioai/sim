@@ -1,4 +1,3 @@
-import type { AirtableGetBaseSchemaResponse } from '@/tools/airtable/get_base_schema'
 import type { ToolResponse } from '@/tools/types'
 
 // Common types
@@ -198,15 +197,3 @@ export interface AirtableUpsertResponse extends ToolResponse {
     }
   }
 }
-
-export type AirtableResponse =
-  | AirtableListBasesResponse
-  | AirtableListTablesResponse
-  | AirtableListResponse
-  | AirtableGetResponse
-  | AirtableCreateResponse
-  | AirtableUpdateResponse
-  | AirtableUpdateMultipleResponse
-  | AirtableDeleteResponse
-  | AirtableUpsertResponse
-  | AirtableGetBaseSchemaResponse

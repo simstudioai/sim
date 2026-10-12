@@ -419,6 +419,8 @@ SSO_TRUSTED_PROVIDER_IDS=custom-oidc,partner-saml
 
 You can register providers through the **Settings UI** (same as cloud) or by running the registration script directly against your database.
 
+Restricted networks can opt out of the DNS challenge with the server-only `SSO_SKIP_DOMAIN_VERIFICATION=true` setting. Add the domain and click **Verify** before saving SSO. This trusts administrator claims across the instance and is ignored on Sim Cloud. See [skipping DNS verification](/platform/enterprise/verified-domains#skip-dns-verification) for the trust implications and [DNS network requirements](/platform/enterprise/verified-domains#restricted-networks) for the default setup.
+
 ### Script-based registration
 
 Use this when you need to register an SSO provider without going through the UI — for example, during initial deployment or CI/CD automation.

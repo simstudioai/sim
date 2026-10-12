@@ -19,6 +19,7 @@ import {
   largeValueMetadataMock,
   largeValueMetadataMockFns,
 } from '@sim/testing/mocks/large-value-metadata.mock'
+import { maskClientMock, maskClientMockFns } from '@sim/testing/mocks/mask-client.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import {
@@ -59,7 +60,6 @@ const {
   setExecutionDeadlineAtMock,
   projectDisplayContentMock,
   projectDiagnosticErrorMock,
-  maskBatchMock,
 } = vi.hoisted(() => ({
   mergeSubblockStateWithValuesMock: vi.fn(),
   safeStartMock: vi.fn(),
@@ -81,10 +81,10 @@ const {
   setExecutionDeadlineAtMock: vi.fn(),
   projectDisplayContentMock: vi.fn(),
   projectDiagnosticErrorMock: vi.fn(),
-  maskBatchMock: vi.fn(),
 }))
 
 const getPersonalAndWorkspaceEnvMock = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
+const maskBatchMock = maskClientMockFns.mockMaskPIIBatchViaHttp
 
 afterAll(resetEnvironmentUtilsMock)
 
@@ -97,9 +97,7 @@ const updateWorkflowRunCountsMock = workflowsUtilsMockFns.mockUpdateWorkflowRunC
 
 vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/guardrails/mask-client', () => ({
-  maskPIIBatchViaHttp: maskBatchMock,
-}))
+vi.mock('@/lib/guardrails/mask-client', () => maskClientMock)
 
 vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
@@ -987,9 +985,10 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       uploadFileMock.mockImplementation(async ({ customKey }: { customKey: string }) => ({
         key: customKey,
       }))
-      maskBatchMock.mockImplementation(async (texts: string[]) =>
-        texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>'))
-      )
+      maskBatchMock.mockImplementation(async (texts: string[]) => ({
+        masked: texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>')),
+        scrubbedCount: 0,
+      }))
       executorExecuteMock.mockResolvedValue({
         success: true,
         status: 'completed',
@@ -1568,6 +1567,60 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(safeCompleteWithCancellationMock).not.toHaveBeenCalled()
     expect(updateWorkflowRunCountsMock).not.toHaveBeenCalled()
     expect(clearExecutionCancellationMock).not.toHaveBeenCalled()
+  })
+
+  it('still persists a pause when its trace spans cannot be built', async () => {
+    buildTraceSpansMock.mockImplementation(() => {
+      throw new TypeError('directChildren is not iterable')
+    })
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'paused',
+      output: {},
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+      executionState: { blockStates: {} },
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    expect(safeCompleteWithPauseMock).toHaveBeenCalledWith(
+      expect.objectContaining({ totalDurationMs: 123, traceSpans: [] })
+    )
+  })
+
+  it('still finalizes a failed execution when its trace spans cannot be built', async () => {
+    buildTraceSpansMock.mockImplementation(() => {
+      throw new TypeError('directChildren is not iterable')
+    })
+    const error = Object.assign(new Error('block threw'), {
+      executionResult: {
+        success: false,
+        output: {},
+        logs: [],
+        metadata: { duration: 55, startTime: 'start', endTime: 'end' },
+      },
+    })
+    executorExecuteMock.mockRejectedValue(error)
+
+    await expect(
+      executeWorkflowCore({
+        snapshot: createSnapshot() as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+      })
+    ).rejects.toBe(error)
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    expect(safeCompleteWithErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ traceSpans: [] })
+    )
+    expect(wasExecutionFinalizedByCore(error, 'execution-1')).toBe(true)
   })
 
   it('clears cancellation intent when pause finalization observes a persisted cancellation', async () => {

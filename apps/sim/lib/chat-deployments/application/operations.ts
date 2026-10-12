@@ -14,11 +14,11 @@ import { defineWorkspaceOperation } from '@/lib/core/application/workspace-opera
  * `list` takes it too: a group with the chat deployment surface withheld should
  * not still be told which workflows are published on it.
  *
- * `workflows.chat.deploy` and `workflows.chat.undeploy` remain the entry points
- * for the surfaces that name a workflow and ask for it to be published — the
- * internal deploy route and the Copilot tool. They converge on the same domain
- * effect as `replace` and `delete` but authorize a workflow the caller is
- * deploying rather than a chat surface the caller is configuring.
+ * `workflows.chat.deploy` remains the entry point for the surfaces that name a
+ * workflow and ask for it to be published — the internal deploy route and the
+ * Copilot tool. It converges on the same domain effect as `replace` but
+ * authorizes a workflow the caller is deploying rather than a chat surface the
+ * caller is configuring.
  */
 const CHAT_DEPLOYMENT_LIST_POLICY = {
   principalKinds: [

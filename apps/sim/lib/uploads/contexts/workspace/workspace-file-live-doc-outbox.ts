@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
@@ -10,10 +11,9 @@ import {
   processOutboxEventById,
 } from '@/lib/core/outbox/service'
 import { applyEditToLiveFileDoc, invalidateLiveFileDoc } from '@/lib/realtime/notify'
+import { WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
-
-export const WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT = 'workspace-file.live-doc.reconcile'
 
 interface WorkspaceFileLiveDocPayload {
   workspaceId: string
@@ -22,7 +22,7 @@ interface WorkspaceFileLiveDocPayload {
 }
 
 function parsePayload(payload: unknown): WorkspaceFileLiveDocPayload {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+  if (!isRecordLike(payload)) {
     throw new Error('Workspace file live-document outbox payload must be an object')
   }
   const candidate = payload as Partial<WorkspaceFileLiveDocPayload>

@@ -1,7 +1,10 @@
 import type { WorkspaceFileSecretProvenanceEntry } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  mergeWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   createResolvedSecretMatcher,
   scanResolvedSecretString,
@@ -13,18 +16,13 @@ const MAX_MOUNTED_FILE_SECRET_MATCH_EVENTS = 1_000_000
 const ANONYMOUS_MOUNTED_FILE_SECRET_NAME = 'MOUNTED_FILE_SECRET'
 
 export interface MountedFileSecretProvenanceScanner {
-  /**
-   * True when the envelope carries material protected by the shared literal policy, or an entry
-   * cannot be inspected. Successfully decrypted short values do not taint derived binary files.
-   * Entries that fail to yield plaintext keep this true: losing the ability to scan them makes
-   * the mount less classifiable, not more.
-   */
-  hasSecrets: boolean
+  /** Complete protected candidates for opaque exports; text exports may narrow them by scanning. */
+  provenance: WorkspaceFileSecretProvenance
   scan(buffer: Buffer): WorkspaceFileSecretProvenance
 }
 
 const UNKNOWN_MOUNTED_FILE_SECRET_PROVENANCE_SCANNER: MountedFileSecretProvenanceScanner = {
-  hasSecrets: true,
+  provenance: { status: 'unknown' },
   scan: () => ({ status: 'unknown' }),
 }
 
@@ -39,17 +37,13 @@ export async function createMountedFileSecretProvenanceScanner(
   if (!provenance.complete) return UNKNOWN_MOUNTED_FILE_SECRET_PROVENANCE_SCANNER
   if (!provenance.scope?.userId) return undefined
 
-  let hasSecrets = false
+  const protectedEntries: WorkspaceFileSecretProvenanceEntry[] = []
   const entriesByScanLiteral = new Map<string, Map<string, WorkspaceFileSecretProvenanceEntry>>()
   try {
     for (const entry of provenance.entries) {
       const { decrypted: plaintext } = await decryptSecret(entry.encryptedValue)
-      if (!plaintext) {
-        hasSecrets = true
-        continue
-      }
+      if (!plaintext) return UNKNOWN_MOUNTED_FILE_SECRET_PROVENANCE_SCANNER
       if (isNonIdentifyingSecretLiteral(plaintext)) continue
-      hasSecrets = true
       const fileEntry: WorkspaceFileSecretProvenanceEntry = {
         name: entry.name || ANONYMOUS_MOUNTED_FILE_SECRET_NAME,
         encryptedValue: entry.encryptedValue,
@@ -58,6 +52,7 @@ export async function createMountedFileSecretProvenanceScanner(
           ? { sourceWorkspaceId: provenance.scope.workspaceId }
           : {}),
       }
+      protectedEntries.push(fileEntry)
       for (const scanLiteral of new Set([plaintext, JSON.stringify(plaintext).slice(1, -1)])) {
         const entries =
           entriesByScanLiteral.get(scanLiteral) ??
@@ -73,8 +68,13 @@ export async function createMountedFileSecretProvenanceScanner(
     return UNKNOWN_MOUNTED_FILE_SECRET_PROVENANCE_SCANNER
   }
 
+  const sourceProvenance = mergeWorkspaceFileSecretProvenance({
+    status: 'exact',
+    entries: protectedEntries,
+  })
+
   if (entriesByScanLiteral.size === 0) {
-    return { hasSecrets, scan: () => ({ status: 'exact', entries: [] }) }
+    return { provenance: sourceProvenance, scan: () => ({ status: 'exact', entries: [] }) }
   }
 
   let matcher
@@ -86,11 +86,11 @@ export async function createMountedFileSecretProvenanceScanner(
     return UNKNOWN_MOUNTED_FILE_SECRET_PROVENANCE_SCANNER
   }
   if (!matcher) {
-    return { hasSecrets, scan: () => ({ status: 'exact', entries: [] }) }
+    return { provenance: sourceProvenance, scan: () => ({ status: 'exact', entries: [] }) }
   }
 
   return {
-    hasSecrets,
+    provenance: sourceProvenance,
     /**
      * A scan that cannot finish yields `unknown` — a taint — where the registry's per-value scan
      * over-approximates instead. The asymmetry is deliberate: that scan only narrows a candidate

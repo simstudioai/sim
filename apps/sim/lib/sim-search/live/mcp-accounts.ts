@@ -19,6 +19,7 @@ import {
   MANAGED_SEARCH_MCP_READ_TOOLS,
   type ManagedSearchMcpProvider,
 } from '@/lib/sim-search/live/managed-mcp-config'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 import type { LiveAccount } from '@/lib/sim-search/live/types'
 
 /** Only the caller's grants at fixed trusted providers qualify; org grants obey current workspace policy. */
@@ -34,6 +35,11 @@ async function listOwnManagedMcpAccounts(
       ? await resolveKnowledgeWorkspaceContext({ workspaceId: scope.workspaceId })
       : undefined
   const orgId = workspace?.workspaceOrganizationId
+  const enabledProviders =
+    providers.includes('zoom') && !(await isSearchProviderEnabled('zoom', scope))
+      ? providers.filter((provider) => provider !== 'zoom')
+      : providers
+  if (!enabledProviders.length) return []
   const rows = await db
     .select({
       id: credential.id,
@@ -62,7 +68,7 @@ async function listOwnManagedMcpAccounts(
         sameResourceScopeCondition(credential, mcpServers),
         eq(mcpServers.credentialGroupId, credentialGroup.id),
         or(
-          ...providers.map((provider) =>
+          ...enabledProviders.map((provider) =>
             and(
               eq(mcpServers.managedConnectorId, provider),
               eq(mcpServers.url, MANAGED_MCP_CONNECTORS[provider].url)
@@ -84,7 +90,7 @@ async function listOwnManagedMcpAccounts(
     if (
       !row.connectorId ||
       !isManagedSearchMcpProvider(row.connectorId) ||
-      !providers.includes(row.connectorId)
+      !enabledProviders.includes(row.connectorId)
     )
       continue
     if (workspace && row.organizationId) {

@@ -34,7 +34,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `TRUSTED_ORIGINS` | Comma-separated additional origins to trust for auth (apex + `www`, alias domains) |
 | `AUTH_TRUSTED_PROXIES` | Comma-separated reverse-proxy IPs/CIDRs so the client IP cannot be forged through `X-Forwarded-For` |
 | `INTERNAL_API_BASE_URL` | Internal URL for server-side self-calls, e.g. `http://sim-app.simstudio.svc.cluster.local:3000`. Optional — falls back to the public base URL. Deliberately ignored inside the Trigger.dev worker runtime, where a cluster-internal address resolves to the worker itself |
-| `SIM_MCP_URL` | Public URL of the [Sim MCP server](/mcp) when you serve it on its own host, e.g. `https://mcp.example.com/mcp`. Point that host at the app; Sim serves only the MCP endpoint and its OAuth metadata there, and stops serving `/api/mcp` on the app host so clients use one URL. Optional — defaults to `<NEXT_PUBLIC_APP_URL>/api/mcp` |
+| `SIM_MCP_URL` | Public URL of the [Sim MCP server](/mcp/overview) when you serve it on its own host, e.g. `https://mcp.example.com/mcp`. Point that host at the app; Sim serves only the MCP endpoint and its OAuth metadata there, and stops serving `/api/mcp` on the app host so clients use one URL. Optional — defaults to `<NEXT_PUBLIC_APP_URL>/api/mcp` |
 | `DATABASE_REPLICA_URL` | Read-replica connection string for log listing, audit logs, and dashboard aggregations. Falls back to the primary when unset |
 
 ## AI Providers
@@ -69,7 +69,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 </Callout>
 
 <Callout type="info">
-  **Agent tool-call depth.** An Agent block ends its run after 20 model round trips of tool calling. Raise the ceiling with `MAX_TOOL_ITERATIONS` (for example `MAX_TOOL_ITERATIONS=50`). Every extra iteration is another model call, so raise it deliberately.
+  **Agent tool-call depth.** An Agent block keeps calling tools until the model answers, with no round-trip limit by default. With billing disabled there is also no execution timeout unless `EXECUTION_TIMEOUT_FREE` (sync) or `EXECUTION_TIMEOUT_ASYNC_FREE` (async) is set, so a looping agent keeps making paid model calls. Set `MAX_TOOL_ITERATIONS` (for example `MAX_TOOL_ITERATIONS=50`) to cap the model round trips per block, or set those timeouts to bound the whole run.
 </Callout>
 
 ### Catalog visibility
@@ -248,6 +248,7 @@ Enterprise features are unlocked by configuration rather than billing on self-ho
 |----------|-------------|
 | `ENTERPRISE_ENABLED`, `NEXT_PUBLIC_ENTERPRISE_ENABLED` | Enable the whole enterprise feature set |
 | `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Enable SAML and OIDC single sign-on on its own. See [Authentication](/platform/self-hosting/authentication#sso-saml-and-oidc) |
+| `SSO_SKIP_DOMAIN_VERIFICATION` | Skip the DNS challenge when an administrator clicks Verify on a domain. Off by default; self-hosted only. Trusts administrator claims for SSO and SCIM across the instance. See [Verified Domains](/platform/enterprise/verified-domains#skip-dns-verification) |
 | `SCIM_ENABLED`, `NEXT_PUBLIC_SCIM_ENABLED` | Enable directory provisioning on its own. Needs SSO. See [Directory provisioning](/platform/enterprise/scim) |
 | `INSTANCE_ORG_NAME` | Name of the organization every user joins automatically at signup |
 | `INSTANCE_ORG_SLUG` | Slug for that organization (derived from the name when omitted) |

@@ -17,12 +17,8 @@ export interface DeleteChatDeploymentInput {
 }
 
 /**
- * Stops one chat deployment serving.
- *
- * Keyed on the deployment rather than on its workflow, which is what
- * `workflows.chat.undeploy` takes. Both end in `performChatUndeploy`; they stay
- * separate operations because a caller holding a deployment id cannot name the
- * workflow the other requires, and the reverse.
+ * Stops one chat deployment serving, keyed on the deployment rather than on
+ * its workflow.
  *
  * The workflow's own deployment is untouched — only the chat surface stops.
  */

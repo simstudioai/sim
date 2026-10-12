@@ -1,9 +1,8 @@
 import { ArxivIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { ArxivResponse } from '@/tools/arxiv/types'
 
-export const ArxivBlock: BlockConfig<ArxivResponse> = {
+export const ArxivBlock: BlockConfig = {
   type: 'arxiv',
   name: 'ArXiv',
   description: 'Search and retrieve academic papers from ArXiv',

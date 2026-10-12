@@ -1,4 +1,5 @@
 import type { DatabricksListJobsParams, DatabricksListJobsResponse } from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJobsResponse> = {
@@ -48,11 +49,7 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
 
   request: {
     url: (params) => {
-      const host = params.host
-        .trim()
-        .replace(/^https?:\/\//, '')
-        .replace(/\/$/, '')
-      const url = new URL(`https://${host}/api/2.1/jobs/list`)
+      const url = new URL(databricksUrl(params.host, '/api/2.1/jobs/list'))
       if (params.limit) url.searchParams.set('limit', String(params.limit))
       if (params.offset) url.searchParams.set('offset', String(params.offset))
       if (params.name) url.searchParams.set('name', params.name)

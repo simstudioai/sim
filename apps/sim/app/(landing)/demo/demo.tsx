@@ -1,3 +1,4 @@
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import { TrustedBy } from '@/app/(landing)/components/trusted-by'
 import { DemoBooking } from '@/app/(landing)/demo/components/demo-booking'
 
@@ -45,8 +46,8 @@ export default function Demo() {
           <p className='sr-only'>
             Operationalize AI with Sim, the AI agent workspace where teams build, deploy, and manage
             AI agents and workflows. A Sim specialist walks your team through building agents that
-            automate real work across hundreds of integrations and every major LLM, visually,
-            conversationally, or with code.
+            automate real work across {INTEGRATION_COUNT_LABEL} integrations and every major LLM,
+            visually, conversationally, or with code.
           </p>
 
           <h1

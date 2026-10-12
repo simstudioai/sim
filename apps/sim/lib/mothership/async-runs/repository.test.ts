@@ -9,7 +9,7 @@ import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } fr
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   areStreamToolExecutionsSettled,
-  claimSimToolExecution,
+  claimToolExecution,
   claimWorkflowToolExecution,
   closeStreamToolAdmission,
   createRunSegment,
@@ -211,7 +211,7 @@ describe('durable Sim tool ownership', () => {
       dbChainMockFns.for.mockResolvedValueOnce([
         { toolExecutionVersion: 2, toolAdmissionClosedAt: null, status },
       ])
-      expect(await claimSimToolExecution(input)).toEqual({ outcome: 'closed' })
+      expect(await claimToolExecution(input)).toEqual({ outcome: 'closed' })
       dbChainMockFns.for.mockResolvedValueOnce([{ version: 2, closedAt: null, status }])
       await expect(
         recordSimSandboxProcess({
@@ -232,7 +232,7 @@ describe('durable Sim tool ownership', () => {
       { id: input.runId, toolExecutionVersion: 2, toolAdmissionClosedAt: null },
     ])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'row-1' }])
-    expect(await claimSimToolExecution(input)).toEqual({ outcome: 'claimed' })
+    expect(await claimToolExecution(input)).toEqual({ outcome: 'claimed' })
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
     expect(
       hasMockCondition(
@@ -257,13 +257,13 @@ describe('durable Sim tool ownership', () => {
     dbChainMockFns.for.mockResolvedValueOnce([
       { toolExecutionVersion: 2, toolAdmissionClosedAt: new Date() },
     ])
-    expect(await claimSimToolExecution(input)).toEqual({ outcome: 'closed' })
+    expect(await claimToolExecution(input)).toEqual({ outcome: 'closed' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it.each([0, 1])('does not certify or execute through tracking version %s', async (version) => {
     dbChainMockFns.for.mockResolvedValueOnce([{ toolExecutionVersion: version }])
-    await expect(claimSimToolExecution(input)).rejects.toThrow('ownership is unavailable')
+    await expect(claimToolExecution(input)).rejects.toThrow('ownership is unavailable')
     dbChainMockFns.returning.mockResolvedValueOnce([{ version }])
     expect(await closeStreamToolAdmission('stream-1', input.userId)).toBe(false)
   })
@@ -278,7 +278,7 @@ describe('durable Sim tool ownership', () => {
       executionSettledAt: null,
     }
     queueTableRows(copilotAsyncToolCalls, [record])
-    expect(await claimSimToolExecution(input)).toEqual({ outcome: 'existing' })
+    expect(await claimToolExecution(input)).toEqual({ outcome: 'existing' })
   })
 
   it('keeps a terminal result distinct from actual execution settlement', async () => {

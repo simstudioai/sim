@@ -26,6 +26,7 @@ import {
   type PublishableWorkflowGroupCancellation,
   publishWorkflowGroupCancellationEvent,
 } from '@/lib/table/workflow-group-cancellation'
+import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 
 const logger = createLogger('CancelWorkflowExecution')
@@ -64,7 +65,16 @@ async function cancelQueuedExecutionJobs(
 ): Promise<number> {
   try {
     const queue = await getJobQueue()
-    return await queue.cancelByExecution({ workflowId, executionId }, scope)
+    return await queue.cancelByExecution(
+      {
+        workflowId,
+        executionId,
+        ...(scope === 'standalone'
+          ? { rootJobId: `${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}` }
+          : {}),
+      },
+      scope
+    )
   } catch (error) {
     logger.warn('Failed to cancel queued execution jobs', {
       workflowId,

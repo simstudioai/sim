@@ -25,6 +25,7 @@ import {
   updateWorkspaceFileDimensionsContract,
 } from '@/lib/api/contracts/workspace-files'
 import { uploadWorkspaceFileSession } from '@/lib/uploads/client/session-upload'
+import { FileTextSizeError, readFileText } from '@/lib/uploads/client/text-content'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { UserFile } from '@/executor/types'
@@ -68,7 +69,6 @@ export const workspaceFilesKeys = {
 export const WORKSPACE_FILES_LIST_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_CONTENT_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_BINARY_STALE_TIME = 30 * 1000
-export const WORKSPACE_STORAGE_INFO_STALE_TIME = 60 * 1000
 /** Cloud storage (S3/Blob) is env-driven and does not change at runtime. */
 export const CLOUD_STORAGE_CONFIGURED_STALE_TIME = Number.POSITIVE_INFINITY
 
@@ -292,7 +292,7 @@ async function fetchWorkspaceFileContent(url: string, signal?: AbortSignal): Pro
     throw new Error('Failed to fetch file content')
   }
 
-  return response.text()
+  return readFileText(response)
 }
 
 /**
@@ -337,6 +337,7 @@ export function useWorkspaceFileContent(
     },
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: WORKSPACE_FILE_CONTENT_STALE_TIME,
+    retry: (failureCount, error) => failureCount < 1 && !(error instanceof FileTextSizeError),
     refetchOnWindowFocus: options?.refetchOnWindowFocus === false ? false : 'always',
     refetchInterval: options?.refetchInterval ?? false,
   })
@@ -634,6 +635,9 @@ export function useUpdateWorkspaceFileContent() {
       })
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.record(variables.workspaceId, variables.fileId),
       })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },

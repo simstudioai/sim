@@ -112,7 +112,7 @@ class SecureFetchHeaders {
  *
  * @example
  * ```ts
- * import { inputValidationMockFns } from '@sim/testing'
+ * import { inputValidationMockFns } from '@sim/testing/mocks/input-validation.mock'
  *
  * inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
  * inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue({ ok: true, status: 200 })

@@ -105,3 +105,9 @@ https://www.googleapis.com/auth/drive.file
 ```
 
 The personal OAuth connection also supports workflow actions, so its declared scopes can be broader than Search’s read-only requests. The service credential uses the separate delegation scopes above.
+
+## Google Meet transcripts and notes
+
+Meet saves generated transcripts and smart notes as Google Docs in the organizer's Drive. Connect Drive to search and read these documents when you have access, including older artifacts that remain after Meet's conference API retention window. For example, use `fullText contains 'rollback' and mimeType = 'application/vnd.google-apps.document'`.
+
+Drive date filters use the file's modification time, not the meeting's start. Use [Google Meet](/search/google-meet) for recent conference transcripts with meeting dates and [Google Calendar](/search/google-calendar) for scheduled events. Transcription or note-taking must have been enabled during the meeting; Search cannot reconstruct a missing artifact.

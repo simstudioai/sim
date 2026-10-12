@@ -1,10 +1,10 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
-import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { authOAuthUtilsMock } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetCredentialOwner } = vi.hoisted(() => ({
-  mockGetCredentialOwner: vi.fn(),
+const { mockGetCredentialAccessToken } = vi.hoisted(() => ({
+  mockGetCredentialAccessToken: vi.fn(),
 }))
 
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
@@ -13,7 +13,7 @@ vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
   getProviderConfig: (webhook: { providerConfig?: Record<string, unknown> }) =>
     webhook.providerConfig || {},
   getNotificationUrl: () => 'https://app.example.com/api/webhooks/trigger/bitbucket-path',
-  getCredentialOwner: mockGetCredentialOwner,
+  getCredentialAccessToken: mockGetCredentialAccessToken,
 }))
 
 import { IdempotencyService } from '@/lib/core/idempotency/service'
@@ -24,31 +24,9 @@ import {
   buildBitbucketOutputs,
 } from '@/triggers/bitbucket/utils'
 
-const mockRefreshAccessTokenIfNeeded = authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded
-
 const fetchMock = vi.fn()
 const CALLBACK_URL = 'https://app.example.com/api/webhooks/trigger/bitbucket-path'
 const CANDIDATE_DESCRIPTION = 'Sim workflow trigger (bitbucket_push) [sim:webhook-1]'
-
-const BASE_OUTPUT_KEYS = [
-  'actor',
-  'attemptNumber',
-  'eventType',
-  'hookUuid',
-  'payload',
-  'repository',
-  'requestUuid',
-]
-
-const PULL_REQUEST_OUTPUT_KEYS = [
-  ...BASE_OUTPUT_KEYS,
-  'destinationBranch',
-  'pullRequest',
-  'pullRequestId',
-  'pullRequestState',
-  'pullRequestTitle',
-  'sourceBranch',
-].sort()
 
 function requestWithHeaders(headers: Record<string, string>): NextRequest {
   return new NextRequest('http://localhost/test', { headers })
@@ -103,8 +81,7 @@ describe('Bitbucket webhook provider', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-    mockGetCredentialOwner.mockResolvedValue({ accountId: 'account-1', userId: 'user-1' })
-    mockRefreshAccessTokenIfNeeded.mockResolvedValue('oauth-token')
+    mockGetCredentialAccessToken.mockResolvedValue('oauth-token')
   })
 
   describe('verifyAuth', () => {
@@ -262,14 +239,6 @@ describe('Bitbucket webhook provider', () => {
         )
       }
     )
-
-    const pullRequest = {
-      id: 42,
-      title: 'Add Bitbucket triggers',
-      state: 'OPEN',
-      source: { branch: { name: 'feature' } },
-      destination: { branch: { name: 'staging' } },
-    }
   })
 
   describe('createSubscription', () => {
@@ -333,7 +302,7 @@ describe('Bitbucket webhook provider', () => {
         ).rejects.toThrow(/webhook ID is required/i)
 
         expect(fetchMock).not.toHaveBeenCalled()
-        expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
+        expect(mockGetCredentialAccessToken).not.toHaveBeenCalled()
       }
     )
 

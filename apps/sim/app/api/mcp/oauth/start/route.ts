@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -61,7 +62,7 @@ function isDynamicClientRegistrationUnsupported(error: unknown): boolean {
 export function surfaceOauthError(error: unknown): string {
   // Spec-compliant OAuth servers throw typed subclasses with clean RFC 6749 fields.
   if (error instanceof OAuthError && !(error instanceof ServerError)) {
-    return truncate(`${error.errorCode}: ${error.message}`)
+    return truncateSurfacedError(`${error.errorCode}: ${error.message}`)
   }
 
   // ServerError wraps non-spec response bodies as "HTTP N: Invalid OAuth error
@@ -76,18 +77,16 @@ export function surfaceOauthError(error: unknown): string {
           (typeof body.message === 'string' && body.message) ||
           (typeof body.error === 'string' && body.error) ||
           null
-        if (vendorMessage) return truncate(`Authorization server: ${vendorMessage}`)
+        if (vendorMessage) return truncateSurfacedError(`Authorization server: ${vendorMessage}`)
       } catch {}
     }
-    return truncate(error.message.split('\n')[0] || 'Failed to start OAuth flow')
+    return truncateSurfacedError(error.message.split('\n')[0] || 'Failed to start OAuth flow')
   }
   return 'Failed to start OAuth flow'
 }
 
-function truncate(message: string): string {
-  return message.length > MAX_SURFACED_ERROR_LENGTH
-    ? `${message.slice(0, MAX_SURFACED_ERROR_LENGTH)}…`
-    : message
+function truncateSurfacedError(message: string): string {
+  return truncate(message, MAX_SURFACED_ERROR_LENGTH, '…')
 }
 
 export const dynamic = 'force-dynamic'

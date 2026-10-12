@@ -1,3 +1,4 @@
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import {
   PlatformHeroVisual,
   SolutionsPage,
@@ -36,10 +37,8 @@ const COMPLIANCE_CONFIG: SolutionsPageConfig = {
   hero: {
     eyebrow: 'Compliance',
     heading: 'Automate evidence, control checks, and audit reports with AI agents in Sim.',
-    description:
-      'Sim is the open-source AI workspace where compliance teams build AI agents for evidence collection and control monitoring. Stay audit-ready year-round, across hundreds of integrations.',
-    summary:
-      'Sim is the open-source AI workspace where compliance teams build, deploy, and manage AI agents for evidence collection, control monitoring, and audit reports. Agents keep the organization audit-ready year-round across hundreds of integrations.',
+    description: `Sim is the open-source AI workspace where compliance teams build AI agents for evidence collection and control monitoring. Stay audit-ready year-round, across ${INTEGRATION_COUNT_LABEL} integrations.`,
+    summary: `Sim is the open-source AI workspace where compliance teams build, deploy, and manage AI agents for evidence collection, control monitoring, and audit reports. Agents keep the organization audit-ready year-round across ${INTEGRATION_COUNT_LABEL} integrations.`,
     visual: (
       <PlatformHeroVisual>
         <ComplianceHeroLoop />

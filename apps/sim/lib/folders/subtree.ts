@@ -117,21 +117,3 @@ export function collectFolderDepths(
 
   return depths
 }
-
-/**
- * Narrows already-queried rows to the subtree under `rootId`, preserving the
- * query's ordering so a caller's `sortBy` still decides the result order.
- *
- * `tree` is the workspace's full folder set, deliberately separate from `rows`:
- * depths must come from the real hierarchy, or a `search` that excludes an
- * intermediate folder would orphan its matching descendants.
- */
-export function selectFolderSubtreeRows<Row extends { id: string }>(
-  rows: readonly Row[],
-  tree: readonly FolderNode[],
-  rootId: string | null,
-  maxDepth?: number
-): Row[] {
-  const depths = collectFolderDepths(tree, rootId, { maxDepth })
-  return rows.filter((row) => depths.has(row.id))
-}

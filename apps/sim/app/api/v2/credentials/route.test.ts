@@ -203,8 +203,141 @@ describe('POST /api/v2/credentials', () => {
         authMethod: undefined,
         privateKey: undefined,
         username: undefined,
+        tenancyOcid: undefined,
+        userOcid: undefined,
+        fingerprint: undefined,
+        privateKeyPassphrase: undefined,
+        region: undefined,
       },
       request,
+    })
+  })
+
+  it('forwards OCI credential fields from the write-only credentials envelope', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/credentials', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        type: 'service_account',
+        providerId: 'oci-api-key-service-account',
+        credentials: JSON.stringify({
+          tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+          userOcid: 'ocid1.user.oc1..user',
+          fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+          privateKey: '-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----',
+          privateKeyPassphrase: ' exact passphrase ',
+          region: 'us-ashburn-1',
+        }),
+      }),
+    })
+    const response = await POST(request)
+    const body = await response.text()
+
+    expect(response.status).toBe(201)
+    expect(mocks.create).toHaveBeenCalledWith({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      input: expect.objectContaining({
+        providerId: 'oci-api-key-service-account',
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..user',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: '-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----',
+        privateKeyPassphrase: ' exact passphrase ',
+        region: 'us-ashburn-1',
+      }),
+      request,
+    })
+    expect(body).not.toContain('PRIVATE KEY')
+    expect(body).not.toContain('exact passphrase')
+  })
+
+  it.each(['multiline wallet', 'maximum-size JSON with escaped whitespace'])(
+    'accepts an Oracle connection with %s through the serialized credential envelope',
+    async (variant) => {
+      const connection = JSON.stringify({
+        host: 'database.example.com',
+        protocol: 'tcps',
+        serviceName: 'database',
+        username: 'sim',
+        password: 'write-only-password',
+        walletContent: `-----BEGIN CERTIFICATE-----\n${`${'A'.repeat(64)}\n`.repeat(4096)}-----END CERTIFICATE-----`,
+      })
+      const serviceAccountJson =
+        variant === 'multiline wallet' ? connection : connection.padEnd(2 * 1024 * 1024, '\n')
+      const response = await POST(
+        new NextRequest('http://localhost:3000/api/v2/credentials', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            workspaceId: WORKSPACE_ID,
+            type: 'service_account',
+            providerId: 'oracledb-service-account',
+            credentials: JSON.stringify({ serviceAccountJson }),
+          }),
+        })
+      )
+
+      expect(response.status).toBe(201)
+      const body = await response.text()
+      expect(body).not.toContain('write-only-password')
+      expect(body).not.toContain('BEGIN CERTIFICATE')
+    }
+  )
+
+  it('rejects an oversized Oracle connection at the nested field limit', async () => {
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/v2/credentials', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'oracledb-service-account',
+          credentials: JSON.stringify({
+            serviceAccountJson: '{}'.padEnd(2 * 1024 * 1024 + 1, ' '),
+          }),
+        }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        details: expect.arrayContaining([
+          expect.objectContaining({
+            path: ['credentials', 'serviceAccountJson'],
+            message: expect.stringContaining('2097152'),
+          }),
+        ]),
+      },
+    })
+  })
+
+  it('rejects excessive serialized envelope padding before credential verification', async () => {
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/v2/credentials', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'oracledb-service-account',
+          credentials: JSON.stringify({ serviceAccountJson: '{}' }).padEnd(
+            4 * 1024 * 1024 + 128 * 1024 + 1,
+            ' '
+          ),
+        }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        details: expect.arrayContaining([expect.objectContaining({ path: ['credentials'] })]),
+      },
     })
   })
 

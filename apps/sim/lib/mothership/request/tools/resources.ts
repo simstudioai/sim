@@ -9,6 +9,7 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import type { StreamEvent, ToolCallResult } from '@/lib/mothership/request/types'
+import { findNonTabFileIds } from '@/lib/mothership/resources/file-tabs'
 import {
   extractDeletedResourcesFromToolResult,
   extractResourcesFromToolResult,
@@ -36,9 +37,11 @@ export async function handleResourceSideEffects(
   chatId: string,
   onEvent: ((event: StreamEvent) => void | Promise<void>) | undefined,
   isAborted: () => boolean,
-  workspaceId?: string,
+  owner?: { organizationId?: string; workspaceId?: string },
   actorUserId?: string
 ): Promise<void> {
+  // Only organization chats address a workspace; a workspace chat's resources leave it implicit.
+  const workspaceId = owner?.organizationId ? owner.workspaceId : undefined
   // Cheap early exit so we don't emit a span for tools that can never
   // produce resources (most of them). The span only shows up for tools
   // that might actually do resource work.
@@ -117,7 +120,7 @@ export async function handleResourceSideEffects(
             : isResourceToolName(toolName)
               ? extractResourcesFromToolResult(toolName, params, projectedResult.output)
               : []
-        const resources =
+        const paired =
           projectedResources.length === rawResources.length
             ? rawResources.map((resource, index) => ({
                 ...projectedResources[index],
@@ -128,6 +131,12 @@ export async function handleResourceSideEffects(
                   : {}),
               }))
             : []
+        const nonTabFileIds = await findNonTabFileIds(
+          paired.flatMap((resource) => (resource.type === 'file' ? [resource.id] : []))
+        )
+        const resources = paired.filter(
+          (resource) => resource.type !== 'file' || !nonTabFileIds.has(resource.id)
+        )
 
         if (resources.length > 0) {
           upsertedCount = resources.length

@@ -353,6 +353,27 @@ describe('large execution payload store', () => {
     expect(materializeLargeValueRefSync(ref, { executionId: 'execution-1' })).toBeUndefined()
   })
 
+  it('keeps a durably stored trace archive out of the in-process cache', async () => {
+    const context = {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      userId: 'user-1',
+    }
+    const archiveRef = await storeExecutionTraceArchive(
+      { traceSpans: [] },
+      '{"traceSpans":[]}',
+      17,
+      context
+    )
+    const valueRef = await storeLargeValue({ rows: [] }, '{"rows":[]}', 11, context)
+
+    expect(materializeLargeValueRefSync(archiveRef, { executionId: 'execution-1' })).toBeUndefined()
+    expect(materializeLargeValueRefSync(valueRef, { executionId: 'execution-1' })).toEqual({
+      rows: [],
+    })
+  })
+
   it('rejects archives above the trace cap before upload or metadata writes', async () => {
     await expect(
       storeExecutionTraceArchive({}, '{}', MAX_TRACE_ARCHIVE_BYTES + 1, {

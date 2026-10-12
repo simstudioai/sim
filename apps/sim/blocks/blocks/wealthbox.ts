@@ -2,11 +2,10 @@ import { WealthboxIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { WealthboxResponse } from '@/tools/wealthbox/types'
 
 const CONTACT_FIELD = ['contactId', 'manualContactId'] as const
 
-export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
+export const WealthboxBlock: BlockConfig = {
   type: 'wealthbox',
   name: 'Wealthbox',
   description: 'Interact with Wealthbox',

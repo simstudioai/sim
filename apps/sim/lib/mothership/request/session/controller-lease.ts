@@ -27,3 +27,13 @@ export async function assertChatStreamLease(lease: ChatStreamLease): Promise<voi
     throw new StreamControllerSupersededError()
   }
 }
+
+/** Whether this lease still holds its chat lock; an unreadable lock counts as lost. */
+export async function holdsChatStreamLease(lease: ChatStreamLease): Promise<boolean> {
+  try {
+    await assertChatStreamLease(lease)
+    return true
+  } catch {
+    return false
+  }
+}

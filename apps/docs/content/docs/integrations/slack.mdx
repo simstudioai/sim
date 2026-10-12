@@ -3408,25 +3408,6 @@ Attach custom previews to links already shared in a message. Configure the relev
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
-{/* MANUAL-CONTENT-START:notes */}
-## Lists and Canvas notes
-
-### Lists
-
-Lists actions require a custom Slack bot and a paid Slack plan. **Manage Lists** is selected by default during bot setup. For an existing app, add `lists:read` and `lists:write` in Slack, reinstall it, then reconnect in Sim.
-
-- **Share List** grants access to users or channels. Choose **Share With**, enter a JSON array of Slack IDs, and select **Can view**, **Can edit**, or **Owner**. Ownership is for users only and requires the current owner. Creating a List does not automatically share it with your personal Slack account. See Slack's [sharing reference](https://docs.slack.dev/reference/methods/slackLists.access.set/).
-- Run **Read List Items** with **Include List Schema** enabled to get the column IDs used in `column_id`. Updates also need the row's `id` as `row_id`.
-- **Initial Fields** and **Cells** accept JSON arrays of typed values. Text uses `rich_text`; checkboxes use booleans. See Slack's [field formats](https://docs.slack.dev/reference/methods/slackLists.items.create/) for examples.
-- To read every row, pass `nextCursor` into **Cursor** until it is empty. **Archived Rows** reads archived rows instead of active rows.
-
-### Canvases
-
-For custom bots, **Manage canvases** is selected by default during setup. Existing apps need `canvases:write` for changes, `canvases:read` for section lookup, and `files:read` for metadata. Reinstall the app after changing scopes, then reconnect in Sim.
-
-**Edit Canvas** can replace the whole document when **Section ID** is empty. **Get Canvas Info** and **List Canvases** return metadata, not document contents. See Slack's [Canvas guide](https://docs.slack.dev/surfaces/canvases/) for details.
-{/* MANUAL-CONTENT-END */}
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -3503,3 +3484,82 @@ Trigger from Slack events, interactions, and slash commands
 |   ↳ `hasFiles` | boolean | Whether the message has file attachments |
 |   ↳ `files` | file[] | File attachments downloaded from the message \(if includeFiles is enabled and bot token is provided\) |
 
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Slack account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/slack` |
+| Environment variables | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `channels:read` | View public channels |
+| `channels:history` | Read public channel messages |
+| `channels:manage` | Create, archive, and rename public channels |
+| `groups:read` | View private channels |
+| `groups:history` | Read private channel messages |
+| `groups:write` | Create, archive, and manage private channels |
+| `chat:write` | Send messages |
+| `chat:write.public` | Post to public channels without joining them |
+| `im:write` | Start direct messages |
+| `im:read` | View direct message channels |
+| `users:read` | View workspace users |
+| `files:write` | Upload, edit, and delete files |
+| `files:read` | Download and read files |
+| `canvases:read` | Read canvas sections |
+| `canvases:write` | Create, edit, and delete canvas documents |
+| `reactions:write` | Add emoji reactions to messages |
+| `reactions:read` | View emoji reactions on messages |
+
+Requested only when `SLACK_EXTENDED_SCOPES` and `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES` are enabled. Enable them only after Slack approves the app for these scopes:
+
+| Scope | Description |
+| ----- | ----------- |
+| `assistant:write` | Manage assistant status, titles, and suggested prompts |
+| `app_mentions:read` | View messages that mention the app |
+| `im:history` | Read direct message history |
+
+Some actions run only on a bot or service-account credential, never the OAuth connection. That credential needs these additional scopes:
+
+| Scope | Actions |
+| ----- | ------- |
+| `assistant:write` | Slack Set Agent Suggested Prompts |
+| `bookmarks:read` | Slack List Bookmarks |
+| `bookmarks:write` | Slack Add Bookmark, Slack Edit Bookmark, Slack Remove Bookmark |
+| `channels:join` | Slack Join Conversation |
+| `chat:write.customize` | Slack Set Agent Session Status |
+| `dnd:read` | Slack Get Do Not Disturb Info, Slack Get Team Do Not Disturb Info |
+| `emoji:read` | Slack List Custom Emoji |
+| `links:write` | Slack Unfurl Links |
+| `lists:read` | Slack Lists List Items, Slack Lists Get Item, Slack Start List Export, Slack Get List Export |
+| `lists:write` | Slack Lists Create List, Slack Lists Update List, Slack Lists Share List, Slack Lists Create Item, Slack Lists Update Items, Slack Lists Delete Item, Slack Revoke List Access, Slack Delete List Items |
+| `pins:read` | Slack List Pins |
+| `pins:write` | Slack Pin Message, Slack Unpin Message |
+| `team:read` | Slack Get Workspace Info |
+| `usergroups:read` | Slack List User Groups, Slack List User Group Members |
+| `usergroups:write` | Slack Create User Group, Slack Update User Group, Slack Enable User Group, Slack Disable User Group, Slack Update User Group Members |
+| `users:read.email` | Slack Find User by Email |
+| `users:write` | Slack Set Bot Presence |
+| `users.profile:read` | Slack Get User Profile, Slack Get Workspace Profile Fields |
+
+{/* MANUAL-CONTENT-START:notes */}
+## Lists and Canvas notes
+
+### Lists
+
+Lists actions require a custom Slack bot and a paid Slack plan. **Manage Lists** is selected by default during bot setup. For an existing app, add `lists:read` and `lists:write` in Slack, reinstall it, then reconnect in Sim.
+
+- **Share List** grants access to users or channels. Choose **Share With**, enter a JSON array of Slack IDs, and select **Can view**, **Can edit**, or **Owner**. Ownership is for users only and requires the current owner. Creating a List does not automatically share it with your personal Slack account. See Slack's [sharing reference](https://docs.slack.dev/reference/methods/slackLists.access.set/).
+- Run **Read List Items** with **Include List Schema** enabled to get the column IDs used in `column_id`. Updates also need the row's `id` as `row_id`.
+- **Initial Fields** and **Cells** accept JSON arrays of typed values. Text uses `rich_text`; checkboxes use booleans. See Slack's [field formats](https://docs.slack.dev/reference/methods/slackLists.items.create/) for examples.
+- To read every row, pass `nextCursor` into **Cursor** until it is empty. **Archived Rows** reads archived rows instead of active rows.
+
+### Canvases
+
+For custom bots, **Manage canvases** is selected by default during setup. Existing apps need `canvases:write` for changes, `canvases:read` for section lookup, and `files:read` for metadata. Reinstall the app after changing scopes, then reconnect in Sim.
+
+**Edit Canvas** can replace the whole document when **Section ID** is empty. **Get Canvas Info** and **List Canvases** return metadata, not document contents. See Slack's [Canvas guide](https://docs.slack.dev/surfaces/canvases/) for details.
+{/* MANUAL-CONTENT-END */}

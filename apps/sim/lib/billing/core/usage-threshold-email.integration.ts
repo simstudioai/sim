@@ -92,7 +92,7 @@ async function claims(): Promise<Record<string, number>> {
 function claimOf(threshold: 80 | 100, periodStart = SEPTEMBER, limitCents = 10_000) {
   return {
     credits: threshold,
-    creditsPeriod: Math.floor(periodStart.getTime() / 86_400_000),
+    creditsPeriod: periodStart.getTime() / 1000,
     creditsLimit: limitCents,
   }
 }
@@ -157,6 +157,15 @@ describe('usage threshold email', () => {
 
     expect(delivered()).toEqual([reached(), warning(), reached(), warning()])
     expect(await claims()).toEqual(claimOf(80))
+  })
+
+  it('re-arms for a new period that starts the same day as the one it replaces', async () => {
+    const replacement = new Date('2026-09-01T12:00:00.000Z')
+    await notify(85)
+    await notify(85, { periodStart: replacement })
+
+    expect(delivered()).toEqual([warning(), warning()])
+    expect(await claims()).toEqual(claimOf(80, replacement))
   })
 
   it('warns again at a raised limit after the old one was reached', async () => {

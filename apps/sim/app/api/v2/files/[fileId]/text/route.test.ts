@@ -112,6 +112,16 @@ describe('GET /api/v2/files/[fileId]/text', () => {
     expect(mocks.readText).not.toHaveBeenCalled()
   })
 
+  /**
+   * Callers used to zero-based paging send `offset=0` for the first window. It
+   * names no other line, so it reads from the first one instead of failing.
+   */
+  it('reads offset 0 as the first line', async () => {
+    const response = await GET(textRequest(`workspaceId=${WORKSPACE_ID}&offset=0&limit=2`), context)
+
+    expect(response.status).toBe(200)
+  })
+
   it('conceals a cross-tenant file as a missing file', async () => {
     mocks.readText.mockRejectedValueOnce(new NoWorkspaceAccessError())
 

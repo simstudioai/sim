@@ -14,6 +14,7 @@ import { CopilotFinalizeOutcome } from '@/lib/mothership/generated/trace-attribu
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import type { StreamWriter } from '@/lib/mothership/request/session'
+import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
 const logger = createLogger('CopilotStreamFinalize')
@@ -86,27 +87,29 @@ async function handleAborted(
     toolCallCount,
     blockCount,
   })
-  if (!publisher.sawComplete) {
-    const partialContent = result.content || undefined
-    await publisher.publish({
-      type: MothershipStreamV1EventType.complete,
-      payload: {
-        status: MothershipStreamV1CompletionStatus.cancelled,
-        ...(partialContent ? { partialContent } : {}),
-        ...(partialContentLen ? { partialContentLen } : {}),
-        ...(toolCallCount ? { toolCallCount } : {}),
-      },
-    })
-  }
-  await publisher.flush()
-  await loggedRunStatusUpdate(
-    runId,
-    MothershipStreamV1CompletionStatus.cancelled,
-    requestId,
-    {
-      completedAt: new Date(),
+  await publishThenSettle(
+    publisher,
+    async () => {
+      if (publisher.sawComplete) return
+      const partialContent = result.content || undefined
+      await publisher.publish({
+        type: MothershipStreamV1EventType.complete,
+        payload: {
+          status: MothershipStreamV1CompletionStatus.cancelled,
+          ...(partialContent ? { partialContent } : {}),
+          ...(partialContentLen ? { partialContentLen } : {}),
+          ...(toolCallCount ? { toolCallCount } : {}),
+        },
+      })
     },
-    publisher.controllerToken
+    () =>
+      loggedRunStatusUpdate(
+        runId,
+        MothershipStreamV1CompletionStatus.cancelled,
+        requestId,
+        { completedAt: new Date() },
+        publisher.controllerToken
+      )
   )
 }
 
@@ -140,36 +143,38 @@ async function handleError(
   // Surface the real error (Go already classifies provider errors like
   // "overloaded" into a friendly displayMessage). Don't clobber it with a
   // generic string.
-  await publisher.publish({
-    type: MothershipStreamV1EventType.error,
-    payload: {
-      message: errorMessage,
-      error: errorMessage,
-      displayMessage: errorMessage,
-      data: { displayMessage: errorMessage },
+  await publishThenSettle(
+    publisher,
+    async () => {
+      await publisher.publish({
+        type: MothershipStreamV1EventType.error,
+        payload: {
+          message: errorMessage,
+          error: errorMessage,
+          displayMessage: errorMessage,
+          ...(result.errorCode ? { code: result.errorCode } : {}),
+          data: { displayMessage: errorMessage },
+        },
+      })
+      if (publisher.sawComplete) return
+      await publisher.publish({
+        type: MothershipStreamV1EventType.complete,
+        payload: {
+          status: MothershipStreamV1CompletionStatus.error,
+          ...(partialContent ? { partialContent } : {}),
+          ...(partialContentLen ? { partialContentLen } : {}),
+          ...(toolCallCount ? { toolCallCount } : {}),
+        },
+      })
     },
-  })
-  if (!publisher.sawComplete) {
-    await publisher.publish({
-      type: MothershipStreamV1EventType.complete,
-      payload: {
-        status: MothershipStreamV1CompletionStatus.error,
-        ...(partialContent ? { partialContent } : {}),
-        ...(partialContentLen ? { partialContentLen } : {}),
-        ...(toolCallCount ? { toolCallCount } : {}),
-      },
-    })
-  }
-  await publisher.flush()
-  await loggedRunStatusUpdate(
-    runId,
-    MothershipStreamV1CompletionStatus.error,
-    requestId,
-    {
-      completedAt: new Date(),
-      error: errorMessage,
-    },
-    publisher.controllerToken
+    () =>
+      loggedRunStatusUpdate(
+        runId,
+        MothershipStreamV1CompletionStatus.error,
+        requestId,
+        { completedAt: new Date(), error: errorMessage },
+        publisher.controllerToken
+      )
   )
 }
 
@@ -178,22 +183,44 @@ async function handleSuccess(
   runId: string,
   requestId: string
 ): Promise<void> {
-  if (!publisher.sawComplete) {
-    await publisher.publish({
-      type: MothershipStreamV1EventType.complete,
-      payload: { status: MothershipStreamV1CompletionStatus.complete },
-    })
-  }
-  await publisher.flush()
-  await loggedRunStatusUpdate(
-    runId,
-    MothershipStreamV1CompletionStatus.complete,
-    requestId,
-    {
-      completedAt: new Date(),
+  await publishThenSettle(
+    publisher,
+    async () => {
+      if (publisher.sawComplete) return
+      await publisher.publish({
+        type: MothershipStreamV1EventType.complete,
+        payload: { status: MothershipStreamV1CompletionStatus.complete },
+      })
     },
-    publisher.controllerToken
+    () =>
+      loggedRunStatusUpdate(
+        runId,
+        MothershipStreamV1CompletionStatus.complete,
+        requestId,
+        { completedAt: new Date() },
+        publisher.controllerToken
+      )
   )
+}
+
+/**
+ * Publishes the terminal events, then records the run's terminal status even if
+ * publishing failed, since nothing else settles a run. A controller superseded
+ * while publishing leaves the run to its successor instead.
+ */
+async function publishThenSettle(
+  publisher: StreamWriter,
+  publish: () => Promise<void>,
+  settle: () => Promise<void>
+): Promise<void> {
+  try {
+    await publish()
+    await publisher.flush()
+  } catch (error) {
+    if (!(error instanceof StreamControllerSupersededError)) await settle()
+    throw error
+  }
+  await settle()
 }
 
 async function loggedRunStatusUpdate(

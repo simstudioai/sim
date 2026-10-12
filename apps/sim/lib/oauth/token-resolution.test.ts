@@ -2,7 +2,7 @@ import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { credentialsManagedOauthMock } from '@sim/testing/mocks/credentials-managed-oauth.mock'
 import { oauthUtilsMock } from '@sim/testing/mocks/oauth-utils.mock'
-import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAuthorizeCredentialUseForAuth, mockExecuteManagedToken } = vi.hoisted(() => ({
@@ -52,7 +52,6 @@ const {
   mockResolveOAuthAccountId,
   mockResolveServiceAccountToken,
 } = authOAuthUtilsMockFns
-const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 
 const INTERNAL_AUTH = { success: true, userId: 'user-1', authType: 'internal_jwt' } as const
 

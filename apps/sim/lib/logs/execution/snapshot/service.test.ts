@@ -1,34 +1,7 @@
 import { databaseMock } from '@sim/testing'
-import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/utils/id', () => idMock)
-
 import { SnapshotService } from '@/lib/logs/execution/snapshot/service'
 import type { WorkflowState } from '@/lib/logs/types'
-
-idMockFns.mockGenerateId.mockImplementation(() => 'generated-uuid-1')
-idMockFns.mockGenerateShortId.mockImplementation(() => 'generated-short-1')
-
-const mockState: WorkflowState = {
-  blocks: {
-    block1: {
-      id: 'block1',
-      name: 'Test Agent',
-      type: 'agent',
-      position: { x: 100, y: 200 },
-      subBlocks: {},
-      outputs: {},
-      enabled: true,
-      horizontalHandles: true,
-      advancedMode: false,
-      height: 0,
-    },
-  },
-  edges: [{ id: 'edge1', source: 'block1', target: 'block2' }],
-  loops: {},
-  parallels: {},
-}
 
 describe('SnapshotService', () => {
   describe('computeStateHash', () => {
@@ -187,108 +160,6 @@ describe('SnapshotService', () => {
       const hash2 = service.computeStateHash(state2)
 
       expect(hash1).not.toBe(hash2)
-    })
-  })
-
-  describe('createSnapshotWithDeduplication', () => {
-    type SnapshotRow = {
-      id: string
-      workflowId: string
-      stateHash: string
-      stateData: WorkflowState
-      createdAt: Date
-    }
-
-    /** Mock the insert → values → onConflictDoUpdate → returning chain. */
-    function mockUpsertReturning(rows: SnapshotRow[]) {
-      let capturedConflictConfig: Record<string, unknown> | undefined
-      const onConflictDoUpdate = vi.fn().mockImplementation((config: Record<string, unknown>) => {
-        capturedConflictConfig = config
-        return { returning: vi.fn().mockResolvedValue(rows) }
-      })
-      const values = vi.fn().mockReturnValue({ onConflictDoUpdate })
-      databaseMock.db.insert = vi.fn().mockReturnValue({ values })
-      databaseMock.db.select = vi.fn()
-      return { values, onConflictDoUpdate, getConflictConfig: () => capturedConflictConfig }
-    }
-
-    it('reuses the existing snapshot atomically when the returned id differs', async () => {
-      const service = new SnapshotService()
-      const workflowId = 'wf-123'
-
-      mockUpsertReturning([
-        {
-          id: 'existing-snapshot-id',
-          workflowId,
-          stateHash: 'abc123',
-          stateData: mockState,
-          createdAt: new Date('2026-02-19T00:00:00Z'),
-        },
-      ])
-
-      const result = await service.createSnapshotWithDeduplication(workflowId, mockState)
-
-      expect(result.snapshot.id).toBe('existing-snapshot-id')
-      expect(result.isNew).toBe(false)
-      expect(databaseMock.db.select).not.toHaveBeenCalled()
-    })
-
-    it('SET targets only state_hash on conflict, never the large state_data', async () => {
-      const service = new SnapshotService()
-      const workflowId = 'wf-123'
-
-      const { onConflictDoUpdate, getConflictConfig } = mockUpsertReturning([
-        {
-          id: 'generated-uuid-1',
-          workflowId,
-          stateHash: 'abc123',
-          stateData: mockState,
-          createdAt: new Date('2026-02-19T00:00:00Z'),
-        },
-      ])
-
-      await service.createSnapshotWithDeduplication(workflowId, mockState)
-
-      expect(onConflictDoUpdate).toHaveBeenCalledTimes(1)
-      const config = getConflictConfig()
-      expect(config?.target).toBeDefined()
-      // The crux of this change: the SET touches state_hash only, so the unchanged
-      // TOASTed state_data jsonb is never rewritten.
-      expect(config?.set).toHaveProperty('stateHash')
-      expect(config?.set).not.toHaveProperty('stateData')
-    })
-
-    it('does not throw on concurrent inserts with the same hash', async () => {
-      const service = new SnapshotService()
-      const workflowId = 'wf-123'
-
-      const newRow: SnapshotRow = {
-        id: 'generated-uuid-1',
-        workflowId,
-        stateHash: 'abc123',
-        stateData: mockState,
-        createdAt: new Date('2026-02-19T00:00:00Z'),
-      }
-      const existingRow: SnapshotRow = { ...newRow, id: 'existing-snapshot-id' }
-
-      let upsertCall = 0
-      databaseMock.db.insert = vi.fn().mockImplementation(() => ({
-        values: vi.fn().mockReturnValue({
-          onConflictDoUpdate: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue(upsertCall++ === 0 ? [newRow] : [existingRow]),
-          }),
-        }),
-      }))
-
-      const [result1, result2] = await Promise.all([
-        service.createSnapshotWithDeduplication(workflowId, mockState),
-        service.createSnapshotWithDeduplication(workflowId, mockState),
-      ])
-
-      expect(result1.snapshot.id).toBe('generated-uuid-1')
-      expect(result1.isNew).toBe(true)
-      expect(result2.snapshot.id).toBe('existing-snapshot-id')
-      expect(result2.isNew).toBe(false)
     })
   })
 

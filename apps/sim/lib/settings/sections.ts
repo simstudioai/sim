@@ -100,7 +100,12 @@ export const settingsSections: Record<MothershipSettingsScope, readonly Settings
     },
   ],
   workspace: [
-    { id: 'teammates', label: 'Teammates', uiSection: 'teammates', cli: ['workspaces members'] },
+    {
+      id: 'teammates',
+      label: 'Teammates',
+      uiSection: 'teammates',
+      cli: ['workspaces members', 'workspaces invitations create'],
+    },
     {
       id: 'secrets',
       label: 'Environment variables',

@@ -17,16 +17,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
   resolve: vi.fn(),
-  indexed: vi.fn(),
   oauth: vi.fn(),
 }))
 vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/lib/knowledge/application/personal-search-integrations', () => ({
   resolvePersonalSearchConnection: { execute: hoisted.resolve },
-}))
-vi.mock('@/lib/knowledge/application/sim-search', () => ({
-  connectSimSearchConnector: { execute: hoisted.indexed },
 }))
 vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
@@ -90,7 +86,6 @@ describe('personal live Search connection', () => {
         input: { ...input, target: selected },
       })
       expect(result.url).toBe('https://provider.test/oauth')
-      expect(result.connectorId).toBeUndefined()
       expect(
         connectPersonalSearchIntegrationContract.response.schema.safeParse({
           success: true,
@@ -105,7 +100,6 @@ describe('personal live Search connection', () => {
         completionId: input.oauthCompletionId,
         connectionIntent: credentialId ? { kind: 'reconnect', credentialId } : { kind: 'create' },
       })
-      expect(m.indexed).not.toHaveBeenCalled()
       expect(
         organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
       ).toHaveBeenCalledWith(
@@ -125,7 +119,6 @@ describe('personal live Search connection', () => {
       'no longer available'
     )
     expect(m.oauth).not.toHaveBeenCalled()
-    expect(m.indexed).not.toHaveBeenCalled()
   })
 
   it('rechecks disabled account options after resolving the card', async () => {
@@ -136,35 +129,6 @@ describe('personal live Search connection', () => {
     })
     await expect(connectPersonalSearchIntegration.execute({ principal, input })).rejects.toThrow(
       'no longer available'
-    )
-    expect(m.oauth).not.toHaveBeenCalled()
-  })
-
-  it('continues to use indexed enrollment for indexed controls', async () => {
-    const indexed = {
-      type: 'link',
-      provider: 'slack',
-      connectorType: 'slack',
-      connectorId: 'source',
-    } as const
-    m.resolve.mockResolvedValue({ target: indexed })
-    m.indexed.mockResolvedValue({
-      url: 'https://provider.test/oauth',
-      connectorId: 'source',
-      knowledgeBaseId: 'kb',
-    })
-    await connectPersonalSearchIntegration.execute({
-      principal,
-      input: { ...input, target: indexed },
-    })
-    expect(m.indexed).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal,
-        input: expect.objectContaining({
-          connectorId: 'source',
-          oauthCompletionId: input.oauthCompletionId,
-        }),
-      })
     )
     expect(m.oauth).not.toHaveBeenCalled()
   })

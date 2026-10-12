@@ -12,7 +12,10 @@ const mocks = vi.hoisted(() => ({ send: vi.fn() }))
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/lib/invitations/application/send-invitation-batch', () => ({
-  sendInvitationBatch: { operation: { id: 'invitations.send_batch' }, execute: mocks.send },
+  sendWorkspaceInvitationBatch: {
+    operation: { id: 'workspace_invitations.send_batch' },
+    execute: mocks.send,
+  },
 }))
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'

@@ -25,7 +25,7 @@ const hoisted = vi.hoisted(() => ({
   getServer: vi.fn(),
 }))
 
-vi.mock('@sim/workflow-persistence', () => ({
+vi.mock('@sim/workflow-persistence/load', () => ({
   loadWorkflowFromNormalizedTablesRaw: hoisted.loadWorkflow,
 }))
 

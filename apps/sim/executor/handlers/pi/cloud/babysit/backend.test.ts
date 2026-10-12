@@ -1,5 +1,6 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -11,7 +12,6 @@ const {
   mockRequestReview,
   mockReviewLanded,
   mockResolvePiSandboxLifetime,
-  mockSleepUntilAborted,
 } = vi.hoisted(() => ({
   mockFetchSnapshot: vi.fn(),
   mockFetchThreads: vi.fn(),
@@ -21,13 +21,10 @@ const {
   mockRequestReview: vi.fn(),
   mockReviewLanded: vi.fn(),
   mockResolvePiSandboxLifetime: vi.fn(),
-  mockSleepUntilAborted: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
-vi.mock('@/lib/data-drains/destinations/utils', () => ({
-  sleepUntilAborted: mockSleepUntilAborted,
-}))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', async (importOriginal) => {
   const original =
     await importOriginal<typeof import('@/lib/execution/remote-sandbox/pi-lifetime')>()
@@ -230,7 +227,6 @@ describe('runBabysitPiWithOptions', () => {
     mockRequestReview.mockReset()
     mockReviewLanded.mockReset()
     mockResolvePiSandboxLifetime.mockReturnValue(getMaxExecutionTimeout())
-    mockSleepUntilAborted.mockResolvedValue(undefined)
     mockFetchDiagnostics.mockResolvedValue(new Map([['check:ci', 'failure output']]))
     mockReplyAndResolve.mockResolvedValue({
       repliesPosted: 1,

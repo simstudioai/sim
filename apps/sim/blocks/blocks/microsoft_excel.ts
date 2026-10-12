@@ -3,10 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
-import type {
-  MicrosoftExcelResponse,
-  MicrosoftExcelV2Response,
-} from '@/tools/microsoft_excel/types'
 
 /** Maps the read/write operation to its `_v2` tool id, falling back to read on unknown ops. */
 const versionedReadWriteSelector = createVersionedToolSelector<Record<string, any>>({
@@ -60,7 +56,7 @@ const SPREADSHEET_FIELD = ['spreadsheetId', 'manualSpreadsheetId'] as const
 /** Canonical pair for the worksheet tab, on the `_v2` block only. */
 const SHEET_FIELD = ['sheetName', 'manualSheetName'] as const
 
-export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
+export const MicrosoftExcelBlock: BlockConfig = {
   type: 'microsoft_excel',
   name: 'Microsoft Excel (Legacy)',
   description: 'Read, write, and update data',
@@ -683,7 +679,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
   },
 }
 
-export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
+export const MicrosoftExcelV2Block: BlockConfig = {
   type: 'microsoft_excel_v2',
   name: 'Microsoft Excel',
   description: 'Read and write data with sheet selection',

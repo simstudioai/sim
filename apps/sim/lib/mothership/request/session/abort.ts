@@ -8,7 +8,7 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { AbortReason } from './abort-reason'
-import { clearAbortMarker, hasAbortMarker, writeAbortMarker } from './buffer'
+import { clearAbortMarker, hasAbortMarker, refreshBufferTtl, writeAbortMarker } from './buffer'
 import {
   type ChatStreamLease,
   chatStreamLockKey,
@@ -395,7 +395,16 @@ export function startAbortPoller(
             streamId,
             ...(requestId ? { requestId } : {}),
           })
+          return
         }
+        await refreshBufferTtl(streamId).catch((error) => {
+          logger.warn('Failed to refresh stream buffer TTL', {
+            chatId,
+            streamId,
+            ...(requestId ? { requestId } : {}),
+            error: toError(error).message,
+          })
+        })
       } catch (error) {
         logger.warn('Failed to extend chat stream lock TTL', {
           chatId,

@@ -4,10 +4,9 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import '@sim/emcn/components/code/code.css'
-import { DashboardFeatureGate } from '@/components/dashboards/dashboard-feature-gate'
-import { DashboardPreview } from '@/components/dashboards/dashboard-preview'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 import {
   SIM_ARTIFACT_SHELL,
   SIM_ARTIFACT_STYLESHEET,
@@ -23,7 +22,7 @@ import { DataTable } from './data-table'
 import { MermaidDiagram } from './mermaid-diagram'
 import { ZoomablePreview } from './zoomable-preview'
 
-type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | 'chart' | 'dashboard' | null
+type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | 'chart' | null
 
 const PREVIEWABLE_MIME_TYPES: Record<string, PreviewType> = {
   // Sim pages store an EXTENSIONLESS name — without this mapping the record
@@ -36,7 +35,6 @@ const PREVIEWABLE_MIME_TYPES: Record<string, PreviewType> = {
   'image/svg+xml': 'svg',
   'text/x-mermaid': 'mermaid',
   'text/x-sim-chart': 'chart',
-  'text/x-sim-dashboard': 'dashboard',
 }
 
 const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
@@ -47,13 +45,13 @@ const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
   svg: 'svg',
   mmd: 'mermaid',
   chart: 'chart',
-  dashboard: 'dashboard',
 }
 
 /** All extensions that have a rich preview renderer. */
 export const RICH_PREVIEWABLE_EXTENSIONS = new Set(Object.keys(PREVIEWABLE_EXTENSIONS))
 
 export function resolvePreviewType(mimeType: string | null, filename: string): PreviewType {
+  mimeType = normalizeMimeType(mimeType)
   if (mimeType && PREVIEWABLE_MIME_TYPES[mimeType]) return PREVIEWABLE_MIME_TYPES[mimeType]
   const ext = getFileExtension(filename)
   return PREVIEWABLE_EXTENSIONS[ext] ?? null
@@ -86,27 +84,6 @@ export const PreviewPanel = memo(function PreviewPanel({
   readOnly,
 }: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
-
-  if (previewType === 'dashboard')
-    return readOnly ? (
-      <DashboardPreview
-        content={content}
-        workspaceId={workspaceId}
-        fileId={fileId}
-        isStreaming={isStreaming}
-        readOnly
-      />
-    ) : (
-      <DashboardFeatureGate>
-        <DashboardPreview
-          content={content}
-          workspaceId={workspaceId}
-          fileId={fileId}
-          isStreaming={isStreaming}
-          readOnly={readOnly}
-        />
-      </DashboardFeatureGate>
-    )
 
   if (previewType === 'html')
     return (
@@ -481,7 +458,7 @@ const HtmlPreview = memo(function HtmlPreview({
           sandbox='allow-scripts'
           referrerPolicy='no-referrer'
           title='HTML Preview'
-          className='h-full w-full border-0 bg-[var(--surface-2)]'
+          className='size-full border-0 bg-[var(--surface-2)]'
         />
       )}
     </div>
@@ -498,7 +475,7 @@ function SvgPreview({ content }: { content: string }) {
   }, [content])
 
   return (
-    <ZoomablePreview className='min-h-0 flex-1' contentClassName='h-full w-full'>
+    <ZoomablePreview className='min-h-0 flex-1' contentClassName='size-full'>
       {blobUrl && (
         <img
           src={blobUrl}

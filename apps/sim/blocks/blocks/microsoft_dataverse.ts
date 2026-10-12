@@ -4,7 +4,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { DataverseResponse } from '@/tools/microsoft_dataverse/types'
 
 /** Canonical upload pair for the file column payload, basic then advanced. */
 const FILE_FIELD = ['uploadFile', 'fileReference'] as const
@@ -791,7 +790,7 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
       description: 'Full raw table metadata response (get table metadata)',
     },
   },
-} satisfies BlockConfig<DataverseResponse>
+} satisfies BlockConfig
 
 export const MicrosoftDataverseV2Block: BlockConfig = {
   ...MicrosoftDataverseBlock,

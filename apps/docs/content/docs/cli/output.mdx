@@ -7,16 +7,16 @@ Commands that return structured API data support four output formats.
 
 | Format | For |
 | --- | --- |
-| `table` | reading (default) |
-| `json` | piping into `jq` |
+| `json` | agents, scripts, and piping into `jq` (default) |
+| `table` | reading |
 | `yaml` | piping into anything that reads YAML |
 | `text` | shell loops — tab-separated, no header, no colour |
 
 Select one per command, save it to the profile, or set it in the environment:
 
 ```bash
-sim tables get tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --output json
-sim configure --set-output json
+sim tables get tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --output table
+sim configure --set-output table
 SIM_OUTPUT=yaml sim logs list > logs.yaml
 ```
 

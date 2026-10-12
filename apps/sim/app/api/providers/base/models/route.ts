@@ -7,7 +7,7 @@ export const GET = withRouteHandler(async () => {
   try {
     const allModels = Object.keys(getBaseModelProviders())
     return NextResponse.json(providerModelsResponseSchema.parse({ models: allModels }))
-  } catch (error) {
+  } catch {
     return NextResponse.json({ models: [], error: 'Failed to fetch models' }, { status: 500 })
   }
 })

@@ -1,0 +1,368 @@
+---
+slug: slack-ai-agent-security-permissions-guide
+title: 'Slack AI Agent Security: Permissions, Data, and Audit Guide'
+description: 'Secure a Slack AI agent with least-privilege OAuth scopes, controlled data access, protected credentials, approval gates, and complete audit evidence.'
+date: 2026-10-03
+updated: 2026-10-03
+authors:
+  - andrew
+readingTime: 15
+tags: [AI Agents, Security, Slack, Governance, Sim]
+ogImage: /library/slack-ai-agent-security-permissions-guide/cover.jpg
+draft: false
+faq:
+  - q: "What permissions does a Slack AI agent need?"
+    a: "A Slack AI agent needs only the OAuth scopes, channel access, and downstream permissions required for its approved tasks. Teams should map every scope to a specific API method or event and remove any permission that is not exercised by an approved user journey."
+  - q: "Should a Slack AI agent have access to every channel?"
+    a: "A Slack AI agent should not have access to every channel. Teams should allowlist approved channels, deny sensitive channels by default, restrict who can invite the bot, and test direct-message and shared-channel behavior separately."
+  - q: "Can a Slack AI agent read private channels?"
+    a: "A Slack AI agent can read private-channel content only when its Slack authorization, scopes, and conversation access permit it. Teams should avoid private-channel scopes unless the use case requires them and should test the resulting access boundary directly."
+  - q: "How do you apply least privilege to a Slack bot?"
+    a: "A Slack bot applies least privilege by using a dedicated bot identity, minimal OAuth scopes, approved channel membership, narrow downstream credentials, allowlisted tools, and explicit limits on actions and data volume."
+  - q: "How should a Slack AI agent store OAuth tokens?"
+    a: "A Slack AI agent should store OAuth tokens in a managed secret system and expose them only to the runtime component that needs them. Tokens should be separated by environment, excluded from prompts and logs, rotated regularly, and revoked immediately after suspected exposure."
+  - q: "How do you verify that a request came from Slack?"
+    a: "A Slack integration verifies requests by checking Slack's signature and timestamp against the raw request body with the app's signing secret. The integration should reject invalid signatures and stale requests to reduce spoofing and replay risk."
+  - q: "Is a Slack signing secret the same as a bot token?"
+    a: "A Slack signing secret is not the same as a bot token. The signing secret verifies inbound requests from Slack, while the bot token authorizes API calls made by the app."
+  - q: "How long should a Slack AI agent retain messages?"
+    a: "A Slack AI agent should retain messages only for the shortest period required by its approved purpose, legal obligations, and incident-response needs. Teams should set separate retention periods for prompts, outputs, embeddings, tool results, debugging traces, and audit events."
+  - q: "Does Slack data retention delete data stored by an AI agent?"
+    a: "Slack data retention does not automatically delete copies stored by an AI agent, model provider, connected tool, log system, or backup. Each downstream system needs its own deletion and retention process."
+  - q: "How do you prevent a Slack AI agent from leaking sensitive data?"
+    a: "A Slack AI agent prevents sensitive-data leakage by minimizing retrieved content, redacting secrets before model calls, restricting egress destinations, separating channel permissions, validating tool calls, and requiring approval before sensitive disclosure."
+  - q: "How do you stop prompt injection in Slack?"
+    a: "A Slack AI agent limits prompt injection by treating messages, files, links, retrieved documents, and tool output as untrusted content. Deterministic authorization, tool allowlists, argument validation, data limits, and approval gates must prevent malicious text from granting itself authority."
+  - q: "Should a Slack AI agent be allowed to take external actions?"
+    a: "A Slack AI agent should take external actions only through narrowly scoped tools with independent authorization and validation. High-risk or irreversible actions should require explicit human approval before execution."
+  - q: "When does a Slack AI agent need human approval?"
+    a: "A Slack AI agent needs human approval when an action is difficult to reverse, affects an external party, changes access, transfers money, exposes sensitive information, or exceeds an organization's documented risk threshold."
+  - q: "What should an approver see before approving an AI agent action?"
+    a: "A Slack AI agent approval request should show the requester, proposed action, destination, relevant inputs, expected effect, and sensitive data involved. The approval record should preserve the approver, decision, timestamp, and exact authorized action."
+  - q: "What should be included in Slack AI agent audit logs?"
+    a: "Slack AI agent audit logs should include the requesting identity, workspace and conversation identifiers, agent version, model and tool configuration, policy results, sanitized tool calls, approvals, external effects, errors, and a shared correlation identifier."
+  - q: "Are Slack audit logs enough to audit an AI agent?"
+    a: "Slack audit logs are not enough to audit an AI agent because Slack does not provide the complete model, workflow, tool, approval, and downstream-system execution record. Teams need correlated evidence from Slack, the agent runtime, and every consequential external system."
+  - q: "Can Sim deploy a Slack slash-command trigger with the native Sim Slack app?"
+    a: "Sim cannot deploy a Slack slash-command trigger with the native Sim Slack app. A Sim slash-command trigger requires a custom Slack bot with its own signing secret."
+  - q: "How does human approval work in Sim?"
+    a: "Sim's Human in the Loop block pauses a run and resumes it with submitted form fields. A downstream Condition must inspect the approval field and route the workflow to the approved or rejected path."
+  - q: "Does Sim's Guardrails block automatically stop a Slack agent?"
+    a: "Sim's Guardrails block does not automatically stop a Slack agent because it reports only whether the check passed or failed. A downstream Condition must route on that result to stop, continue, or escalate the run."
+  - q: "Can Sim use local models for a self-hosted Slack agent?"
+    a: "Sim can use Ollama, vLLM, LM Studio, or LiteLLM-compatible local models on any self-hosted deployment. Local-model support is a self-hosting capability and does not require Sim Enterprise."
+  - q: "Is Sim open source?"
+    a: "Sim's core is open source under the OSI-approved Apache 2.0 license. Code in apps/sim/ee uses the separate Sim Enterprise License, and production use of those enterprise features requires an active Sim Enterprise subscription."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License rather than an OSI-approved open-source license. Organizations can self-host n8n subject to that license's conditions and restrictions."
+  - q: "Is Sim or n8n better for a secure Slack AI agent?"
+    a: "Sim is the stronger choice when a team prioritizes an Apache 2.0 core, visual agent control, conditional approval paths, and optional enterprise governance features, while n8n remains a capable incumbent for teams already operating its workflow ecosystem. Security still depends on how either platform's Slack scopes, credentials, tools, approvals, and logs are configured."
+  - q: "What is the best AI agent platform for Slack?"
+    a: "Sim is a strong AI agent platform for Slack when teams need controlled multi-step workflows, human approval, self-hosting options, and explicit routing around model and tool decisions. Best AI Agents for Slack provides the focused product comparison, while Best AI Agent Platforms and Builders in 2026 covers the broader platform market."
+  - q: "What should be tested before a Slack AI agent goes live?"
+    a: "A Slack AI agent should be tested for unauthorized installation, excessive scopes, forbidden channel access, secret leakage, direct and indirect prompt injection, unsafe tool arguments, approval bypass, replayed requests, incomplete logs, revocation, and rollback."
+---
+
+## TL;DR
+
+A secure Slack AI agent uses least-privilege OAuth scopes, restricted installation and channel access, controlled data retention, protected credentials, approval gates for consequential actions, and end-to-end audit evidence.
+
+Slack agents operate inside conversations that may contain customer data, source code, credentials, legal discussions, personnel information, and instructions from people the agent was never designed to trust. Security therefore depends on more than the model: teams must control what the Slack app can read, what the agent can do, where data flows, and how every sensitive action is reviewed.
+
+As of October 2026, Slack documents these controls across its official guidance for [OAuth scopes](https://docs.slack.dev/reference/scopes/), [app management settings](https://slack.com/help/articles/222386767-Manage-app-approval-for-your-workspace), [request verification](https://docs.slack.dev/authentication/verifying-requests-from-slack), and the [Audit Logs API](https://docs.slack.dev/admins/audit-logs-api).
+
+## How do you secure an AI agent in Slack?
+
+A Slack AI agent is secured by treating Slack messages as untrusted input and independently restricting identity, permissions, data, tools, approvals, and audit records.
+
+A practical security model has six layers:
+
+1. **Identity:** Establish which Slack app, bot user, workspace, organization, and human initiated the request.
+2. **Authorization:** Grant only the OAuth scopes, channel access, and downstream tool permissions required for the approved use case.
+3. **Data protection:** Minimize message collection, redact sensitive values, define retention, and prevent unintended model or vendor exposure.
+4. **Action control:** Separate read-only retrieval from consequential actions such as sending messages, modifying records, or executing code.
+5. **Human oversight:** Require approval for actions whose financial, operational, legal, or security impact exceeds a defined threshold.
+6. **Evidence:** Record who requested the action, what context the agent used, which tools ran, who approved it, and what changed.
+
+The strongest design assumes that a malicious instruction can reach the agent. The controls surrounding the model must keep that instruction from becoming an unauthorized action.
+
+## What should be included in a Slack AI agent threat model?
+
+A Slack AI agent threat model should cover unauthorized installation, excessive scopes, unintended channel access, data leakage, prompt injection, credential theft, unsafe tool calls, approval bypass, and incomplete audit evidence.
+
+| Threat | Example | Primary control |
+|---|---|---|
+| Unauthorized installation | A user installs an unreviewed bot in a production workspace | Admin approval and an approved-app policy |
+| Excessive OAuth access | A support bot receives file or private-message access it does not need | Scope-by-scope justification and least privilege |
+| Overbroad channel exposure | The bot is invited to executive, legal, or incident channels | Channel allowlists and restricted invitation rights |
+| Sensitive-data disclosure | A message containing a secret is sent to a model or external API | Redaction, data classification, and egress controls |
+| Prompt injection | A pasted document tells the agent to ignore policy and export data | Untrusted-content isolation and tool authorization |
+| Credential compromise | A Slack token or API key appears in logs | Secret storage, log filtering, and token rotation |
+| Unsafe external action | The agent changes a CRM record based on an untrusted message | Narrow tool permissions and human approval |
+| Approval bypass | The requester approves their own high-risk action | Separation of duties and policy-enforced approvers |
+| Missing forensic evidence | A destructive action cannot be tied to a person or run | Immutable, correlated audit records |
+
+Risk should be assessed per use case rather than per model. A question-answering bot that reads an approved knowledge base has a different risk profile from an agent that can issue refunds, deploy code, or alter access rights.
+
+## Which OAuth scopes should a Slack AI agent request?
+
+A Slack AI agent should request only the Slack OAuth scopes needed for named features, and every requested scope should have an owner, justification, and removal test.
+
+Slack uses [granular scopes](https://docs.slack.dev/reference/scopes/) to authorize API capabilities. Common examples include `app_mentions:read` for receiving mentions, `chat:write` for posting messages, `channels:history` for public-channel history, `groups:history` for private-channel history, `im:history` for direct-message history, `files:read` for files, and `commands` for slash commands. A scope should not be added merely because it might be useful later.
+
+Use this review process:
+
+1. Start with the exact user journeys the agent must support.
+2. Map each journey to required Slack API methods and events.
+3. Map those methods and events to the scopes in Slack's official documentation.
+4. Remove scopes that are not exercised by an approved journey.
+5. Test expected failures when a removed scope or inaccessible channel blocks an operation.
+6. Repeat the review whenever the agent gains a tool, trigger, or new data source.
+
+Prefer bot-token scopes over user-token scopes when the agent should act as a distinct service identity. Slack documents that [bot tokens use granular permissions while user tokens act on behalf of users](https://docs.slack.dev/authentication/tokens). A user token can couple the agent's reach to a person's access and make attribution harder unless impersonation is an explicit, reviewed requirement.
+
+## How should Slack app installation be controlled?
+
+Slack app installation should be limited to approved administrators or an application-review process that verifies ownership, scopes, data flows, vendor access, and removal procedures. Slack workspace owners can [enable app approval and restrict apps](https://slack.com/help/articles/222386767-Manage-app-approval-for-your-workspace).
+
+An installation review should answer:
+
+- Who owns the app and handles security incidents?
+- Is the app internally developed, vendor-managed, or distributed through the Slack Marketplace?
+- Which workspaces may install it?
+- Which OAuth scopes and event subscriptions does it request?
+- Which external systems receive Slack data?
+- Where are tokens and signing secrets stored?
+- How can administrators revoke the installation quickly?
+- Does reinstalling or changing scopes require renewed approval?
+
+Production and test installations should use separate credentials and workspaces where possible. Development tokens should not provide a path into production conversations, and production installations should not be used for ad hoc experiments.
+
+## How should channel access work for a Slack AI agent?
+
+A Slack AI agent should be allowed only in approved channels, with sensitive channels denied by default and direct-message behavior reviewed separately.
+
+OAuth scopes, token type, Slack conversation rules, and channel membership collectively determine what an app can access. Teams should test actual API behavior instead of assuming that bot membership alone defines the complete boundary.
+
+Use an explicit channel policy:
+
+- Maintain an allowlist for approved production channels.
+- Deny legal, finance, executive, security-incident, credential-sharing, and personnel channels unless the use case specifically requires them.
+- Restrict who may invite the app to additional channels.
+- Decide whether direct messages and multi-person direct messages are supported.
+- Re-evaluate access when a public channel becomes private or its purpose changes.
+- Remove the app automatically when the owning team or use case is retired.
+
+For agents that summarize or search conversations, limit retrieval to the current request's authorized channel set. A user asking from one channel should not automatically gain retrieval access to every conversation visible to the bot.
+
+## How should a Slack AI agent handle sensitive data?
+
+A Slack AI agent should collect the minimum necessary message content, classify it before external processing, and retain it only for a documented period.
+
+Teams should document the full data path from Slack to the agent runtime, model provider, connected tools, logs, observability systems, backups, and support systems. The review should distinguish transient prompt context from stored transcripts and derived artifacts such as embeddings, summaries, or extracted fields.
+
+Recommended controls include:
+
+- Detect and redact credentials, tokens, private keys, payment data, and regulated identifiers before model calls.
+- Exclude hidden metadata and full thread history unless the task requires them.
+- Define separate retention periods for prompts, outputs, tool results, audit events, and debugging traces.
+- Encrypt data in transit and at rest.
+- Restrict production transcript access to authorized operational roles.
+- Document the regions and subprocessors involved in storage or inference.
+- Provide deletion procedures that cover primary stores, derived indexes, and backups.
+- Disable training or secondary use of organizational data unless explicitly approved.
+
+Slack retention settings do not automatically delete copies held by an agent, model provider, or connected application. Each downstream copy needs its own retention and deletion control.
+
+## How should Slack bot tokens, signing secrets, and API keys be stored?
+
+Slack bot tokens, Slack signing secrets, model keys, and downstream API credentials should be stored in a managed secret system and injected only into the component that needs them.
+
+A Slack signing secret verifies that an inbound request came from Slack; it is not an API token and should not be reused as one. As of October 2026, Slack's official [request-verification guidance](https://docs.slack.dev/authentication/verifying-requests-from-slack) requires validating the signature and timestamp over the raw request body and rejecting stale requests to reduce replay risk.
+
+Apply these controls:
+
+- Never place credentials in prompts, workflow names, channel messages, source code, or ordinary logs.
+- Give development, staging, and production separate credentials.
+- Rotate credentials on a schedule and immediately after suspected exposure.
+- Restrict secret read access independently from workflow-edit access.
+- Filter headers, request bodies, and tool outputs before logging.
+- Record secret references or versions rather than secret values.
+- Revoke unused tokens when an app, employee, or integration is retired.
+
+Teams should track where credentials are introduced and used during execution so an incident review can identify every affected system.
+
+## How should a Slack AI agent control external actions?
+
+A Slack AI agent should authorize every external action against the requesting identity, approved use case, target resource, and action risk instead of trusting the model's decision alone.
+
+Read and write tools should use different credentials when possible. For example, a CRM lookup tool should not inherit permission to delete accounts, and a repository search tool should not inherit permission to merge code.
+
+Classify actions by impact:
+
+| Risk level | Example | Required control |
+|---|---|---|
+| Low | Search an approved knowledge base | Authenticated request and access check |
+| Medium | Draft a Slack response or create a non-sensitive ticket | Preview, validation, and attributable logging |
+| High | Send an external message, update a customer record, or trigger a deployment | Explicit human approval and narrow credentials |
+| Critical | Transfer money, change access rights, delete production data, or expose secrets | Strong authentication, separation of duties, policy enforcement, and an independent execution boundary |
+
+Tool arguments should be validated against schemas and policy. The executor should reject unexpected destinations, identifiers, commands, file paths, and URLs even when the model produced syntactically valid output.
+
+## When should a Slack AI agent require human approval?
+
+A Slack AI agent should require human approval whenever an action is difficult to reverse, affects an external party, changes access, moves money, exposes sensitive data, or crosses a defined risk threshold.
+
+Approval must be meaningful rather than ceremonial. The approver should see the requester, proposed action, destination, relevant inputs, expected effect, and any sensitive data involved. Approval records should capture the approver's identity, decision, timestamp, and the exact action that was authorized.
+
+Sim's Human in the Loop block pauses a run and resumes it with submitted form fields. Approve or reject is represented as a field, so a downstream Condition must inspect that field before the workflow takes the approved or rejected path. The [human-in-the-loop guide](https://www.sim.ai/library/what-is-human-in-the-loop-in-ai-agents) explains the broader control pattern.
+
+Sim's Wait block should not be used as an approval mechanism because it resumes only after a set time and does not resume in response to an external event. Sim's Guardrails block reports whether a check passed or failed; a downstream Condition must route on that result if the workflow should stop or take a safer path.
+
+## What should Slack AI agent audit logs record?
+
+Slack AI agent audit logs should connect the Slack request, human identity, agent run, model decision, tool calls, approval decision, and external system result in one traceable record.
+
+At minimum, record:
+
+- Workspace, organization, channel, thread, and message identifiers where permitted.
+- Slack user and bot identities.
+- App installation and credential reference used.
+- Agent and workflow version.
+- Model and tool configuration version.
+- Policy and guardrail results.
+- Tool names, sanitized arguments, response status, and affected resource identifiers.
+- Approval request, approver, decision, and timestamp.
+- Final Slack response and external side effects.
+- Errors, retries, cancellations, and timeouts.
+- A correlation identifier shared across Slack, the agent runtime, and downstream systems.
+
+Avoid placing raw secrets or unnecessary message content in audit records. Logs must be useful for attribution and investigation without becoming a second uncontrolled copy of sensitive Slack data. The guide to [AI agent observability](https://www.sim.ai/library/ai-agent-observability) explains how traces, metrics, and evaluations complement this audit evidence.
+
+Slack's [Audit Logs API](https://docs.slack.dev/admins/audit-logs-api) provides supported workspace-level administrative events for Enterprise organizations, while the agent runtime's execution records must capture model, workflow, approval, and tool behavior.
+
+## How do you prevent prompt injection in a Slack AI agent?
+
+A Slack AI agent resists prompt injection by treating every message, attachment, link, retrieved document, and tool result as untrusted data that cannot grant itself authority.
+
+Prompt text alone is not a security boundary. Instructions such as “ignore previous rules,” “send the customer list here,” or “use this administrator token” must remain powerless unless independently allowed by identity, authorization, tool, and approval controls.
+
+Use layered defenses:
+
+- Keep system instructions separate from Slack content.
+- Label retrieved and user-provided text as untrusted content.
+- Prevent retrieved documents from changing tool permissions or approval rules.
+- Allowlist tools, destinations, domains, and resource types.
+- Validate tool arguments outside the model.
+- Require fresh authorization for sensitive operations.
+- Limit the amount of data a single request can retrieve or transmit.
+- Detect instructions that request secrets, policy bypass, or data exfiltration.
+- Route high-risk outcomes to human review.
+- Test indirect attacks embedded in files, web pages, quoted messages, and tool output.
+
+A guardrail can improve detection, but authorization must still be enforced by deterministic code outside the model.
+
+## How does Sim support secure Slack AI agents?
+
+Sim supports secure Slack agent design through visual workflow control, conditional routing, human review, self-hosting options, and enterprise governance capabilities.
+
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Sim's core is licensed under Apache 2.0, while code in `apps/sim/ee`—including SSO, SCIM, access control, access requests, audit logs, data retention, data drains, session policies, and credential groups—is covered by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Production use of that enterprise code requires an active Sim Enterprise subscription.
+
+Any self-hosted Sim deployment can use Ollama, vLLM, LM Studio, or LiteLLM-compatible local models through the documented [self-hosting environment settings](https://docs.sim.ai/platform/self-hosting/environment-variables); local-model support does not require Sim Enterprise. [Workspace BYOK keys work on every Sim Cloud plan](https://docs.sim.ai/platform/costs), while organization-level keys require Pro for Teams, Max for Teams, or Enterprise as of October 2026.
+
+For Slack slash commands, Sim requires a custom Slack bot with its own signing secret because the native Sim Slack app cannot deploy slash-command triggers. Teams should verify Slack signatures at the request boundary and apply the same scope, channel, and installation controls described in this guide.
+
+The implementation guide [How do you build an AI Slackbot without code?](https://www.sim.ai/library/how-to-build-ai-slackbot-without-code) covers construction, while [Best AI Agents for Slack](https://www.sim.ai/library/best-ai-agents-for-slack) covers product-selection intent. This guide owns the security and permissions review that should happen before deployment.
+
+## How does n8n fit into Slack agent security reviews?
+
+n8n remains an important incumbent for Slack automation through its documented [Slack node](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.slack), but an n8n Slack workflow still requires independent review of scopes, credentials, data flows, tool permissions, approvals, and audit evidence.
+
+As of October 2026, n8n is self-hostable under its [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), a source-available license that does not appear in the [OSI's approved-license list](https://opensource.org/licenses). Connecting a workflow to Slack does not determine whether a particular deployment follows least privilege.
+
+Technical buyers comparing the two should separate platform licensing from deployment security. Sim's core uses the OSI-approved Apache 2.0 license, with enterprise features under the separate Sim Enterprise License; n8n uses its fair-code Sustainable Use License. Either platform still needs an enforceable Slack security boundary.
+
+## What are the key platform facts for a Slack AI agent security review?
+
+Sim and n8n differ in licensing and governance packaging, but either platform must be configured around Slack's permission boundary and the organization's own action policies.
+
+- **Sim:** Sim's core is Apache 2.0 and can be self-hosted, `apps/sim/ee` uses the separate Sim Enterprise License, workspace BYOK is available on every Sim Cloud plan, and [hosted model usage carries approximately a 1.1x multiplier on provider cost](https://docs.sim.ai/platform/costs) as of October 2026.
+- **n8n:** n8n is self-hostable under the source-available Sustainable Use License rather than an OSI-approved open-source license, and n8n Cloud describes usage in workflow executions on its [official pricing page](https://n8n.io/pricing/) as of October 2026.
+- **Slack:** Slack is the identity, conversation, installation, and OAuth boundary for the agent, while model usage and agent-platform execution are billed and governed separately from Slack workspace access.
+
+Platform selection does not replace threat modeling. The deployment is secure only when the Slack app, agent runtime, models, credentials, tools, approvals, and logs form one enforceable control system.
+
+## What should be checked before deploying a Slack AI agent?
+
+A Slack AI agent should not enter production until its owner can demonstrate least privilege, bounded data handling, safe external actions, effective approvals, and complete auditability.
+
+### Slack AI agent deployment checklist
+
+**Ownership and purpose**
+
+- [ ] Name the business owner, technical owner, security reviewer, and incident contact.
+- [ ] Document the approved tasks and explicitly prohibited tasks.
+- [ ] Assign a review date and retirement condition.
+
+**Slack application**
+
+- [ ] Use a dedicated production Slack app and bot identity.
+- [ ] Require administrator approval for installation and scope changes.
+- [ ] Justify every OAuth scope against a named feature.
+- [ ] Review event subscriptions, redirect URLs, and interactive endpoints.
+- [ ] Verify Slack request signatures and reject stale requests.
+- [ ] Document uninstall and emergency-revocation procedures.
+
+**Channels and users**
+
+- [ ] Define allowed workspaces and channels.
+- [ ] Deny sensitive channels by default.
+- [ ] Restrict who can invite or invoke the agent.
+- [ ] Decide whether direct messages and shared channels are supported.
+- [ ] Test access with authorized and unauthorized users.
+
+**Data handling**
+
+- [ ] Map data flows through models, tools, logs, indexes, and backups.
+- [ ] Minimize thread history, files, and metadata sent downstream.
+- [ ] Redact secrets and regulated data before model calls.
+- [ ] Set retention and deletion periods for every stored copy.
+- [ ] Review model-provider training, storage, and subprocessors.
+
+**Secrets and infrastructure**
+
+- [ ] Store Slack tokens, signing secrets, and API keys in a managed secret system.
+- [ ] Separate development, staging, and production credentials.
+- [ ] Limit secret access and redact logs.
+- [ ] Test rotation and emergency revocation.
+- [ ] Apply network egress restrictions where appropriate.
+
+**Tools and actions**
+
+- [ ] Separate read-only and write credentials.
+- [ ] Allowlist tools, destinations, and resource types.
+- [ ] Validate tool arguments outside the model.
+- [ ] Define transaction, rate, and data-volume limits.
+- [ ] Require human approval for high-risk actions.
+- [ ] Prevent requesters from self-approving critical actions.
+
+**Prompt-injection resistance**
+
+- [ ] Treat messages, files, links, retrieved documents, and tool results as untrusted.
+- [ ] Test direct and indirect prompt-injection attacks.
+- [ ] Verify that content cannot expand scopes or tool permissions.
+- [ ] Test attempts to extract system prompts, secrets, and cross-channel data.
+- [ ] Confirm that guardrail failures route to a safe path.
+
+**Audit and operations**
+
+- [ ] Correlate Slack events with agent runs and downstream changes.
+- [ ] Record workflow, model, policy, and tool versions.
+- [ ] Record approvals without storing unnecessary sensitive content.
+- [ ] Alert on denied actions, repeated failures, unusual volume, and scope changes.
+- [ ] Test incident investigation, disablement, and rollback.
+- [ ] Re-run the review after any new scope, model, tool, or data source is added.
+
+## Which related guides help teams evaluate and govern AI agents?
+
+Sim's related guides separate Slack implementation, human approval, observability, enterprise governance, and platform selection into focused buyer questions. For cross-team policy design, [Governing AI Agents Built by Different Teams in One Enterprise Workspace](https://www.sim.ai/library/govern-ai-agents-multiple-teams-enterprise-workspace) covers how shared controls apply across independently built agents.

@@ -58,7 +58,6 @@ import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/searc
 import type { NativeSearchQuery } from '@/lib/api/contracts/mothership-assistant-tools'
 import { useSession } from '@/lib/auth/auth-client'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   type ResourceScope,
   resourceScopeFields,
@@ -1214,15 +1213,9 @@ async function searchWorkspaceKnowledge(
 interface WorkspaceKnowledgeSearchOptions {
   nativeQueries?: NativeSearchQuery[]
   reuseFreshResult?: boolean
-  /**
-   * Keeps the previous result painted when only the result limit changes. Set it when the
-   * surface owns the limit (Show more widens the same search); leave it off when the limit is
-   * part of what was asked for, so a new limit is a new search that never shows the old one.
-   */
-  retainAcrossLimits?: boolean
 }
 
-/** Searches the canonical index under the signed-in person's ACLs. */
+/** Searches connected providers with the signed-in person's access. */
 export function useWorkspaceKnowledgeSearch(
   owner: string | ResourceScope | undefined,
   query: string,
@@ -1230,10 +1223,7 @@ export function useWorkspaceKnowledgeSearch(
   topK = 20,
   options?: WorkspaceKnowledgeSearchOptions
 ) {
-  const { features } = useDeploymentShape()
-  const live = features.liveEnterpriseSearch === true
   const { data: session } = useSession()
-  const queryClient = useQueryClient()
   const userId = session?.user?.id
   const trimmed = query.trim()
   const scope =
@@ -1247,7 +1237,7 @@ export function useWorkspaceKnowledgeSearch(
   return useQuery({
     queryKey: [
       ...knowledgeKeys.search(scopeKey, trimmed, filters, topK, userId, options?.nativeQueries),
-      live ? 'live' : 'indexed',
+      'live',
     ],
     queryFn: ({ signal }) =>
       searchWorkspaceKnowledge(
@@ -1256,7 +1246,7 @@ export function useWorkspaceKnowledgeSearch(
           query: trimmed,
           filters,
           topK,
-          ...(live && options?.nativeQueries ? { nativeQueries: options.nativeQueries } : {}),
+          ...(options?.nativeQueries ? { nativeQueries: options.nativeQueries } : {}),
         },
         signal
       ),
@@ -1269,21 +1259,7 @@ export function useWorkspaceKnowledgeSearch(
           filters?.modifiedAfter ||
           filters?.modifiedBefore
       ),
-    staleTime: live
-      ? options?.reuseFreshResult
-        ? 60_000
-        : 0
-      : WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
+    staleTime: options?.reuseFreshResult ? WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME : 0,
     retry: false,
-    placeholderData: (previous, previousQuery) => {
-      if (live || !userId || previousQuery?.state.status !== 'success') return undefined
-      if (previousQuery.state.isInvalidated) return undefined
-      const prefix = knowledgeKeys.searchQuery(scopeKey, trimmed, userId)
-      if (!prefix.every((part, index) => previousQuery.queryKey[index] === part)) return undefined
-      /** `search()` appends filters, then the limit, after the reader/query prefix. */
-      const previousTopK = previousQuery.queryKey[prefix.length + 1]
-      if (!options?.retainAcrossLimits && previousTopK !== topK) return undefined
-      return queryClient.getQueryData(previousQuery.queryKey) === previous ? previous : undefined
-    },
   })
 }

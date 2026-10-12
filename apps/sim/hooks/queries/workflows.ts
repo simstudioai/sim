@@ -565,12 +565,21 @@ export function useDeleteWorkflowMutation() {
   })
 }
 
-export function useDeploymentVersionState(workflowId: string | null, version: number | null) {
+export function useDeploymentVersionState(
+  workflowId: string | null,
+  version: number | null,
+  expectedDeploymentVersionId?: string
+) {
   return useQuery({
-    queryKey: workflowKeys.deploymentVersion(workflowId ?? undefined, version ?? undefined),
+    queryKey: workflowKeys.deploymentVersion(
+      workflowId ?? undefined,
+      version ?? undefined,
+      expectedDeploymentVersionId
+    ),
     queryFn:
       workflowId && version !== null
-        ? ({ signal }) => fetchDeploymentVersionState(workflowId, version, signal)
+        ? ({ signal }) =>
+            fetchDeploymentVersionState(workflowId, version, signal, expectedDeploymentVersionId)
         : skipToken,
     staleTime: WORKFLOW_DEPLOYMENT_VERSION_STATE_STALE_TIME,
   })

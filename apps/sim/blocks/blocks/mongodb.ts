@@ -2,9 +2,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { MongoDBIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { MongoDBIntrospectResponse, MongoDBResponse } from '@/tools/mongodb/types'
 
-export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectResponse> = {
+export const MongoDBBlock: BlockConfig = {
   type: 'mongodb',
   name: 'MongoDB',
   description: 'Connect to MongoDB database',

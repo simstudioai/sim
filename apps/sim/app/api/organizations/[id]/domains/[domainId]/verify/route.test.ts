@@ -44,6 +44,7 @@ const PENDING_ROW = {
 /** Queues the membership + pending-row lookups shared by the happy path. */
 function queueAdminWithPendingRow() {
   queueTableRows(member, [{ role: 'owner' }])
+  queueTableRows(member, [{ role: 'owner' }])
   queueTableRows(ssoDomain, [PENDING_ROW]) // row lookup
 }
 

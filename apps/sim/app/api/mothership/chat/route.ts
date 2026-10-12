@@ -10,6 +10,11 @@ import { handleUnifiedChatPost } from '@/lib/mothership/chat/post'
 import { validateShimEnvelope } from '@/lib/mothership/request/http'
 import { GET as copilotChatGet } from '@/app/api/copilot/chat/queries'
 
+/**
+ * Caps this response on serverless hosts only; the Node server bounds nothing with it.
+ * The run does not depend on this response: one that ends without a terminal is
+ * re-attached through the replay stream.
+ */
 export const maxDuration = 3600
 
 // Unified chat route surface.

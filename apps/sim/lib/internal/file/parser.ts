@@ -1136,7 +1136,6 @@ async function handlePdfBuffer(
     logger.error('Failed to parse PDF in memory:', error)
 
     const content = createPdfFailureMessage(
-      0,
       fileBuffer.length,
       originalPath || filename,
       (error as Error).message
@@ -1366,12 +1365,7 @@ Please use a PDF viewer for best results.`
 /**
  * Create error message for PDF parsing failure and make it more readable
  */
-function createPdfFailureMessage(
-  pageCount: number,
-  size: number,
-  path: string,
-  error: string
-): string {
+function createPdfFailureMessage(size: number, path: string, error: string): string {
   return `PDF document - Processing failed, ${prettySize(size)}
 Path: ${path}
 Error: ${error}

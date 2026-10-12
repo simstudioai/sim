@@ -114,7 +114,6 @@ interface OktaGroupOutput {
   lastMembershipUpdated: string | null
 }
 
-// List Users
 export interface OktaListUsersParams extends OktaBaseParams {
   search?: string
   filter?: string
@@ -132,7 +131,6 @@ export interface OktaListUsersResponse extends ToolResponse {
   }
 }
 
-// Get User
 export interface OktaGetUserParams extends OktaBaseParams {
   userId: string
 }
@@ -166,7 +164,6 @@ export interface OktaGetUserResponse extends ToolResponse {
   }
 }
 
-// Create User
 export interface OktaCreateUserParams extends OktaBaseParams {
   firstName: string
   lastName: string
@@ -193,7 +190,6 @@ export interface OktaCreateUserResponse extends ToolResponse {
   }
 }
 
-// Update User
 export interface OktaUpdateUserParams extends OktaBaseParams {
   userId: string
   firstName?: string
@@ -219,7 +215,6 @@ export interface OktaUpdateUserResponse extends ToolResponse {
   }
 }
 
-// Deactivate User
 export interface OktaDeactivateUserParams extends OktaBaseParams {
   userId: string
   sendEmail?: boolean
@@ -233,7 +228,6 @@ export interface OktaDeactivateUserResponse extends ToolResponse {
   }
 }
 
-// List Groups
 export interface OktaListGroupsParams extends OktaBaseParams {
   search?: string
   filter?: string
@@ -251,7 +245,6 @@ export interface OktaListGroupsResponse extends ToolResponse {
   }
 }
 
-// Get Group
 export interface OktaGetGroupParams extends OktaBaseParams {
   groupId: string
 }
@@ -269,7 +262,6 @@ export interface OktaGetGroupResponse extends ToolResponse {
   }
 }
 
-// Add User to Group
 export interface OktaAddUserToGroupParams extends OktaBaseParams {
   groupId: string
   userId: string
@@ -284,7 +276,6 @@ export interface OktaAddUserToGroupResponse extends ToolResponse {
   }
 }
 
-// Remove User from Group
 export interface OktaRemoveUserFromGroupParams extends OktaBaseParams {
   groupId: string
   userId: string
@@ -299,7 +290,6 @@ export interface OktaRemoveUserFromGroupResponse extends ToolResponse {
   }
 }
 
-// List Group Members
 export interface OktaListGroupMembersParams extends OktaBaseParams {
   groupId: string
   after?: string
@@ -316,7 +306,6 @@ export interface OktaListGroupMembersResponse extends ToolResponse {
   }
 }
 
-// Suspend User
 export interface OktaSuspendUserParams extends OktaBaseParams {
   userId: string
 }
@@ -329,7 +318,6 @@ export interface OktaSuspendUserResponse extends ToolResponse {
   }
 }
 
-// Unsuspend User
 export interface OktaUnsuspendUserParams extends OktaBaseParams {
   userId: string
 }
@@ -342,7 +330,6 @@ export interface OktaUnsuspendUserResponse extends ToolResponse {
   }
 }
 
-// Activate User
 export interface OktaActivateUserParams extends OktaBaseParams {
   userId: string
   sendEmail?: boolean
@@ -358,7 +345,6 @@ export interface OktaActivateUserResponse extends ToolResponse {
   }
 }
 
-// Reset Password
 export interface OktaResetPasswordParams extends OktaBaseParams {
   userId: string
   sendEmail?: boolean
@@ -372,7 +358,6 @@ export interface OktaResetPasswordResponse extends ToolResponse {
   }
 }
 
-// Delete User
 export interface OktaDeleteUserParams extends OktaBaseParams {
   userId: string
   sendEmail?: boolean
@@ -386,7 +371,6 @@ export interface OktaDeleteUserResponse extends ToolResponse {
   }
 }
 
-// Create Group
 export interface OktaCreateGroupParams extends OktaBaseParams {
   name: string
   description?: string
@@ -405,7 +389,6 @@ export interface OktaCreateGroupResponse extends ToolResponse {
   }
 }
 
-// Update Group
 export interface OktaUpdateGroupParams extends OktaBaseParams {
   groupId: string
   name?: string
@@ -425,7 +408,6 @@ export interface OktaUpdateGroupResponse extends ToolResponse {
   }
 }
 
-// Delete Group
 export interface OktaDeleteGroupParams extends OktaBaseParams {
   groupId: string
 }
@@ -744,7 +726,6 @@ interface OktaFactorOutput {
   profile: Record<string, unknown> | null
 }
 
-// List Factors
 export interface OktaListFactorsParams extends OktaBaseParams {
   userId: string
 }
@@ -757,7 +738,6 @@ export interface OktaListFactorsResponse extends ToolResponse {
   }
 }
 
-// Get Factor
 export interface OktaGetFactorParams extends OktaBaseParams {
   userId: string
   factorId: string
@@ -767,7 +747,6 @@ export interface OktaGetFactorResponse extends ToolResponse {
   output: OktaFactorOutput & { success: boolean }
 }
 
-// Reset Factor
 export interface OktaResetFactorParams extends OktaBaseParams {
   userId: string
   factorId: string
@@ -783,7 +762,6 @@ export interface OktaResetFactorResponse extends ToolResponse {
   }
 }
 
-// Reset All Factors
 export interface OktaResetAllFactorsParams extends OktaBaseParams {
   userId: string
 }
@@ -796,7 +774,6 @@ export interface OktaResetAllFactorsResponse extends ToolResponse {
   }
 }
 
-// Enroll Factor
 export interface OktaEnrollFactorParams extends OktaBaseParams {
   userId: string
   factorType: string
@@ -812,7 +789,6 @@ export interface OktaEnrollFactorResponse extends ToolResponse {
   output: OktaFactorOutput & { enrolled: boolean; success: boolean }
 }
 
-// Get Logs
 export interface OktaGetLogsParams extends OktaBaseParams {
   since?: string
   until?: string
@@ -833,7 +809,6 @@ export interface OktaGetLogsResponse extends ToolResponse {
   }
 }
 
-// Clear User Sessions
 export interface OktaClearUserSessionsParams extends OktaBaseParams {
   userId: string
   oauthTokens?: boolean
@@ -848,7 +823,6 @@ export interface OktaClearUserSessionsResponse extends ToolResponse {
   }
 }
 
-// Get Session
 export interface OktaGetSessionParams extends OktaBaseParams {
   sessionId: string
 }
@@ -870,7 +844,6 @@ export interface OktaGetSessionResponse extends ToolResponse {
   }
 }
 
-// Revoke Session
 export interface OktaRevokeSessionParams extends OktaBaseParams {
   sessionId: string
 }
@@ -883,7 +856,6 @@ export interface OktaRevokeSessionResponse extends ToolResponse {
   }
 }
 
-// List Applications
 export interface OktaListAppsParams extends OktaBaseParams {
   q?: string
   filter?: string
@@ -902,7 +874,6 @@ export interface OktaListAppsResponse extends ToolResponse {
   }
 }
 
-// Get Application
 export interface OktaGetAppParams extends OktaBaseParams {
   appId: string
 }
@@ -925,7 +896,6 @@ export interface OktaGetAppResponse extends ToolResponse {
   }
 }
 
-// List Application Users
 export interface OktaListAppUsersParams extends OktaBaseParams {
   appId: string
   q?: string
@@ -943,7 +913,6 @@ export interface OktaListAppUsersResponse extends ToolResponse {
   }
 }
 
-// Assign User to Application
 export interface OktaAssignUserToAppParams extends OktaBaseParams {
   appId: string
   userId: string
@@ -955,7 +924,6 @@ export interface OktaAssignUserToAppResponse extends ToolResponse {
   output: OktaAppUserOutput & { assigned: boolean; success: boolean }
 }
 
-// Remove User from Application
 export interface OktaRemoveUserFromAppParams extends OktaBaseParams {
   appId: string
   userId: string
@@ -971,7 +939,6 @@ export interface OktaRemoveUserFromAppResponse extends ToolResponse {
   }
 }
 
-// List Application Groups
 export interface OktaListAppGroupsParams extends OktaBaseParams {
   appId: string
   q?: string
@@ -989,7 +956,6 @@ export interface OktaListAppGroupsResponse extends ToolResponse {
   }
 }
 
-// Assign Group to Application
 export interface OktaAssignGroupToAppParams extends OktaBaseParams {
   appId: string
   groupId: string
@@ -1007,7 +973,6 @@ export interface OktaAssignGroupToAppResponse extends ToolResponse {
   }
 }
 
-// Remove Group from Application
 export interface OktaRemoveGroupFromAppParams extends OktaBaseParams {
   appId: string
   groupId: string
@@ -1022,7 +987,6 @@ export interface OktaRemoveGroupFromAppResponse extends ToolResponse {
   }
 }
 
-// List User Roles
 export interface OktaListUserRolesParams extends OktaBaseParams {
   userId: string
 }
@@ -1035,7 +999,6 @@ export interface OktaListUserRolesResponse extends ToolResponse {
   }
 }
 
-// Assign User Role
 export interface OktaAssignUserRoleParams extends OktaBaseParams {
   userId: string
   roleType: string
@@ -1048,7 +1011,6 @@ export interface OktaAssignUserRoleResponse extends ToolResponse {
   output: OktaRoleAssignmentOutput & { assigned: boolean; success: boolean }
 }
 
-// Remove User Role
 export interface OktaRemoveUserRoleParams extends OktaBaseParams {
   userId: string
   roleAssignmentId: string
@@ -1063,7 +1025,6 @@ export interface OktaRemoveUserRoleResponse extends ToolResponse {
   }
 }
 
-// List Group Rules
 export interface OktaListGroupRulesParams extends OktaBaseParams {
   search?: string
   after?: string
@@ -1080,7 +1041,6 @@ export interface OktaListGroupRulesResponse extends ToolResponse {
   }
 }
 
-// Get Group Rule
 export interface OktaGetGroupRuleParams extends OktaBaseParams {
   groupRuleId: string
 }
@@ -1089,7 +1049,6 @@ export interface OktaGetGroupRuleResponse extends ToolResponse {
   output: OktaGroupRuleOutput & { success: boolean }
 }
 
-// Create Group Rule
 export interface OktaCreateGroupRuleParams extends OktaBaseParams {
   ruleName: string
   expression: string
@@ -1101,7 +1060,6 @@ export interface OktaCreateGroupRuleResponse extends ToolResponse {
   output: OktaGroupRuleOutput & { success: boolean }
 }
 
-// Activate Group Rule
 export interface OktaActivateGroupRuleParams extends OktaBaseParams {
   groupRuleId: string
 }
@@ -1114,7 +1072,6 @@ export interface OktaActivateGroupRuleResponse extends ToolResponse {
   }
 }
 
-// Deactivate Group Rule
 export interface OktaDeactivateGroupRuleParams extends OktaBaseParams {
   groupRuleId: string
 }
@@ -1127,7 +1084,6 @@ export interface OktaDeactivateGroupRuleResponse extends ToolResponse {
   }
 }
 
-// Delete Group Rule
 export interface OktaDeleteGroupRuleParams extends OktaBaseParams {
   groupRuleId: string
   removeUsers?: boolean
@@ -1140,50 +1096,3 @@ export interface OktaDeleteGroupRuleResponse extends ToolResponse {
     success: boolean
   }
 }
-
-// Generic response type for the block
-export type OktaResponse =
-  | OktaListUsersResponse
-  | OktaGetUserResponse
-  | OktaCreateUserResponse
-  | OktaUpdateUserResponse
-  | OktaDeactivateUserResponse
-  | OktaSuspendUserResponse
-  | OktaUnsuspendUserResponse
-  | OktaActivateUserResponse
-  | OktaResetPasswordResponse
-  | OktaDeleteUserResponse
-  | OktaListGroupsResponse
-  | OktaGetGroupResponse
-  | OktaCreateGroupResponse
-  | OktaUpdateGroupResponse
-  | OktaDeleteGroupResponse
-  | OktaAddUserToGroupResponse
-  | OktaRemoveUserFromGroupResponse
-  | OktaListGroupMembersResponse
-  | OktaGetLogsResponse
-  | OktaClearUserSessionsResponse
-  | OktaGetSessionResponse
-  | OktaRevokeSessionResponse
-  | OktaListFactorsResponse
-  | OktaGetFactorResponse
-  | OktaResetFactorResponse
-  | OktaResetAllFactorsResponse
-  | OktaEnrollFactorResponse
-  | OktaListAppsResponse
-  | OktaGetAppResponse
-  | OktaListAppUsersResponse
-  | OktaAssignUserToAppResponse
-  | OktaRemoveUserFromAppResponse
-  | OktaListAppGroupsResponse
-  | OktaAssignGroupToAppResponse
-  | OktaRemoveGroupFromAppResponse
-  | OktaListUserRolesResponse
-  | OktaAssignUserRoleResponse
-  | OktaRemoveUserRoleResponse
-  | OktaListGroupRulesResponse
-  | OktaGetGroupRuleResponse
-  | OktaCreateGroupRuleResponse
-  | OktaActivateGroupRuleResponse
-  | OktaDeactivateGroupRuleResponse
-  | OktaDeleteGroupRuleResponse

@@ -900,7 +900,7 @@ interface HubSpotCrmObject {
 }
 
 /** @deprecated Use HubSpotCrmObject instead */
-export type HubSpotContact = HubSpotCrmObject
+type HubSpotContact = HubSpotCrmObject
 
 interface HubSpotPaging {
   next?: {
@@ -1034,8 +1034,6 @@ export interface HubSpotSearchContactsParams {
   after?: string
 }
 
-// Companies (same structure as contacts)
-export type HubSpotCompany = HubSpotCrmObject
 export type HubSpotListCompaniesParams = HubSpotListContactsParams
 export type HubSpotListCompaniesResponse = Omit<HubSpotListContactsResponse, 'output'> & {
   output: {
@@ -1090,8 +1088,6 @@ export interface HubSpotSearchCompaniesResponse extends ToolResponse {
   }
 }
 
-// Deals
-export type HubSpotDeal = HubSpotCrmObject
 export type HubSpotListDealsParams = HubSpotListContactsParams
 export type HubSpotListDealsResponse = Omit<HubSpotListContactsResponse, 'output'> & {
   output: {
@@ -1126,8 +1122,6 @@ export interface HubSpotSearchDealsResponse extends ToolResponse {
   }
 }
 
-// Tickets
-export type HubSpotTicket = HubSpotCrmObject
 export type HubSpotListTicketsParams = HubSpotListContactsParams
 export type HubSpotListTicketsResponse = ToolResponse & {
   output: {
@@ -1165,7 +1159,7 @@ export interface HubSpotSearchTicketsResponse extends ToolResponse {
 }
 
 // Line Items
-export type HubSpotLineItem = HubSpotCrmObject
+type HubSpotLineItem = HubSpotCrmObject
 export type HubSpotListLineItemsParams = HubSpotListContactsParams
 export type HubSpotListLineItemsResponse = ToolResponse & {
   output: {
@@ -1193,7 +1187,7 @@ export type HubSpotUpdateLineItemResponse = ToolResponse & {
 }
 
 // Quotes
-export type HubSpotQuote = HubSpotCrmObject
+type HubSpotQuote = HubSpotCrmObject
 export type HubSpotListQuotesParams = HubSpotListContactsParams
 export type HubSpotListQuotesResponse = ToolResponse & {
   output: {
@@ -1210,8 +1204,6 @@ export type HubSpotGetQuoteResponse = ToolResponse & {
   output: { quote: HubSpotContact; quoteId: string; success: boolean }
 }
 
-// Appointments
-export type HubSpotAppointment = HubSpotCrmObject
 export type HubSpotListAppointmentsParams = HubSpotListContactsParams
 export type HubSpotListAppointmentsResponse = ToolResponse & {
   output: {
@@ -1238,8 +1230,6 @@ export type HubSpotUpdateAppointmentResponse = ToolResponse & {
   output: { appointment: HubSpotContact; appointmentId: string; success: boolean }
 }
 
-// Carts
-export type HubSpotCart = HubSpotCrmObject
 export type HubSpotListCartsParams = HubSpotListContactsParams
 export type HubSpotListCartsResponse = ToolResponse & {
   output: {
@@ -1389,8 +1379,6 @@ export interface HubSpotCreateListResponse extends ToolResponse {
   }
 }
 
-// Notes
-export type HubSpotNote = HubSpotCrmObject
 export type HubSpotCreateNoteParams = HubSpotCreateContactParams
 export type HubSpotCreateNoteResponse = ToolResponse & {
   output: { note: HubSpotContact; noteId: string; success: boolean }
@@ -1419,8 +1407,6 @@ export interface HubSpotSearchNotesResponse extends ToolResponse {
   }
 }
 
-// Emails
-export type HubSpotEmail = HubSpotCrmObject
 export type HubSpotCreateEmailParams = HubSpotCreateContactParams
 export type HubSpotCreateEmailResponse = ToolResponse & {
   output: { email: HubSpotContact; emailId: string; success: boolean }
@@ -1552,7 +1538,7 @@ export interface HubSpotDeleteAssociationResponse extends ToolResponse {
   }
 }
 
-export interface HubSpotAssociationLabel {
+interface HubSpotAssociationLabel {
   category: string
   typeId: number
   label: string | null
@@ -1618,7 +1604,7 @@ export interface HubSpotDeleteLineItemResponse extends ToolResponse {
 }
 
 // List memberships
-export interface HubSpotListMembership {
+interface HubSpotListMembership {
   recordId: string
   membershipTimestamp?: string
 }
@@ -1691,68 +1677,3 @@ export interface HubSpotSearchQuotesResponse extends ToolResponse {
     success: boolean
   }
 }
-
-// Generic HubSpot response type for the block
-export type HubSpotResponse =
-  | HubSpotGetUsersResponse
-  | HubSpotListContactsResponse
-  | HubSpotGetContactResponse
-  | HubSpotCreateContactResponse
-  | HubSpotUpdateContactResponse
-  | HubSpotSearchContactsResponse
-  | HubSpotListCompaniesResponse
-  | HubSpotGetCompanyResponse
-  | HubSpotCreateCompanyResponse
-  | HubSpotUpdateCompanyResponse
-  | HubSpotSearchCompaniesResponse
-  | HubSpotListDealsResponse
-  | HubSpotGetDealResponse
-  | HubSpotCreateDealResponse
-  | HubSpotUpdateDealResponse
-  | HubSpotSearchDealsResponse
-  | HubSpotListTicketsResponse
-  | HubSpotGetTicketResponse
-  | HubSpotCreateTicketResponse
-  | HubSpotUpdateTicketResponse
-  | HubSpotSearchTicketsResponse
-  | HubSpotListLineItemsResponse
-  | HubSpotGetLineItemResponse
-  | HubSpotCreateLineItemResponse
-  | HubSpotUpdateLineItemResponse
-  | HubSpotListQuotesResponse
-  | HubSpotGetQuoteResponse
-  | HubSpotListAppointmentsResponse
-  | HubSpotGetAppointmentResponse
-  | HubSpotCreateAppointmentResponse
-  | HubSpotUpdateAppointmentResponse
-  | HubSpotListCartsResponse
-  | HubSpotGetCartResponse
-  | HubSpotListOwnersResponse
-  | HubSpotListMarketingEventsResponse
-  | HubSpotGetMarketingEventResponse
-  | HubSpotListListsResponse
-  | HubSpotGetListResponse
-  | HubSpotCreateListResponse
-  | HubSpotCreateNoteResponse
-  | HubSpotGetNoteResponse
-  | HubSpotListNotesResponse
-  | HubSpotSearchNotesResponse
-  | HubSpotCreateEmailResponse
-  | HubSpotGetEmailResponse
-  | HubSpotListEmailsResponse
-  | HubSpotSearchEmailsResponse
-  | HubSpotGetPropertiesResponse
-  | HubSpotListAssociationsResponse
-  | HubSpotCreateAssociationResponse
-  | HubSpotDeleteAssociationResponse
-  | HubSpotGetAssociationLabelsResponse
-  | HubSpotDeleteContactResponse
-  | HubSpotDeleteCompanyResponse
-  | HubSpotDeleteDealResponse
-  | HubSpotDeleteTicketResponse
-  | HubSpotDeleteLineItemResponse
-  | HubSpotAddListMembershipsResponse
-  | HubSpotRemoveListMembershipsResponse
-  | HubSpotGetListMembershipsResponse
-  | HubSpotSearchLineItemsResponse
-  | HubSpotSearchQuotesResponse

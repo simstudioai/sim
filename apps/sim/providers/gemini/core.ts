@@ -32,11 +32,13 @@ import {
   ensureStructResponse,
   extractAllFunctionCallParts,
   extractTextContent,
+  geminiRetryDelayMs,
   mapToThinkingBudget,
   mapToThinkingLevel,
   supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
 import { getModelCapabilities, isKnownModelId } from '@/providers/models'
+import { withProviderRetry } from '@/providers/retry'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -962,6 +964,12 @@ export async function executeGeminiRequest(
   }
 
   const logger = createLogger(providerType === 'google' ? 'GoogleProvider' : 'VertexProvider')
+  const retryOptions = {
+    logger,
+    label: providerType === 'google' ? 'Gemini' : 'Vertex AI',
+    abortSignal: request.abortSignal,
+    retryAfterMs: geminiRetryDelayMs,
+  }
 
   logger.info(`Preparing ${providerType} Gemini request`, {
     model,
@@ -1148,12 +1156,14 @@ export async function executeGeminiRequest(
     if (shouldStream) {
       logger.info('Handling Gemini streaming response')
 
-      const streamGenerator = await ai.models.generateContentStream(
-        await prepareConversationGeneration(request, 'gemini', {
-          model,
-          contents,
-          config: geminiConfig,
-        })
+      const streamPayload = await prepareConversationGeneration(request, 'gemini', {
+        model,
+        contents,
+        config: geminiConfig,
+      })
+      const streamGenerator = await withProviderRetry(
+        () => ai.models.generateContentStream(streamPayload),
+        retryOptions
       )
       const firstResponseTime = Date.now() - initialCallTime
 
@@ -1202,12 +1212,14 @@ export async function executeGeminiRequest(
     }
 
     // Non-streaming request
-    const response = await ai.models.generateContent(
-      await prepareConversationGeneration(request, 'gemini', {
-        model,
-        contents,
-        config: geminiConfig,
-      })
+    const responsePayload = await prepareConversationGeneration(request, 'gemini', {
+      model,
+      contents,
+      config: geminiConfig,
+    })
+    const response = await withProviderRetry(
+      () => ai.models.generateContent(responsePayload),
+      retryOptions
     )
     if (!extractAllFunctionCallParts(response.candidates?.[0]).length) {
       await captureProviderConversationStep(
@@ -1256,12 +1268,14 @@ export async function executeGeminiRequest(
       }
 
       const finalStartTime = Date.now()
-      const finalResponse = await ai.models.generateContent(
-        await prepareConversationGeneration(request, 'gemini', {
-          model,
-          contents: currentState.contents,
-          config: finalConfig,
-        })
+      const finalResponsePayload = await prepareConversationGeneration(request, 'gemini', {
+        model,
+        contents: currentState.contents,
+        config: finalConfig,
+      })
+      const finalResponse = await withProviderRetry(
+        () => ai.models.generateContent(finalResponsePayload),
+        retryOptions
       )
       if (!extractAllFunctionCallParts(finalResponse.candidates?.[0]).length) {
         await captureProviderConversationStep(
@@ -1375,12 +1389,14 @@ export async function executeGeminiRequest(
 
         /** Resolve the final turn, then project its settled answer when streaming was requested. */
         const nextModelStartTime = Date.now()
-        const nextResponse = await ai.models.generateContent(
-          await prepareConversationGeneration(request, 'gemini', {
-            model,
-            contents: state.contents,
-            config: nextConfig,
-          })
+        const nextResponsePayload = await prepareConversationGeneration(request, 'gemini', {
+          model,
+          contents: state.contents,
+          config: nextConfig,
+        })
+        const nextResponse = await withProviderRetry(
+          () => ai.models.generateContent(nextResponsePayload),
+          retryOptions
         )
         if (!extractAllFunctionCallParts(nextResponse.candidates?.[0]).length) {
           await captureProviderConversationStep(

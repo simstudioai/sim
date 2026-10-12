@@ -1,7 +1,6 @@
 import { AttioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { AttioResponse } from '@/tools/attio/types'
 import { getTrigger } from '@/triggers'
 
 /*
@@ -18,7 +17,7 @@ const LIST_FIELD = ['listSelector', 'listIdOrSlug'] as const
  */
 const COMMENT_TARGET_FIELD = ['commentEntryId', 'commentRecordId', 'commentThreadId'] as const
 
-export const AttioBlock: BlockConfig<AttioResponse> = {
+export const AttioBlock: BlockConfig = {
   type: 'attio',
   name: 'Attio',
   description: 'Manage records, notes, tasks, lists, comments, and more in Attio CRM',

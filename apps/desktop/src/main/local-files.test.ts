@@ -1,12 +1,32 @@
-import { mkdir, mkdtemp, rm, symlink, truncate, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, stat, symlink, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, beforeEach, expect, it } from 'vitest'
-import { executeLocalFileRequest } from '@/main/local-files'
+import { join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { app } from 'electron'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+
+vi.mock('electron', () => import('@/test/electron-mock'))
+
+import {
+  executeLocalFileRequest as executeApprovedLocalFileRequest,
+  type LocalFileAuthorization,
+} from '@/main/local-files'
+import { openNativeFile } from '@/main/native-directory'
+
+/** Parser and import invariants run with explicit fixture access; consent is covered through Electron. */
+function executeLocalFileRequest(request: unknown, authorization: LocalFileAuthorization) {
+  return executeApprovedLocalFileRequest(request, authorization, {
+    path: String(authorization.args.path),
+    resolve: realpath,
+    open: async (path, directory = false) =>
+      openNativeFile(root, relative(root, path), await stat(root, { bigint: true }), directory),
+  })
+}
 
 let root: string
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'sim-native-files-'))
+  vi.mocked(app.getAppPath).mockReturnValue(fileURLToPath(new URL('../..', import.meta.url)))
+  root = await realpath(await mkdtemp(join(tmpdir(), 'sim-native-files-')))
 })
 afterEach(async () => {
   await rm(root, { recursive: true, force: true })

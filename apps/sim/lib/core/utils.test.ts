@@ -30,8 +30,7 @@ afterAll(resetEnvMock)
 
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import { convertScheduleOptionsToCron } from '@/lib/core/utils/scheduling'
-import { getInvalidCharacters, isValidName, validateName } from '@/lib/core/utils/validation'
+import { validateName } from '@/lib/core/utils/validation'
 
 vi.mock('crypto', () => ({
   createCipheriv: vi.fn().mockReturnValue({
@@ -73,54 +72,6 @@ describe('encryption and decryption', () => {
   })
 })
 
-describe('convertScheduleOptionsToCron', () => {
-  it.concurrent('should convert minutes schedule to cron', () => {
-    const result = convertScheduleOptionsToCron('minutes', { minutesInterval: '5' })
-    expect(result).toBe('*/5 * * * *')
-  })
-
-  it.concurrent('should convert hourly schedule to cron', () => {
-    const result = convertScheduleOptionsToCron('hourly', { hourlyMinute: '30' })
-    expect(result).toBe('30 * * * *')
-  })
-
-  it.concurrent('should convert daily schedule to cron', () => {
-    const result = convertScheduleOptionsToCron('daily', { dailyTime: '15:30' })
-    expect(result).toBe('15 30 * * *')
-  })
-
-  it.concurrent('should convert weekly schedule to cron', () => {
-    const result = convertScheduleOptionsToCron('weekly', {
-      weeklyDay: 'MON',
-      weeklyDayTime: '09:30',
-    })
-    expect(result).toBe('09 30 * * 1')
-  })
-
-  it.concurrent('should convert monthly schedule to cron', () => {
-    const result = convertScheduleOptionsToCron('monthly', {
-      monthlyDay: '15',
-      monthlyTime: '12:00',
-    })
-    expect(result).toBe('12 00 15 * *')
-  })
-
-  it.concurrent('should use custom cron expression directly', () => {
-    const customCron = '*/15 9-17 * * 1-5'
-    const result = convertScheduleOptionsToCron('custom', { cronExpression: customCron })
-    expect(result).toBe(customCron)
-  })
-
-  it.concurrent('should throw error for unsupported schedule type', () => {
-    expect(() => convertScheduleOptionsToCron('invalid', {})).toThrow('Unsupported schedule type')
-  })
-
-  it.concurrent('should use default values when options are not provided', () => {
-    const result = convertScheduleOptionsToCron('daily', {})
-    expect(result).toBe('00 09 * * *')
-  })
-})
-
 describe('formatDuration', () => {
   it.concurrent('should format milliseconds correctly', () => {
     const result = formatDuration(500)
@@ -157,36 +108,6 @@ describe('validateName', () => {
   it.concurrent('should handle mixed whitespace and invalid characters', () => {
     const result = validateName('test@#$  name')
     expect(result).toBe('test name')
-  })
-})
-
-describe('isValidName', () => {
-  it.concurrent('should return true for valid names', () => {
-    expect(isValidName('test_name')).toBe(true)
-    expect(isValidName('test123')).toBe(true)
-    expect(isValidName('test name')).toBe(true)
-    expect(isValidName('TestName')).toBe(true)
-    expect(isValidName('')).toBe(true)
-  })
-
-  it.concurrent('should return false for invalid names', () => {
-    expect(isValidName('test@name')).toBe(false)
-    expect(isValidName('test-name')).toBe(false)
-    expect(isValidName('test#name')).toBe(false)
-    expect(isValidName('test$name')).toBe(false)
-    expect(isValidName('test%name')).toBe(false)
-  })
-})
-
-describe('getInvalidCharacters', () => {
-  it.concurrent('should return invalid characters', () => {
-    const result = getInvalidCharacters('test@#$name')
-    expect(result).toEqual(['@', '#', '$'])
-  })
-
-  it.concurrent('should return unique invalid characters', () => {
-    const result = getInvalidCharacters('test@@##name')
-    expect(result).toEqual(['@', '#'])
   })
 })
 

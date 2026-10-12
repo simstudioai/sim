@@ -1,10 +1,9 @@
 import { TwilioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
 import { getTrigger } from '@/triggers'
 
-export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
+export const TwilioVoiceBlock: BlockConfig = {
   type: 'twilio_voice',
   name: 'Twilio Voice',
   description: 'Make and manage phone calls',

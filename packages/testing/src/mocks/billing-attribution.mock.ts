@@ -160,8 +160,10 @@ export const billingAttributionMockFns = {
   mockResolveLegacyV0BillingAttribution: vi.fn(),
   mockResolveSystemBillingAttribution: vi.fn(),
   mockToBillingContext: vi.fn(toBillingContext),
+  mockCheckAccountBillingBlocks: vi.fn(),
   mockCheckAttributedBillingBlocks: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
+  mockRefreshAttributionPeriod: vi.fn(),
 }
 
 /**
@@ -210,6 +212,8 @@ export const billingAttributionMock = {
     billingAttributionMockFns.mockResolveLegacyV0BillingAttribution,
   resolveSystemBillingAttribution: billingAttributionMockFns.mockResolveSystemBillingAttribution,
   toBillingContext: billingAttributionMockFns.mockToBillingContext,
+  checkAccountBillingBlocks: billingAttributionMockFns.mockCheckAccountBillingBlocks,
   checkAttributedBillingBlocks: billingAttributionMockFns.mockCheckAttributedBillingBlocks,
   checkAttributedUsageLimits: billingAttributionMockFns.mockCheckAttributedUsageLimits,
+  refreshAttributionPeriod: billingAttributionMockFns.mockRefreshAttributionPeriod,
 }

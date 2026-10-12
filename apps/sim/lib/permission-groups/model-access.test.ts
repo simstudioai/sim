@@ -8,6 +8,18 @@ describe('createModelAccessGate', () => {
     expect(gate('claude-sonnet-4-5')).toBe(true)
   })
 
+  it.each(['llama3', 'ollama/llama3', 'OLLAMA/LLAMA3'])(
+    'denies a namespaced Ollama model when its denylist entry is %s',
+    (deniedModel) => {
+      const gate = createModelAccessGate({
+        deniedModels: [deniedModel],
+        allowedModelProviders: ['ollama'],
+      })
+      expect(gate('ollama/llama3')).toBe(false)
+      expect(gate('ollama/other-model')).toBe(true)
+    }
+  )
+
   it('denies a model whose provider is not allowlisted', () => {
     const gate = createModelAccessGate({ deniedModels: [], allowedModelProviders: ['anthropic'] })
     expect(gate('gpt-4o')).toBe(false)

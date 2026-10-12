@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
 import { resolveBlockRetryConfig } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
@@ -19,9 +23,9 @@ import {
 import { getBlock } from '@/blocks'
 import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
 import type { SubBlockConfig } from '@/blocks/types'
+import { MissingRequiredFieldsError } from '@/serializer/errors'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { getToolParams } from '@/tools/metadata'
 import { expandSubBlockValueToParams } from '@/tools/param-shape'
 
@@ -170,10 +174,6 @@ export class Serializer {
     const safeLoops = Object.keys(canonicalLoops).length > 0 ? canonicalLoops : loops || {}
     const safeParallels =
       Object.keys(canonicalParallels).length > 0 ? canonicalParallels : parallels || {}
-    if (validateRequired) {
-      this.validateSubflowsBeforeExecution(blocks, safeLoops, safeParallels)
-    }
-
     // A custom block whose definition was deleted (or is out of scope) no longer
     // resolves via `getBlock`. Treat it as a removed block — drop it and any edges
     // touching it — so the rest of the workflow still serializes and runs, instead
@@ -207,18 +207,6 @@ export class Serializer {
       loops: safeLoops,
       parallels: safeParallels,
     }
-  }
-
-  /**
-   * Validate loop and parallel subflows for required inputs when running in "each/collection" modes
-   */
-  private validateSubflowsBeforeExecution(
-    blocks: Record<string, BlockState>,
-    loops: Record<string, Loop>,
-    parallels: Record<string, Parallel>
-  ): void {
-    // Note: Empty collections in forEach loops and parallel collection mode are handled gracefully
-    // at runtime - the loop/parallel will simply be skipped. No build-time validation needed.
   }
 
   private serializeBlock(
@@ -272,9 +260,7 @@ export class Serializer {
       const { missingRequiredFields } = collectBlockFieldIssues(block, blockConfig, params)
       if (missingRequiredFields.length > 0) {
         const blockName = block.name || blockConfig.name || 'Block'
-        throw new Error(
-          `${blockName} is missing required fields: ${missingRequiredFields.join(', ')}`
-        )
+        throw new MissingRequiredFieldsError(blockName, missingRequiredFields)
       }
     }
 
@@ -298,8 +284,10 @@ export class Serializer {
         // Default to the first tool if we can't process tools
         toolId = blockConfig.tools.access[0]
       }
-    } else {
-      // For non-agent blocks, get tool ID from block config as usual
+    } else if (params.triggerMode !== true) {
+      // A trigger-mode block runs through TriggerBlockHandler, which never reads a tool id,
+      // and its tool-mode sub-blocks (e.g. `operation`) are not serialized, so selecting
+      // one would throw and fall back to an arbitrary tool.
       toolId = selectToolId(blockConfig, params)
     }
 

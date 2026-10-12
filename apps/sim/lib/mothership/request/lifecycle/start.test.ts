@@ -80,6 +80,7 @@ vi.mock('@/lib/mothership/request/session/abort', () => ({
 vi.mock('@/lib/mothership/request/session/controller-lease', async (original) => ({
   ...(await original<typeof import('@/lib/mothership/request/session/controller-lease')>()),
   assertChatStreamLease: vi.fn().mockResolvedValue(undefined),
+  holdsChatStreamLease: vi.fn().mockResolvedValue(true),
 }))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
@@ -468,12 +469,14 @@ describe('createSSEStream terminal error handling', () => {
     )
     expect(appendEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
     expect(unregisterActiveStream).toHaveBeenCalledWith('stream-1', expect.any(AbortController))
-    expect(releasePendingChatStream).toHaveBeenCalledWith(
-      '11111111-1111-4111-8111-111111111111',
-      'stream-1',
-      expect.objectContaining({ value: 'stream-1\ncontroller' })
+    await vi.waitFor(() =>
+      expect(releasePendingChatStream).toHaveBeenCalledWith(
+        '11111111-1111-4111-8111-111111111111',
+        'stream-1',
+        expect.objectContaining({ value: 'stream-1\ncontroller' })
+      )
     )
-    await vi.waitFor(() => expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1'))
+    expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1')
   })
 
   it('names an untitled chat on the next accepted turn after an initial Stop, then leaves its title alone', async () => {
