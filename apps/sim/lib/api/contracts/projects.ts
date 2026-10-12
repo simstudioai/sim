@@ -20,6 +20,7 @@ const projectSchema = z.object({
   archivedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  /** Roots first, each fork right after the environment it was forked from, siblings by name. */
   environments: z.array(projectEnvironmentSchema),
   capabilities: z.object({ administer: z.boolean(), issues: z.boolean() }),
 })

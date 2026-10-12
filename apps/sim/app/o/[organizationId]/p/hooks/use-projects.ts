@@ -14,7 +14,7 @@ export interface Project {
   id: string
   name: string
   organizationId: string | null
-  /** Roots first, each fork after its parent, siblings by name. */
+  /** In the API's order: roots first, each fork after its parent, siblings by name. */
   environments: ProjectEnvironment[]
   canAdminister: boolean
 }
@@ -30,30 +30,15 @@ function byName(a: { name: string }, b: { name: string }): number {
 }
 
 function toProject(record: ProjectRecord): Project {
-  const visible = new Set(record.environments.map((environment) => environment.id))
-  const children = new Map<string | null, ProjectEnvironment[]>()
-  for (const environment of record.environments) {
-    const parent = environment.forkedFromWorkspaceId
-    const parentId = parent && visible.has(parent) ? parent : null
-    const siblings = children.get(parentId) ?? []
-    siblings.push({ workspaceId: environment.id, name: environment.name, parentId })
-    children.set(parentId, siblings)
-  }
-  const environments: ProjectEnvironment[] = []
-  const visit = (parentId: string | null) => {
-    for (const environment of [...(children.get(parentId) ?? [])].sort(byName)) {
-      environments.push(environment)
-      visit(environment.workspaceId)
-    }
-  }
-  visit(null)
-  if (environments.length !== record.environments.length)
-    throw new Error(`Project ${record.id} has a fork cycle among its environments`)
   return {
     id: record.id,
     name: record.name,
     organizationId: record.organizationId,
-    environments,
+    environments: record.environments.map((environment) => ({
+      workspaceId: environment.id,
+      name: environment.name,
+      parentId: environment.forkedFromWorkspaceId,
+    })),
     canAdminister: record.capabilities.administer,
   }
 }
