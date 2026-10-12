@@ -36,6 +36,8 @@ Every production brief records:
 
 Use the same clean demo workspace and product theme. Frame the relevant panel with enough context to locate it, and make the result legible at a 390px viewport. Hide unrelated private sidebar content before recording. Keep UI text and controls intact; never generate a different product state to improve a screenshot. Prefer recording at the intended framing over aggressive crops later.
 
+Complete sign-in and credential setup before capturing. Never save a placeholder key and present it as a working connection, or treat a saved key as evidence that the provider accepted it. A model-picker image can show model selection without a connected account; a demonstration of execution must use a working credential and a real result. Keep these production checks out of public copy.
+
 Begin with the task ready to perform, show the action, and hold on its result. Avoid decorative intros, music, title cards, and excessive cursor movement. Keep the headline and important explanation in HTML. Record videos assembled from still screenshots as edited walkthroughs in the production brief; do not describe them as continuous recordings in public copy.
 
 Choose the poster deliberately after reviewing the video. An opening menu, empty state, spinner, or arbitrary first second rarely explains the feature. The media workflow can provide candidate frames, but an editor selects the final timestamp. Preview candidates are not approved assets. Preserve the real aspect ratio inside the shared media frame; do not stretch product UI. Use the same reviewed result frame for the article poster and share image when it works in both contexts.

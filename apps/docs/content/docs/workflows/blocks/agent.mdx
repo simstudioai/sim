@@ -31,6 +31,12 @@ For a custom cloud deployment, enter its provider prefix and model ID: `azure/my
 
 Ollama Cloud, OpenRouter, Fireworks, Together AI, Baseten, Ollama, vLLM, and LiteLLM load their available models from the configured provider. New models appear through that discovery without a Sim catalog release. You can also enter a namespaced ID directly, such as `ollama-cloud/deepseek-v4.1-flash`, `openrouter/provider/model`, or `ollama/my-local-model`. Provider prefixes are case-insensitive; the model ID after the prefix keeps its original casing.
 
+### Nebius Token Factory
+
+Select a model beginning with `nebius/` to run an open model through Nebius Token Factory. Sim includes DeepSeek, Kimi, Qwen, and other models in the [Nebius catalog](https://www.sim.ai/models/nebius).
+
+Bring your own Nebius Token Factory API key. On Sim Cloud, a workspace admin can add it under **Workspace settings → BYOK → Nebius**. On self-hosted Sim, provide the key in the Agent block's **API Key** field, using a [secret reference](/platform/credentials). Model features such as image input and structured outputs depend on the selected model.
+
 ### Jev evaluation models
 
 Select `jev-latest` from TypeSafe in the Agent model selector. Hosted Sim supplies a key and bills model usage through the normal credit system; workspace or organization BYOK keys override the hosted key without model charges. Self-hosted users enter their TypeSafe key in the block. Use `jev-1.13.0` to pin a version or `jev-preview` to follow preview releases. These models use **State** and **Questions** in place of conversational messages. State accepts text or a reference to a JSON object or array. Questions is a JSON object keyed by the answer names you want:
