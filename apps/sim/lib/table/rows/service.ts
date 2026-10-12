@@ -1456,9 +1456,9 @@ function boundedRowFields(sqlColumnIds: ReadonlySet<string> | undefined) {
  *
  * Advance strategy: when `keysetValid`, the loop re-anchors on each consumed
  * keyed row and seeks `(order_key, id) > (anchor)` — delete-tolerant and an
- * index seek. A custom sort reads its order once, as ids from the inbound
- * offset, and fetches the rows by id (see `drainSortedById`); any other
- * unanchored drain advances by OFFSET. Either way rows deleted mid-drain can
+ * index seek. A custom sort reads its order as ids from the inbound offset
+ * and fetches the rows by id, all in one snapshot (see `drainSortedById`); any
+ * other unanchored drain advances by OFFSET, where rows deleted mid-drain can
  * skip/duplicate exactly as cross-request offset paging already does.
  *
  * Always returns at least one row when any match exists, even if that row
@@ -1641,9 +1641,10 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
    * returns. Advancing by OFFSET paid that pass once per batch. Instead the order is read as ids
    * only, in passes that each reach at least as far as a batch would have, and the rows are then
    * fetched by primary key in the same byte-sized batches, consumed in that order.
-   * The id pass carries the same OFFSET, LIMIT reach, and tiebreak the batches did, so the page is
-   * the same rows in the same order. A row deleted between the two reads is skipped, as a row
-   * deleted between two OFFSET batches already shifted the page.
+   * The id pass carries the same OFFSET, LIMIT reach, and tiebreak the batches did, and every
+   * statement of the drain reads one REPEATABLE READ snapshot, so the passes and fetches return
+   * exactly what one statement would have: every id read is fetched, in an order that still matches
+   * its values, and the witness row and the next pass's offset count the same rows.
    */
   const drainSortedById = async (trx: DbTransaction) => {
     let idOffset = params.startOffset
@@ -1707,11 +1708,14 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
    * still takes its own snapshot, so a batch sees exactly what a separate transaction would have.
    * Under REPEATABLE READ (the provenance path) the batches now share one snapshot instead of
    * taking one each, which is strictly more consistent: a row and the sidecar captured for it can
-   * no longer come from different points in time across a batch boundary.
+   * no longer come from different points in time across a batch boundary. A sorted drain always
+   * takes it: its id passes and row fetches are separate statements that only agree inside one
+   * snapshot. The transaction is read-only, so it can never fail serialization.
    */
+  const drainsSortedById = sorted && !params.seek
   await withReadGuards(
     async (trx) => {
-      if (sorted && !params.seek) {
+      if (drainsSortedById) {
         await drainSortedById(trx)
         return
       }
@@ -1730,7 +1734,7 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
         if (batchLength < ask) break
       }
     },
-    { seqscanOff: sorted, repeatableRead: Boolean(params.readProvenance) }
+    { seqscanOff: sorted, repeatableRead: drainsSortedById || Boolean(params.readProvenance) }
   )
 
   return {
