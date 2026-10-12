@@ -2864,6 +2864,13 @@
       "when": 1791829981759,
       "tag": "0409_drop_retired_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 410,
+      "version": "7",
+      "when": 1791839835067,
+      "tag": "0410_gin_fastupdate_fk_indexes",
+      "breakpoints": true
     }
   ]
 }
