@@ -113,6 +113,81 @@ describe('Drain source coverage and payload safety in PostgreSQL', () => {
     expect(runs).toEqual([runId])
   })
 
+  it('omits memory payloads from exports without changing owner history or visible replies', async () => {
+    const messageId = generateId()
+    const content = {
+      role: 'assistant',
+      content: 'Visible reply',
+      contentBlocks: [
+        { type: 'text', content: 'Visible reply' },
+        {
+          type: 'tool',
+          toolCall: {
+            id: 'discovery',
+            name: 'list_workspaces',
+            state: 'success',
+            result: {
+              success: true,
+              output: {
+                stdout: JSON.stringify({ storedNotes: [{ content: 'hidden-memory-discovery' }] }),
+              },
+            },
+          },
+        },
+        ...['private', 'shared', 'unknown'].map((visibility) => ({
+          type: 'tool',
+          content: 'hidden-memory-content',
+          error: 'hidden-memory-error',
+          toolCall: {
+            id: visibility,
+            name: 'remember',
+            state: 'success',
+            params: { visibility, content: 'hidden-memory-args' },
+            result: { success: true, output: 'hidden-memory-result' },
+            activityDescription: 'hidden-memory-activity',
+            display: { title: 'hidden-memory-title' },
+          },
+        })),
+        {
+          type: 'tool',
+          toolCall: {
+            id: 'other',
+            name: 'read',
+            state: 'success',
+            params: { path: 'visible-path' },
+          },
+        },
+      ],
+    }
+    await runtime.db.insert(runtime.schema.copilotMessages).values({
+      id: messageId,
+      messageId,
+      chatId,
+      role: 'assistant',
+      content,
+      createdAt: old,
+    })
+    try {
+      const exported: unknown[] = []
+      for await (const rows of runtime.copilotChatsSource.pages(input())) {
+        exported.push(...rows.map((row) => runtime.copilotChatsSource.serialize(row)))
+      }
+      const wire = JSON.stringify(exported)
+      expect(wire).not.toContain('hidden-memory')
+      expect(wire).toContain('Visible reply')
+      expect(wire).toContain('visible-path')
+      const [stored] = await runtime.db
+        .select({ content: runtime.schema.copilotMessages.content })
+        .from(runtime.schema.copilotMessages)
+        .where(runtime.eq(runtime.schema.copilotMessages.id, messageId))
+      expect(stored.content).toEqual(content)
+    } finally {
+      await runtime.db
+        .delete(runtime.schema.copilotMessages)
+        .where(runtime.eq(runtime.schema.copilotMessages.id, messageId))
+    }
+  })
+
   it('exports correlation metadata without internal controller tokens or billing receipts', async () => {
     const [row] = await runtime.db
       .select()

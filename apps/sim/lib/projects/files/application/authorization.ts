@@ -1,4 +1,9 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import {
+  type OrganizationDelegatedPrincipal,
+  type Principal,
+  requirePrincipalSubjectUserId,
+  type SubjectDelegatedPrincipal,
+} from '@sim/auth/principal'
 import {
   copilotChats,
   permissions,
@@ -96,7 +101,10 @@ function requirePrincipal(
 /** Rechecks canonical conversation ownership and authoring capability while authorization locks are held. */
 export async function requireCurrentCopilotProjectInvocation(
   tx: DbTransaction,
-  principal: Extract<ProjectFilePrincipal, { kind: 'resource_delegated'; serviceId: 'copilot' }>,
+  principal: Pick<
+    Extract<ProjectFilePrincipal, { kind: 'resource_delegated'; serviceId: 'copilot' }>,
+    'subjectUserId' | 'invocation'
+  >,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
   scope: Awaited<ReturnType<typeof resolveCopilotProjectScope>>
 ) {
@@ -187,7 +195,7 @@ export async function requireCurrentCopilotProjectInvocation(
 /** Shared owner policy keeps compound copies subject to the same live Project edit rule. */
 export async function requireProjectFileOwnerRole(
   tx: DbTransaction,
-  principal: ProjectFilePrincipal,
+  principal: ProjectFilePrincipal | SubjectDelegatedPrincipal | OrganizationDelegatedPrincipal,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
   accessMode: 'read' | 'write'
 ): Promise<ProjectFileAuthorizationContext> {
@@ -217,7 +225,7 @@ export async function requireProjectFileOwnerRole(
 /** Credential and Files capability checks apply to every currently visible environment. */
 export async function requireProjectFileOwnerCapabilities(
   tx: DbTransaction,
-  principal: ProjectFilePrincipal,
+  principal: ProjectFilePrincipal | SubjectDelegatedPrincipal | OrganizationDelegatedPrincipal,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
   capability: ProjectFileOperation['capability']
 ): Promise<void> {
