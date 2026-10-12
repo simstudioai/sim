@@ -7,6 +7,10 @@ import {
   billingUsageGateCacheMock,
   billingUsageGateCacheMockFns,
 } from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
 import { executeWorkflowMock } from '@sim/testing/mocks/execute-workflow.mock'
 import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
@@ -60,6 +64,7 @@ vi.mock('@/enrichments/run', () => ({
 }))
 vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
 vi.mock('@/executor/utils/resolved-secret-trace-registry', () => ({
   ResolvedSecretTraceRegistry: class {
@@ -112,7 +117,7 @@ const GROUP = {
   type: 'enrichment' as const,
   enrichmentId: 'company-lookup',
   workflowId: '',
-  outputs: [{ columnName: 'col-out', blockId: '', path: '' }],
+  outputs: [{ columnName: 'col-out', blockId: '', path: '', outputId: 'email' }],
   inputMappings: [{ columnName: 'col-in', inputName: 'domain' }],
 }
 
@@ -287,5 +292,25 @@ describe('enrichment cell capability subject', () => {
   it('does not fall back to the attribution when the governed subject is absent', async () => {
     await runRowCascadeLoop(payload(null, 'legacy-trigger-user') as never)
     expect(gatedUserId()).toBeNull()
+  })
+
+  /** A completed cell is final on the auto path, so an outage must not complete blank. */
+  it('marks the cell errored when every provider errored', async () => {
+    mocks.runEnrichment.mockResolvedValue({
+      result: {},
+      cost: 0.02,
+      error: 'Rate limit exceeded',
+      detail: { providers: [] },
+    })
+
+    await runRowCascadeLoop(payload('acting-user', 'acting-user') as never)
+
+    const terminal = mocks.writeWorkflowGroupState.mock.calls.at(-1) as unknown[]
+    const write = terminal[1] as { executionState: Record<string, unknown>; dataPatch?: unknown }
+    const state = write.executionState
+    expect(state.status).toBe('error')
+    expect(state.error).toBe('Rate limit exceeded')
+    expect(write.dataPatch).toEqual({ 'col-out': '' })
+    expect(billingUsageLogMockFns.mockRecordUsage).toHaveBeenCalledTimes(1)
   })
 })
