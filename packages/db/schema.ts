@@ -1040,6 +1040,7 @@ export const organizationBYOKKeys = pgTable(
   })
 )
 
+// contract-pending(after the release that stops declaring them is deployed): drop settings.show_training_controls and settings.copilot_enabled_models — nothing has read or written either since v0.7.56; safe once no deployed release declares them.
 export const settings = pgTable('settings', {
   /** Use the user id as the key */
   id: text('id').primaryKey(),
@@ -1059,7 +1060,6 @@ export const settings = pgTable('settings', {
     .notNull()
     .default(true),
 
-  showTrainingControls: boolean('show_training_controls').notNull().default(false),
   superUserModeEnabled: boolean('super_user_mode_enabled').notNull().default(true),
   mothershipEnvironment: text('mothership_environment').notNull().default('default'),
 
@@ -1071,9 +1071,6 @@ export const settings = pgTable('settings', {
   autoFocusOnClick: boolean('auto_focus_on_click').notNull().default(true),
 
   timezone: text('timezone'),
-
-  /** Copilot preferences - maps model_id to enabled/disabled boolean */
-  copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),
 
   /**
    * Copilot auto-allowed integration tools - array of tool IDs that can run without confirmation
@@ -1498,17 +1495,6 @@ export const skillMember = pgTable(
   })
 )
 
-export const mothershipSettings = pgTable('mothership_settings', {
-  workspaceId: text('workspace_id')
-    .primaryKey()
-    .references(() => workspace.id, { onDelete: 'cascade' }),
-  mcpToolRefs: jsonb('mcp_tool_refs').notNull().default(sql`'[]'::jsonb`),
-  customToolRefs: jsonb('custom_tool_refs').notNull().default(sql`'[]'::jsonb`),
-  skillRefs: jsonb('skill_refs').notNull().default(sql`'[]'::jsonb`),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
-
 export const subscription = pgTable(
   'subscription',
   {
@@ -1615,12 +1601,8 @@ export const chat = pgTable(
     /**
      * When true, public chat SSE exposes tool lifecycle events. Independent of
      * includeThinking and of the protocol header.
-     *
-     * Nullable only because the column was added after the table; readers treat
-     * null as false.
      */
-    // contract-pending(any release): normalize nulls to false, then set DEFAULT false and NOT NULL — cosmetic only, since no reader distinguishes null from false
-    includeToolCalls: boolean('include_tool_calls'),
+    includeToolCalls: boolean('include_tool_calls').notNull().default(false),
 
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -3792,12 +3774,6 @@ export const document = pgTable(
       table.knowledgeBaseId,
       table.processingStatus
     ),
-    /** Superseded by the per-source recovery index; drop in a follow-up migration once that deploy has shipped. */
-    processingRecoveryIdx: index('doc_processing_recovery_idx')
-      .on(table.uploadedAt, table.id)
-      .where(
-        sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.contentHash} IS NOT NULL AND ${table.storageKey} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
-      ),
     /**
      * Oldest-first recovery pages per eligible source. Recovery walks only the sources it may
      * admit, so retained inputs of paused or federated sources are never read.
@@ -4071,31 +4047,6 @@ export const embedding = pgTable(
   })
 )
 
-/** Compatibility storage for connector-detachment workers from before keyword retirement. */
-// contract-pending(after the keyword-projection retirement release and old connector-detachment workers have drained): drop embedding_keyword_tin — no new projection writer uses it.
-export const embeddingKeywordTin = pgTable(
-  'embedding_keyword_tin',
-  {
-    id: text('id')
-      .primaryKey()
-      .references(() => embedding.id, { onDelete: 'cascade' }),
-    knowledgeBaseId: text('knowledge_base_id').notNull(),
-    documentId: text('document_id').notNull(),
-    enabled: boolean('enabled').notNull(),
-    content: text('content').notNull(),
-    /**
-     * The document's source and ACL, mirrored by trigger so ranking decides readability on the row it
-     * scores rather than through a join per ranked chunk. Hydration still reads under the full predicate.
-     */
-    connectorId: text('connector_id'),
-    acl: text('acl').array(),
-  },
-  (table) => ({
-    /** The document ACL trigger fans out by document; without this it scans the projection per document. */
-    documentIdx: index('embedding_keyword_tin_document_idx').on(table.documentId),
-  })
-)
-
 /**
  * Candidate projection. Keeping identities and half-precision vectors apart from content prevents
  * candidate scans from fetching full-precision TOAST values. Application writers only change
@@ -4272,6 +4223,7 @@ export const docsEmbeddings = pgTable(
 
 export const chatTypeEnum = pgEnum('chat_type', ['mothership', 'copilot'])
 
+// contract-pending(after the release that stops declaring plan_artifact is deployed): drop copilot_chats.plan_artifact — the plan artifact moved into the message transcript; safe once no deployed release declares the column.
 export const copilotChats = pgTable(
   'copilot_chats',
   {
@@ -4292,13 +4244,6 @@ export const copilotChats = pgTable(
     externalConversationKey: text('external_conversation_key'),
     externalConversationMetadata: jsonb('external_conversation_metadata'),
     previewYaml: text('preview_yaml'),
-    /**
-     * @deprecated Nothing reads or writes this any more — the plan artifact
-     * moved into the message transcript. Kept only so the column survives the
-     * deploy that removes its last readers; drop it in a follow-up migration
-     * once that deploy has fully rolled out (expand/contract).
-     */
-    planArtifact: text('plan_artifact'),
     config: jsonb('config'),
     resources: jsonb('resources').notNull().default('[]'),
     /**
@@ -4368,6 +4313,7 @@ export const mothershipResourceEffects = pgTable(
   (table) => ({ pk: primaryKey({ columns: [table.chatId, table.effectId] }) })
 )
 
+// contract-pending(after the release that stops declaring them is deployed): drop copilot_messages.parent_message_id, tokens_in, and tokens_out — no code has read or written them since they were added; safe once no deployed release declares them.
 export const copilotMessages = pgTable(
   'copilot_messages',
   {
@@ -4379,10 +4325,7 @@ export const copilotMessages = pgTable(
     role: text('role').notNull(),
     content: jsonb('content').notNull(),
     streamId: text('stream_id'),
-    parentMessageId: text('parent_message_id'),
     model: text('model'),
-    tokensIn: integer('tokens_in'),
-    tokensOut: integer('tokens_out'),
     seq: integer('seq'),
     deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -4405,30 +4348,6 @@ export const copilotMessages = pgTable(
     userCreatedAtIdx: index('copilot_messages_user_created_at_idx')
       .on(table.createdAt, table.chatId, table.messageId)
       .where(sql`${table.role} = 'user' AND ${table.deletedAt} IS NULL`),
-  })
-)
-
-export const copilotWorkflowReadHashes = pgTable(
-  'copilot_workflow_read_hashes',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    chatId: uuid('chat_id')
-      .notNull()
-      .references(() => copilotChats.id, { onDelete: 'cascade' }),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
-    hash: text('hash').notNull(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    chatIdIdx: index('copilot_workflow_read_hashes_chat_id_idx').on(table.chatId),
-    workflowIdIdx: index('copilot_workflow_read_hashes_workflow_id_idx').on(table.workflowId),
-    chatWorkflowUnique: uniqueIndex('copilot_workflow_read_hashes_chat_workflow_unique').on(
-      table.chatId,
-      table.workflowId
-    ),
   })
 )
 
@@ -5553,38 +5472,6 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'api-tool',
   'workflow-test',
 ])
-
-/** Content-free organization Search activity, independent of billable model usage. */
-// contract-pending(after the indexed-search retirement release and old activity writers have drained): drop organization_search_invocation — live Search does not record indexed result activity.
-export const organizationSearchInvocation = pgTable(
-  'organization_search_invocation',
-  {
-    id: text('id').primaryKey(),
-    organizationId: text('organization_id')
-      .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
-    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-    surface: text('surface').notNull(),
-    sourceTypes: text('source_types').array().notNull(),
-    resultCount: integer('result_count').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => ({
-    organizationCreatedAtIdx: index('organization_search_invocation_org_created_idx').on(
-      table.organizationId,
-      table.createdAt
-    ),
-    userIdIdx: index('organization_search_invocation_user_idx').on(table.userId),
-    resultCountBounds: check(
-      'organization_search_invocation_result_count_bounds',
-      sql`${table.resultCount} BETWEEN 0 AND 100`
-    ),
-    sourceTypesBounds: check(
-      'organization_search_invocation_source_types_bounds',
-      sql`cardinality(${table.sourceTypes}) <= 100`
-    ),
-  })
-)
 
 /** MCP tool attempts, separate from successful Search invocations and billable usage. */
 export const organizationSearchMcpInvocation = pgTable(
@@ -7654,46 +7541,6 @@ export const mothershipInboxWebhook = pgTable('mothership_inbox_webhook', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-/**
- * The application code that read/wrote this table (Academy) was removed in
- * the same PR that would have dropped it here — deferred to a follow-up PR
- * once that removal has actually shipped, per the expand/contract migration
- * safety check (`check:migrations`), since a same-deploy drop would break
- * any pod still running the old code during a rolling deploy.
- */
-export const academyCertStatusEnum = pgEnum('academy_cert_status', ['active', 'revoked', 'expired'])
-
-/** Partner certification records issued on course completion */
-export const academyCertificate = pgTable(
-  'academy_certificate',
-  {
-    id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    /** References the file-based course ID from lib/academy/content */
-    courseId: text('course_id').notNull(),
-    status: academyCertStatusEnum('status').notNull().default('active'),
-    issuedAt: timestamp('issued_at').notNull().defaultNow(),
-    /** Optional expiry for recertification requirements */
-    expiresAt: timestamp('expires_at'),
-    /** Human-readable unique certificate number, e.g. SIM-2026-00042 */
-    certificateNumber: text('certificate_number').notNull().unique(),
-    /** Snapshot of name and other metadata at time of issue */
-    metadata: jsonb('metadata'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    userIdIdx: index('academy_certificate_user_id_idx').on(table.userId),
-    courseIdIdx: index('academy_certificate_course_id_idx').on(table.courseId),
-    userCourseUnique: uniqueIndex('academy_certificate_user_course_unique').on(
-      table.userId,
-      table.courseId
-    ),
-    statusIdx: index('academy_certificate_status_idx').on(table.status),
-  })
-)
-
 export const dataDrainSourceEnum = pgEnum('data_drain_source', [
   'workflow_logs',
   'job_logs',
@@ -8277,34 +8124,6 @@ export const scimRequestLog = pgTable(
       table.createdAt
     ),
   })
-)
-
-/**
- * Retained for the deployment transition from callback subscriptions to the worker task
- * inbox (mothership D35). New code reads canonical execution status and does not use
- * this table. Drop it only after the previous worker/Sim versions have been retired.
- */
-export const copilotTaskSubscriptions = pgTable(
-  'copilot_task_subscriptions',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    taskId: uuid('task_id').notNull(),
-    executionId: text('execution_id').notNull(),
-    chatId: uuid('chat_id')
-      .notNull()
-      .references(() => copilotChats.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => [
-    index('copilot_task_subscriptions_execution_idx').on(table.executionId),
-    uniqueIndex('copilot_task_subscriptions_task_idx').on(table.taskId),
-  ]
 )
 
 /** Provider costs outlive tool results and chat deletion until the billing owner acknowledges them. */
