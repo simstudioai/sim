@@ -681,27 +681,29 @@ async function runWorkflowAndWriteTerminal(
           await enrichmentRegistry.importCrossingProvenance(inputProvenance, enrichInputs, {
             trusted: true,
           })
-          const { result, cost, detail } = await withResourceOutboundScope({ workspaceId }, () =>
-            runEnrichment(enrichment, enrichInputs, {
-              tableId,
-              rowId,
-              workspaceId,
-              /**
-               * The person who asked, not who pays. `triggeredByUserId` is an
-               * attribution: for a workspace-API-key run it names the workspace's
-               * billing owner, and running that bystander's tool denylist against
-               * an actorless request is wrong in both directions — it fails cells
-               * nobody meant to govern, and it skips the denylist for the person
-               * who actually triggered one. The governed subject is carried
-               * separately from the dispatch. `null` means no per-tool gate
-               * applies, which is the documented behavior for an actorless run —
-               * stated, because the field is required precisely so it cannot be
-               * skipped by omission.
-               */
-              userId: payload.capabilityGovernedUserId ?? null,
-              signal: attemptSignal,
-              resolvedSecretTraceRegistry: enrichmentRegistry,
-            })
+          const { result, cost, error, detail } = await withResourceOutboundScope(
+            { workspaceId },
+            () =>
+              runEnrichment(enrichment, enrichInputs, {
+                tableId,
+                rowId,
+                workspaceId,
+                /**
+                 * The person who asked, not who pays. `triggeredByUserId` is an
+                 * attribution: for a workspace-API-key run it names the workspace's
+                 * billing owner, and running that bystander's tool denylist against
+                 * an actorless request is wrong in both directions — it fails cells
+                 * nobody meant to govern, and it skips the denylist for the person
+                 * who actually triggered one. The governed subject is carried
+                 * separately from the dispatch. `null` means no per-tool gate
+                 * applies, which is the documented behavior for an actorless run —
+                 * stated, because the field is required precisely so it cannot be
+                 * skipped by omission.
+                 */
+                userId: payload.capabilityGovernedUserId ?? null,
+                signal: attemptSignal,
+                resolvedSecretTraceRegistry: enrichmentRegistry,
+              })
           )
 
           // An abort during the cascade must not be recorded as a completed cell.
@@ -720,7 +722,7 @@ async function runWorkflowAndWriteTerminal(
 
           /**
            * Record the triggerer or system fallback as actor while charging the
-           * exact workspace payer. Billing failures do not fail a successful cell.
+           * exact workspace payer. Billing failures do not fail the cell.
            */
           if (cost > 0) {
             try {
@@ -749,6 +751,21 @@ async function runWorkflowAndWriteTerminal(
                 error: toError(billingErr).message,
               })
             }
+          }
+
+          // Every provider that ran errored (rate limit, missing hosted key, auth).
+          // Written without a data patch so an outage does not blank the row's
+          // outputs here; `error` lets a manual re-run pick the cell up again.
+          if (error) {
+            await writeState({
+              status: 'error',
+              executionId,
+              jobId: null,
+              workflowId: statusId,
+              error,
+              enrichmentDetails: detail,
+            })
+            return 'error'
           }
 
           // Write every output column: the result value when present, else clear
