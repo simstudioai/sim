@@ -188,8 +188,9 @@ export const workEmailEnrichment: EnrichmentConfig = {
         const email = str(output.email)
         return email ? { email } : null
       },
-      // Dropcontact's qualification labels are French: `nominatif@pro` is a verified work address.
-      isVerified: (output) => output.qualification === 'nominatif@pro',
+      // The live API labels a verified work address `nominatif@pro`; its docs say `nominative@pro`.
+      isVerified: (output) =>
+        output.qualification === 'nominatif@pro' || output.qualification === 'nominative@pro',
     }),
     toolProvider({
       id: 'enrow',
