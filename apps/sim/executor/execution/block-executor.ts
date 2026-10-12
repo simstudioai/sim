@@ -810,7 +810,8 @@ export class BlockExecutor {
       }
       errorDiagnostic = projectResolvedSecretDiagnosticError(
         error,
-        diagnosticRegistry ?? ctx.resolvedSecretTraceRegistry
+        diagnosticRegistry ?? ctx.resolvedSecretTraceRegistry,
+        ctx.errorDiagnosticDetails
       )
       return errorDiagnostic
     }

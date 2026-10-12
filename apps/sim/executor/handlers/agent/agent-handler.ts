@@ -3051,6 +3051,7 @@ export class AgentBlockHandler implements BlockHandler {
         providerErrorRegistry,
         modelRuntimeRegistry
       )
+      ctx.errorDiagnosticDetails = { provider: providerId, model }
       try {
         this.handleExecutionError(error)
       } finally {

@@ -583,6 +583,23 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     )
   })
 
+  it.each([
+    [402, 'USAGE_LIMIT_EXCEEDED'],
+    [403, 'ACCOUNT_SUSPENDED'],
+  ] as const)('keeps the internal admission code out of a %i refusal', async (statusCode, code) => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: { message: 'Execution refused', statusCode, code },
+    })
+
+    const res = await callExecute({ input: {} })
+
+    expect(res.status).toBe(statusCode)
+    const body = await res.json()
+    expect(body.error.message).toBe('Execution refused')
+    expect(body.error.details?.code).toBeUndefined()
+  })
+
   it('returns the typed workspace-key denial for manual execution', async () => {
     mockExecuteManualTrigger.mockRejectedValueOnce(new WorkspaceApiKeyAuthorizationError())
 

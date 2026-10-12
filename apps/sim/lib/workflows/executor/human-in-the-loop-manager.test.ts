@@ -486,10 +486,10 @@ describe('resume failure diagnostic projection', () => {
         })
       ).rejects.toBe(rawError)
 
-      expect(humanInTheLoopLogger.error).toHaveBeenCalledWith('Resume execution failed', {
-        errorType: 'error',
-        hasStack: true,
-      })
+      expect(humanInTheLoopLogger.error).toHaveBeenCalledWith(
+        'Resume execution failed',
+        expect.objectContaining({ errorType: 'error', hasStack: true })
+      )
       const loggerPayload = JSON.stringify(humanInTheLoopLogger.error.mock.calls)
       expect(loggerPayload).not.toContain(secret)
       expect(loggerPayload).not.toContain('__var_')

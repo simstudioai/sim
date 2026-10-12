@@ -648,6 +648,7 @@ describe('BlockExecutor', () => {
       canHandle: () => true,
       execute: async (ctx) => {
         ctx.errorResolvedSecretTraceRegistry = errorRegistry
+        ctx.errorDiagnosticDetails = { provider: 'openai', model: 'model-under-test' }
         throw new Error(`provider failed with ${secret} __var_TOKEN __sim_runtime_test_1`)
       },
     }
@@ -663,6 +664,8 @@ describe('BlockExecutor', () => {
     const logged = JSON.stringify(blockFailureLogsSince(loggerIndex))
     expect(logged).toContain('Block execution failed')
     for (const leaked of [secret, '__var_', '__sim_']) expect(logged).not.toContain(leaked)
+    /** The provider and model the handler attached reach the line unless it fails closed. */
+    expect(logged.includes('model-under-test')).toBe(!incomplete)
   })
 
   it('logs an internal child workflow fault with the block and run identity', async () => {
