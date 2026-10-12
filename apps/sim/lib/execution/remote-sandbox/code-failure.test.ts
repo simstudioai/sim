@@ -109,6 +109,24 @@ throw e
 Node.js v22.19.0
 `
 
+const STACKLESS_PLAIN_ERROR = `file:///home/user/.sim-function-abc.mjs:1
+throw e
+^
+
+[Error: plain failure]
+
+Node.js v22.19.0
+`
+
+const STACKLESS_ERROR_WITH_INLINE_PROPERTIES = `file:///home/user/.sim-function-abc.mjs:1
+throw e
+^
+
+[TypeError: bad thing] { code: 'E1' }
+
+Node.js v22.19.0
+`
+
 const PYTHON_TRACEBACK = `Traceback (most recent call last):
   File "/home/user/.sim-function-abc.py", line 2, in <module>
     raise QuotaExceeded('over quota')
@@ -137,6 +155,13 @@ describe('processCodeFailure', () => {
       'All promises were rejected',
     ],
     ['a stackless error with no properties', STACKLESS_RANGE_ERROR, 'RangeError', 'limit hit'],
+    ['a stackless plain Error', STACKLESS_PLAIN_ERROR, 'Error', 'plain failure'],
+    [
+      'a stackless error with inline properties',
+      STACKLESS_ERROR_WITH_INLINE_PROPERTIES,
+      'TypeError',
+      'bad thing',
+    ],
     ['a thrown string', THROWN_STRING, 'Error', 'Execution failed'],
     ['a thrown null-prototype object', THROWN_NULL_PROTOTYPE_OBJECT, 'Error', 'Execution failed'],
     ['a thrown function', THROWN_FUNCTION, 'Error', 'Execution failed'],
