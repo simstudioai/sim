@@ -78,6 +78,37 @@ just a string
 Node.js v22.19.0
 `
 
+/** A thrown non-error object Node labels in brackets, like an error printed without a stack. */
+const THROWN_NULL_PROTOTYPE_OBJECT = `
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+[Object: null prototype] {
+  alpha: 'x',
+  gamma: 3
+}
+
+Node.js v22.19.0
+`
+
+const THROWN_FUNCTION = `
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+[Function: myHandler]
+
+Node.js v22.19.0
+`
+
+const STACKLESS_RANGE_ERROR = `file:///home/user/.sim-function-abc.mjs:1
+throw e
+^
+
+[RangeError: limit hit]
+
+Node.js v22.19.0
+`
+
 const PYTHON_TRACEBACK = `Traceback (most recent call last):
   File "/home/user/.sim-function-abc.py", line 2, in <module>
     raise QuotaExceeded('over quota')
@@ -105,7 +136,10 @@ describe('processCodeFailure', () => {
       'AggregateError',
       'All promises were rejected',
     ],
+    ['a stackless error with no properties', STACKLESS_RANGE_ERROR, 'RangeError', 'limit hit'],
     ['a thrown string', THROWN_STRING, 'Error', 'Execution failed'],
+    ['a thrown null-prototype object', THROWN_NULL_PROTOTYPE_OBJECT, 'Error', 'Execution failed'],
+    ['a thrown function', THROWN_FUNCTION, 'Error', 'Execution failed'],
     ['a Python traceback', PYTHON_TRACEBACK, '__main__.QuotaExceeded', 'over quota'],
   ])('names the error of %s from its headline', (_case, stderr, name, value) => {
     const { error } = processCodeFailure({ stdout: '', stderr, exitCode: 1 })
