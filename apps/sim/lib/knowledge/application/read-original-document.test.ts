@@ -21,8 +21,15 @@ vi.mock('@/lib/knowledge/secret-provenance', () => ({
   loadKnowledgeDocumentDurableSecretProvenance: mocks.provenance,
 }))
 
+import {
+  type ContentDeliveryGate,
+  ContentRefusedError,
+  observeContentDelivery,
+} from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 
 workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
   (actual: string | null) => actual !== null
@@ -53,6 +60,27 @@ const input = {
   maxBytes: 64,
 }
 const run = () => readOriginalKnowledgeDocument.execute({ principal, input })
+
+/** A gate with no registry: it admits only items with no recorded secret. */
+const secretFreeGate: ContentDeliveryGate = {
+  async admit(sources) {
+    return sources.map(
+      ({ provenance }) =>
+        provenance.status === 'unrecorded' ||
+        (provenance.status === 'exact' && provenance.entries.length === 0)
+    )
+  },
+}
+const runAsChat = () =>
+  observeContentDelivery(secretFreeGate, () =>
+    readOriginalKnowledgeDocument.execute({
+      principal: createCopilotChatPrincipal(
+        { userId: 'reader', workspaceId: 'workspace', chatId: 'chat' },
+        KNOWLEDGE_DELEGATION_AUDIENCE
+      ),
+      input,
+    })
+  )
 
 describe('original knowledge document read', () => {
   beforeEach(() => {
@@ -113,21 +141,32 @@ describe('original knowledge document read', () => {
     ).rejects.toThrow(/limit/)
   })
   it.each([{ status: 'unknown' }, { status: 'exact', entries: [{ secret: 'private' }] }])(
-    'refuses originals without secret-free provenance',
+    'refuses Chat an original its gate refuses, before reading it: %j',
     async (provenance) => {
       mocks.provenance.mockResolvedValue({
         source: { filename: document.filename, fileUrl: document.fileUrl },
         provenance,
       })
-      await expect(run()).rejects.toThrow('secret-free')
+      await expect(runAsChat()).rejects.toBeInstanceOf(ContentRefusedError)
       expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
     }
   )
-  it('refuses a concurrent source replacement before reading', async () => {
+  it('serves Chat a secret-free original under its gate', async () => {
+    expect(await runAsChat()).toMatchObject({ sourceAvailable: true, hasRecordedSecrets: false })
+  })
+  it('classifies a concurrent source replacement as unknown, refusing it before reading', async () => {
     mocks.provenance.mockResolvedValue({
       source: { filename: 'changed', fileUrl: document.fileUrl },
       provenance: { status: 'exact', entries: [] },
     })
-    await expect(run()).rejects.toThrow('secret-free')
+    await expect(runAsChat()).rejects.toBeInstanceOf(ContentRefusedError)
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+  })
+  it('reads for a caller outside Chat without classifying, flagging recorded secrets', async () => {
+    mocks.provenance.mockResolvedValue({
+      source: { filename: document.filename, fileUrl: document.fileUrl },
+      provenance: { status: 'exact', entries: [{ secret: 'private' }] },
+    })
+    expect(await run()).toMatchObject({ sourceAvailable: true, hasRecordedSecrets: true })
   })
 })

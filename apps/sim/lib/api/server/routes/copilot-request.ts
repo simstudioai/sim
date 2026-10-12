@@ -1,4 +1,5 @@
 import type { DelegatedPrincipal } from '@sim/auth/principal'
+import { noteContentDeliveryOperation } from '@/lib/core/application/content-delivery'
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import {
@@ -48,5 +49,6 @@ export function copilotRequestPrincipal(
   if (!audience) return undefined
   const principal = createCopilotChatPrincipal(invocation, audience)
   markCopilotWorkspaceInvocation(principal)
+  noteContentDeliveryOperation(operation, principal)
   return principal
 }

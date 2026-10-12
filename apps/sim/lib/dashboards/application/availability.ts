@@ -9,6 +9,7 @@ const availabilityOperation = defineWorkspaceOperation({
   oauthScope: 'api:read',
   workspaceApiKey: 'allow',
   capability: 'none',
+  contentDelivery: 'none',
   principalKinds: [
     'session',
     'personal_api_key',

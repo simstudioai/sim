@@ -1,0 +1,346 @@
+/**
+ * @vitest-environment node
+ */
+import type { Principal } from '@sim/auth/principal'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  admitContent,
+  admitWrittenContent,
+  type ContentDeliveryGate,
+  ContentDeliveryUnaccountedError,
+  ContentDeliveryUnobservedError,
+  ContentRefusedError,
+  type ContentSource,
+  mustClassifyContent,
+  noteContentDeliveryOperation,
+  observeContentDelivery,
+  observeContentOutsideModel,
+  requireAdmittedContent,
+  runDeclaredContentOperation,
+  trackContentDelivery,
+} from '@/lib/core/application/content-delivery'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
+
+function delegated(serviceId: string): Principal {
+  const now = Date.now()
+  return {
+    kind: 'delegated',
+    serviceId,
+    subjectUserId: 'user-1',
+    workspaceId: 'workspace-1',
+    delegationId: 'delegation-1',
+    audience: 'sim:test',
+    issuedAt: new Date(now),
+    expiresAt: new Date(now + 60_000),
+  }
+}
+
+const CHAT = delegated('copilot')
+const EXECUTOR = delegated('executor')
+const SESSION: Principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
+
+function operation(contentDelivery: 'sourced' | 'none') {
+  return defineWorkspaceOperation({
+    id: `test.${contentDelivery}`,
+    contentDelivery,
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
+    capability: 'none',
+  })
+}
+
+const SOURCED = operation('sourced')
+const NONE = operation('none')
+
+function source(id: string, status: 'clean' | 'unknown' = 'clean'): ContentSource {
+  return {
+    kind: 'workspace-file',
+    id,
+    provenance: status === 'clean' ? { status: 'exact', entries: [] } : { status: 'unknown' },
+    view: 'complete',
+  }
+}
+
+/** Admits clean items and refuses unknown ones, recording every batch it was asked about. */
+function recordingGate() {
+  const batches: string[][] = []
+  const gate: ContentDeliveryGate = {
+    async admit(sources) {
+      batches.push(sources.map((item) => item.id))
+      return sources.map((item) => item.provenance.status !== 'unknown')
+    },
+  }
+  return { gate, batches }
+}
+
+describe('mustClassifyContent', () => {
+  it('refuses Chat with no gate before anything loads', () => {
+    expect(() => mustClassifyContent(CHAT)).toThrow(ContentDeliveryUnobservedError)
+  })
+
+  it('is true for Chat under a gate and false for every other caller, gate or not', () => {
+    const { gate } = recordingGate()
+    expect(observeContentDelivery(gate, () => mustClassifyContent(CHAT))).toBe(true)
+    expect(mustClassifyContent(EXECUTOR)).toBe(false)
+    expect(mustClassifyContent(SESSION)).toBe(false)
+    expect(observeContentDelivery(gate, () => mustClassifyContent(SESSION))).toBe(false)
+  })
+})
+
+describe('admitContent', () => {
+  it('decides each item on its own for Chat', async () => {
+    const { gate, batches } = recordingGate()
+    const items = [source('clean'), source('tainted', 'unknown'), source('also-clean')]
+    const admission = await observeContentDelivery(gate, () => admitContent(CHAT, items))
+    expect(items.map((item) => admission.admits(item))).toEqual([true, false, true])
+    expect(admission.refused.map((item) => item.id)).toEqual(['tainted'])
+    expect(batches).toEqual([['clean', 'tainted', 'also-clean']])
+  })
+
+  it('admits every other caller unread, whatever the items say', async () => {
+    const { gate, batches } = recordingGate()
+    const items = [source('tainted', 'unknown')]
+    for (const principal of [EXECUTOR, SESSION]) {
+      const admission = await observeContentDelivery(gate, () => admitContent(principal, items))
+      expect(admission.admits(items[0])).toBe(true)
+    }
+    expect(batches).toEqual([])
+  })
+
+  it('only accounts for an empty result, even for Chat with no gate', async () => {
+    const record = await trackContentDelivery(async () => {
+      noteContentDeliveryOperation(SOURCED, CHAT)
+      return admitContent(CHAT, [])
+    })
+    expect(record.result.refused).toEqual([])
+    expect(record.unaccounted).toBe(false)
+  })
+
+  it('refuses Chat items with no gate installed', async () => {
+    await expect(admitContent(CHAT, [source('clean')])).rejects.toThrow(
+      ContentDeliveryUnobservedError
+    )
+  })
+
+  it('refuses items classified inside an operation declared to return none', async () => {
+    const { gate } = recordingGate()
+    await expect(
+      observeContentDelivery(gate, () =>
+        runDeclaredContentOperation(NONE, CHAT, () => admitContent(CHAT, [source('clean')]))
+      )
+    ).rejects.toMatchObject({ name: 'ContentDeliveryUndeclaredError' })
+  })
+})
+
+describe('requireAdmittedContent', () => {
+  it('passes an admitted item and refuses a refused one with a 403 naming no content', async () => {
+    const { gate } = recordingGate()
+    await expect(
+      observeContentDelivery(gate, () => requireAdmittedContent(CHAT, source('clean')))
+    ).resolves.toBeUndefined()
+    const refusal = await observeContentDelivery(gate, () =>
+      requireAdmittedContent(CHAT, source('tainted', 'unknown')).catch((error: unknown) => error)
+    )
+    expect(refusal).toBeInstanceOf(ContentRefusedError)
+    expect(refusal).toMatchObject({
+      code: 'forbidden',
+      message: expect.not.stringContaining('tainted'),
+    })
+  })
+})
+
+describe('runDeclaredContentOperation', () => {
+  it('throws for a sourced operation that never accounted, after its effects completed', async () => {
+    const { gate } = recordingGate()
+    const complete = vi.fn(async () => {})
+    await expect(
+      observeContentDelivery(gate, () =>
+        runDeclaredContentOperation(SOURCED, CHAT, async () => 'unclassified', complete)
+      )
+    ).rejects.toThrow(ContentDeliveryUnaccountedError)
+    expect(complete).toHaveBeenCalledWith('unclassified')
+  })
+
+  it('returns a sourced result that accounted, and a none result that had nothing to account', async () => {
+    const { gate } = recordingGate()
+    await expect(
+      observeContentDelivery(gate, () =>
+        runDeclaredContentOperation(SOURCED, CHAT, async () => {
+          await admitContent(CHAT, [source('clean')])
+          return 'classified'
+        })
+      )
+    ).resolves.toBe('classified')
+    await expect(runDeclaredContentOperation(NONE, CHAT, async () => 'metadata')).resolves.toBe(
+      'metadata'
+    )
+  })
+
+  it('runs every other caller unchanged, with no accounting demanded', async () => {
+    const complete = vi.fn(async () => {})
+    await expect(
+      runDeclaredContentOperation(SOURCED, EXECUTOR, async () => 'run output', complete)
+    ).resolves.toBe('run output')
+    expect(complete).toHaveBeenCalledWith('run output')
+  })
+
+  it('answers a committed write whose returned item was refused only after its effects', async () => {
+    const { gate } = recordingGate()
+    const events: string[] = []
+    const refusal = await observeContentDelivery(gate, () =>
+      runDeclaredContentOperation(
+        SOURCED,
+        CHAT,
+        async () => {
+          const admission = await admitWrittenContent(CHAT, [source('written', 'unknown')])
+          events.push(`write returned admitted=${admission.refused.length === 0}`)
+          return 'saved row'
+        },
+        async () => {
+          events.push('audit recorded')
+        }
+      ).catch((error: unknown) => error)
+    )
+    expect(events).toEqual(['write returned admitted=false', 'audit recorded'])
+    expect(refusal).toBeInstanceOf(ContentRefusedError)
+    expect(refusal).toMatchObject({ message: expect.stringContaining('The change was saved') })
+  })
+
+  it('answers with a gate failure during a write only after its effects completed', async () => {
+    const failure = new Error('history unavailable')
+    const failing: ContentDeliveryGate = {
+      async admit() {
+        throw failure
+      },
+    }
+    const events: string[] = []
+    const outcome = await observeContentDelivery(failing, () =>
+      runDeclaredContentOperation(
+        SOURCED,
+        CHAT,
+        async () => {
+          const admission = await admitWrittenContent(CHAT, [source('written')])
+          events.push(`withheld=${admission.refused.length}`)
+          return 'saved row'
+        },
+        async () => {
+          events.push('audit recorded')
+        }
+      ).catch((error: unknown) => error)
+    )
+    expect(events).toEqual(['withheld=1', 'audit recorded'])
+    expect(outcome).toBe(failure)
+  })
+
+  it('rethrows a gate failure at once when no operation is open to answer with it', async () => {
+    const failure = new Error('history unavailable')
+    const failing: ContentDeliveryGate = {
+      async admit() {
+        throw failure
+      },
+    }
+    await expect(
+      observeContentDelivery(failing, () => admitWrittenContent(CHAT, [source('written')]))
+    ).rejects.toBe(failure)
+  })
+
+  it('lets a written result through when every returned item was admitted', async () => {
+    const { gate } = recordingGate()
+    await expect(
+      observeContentDelivery(gate, () =>
+        runDeclaredContentOperation(SOURCED, CHAT, async () => {
+          await admitWrittenContent(CHAT, [source('written')])
+          return 'saved row'
+        })
+      )
+    ).resolves.toBe('saved row')
+  })
+})
+
+describe('trackContentDelivery', () => {
+  it('reports a sourced operation Chat was admitted to whose use case never accounted', async () => {
+    const record = await trackContentDelivery(async () => {
+      noteContentDeliveryOperation(SOURCED, CHAT)
+      return 'response'
+    })
+    expect(record).toEqual({ result: 'response', unaccounted: true, admitted: [] })
+  })
+
+  it('does not report a none operation, or a sourced one another caller ran', async () => {
+    for (const [op, principal] of [
+      [NONE, CHAT],
+      [SOURCED, EXECUTOR],
+    ] as const) {
+      const record = await trackContentDelivery(async () => {
+        noteContentDeliveryOperation(op, principal)
+      })
+      expect(record.unaccounted).toBe(false)
+    }
+  })
+
+  it('collects the provenance of admitted items only, through nested use cases', async () => {
+    const { gate } = recordingGate()
+    const entries = {
+      status: 'exact' as const,
+      entries: [{ encryptedValue: 'ciphertext', sourceUserId: 'user-1' }],
+    }
+    const record = await observeContentDelivery(gate, () =>
+      trackContentDelivery(() =>
+        runDeclaredContentOperation(SOURCED, CHAT, async () => {
+          await runDeclaredContentOperation(SOURCED, CHAT, async () => {
+            await admitContent(CHAT, [
+              { ...source('inner'), provenance: entries },
+              source('refused', 'unknown'),
+            ])
+          })
+          await admitContent(CHAT, [source('outer')])
+        })
+      )
+    )
+    expect(record.unaccounted).toBe(false)
+    expect(record.admitted).toEqual([entries, { status: 'exact', entries: [] }])
+  })
+
+  it('keeps a nested request’s accounting from satisfying a sibling that never accounted', async () => {
+    const { gate } = recordingGate()
+    const [accounted, unaccounted] = await observeContentDelivery(gate, () =>
+      Promise.all([
+        trackContentDelivery(async () => {
+          noteContentDeliveryOperation(SOURCED, CHAT)
+          await admitContent(CHAT, [source('clean')])
+        }),
+        trackContentDelivery(async () => {
+          noteContentDeliveryOperation(SOURCED, CHAT)
+        }),
+      ])
+    )
+    expect(accounted.unaccounted).toBe(false)
+    expect(unaccounted.unaccounted).toBe(true)
+  })
+})
+
+describe('observeContentDelivery', () => {
+  it('decides by the innermost gate', async () => {
+    const outer = recordingGate()
+    const inner = recordingGate()
+    await observeContentDelivery(outer.gate, () =>
+      observeContentDelivery(inner.gate, () => admitContent(CHAT, [source('clean')]))
+    )
+    expect(inner.batches).toEqual([['clean']])
+    expect(outer.batches).toEqual([])
+  })
+})
+
+describe('observeContentOutsideModel', () => {
+  it('admits every item, tainted ones included, inside a gate that would refuse them', async () => {
+    const { gate, batches } = recordingGate()
+    const tainted = source('tainted', 'unknown')
+    const admission = await observeContentDelivery(gate, () =>
+      observeContentOutsideModel(() => admitContent(CHAT, [tainted]))
+    )
+    expect(admission.admits(tainted)).toBe(true)
+    expect(batches).toEqual([])
+  })
+})

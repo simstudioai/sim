@@ -4405,8 +4405,6 @@
   "apps/sim/lib/execution/code-placeholders/javascript.ts#DirectEnvironmentRead",
   "apps/sim/lib/execution/constants.ts#BINARY_DOC_TASKS",
   "apps/sim/lib/execution/constants.ts#MAX_DOCUMENT_PREVIEW_CODE_BYTES",
-  "apps/sim/lib/execution/durable-secret-provenance-telemetry.ts#DurableSecretProvenanceRefusalCause",
-  "apps/sim/lib/execution/durable-secret-provenance-telemetry.ts#DurableSecretProvenanceSurface",
   "apps/sim/lib/execution/durable-secret-provenance-telemetry.ts#DurableSecretProvenanceWriteCause",
   "apps/sim/lib/execution/execution-signal.ts#ExecutionSignalHandler",
   "apps/sim/lib/execution/files.ts#processExecutionFile",

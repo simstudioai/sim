@@ -14,6 +14,7 @@ import {
   InsufficientScopeError,
   OAuthAccessTokenExpiredError,
 } from '@/lib/core/application'
+import { ContentDeliveryUnobservedError } from '@/lib/core/application/content-delivery'
 import {
   asOrchestrationError,
   OrchestrationError,
@@ -530,6 +531,10 @@ export function v2ErrorForOrchestration(
  * one its failure class maps to.
  */
 export function v2CaughtOrchestrationError(error: unknown): NextResponse | null {
+  /** Chat reached stored content outside any classifying surface: transient, never a content leak. */
+  if (error instanceof ContentDeliveryUnobservedError) {
+    return v2Error('SERVICE_UNAVAILABLE', error.message)
+  }
   const classified = asOrchestrationError(error)
   if (!classified) return null
   if (classified instanceof InsufficientScopeError) return v2InsufficientScope(classified)

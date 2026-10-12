@@ -190,13 +190,26 @@ async function extract(ids: Fixture, archive: UserFile) {
   return { child, record, identity, publicMetadata: JSON.stringify({ archive, body }) }
 }
 
-async function assertBlockedConsumers(ids: Fixture, source: Awaited<ReturnType<typeof extract>>) {
+/**
+ * Opaque delivery is refused either way. A knowledge base refuses an unknown source but accepts
+ * one with recorded secrets, whose entries its chunks then carry (redacted wherever they are read).
+ */
+async function assertBlockedConsumers(
+  ids: Fixture,
+  source: Awaited<ReturnType<typeof extract>>,
+  knowledge: 'refused' | 'accepted' = 'refused'
+) {
   expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, source.identity)).toBe(false)
   const imported = await addWorkspaceFilesToKnowledgeBase.execute({
     principal: sessionPrincipal(ids),
     input: { knowledgeBaseId: ids.knowledgeBaseId, fileReferences: [source.child.id] },
   })
-  expect(imported).toMatchObject({ added: [], failed: [source.child.id] })
+  if (knowledge === 'refused') {
+    expect(imported).toMatchObject({ added: [], failed: [source.child.id] })
+  } else {
+    expect(imported).toMatchObject({ failed: [] })
+    expect(imported.added).toHaveLength(1)
+  }
 }
 
 beforeAll(() => {
@@ -827,7 +840,7 @@ describe('execution archive durable provenance', () => {
     expect(projected.safe).toBe(true)
     if (!projected.safe) throw new Error('Known extracted lineage withheld runtime readback')
     expect(projected.value).toBe('name,description\nOrion,{{FIXTURE_SECRET}}\n')
-    await assertBlockedConsumers(ids, source)
+    await assertBlockedConsumers(ids, source, 'accepted')
   })
 
   it('preserves compatibility for execution files created before provenance stamping', async () => {

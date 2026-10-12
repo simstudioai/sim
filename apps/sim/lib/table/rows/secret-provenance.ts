@@ -8,6 +8,7 @@ import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
+import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
 import {
   PROVENANCE_MAX_ENTRIES,
@@ -865,6 +866,123 @@ function createStoredEntryAggregator(scope: ResolvedSecretTraceScopeV1) {
   }
 }
 
+type TableRowClassification =
+  | { status: 'exact'; entries: StoredTableRowSecretProvenanceEntry[] }
+  | { status: 'unknown'; cause: string }
+
+/**
+ * Classifies each crossing row on its own, against its sidecar at the revision that was read:
+ * untracked legacy rows are exact-empty; a missing, stale, malformed, or non-exact sidecar, or a
+ * row read twice at different revisions, is unknown. Entries are narrowed to the columns crossing.
+ */
+async function classifyTableRowCrossings(
+  rows: TableRowCrossing[],
+  executor: DbExecutor
+): Promise<Map<string, TableRowClassification>> {
+  const crossingById = new Map<
+    string,
+    TableRowCrossing & { selectedColumnIds?: Set<string>; conflicting?: boolean }
+  >()
+  for (const row of rows) {
+    const existing = crossingById.get(row.id)
+    const selectedColumnIds = row.selectedValues
+      ? new Set(Object.keys(row.selectedValues))
+      : undefined
+    if (!existing) {
+      crossingById.set(row.id, { ...row, selectedColumnIds })
+      continue
+    }
+    if (!sameTimestamp(existing.updatedAt, row.updatedAt)) existing.conflicting = true
+    if (!existing.selectedColumnIds || !selectedColumnIds) {
+      existing.selectedColumnIds = undefined
+      continue
+    }
+    for (const columnId of selectedColumnIds) existing.selectedColumnIds.add(columnId)
+  }
+  const currentRows = await selectRowsWithSidecars(
+    executor,
+    [...crossingById.values()].filter((row) => !row.conflicting).map((row) => row.id)
+  )
+  const currentById = new Map(currentRows.map((row) => [row.id, row]))
+  const result = new Map<string, TableRowClassification>()
+  for (const [rowId, crossing] of crossingById) {
+    const current = currentById.get(rowId)
+    if (crossing.conflicting) {
+      result.set(rowId, { status: 'unknown', cause: 'duplicate-row-revision' })
+      continue
+    }
+    if (!current) {
+      result.set(rowId, { status: 'unknown', cause: 'row-missing' })
+      continue
+    }
+    if (!sameTimestamp(current.updatedAt, crossing.updatedAt)) {
+      result.set(rowId, { status: 'unknown', cause: 'row-revision-mismatch' })
+      continue
+    }
+    if (current.secretProvenanceVersion === null) {
+      result.set(rowId, { status: 'exact', entries: [] })
+      continue
+    }
+    if (
+      current.secretProvenanceVersion !== TABLE_ROW_SECRET_PROVENANCE_VERSION ||
+      current.sidecarStatus !== 'exact' ||
+      !current.sidecarIsCurrent
+    ) {
+      result.set(rowId, { status: 'unknown', cause: 'row-sidecar-not-exact' })
+      continue
+    }
+    const parsed = normalizeStoredEntries(current.sidecarEntries)
+    if (!parsed) {
+      result.set(rowId, { status: 'unknown', cause: 'row-sidecar-malformed' })
+      continue
+    }
+    result.set(rowId, {
+      status: 'exact',
+      entries: parsed.filter(
+        (entry) => !crossing.selectedColumnIds || crossing.selectedColumnIds.has(entry.columnId)
+      ),
+    })
+  }
+  return result
+}
+
+/**
+ * For each row as it is stored now, the columns whose cells hold a recorded secret, or `unknown`
+ * when the row cannot be vouched for. A match oracle (row search) consults it: a cell that matched
+ * reveals something about its text whatever the result shows.
+ */
+export async function classifyStoredTableRowColumns(
+  rowIds: readonly string[],
+  executor: DbExecutor = db
+): Promise<Map<string, { status: 'exact'; secretColumns: Set<string> } | { status: 'unknown' }>> {
+  const ids = [...new Set(rowIds)]
+  const currentRows = await selectRowsWithSidecars(executor, ids)
+  const result = new Map<
+    string,
+    { status: 'exact'; secretColumns: Set<string> } | { status: 'unknown' }
+  >()
+  for (const current of currentRows) {
+    if (current.secretProvenanceVersion === null) {
+      result.set(current.id, { status: 'exact', secretColumns: new Set() })
+      continue
+    }
+    const parsed =
+      current.secretProvenanceVersion === TABLE_ROW_SECRET_PROVENANCE_VERSION &&
+      current.sidecarStatus === 'exact' &&
+      current.sidecarIsCurrent
+        ? normalizeStoredEntries(current.sidecarEntries)
+        : undefined
+    result.set(
+      current.id,
+      parsed
+        ? { status: 'exact', secretColumns: new Set(parsed.map((entry) => entry.columnId)) }
+        : { status: 'unknown' }
+    )
+  }
+  for (const id of ids) if (!result.has(id)) result.set(id, { status: 'unknown' })
+  return result
+}
+
 /**
  * Builds one bounded provenance envelope for rows crossing an authenticated
  * internal table boundary. Untracked legacy rows contribute an exact-empty
@@ -879,65 +997,51 @@ export async function loadTableRowSecretProvenance(
   if (rows.length === 0) {
     return { version: 1, complete: true, entries: [], scope }
   }
+  /** One envelope covers every row, so a row read at two revisions settles it unread. */
+  const revisions = new Map<string, TableRowCrossing['updatedAt']>()
+  const conflicting = rows.some((row) => {
+    const seen = revisions.get(row.id)
+    revisions.set(row.id, row.updatedAt)
+    return seen !== undefined && !sameTimestamp(seen, row.updatedAt)
+  })
+  if (conflicting) {
+    return envelopeFromClassifications(
+      new Map<string, TableRowClassification>([
+        ['', { status: 'unknown', cause: 'duplicate-row-revision' }],
+      ]),
+      rows.length,
+      scope
+    )
+  }
+  return envelopeFromClassifications(
+    await classifyTableRowCrossings(rows, executor),
+    rows.length,
+    scope
+  )
+}
 
+function envelopeFromClassifications(
+  classifications: ReadonlyMap<string, TableRowClassification>,
+  rowCount: number,
+  scope: ResolvedSecretTraceScopeV1
+): ResolvedSecretTraceProvenanceV1 {
   const incomplete = (cause: string): ResolvedSecretTraceProvenanceV1 => {
     logger.error('Table row read could not establish secret provenance', {
       surface: 'table-row',
       cause,
-      rowCount: rows.length,
+      rowCount,
       workspaceId: scope.workspaceId,
       actorUserId: scope.userId,
     })
     return { version: 1, complete: false, entries: [], scope }
   }
-
-  const crossingById = new Map<string, TableRowCrossing & { selectedColumnIds?: Set<string> }>()
-  for (const row of rows) {
-    const existing = crossingById.get(row.id)
-    if (existing && !sameTimestamp(existing.updatedAt, row.updatedAt)) {
-      return incomplete('duplicate-row-revision')
-    }
-    const selectedColumnIds = row.selectedValues
-      ? new Set(Object.keys(row.selectedValues))
-      : undefined
-    if (!existing) {
-      crossingById.set(row.id, { ...row, selectedColumnIds })
-      continue
-    }
-    if (!existing.selectedColumnIds || !selectedColumnIds) {
-      existing.selectedColumnIds = undefined
-      continue
-    }
-    for (const columnId of selectedColumnIds) existing.selectedColumnIds.add(columnId)
-  }
-  const rowIds = [...crossingById.keys()]
-  const currentRows = await selectRowsWithSidecars(executor, rowIds)
-  const currentById = new Map(currentRows.map((row) => [row.id, row]))
   const aggregator = createStoredEntryAggregator(scope)
-
-  for (const rowId of rowIds) {
-    const current = currentById.get(rowId)
-    const crossing = crossingById.get(rowId)
-    if (!current || !crossing) return incomplete('row-missing')
-    if (!sameTimestamp(current.updatedAt, crossing.updatedAt)) {
-      return incomplete('row-revision-mismatch')
-    }
-    if (current.secretProvenanceVersion === null) continue
-    if (
-      current.secretProvenanceVersion !== TABLE_ROW_SECRET_PROVENANCE_VERSION ||
-      current.sidecarStatus !== 'exact' ||
-      !current.sidecarIsCurrent
-    ) {
-      return incomplete('row-sidecar-not-exact')
-    }
-    const parsed = normalizeStoredEntries(current.sidecarEntries)
-    if (!parsed) return incomplete('row-sidecar-malformed')
-    for (const entry of parsed) {
-      if (crossing.selectedColumnIds && !crossing.selectedColumnIds.has(entry.columnId)) continue
+  for (const classification of classifications.values()) {
+    if (classification.status === 'unknown') return incomplete(classification.cause)
+    for (const entry of classification.entries) {
       if (!aggregator.add(entry)) return incomplete('row-provenance-budget-exceeded')
     }
   }
-
   const entries = aggregator.build()
   if (!entries) return incomplete('row-provenance-budget-exceeded')
   const provenance: ResolvedSecretTraceProvenanceV1 = {
@@ -960,6 +1064,8 @@ export async function loadTableRowSecretProvenance(
  */
 export class TableRowProvenanceReader {
   private readonly accumulator: ResolvedSecretTraceProvenanceAccumulator
+  /** Every row captured, classified on its own. A row never captured has no classification. */
+  private readonly rows = new Map<string, DurableSecretProvenance>()
 
   constructor(
     private readonly scope: ResolvedSecretTraceScopeV1,
@@ -972,26 +1078,44 @@ export class TableRowProvenanceReader {
     executor: DbExecutor,
     rows: { id: string; updatedAt: Date | string; data: unknown }[]
   ): Promise<void> {
-    this.accumulator.record(
-      await loadTableRowSecretProvenance(
-        rows.map((row) => {
-          const data = row.data as RowData
-          let selectedValues = data
-          if (this.selectedColumnIds) {
-            selectedValues = {}
-            for (const columnId of this.selectedColumnIds) {
-              if (Object.hasOwn(data, columnId)) selectedValues[columnId] = data[columnId]
-            }
+    if (rows.length === 0) {
+      this.accumulator.record({ version: 1, complete: true, entries: [], scope: this.scope })
+      return
+    }
+    const classifications = await classifyTableRowCrossings(
+      rows.map((row) => {
+        const data = row.data as RowData
+        let selectedValues = data
+        if (this.selectedColumnIds) {
+          selectedValues = {}
+          for (const columnId of this.selectedColumnIds) {
+            if (Object.hasOwn(data, columnId)) selectedValues[columnId] = data[columnId]
           }
-          return { id: row.id, updatedAt: row.updatedAt, selectedValues }
-        }),
-        this.scope,
-        executor
-      )
+        }
+        return { id: row.id, updatedAt: row.updatedAt, selectedValues }
+      }),
+      executor
     )
+    for (const [rowId, classification] of classifications) {
+      this.rows.set(
+        rowId,
+        classification.status === 'unknown'
+          ? { status: 'unknown' }
+          : {
+              status: 'exact',
+              entries: classification.entries.map(({ columnId: _column, ...entry }) => entry),
+            }
+      )
+    }
+    this.accumulator.record(envelopeFromClassifications(classifications, rows.length, this.scope))
   }
 
   exportProvenance(): ResolvedSecretTraceProvenanceV1 {
     return this.accumulator.exportProvenance()
+  }
+
+  /** One captured row's classification; a row this reader never captured is unknown. */
+  rowProvenance(rowId: string): DurableSecretProvenance {
+    return this.rows.get(rowId) ?? { status: 'unknown' }
   }
 }

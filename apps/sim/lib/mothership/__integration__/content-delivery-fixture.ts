@@ -6,9 +6,11 @@ import {
   document,
   embedding,
   embeddingSecretProvenance,
+  knowledgeConnector,
   organization,
   user,
   userTableRowSecretProvenance,
+  userTableRows,
   workflow,
   workflowExecutionLogs,
   workflowExecutionSnapshots,
@@ -42,7 +44,7 @@ export const CANARY = {
 } as const
 
 /** Classifications every content store is seeded with, one item each. */
-export type SeededClassification = 'clean' | 'entries' | 'unknown' | 'unrecorded'
+type SeededClassification = 'clean' | 'entries' | 'unknown' | 'unrecorded'
 
 export interface ContentFixture {
   ids: ReturnType<typeof createKnowledgeAclFixtureIds>
@@ -66,7 +68,7 @@ function sha256(value: string): string {
 }
 
 /** The text each seeded item holds: the canary its classification names, beside shared prose. */
-export function seededText(classification: SeededClassification): string {
+function seededText(classification: SeededClassification): string {
   switch (classification) {
     case 'clean':
       return `public notes ${CANARY.clean}\nsecond line`
@@ -233,10 +235,14 @@ async function seedTable(
     if (inserted.status !== 201) throw new Error(`Row fixture failed: ${await inserted.text()}`)
     rows[classification] = (await inserted.json()).data.id
   }
-  const columnEntries = (await exactEntries(fixture.ids)).map((entry) => ({
-    ...entry,
-    columnId: 'note',
-  }))
+  /** Cells are stored by column id; the sidecar names the one column the secret is in. */
+  const [stored] = await db
+    .select({ data: userTableRows.data })
+    .from(userTableRows)
+    .where(eq(userTableRows.id, rows.entries))
+  const [columnId] = Object.keys(stored?.data ?? {})
+  if (!columnId) throw new Error('Row fixture stored no cells')
+  const columnEntries = (await exactEntries(fixture.ids)).map((entry) => ({ ...entry, columnId }))
   /** v2 inserts already bind an exact-empty sidecar; only its classification is rewritten. */
   await db
     .update(userTableRowSecretProvenance)
@@ -338,4 +344,35 @@ export async function removeContentFixture(fixture: ContentFixture): Promise<voi
   await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
   await db.delete(organization).where(eq(organization.id, ids.organizationId))
   await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
+}
+
+/**
+ * Adds a document a connector synced, so a connector listing has a row to classify. Kept out of
+ * the shared seed, whose non-Chat responses the compat baseline records.
+ */
+export async function seedKnowledgeConnector(
+  fixture: ContentFixture
+): Promise<{ connectorId: string; documentId: string }> {
+  const connectorId = generateId()
+  await db.insert(knowledgeConnector).values({
+    id: connectorId,
+    knowledgeBaseId: fixture.knowledge.knowledgeBaseId,
+    connectorType: 'fixture',
+    sourceConfig: {},
+  })
+  const documentId = generateId()
+  await db.insert(document).values({
+    id: documentId,
+    knowledgeBaseId: fixture.knowledge.knowledgeBaseId,
+    connectorId,
+    filename: 'synced.txt',
+    fileUrl: `https://fixture.invalid/${documentId}`,
+    fileSize: 64,
+    mimeType: 'text/plain',
+    processingStatus: 'completed',
+    acl: ['ws'],
+    aclRequirements: [],
+    aclVerifiedAt: new Date(),
+  })
+  return { connectorId, documentId }
 }

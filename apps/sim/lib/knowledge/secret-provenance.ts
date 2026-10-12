@@ -439,6 +439,64 @@ export async function loadKnowledgeDocumentSecretRegistry(
   return { registry, provenance, tracked: true }
 }
 
+/**
+ * Classifies the rendered metadata (name, source URL, tags, typed fields) of each document, one
+ * statement for all of them. A document that is gone, or whose binding no longer matches its row,
+ * reads as unknown.
+ */
+export async function classifyKnowledgeDocumentMetadata(
+  documentIds: readonly string[]
+): Promise<Map<string, DurableSecretProvenance>> {
+  const ids = [...new Set(documentIds)]
+  const rows = ids.length
+    ? await selectKnowledgeDocumentProvenanceRows(inArray(document.id, ids))
+    : []
+  const result = new Map<string, DurableSecretProvenance>()
+  for (const row of rows) {
+    const source = createKnowledgeDocumentSourceValue(row)
+    result.set(
+      row.id,
+      filterKnowledgeDocumentMetadataSecretProvenance(
+        readBoundKnowledgeDocumentSecretProvenance({ ...row, source }),
+        source
+      )
+    )
+  }
+  for (const id of ids) if (!result.has(id)) result.set(id, { status: 'unknown' })
+  return result
+}
+
+/**
+ * Classifies each chunk a result returns: its own content's binding, merged with the metadata of
+ * the document whose tags the chunk carries. A chunk whose row moved since it was read (other
+ * document, other content) reads as unknown. Two statements for any number of chunks.
+ */
+export async function classifyKnowledgeChunks(
+  chunks: readonly { id: string; documentId: string; content: string }[]
+): Promise<Map<string, DurableSecretProvenance>> {
+  const ids = [...new Set(chunks.map((chunk) => chunk.id))]
+  const [rows, documents] = await Promise.all([
+    ids.length ? selectKnowledgeEmbeddingProvenanceRows(inArray(embedding.id, ids)) : [],
+    classifyKnowledgeDocumentMetadata(chunks.map((chunk) => chunk.documentId)),
+  ])
+  const rowById = new Map(rows.map((row) => [row.id, row]))
+  return new Map(
+    chunks.map((chunk): [string, DurableSecretProvenance] => {
+      const row = rowById.get(chunk.id)
+      if (!row || row.documentId !== chunk.documentId || row.content !== chunk.content) {
+        return [chunk.id, { status: 'unknown' }]
+      }
+      return [
+        chunk.id,
+        mergeDurableSecretProvenance(
+          readBoundKnowledgeEmbeddingSecretProvenance(row),
+          documents.get(chunk.documentId) ?? { status: 'unknown' }
+        ),
+      ]
+    })
+  )
+}
+
 /** Loads the bound document classification for copy/re-entry callers that do not need a registry. */
 export async function loadKnowledgeDocumentDurableSecretProvenance(documentId: string): Promise<{
   source: KnowledgeDocumentSourceValue

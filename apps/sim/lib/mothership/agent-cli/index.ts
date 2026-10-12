@@ -141,6 +141,7 @@ async function executeBoundAgentCliRequest(
               }
             : {}),
           ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
+          resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
           signal: context.signal,
         },
         invocation.flags

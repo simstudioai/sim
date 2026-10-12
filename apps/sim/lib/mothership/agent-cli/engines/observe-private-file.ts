@@ -1,3 +1,4 @@
+import { ContentRefusedError } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { AgentCliFlags } from '@/lib/mothership/agent-cli/types'
 import { agentCliOk } from '@/lib/mothership/agent-cli/types'
@@ -15,6 +16,8 @@ export async function observePrivateFile(
     path: string
     source: 'sandbox' | 'upload' | 'knowledge'
     contentType?: string
+    /** The bytes hold secrets whose text redaction a rendered image would bypass. */
+    hasRecordedSecrets?: boolean
     knowledge?: {
       documentId: string
       knowledgeBaseId: string
@@ -38,6 +41,9 @@ export async function observePrivateFile(
   const textRange = options.offset !== undefined || options.limit !== undefined
   const visual = flags.render !== undefined || flags.pages !== undefined
   if (visual || (!textRange && (type.startsWith('image/') || type === 'application/pdf'))) {
+    if (file.hasRecordedSecrets) {
+      throw new ContentRefusedError('workspace-file')
+    }
     const decoded = await decodeFileVisual({
       buffer: file.buffer,
       name: file.name,

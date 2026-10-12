@@ -31,12 +31,14 @@ export const workspaceApiKeyOperations = {
     id: 'api_keys.workspace.list',
     minimumRole: 'read',
     capability: 'api_keys.manage',
+    contentDelivery: 'none',
   }),
   rename: defineWorkspaceOperation({
     ...principalPolicy,
     id: 'api_keys.workspace.rename',
     minimumRole: 'admin',
     capability: 'api_keys.manage',
+    contentDelivery: 'none',
   }),
   /** permission-group-exempt: admins must retain the ability to revoke exposed credentials. */
   revoke: defineWorkspaceOperation({
@@ -44,6 +46,7 @@ export const workspaceApiKeyOperations = {
     id: 'api_keys.workspace.revoke',
     minimumRole: 'admin',
     capability: 'none',
+    contentDelivery: 'none',
   }),
 } as const
 const authorizationOptions = { delegation: { audience: 'sim:settings', isWithinScope: () => true } }

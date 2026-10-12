@@ -1,10 +1,10 @@
 import { posix } from 'node:path'
 import type { Principal } from '@sim/auth/principal'
 import { defineWorkspaceOperation } from '@/lib/core/application'
+import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readStreamToBufferWithLimit } from '@/lib/core/utils/stream-limits'
-import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
 import { openSessionFileSnapshot } from '@/lib/execution/remote-sandbox/session-file-snapshot'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
@@ -43,11 +43,13 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
+    contentDelivery: 'sourced',
     principalKinds: ['session', 'personal_api_key', 'delegated'],
     delegatedServices: ['copilot'],
   }),
   organizationOperation: defineOrganizationOperation({
     id: 'mothership.chats.read_sandbox_file',
+    contentDelivery: 'sourced',
     minimumRole: 'member',
     capability: 'copilot.use',
     principalKinds: ['session', 'personal_api_key', 'organization_delegated'],
@@ -77,7 +79,7 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
         principal.resourceScope?.fileId === undefined,
     },
   },
-  async execute({ context, input }) {
+  async execute({ context, input, principal }) {
     const path = normalizeScratchPath(input.path)
     const maxBytes = input.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_TEXT_EXTRACTION_BYTES) {
@@ -111,25 +113,20 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
       })
       input.signal?.throwIfAborted()
       const receipt = provenance.uploadProvenance()
-      if (
-        receipt.status === 'unknown' ||
-        (receipt.status === 'exact' && receipt.entries.length > 0)
-      ) {
-        throw new OrchestrationError(
-          'forbidden',
-          'This scratch file has no verified secret-free provenance. Read a verified source or regenerate it in a fresh workbench.'
-        )
-      }
+      await requireAdmittedContent(principal, {
+        kind: 'workspace-file',
+        id: path,
+        provenance: receipt,
+        view: 'complete',
+      })
       input.signal?.throwIfAborted()
-      if (receipt.status === 'unrecorded') {
-        reportDurableSecretProvenanceUnrecorded({
-          surface: 'workspace-file',
-          workspaceId: context.workspaceId,
-          organizationId: context.organizationId,
-          actorUserId: context.userId,
-        })
+      return {
+        buffer,
+        path,
+        name: posix.basename(path),
+        /** A visual of these bytes would show what text redaction hides. */
+        hasRecordedSecrets: receipt.status === 'exact' && receipt.entries.length > 0,
       }
-      return { buffer, path, name: posix.basename(path) }
     } finally {
       await snapshot.dispose()
     }

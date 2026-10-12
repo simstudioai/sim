@@ -1,8 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import { admitContent } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { admitKnowledgeDocuments } from '@/lib/knowledge/application/admit-knowledge-content'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveActiveKnowledgeResourceContext,
@@ -353,7 +355,9 @@ export const readKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readTagUsage,
   resolveContext: ({ principal, input }: { principal: Principal; input: ListKnowledgeTagsInput }) =>
     resolveActiveKnowledgeResourceContext(input, principal),
-  async execute({ context }) {
+  async execute({ principal, context }) {
+    /** Counts per tag definition only; no tag value or document leaves. */
+    await admitContent(principal, [])
     return {
       usage: await getTagUsageStats(context.knowledgeBaseId, context.access, generateRequestId()),
     }
@@ -364,9 +368,19 @@ export const readDetailedKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readDetailedTagUsage,
   resolveContext: ({ principal, input }: { principal: Principal; input: ListKnowledgeTagsInput }) =>
     resolveActiveKnowledgeResourceContext(input, principal),
-  async execute({ context }) {
+  async execute({ principal, context }) {
+    const usage = await getTagUsage(context.knowledgeBaseId, generateRequestId(), context.access)
+    const admitted = await admitKnowledgeDocuments(
+      principal,
+      usage.flatMap((definition) => definition.documents.map((doc) => ({ id: doc.id, value: doc })))
+    )
     return {
-      usage: await getTagUsage(context.knowledgeBaseId, generateRequestId(), context.access),
+      usage: usage.map((definition) => {
+        const documents = definition.documents.filter((doc) => admitted.has(doc.id))
+        return documents.length === definition.documents.length
+          ? definition
+          : { ...definition, documents, documentCount: documents.length }
+      }),
     }
   },
 })

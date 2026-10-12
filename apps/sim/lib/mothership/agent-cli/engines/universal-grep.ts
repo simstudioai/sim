@@ -1,6 +1,6 @@
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
-import { truncate } from '@sim/utils/string'
+import { escapeRegExp } from '@sim/utils/string'
 import type { ReadFileTextResponse } from 'sim/embed'
 import { listCatalogTools } from '@/lib/catalog/application/list-tools'
 import { readBlockCatalog } from '@/lib/catalog/application/read-block-catalog'
@@ -14,6 +14,9 @@ import {
   agentCliOk,
 } from '@/lib/mothership/agent-cli/types'
 import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { OPAQUE_RESOLVED_SECRET_REPLACEMENT } from '@/executor/utils/resolved-secret-matcher'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /**
  * `grep <pattern> [--scope a,b] [--in <world|id|name|world/id>] [-i] [-C n] [-A n] [-B n] [--count] [--limit n]` —
@@ -430,8 +433,36 @@ function compilePattern(raw: string, ignoreCase: boolean): (line: string) => boo
   return (line) => (ignoreCase ? line.toLowerCase() : line).includes(needle)
 }
 
+/** What redaction leaves in place of a secret: a `{{NAME}}` label or the opaque marker. */
+const REDACTION_MARKER = new RegExp(
+  `\\{\\{[^{}]+\\}\\}|${escapeRegExp(OPAQUE_RESOLVED_SECRET_REPLACEMENT)}`,
+  'g'
+)
+
+/** Clips redacted text, cutting before a redaction marker rather than through it. */
 function clip(line: string): string {
-  return truncate(line, MAX_LINE_CHARS, '… [line truncated]')
+  if (line.length <= MAX_LINE_CHARS) return line
+  let cut = MAX_LINE_CHARS
+  for (const marker of line.matchAll(REDACTION_MARKER)) {
+    if (marker.index >= cut) break
+    if (marker.index + marker[0].length > cut) {
+      cut = marker.index
+      break
+    }
+  }
+  return `${line.slice(0, cut)}… [line truncated]`
+}
+
+/**
+ * Model egress redacts whole secrets only, so a line clipped, or a multi-line secret split into
+ * lines, would carry a fragment it cannot recognize. The text is redacted whole first, through the
+ * same provenance egress uses; null means it could not be, and the resource is not searched.
+ * Without a registry egress withholds the whole result, so there is nothing to redact against.
+ */
+function redactForModel(text: string, egress: ResolvedSecretTraceRegistry | undefined) {
+  if (!egress) return text
+  const projection = projectResolvedSecretModelContent(text, egress)
+  return projection.safe && typeof projection.value === 'string' ? projection.value : null
 }
 
 function didYouMean(scope: string): string {
@@ -587,9 +618,17 @@ export const universalGrepCommand: AgentCliEngine = {
       }
       return now
     }
+    const egress = runtime.resolvedSecretTraceRegistry?.forkForPropagatedEntries()
     for (const resource of candidates) {
       if (resource.text === null) continue
-      const lines = resource.text.split('\n')
+      const text = redactForModel(resource.text, egress)
+      if (text === null) {
+        bounded.reportIncomplete(
+          `${resource.scope}/${resource.label} (${resource.id}): could not be checked for secret values, so it was not searched.`
+        )
+        continue
+      }
+      const lines = text.split('\n')
       const selected = new Map<number, boolean>()
       const remainingLines = limit - out.length
       let nextContextLine = 0

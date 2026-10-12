@@ -11,6 +11,7 @@ import {
 
 const operation = defineWorkspaceOperation({
   id: 'files.read',
+  contentDelivery: 'none',
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   principalKinds: ['delegated'],
@@ -81,6 +82,7 @@ describe('Copilot application adapter', () => {
     const executeCopilotUseCase = createAdapter()
     const unregistered = defineWorkspaceOperation({
       id: 'files.unregistered',
+      contentDelivery: 'none',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       principalKinds: ['delegated'],
@@ -89,6 +91,7 @@ describe('Copilot application adapter', () => {
     })
     const sameIdDifferentPolicy = defineWorkspaceOperation({
       id: operation.id,
+      contentDelivery: 'none',
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       principalKinds: ['delegated'],

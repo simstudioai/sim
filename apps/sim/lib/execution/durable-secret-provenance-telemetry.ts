@@ -35,6 +35,10 @@ export type DurableSecretProvenanceRefusalCause =
   | 'workspace-file-provenance-unavailable'
   | 'workspace-file-opaque-secret-content'
   | 'workspace-file-registry-unavailable'
+  | 'table-row-provenance-unavailable'
+  | 'table-row-opaque-secret-content'
+  | 'knowledge-opaque-secret-content'
+  | 'content-registry-unavailable'
 
 export interface DurableSecretProvenanceRefusalReport {
   surface: DurableSecretProvenanceSurface

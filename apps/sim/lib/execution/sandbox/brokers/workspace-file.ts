@@ -34,6 +34,11 @@ export const workspaceFileBroker: SandboxBroker<WorkspaceFileArgs, WorkspaceFile
     if (!ctx.workspaceId) {
       throw new Error('workspaceFile broker requires a workspaceId')
     }
+    if (ctx.readableWorkspaceFileIds && !ctx.readableWorkspaceFileIds.has(args.fileId)) {
+      throw new Error(
+        `File ${args.fileId} is not readable here; reference input files by their literal id, e.g. getFileBase64("<file id>")`
+      )
+    }
 
     const record = await getWorkspaceFile(ctx.workspaceId, args.fileId)
     if (!record) {

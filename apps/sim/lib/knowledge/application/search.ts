@@ -8,6 +8,7 @@ import {
 import { checkSearchUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
+import { admitContent } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -17,6 +18,7 @@ import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-se
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
+import { admitKnowledgeChunks } from '@/lib/knowledge/application/admit-knowledge-content'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   KnowledgeUsageLimitExceededError,
@@ -156,7 +158,7 @@ interface KnowledgeSearchCost {
   rerankerSearchUnits?: number
 }
 
-export interface SearchKnowledgeResult {
+interface SearchKnowledgeResult {
   retrieval: RetrievalStatus
   results: KnowledgeSearchItem[]
   query: string
@@ -480,7 +482,14 @@ export async function runKnowledgeSearch({
   })
   if (retrieved.retrieval.status === 'partial' && !input.allowPartialResults)
     throw new SearchDeadlineError()
-  let rows = retrieved.rows
+  input.signal?.throwIfAborted()
+  /**
+   * Chat sees each chunk only as its own gate admits it, before the reranker or the result: one
+   * chunk without provenance is left out instead of withholding the search. A result also renders
+   * its document's name and tags, so every secret the chunk and its document hold counts.
+   */
+  const admittedRows = await admitKnowledgeChunks(principal, retrieved.rows)
+  let rows = retrieved.rows.filter((row) => admittedRows.has(row.id))
   input.signal?.throwIfAborted()
   /** Public callers have no input envelope, but persisted reranker inputs still need provenance. */
   const registrySubjectUserId = resolvePrincipalSubjectUserId(principal)
@@ -806,7 +815,11 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ principal, input }: { principal: Principal; input: SearchKnowledgeInput }) =>
     measureSearchStage('knowledge_context', () => resolveKnowledgeSearchContext(input, principal)),
-  execute: ({ principal, input, context }) => runKnowledgeSearch({ principal, input, context }),
+  async execute({ principal, input, context }) {
+    /** Accounted up front: a search that retrieves nothing returns no chunk to admit. */
+    await admitContent(principal, [])
+    return runKnowledgeSearch({ principal, input, context })
+  },
   afterSuccess: ({ principal, context, input, result }) =>
     afterKnowledgeSearch({ principal, context, input, result }),
 })

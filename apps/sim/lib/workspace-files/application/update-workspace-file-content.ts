@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { admitContent } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   ContentVersionConflictError,
@@ -120,7 +121,10 @@ const admitUpdateWorkspaceFileContentUseCase = defineAuthorizedWorkspaceFileUseC
   operation: fileOperations.updateContent,
   resolveContext: ({ principal, input }: { principal: Principal; input: { fileId: string } }) =>
     resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
-  async execute() {},
+  /** Admission only; nothing is read. */
+  async execute({ principal }) {
+    await admitContent(principal, [])
+  },
 })
 
 export async function admitUpdateWorkspaceFileContent(
@@ -140,6 +144,8 @@ export const updateWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
     input: UpdateWorkspaceFileContentInput
   }) => resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
   async execute({ principal, input, context }): Promise<UpdateWorkspaceFileContentResult> {
+    /** A replacement writes the caller's bytes and returns the file's metadata, never its content. */
+    await admitContent(principal, [])
     const content = Buffer.from(input.content, input.encoding === 'base64' ? 'base64' : 'utf-8')
     if (content.length > MAX_WORKSPACE_FILE_CONTENT_BYTES) {
       throw new OrchestrationError(
@@ -166,12 +172,14 @@ export const updateWorkspaceFileContentFromBuffer = defineAuthorizedWorkspaceFil
     principal: Principal
     input: UpdateWorkspaceFileContentBufferInput
   }) => resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
-  execute: ({ principal, input, context }) =>
-    updateAuthorizedWorkspaceFileContent({
+  async execute({ principal, input, context }) {
+    await admitContent(principal, [])
+    return updateAuthorizedWorkspaceFileContent({
       principal,
       input,
       content: input.content,
       canonical: context,
-    }),
+    })
+  },
   projectAudit: ({ result }) => projectUpdateWorkspaceFileContentAudit(result),
 })

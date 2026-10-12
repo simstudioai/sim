@@ -7,6 +7,7 @@ import {
   requireAllowedWorkspacePrincipal,
   type WorkspaceUseCaseAuditEntry,
 } from '@/lib/core/application'
+import { runDeclaredContentOperation } from '@/lib/core/application/content-delivery'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import {
@@ -234,13 +235,18 @@ export function defineAuthorizedKnowledgeUseCase<
         context: resolved.context,
         request,
       }
-      return runWithOutboundOrganization(resolved.context.organizationId, async () => {
-        const result = await definition.execute(executionContext)
-        const resultContext = { ...executionContext, result }
-        recordOrganizationAudit(resultContext, resolved.context.organizationId)
-        await definition.afterSuccess?.(resultContext)
-        return result
-      })
+      return runWithOutboundOrganization(resolved.context.organizationId, () =>
+        runDeclaredContentOperation(
+          definition.operation,
+          resolved.principal,
+          () => definition.execute(executionContext),
+          async (result) => {
+            const resultContext = { ...executionContext, result }
+            recordOrganizationAudit(resultContext, resolved.context.organizationId)
+            await definition.afterSuccess?.(resultContext)
+          }
+        )
+      )
     },
   }
 }

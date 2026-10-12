@@ -1,5 +1,6 @@
 import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
 import {
+  createDelegatedPrincipal,
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -310,6 +311,33 @@ describe('executeToolForCaller', () => {
       expect(mocks.executeFileManage.mock.calls[0]?.[1].principal).toBe(caller)
     }
   )
+
+  it('refuses Chat a tool whose result carries secret provenance, before dispatch', async () => {
+    toolsMockFns.mockToolResultCarriesSecretProvenance.mockImplementation(
+      (toolId: string) => toolId === 'file_read'
+    )
+    const chat = createDelegatedPrincipal({
+      workspaceId: WORKSPACE_ID,
+      audience: 'sim:tool-execution',
+    })
+    await expect(
+      executeToolForCaller.execute({
+        principal: chat,
+        input: { workspaceId: WORKSPACE_ID, toolId: 'file_read', input: { fileId: 'file-1' } },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+
+    /** The same tool still runs for a person. */
+    mocks.executeRegistryTool.mockResolvedValue({ success: true, output: { files: [] } })
+    await expect(
+      executeToolForCaller.execute({
+        principal,
+        input: { workspaceId: WORKSPACE_ID, toolId: 'file_read', input: { fileId: 'file-1' } },
+      })
+    ).resolves.toMatchObject({ status: 'succeeded' })
+    toolsMockFns.mockToolResultCarriesSecretProvenance.mockReturnValue(false)
+  })
 
   it.each(['callerPrincipal', 'principal', 'operationContext', '_context'])(
     'rejects caller input attempting to supply %s authority',

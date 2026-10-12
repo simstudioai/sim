@@ -66,6 +66,8 @@ function defineKnowledgeOperation<const O extends WorkspaceOperation>(
           delegationAudience: options?.organizationDelegationAudience ?? 'sim:knowledge',
           delegatedServices:
             operation.id === 'knowledge.search' ? ['copilot', 'slack-search'] : ['copilot'],
+          /** Chat reaches the organization form through the same use case, under one declaration. */
+          contentDelivery: operation.contentDelivery ?? 'none',
         } as const)
       : ({ principalKinds: ['session', 'personal_api_key', 'oauth_access_token'] } as const)),
   })
@@ -92,6 +94,14 @@ const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
     'delegated',
   ],
   delegatedServices: ['copilot', 'executor'],
+} as const
+
+/**
+ * Callers acting for themselves. A whole-base archive is opaque bytes no per-chunk secret
+ * redaction reaches, so Chat is not delegated to it; it reads a base chunk by chunk instead.
+ */
+const DIRECT_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
 } as const
 
 const HUMAN_AND_DELEGATED_PRINCIPAL_KINDS = [
@@ -275,6 +285,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -285,6 +296,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -300,7 +312,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.export',
-      ...ALL_PRINCIPAL_POLICY,
+      ...DIRECT_PRINCIPAL_POLICY,
     })
   ),
   /**
@@ -315,6 +327,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.create',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -325,6 +338,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -335,6 +349,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -352,6 +367,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -362,6 +378,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -372,6 +389,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -382,6 +400,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -392,6 +411,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'sourced',
       ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
     })
   ),
@@ -402,6 +422,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     }),
     /** Folder mentions resolve workspace folders; organization delegation stays disabled. */
@@ -414,6 +435,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -424,6 +446,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -434,6 +457,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -444,6 +468,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'sourced',
       ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
     })
   ),
@@ -454,6 +479,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'sourced',
       ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
     })
   ),
@@ -470,6 +496,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
     })
   ),
@@ -480,6 +507,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -490,6 +518,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
     })
   ),
@@ -500,6 +529,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'sourced',
       ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
     })
   ),
@@ -510,6 +540,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -520,6 +551,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'sourced',
       ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
     })
   ),
@@ -530,6 +562,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'sourced',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -540,6 +573,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'sourced',
       ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
     })
   ),
@@ -550,6 +584,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'sourced',
       ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
     })
   ),
@@ -560,6 +595,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
     })
   ),
@@ -570,6 +606,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -586,6 +623,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
     })
   ),
@@ -596,6 +634,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -606,6 +645,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -616,6 +656,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -626,6 +667,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'sourced',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -636,6 +678,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'sourced',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -646,6 +689,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -663,6 +707,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -674,6 +719,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -684,6 +730,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
     })
   ),
@@ -694,6 +741,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
     })
   ),
@@ -704,6 +752,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -714,6 +763,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -746,6 +796,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       principalKinds: ['session', 'delegated'],
       delegatedServices: ['copilot'],
     })
@@ -756,6 +807,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       principalKinds: ['session', 'delegated'],
       delegatedServices: ['copilot'],
     })
@@ -800,6 +852,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -820,6 +873,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -830,6 +884,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
     })
   ),
@@ -840,6 +895,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'sourced',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -850,6 +906,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
@@ -866,6 +923,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -876,6 +934,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -886,6 +945,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
@@ -896,6 +956,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
+      contentDelivery: 'none',
       ...ALL_PRINCIPAL_POLICY,
     })
   ),

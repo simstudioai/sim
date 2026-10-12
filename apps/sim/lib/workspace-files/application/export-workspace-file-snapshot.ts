@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
+import { admitContent } from '@/lib/core/application/content-delivery'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -45,6 +46,8 @@ export const exportWorkspaceFileSnapshot = defineAuthorizedWorkspaceFileUseCase(
       throw new OrchestrationError('validation', 'Markdown snapshot is too large')
     }
 
+    /** The snapshot text is the caller's own; each embedded asset is admitted by its record read. */
+    await admitContent(principal, [])
     const { ids } = extractEmbeddedFileRefs(input.content)
     const targets = await mapWithConcurrency(ids, MATERIALIZE_CONCURRENCY, async (imageId) => {
       try {

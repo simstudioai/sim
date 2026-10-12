@@ -1,5 +1,6 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
+import { admitWorkspaceFileIdentities } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
@@ -61,13 +62,32 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
     signal?.throwIfAborted()
 
     try {
-      return await searchWorkspaceFileIndex({
+      const found = await searchWorkspaceFileIndex({
         workspaceId: context.workspaceId,
         pattern: compileFileSearchPattern(input.query, input.mode),
         maxResults: input.maxResults,
         folderScope,
         signal,
       })
+      /**
+       * A match is evaluated against a file's raw indexed text, so a hit in a file holding a
+       * recorded secret answers a question about that secret whatever its preview shows. Such a
+       * file's lines are therefore withheld like an unknown file's; grep matches redacted text.
+       */
+      const admitted = await admitWorkspaceFileIdentities(
+        principal,
+        context.workspaceId,
+        found.sources.map((source) => source.identity),
+        'opaque'
+      )
+      if (admitted.size === found.sources.length) return found
+      const results = found.results.filter((result) => admitted.has(result.fileId))
+      return {
+        ...found,
+        results,
+        count: results.length,
+        sources: found.sources.filter((source) => admitted.has(source.identity.fileId)),
+      }
     } catch (error) {
       /**
        * A rejected or too-expensive pattern is the caller's to fix, and the

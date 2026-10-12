@@ -3,6 +3,7 @@ import {
   type AuthorizedWorkspaceUseCaseContext,
   capabilityGovernedPrincipalUserId,
 } from '@/lib/core/application'
+import { ContentRefusedError } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { parseFolderPath } from '@/lib/folders/paths'
@@ -20,6 +21,10 @@ import {
   MAX_RENDERED_DOCUMENT_BYTES,
   needsRenderedArtifact,
 } from '@/lib/uploads/utils/file-utils'
+import {
+  admitContributors,
+  admitWorkspaceFiles,
+} from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -157,18 +162,25 @@ async function executeDownloadWorkspaceFileItems({
     folders
   )
   const requestedFileIds = new Set(fileIds)
-  const filesToZip = files.filter(
+  const selectedFiles = files.filter(
     (file) =>
       requestedFileIds.has(file.id) ||
       (file.folderId != null && selectedFolderIds.has(file.folderId))
   )
 
-  if (filesToZip.length === 0) validationError('No files selected for download')
-  if (filesToZip.length > MAX_ZIP_DOWNLOAD_FILES) {
+  if (selectedFiles.length === 0) validationError('No files selected for download')
+  if (selectedFiles.length > MAX_ZIP_DOWNLOAD_FILES) {
     validationError(
       `Too many files selected for download. Select ${MAX_ZIP_DOWNLOAD_FILES} or fewer files.`
     )
   }
+  /** An archive is opaque to redaction, so each file enters it only when its gate admits it. */
+  let filesToZip = await admitWorkspaceFiles(
+    principal,
+    context.workspaceId,
+    selectedFiles,
+    'opaque'
+  )
 
   const declaredBytes = filesToZip.reduce((sum, file) => sum + file.size, 0)
   if (declaredBytes > MAX_ZIP_DOWNLOAD_BYTES) {
@@ -189,9 +201,15 @@ async function executeDownloadWorkspaceFileItems({
     const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - reservedForStreamed - renderedBytes)
     const allowance = Math.min(remaining, MAX_RENDERED_DOCUMENT_BYTES)
     try {
-      const { buffer } = await fetchAuthorizedServableWorkspaceFileBuffer(file, principal, {
-        maxBytes: allowance,
-      })
+      const { buffer, contributingFiles } = await fetchAuthorizedServableWorkspaceFileBuffer(
+        file,
+        principal,
+        { maxBytes: allowance }
+      )
+      if (!(await admitContributors(principal, context.workspaceId, contributingFiles, 'opaque'))) {
+        filesToZip = filesToZip.filter((admitted) => admitted.id !== file.id)
+        continue
+      }
       renderedBytes += buffer.length
       renderedDocuments.set(file.id, buffer)
     } catch (error) {
@@ -209,6 +227,9 @@ async function executeDownloadWorkspaceFileItems({
 
   if (pendingNames.length > 0) {
     throw new OrchestrationError('conflict', docNotReadyMessage(pendingNames))
+  }
+  if (filesToZip.length === 0) {
+    throw new ContentRefusedError('workspace-file')
   }
 
   return { filesToZip, folderPaths, renderedDocuments, declaredBytes }

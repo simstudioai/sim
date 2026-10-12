@@ -6,6 +6,11 @@ import {
   type ShareRecord,
   sharePasswordSchema,
 } from '@/lib/api/contracts/public-shares'
+import {
+  admitContent,
+  admitEach,
+  ContentRefusedError,
+} from '@/lib/core/application/content-delivery'
 import { resolveCopilotSecretReference } from '@/lib/core/application/environment-reference'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { parseExactEnvironmentReference } from '@/lib/environment/reference'
@@ -19,6 +24,8 @@ import {
   getWorkspaceFile,
   loadActiveWorkspaceContext,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getCurrentWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
@@ -67,12 +74,36 @@ export class WorkspaceFileShareNoopError extends Error {
   }
 }
 
+/**
+ * A live link serves a file's raw bytes to whoever opens it, so Chat may see a link only to a file
+ * whose bytes it could be handed directly; returns the ids whose links may be shown.
+ */
+async function admitSharedFiles(
+  principal: Principal,
+  workspaceId: string,
+  fileIds: readonly string[]
+): Promise<Set<string>> {
+  const admitted = await admitEach(principal, fileIds, async (ids) => {
+    const provenance = await getCurrentWorkspaceFileSecretProvenance(workspaceId, ids)
+    return ids.map((id) => ({
+      kind: 'workspace-file' as const,
+      id,
+      provenance: provenance.get(id) ?? { status: 'unknown' as const },
+      view: 'opaque' as const,
+    }))
+  })
+  return new Set(admitted)
+}
+
 export const getWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readShare,
   resolveContext: ({ input }: { input: GetWorkspaceFileShareInput }) =>
     resolveActiveWorkspaceFileContext(input),
-  async execute({ context }): Promise<GetWorkspaceFileShareResult> {
+  async execute({ context, principal }): Promise<GetWorkspaceFileShareResult> {
     const share = await getShareForResource('file', context.fileId)
+    const active = share?.isActive ? [context.fileId] : []
+    const visible = await admitSharedFiles(principal, context.workspaceId, active)
+    if (active.length > visible.size) throw new ContentRefusedError('workspace-file')
     return { share }
   },
 })
@@ -84,7 +115,7 @@ export const getWorkspaceFileShares = defineAuthorizedWorkspaceFileUseCase({
     if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
     return workspace
   },
-  async execute({ input, context }): Promise<GetWorkspaceFileSharesResult> {
+  async execute({ input, context, principal }): Promise<GetWorkspaceFileSharesResult> {
     const fileIds = [...new Set(input.fileIds)]
     if (fileIds.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
       throw new OrchestrationError(
@@ -92,8 +123,16 @@ export const getWorkspaceFileShares = defineAuthorizedWorkspaceFileUseCase({
         `Cannot read shares for more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
       )
     }
+    const shares = await getWorkspaceSharesForResources('file', context.workspaceId, fileIds)
+    const admitted = await admitSharedFiles(
+      principal,
+      context.workspaceId,
+      [...shares].filter(([, share]) => share.isActive).map(([fileId]) => fileId)
+    )
     return {
-      shares: await getWorkspaceSharesForResources('file', context.workspaceId, fileIds),
+      shares: new Map(
+        [...shares].filter(([fileId, share]) => !share.isActive || admitted.has(fileId))
+      ),
     }
   },
 })
@@ -149,6 +188,10 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
     const effectiveAuthType = input.authType ?? existingShare?.authType ?? 'public'
     if (input.isActive) {
       await validatePublicFileSharing(userId, context.workspaceId, effectiveAuthType)
+      /** A link serves the file's raw bytes to whoever opens it, past any redaction (D1). */
+      await requireAdmittedWorkspaceFile(principal, context.workspaceId, context.file, 'opaque')
+    } else {
+      await admitContent(principal, [])
     }
 
     const password =

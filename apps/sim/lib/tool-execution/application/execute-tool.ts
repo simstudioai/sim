@@ -14,6 +14,7 @@ import {
   resolveVisibleToolOwners,
 } from '@/lib/catalog/application/tool-scope'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { isCopilotPrincipal } from '@/lib/core/application/content-delivery'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -22,7 +23,7 @@ import { principalUserId } from '@/lib/integrations/principal-scope.server'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
 import { isEnvVarReference } from '@/executor/constants'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
-import { executeTool as executeRegistryTool } from '@/tools'
+import { executeTool as executeRegistryTool, toolResultCarriesSecretProvenance } from '@/tools'
 import type { ExecutableToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
@@ -314,6 +315,16 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
 
     const tool = getTool(toolId)
     if (!tool) throw new OrchestrationError('not_found', 'Tool not found')
+    /**
+     * This route runs a tool with no secret registry, so a result that carries provenance would
+     * reach Chat's model unprojected. Chat reads that content through its own commands instead.
+     */
+    if (isCopilotPrincipal(principal) && toolResultCarriesSecretProvenance(toolId)) {
+      throw new OrchestrationError(
+        'forbidden',
+        `${toolId} returns stored workspace content, which Chat reads through its files, knowledge and tables commands instead`
+      )
+    }
     assertNoUndeclaredInputs(tool, toolId, input.input)
 
     const selector = declaredCredentialSelector(tool)

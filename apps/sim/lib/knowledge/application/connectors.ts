@@ -35,6 +35,7 @@ import { parseExactEnvironmentReference } from '@/lib/environment/reference'
 import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import { admitKnowledgeDocuments } from '@/lib/knowledge/application/admit-knowledge-content'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeAttributedUserId,
@@ -1190,7 +1191,7 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
     principal: Principal
     input: ListKnowledgeConnectorDocumentsInput
   }) => resolveActiveKnowledgeConnectorContext(input, principal),
-  async execute({ input, context }) {
+  async execute({ principal, input, context }) {
     const limit = input.limit ?? DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE
     const offset = input.offset ?? 0
     if (
@@ -1260,9 +1261,13 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
         .offset(offset),
     ])
     const hasMore = rows.length > limit
-    const documents = rows.slice(0, limit)
+    const page = rows.slice(0, limit)
+    const admitted = await admitKnowledgeDocuments(
+      principal,
+      page.map((row) => ({ id: row.id, value: row }))
+    )
     return {
-      documents,
+      documents: page.filter((row) => admitted.has(row.id)),
       counts: {
         active: counts?.active ?? 0,
         excluded: counts?.excluded ?? 0,

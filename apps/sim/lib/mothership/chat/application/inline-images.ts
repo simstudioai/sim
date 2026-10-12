@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { defineWorkspaceOperation } from '@/lib/core/application'
+import { observeContentDelivery } from '@/lib/core/application/content-delivery'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
@@ -23,6 +24,7 @@ import {
   normalizeInlineChatImage,
   storeInlineChatImage,
 } from '@/lib/mothership/chat/inline-image-storage'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import { loadActiveWorkspaceFileContext } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
@@ -83,11 +85,13 @@ export const materializeInlineChatImage = defineAuthorizedChatUseCase({
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
+    contentDelivery: 'sourced',
     principalKinds: ['session', 'personal_api_key', 'delegated'],
     delegatedServices: ['copilot'],
   }),
   organizationOperation: defineOrganizationOperation({
     id: 'mothership.chats.publish_image',
+    contentDelivery: 'sourced',
     minimumRole: 'member',
     capability: 'copilot.use',
     principalKinds: ['session', 'personal_api_key', 'organization_delegated'],
@@ -190,24 +194,35 @@ export function materializeStreamImage(
   ),
   input: { requestId: string; reference: string; signal?: AbortSignal }
 ) {
-  return materializeInlineChatImage.execute({
-    principal: context.organizationId
-      ? createTrustedOrganizationCopilotPrincipal(
-          {
-            ...context,
-            organizationId: context.organizationId,
-            delegationId: `chat-image:${context.chatId}`,
-          },
-          {
-            audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
-            ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
-          }
-        )
-      : createCopilotChatFilePrincipal({
-          userId: context.userId,
-          chatId: context.chatId,
-          workspaceId: context.workspaceId!,
-        }),
-    input: { ...input, chatId: context.chatId },
+  /**
+   * A streamed image is opaque: no redaction reaches its pixels, so the gate admits only a clean
+   * or unrecorded source and refuses one holding a recorded secret, whatever registry exists.
+   */
+  const gate = createRegistryContentGate({
+    workspaceId: context.workspaceId,
+    organizationId: context.organizationId,
+    actorUserId: context.userId,
   })
+  return observeContentDelivery(gate, () =>
+    materializeInlineChatImage.execute({
+      principal: context.organizationId
+        ? createTrustedOrganizationCopilotPrincipal(
+            {
+              ...context,
+              organizationId: context.organizationId,
+              delegationId: `chat-image:${context.chatId}`,
+            },
+            {
+              audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+              ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
+            }
+          )
+        : createCopilotChatFilePrincipal({
+            userId: context.userId,
+            chatId: context.chatId,
+            workspaceId: context.workspaceId!,
+          }),
+      input: { ...input, chatId: context.chatId },
+    })
+  )
 }

@@ -20,6 +20,7 @@ export interface RunSandboxTaskOptions {
   signal?: AbortSignal
   /** Records canonical workspace files whose bytes were successfully read by a task broker. */
   onWorkspaceFileAccess?: SandboxBrokerContext['onWorkspaceFileAccess']
+  readableWorkspaceFileIds?: SandboxBrokerContext['readableWorkspaceFileIds']
   /** Run id that brokers see as `ctx.requestId`, for callers that keep per-run broker state. */
   requestId?: string
 }
@@ -59,6 +60,9 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
     workspaceId: input.workspaceId,
     requestId,
     onWorkspaceFileAccess: options.onWorkspaceFileAccess,
+    ...(options.readableWorkspaceFileIds
+      ? { readableWorkspaceFileIds: options.readableWorkspaceFileIds }
+      : {}),
   }
   const brokers: Record<string, IsolatedVMBrokerHandler> = {}
   for (const broker of task.brokers) {

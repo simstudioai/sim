@@ -16,6 +16,11 @@
   },
   {
     "method": "GET",
+    "path": "/api/v2/knowledge/[knowledgeBaseId]/export",
+    "operation": "knowledge.export"
+  },
+  {
+    "method": "GET",
     "path": "/api/v2/meta",
     "operation": "meta.capabilities.read"
   },
@@ -228,6 +233,11 @@
     "method": "GET",
     "path": "/api/v2/organizations/[organizationId]/workspaces",
     "operation": "organizations.workspaces.list"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/tables/[tableId]/exports/[exportId]/download",
+    "operation": "tables.exports.download"
   },
   {
     "method": "GET",

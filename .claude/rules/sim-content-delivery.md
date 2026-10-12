@@ -1,0 +1,81 @@
+---
+description: How stored content (workspace files, run files, knowledge, table rows) reaches Chat's model, and the per-path policy. Read before changing a use case, route or Chat surface that returns such content.
+paths:
+  - "apps/sim/lib/core/application/content-delivery.ts"
+  - "apps/sim/lib/mothership/content-delivery/**"
+  - "apps/sim/lib/**/application/admit-*.ts"
+  - "apps/sim/lib/**/application/operations.ts"
+  - "apps/sim/lib/mothership/agent-cli/**"
+  - "apps/sim/lib/mothership/tools/sandbox-resource-transport.ts"
+---
+
+# Sim Content Delivery to Chat
+
+Content derived from a provenance-bearing store reaches Chat's model only after **each item** it
+came from is admitted by the gate of the surface it leaves through. The stores are workspace files
+(and their versions), run files, knowledge documents and chunks, and table rows. "Derived" covers
+bytes, text, excerpts, chunks, cells, previews, base64, archives, rendered or compiled output,
+error text that quotes content, public links, and match results.
+
+Only Copilot principals (`delegated` / `organization_delegated` with `serviceId: 'copilot'`) are
+classified. Every other caller is admitted without a provenance read, so the UI, API keys, MCP and
+the workflow executor see byte-identical results.
+
+## The pieces
+
+- `lib/core/application/content-delivery.ts`: the primitive.
+  - `admitContent(principal, sources)` returns per-item verdicts. `requireAdmittedContent` is the
+    single-item form and throws `ContentRefusedError` (403).
+  - `admitWrittenContent` is for a committed write that returns content. A refusal or gate failure
+    does not undo the write: audit and effects run, then the operation answers with the refusal.
+  - A source is `{ kind, id, provenance, view }`. `view` is `'complete'` (text whose every entry
+    may appear), `{ derived: value }` (only entries occurring in `value`), or `'opaque'` (bytes no
+    redaction reaches: binary, base64, archives, images, public links).
+- Gates, installed by the surface: the **registry gate** (Chat tools, CLI, mounts) imports entries
+  into the registry egress projects with; the **session gate** (run_code sandbox proxy) records
+  them into the workbench history. Neither ever admits `unknown`, and one refused item never
+  latches the shared registry.
+- `observeContentOutsideModel` reads for Chat without classifying, for content that never reaches
+  the model (the user's own edit preview; a derived file that carries its sources' provenance).
+  Name why at each use.
+
+## Rules
+
+1. **Every operation that admits Copilot declares `contentDelivery`**: `'sourced'` when its result
+   can carry content from a store (including a match oracle), `'none'` otherwise. Definition throws
+   without it, and `copilot-route-inventory.test.ts` lists every Chat-reachable route without one.
+2. **A `sourced` use case accounts for what it returns**, before it loads content: call
+   `admitContent` (with `[]` when this call returns none). Otherwise Chat gets
+   `ContentDeliveryUnaccountedError`, and the transports turn the response into a 403.
+3. **Classify before loading bytes**, and exclude refused items per item. Withhold a whole result
+   only when its items cannot be separated (one file, one render, one compile).
+4. **A new `sourced` route needs a case in `lib/mothership/__integration__/content-delivery.integration.ts`.**
+   `copilot-content-routes.json` lists them; the suite fails for a listed route it does not drive.
+   Refresh the list with `vitest run -u lib/api/server/routes/copilot-route-inventory.test.ts`.
+5. **Do not reach a store's bytes around a use case for Chat.** A helper that reads content for
+   Chat goes through the gated use case, or names `observeContentOutsideModel` and why.
+
+## Policy
+
+U = `unknown`, E = exact with secret entries, R/C = unrecorded or clean. Each item is decided on its
+own unless noted.
+
+| Path | U | E | R / C |
+|---|---|---|---|
+| File download (CLI `files get`) | Delivered once; invocation withheld from the model; workbench copy stays unknown | Redacted | Delivered |
+| File download (run_code proxy) and mounts | Refused, not recorded, listed in `excludedInputs` | Recorded in workbench history | Delivered |
+| File text, version text, `files read`, grep | 403 | Redacted (grep redacts before clipping) | Delivered |
+| Bulk download zip | Left out | Left out (opaque) | Included |
+| `files search` | Results dropped | Results dropped (a match is an oracle) | Returned |
+| File edit (`PATCH` content) | 403 before reading | Diagnostics redacted | Unchanged |
+| Chat public share activation | 403 | 403 (a link is opaque) | Shares |
+| Rendered view, streamed image, inline attachments | Refused | Refused (opaque) | Delivered |
+| Doc compile | Compile refused | Error text redacted | Compiles |
+| Run file download | 403 | Redacted | Delivered |
+| Run read / execute / resume `base64` | `base64` removed, descriptor kept | Same | Inlined (sync runs only) |
+| KB chunks, search, documents, tags | Item dropped (single read: 403) | Redacted | Delivered |
+| KB export, table export download | Not available to Chat | | |
+| Table rows, query, read, `table_selection` | Row dropped (single read: 403) | Redacted | Delivered |
+| Row search | Match dropped | Match in a secret column dropped | Returned |
+| Table import from a file | Rows stored unknown | Per-cell entries | Exact-empty, as before |
+| `tools execute` for file, knowledge, table, memory, function, custom, MCP tools | Not available to Chat | | |

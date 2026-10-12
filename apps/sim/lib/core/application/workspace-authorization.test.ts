@@ -262,6 +262,7 @@ const capabilityOperation = defineWorkspaceOperation({
 
 const copilotCapabilityOperation = defineWorkspaceOperation({
   id: 'test.copilot-capability-read',
+  contentDelivery: 'none',
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   principalKinds: ['delegated'],

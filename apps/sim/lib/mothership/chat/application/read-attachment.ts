@@ -1,7 +1,9 @@
 import type { Principal } from '@sim/auth/principal'
 import { defineWorkspaceOperation } from '@/lib/core/application'
+import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { EXACT_EMPTY_DURABLE_SECRET_PROVENANCE } from '@/lib/execution/durable-secret-provenance'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { loadChatFileAttachmentsNamed } from '@/lib/mothership/chat/lifecycle'
@@ -15,11 +17,13 @@ export const readChatAttachment = defineAuthorizedChatUseCase({
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
+    contentDelivery: 'sourced',
     principalKinds: ['session', 'delegated'],
     delegatedServices: ['copilot'],
   }),
   organizationOperation: defineOrganizationOperation({
     id: 'mothership.chats.read_attachment',
+    contentDelivery: 'sourced',
     minimumRole: 'member',
     capability: 'copilot.use',
     principalKinds: ['session', 'organization_delegated'],
@@ -64,6 +68,13 @@ export const readChatAttachment = defineAuthorizedChatUseCase({
       )
     const file = matches.values().next().value
     if (!file) throw new OrchestrationError('not_found', 'Chat attachment not found')
+    /** A member's own upload to this chat carries no secret Sim resolved into it. */
+    await requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: file.id,
+      provenance: EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
+      view: 'complete',
+    })
     return readOrganizationChatAttachment({
       principal,
       organizationId: context.organizationId,

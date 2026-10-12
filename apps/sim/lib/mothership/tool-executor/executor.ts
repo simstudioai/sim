@@ -1,10 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
+import { observeContentDelivery } from '@/lib/core/application/content-delivery'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { ASSISTANT_TOOLS, isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
@@ -196,6 +198,26 @@ async function executeBoundTool(
     }
   }
 
+  /**
+   * Every stored item a Sim-side tool returns to Chat — through a use case it calls directly, or
+   * through the CLI it runs — is admitted against this call's registry, so its secrets are redacted
+   * from the result and an unknown item is refused on its own.
+   */
+  const gate = createRegistryContentGate({
+    registry: context.resolvedSecretTraceRegistry,
+    workspaceId: context.workspaceId,
+    organizationId: context.chatOrganizationId ?? context.organizationId,
+    actorUserId: context.userId,
+  })
+  return observeContentDelivery(gate, () => executeGatedTool(toolId, params, context))
+}
+
+async function executeGatedTool(
+  toolId: string,
+  params: Record<string, unknown>,
+  context: ToolExecutionContext
+): Promise<ToolExecutionResult> {
+  const usesHeadlessClientFallback = isClientExecuted(toolId) && hasHandler(toolId)
   return withResourceOutboundScope(context, async () => {
     const canUseRegisteredHandler =
       hasHandler(toolId) &&

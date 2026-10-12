@@ -11,12 +11,14 @@ export const dashboardOperations = {
   read: defineWorkspaceOperation({
     ...policy,
     capability: 'files.use',
+    contentDelivery: 'none',
     id: 'dashboards.read',
     minimumRole: 'read',
   }),
   save: defineWorkspaceOperation({
     ...policy,
     capability: 'files.use',
+    contentDelivery: 'none',
     id: 'dashboards.save',
     minimumRole: 'write',
   }),

@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { ContentRefusedError } from '@/lib/core/application/content-delivery'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -8,6 +9,7 @@ import {
   type DurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-secret-provenance-telemetry'
+import { admitKnowledgeChunks } from '@/lib/knowledge/application/admit-knowledge-content'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
@@ -65,6 +67,24 @@ export interface BulkKnowledgeChunksInput extends KnowledgeDocumentChunkInput {
   chunkIds: string[]
 }
 
+/**
+ * One chunk a result returns. A read is refused on its own when its gate refuses it; a committed
+ * write completes and then answers with the refusal (see `admitWrittenContent`).
+ */
+async function requireAdmittedChunk(
+  principal: Principal,
+  documentId: string,
+  chunk: { id: string; content: string },
+  options: { written?: boolean } = {}
+): Promise<void> {
+  const admitted = await admitKnowledgeChunks(
+    principal,
+    [{ id: chunk.id, documentId, content: chunk.content, value: chunk }],
+    options
+  )
+  if (!options.written && !admitted.has(chunk.id)) throw new ContentRefusedError('knowledge-chunk')
+}
+
 function requireChunkReadable(context: ActiveKnowledgeDocumentContext): void {
   if (context.document.processingStatus !== 'completed') {
     throw new KnowledgeDocumentNotReadyError(context.document.processingStatus)
@@ -112,7 +132,7 @@ export const listKnowledgeChunks = defineAuthorizedKnowledgeUseCase({
     principal: Principal
     input: ListKnowledgeChunksInput
   }) => resolveCanonicalActiveKnowledgeDocumentContext(input, principal),
-  async execute({ input, context }) {
+  async execute({ principal, input, context }) {
     if (input.requireEnabledDocument && !context.document.enabled) {
       throw new OrchestrationError('not_found', 'Document not found')
     }
@@ -130,7 +150,21 @@ export const listKnowledgeChunks = defineAuthorizedKnowledgeUseCase({
       generateRequestId(),
       await context.access.get()
     )
-    return { ...result, workspaceId: context.workspaceId, documentId }
+    const admitted = await admitKnowledgeChunks(
+      principal,
+      result.chunks.map((chunk) => ({
+        id: chunk.id,
+        documentId,
+        content: chunk.content,
+        value: chunk,
+      }))
+    )
+    return {
+      ...result,
+      chunks: result.chunks.filter((chunk) => admitted.has(chunk.id)),
+      workspaceId: context.workspaceId,
+      documentId,
+    }
   },
 })
 
@@ -138,8 +172,9 @@ export const readKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readChunk,
   resolveContext: ({ principal, input }: { principal: Principal; input: KnowledgeChunkInput }) =>
     resolveActiveKnowledgeChunkContext(input, principal),
-  async execute({ context }) {
+  async execute({ principal, context }) {
     requireChunkReadable(context)
+    await requireAdmittedChunk(principal, context.documentId, context.chunk)
     return {
       chunk: context.chunk,
       workspaceId: context.workspaceId,
@@ -196,6 +231,7 @@ export const createKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
     } catch (error) {
       logger.warn('Failed to calculate cost for chunk upload', { error })
     }
+    await requireAdmittedChunk(principal, context.documentId, chunk, { written: true })
     return {
       chunk: {
         ...chunk,
@@ -259,6 +295,7 @@ export const updateKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
         provenance
       )
     )
+    await requireAdmittedChunk(principal, context.documentId, chunk, { written: true })
     return { chunk, workspaceId: context.workspaceId, documentId: context.documentId }
   },
 })

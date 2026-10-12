@@ -40,6 +40,11 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-artifact', () => 
 }))
 vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 
+import {
+  admitContent,
+  ContentRefusedError,
+  requireAdmittedContent,
+} from '@/lib/core/application/content-delivery'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import {
   materializeInlineChatImage,
@@ -71,6 +76,20 @@ function ownChat() {
   queueTableRows(copilotChats, [owner])
 }
 const missing = () => Object.assign(new Error('missing'), { code: 'ENOENT' })
+/** Stands in for a source read that classifies the clean image it returns, as the real reads do. */
+function admittedRead(buffer: Buffer) {
+  return async ({ principal }: { principal: Principal }) => {
+    await admitContent(principal, [
+      {
+        kind: 'workspace-file',
+        id: 'image',
+        provenance: { status: 'exact', entries: [] },
+        view: 'opaque',
+      },
+    ])
+    return { buffer }
+  }
+}
 async function raster() {
   return sharp({ create: { width: 4, height: 3, channels: 3, background: '#ee2244' } })
     .png()
@@ -183,7 +202,7 @@ describe('private chat image application boundary', () => {
   )
   it('accepts the existing chat-scoped Copilot file delegation', async () => {
     ownChat()
-    mocks.artifact.mockResolvedValue({ buffer: await raster() })
+    mocks.artifact.mockImplementation(admittedRead(await raster()))
     await materializeStreamImage(
       { userId: 'owner', workspaceId: 'workspace', chatId: 'chat' },
       input
@@ -194,6 +213,26 @@ describe('private chat image application boundary', () => {
       audience: 'sim:workspace-files',
       resourceScope: { chatId: 'chat' },
     })
+  })
+  it('refuses to stream an image whose source holds a recorded secret', async () => {
+    ownChat()
+    const buffer = await raster()
+    mocks.artifact.mockImplementation(async ({ principal }: { principal: Principal }) => {
+      await requireAdmittedContent(principal, {
+        kind: 'workspace-file',
+        id: 'image',
+        provenance: {
+          status: 'exact',
+          entries: [{ encryptedValue: 'ciphertext', sourceUserId: 'owner' }],
+        },
+        view: 'opaque',
+      })
+      return { buffer }
+    })
+    await expect(
+      materializeStreamImage({ userId: 'owner', workspaceId: 'workspace', chatId: 'chat' }, input)
+    ).rejects.toBeInstanceOf(ContentRefusedError)
+    expect(mocks.upload).not.toHaveBeenCalled()
   })
   it('refuses decoder failure without upload', async () => {
     ownChat()
@@ -274,7 +313,7 @@ describe('organization inline images', () => {
   }
   it('publishes scratch using the org chat delegation with no default workspace', async () => {
     ownOrgChat()
-    mocks.scratch.mockResolvedValue({ buffer: await raster() })
+    mocks.scratch.mockImplementation(admittedRead(await raster()))
     await materializeStreamImage(
       { userId: 'owner', organizationId: 'org', chatId: 'chat' },
       { ...input, reference: '/tmp/chart.png' }

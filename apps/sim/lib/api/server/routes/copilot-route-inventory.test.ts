@@ -80,7 +80,24 @@ import type { ApplicationOperation } from '@/lib/core/application/operation'
  */
 const REFUSED_ROUTES_FILE = './copilot-refused-routes.json'
 
+/**
+ * Routes Chat may call that return content from a provenance-bearing store. Each is gated per
+ * item, and `content-delivery.integration.ts` drives every one through Chat's real transports: a
+ * route added here without a case there fails that suite. Refresh with `vitest run -u`.
+ */
+const CONTENT_ROUTES_FILE = './copilot-content-routes.json'
+
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
+
+/** Whether authorization lets a Chat principal through, not only whether the route mints one. */
+function admitsCopilotPrincipal(operation: ApplicationOperation): boolean {
+  const kinds: readonly string[] = operation.principalKinds
+  const services: readonly string[] | undefined = operation.delegatedServices
+  return (
+    (kinds.includes('delegated') || kinds.includes('organization_delegated')) &&
+    (!services || services.includes('copilot'))
+  )
+}
 
 /**
  * A raw route (chat, workflow execute and resume) admits inside its handler, so it is
@@ -112,4 +129,22 @@ it('inventories private operation admission without executing use cases', async 
     .map(({ method, path, operation }) => ({ method, path, operation: operation.id }))
   await expect(`${JSON.stringify(refused, null, 2)}\n`).toMatchFileSnapshot(REFUSED_ROUTES_FILE)
   expect(audiences.filter(Boolean).every((audience) => audience?.startsWith('sim:'))).toBe(true)
+
+  /**
+   * Every route Chat may call says whether it returns stored content, so no route reaches Chat's
+   * model by being forgotten: an undeclared one is listed here, and definition refuses it too.
+   */
+  const admitted = inventory.filter(
+    (route, index) => audiences[index] && admitsCopilotPrincipal(route.operation)
+  )
+  expect(
+    admitted
+      .filter((route) => route.operation.contentDelivery === undefined)
+      .map(({ method, path, operation }) => `${method} ${path} (${operation.id})`)
+  ).toEqual([])
+  const sourced = admitted
+    .filter((route) => route.operation.contentDelivery === 'sourced')
+    .map(({ method, path, operation }) => ({ method, path, operation: operation.id }))
+    .sort((a, b) => `${a.path} ${a.method}`.localeCompare(`${b.path} ${b.method}`))
+  await expect(`${JSON.stringify(sourced, null, 2)}\n`).toMatchFileSnapshot(CONTENT_ROUTES_FILE)
 }, 60000)

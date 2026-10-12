@@ -857,47 +857,35 @@ export async function markWorkspaceFileSecretProvenanceUnknown(
   })
 }
 
-/** Reads provenance only when it still belongs to this exact canonical file id and storage key. */
-export async function getBoundWorkspaceFileSecretProvenance(
-  workspaceId: string,
-  identity: WorkspaceFileSecretProvenanceIdentity
-): Promise<WorkspaceFileSecretProvenance> {
-  /**
-   * Saving a chat upload changes its context but preserves its id, key, and bytes. Only a reader
-   * that captured the content revision may follow that promotion; the revision check below still
-   * refuses an intervening content write, including on a legacy untracked file.
-   */
-  const contextCondition =
-    identity.context === 'mothership' && identity.contentUpdatedAt
-      ? inArray(workspaceFiles.context, ['mothership', 'workspace'])
-      : eq(workspaceFiles.context, identity.context)
-  const [row] = await db
-    .select({
-      fileContentUpdatedAt: workspaceFiles.contentUpdatedAt,
-      secretProvenanceVersion: workspaceFiles.secretProvenanceVersion,
-      provenanceContentUpdatedAt: workspaceFileSecretProvenance.contentUpdatedAt,
-      status: workspaceFileSecretProvenance.status,
-      entries: workspaceFileSecretProvenance.entries,
-    })
-    .from(workspaceFiles)
-    .leftJoin(
-      workspaceFileSecretProvenance,
-      eq(workspaceFileSecretProvenance.fileId, workspaceFiles.id)
-    )
-    .where(
-      and(
-        eq(workspaceFiles.id, identity.fileId),
-        eq(workspaceFiles.key, identity.key),
-        eq(workspaceFiles.workspaceId, workspaceId),
-        contextCondition
-        // Deliberately no deletedAt filter: `id` alone pins the exact row, and
-        // recently-deleted/ reads are a real surface — excluding soft-deleted
-        // rows made every archived file read as provenance-unknown and refused.
-      )
-    )
-    .limit(1)
+interface BoundWorkspaceFileProvenanceRow {
+  key: string
+  context: string
+  fileContentUpdatedAt: Date
+  secretProvenanceVersion: number | null
+  provenanceContentUpdatedAt: Date | null
+  status: string | null
+  entries: unknown
+}
 
-  if (!row) return { status: 'unknown' }
+/**
+ * Saving a chat upload changes its context but preserves its id, key, and bytes. Only a reader
+ * that captured the content revision may follow that promotion; the revision check still refuses an
+ * intervening content write, including on a legacy untracked file.
+ */
+function acceptsIdentityContext(identity: WorkspaceFileSecretProvenanceIdentity, context: string) {
+  return identity.context === 'mothership' && identity.contentUpdatedAt
+    ? context === 'mothership' || context === 'workspace'
+    : context === identity.context
+}
+
+/** Classifies one stored row for the exact identity a reader captured, failing closed on drift. */
+function bindWorkspaceFileSecretProvenance(
+  identity: WorkspaceFileSecretProvenanceIdentity,
+  row: BoundWorkspaceFileProvenanceRow | undefined
+): WorkspaceFileSecretProvenance {
+  if (!row || row.key !== identity.key || !acceptsIdentityContext(identity, row.context)) {
+    return { status: 'unknown' }
+  }
   /**
    * A version mismatch is not an absence: the caller is asking about content this file no longer
    * holds, so nothing can be said about it and no policy relaxes that.
@@ -920,6 +908,173 @@ export async function getBoundWorkspaceFileSecretProvenance(
   if (row.status === 'unrecorded') return { status: 'unrecorded' }
   if (row.status !== 'exact') return { status: 'unknown' }
   return { status: 'exact', entries: deserializeExactEntriesFromStorage(row.entries) }
+}
+
+const boundProvenanceColumns = {
+  id: workspaceFiles.id,
+  key: workspaceFiles.key,
+  context: workspaceFiles.context,
+  fileContentUpdatedAt: workspaceFiles.contentUpdatedAt,
+  secretProvenanceVersion: workspaceFiles.secretProvenanceVersion,
+  provenanceContentUpdatedAt: workspaceFileSecretProvenance.contentUpdatedAt,
+  status: workspaceFileSecretProvenance.status,
+  entries: workspaceFileSecretProvenance.entries,
+}
+
+/** Reads provenance only when it still belongs to this exact canonical file id and storage key. */
+export async function getBoundWorkspaceFileSecretProvenance(
+  workspaceId: string,
+  identity: WorkspaceFileSecretProvenanceIdentity
+): Promise<WorkspaceFileSecretProvenance> {
+  const [row] = await db
+    .select({
+      fileContentUpdatedAt: workspaceFiles.contentUpdatedAt,
+      secretProvenanceVersion: workspaceFiles.secretProvenanceVersion,
+      provenanceContentUpdatedAt: workspaceFileSecretProvenance.contentUpdatedAt,
+      status: workspaceFileSecretProvenance.status,
+      entries: workspaceFileSecretProvenance.entries,
+    })
+    .from(workspaceFiles)
+    .leftJoin(
+      workspaceFileSecretProvenance,
+      eq(workspaceFileSecretProvenance.fileId, workspaceFiles.id)
+    )
+    .where(
+      and(
+        eq(workspaceFiles.id, identity.fileId),
+        eq(workspaceFiles.key, identity.key),
+        eq(workspaceFiles.workspaceId, workspaceId),
+        identity.context === 'mothership' && identity.contentUpdatedAt
+          ? inArray(workspaceFiles.context, ['mothership', 'workspace'])
+          : eq(workspaceFiles.context, identity.context)
+        // Deliberately no deletedAt filter: `id` alone pins the exact row, and
+        // recently-deleted/ reads are a real surface — excluding soft-deleted
+        // rows made every archived file read as provenance-unknown and refused.
+      )
+    )
+    .limit(1)
+  return bindWorkspaceFileSecretProvenance(
+    identity,
+    row && { ...row, key: identity.key, context: identity.context }
+  )
+}
+
+/**
+ * Classifies many files a reader already resolved, one statement per thousand ids, with exactly the
+ * per-file binding of {@link getBoundWorkspaceFileSecretProvenance}: key and context are compared
+ * on the fetched row rather than in the query. Every requested id is answered.
+ */
+export async function getBoundWorkspaceFileSecretProvenanceByIdentity(
+  workspaceId: string,
+  identities: readonly WorkspaceFileSecretProvenanceIdentity[]
+): Promise<Map<string, WorkspaceFileSecretProvenance>> {
+  const rowsById = new Map<string, BoundWorkspaceFileProvenanceRow>()
+  const ids = [...new Set(identities.map((identity) => identity.fileId))]
+  for (let index = 0; index < ids.length; index += FILE_PROVENANCE_QUERY_CHUNK_SIZE) {
+    const rows = await db
+      .select(boundProvenanceColumns)
+      .from(workspaceFiles)
+      .leftJoin(
+        workspaceFileSecretProvenance,
+        eq(workspaceFileSecretProvenance.fileId, workspaceFiles.id)
+      )
+      .where(
+        and(
+          inArray(workspaceFiles.id, ids.slice(index, index + FILE_PROVENANCE_QUERY_CHUNK_SIZE)),
+          /** As the single read: no deletedAt filter, so archived files keep their class. */
+          eq(workspaceFiles.workspaceId, workspaceId)
+        )
+      )
+    for (const row of rows) rowsById.set(row.id, row)
+  }
+  return new Map(
+    identities.map((identity) => [
+      identity.fileId,
+      bindWorkspaceFileSecretProvenance(identity, rowsById.get(identity.fileId)),
+    ])
+  )
+}
+
+/**
+ * Classifies the bytes each file holds now, for a surface that serves whatever is current (a share
+ * link). Ids outside the workspace, or gone, read as unknown.
+ */
+export async function getCurrentWorkspaceFileSecretProvenance(
+  workspaceId: string,
+  fileIds: readonly string[]
+): Promise<Map<string, WorkspaceFileSecretProvenance>> {
+  const result = new Map<string, WorkspaceFileSecretProvenance>()
+  const ids = [...new Set(fileIds)]
+  for (let index = 0; index < ids.length; index += FILE_PROVENANCE_QUERY_CHUNK_SIZE) {
+    const rows = await db
+      .select(boundProvenanceColumns)
+      .from(workspaceFiles)
+      .leftJoin(
+        workspaceFileSecretProvenance,
+        eq(workspaceFileSecretProvenance.fileId, workspaceFiles.id)
+      )
+      .where(
+        and(
+          inArray(workspaceFiles.id, ids.slice(index, index + FILE_PROVENANCE_QUERY_CHUNK_SIZE)),
+          eq(workspaceFiles.workspaceId, workspaceId)
+        )
+      )
+    for (const row of rows) {
+      const context =
+        row.context === 'mothership' || row.context === 'execution' ? row.context : 'workspace'
+      result.set(
+        row.id,
+        bindWorkspaceFileSecretProvenance(
+          { fileId: row.id, key: row.key, context, contentUpdatedAt: row.fileContentUpdatedAt },
+          row
+        )
+      )
+    }
+  }
+  for (const id of ids) if (!result.has(id)) result.set(id, { status: 'unknown' })
+  return result
+}
+
+/**
+ * Classifies stored objects by key, for a reader that addresses bytes by the key a recording names
+ * (a run's output file) rather than by a canonical file id. The newest active row for a key wins,
+ * then its newest archived execution row. A key a superseded version still names is `unknown`. A
+ * key with no row at all is storage no file names (a direct upload, or legacy storage that
+ * predates metadata rows) and maps to `undefined`, which each caller treats as its surface does.
+ */
+export async function getStoredFileSecretProvenanceByKey(
+  workspaceId: string,
+  keys: readonly string[]
+): Promise<Map<string, WorkspaceFileSecretProvenance | undefined>> {
+  const uniqueKeys = [...new Set(keys.filter((key) => key.length > 0))]
+  const rows = await loadModelSafeWorkspaceFileRows(uniqueKeys)
+  const rowByKey = new Map(rows.map((row) => [row.key, row]))
+  const versionKeys = await findWorkspaceFileVersionKeys(
+    uniqueKeys.filter((key) => !rowByKey.has(key))
+  )
+  return new Map(
+    uniqueKeys.map((key): [string, WorkspaceFileSecretProvenance | undefined] => {
+      const row = rowByKey.get(key)
+      if (!row) return [key, versionKeys.has(key) ? { status: 'unknown' } : undefined]
+      if (row.workspaceId !== workspaceId) return [key, { status: 'unknown' }]
+      /** Other stores keep their own provenance, as the attachment filter has always treated them. */
+      if (
+        row.context !== 'workspace' &&
+        row.context !== 'mothership' &&
+        row.context !== 'execution'
+      ) {
+        return [key, { status: 'unrecorded' }]
+      }
+      const context = row.context
+      return [
+        key,
+        bindWorkspaceFileSecretProvenance(
+          { fileId: key, key, context, contentUpdatedAt: row.fileContentUpdatedAt },
+          row
+        ),
+      ]
+    })
+  )
 }
 
 /** Batch-loads classifications already bound to exact, authorized file metadata snapshots. */
@@ -1129,7 +1284,7 @@ export async function importWorkspaceFileSecretProvenanceForRuntime(args: {
 }
 
 /** Imports a classification already bound by an authorized read to its returned byte snapshot. */
-export async function importWorkspaceFileSnapshotProvenance(args: {
+async function importWorkspaceFileSnapshotProvenance(args: {
   workspaceId: string
   provenance: WorkspaceFileSecretProvenance
   resourceId?: string
@@ -1176,9 +1331,6 @@ export async function filterModelSafeWorkspaceFileAttachments<
   options: { workspaceId?: string } = {}
 ): Promise<TAttachment[]> {
   if (attachments.length === 0) return []
-  if (attachments.length > PROVENANCE_MAX_ENTRIES) {
-    throw new Error('Too many file attachments to verify secret provenance')
-  }
 
   const keys = [
     ...new Set(
@@ -1245,7 +1397,22 @@ function classifyModelSafeWorkspaceFileRow(
   return row.entries.length === 0 ? 'safe' : 'unsafe'
 }
 
+/** Ids per statement bound a query, never how many keys a caller may classify. */
 async function loadModelSafeWorkspaceFileRows(
+  keys: readonly string[]
+): Promise<ModelSafeWorkspaceFileRow[]> {
+  const rows: ModelSafeWorkspaceFileRow[] = []
+  for (let index = 0; index < keys.length; index += FILE_PROVENANCE_QUERY_CHUNK_SIZE) {
+    rows.push(
+      ...(await loadModelSafeWorkspaceFileRowChunk(
+        keys.slice(index, index + FILE_PROVENANCE_QUERY_CHUNK_SIZE)
+      ))
+    )
+  }
+  return rows
+}
+
+async function loadModelSafeWorkspaceFileRowChunk(
   keys: readonly string[]
 ): Promise<ModelSafeWorkspaceFileRow[]> {
   return db
@@ -1302,9 +1469,6 @@ export async function areModelSafeWorkspaceFileKeys(
 ): Promise<boolean> {
   const uniqueKeys = [...new Set(keys.filter((key) => key.length > 0))]
   if (uniqueKeys.length === 0) return true
-  if (uniqueKeys.length > PROVENANCE_MAX_ENTRIES) {
-    throw new Error('Too many file keys to verify secret provenance')
-  }
 
   const rows = await loadModelSafeWorkspaceFileRows(uniqueKeys)
   const rowKeys = new Set(rows.map((row) => row.key))

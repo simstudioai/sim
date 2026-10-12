@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { observeContentOutsideModel } from '@/lib/core/application/content-delivery'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { type FfmpegOperation, type MediaFile, runFfmpegOperation } from '@/lib/media/ffmpeg'
 import { FFMPEG_LIMITS } from '@/lib/media/ffmpeg-limits'
@@ -137,18 +138,22 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
           fileId: fileRecord.id,
           key: fileRecord.key,
           context: fileRecord.storageContext ?? 'workspace',
+          ...(fileRecord.contentUpdatedAt ? { contentUpdatedAt: fileRecord.contentUpdatedAt } : {}),
         })
         inputRequiresOpaqueError ||=
           fileProvenance.status !== 'exact' || fileProvenance.entries.length > 0
-        const { content: buffer } = await executeCopilotFileUseCase(
-          context,
-          readWorkspaceFileContent,
-          {
-            fileId: fileRecord.id,
-            assertedWorkspaceId: workspaceId,
-            maxBytes: MAX_MEDIA_BYTES,
-          },
-          { fileId: fileRecord.id }
+        /** The output file carries every input's provenance, merged below; no input reaches a model. */
+        const { content: buffer } = await observeContentOutsideModel(() =>
+          executeCopilotFileUseCase(
+            context,
+            readWorkspaceFileContent,
+            {
+              fileId: fileRecord.id,
+              assertedWorkspaceId: workspaceId,
+              maxBytes: MAX_MEDIA_BYTES,
+            },
+            { fileId: fileRecord.id }
+          )
         )
         totalInputBytes += buffer.length
         if (totalInputBytes > MAX_MEDIA_BYTES) {

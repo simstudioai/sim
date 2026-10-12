@@ -36,6 +36,8 @@ export const toolsMockFns = {
   mockExecuteTool: vi.fn(),
   /** Defaults to the real `__`-field stripping semantics. */
   mockPostProcessToolOutput: vi.fn(postProcessToolOutput),
+  /** Defaults to `false`: no tool's result carries provenance until a test says so. */
+  mockToolResultCarriesSecretProvenance: vi.fn((_toolId: string) => false),
 }
 
 /**
@@ -49,4 +51,5 @@ export const toolsMockFns = {
 export const toolsMock = {
   executeTool: toolsMockFns.mockExecuteTool,
   postProcessToolOutput: toolsMockFns.mockPostProcessToolOutput,
+  toolResultCarriesSecretProvenance: toolsMockFns.mockToolResultCarriesSecretProvenance,
 }

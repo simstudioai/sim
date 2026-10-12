@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { observeContentOutsideModel } from '@/lib/core/application/content-delivery'
 import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-file-use-case'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -139,15 +140,18 @@ export async function loadWorkspaceFileTextForPreview(
   fileId: string
 ): Promise<WorkspaceFilePreviewBase | undefined> {
   try {
-    const { content: buffer } = await executeCopilotFileUseCase(
-      context,
-      readWorkspaceFileContent,
-      {
-        fileId,
-        assertedWorkspaceId: workspaceId,
-        maxBytes: MAX_PREVIEW_SOURCE_BYTES,
-      },
-      { fileId }
+    /** The preview streams to the user's own editor, never to the model. */
+    const { content: buffer } = await observeContentOutsideModel(() =>
+      executeCopilotFileUseCase(
+        context,
+        readWorkspaceFileContent,
+        {
+          fileId,
+          assertedWorkspaceId: workspaceId,
+          maxBytes: MAX_PREVIEW_SOURCE_BYTES,
+        },
+        { fileId }
+      )
     )
     return {
       text: buffer.toString('utf-8'),

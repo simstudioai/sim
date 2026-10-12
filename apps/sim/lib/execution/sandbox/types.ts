@@ -24,6 +24,11 @@ export interface SandboxBroker<TArgs = unknown, TResult = unknown> {
 export interface SandboxBrokerContext {
   workspaceId: string
   requestId: string
+  /**
+   * The only workspace files the broker may read, when set: each was admitted for the caller
+   * before the task ran, since the isolate's calls cannot be classified as they arrive.
+   */
+  readableWorkspaceFileIds?: ReadonlySet<string>
   onWorkspaceFileAccess?: (identity: {
     fileId: string
     key: string

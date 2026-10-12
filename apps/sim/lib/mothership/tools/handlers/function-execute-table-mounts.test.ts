@@ -201,27 +201,24 @@ describe('Mothership table mounts through code calls', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
-  it('retains snapshot provenance refusal and cloud transport without buffering', async () => {
+  /**
+   * A snapshot whose rows hold a recorded secret, or lack vouched provenance, is opaque to
+   * redaction once mounted, so it is left out on its own and reported; the run itself proceeds.
+   */
+  it('excludes a table whose snapshot is unsafe for Chat, before any byte or URL is acquired', async () => {
     mocks.safety.mockResolvedValueOnce('stale')
     await expect(run('table-orders')).rejects.toThrow('changed while preparing')
     expect(mocks.presign).not.toHaveBeenCalled()
     mocks.cloud.mockReturnValue(true)
     mocks.safety.mockResolvedValue('unsafe-provenance')
-    await run('table-orders')
+    const result = await run('table-orders')
     const params = mocks.execute.mock.calls[0][1]
-    expect(params._sandboxFiles).toEqual([
-      {
-        type: 'url',
-        path: '/tmp/orders.csv',
-        url: 'https://storage.invalid/snapshot',
-        maxBytes: 500 * 1024 * 1024,
-      },
-    ])
-    expect(mocks.presign).toHaveBeenCalledWith('snapshot.csv', 'execution', 1800)
+    expect(params._sandboxFiles).toBeUndefined()
+    expect(mocks.presign).not.toHaveBeenCalled()
     expect(mocks.download).not.toHaveBeenCalled()
-    expect(
-      mocks.execute.mock.calls[0][2].resolvedSecretTraceRegistry.exportProvenance().complete
-    ).toBe(false)
+    expect(result.output).toMatchObject({
+      excludedInputs: [{ path: 'table-orders', reason: expect.any(String) }],
+    })
   })
 
   it.each(['local', 'cloud'] as const)(

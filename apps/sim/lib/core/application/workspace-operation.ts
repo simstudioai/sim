@@ -1,11 +1,13 @@
 import type { DelegatedPrincipal, DelegatedServiceId, Principal } from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
+import type { ContentDeliveryDeclaration } from '@/lib/core/application/content-delivery'
 import type {
   ApplicationOperation,
   OAuthOperationPolicy,
   PrincipalKind,
 } from '@/lib/core/application/operation'
 import {
+  assertContentDeliveryDeclaration,
   assertOperationCapability,
   assertOperationOAuthPolicy,
 } from '@/lib/core/application/operation'
@@ -69,6 +71,15 @@ type DelegatedPrincipalConsistency<
     }
   : { readonly delegatedServices?: never }
 
+/**
+ * Chat delivers whatever a Copilot-admitted operation returns to its model, so each one says
+ * whether that can be stored content; no other operation may claim to.
+ */
+type ContentDeliveryConsistency<DelegatedServices extends readonly DelegatedServiceId[]> =
+  'copilot' extends DelegatedServices[number]
+    ? { readonly contentDelivery: ContentDeliveryDeclaration }
+    : { readonly contentDelivery?: never }
+
 type ResourcePolicyOperationConsistency<Binding extends ResourcePolicyBinding | undefined> =
   Binding extends ResourcePolicyBinding
     ? { readonly resourcePolicy: Binding }
@@ -85,6 +96,7 @@ export function defineWorkspaceOperation<
     OAuthOperationPolicy<PrincipalKinds> &
     WorkspaceApiKeyPrincipalConsistency<Role, PrincipalKinds> &
     DelegatedPrincipalConsistency<PrincipalKinds, DelegatedServices> &
+    ContentDeliveryConsistency<DelegatedServices> &
     ResourcePolicyOperationConsistency<ResourcePolicy>
 ): WorkspaceOperation<Id, Role, PrincipalKinds, DelegatedServices> &
   OAuthOperationPolicy<PrincipalKinds> &
@@ -119,6 +131,8 @@ export function defineWorkspaceOperation<
   }
 
   if (operation.resourcePolicy) requireResourcePolicyBinding(operation.resourcePolicy)
+
+  assertContentDeliveryDeclaration(operation, delegatedServices)
 
   /**
    * `capability` is required, so refusing an absent one reads as unreachable.

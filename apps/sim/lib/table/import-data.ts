@@ -12,6 +12,7 @@ import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
+import type { ImportedRowProvenance } from '@/lib/table/import-provenance'
 import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
@@ -50,6 +51,8 @@ export interface BulkImportBatch {
   startPosition: number
   /** Previous batch's last `order_key` (the append anchor); null for the first batch / empty table. */
   afterOrderKey?: string | null
+  /** Provenance each row inherits from its source; absent, rows are exact-empty. */
+  rowProvenance?: ImportedRowProvenance
 }
 
 /**
@@ -147,7 +150,7 @@ export async function bulkInsertImportBatch(
     return mutateTableRowsWithSecretProvenance(trx, {
       rows: rowsToInsert.map((row) => ({
         rowId: row.id,
-        provenance: createExactEmptyTableRowSecretProvenance(row.data),
+        provenance: (data.rowProvenance ?? createExactEmptyTableRowSecretProvenance)(row.data),
       })),
       rowState: 'new',
       mode: 'replace',

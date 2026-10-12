@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { mustClassifyContent } from '@/lib/core/application/content-delivery'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -19,6 +20,7 @@ import {
 } from '@/lib/mothership/tools/server/files/doc-compiled-store'
 import { PPTX_SHIM_JS } from '@/lib/mothership/tools/server/files/pptx-shim'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { getContentType } from '@/app/api/files/utils'
@@ -344,6 +346,8 @@ interface LegacyCompileArgs {
   workspaceId: string
   ownerKey?: string
   signal?: AbortSignal
+  /** Who the compile reads for; absent for a server render that serves no principal's view. */
+  filePrincipal?: Principal
 }
 
 interface CompileArgs extends LegacyCompileArgs {
@@ -661,6 +665,21 @@ const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
   '.pdf': { magic: PDF_MAGIC, taskId: 'pdf-generate', contentType: PDF_MIME },
 }
 
+/**
+ * The files a Chat compile may read through the isolate's broker: every file its source names
+ * literally, each admitted by the caller's gate before the task runs. Other callers are
+ * unrestricted, as they have always been.
+ */
+async function admitBrokerFiles(args: LegacyCompileArgs): Promise<ReadonlySet<string> | undefined> {
+  const principal = args.filePrincipal
+  if (!principal || !mustClassifyContent(principal)) return undefined
+  const { images } = await resolveReferencedImages(args.source, args.workspaceId, principal)
+  for (const { record } of images) {
+    await requireAdmittedWorkspaceFile(principal, args.workspaceId, record, 'complete')
+  }
+  return new Set(images.map((image) => image.fileId))
+}
+
 async function compileDocInLegacySandbox(
   args: LegacyCompileArgs,
   fmt: E2BDocFormat
@@ -691,6 +710,7 @@ async function compileDocInLegacySandbox(
     }
   }
 
+  const readableWorkspaceFileIds = await admitBrokerFiles(args)
   const contributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
   const buffer = await runSandboxTask(
     format.taskId,
@@ -698,6 +718,7 @@ async function compileDocInLegacySandbox(
     {
       ownerKey: args.ownerKey,
       signal: args.signal,
+      ...(readableWorkspaceFileIds ? { readableWorkspaceFileIds } : {}),
       onWorkspaceFileAccess: (identity) => {
         contributingFiles.set(`${identity.context}:${identity.fileId}:${identity.key}`, identity)
       },
@@ -942,7 +963,10 @@ export async function resolveServableDocBytes(args: {
     if (!isDocSandboxEnabled) {
       const fmt = await getE2BDocFormat(fileName)
       if (!fmt) throw new Error(`Unsupported document format: ${fileName}`)
-      return compileDocInLegacySandbox({ source, fileName, workspaceId, ownerKey, signal }, fmt)
+      return compileDocInLegacySandbox(
+        { source, fileName, workspaceId, ownerKey, signal, filePrincipal },
+        fmt
+      )
     }
     const referencedFileIds = collectReferencedFileIds(source)
     if (referencedFileIds.size > 0) {

@@ -10,6 +10,10 @@ import {
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import {
   workspaceUploadsMock,
   workspaceUploadsMockFns,
 } from '@sim/testing/mocks/workspace-uploads.mock'
@@ -39,6 +43,19 @@ vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
   isDocNotReadyError: mockIsDocNotReady,
 }))
 vi.mock('@sim/audit', () => auditMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
+
+import {
+  type ContentDeliveryGate,
+  ContentRefusedError,
+  observeContentDelivery,
+} from '@/lib/core/application/content-delivery'
+
+const mockProvenance =
+  workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenanceByIdentity
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
@@ -77,6 +94,17 @@ const workspace = {
   billedAccountUserId: 'billing-owner',
 }
 
+/** Chat's gate with no registry: an archive is opaque, so only secret-free files are admitted. */
+const secretFreeGate: ContentDeliveryGate = {
+  async admit(sources) {
+    return sources.map(
+      ({ provenance }) =>
+        provenance.status === 'unrecorded' ||
+        (provenance.status === 'exact' && provenance.entries.length === 0)
+    )
+  },
+}
+
 function file(id: string, name: string, folderId: string | null = null, size = 10) {
   return { id, name, folderId, size, type: 'application/octet-stream', key: `key-${id}` }
 }
@@ -101,16 +129,68 @@ describe('downloadWorkspaceFileItems', () => {
     mockIsRenderable.mockReturnValue(false)
     mockIsDocNotReady.mockReturnValue(false)
     mockGetUserPermissionConfig.mockResolvedValue(null)
+    mockProvenance.mockImplementation(
+      async (_workspaceId: string, identities: readonly { fileId: string }[]) =>
+        new Map(identities.map((identity) => [identity.fileId, { status: 'exact', entries: [] }]))
+    )
   })
 
   it('allows a file-scoped delegated principal to download its one explicit file', async () => {
-    const result = await downloadWorkspaceFileItems.execute({
-      principal: delegatedPrincipal,
-      input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
-    })
+    const result = await observeContentDelivery(secretFreeGate, () =>
+      downloadWorkspaceFileItems.execute({
+        principal: delegatedPrincipal,
+        input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
+      })
+    )
 
     expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
     expect(mockResolvePermission).toHaveBeenCalledOnce()
+    expect(mockProvenance).toHaveBeenCalledWith('ws-1', [
+      expect.objectContaining({ fileId: 'f1', key: 'key-f1' }),
+    ])
+  })
+
+  it('leaves out of a Chat archive each file its gate refuses, keeping the rest', async () => {
+    mockListFiles.mockResolvedValue([file('f1', 'clean.txt'), file('f2', 'secret.txt')])
+    mockProvenance.mockResolvedValue(
+      new Map([
+        ['f1', { status: 'exact', entries: [] }],
+        ['f2', { status: 'unknown' }],
+      ])
+    )
+    const chat = createDelegatedPrincipal({
+      subjectUserId: 'u1',
+      workspaceId: 'ws-1',
+      audience: 'sim:workspace-files',
+    })
+    const result = await observeContentDelivery(secretFreeGate, () =>
+      downloadWorkspaceFileItems.execute({
+        principal: chat,
+        input: { workspaceId: 'ws-1', fileIds: ['f1', 'f2'], folderIds: [] },
+      })
+    )
+    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
+  })
+
+  it('refuses a Chat archive whose every file its gate refuses', async () => {
+    mockProvenance.mockResolvedValue(new Map([['f1', { status: 'unknown' }]]))
+    await expect(
+      observeContentDelivery(secretFreeGate, () =>
+        downloadWorkspaceFileItems.execute({
+          principal: delegatedPrincipal,
+          input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
+        })
+      )
+    ).rejects.toBeInstanceOf(ContentRefusedError)
+  })
+
+  it('archives every selected file for a caller outside Chat without classifying', async () => {
+    const result = await downloadWorkspaceFileItems.execute({
+      principal,
+      input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
+    })
+    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
+    expect(mockProvenance).not.toHaveBeenCalled()
   })
 
   it.each([

@@ -4,6 +4,7 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 
 /**
@@ -31,7 +32,7 @@ export async function resolveRenderedWorkspaceArtifact(
   file: WorkspaceFileRecord,
   filePrincipal: Principal,
   options: { maxBytes: number; signal?: AbortSignal; tooLargeMessage?: (limit: string) => string }
-): Promise<{ buffer: Buffer; contentType: string }> {
+): Promise<ServableFile> {
   try {
     options.signal?.throwIfAborted()
     return await fetchAuthorizedServableWorkspaceFileBuffer(file, filePrincipal, {
