@@ -8,6 +8,37 @@ permissions:
   contents: read
 
 jobs:
+  # Which checks a pull request's changes can affect (.github/scripts/ci-changes.sh). A job is
+  # skipped only when the script prints `false` for its flag; an unset flag, and every push or
+  # dispatch (the deploy chain's checks), runs it. Every gated job needs this one, so its failure
+  # skips them and fails `ci` below.
+  changes:
+    name: changes
+    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      full: ${{ github.event_name != 'pull_request' || steps.classify.outputs.full != 'false' }}
+      test: ${{ github.event_name != 'pull_request' || steps.classify.outputs.test != 'false' }}
+      build: ${{ github.event_name != 'pull_request' || steps.classify.outputs.build != 'false' }}
+      desktop_live: ${{ github.event_name != 'pull_request' || steps.classify.outputs.desktop_live != 'false' }}
+    steps:
+      - name: Checkout code (mirror)
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+        with:
+          fetch-depth: 2
+      - name: Checkout code
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 2
+      - name: Classify the pull request's changes
+        id: classify
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: bash .github/scripts/ci-changes.sh "$BASE" >> "$GITHUB_OUTPUT"
+
   integration:
     # Runs the real-infrastructure test layer: every `*.integration.ts` in packages/db and
     # apps/sim, discovered by glob (`vitest run --mode integration`), against the database each
@@ -19,6 +50,8 @@ jobs:
     # shard runs its files one at a time against its own database. Files run serially, so a shard
     # barely uses more than one core: 4 vCPU is enough.
     name: integration (${{ matrix.provision }}, ${{ matrix.shard }}/4)
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: &runner-4vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
@@ -143,6 +176,8 @@ jobs:
   # self-hosted suites fit on 4.
   e2e:
     name: e2e (${{ matrix.group }})
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.runner || 'ubuntu-latest' }}
     timeout-minutes: ${{ matrix.group == 'mobile' && 40 || 20 }}
     strategy:
@@ -217,39 +252,12 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Pull requests skip the live desktop suite only when every change is clearly unrelated to the
-  # app it drives (docs, other apps, published content). Anything else, and any failure to work
-  # out the diff, runs it: a pull request that skipped it wrongly would first fail on staging.
-  desktop-changes:
-    name: desktop-changes
-    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 5
-    outputs:
-      changed: ${{ github.event_name != 'pull_request' || steps.diff.outputs.changed != 'false' }}
-    steps:
-      - name: Checkout code (mirror)
-        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
-        with:
-          fetch-depth: 2
-      - name: Checkout code
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
-        with:
-          fetch-depth: 2
-      - name: Diff against the pull request's base
-        id: diff
-        if: github.event_name == 'pull_request'
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: bash .github/scripts/desktop-live-changes.sh "$BASE" >> "$GITHUB_OUTPUT"
-
   # Desktop tools in the real Electron app against a local app, on its own runner: the
   # Electron app, the dev app and its realtime server together outgrow the e2e runner.
   desktop-live:
     name: desktop-live
-    needs: desktop-changes
-    if: needs.desktop-changes.outputs.changed == 'true'
+    needs: changes
+    if: needs.changes.outputs.desktop_live == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
     services:
@@ -592,6 +600,8 @@ jobs:
   # task hash, so a shard only ever replays its own result.
   test:
     name: test (${{ matrix.shard }}/2)
+    needs: changes
+    if: needs.changes.outputs.test == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     strategy:
@@ -660,6 +670,8 @@ jobs:
   # not the native Turbopack workers that dominate, so it cannot prevent this.
   build:
     name: build
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
     # Build durations crossed 15 minutes as the app grew (10m02 on Jul 29 AM,
     # 14m44 after the folders/desktop/library merges, then two straight
@@ -713,13 +725,14 @@ jobs:
         run: bunx turbo run build --filter=@sim/app
 
   # One status for every check above: the single check to require on a branch ruleset, so adding,
-  # sharding or renaming a job never means editing the ruleset. Skipped is a pass (the desktop live
-  # suite skips on pull requests that cannot affect it); a failure or a cancellation is not.
+  # sharding or renaming a job never means editing the ruleset. A skip passes only for a gated job
+  # whose `changes` flag is exactly `false`; any other skip (a failed or skipped `changes`, a lost
+  # output, an ungated job) fails, as does a failure or a cancellation.
   # `always()`, not `!cancelled()`: a skipped job satisfies a required check, so a gate that skips
   # on a cancelled run would report a cancelled head commit as passing.
   ci:
     name: ci
-    needs: [integration, e2e, desktop-changes, desktop-live, lint, test, build]
+    needs: [changes, integration, e2e, desktop-live, lint, test, build]
     if: ${{ always() }}
     runs-on: *runner-2vcpu
     timeout-minutes: 5
@@ -728,7 +741,14 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs) }}
         run: |
-          failed="$(jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key): \(.value.result)"' <<< "$RESULTS")"
+          failed="$(jq -r '
+            {"integration": "full", "e2e": "full", "test": "test", "build": "build", "desktop-live": "desktop_live"} as $gate
+            | (.changes.outputs // {}) as $flags
+            | to_entries[]
+            | select(.value.result != "success")
+            | select(.value.result != "skipped" or $gate[.key] == null or $flags[$gate[.key]] != "false")
+            | "\(.key): \(.value.result)"
+          ' <<< "$RESULTS")"
           if [ -n "$failed" ]; then
             echo "::error::Checks did not pass:"
             echo "$failed"
