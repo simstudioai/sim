@@ -1095,11 +1095,12 @@ export function clearAgentContextMenu(contents: WebContents): void {
 
 /**
  * The final release of a click was sent to a live tab, and the tab was gone when that release
- * was rejected. The press and release both reached the page; only the acknowledgement was lost.
+ * was rejected: the release was in flight when the tab closed. Whether it reached the page is
+ * unknown, so this proves neither delivery nor failure, only that the click must not be repeated.
  */
 export class TabClosedOnReleaseError extends Error {
   constructor() {
-    super('The tab closed as the click was released.')
+    super('The tab closed while the click release was in flight.')
     this.name = 'TabClosedOnReleaseError'
   }
 }

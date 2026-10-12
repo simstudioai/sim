@@ -1803,9 +1803,10 @@ function navigationRescue(
 }
 
 /**
- * The click's final release was sent to a live tab that was destroyed before Chromium
- * acknowledged it (cdp.clickAt raises TabClosedOnReleaseError only then), so the press and
- * release reached the page. Any other dispatch failure keeps its own error.
+ * The tab closed while the click's final release was in flight (cdp.clickAt raises
+ * TabClosedOnReleaseError only then). Whether the release reached the page cannot be confirmed,
+ * so the result reports the tab change but not the click's effect, and forbids a repeat. Any other
+ * dispatch failure keeps its own error.
  */
 function closedTabRescue(
   error: unknown,
@@ -1817,7 +1818,6 @@ function closedTabRescue(
     dispatched: true,
     trusted: base.trusted,
     activation: base.activation,
-    effectObserved: true,
     possibleEffectObserved: true,
     closedDuringDispatch: true,
     doNotRetry: true,
@@ -1826,7 +1826,7 @@ function closedTabRescue(
     ...(activeTab
       ? { activeTab: { tabId: activeTab.id, url: activeTab.view.webContents.getURL() } }
       : {}),
-    note: 'The tab closed as the click was released, so no postconditions could be read. Do not repeat the click. If this page was not expected to close itself, verify the outcome with browser_snapshot before relying on it.',
+    note: "The tab closed while the click's release was in flight, so the click's outcome could not be confirmed. Do not repeat the click; verify the outcome with browser_snapshot before relying on it.",
   }
 }
 
