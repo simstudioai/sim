@@ -245,7 +245,7 @@ export const downloadWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase
   async execute({ input, context, principal }): Promise<DownloadWorkspaceFileVersionResult> {
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
-    await reportWorkspaceFileDelivery(await readVersionSecretProvenance(file, version))
+    await reportWorkspaceFileDelivery(await readVersionSecretProvenance(file, version), file.id)
     const result = await readVersionObject(version.version, () =>
       streamWorkspaceFileRecord(recordAtVersion(file, version), principal)
     )

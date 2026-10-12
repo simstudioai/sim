@@ -20,7 +20,7 @@ import {
   type LiveTurnSnapshot,
   readLiveTurnSnapshot,
 } from '@/lib/mothership/chat/live-turn-snapshot'
-import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
+import { compactToolCallParams, normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-liveness'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
@@ -83,7 +83,7 @@ export const GET = withRouteHandler(
         messages: normalizedMessages,
         activeStreamId: liveStreamId,
         ...(liveTurnSnapshot ? { streamSnapshot: liveTurnSnapshot } : {}),
-      })
+      }).map(compactToolCallParams)
 
       return NextResponse.json({
         success: true,

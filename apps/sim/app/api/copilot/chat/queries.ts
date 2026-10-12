@@ -11,7 +11,7 @@ import {
   type LiveTurnSnapshot,
   readLiveTurnSnapshot,
 } from '@/lib/mothership/chat/live-turn-snapshot'
-import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
+import { compactToolCallParams, normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
         messages: normalizedMessages,
         activeStreamId: chat.conversationId || null,
         ...(streamSnapshot ? { streamSnapshot } : {}),
-      })
+      }).map(compactToolCallParams)
 
       logger.info(`Retrieved chat ${chatId}`)
       return NextResponse.json({

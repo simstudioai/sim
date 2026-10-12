@@ -3828,14 +3828,6 @@ export const document = pgTable(
       table.externalId
     ),
     /**
-     * Superseded by `doc_connector_reconciliation_v2_idx`; drop it concurrently once the id-keyset
-     * walks are fully deployed. Nothing orders by `source_seen_at` any more, and keying it makes
-     * every listing's seen stamp a non-HOT update.
-     */
-    connectorReconciliationIdx: index('doc_connector_reconciliation_idx')
-      .on(table.connectorId, sql`COALESCE(${table.sourceSeenAt}, '-infinity'::timestamp)`, table.id)
-      .where(sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL`),
-    /**
      * Id-keyset absence reconciliation and resurrection walks, including tombstones and skipping
      * excluded or archived rows. `source_seen_at` stays out of the key so the per-listing seen
      * stamp can be a HOT update.
@@ -7125,6 +7117,16 @@ export const knowledgeConnectorSyncLog = pgTable(
     startedPartialIdx: index('kcsl_started_at_partial_idx')
       .on(table.startedAt)
       .where(sql`${table.status} = 'started'`),
+    /**
+     * Serves the retention prune of closed sync history, which claims `completed` and `failed`
+     * rows older than the cutoff. `started_at` is not a leading key of
+     * `kcsl_connector_started_at_idx`, so that sweep read the whole index on every run. The
+     * predicate matches the prune's status list exactly so the planner can prove it.
+     */
+    terminalStartedAtIdx: index('kcsl_terminal_started_at_idx')
+      .on(table.startedAt)
+      .concurrently()
+      .where(sql`${table.status} IN ('completed', 'failed')`),
     databaseFailureClassCheck: check(
       'kcsl_database_failure_class_check',
       sql`${table.databaseFailureClass} IN ('capacity', 'conflict', 'connection')`

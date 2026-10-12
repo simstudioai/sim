@@ -288,7 +288,7 @@ it('dispatches a workbench file read under a delivery observer the Copilot guard
   routeMatcher.mockReturnValue({ params: { fileId: 'file' }, load: async () => ({ GET: fetcher }) })
   fetcher.mockImplementation(async () => {
     requireCopilotWorkspaceFileDeliveryObserver(createDelegatedPrincipal({ serviceId: 'copilot' }))
-    await reportWorkspaceFileDelivery({ status: 'exact', entries: [] })
+    await reportWorkspaceFileDelivery({ status: 'exact', entries: [] }, 'file')
     return new Response('file text')
   })
   recordInput.mockResolvedValueOnce(undefined)
