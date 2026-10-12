@@ -7,6 +7,7 @@ import type {
   PersistedToolState,
 } from '@/lib/api/contracts/copilot-messages'
 import { buildMothershipErrorTag } from '@/lib/mothership/chat/error-tag'
+import { isStoredAssistantMessage } from '@/lib/mothership/chat/live-message-id'
 import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import {
   mergeAndRedactPersistedBlocks,
@@ -228,10 +229,12 @@ function compactParamRecord(record: Record<string, unknown>): Record<string, unk
 }
 
 /**
- * Truncate long strings inside settled tool calls' params, keeping every key,
- * array entry and short scalar. A pending, executing or awaiting-approval call
- * keeps its params whole: a reloaded executing workflow tool re-runs from them
- * and the permission card previews them.
+ * Truncate long strings inside tool calls' params, keeping every key, array
+ * entry and short scalar. On the live assistant message a pending, executing or
+ * awaiting-approval call keeps its params whole: a reloaded executing workflow
+ * tool re-runs from them and the permission card previews them. A stored turn
+ * has ended, so its unfinished calls render as interrupted and are compacted
+ * like settled ones.
  *
  * A projection for the transcript served to the chat UI only. Stored rows keep
  * full params: data drains export them verbatim, and fork and import copy
@@ -240,10 +243,11 @@ function compactParamRecord(record: Record<string, unknown>): Record<string, unk
  */
 export function compactToolCallParams(message: PersistedMessage): PersistedMessage {
   if (!message.contentBlocks?.length) return message
+  const stored = isStoredAssistantMessage(message)
   let changed = false
   const contentBlocks = message.contentBlocks.map((block) => {
     const toolCall = block.toolCall
-    if (!toolCall?.params || isUnsettledToolState(toolCall.state)) return block
+    if (!toolCall?.params || (!stored && isUnsettledToolState(toolCall.state))) return block
     const params = compactParamRecord(toolCall.params)
     if (params === toolCall.params) return block
     changed = true

@@ -118,6 +118,16 @@ throw e
 Node.js v22.19.0
 `
 
+/** A stackless error whose class keeps its parent's `name`, annotated by Node. */
+const STACKLESS_SUBCLASS_ERROR = `node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+[QuotaExceeded [Error]: over quota] { code: 'E_Q' }
+
+Node.js v22.19.0
+`
+
 const STACKLESS_ERROR_WITH_INLINE_PROPERTIES = `file:///home/user/.sim-function-abc.mjs:1
 throw e
 ^
@@ -168,6 +178,7 @@ describe('processCodeFailure', () => {
     ],
     ['a stackless error with no properties', STACKLESS_RANGE_ERROR, 'RangeError', 'limit hit'],
     ['a stackless plain Error', STACKLESS_PLAIN_ERROR, 'Error', 'plain failure'],
+    ['a stackless error subclass', STACKLESS_SUBCLASS_ERROR, 'QuotaExceeded [Error]', 'over quota'],
     [
       'a stackless error with inline properties',
       STACKLESS_ERROR_WITH_INLINE_PROPERTIES,

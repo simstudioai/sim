@@ -2,15 +2,17 @@ import type { SandboxCodeResult, SandboxCommandResult } from '@/lib/execution/re
 
 /**
  * A top-level error headline in a Python traceback or Node crash report: `Name: message`,
- * Node's `Name [CODE]: message`, or `[NameError: message]` (any inline properties after it)
- * for an error printed without a stack. It starts the line, so the properties Node prints indented beneath an error
- * (`code: 'X'`, `bytesRead: 0`) never match, and a space follows the colon, so
- * source-location headers (`node:internal/x:12`, `file:///x.mjs:3`) don't either. The
- * bracketed form needs an error-type name, since Node brackets other thrown values the
- * same way (`[Object: null prototype] {`, `[Function: handler]`).
+ * Node's `Name [CODE]: message` (or `Class [name]: message` for an error class that keeps
+ * its parent's name), or the same bracketed with any inline properties after it
+ * (`[NameError: message] { … }`) for an error printed without a stack. It starts the line,
+ * so the properties Node prints indented beneath an error (`code: 'X'`, `bytesRead: 0`)
+ * never match, and a space follows the colon, so source-location headers
+ * (`node:internal/x:12`, `file:///x.mjs:3`) don't either. The bracketed form needs an
+ * error-type name or that annotation, since Node brackets other thrown values the same
+ * way (`[Object: null prototype] {`, `[Function: handler]`).
  */
 const ERROR_HEADLINE =
-  /^(?:\[(?:[A-Za-z_$][\w.$]*)?(?:Error|Exception)|[A-Za-z_$][\w.$]*(?: \[[\w.$-]+\])?):(?:\s|$)/
+  /^(?:\[(?:[A-Za-z_$][\w.$]*)?(?:Error|Exception)|\[?[A-Za-z_$][\w.$]* \[[\w.$-]+\]|[A-Za-z_$][\w.$]*):(?:\s|$)/
 
 /**
  * Converts a failed code command into a code result, naming the error from the
