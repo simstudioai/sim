@@ -106,13 +106,13 @@ export async function GET(req: NextRequest) {
       const normalizedMessages = Array.isArray(chat.messages)
         ? chat.messages
             .filter((message): message is Record<string, unknown> => Boolean(message))
-            .map((message) => compactToolCallParams(normalizeMessage(message)))
+            .map(normalizeMessage)
         : []
       const effectiveMessages = buildEffectiveChatTranscript({
         messages: normalizedMessages,
         activeStreamId: chat.conversationId || null,
         ...(streamSnapshot ? { streamSnapshot } : {}),
-      })
+      }).map(compactToolCallParams)
 
       logger.info(`Retrieved chat ${chatId}`)
       return NextResponse.json({

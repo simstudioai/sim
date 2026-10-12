@@ -215,6 +215,68 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     expect(storedParams.stdout).toHaveLength(50_000)
   })
 
+  it('bounds settled tool-call params of the in-flight turn and keeps a running call whole', async () => {
+    const stdout = 'x'.repeat(50_000)
+    mockGetAccessibleCopilotChat.mockResolvedValueOnce({
+      id: 'chat-live',
+      type: 'mothership',
+      title: 'Live',
+      messages: [
+        {
+          id: 'stream-live',
+          role: 'user',
+          content: 'Run it',
+          timestamp: '2026-10-01T12:00:00Z',
+        },
+      ],
+      resources: [],
+      conversationId: 'stream-live',
+      createdAt: new Date('2026-10-01T12:00:00Z'),
+      updatedAt: new Date('2026-10-01T12:00:00Z'),
+    })
+    const toolEvent = (seq: number, payload: Record<string, unknown>) => ({
+      v: 1,
+      type: 'tool',
+      seq,
+      ts: '2026-10-01T12:00:01Z',
+      stream: { streamId: 'stream-live' },
+      payload,
+    })
+    mockReadEvents.mockResolvedValueOnce([
+      toolEvent(1, {
+        phase: 'call',
+        toolCallId: 'tc-done',
+        toolName: 'read',
+        arguments: { path: 'workspace/done.md', stdout },
+      }),
+      toolEvent(2, { phase: 'result', toolCallId: 'tc-done', toolName: 'read', success: true }),
+      toolEvent(3, {
+        phase: 'call',
+        toolCallId: 'tc-running',
+        toolName: 'read',
+        arguments: { path: 'workspace/running.md', stdout },
+      }),
+    ])
+
+    const response = await GET(
+      createRequest('chat-live'),
+      createRouteContext({ chatId: 'chat-live' })
+    )
+    const body = await response.json()
+    const toolParams = Object.fromEntries(
+      body.chat.messages[1].contentBlocks
+        .filter((block: { toolCall?: unknown }) => block.toolCall)
+        .map((block: { toolCall: { id: string; params: Record<string, string> } }) => [
+          block.toolCall.id,
+          block.toolCall.params,
+        ])
+    )
+
+    expect(toolParams['tc-done'].path).toBe('workspace/done.md')
+    expect(toolParams['tc-done'].stdout.length).toBeLessThanOrEqual(1024)
+    expect(toolParams['tc-running'].stdout).toHaveLength(50_000)
+  })
+
   it('clears activeStreamId when the redis lock has expired (stuck-yellow bug)', async () => {
     mockGetAccessibleCopilotChat.mockResolvedValueOnce({
       id: 'chat-stuck',

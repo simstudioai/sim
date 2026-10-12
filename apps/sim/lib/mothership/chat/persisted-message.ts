@@ -22,11 +22,10 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import {
-  type ContentBlock,
-  isTerminalToolCallStatus,
-  type LocalToolCallStatus,
-  type OrchestratorResult,
+import type {
+  ContentBlock,
+  LocalToolCallStatus,
+  OrchestratorResult,
 } from '@/lib/mothership/request/types'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import { normalizeToolActivityDescription } from '@/lib/mothership/tools/tool-display'
@@ -245,7 +244,7 @@ export function compactToolCallParams(message: PersistedMessage): PersistedMessa
   let changed = false
   const contentBlocks = message.contentBlocks.map((block) => {
     const toolCall = block.toolCall
-    if (!toolCall?.params || !isTerminalToolCallStatus(toolCall.state)) return block
+    if (!toolCall?.params || isUnsettledToolState(toolCall.state)) return block
     const params = compactParamRecord(toolCall.params)
     if (params === toolCall.params) return block
     changed = true

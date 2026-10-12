@@ -171,22 +171,30 @@ describe('live resource effects', () => {
     unsubscribe()
   })
 
-  it('restarts a transcript read that began before the effects were stored', async () => {
-    const queryClient = new QueryClient()
-    const server = serverChat()
-    queryClient.setQueryData(detailKey, await server.reads())
-    const staleRead = queryClient.fetchQuery({ queryKey: detailKey, queryFn: server.reads })
+  it.each([
+    { cached: true, label: 'a cached chat' },
+    { cached: false, label: 'a chat loading for the first time' },
+  ])(
+    'restarts a transcript read of $label that began before the effects were stored',
+    async ({ cached }) => {
+      const queryClient = new QueryClient()
+      const server = serverChat()
+      if (cached) queryClient.setQueryData(detailKey, await server.reads())
+      const staleRead = queryClient.fetchQuery({ queryKey: detailKey, queryFn: server.reads })
 
-    server.persistEffects()
-    applyEffects(queryClient)
-    await staleRead.catch(() => undefined)
-    await vi.waitFor(() => expect(queryClient.isFetching({ queryKey: detailKey })).toBe(0))
+      server.persistEffects()
+      applyEffects(queryClient)
+      await staleRead.catch(() => undefined)
 
-    expect(queryClient.getQueryData<MothershipChatHistory>(detailKey)?.resources).toEqual([
-      kept,
-      created,
-    ])
-  })
+      await vi.waitFor(() => {
+        expect(queryClient.isFetching({ queryKey: detailKey })).toBe(0)
+        expect(queryClient.getQueryData<MothershipChatHistory>(detailKey)?.resources).toEqual([
+          kept,
+          created,
+        ])
+      })
+    }
+  )
 })
 
 describe('handleResourceEvent saved-view pins', () => {

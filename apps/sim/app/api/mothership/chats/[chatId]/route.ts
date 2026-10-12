@@ -77,13 +77,13 @@ export const GET = withRouteHandler(
       const normalizedMessages = Array.isArray(chat.messages)
         ? chat.messages
             .filter((message): message is Record<string, unknown> => Boolean(message))
-            .map((message) => compactToolCallParams(normalizeMessage(message)))
+            .map(normalizeMessage)
         : []
       const effectiveMessages = buildEffectiveChatTranscript({
         messages: normalizedMessages,
         activeStreamId: liveStreamId,
         ...(liveTurnSnapshot ? { streamSnapshot: liveTurnSnapshot } : {}),
-      })
+      }).map(compactToolCallParams)
 
       return NextResponse.json({
         success: true,

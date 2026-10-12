@@ -55,7 +55,11 @@ function applyResourceEffect(
     (current) => current && { ...current, resources: update(current.resources) }
   )
   if (queryClient.isFetching({ queryKey, exact: true }) > 0) {
-    void queryClient.refetchQueries({ queryKey, exact: true })
+    // A read with no cached data yet would dedupe a refetch onto itself, so it
+    // is cancelled first; `revert: false` keeps the effect written above.
+    void queryClient
+      .cancelQueries({ queryKey, exact: true }, { revert: false })
+      .then(() => queryClient.refetchQueries({ queryKey, exact: true }))
   }
 }
 

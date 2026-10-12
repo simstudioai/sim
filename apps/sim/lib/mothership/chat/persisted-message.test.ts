@@ -630,6 +630,16 @@ describe('compactToolCallParams', () => {
     }
   )
 
+  it('bounds an interrupted call, which no reload re-runs or asks to approve', () => {
+    const compacted = compactToolCallParams(sandboxCall('interrupted'))
+    const stdout = (
+      compacted.contentBlocks?.[0].toolCall?.params?.request as {
+        invocation: { stdout: string }
+      }
+    ).invocation.stdout
+    expect(stdout.length).toBeLessThanOrEqual(1024)
+  })
+
   it('is idempotent and keeps the reference once compacted', () => {
     const compacted = compactToolCallParams(sandboxCall('error'))
     expect(compactToolCallParams(compacted)).toBe(compacted)
