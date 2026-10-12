@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Runs one end-to-end suite group over real HTTP, each against its own `next dev` app.
+# Runs one end-to-end suite group over real HTTP, each against its own app: `next dev`, except
+# mobile, which serves the production build the `build` job uploads with `next start` (the job
+# extracts it into apps/sim/.next first).
 #
 # Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|mobile>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
 #
-# The first request cold-compiles the app under Turbopack, which takes 42-150s on CI runners, so
-# the readiness deadline only has to catch a hung boot: an exited server fails immediately, and
-# either way the server log tail lands in the job log.
+# Under `next dev` the first request cold-compiles the app under Turbopack, which takes 42-150s on
+# CI runners, so the readiness deadline only has to catch a hung boot: an exited server fails
+# immediately, and either way the server log tail lands in the job log.
 #
 # Each app starts from an empty Turbopack dev cache: a cache written under other NEXT_PUBLIC_*
 # values, by a server that `next dev` SIGKILLs 100ms after SIGTERM, can panic Turbopack or wedge a
@@ -30,13 +32,22 @@ realtime_pid=''
 realtime_tag=''
 realtime_log=''
 browsers_pid=''
+# `dev` or `start`; a group sets it before start_app.
+app_server=dev
 
 finish() {
   local status=$?
   if [ -n "$server_pid" ]; then
     bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$app_tag" || status=1
     wait "$server_pid" 2>/dev/null || true
-    if [ -n "$status_log" ]; then
+    if [ -n "$status_log" ] && [ "$app_server" = start ]; then
+      # `next start` logs no requests; RouteHandler's closing line for each API request carries
+      # its status (an unhandled error's line is a 500 without one) and duration.
+      jq -Rr 'fromjson? | objects | select(.module == "RouteHandler" and .duration != null
+        and ((.path // "") | startswith("/api/")))
+        | "\(.method) \(.path) \(.status // 500) in \(.duration)ms"' \
+        "$server_log" > "$status_log"
+    elif [ -n "$status_log" ]; then
       awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$status_log"
     fi
     if [ "$status" -ne 0 ]; then
@@ -69,9 +80,20 @@ start_app() {
   export NEXT_PUBLIC_APP_URL="http://127.0.0.1:$port"
   export BETTER_AUTH_URL="$NEXT_PUBLIC_APP_URL"
   export DISABLE_TELEMETRY=true NEXT_TELEMETRY_DISABLED=1
-  rm -rf .next/dev
-  E2E_APP="$app_tag" setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
-    --port "$port" > "$server_log" 2>&1 &
+  if [ "$app_server" = start ]; then
+    if [ ! -f .next/BUILD_ID ]; then
+      echo "::error::No production build in apps/sim/.next for next start."
+      exit 1
+    fi
+    # Production logs only errors by default; INFO writes the RouteHandler lines the status log
+    # reads.
+    E2E_APP="$app_tag" LOG_LEVEL=INFO setsid node ../../node_modules/next/dist/bin/next start \
+      --hostname 127.0.0.1 --port "$port" > "$server_log" 2>&1 &
+  else
+    rm -rf .next/dev
+    E2E_APP="$app_tag" setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
+      --port "$port" > "$server_log" 2>&1 &
+  fi
   server_pid=$!
   wait_ready "$server_pid" "$NEXT_PUBLIC_APP_URL/api/health" "$label app"
 }
@@ -189,14 +211,16 @@ case "$group" in
       bun run test:desktop-inbox:e2e
     ;;
 
+  # MOBILE_E2E_BROWSER (chromium or webkit) narrows the job to one browser; unset runs both.
   mobile)
+    app_server=start
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export INTERNAL_API_SECRET=mobile-http-ci-local-secret-at-least-32-characters
-    export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=12288"
     export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3025 SOCKET_SERVER_URL=http://127.0.0.1:3025
+    read -ra browsers <<< "${MOBILE_E2E_BROWSER:-chromium webkit}"
     # The browsers install while the app boots, in their own process group so finish() can stop them.
     browsers_log="$report_dir/mobile-playwright-install.log"
-    setsid --wait bunx --no-install playwright install --with-deps chromium webkit > "$browsers_log" 2>&1 &
+    setsid --wait bunx --no-install playwright install --with-deps "${browsers[@]}" > "$browsers_log" 2>&1 &
     browsers_pid=$!
     start_app mobile 3024 'mobile browser' record-http-status
     start_realtime mobile 3025

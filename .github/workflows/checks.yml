@@ -172,14 +172,14 @@ jobs:
   # The suites exercise HTTP behavior rather than a provisioning path, so they run once, against
   # the production (migrate) path. Each group's app environment lives in http-e2e.sh.
   #
-  # SCIM's hosted suites and the mobile browser matrix use 8 vCPU; the other
-  # self-hosted suites fit on 4.
+  # SCIM's hosted suites use 8 vCPU; the other self-hosted suites fit on 4. The mobile browser
+  # suite runs in e2e-mobile below.
   e2e:
     name: e2e (${{ matrix.group }})
     needs: changes
     if: needs.changes.outputs.full == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.runner || 'ubuntu-latest' }}
-    timeout-minutes: ${{ matrix.group == 'mobile' && 40 || 20 }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -192,8 +192,6 @@ jobs:
             runner: blacksmith-4vcpu-ubuntu-2404
           - group: desktop-inbox
             runner: blacksmith-4vcpu-ubuntu-2404
-          - group: mobile
-            runner: blacksmith-8vcpu-ubuntu-2404
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -248,6 +246,79 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: http-e2e-${{ matrix.group }}
+          path: ${{ runner.temp }}/e2e/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The mobile browser suite against the production build the `build` job uploads, served by
+  # `next start` (http-e2e.sh), one browser per job: Chromium and WebKit no longer run back to
+  # back, and no route waits on a dev compile. Gated like `e2e`, on a build that already ran.
+  #
+  # 8 vCPU: `next start`, Postgres, the realtime server and one Playwright browser would fit a 4
+  # vCPU runner's 16 GB, but the suite is timing-sensitive, and CPU contention between the browser
+  # and the server is what turns a slow tap into a flake.
+  e2e-mobile:
+    name: e2e (mobile, ${{ matrix.browser }})
+    needs: [changes, build]
+    if: needs.changes.outputs.full == 'true'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sim_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
+      BETTER_AUTH_SECRET: http-e2e-ci-secret-at-least-32-characters
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+
+    steps:
+      - *checkout-mirror
+      - *checkout-plain
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+
+      - name: Provision the database through migrations
+        working-directory: packages/db
+        run: bun run db:migrate
+
+      - name: Download the production build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: next-build
+          path: ${{ runner.temp }}
+
+      - name: Extract the production build
+        run: tar -I zstd -xf "$RUNNER_TEMP/next-build.tar.zst" -C apps/sim
+
+      - name: Run end-to-end suites
+        working-directory: apps/sim
+        env:
+          MOBILE_E2E_BROWSER: ${{ matrix.browser }}
+        run: bash ../../.github/scripts/http-e2e.sh mobile
+
+      - name: Upload end-to-end reports and server logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: http-e2e-mobile-${{ matrix.browser }}
           path: ${{ runner.temp }}/e2e/
           if-no-files-found: ignore
           retention-days: 7
@@ -714,7 +785,11 @@ jobs:
       - name: Build application
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
-          NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
+          # What production images bake (docker/app.Dockerfile), so the build e2e-mobile serves is
+          # the one that ships: every route dynamic, NEXT_PUBLIC_* read at start. A content-only
+          # pull request runs no e2e and keeps the hosted value, under which `next build`
+          # prerenders every post: the reason ci-changes.sh runs this job for content.
+          NEXT_PUBLIC_APP_URL: ${{ needs.changes.outputs.full == 'true' && 'http://localhost:3000' || 'https://www.sim.ai' }}
           DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
           STRIPE_SECRET_KEY: 'dummy_key_for_ci_only'
           STRIPE_WEBHOOK_SECRET: 'dummy_secret_for_ci_only'
@@ -723,6 +798,25 @@ jobs:
           ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
         run: bunx turbo run build --filter=@sim/app
+
+      # Everything `next start` reads; node_modules and the source tree come from e2e-mobile's own
+      # checkout and setup, at the same workspace path and lockfile.
+      - name: Package the build for e2e-mobile
+        if: needs.changes.outputs.full == 'true'
+        run: tar -I 'zstd -T0' -cf "$RUNNER_TEMP/next-build.tar.zst" -C apps/sim --exclude .next/cache .next
+
+      # Already zstd-compressed, so stored without zip compression. `overwrite` lets a re-run of
+      # this job replace the earlier attempt's build.
+      - name: Upload the build for e2e-mobile
+        if: needs.changes.outputs.full == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: next-build
+          path: ${{ runner.temp }}/next-build.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+          retention-days: 1
 
   # One status for every check above: the single check to require on a branch ruleset, so adding,
   # sharding or renaming a job never means editing the ruleset. .github/scripts/ci-gate.sh decides:
@@ -733,7 +827,7 @@ jobs:
   # on a cancelled run would report a cancelled head commit as passing.
   ci:
     name: ci
-    needs: [changes, integration, e2e, desktop-live, lint, test, build]
+    needs: [changes, integration, e2e, e2e-mobile, desktop-live, lint, test, build]
     if: ${{ always() }}
     runs-on: *runner-2vcpu
     timeout-minutes: 5
