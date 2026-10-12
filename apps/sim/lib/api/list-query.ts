@@ -6,8 +6,10 @@ import {
   desc,
   eq,
   gt,
+  gte,
   ilike,
   lt,
+  lte,
   or,
   type SQL,
   type SQLWrapper,
@@ -62,6 +64,11 @@ export interface KeysetKey<Row> {
   encode: (row: Row) => CursorKey
   /** The cursor value as bindable SQL, or `null` when this key cannot hold it. */
   bind: (value: CursorKey) => SQL | null
+  /**
+   * Whether a cursor leading with this key also states its inclusive bound — see
+   * {@link keysetAfter}. Set only on a key an index serves in order.
+   */
+  boundsScan?: boolean
 }
 
 /** A text key — names, titles, ids. */
@@ -128,9 +135,9 @@ export function decimalKey<Row>(column: SQLWrapper, read: (row: Row) => string):
  * can express, so the `id` tiebreaker is what actually separates rows inside a
  * millisecond.
  *
- * `date_trunc` rules out an index-ordered scan, but none of the timestamp
- * columns sorted here are indexed, so it costs nothing today. Adding an index
- * to serve one of these sorts means indexing this same expression.
+ * `date_trunc` rules out an index-ordered scan on the column. A list whose
+ * sort an index on the raw column should serve uses {@link preciseTimestampKey}
+ * instead, which orders on the column itself.
  *
  * The column serializes the `Date` (drizzle's own timestamp encoder) and also
  * supplies the cast. A bare placeholder arrives as `unknown` and `date_trunc` is
@@ -150,6 +157,56 @@ export function timestampKey<Row>(column: Column, read: (row: Row) => Date): Key
       const date = new Date(value)
       if (Number.isNaN(date.getTime())) return null
       return sql`date_trunc('milliseconds', cast(${sql.param(date, column)} as ${sql.raw(column.getSQLType())}))`
+    },
+  }
+}
+
+/**
+ * The text spelling a {@link preciseTimestampKey} cursor carries: ISO 8601 in
+ * UTC with all six fractional digits Postgres stores.
+ */
+const PRECISE_TIMESTAMP_CURSOR_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/
+
+/**
+ * A `timestamp` column rendered as a {@link preciseTimestampKey} cursor value.
+ *
+ * Select it next to the column so each row carries its own full-precision
+ * position. Only for a `timestamp` (without time zone) column, which holds UTC
+ * wall-clock time: `to_char` renders a `timestamptz` in the session time zone,
+ * which the trailing `Z` would misstate.
+ */
+export function preciseTimestampText(column: Column): SQL<string> {
+  return sql<string>`to_char(${column}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
+}
+
+/**
+ * A `timestamp` key ordered and compared on the raw column at full microsecond
+ * precision, so an index on the column serves the sort.
+ *
+ * {@link timestampKey} truncates to milliseconds because its cursor value comes
+ * from a JS `Date`; this key instead reads the row's {@link preciseTimestampText}
+ * value, so the cursor names the exact stored instant and the raw ordering needs
+ * no truncation. `timestamp` input ignores the trailing `Z`.
+ *
+ * A cursor value must spell a real instant. The pattern alone admits
+ * `2026-02-30`, which Postgres rejects with a 500 rather than a 400, so the
+ * millisecond prefix has to survive a `Date` round trip unchanged; year 0 parses
+ * in JS but not in Postgres.
+ */
+export function preciseTimestampKey<Row>(
+  column: Column,
+  read: (row: Row) => string
+): KeysetKey<Row> {
+  return {
+    expr: column,
+    encode: read,
+    boundsScan: true,
+    bind: (value) => {
+      if (typeof value !== 'string' || !PRECISE_TIMESTAMP_CURSOR_PATTERN.test(value)) return null
+      const date = new Date(value)
+      if (Number.isNaN(date.getTime()) || date.getUTCFullYear() < 1) return null
+      if (date.toISOString().slice(0, 23) !== value.slice(0, 23)) return null
+      return sql`cast(${value} as timestamp)`
     },
   }
 }
@@ -233,6 +290,12 @@ export function keysetPage<Row>(
  * direction, expanded lexicographically so ties on a leading key fall through
  * to the next one.
  *
+ * When the leading key {@link KeysetKey.boundsScan | bounds the scan}, the
+ * cursor also carries that key's inclusive bound, which the expansion already
+ * implies. Postgres cannot derive a range from an `OR`, so without it an index
+ * on the leading key starts every page at the top of the list and filters its
+ * way down to the cursor.
+ *
  * Returns `null` when the cursor does not fit this sort — wrong number of keys,
  * or a value the key cannot hold. Callers render that as a 400 rather than
  * paging from a nonsense position.
@@ -255,5 +318,9 @@ export function keysetAfter<Row>(
   const clauses = keys.map((key, i) =>
     and(...keys.slice(0, i).map((prior, j) => eq(prior.expr, bound[j])), beyond(key.expr, bound[i]))
   )
-  return or(...clauses) ?? null
+  const after = or(...clauses)
+  if (!after) return null
+  if (keys.length === 1 || !keys[0].boundsScan) return after
+  const atOrBeyond = order === 'asc' ? gte : lte
+  return and(atOrBeyond(keys[0].expr, bound[0]), after) ?? null
 }

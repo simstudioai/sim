@@ -14,6 +14,7 @@ import {
   keysetAfter,
   listOrderBy,
   numberKey,
+  preciseTimestampKey,
   searchFilter,
   textKey,
   timestampKey,
@@ -105,6 +106,41 @@ describe('timestampKey', () => {
   it('rejects a cursor value that is not a parseable timestamp', () => {
     expect(createdKey.bind('not-a-date')).toBeNull()
     expect(createdKey.bind(1700000000000)).toBeNull()
+  })
+})
+
+describe('preciseTimestampKey', () => {
+  const preciseKey = preciseTimestampKey<{ at: string }>(thing.createdAt, (r) => r.at)
+
+  it('binds the cursor at full precision', () => {
+    const { sql: text, params } = render(preciseKey.bind('2024-01-01T00:00:00.123456Z')!)
+
+    expect(text).toBe('cast($1 as timestamp)')
+    expect(params).toEqual(['2024-01-01T00:00:00.123456Z'])
+  })
+
+  /** Without the range, an index on the column starts every page at the top and filters down to the cursor. */
+  it('states the leading inclusive bound so an index range starts at the cursor', () => {
+    const { sql: text } = render(
+      keysetAfter(
+        [preciseKey, textKey(thing.id, () => '')],
+        ['2024-01-01T00:00:00.123456Z', 'x'],
+        'desc'
+      )!
+    )
+
+    expect(text.startsWith('("thing"."created_at" <= cast($1 as timestamp) and (')).toBe(true)
+  })
+
+  /** A cursor is caller-controlled, and each of these would reach the cast and 500. */
+  it.each([
+    ['a millisecond cursor', '2024-01-01T00:00:00.123Z'],
+    ['an impossible calendar day', '2024-02-30T00:00:00.000000Z'],
+    ['an impossible clock time', '2024-01-01T24:00:00.000000Z'],
+    ['year zero', '0000-01-01T00:00:00.000000Z'],
+    ['a non-string value', 1700000000000],
+  ])('rejects %s', (_case, value) => {
+    expect(preciseKey.bind(value)).toBeNull()
   })
 })
 

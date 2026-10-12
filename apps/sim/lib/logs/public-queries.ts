@@ -8,11 +8,13 @@ import {
   workflowExecutionLogs,
   workflowExecutionSnapshots,
 } from '@sim/db/schema'
+import { compareStrings } from '@sim/utils/string'
 import { and, type Column, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import {
   type CursorKey,
   decimalKey,
+  encodeKeyset,
   type KeysetKey,
   type KeysetPage,
   keysetColumns,
@@ -20,6 +22,8 @@ import {
   type ListSortOrder,
   listOrderBy,
   numberKey,
+  preciseTimestampKey,
+  preciseTimestampText,
   resumeKeyset,
   textKey,
   timestampKey,
@@ -112,6 +116,7 @@ function workflowLogQuery(includeExecutionData: boolean) {
       level: workflowExecutionLogs.level,
       trigger: workflowExecutionLogs.trigger,
       startedAt: workflowExecutionLogs.startedAt,
+      startedAtCursor: preciseTimestampText(workflowExecutionLogs.startedAt),
       endedAt: workflowExecutionLogs.endedAt,
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       costTotal: workflowExecutionLogs.costTotal,
@@ -148,6 +153,7 @@ function jobLogQuery() {
       level: jobExecutionLogs.level,
       trigger: jobExecutionLogs.trigger,
       startedAt: jobExecutionLogs.startedAt,
+      startedAtCursor: preciseTimestampText(jobExecutionLogs.startedAt),
       endedAt: jobExecutionLogs.endedAt,
       totalDurationMs: jobExecutionLogs.totalDurationMs,
       cost: jobExecutionLogs.cost,
@@ -175,17 +181,27 @@ export type PublicLogListRow =
  * read under, so the page boundary and its cursor mean the same thing whether or
  * not job runs were included.
  *
- * The comparison is at millisecond precision because that is the precision the
- * keyset orders and compares at — see {@link timestampKey}. Anything finer would
- * put the merged order out of step with the boundary the cursor names.
+ * Rows compare by the cursor values `keys` mints for them, so the merge runs at
+ * exactly the precision the branches ordered and compared at. Every
+ * `startedAt` keyset value is a fixed-width UTC ISO string, which orders
+ * chronologically as text.
  */
-function mergeByKeyset(rows: PublicLogListRow[], order: ListSortOrder): PublicLogListRow[] {
+function mergeByKeyset(
+  rows: PublicLogListRow[],
+  keys: readonly KeysetKey<PublicLogListRow>[],
+  order: ListSortOrder
+): PublicLogListRow[] {
   const direction = order === 'asc' ? 1 : -1
-  return rows.sort((a, b) => {
-    const byTime = a.startedAt.getTime() - b.startedAt.getTime()
-    if (byTime !== 0) return direction * byTime
-    return direction * (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-  })
+  return rows
+    .map((row) => ({ row, position: encodeKeyset(keys, row).map(String) }))
+    .sort((a, b) => {
+      for (const [i, value] of a.position.entries()) {
+        const byKey = compareStrings(value, b.position[i])
+        if (byKey !== 0) return direction * byKey
+      }
+      return 0
+    })
+    .map(({ row }) => row)
 }
 
 /** The columns `GET /api/v2/logs` can order by. */
@@ -222,21 +238,39 @@ const UNSETTLED_COST_VALUE = String(UNSETTLED_SORT_VALUE)
  */
 type PublicLogKeysetRow = Pick<
   PublicWorkflowLogListRow,
-  'id' | 'status' | 'startedAt' | 'totalDurationMs' | 'costTotal'
+  'id' | 'status' | 'startedAt' | 'startedAtCursor' | 'totalDurationMs' | 'costTotal'
 >
+
+/** How `Date.toISOString()` spells an instant: the cursor value earlier releases minted. */
+const MILLISECOND_CURSOR_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 
 /**
  * The `(startedAt, id)` keyset, over whichever table's columns are given.
  *
  * Both log tables are ordered by it, and both spell it identically, so the
  * merged sequence a unioned page returns resumes from one set of cursor keys.
+ *
+ * It orders on the raw column so the `(workspace_id, started_at)` and
+ * `(workflow_id, started_at)` indexes serve the sort and a page reads only its
+ * own rows. A cursor minted before that carries a millisecond value and was
+ * read under millisecond-truncated ordering, where rows sharing a millisecond
+ * fall in `id` order rather than stored order. Resuming one under the raw
+ * ordering would skip or repeat rows inside that millisecond, so it keeps the
+ * truncated keyset it was minted under, and so does every cursor that page
+ * mints, until the walk ends.
  */
-function startedAtKeyset<Row extends { id: string; startedAt: Date }>(
+function startedAtKeyset<Row extends { id: string; startedAt: Date; startedAtCursor: string }>(
   startedAtColumn: Column,
-  idColumn: Column
+  idColumn: Column,
+  cursorKeys: CursorKey[] | undefined
 ): KeysetKey<Row>[] {
+  const resumedStartedAt = cursorKeys?.[0]
+  const resumesMillisecondCursor =
+    typeof resumedStartedAt === 'string' && MILLISECOND_CURSOR_PATTERN.test(resumedStartedAt)
   return [
-    timestampKey<Row>(startedAtColumn, (row) => row.startedAt),
+    resumesMillisecondCursor
+      ? timestampKey<Row>(startedAtColumn, (row) => row.startedAt)
+      : preciseTimestampKey<Row>(startedAtColumn, (row) => row.startedAtCursor),
     textKey<Row>(idColumn, (row) => row.id),
   ]
 }
@@ -249,7 +283,8 @@ function startedAtKeyset<Row extends { id: string; startedAt: Date }>(
  * it the page boundary repeats or drops the tied rows.
  */
 function publicLogKeyset<Row extends PublicLogKeysetRow>(
-  sortBy: PublicLogSortField
+  sortBy: PublicLogSortField,
+  cursorKeys: CursorKey[] | undefined
 ): KeysetKey<Row>[] {
   const idKey = textKey<Row>(workflowExecutionLogs.id, (row) => row.id)
   switch (sortBy) {
@@ -272,7 +307,11 @@ function publicLogKeyset<Row extends PublicLogKeysetRow>(
     case 'status':
       return [textKey<Row>(workflowExecutionLogs.status, (row) => row.status), idKey]
     default:
-      return startedAtKeyset<Row>(workflowExecutionLogs.startedAt, workflowExecutionLogs.id)
+      return startedAtKeyset<Row>(
+        workflowExecutionLogs.startedAt,
+        workflowExecutionLogs.id,
+        cursorKeys
+      )
   }
 }
 
@@ -334,7 +373,7 @@ function readJobLogRows(
 export async function readPublicLogPage(
   input: ReadPublicLogPageInput
 ): Promise<KeysetPage<PublicLogListRow>> {
-  const keys = publicLogKeyset<PublicWorkflowLogListRow>(input.sortBy)
+  const keys = publicLogKeyset<PublicWorkflowLogListRow>(input.sortBy, input.cursorKeys)
 
   // `folderScope` is checked separately from `jobLogsSelectable`, which reads
   // `filters.folderIds`. The public surface never sets that field — its input
@@ -353,7 +392,11 @@ export async function readPublicLogPage(
     includeJobRuns
       ? readJobLogRows(
           input,
-          startedAtKeyset<PublicJobLogListRow>(jobExecutionLogs.startedAt, jobExecutionLogs.id)
+          startedAtKeyset<PublicJobLogListRow>(
+            jobExecutionLogs.startedAt,
+            jobExecutionLogs.id,
+            input.cursorKeys
+          )
         )
       : Promise.resolve([] as PublicJobLogListRow[]),
   ])
@@ -366,18 +409,20 @@ export async function readPublicLogPage(
     }
   }
 
+  const mergedKeys = startedAtKeyset<PublicLogListRow>(
+    workflowExecutionLogs.startedAt,
+    workflowExecutionLogs.id,
+    input.cursorKeys
+  )
   const merged = mergeByKeyset(
     [
       ...workflowRows.map((row): PublicLogListRow => ({ kind: 'workflow', ...row })),
       ...jobRows.map((row): PublicLogListRow => ({ kind: 'job', ...row })),
     ],
+    mergedKeys,
     input.sortOrder
   )
-  return keysetPage(
-    startedAtKeyset<PublicLogListRow>(workflowExecutionLogs.startedAt, workflowExecutionLogs.id),
-    merged,
-    input.limit
-  )
+  return keysetPage(mergedKeys, merged, input.limit)
 }
 
 /**
