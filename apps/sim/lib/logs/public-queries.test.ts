@@ -57,6 +57,7 @@ describe('v1 cursor admission', () => {
 
   it('pages from a precise cursor', async () => {
     const cursor = decode('2024-01-01T00:00:00.123456Z')
+    expect(cursor).not.toBeNull()
 
     await expect(
       listPublicWorkflowLogs({
