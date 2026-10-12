@@ -311,7 +311,7 @@ jobs:
       - name: Extract the production build
         run: |
           tar -I zstd -xf "$RUNNER_TEMP/next-build.tar.zst" -C apps/sim
-          jq -e '.routes | keys | any(startswith("/blog/")) | not' \
+          jq -e '[.routes[].srcRoute] | any(. == "/blog/[slug]" or . == "/library/[slug]") | not' \
             apps/sim/.next/prerender-manifest.json > /dev/null ||
             { echo "::error::The build prerendered posts (a hosted build) or has no prerender manifest."; exit 1; }
 
