@@ -6,7 +6,7 @@ date: 2026-10-12
 updated: 2026-10-12
 authors:
   - andrew
-readingTime: 14
+readingTime: 15
 tags: [AI Agents, RAG, Knowledge Management, Confluence, Sim]
 ogImage: /library/confluence-knowledge-base-ai-agent-guide/cover.jpg
 draft: false
@@ -186,6 +186,36 @@ The retrieval response should be structured rather than returned as one unbounde
 - Retrieval or reranking score.
 
 The agent should never receive passages filtered out by the authorization layer.
+
+### What does a minimal Sim workflow look like?
+
+A minimal Sim workflow can use **Start → API → Condition → Agent → Response**. Configure the deployed API to accept a question only after the caller has been authenticated, then map the verified identity into the Start input alongside the question. The API block sends both values to the controlled retrieval service:
+
+```json
+{
+  "question": "<start.question>",
+  "userId": "<start.userId>",
+  "groups": "<start.groups>"
+}
+```
+
+The retrieval service, not the caller or the model, applies Confluence permissions. It can return a response shaped like this:
+
+```json
+{
+  "passages": [
+    {
+      "text": "Purchases above the policy threshold require manager approval.",
+      "title": "Expense Policy",
+      "url": "/wiki/spaces/FIN/pages/123/Expense+Policy",
+      "heading": "Approvals",
+      "modifiedAt": "2026-10-01T09:00:00Z"
+    }
+  ]
+}
+```
+
+Use a Condition block to send non-success API statuses or an empty `passages` array to the no-answer path. On the success path, map `<start.question>` and `<api.data.passages>` into the Agent block. In its instructions, require every claim to use those passages and every citation to reproduce a returned `title` and `url`. Set a response format with an `answer` string and a `citations` array, then map `<agent.answer>` and `<agent.citations>` into the Response block. This keeps authenticated identity at the retrieval boundary while giving the model only authorized evidence and citation metadata.
 
 ### How should the Sim workflow generate the answer?
 
