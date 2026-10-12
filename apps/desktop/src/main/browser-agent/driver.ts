@@ -1802,6 +1802,36 @@ function navigationRescue(
   }
 }
 
+/**
+ * A page that closes itself from the click's own handler (a sign-in popup's Allow that calls
+ * window.close()) can destroy its tab before Chromium acknowledges the release, and Electron then
+ * rejects the pending input command with "target closed while handling command" although the press
+ * landed. The same click otherwise reads as a failed dispatch whenever the close wins that race.
+ */
+function closedTabRescue(
+  contents: WebContents,
+  error: unknown,
+  base: { trusted: boolean; activation: string }
+): Record<string, unknown> | null {
+  if (!contents.isDestroyed() && !getErrorMessage(error).includes('target closed')) return null
+  const activeTab = session.automationTab()
+  const nowActive = activeTab && activeTab.view.webContents !== contents ? activeTab : null
+  return {
+    dispatched: true,
+    trusted: base.trusted,
+    activation: base.activation,
+    effectObserved: true,
+    possibleEffectObserved: true,
+    closedDuringDispatch: true,
+    effect: { tabChanged: true },
+    dialogs: [],
+    ...(nowActive
+      ? { activeTab: { tabId: nowActive.id, url: nowActive.view.webContents.getURL() } }
+      : {}),
+    note: 'The tab closed while the click was being delivered, which is how a page that closes itself in response (a sign-in or permission popup) ends; that is why no postconditions are reported. Take a fresh browser_snapshot of the tab that is now active.',
+  }
+}
+
 function assertActiveContents(contents: WebContents, expectedNavigationEpoch?: number): void {
   const active = session.automationTab()
   if (
@@ -3296,10 +3326,10 @@ async function executeToolInner(
           trusted = true
           activation = 'native-pointer'
         } catch (error) {
-          const rescued = navigationRescue(contents, epochAtDispatch, urlAtDispatch, {
-            trusted: true,
-            activation: 'native-pointer',
-          })
+          const nativePointer = { trusted: true, activation: 'native-pointer' }
+          const rescued =
+            navigationRescue(contents, epochAtDispatch, urlAtDispatch, nativePointer) ??
+            closedTabRescue(contents, error, nativePointer)
           if (rescued) return rescued
           throw new ToolError(
             `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
@@ -3338,10 +3368,10 @@ async function executeToolInner(
             activation = 'native-pointer'
             prepared = finalSurface
           } catch (error) {
-            const rescued = navigationRescue(contents, epochAtDispatch, urlAtDispatch, {
-              trusted: true,
-              activation: 'native-pointer',
-            })
+            const nativePointer = { trusted: true, activation: 'native-pointer' }
+            const rescued =
+              navigationRescue(contents, epochAtDispatch, urlAtDispatch, nativePointer) ??
+              closedTabRescue(contents, error, nativePointer)
             if (rescued) return rescued
             throw new ToolError(
               `Native framed click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
@@ -4763,10 +4793,10 @@ async function executeToolInner(
       try {
         await cdp.clickAt(contents, x, y, true, click, signal)
       } catch (error) {
-        const rescued = navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, {
-          trusted: true,
-          activation: 'native-pointer',
-        })
+        const nativePointer = { trusted: true, activation: 'native-pointer' }
+        const rescued =
+          navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, nativePointer) ??
+          closedTabRescue(contents, error, nativePointer)
         if (rescued) return rescued
         throw new ToolError(
           `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
