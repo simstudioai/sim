@@ -127,6 +127,18 @@ throw e
 Node.js v22.19.0
 `
 
+const STACKLESS_MULTILINE_ERROR = `file:///home/user/.sim-function-abc.mjs:1
+throw e
+^
+
+[TypeError: first line
+second line] {
+  code: 'E2'
+}
+
+Node.js v22.19.0
+`
+
 const PYTHON_TRACEBACK = `Traceback (most recent call last):
   File "/home/user/.sim-function-abc.py", line 2, in <module>
     raise QuotaExceeded('over quota')
@@ -162,6 +174,7 @@ describe('processCodeFailure', () => {
       'TypeError',
       'bad thing',
     ],
+    ['a stackless multiline error', STACKLESS_MULTILINE_ERROR, 'TypeError', 'first line'],
     ['a thrown string', THROWN_STRING, 'Error', 'Execution failed'],
     ['a thrown null-prototype object', THROWN_NULL_PROTOTYPE_OBJECT, 'Error', 'Execution failed'],
     ['a thrown function', THROWN_FUNCTION, 'Error', 'Execution failed'],

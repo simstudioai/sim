@@ -18,12 +18,14 @@ const ERROR_HEADLINE =
  */
 export function processCodeFailure(result: SandboxCommandResult): SandboxCodeResult {
   const traceback = result.stderr || result.stdout
-  const errorLine = traceback
+  const headline = traceback
     .split('\n')
     .reverse()
     .find((line) => ERROR_HEADLINE.test(line))
-    ?.replace(/^\[(.*?)\](?: \{.*)?$/, '$1')
-    .trim()
+  // A bracketed headline closes on this line, or on a later one for a multiline message.
+  const errorLine = (
+    headline?.startsWith('[') ? headline.slice(1).replace(/\](?: \{.*)?$/, '') : headline
+  )?.trim()
   const separator = errorLine?.indexOf(':') ?? -1
   const parsedErrorLine = errorLine ?? ''
   const name = separator > 0 ? parsedErrorLine.slice(0, separator) : 'Error'
