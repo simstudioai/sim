@@ -4622,7 +4622,6 @@
   "apps/sim/lib/knowledge/connectors/sync-database-retry.ts#RUN_HISTORY_LOCK_TIMEOUT_MS",
   "apps/sim/lib/knowledge/connectors/sync-database-retry.ts#RUN_HISTORY_STATEMENT_TIMEOUT_MS",
   "apps/sim/lib/knowledge/connectors/sync-engine.ts#ConnectorCredentialRevokedError",
-  "apps/sim/lib/knowledge/connectors/sync-primitives.ts#contentHashMatch",
   "apps/sim/lib/knowledge/constants.ts#BooleanTagSlot",
   "apps/sim/lib/knowledge/constants.ts#DateTagSlot",
   "apps/sim/lib/knowledge/constants.ts#NumberTagSlot",
