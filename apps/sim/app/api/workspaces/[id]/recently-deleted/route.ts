@@ -42,13 +42,13 @@ export const GET = defineInternalJsonRoute({
     ),
   }),
   useCase: listRecentlyDeleted,
-  present: ({ items, nextCursorKeys }, { params, query }) => ({
+  present: ({ items, nextCursorKeys }, { input }) => ({
     items,
     nextCursor: writeSortedCursor(
       nextCursorKeys,
-      query.sortBy,
-      query.sortOrder,
-      cursorScope(params.id, query.type, query.search)
+      input.sortBy,
+      input.sortOrder,
+      cursorScope(input.workspaceId, input.filter, input.search)
     ),
   }),
 })

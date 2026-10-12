@@ -32,7 +32,7 @@ export const RECENTLY_DELETED_FILTERS = [
 
 export const RECENTLY_DELETED_SORT_COLUMNS = ['deleted', 'name', 'type'] as const
 
-export const RECENTLY_DELETED_PAGE_SIZE = 50
+const RECENTLY_DELETED_PAGE_SIZE = 50
 
 const recentlyDeletedItemSchema = z.object({
   id: z.string(),

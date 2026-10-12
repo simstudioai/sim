@@ -288,7 +288,7 @@ const ResourceTable = memo(function ResourceTable({
   emptyState,
 }: ResourceTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const loadMoreRef = useLoadMoreSentinel(onLoadMore, Boolean(hasMore))
+  const loadMoreRef = useLoadMoreSentinel({ onLoadMore, enabled: Boolean(hasMore) })
 
   const showEmptyState = rows.length === 0 && Boolean(emptyState)
 

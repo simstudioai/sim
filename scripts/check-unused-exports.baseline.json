@@ -572,8 +572,6 @@
   "apps/sim/app/workspace/[workspaceId]/settings/components/mothership/search-params.ts#MOTHERSHIP_ENVIRONMENTS",
   "apps/sim/app/workspace/[workspaceId]/settings/components/mothership/search-params.ts#MOTHERSHIP_TABS",
   "apps/sim/app/workspace/[workspaceId]/settings/components/mothership/search-params.ts#MothershipEnvironmentParam",
-  "apps/sim/app/workspace/[workspaceId]/settings/components/recently-deleted/search-params.ts#RECENTLY_DELETED_SORT_COLUMNS",
-  "apps/sim/app/workspace/[workspaceId]/settings/components/recently-deleted/search-params.ts#RECENTLY_DELETED_TABS",
   "apps/sim/app/workspace/[workspaceId]/settings/components/settings-header/settings-header.tsx#SettingsBackAction",
   "apps/sim/app/workspace/[workspaceId]/settings/components/settings-header/settings-header.tsx#SettingsHeaderConfig",
   "apps/sim/app/workspace/[workspaceId]/settings/components/settings-header/settings-header.tsx#SettingsHeaderSearch",

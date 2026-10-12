@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react'
 import { Chip, ChipInput, ChipModalTabs } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
-import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -27,7 +26,10 @@ import {
   recentlyDeletedSortParams,
   recentlyDeletedUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/search-params'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   RESOURCE_LIST_STACK,
@@ -232,9 +234,13 @@ export function RecentlyDeleted() {
   const restoreWorkspaceFileFolder = useRestoreWorkspaceFileFolder()
   const restoreChat = useRestoreMothershipChat(workspaceId)
 
-  const { hasNextPage, isFetchingNextPage, fetchNextPage, isLoading, error } = deletedQuery
+  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage, isLoading, error } =
+    deletedQuery
 
-  const loadMoreRef = useLoadMoreSentinel(fetchNextPage, hasNextPage && !isFetchingNextPage)
+  const loadMoreRef = useLoadMoreSentinel({
+    onLoadMore: fetchNextPage,
+    enabled: hasNextPage && !isFetchingNextPage && !isFetchNextPageError,
+  })
 
   const filtered = useMemo(() => {
     const items: DeletedResource[] = (deletedQuery.data?.pages ?? []).flatMap((page) =>
@@ -374,10 +380,13 @@ export function RecentlyDeleted() {
         onChange={(v) => setRecentlyDeletedFilters({ tab: v as RecentlyDeletedFilter })}
       />
 
-      {error ? (
-        <SettingsEmptyState>
-          {toError(error).message || 'Failed to load deleted items'}
-        </SettingsEmptyState>
+      {error && !deletedQuery.data ? (
+        <SettingsQueryErrorState
+          error={error}
+          fallback='Failed to load deleted items'
+          isRetrying={deletedQuery.isFetching}
+          onRetry={() => void deletedQuery.refetch()}
+        />
       ) : isLoading && filtered.length === 0 ? null : filtered.length === 0 ? (
         showNoResults ? (
           <SettingsEmptyState variant='inline'>
@@ -435,7 +444,17 @@ export function RecentlyDeleted() {
               />
             )
           })}
-          <div ref={loadMoreRef} aria-hidden />
+          {isFetchNextPageError ? (
+            <SettingsQueryErrorState
+              error={error}
+              fallback='Failed to load more deleted items'
+              isRetrying={isFetchingNextPage}
+              onRetry={() => void fetchNextPage()}
+              variant='inline'
+            />
+          ) : (
+            <div ref={loadMoreRef} aria-hidden />
+          )}
         </div>
       )}
     </SettingsPanel>

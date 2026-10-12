@@ -161,7 +161,7 @@ function deletedSources(options: ListRecentlyDeletedOptions): DeletedSource[] {
         'chat',
         sql`${copilotChats}`,
         {
-          id: sql`${copilotChats.id}`,
+          id: sql`${copilotChats.id}::text`,
           name: sql`coalesce(${copilotChats.title}, 'New chat')`,
           deletedAt: sql`${copilotChats.deletedAt}`,
         },

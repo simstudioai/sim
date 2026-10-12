@@ -12,6 +12,8 @@ import type { ListSortOrder } from '@/lib/api/list-query'
 export const recentlyDeletedKeys = {
   all: ['recentlyDeleted'] as const,
   lists: () => [...recentlyDeletedKeys.all, 'list'] as const,
+  /** Every list in one workspace — the scope a previous page may be carried within. */
+  workspaceLists: (workspaceId: string) => [...recentlyDeletedKeys.lists(), workspaceId] as const,
   list: (
     workspaceId: string,
     filter: RecentlyDeletedFilter,
@@ -19,5 +21,11 @@ export const recentlyDeletedKeys = {
     sortBy: RecentlyDeletedSortColumn,
     sortOrder: ListSortOrder
   ) =>
-    [...recentlyDeletedKeys.lists(), workspaceId, filter, search ?? '', sortBy, sortOrder] as const,
+    [
+      ...recentlyDeletedKeys.workspaceLists(workspaceId),
+      filter,
+      search ?? '',
+      sortBy,
+      sortOrder,
+    ] as const,
 }
