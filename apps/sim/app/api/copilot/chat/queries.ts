@@ -11,7 +11,7 @@ import {
   type LiveTurnSnapshot,
   readLiveTurnSnapshot,
 } from '@/lib/mothership/chat/live-turn-snapshot'
-import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
+import { compactToolCallParams, normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -106,7 +106,7 @@ export async function GET(req: NextRequest) {
       const normalizedMessages = Array.isArray(chat.messages)
         ? chat.messages
             .filter((message): message is Record<string, unknown> => Boolean(message))
-            .map(normalizeMessage)
+            .map((message) => compactToolCallParams(normalizeMessage(message)))
         : []
       const effectiveMessages = buildEffectiveChatTranscript({
         messages: normalizedMessages,

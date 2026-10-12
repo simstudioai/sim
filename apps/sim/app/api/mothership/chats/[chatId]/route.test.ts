@@ -170,6 +170,51 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     }
   )
 
+  it('serves settled tool-call params bounded without mutating the loaded row', async () => {
+    const storedParams = { path: 'workspace/notes.md', stdout: 'x'.repeat(50_000) }
+    mockGetAccessibleCopilotChat.mockResolvedValueOnce({
+      id: 'chat-heavy',
+      type: 'mothership',
+      title: 'Heavy',
+      messages: [
+        {
+          id: 'assistant-heavy',
+          role: 'assistant',
+          content: '',
+          timestamp: '2026-10-01T12:00:00Z',
+          contentBlocks: [
+            {
+              type: 'tool',
+              phase: 'call',
+              toolCall: {
+                id: 'call-read',
+                name: 'read',
+                state: 'success',
+                params: storedParams,
+                result: { success: true },
+              },
+            },
+          ],
+        },
+      ],
+      resources: [],
+      conversationId: null,
+      createdAt: new Date('2026-10-01T12:00:00Z'),
+      updatedAt: new Date('2026-10-01T12:00:00Z'),
+    })
+
+    const response = await GET(
+      createRequest('chat-heavy'),
+      createRouteContext({ chatId: 'chat-heavy' })
+    )
+    const body = await response.json()
+    const params = body.chat.messages[0].contentBlocks[0].toolCall.params
+
+    expect(params.path).toBe('workspace/notes.md')
+    expect(params.stdout.length).toBeLessThanOrEqual(1024)
+    expect(storedParams.stdout).toHaveLength(50_000)
+  })
+
   it('clears activeStreamId when the redis lock has expired (stuck-yellow bug)', async () => {
     mockGetAccessibleCopilotChat.mockResolvedValueOnce({
       id: 'chat-stuck',

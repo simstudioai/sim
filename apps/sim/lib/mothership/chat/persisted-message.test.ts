@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { copilotChatStopBodySchema } from '@/lib/api/contracts/copilot'
+import type { PersistedToolState } from '@/lib/api/contracts/copilot-messages'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
+import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
+  compactToolCallParams,
   normalizeMessage,
   type PersistedMessage,
   stripToolResultOutput,
@@ -553,6 +556,83 @@ describe('persisted-message', () => {
         },
       },
     ])
+  })
+})
+
+describe('compactToolCallParams', () => {
+  const sandboxCall = (state: PersistedToolState): PersistedMessage => ({
+    id: 'msg-sandbox',
+    role: 'assistant',
+    content: '',
+    timestamp: '2026-01-01T00:00:00.000Z',
+    contentBlocks: [
+      {
+        type: 'tool',
+        phase: 'call',
+        toolCall: {
+          id: 'call-read',
+          name: 'cli_files_read',
+          state,
+          params: {
+            activity: { title: 'Reading notes' },
+            request: {
+              invocation: {
+                kind: 'cli',
+                argv: ['files', 'read', 'workspace/notes.md', '--lines', '40'],
+                stdout: 'x'.repeat(200_000),
+              },
+              timeoutMs: 30_000,
+              approved: true,
+            },
+            steps: [{ code: 'y'.repeat(5_000), label: 'step one' }],
+          },
+          result: { success: state === 'success' },
+        },
+      },
+    ],
+  })
+
+  it('bounds every bulk string of a settled call without changing what renders', () => {
+    const original = sandboxCall('success')
+    const before = original.contentBlocks?.[0].toolCall?.params
+    const after = compactToolCallParams(original).contentBlocks?.[0].toolCall?.params
+    const strings = (value: unknown): string[] =>
+      typeof value === 'string'
+        ? [value]
+        : Array.isArray(value)
+          ? value.flatMap(strings)
+          : value && typeof value === 'object'
+            ? Object.values(value).flatMap(strings)
+            : []
+
+    expect(getToolDisplayTitle('cli_files_read', after)).toBe('Reading notes.md')
+    expect(getToolDisplayTitle('cli_files_read', after)).toBe(
+      getToolDisplayTitle('cli_files_read', before)
+    )
+    expect(Math.max(...strings(after).map((value) => value.length))).toBeLessThanOrEqual(1024)
+    expect(JSON.stringify(after).length).toBeLessThan(JSON.stringify(before).length / 50)
+    expect(after).toMatchObject({
+      activity: { title: 'Reading notes' },
+      request: {
+        invocation: { kind: 'cli', argv: ['files', 'read', 'workspace/notes.md', '--lines', '40'] },
+        timeoutMs: 30_000,
+        approved: true,
+      },
+      steps: [{ label: 'step one' }],
+    })
+  })
+
+  it.each(['pending', 'executing', 'awaiting_approval'] as const)(
+    'keeps a %s call whole: it can still run or await approval from these params',
+    (state) => {
+      const message = sandboxCall(state)
+      expect(compactToolCallParams(message)).toBe(message)
+    }
+  )
+
+  it('is idempotent and keeps the reference once compacted', () => {
+    const compacted = compactToolCallParams(sandboxCall('error'))
+    expect(compactToolCallParams(compacted)).toBe(compacted)
   })
 })
 
