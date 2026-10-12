@@ -2263,8 +2263,8 @@ export async function executeMemberSync(
         sourceConfig,
       })
 
-      /** A service-account pass already removed disabled images; member listings do it here. */
-      if (!serviceContent) {
+      /** A content pass that ran already removed disabled images; otherwise it happens here. */
+      if (!(connector.credentialId && contentDue)) {
         await removeDisabledImages({
           connectorId,
           connector,

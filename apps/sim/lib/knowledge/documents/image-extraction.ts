@@ -11,6 +11,7 @@ import { resolveProviderKey } from '@/lib/embeddings/keys'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import {
   GeminiImageExtractionError,
+  type GeminiImageExtractionResponse,
   requestGeminiImageExtraction,
 } from '@/lib/knowledge/documents/image-extraction-gemini'
 import {
@@ -314,6 +315,34 @@ async function prepareModelImage(
   }
 }
 
+/**
+ * The validated extraction in one reply. A cut-off or empty reply is deterministic for
+ * this image and model, so it fails permanently rather than paying for the same result.
+ */
+function readExtraction(response: GeminiImageExtractionResponse): z.infer<typeof extractionSchema> {
+  if (response.finishReason === 'MAX_TOKENS') {
+    throw new PermanentDocumentProcessingError(
+      'image_extraction_invalid',
+      'The image holds more text than one extraction can return. Split it into smaller images, then retry.'
+    )
+  }
+  if (!response.text.trim()) {
+    throw new PermanentDocumentProcessingError(
+      'image_extraction_invalid',
+      `Gemini returned no extraction for this image (${response.finishReason ?? 'no reason given'}).`
+    )
+  }
+  return parseExtraction(response.text)
+}
+
+/** A reply that is not JSON at all; a fresh call usually gets a whole one. */
+class MalformedExtractionError extends Error {
+  constructor(cause: unknown) {
+    super('Image extraction returned malformed JSON', { cause })
+    this.name = 'MalformedExtractionError'
+  }
+}
+
 function parseExtraction(content: string): z.infer<typeof extractionSchema> {
   const trimmed = content.trim()
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)
@@ -321,8 +350,7 @@ function parseExtraction(content: string): z.infer<typeof extractionSchema> {
   try {
     parsed = JSON.parse(fenced ? fenced[1] : trimmed)
   } catch (error) {
-    /** Usually a response cut off mid-object; a retry gets a fresh one. */
-    throw new Error('Image extraction returned malformed JSON', { cause: error })
+    throw new MalformedExtractionError(error)
   }
   const result = extractionSchema.safeParse(parsed)
   if (!result.success) {
@@ -397,11 +425,14 @@ export async function extractImageText(input: {
   })
   if (spareMs() <= 0) throw deferForBudget()
 
-  let response: Awaited<ReturnType<typeof requestGeminiImageExtraction>>
+  let reply: {
+    response: GeminiImageExtractionResponse
+    extraction: z.infer<typeof extractionSchema>
+  }
   try {
-    response = await retryWithExponentialBackoff(
-      (attemptSignal) =>
-        requestGeminiImageExtraction({
+    reply = await retryWithExponentialBackoff(
+      async (attemptSignal) => {
+        const response = await requestGeminiImageExtraction({
           model,
           apiKey: key.apiKey,
           systemPrompt: IMAGE_EXTRACTION_SYSTEM_PROMPT,
@@ -410,21 +441,33 @@ export async function extractImageText(input: {
           responseJsonSchema: IMAGE_EXTRACTION_RESPONSE_SCHEMA,
           maxOutputTokens: MAX_OUTPUT_TOKENS,
           signal: attemptSignal,
-        }),
+        })
+        return { response, extraction: readExtraction(response) }
+      },
       {
         maxRetries: 3,
         initialDelayMs: 1000,
         maxDelayMs: 10_000,
         retryBudgetMs: EXTRACTION_TIMEOUT_MS,
-        retryCondition: (error) =>
-          error instanceof GeminiImageExtractionError
-            ? RETRYABLE_GEMINI_STATUSES.has(error.status)
-            : isRetryableError(error),
+        retryCondition: (error) => {
+          if (error instanceof GeminiImageExtractionError)
+            return RETRYABLE_GEMINI_STATUSES.has(error.status)
+          if (error instanceof MalformedExtractionError) return true
+          if (error instanceof PermanentDocumentProcessingError) return false
+          return isRetryableError(error)
+        },
         signal,
       }
     )
   } catch (error) {
     signal?.throwIfAborted()
+    if (error instanceof MalformedExtractionError) {
+      throw new PermanentDocumentProcessingError(
+        'image_extraction_invalid',
+        'The image extraction model kept returning malformed output. Retry, or choose another model with KB_IMAGE_EXTRACTION_MODEL.',
+        error
+      )
+    }
     if (error instanceof DOMException && error.name === 'TimeoutError') {
       throw new ProviderCapacityDeferredError('provider_timeout', {
         providerId: 'google',
@@ -434,20 +477,7 @@ export async function extractImageText(input: {
     throw error instanceof GeminiImageExtractionError ? toProcessingError(error, model) : error
   }
 
-  if (response.finishReason === 'MAX_TOKENS') {
-    /** Deterministic for this image and model, so a retry would pay for the same cut-off. */
-    throw new PermanentDocumentProcessingError(
-      'image_extraction_invalid',
-      'The image holds more text than one extraction can return. Split it into smaller images, then retry.'
-    )
-  }
-  if (!response.text.trim()) {
-    throw new PermanentDocumentProcessingError(
-      'image_extraction_invalid',
-      `Gemini returned no extraction for this image (${response.finishReason ?? 'no reason given'}).`
-    )
-  }
-  const extraction = parseExtraction(response.text)
+  const { response, extraction } = reply
   const decorative = extraction.kind === 'decorative'
   const costMultiplier = getCostMultiplier()
   const cost = key.isBYOK

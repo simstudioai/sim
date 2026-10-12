@@ -176,12 +176,40 @@ describe('extractImageText', () => {
     expect(mockRequest).not.toHaveBeenCalled()
   })
 
-  it('retries a truncated response and fails an incomplete or empty one permanently', async () => {
-    respond('{"kind": "table", "rendered_text": "Region: EM')
-    const truncated = extract()
-    await expect(truncated).rejects.toThrow('malformed JSON')
-    await expect(truncated).rejects.not.toHaveProperty('code')
+  it('retries a malformed reply within the extraction and recovers', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      mockRequest.mockResolvedValueOnce({
+        text: '{"kind": "table", "rendered_text": "Region: EM',
+        finishReason: 'STOP',
+        inputTokens: 1200,
+        outputTokens: 300,
+      })
+      const pending = extract()
+      await vi.waitFor(() => expect(mockRequest).toHaveBeenCalledTimes(1))
+      await vi.advanceTimersByTimeAsync(10_000)
+      await expect(pending).resolves.toMatchObject({ decorative: false })
+      expect(mockRequest).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 
+  it('fails permanently once every in-call attempt was malformed', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      respond('{"kind": "table", "rendered_text": "Region: EM')
+      const pending = extract().catch((error: unknown) => error)
+      await vi.waitFor(() => expect(mockRequest).toHaveBeenCalledTimes(1))
+      for (let attempt = 0; attempt < 3; attempt++) await vi.advanceTimersByTimeAsync(10_000)
+      expect(await pending).toMatchObject({ code: 'image_extraction_invalid' })
+      expect(mockRequest).toHaveBeenCalledTimes(4)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('fails an incomplete or empty reply permanently without retrying', async () => {
     respond({ kind: 'table' })
     await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_invalid' })
 
@@ -192,6 +220,7 @@ describe('extractImageText', () => {
   it('fails a response cut off at the token limit instead of paying for retries', async () => {
     respond('{"kind": "table", "rendered_text": "Region: EMEA', 'MAX_TOKENS')
     await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_invalid' })
+    expect(mockRequest).toHaveBeenCalledTimes(1)
   })
 
   it('defers on throttling and fails on a rejected key or image', async () => {
