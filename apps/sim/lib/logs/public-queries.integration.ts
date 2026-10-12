@@ -17,7 +17,11 @@ import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import type { LogFilters } from '@/lib/logs/public-filters'
-import { readPublicLogPage } from '@/lib/logs/public-queries'
+import {
+  decodePublicLogCursor,
+  encodePublicLogCursor,
+  readPublicLogPage,
+} from '@/lib/logs/public-queries'
 
 const prefix = generateId()
 const ids = {
@@ -155,6 +159,28 @@ describe('public log keyset paging', () => {
     })
 
     expect(seen).toEqual(NEWEST_FIRST.filter((id) => id in WORKFLOW_RUNS))
+  })
+
+  /**
+   * Earlier releases accepted any date a v1 caller sent and resumed it under
+   * millisecond ordering, which `-0` (`.122`) then the `.123` runs in `id` order.
+   */
+  it.each([
+    ['without a fraction', '2026-01-01T12:00:00Z', [0, 1, 2, 3, 4, 5]],
+    ['with a four-digit fraction', '2026-01-01T12:00:00.1225Z', [1, 2, 3, 4, 5]],
+  ])('resumes a v1 date cursor %s under millisecond ordering', async (_case, startedAt, rest) => {
+    const cursor = decodePublicLogCursor(
+      encodePublicLogCursor({ startedAt, id: `${prefix}-0`, order: 'asc' }),
+      'asc'
+    )
+    expect(cursor).not.toBeNull()
+
+    const { seen } = await walk({}, 'asc', {
+      includeJobRuns: true,
+      cursorKeys: [cursor?.startedAt ?? '', cursor?.id ?? ''],
+    })
+
+    expect(seen).toEqual(rest.map((n) => `${prefix}-${n}`))
   })
 
   /**

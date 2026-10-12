@@ -13,6 +13,7 @@ import { and, type Column, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import {
   type CursorKey,
+  classifyTimestampCursor,
   decimalKey,
   encodeKeyset,
   type KeysetKey,
@@ -77,8 +78,7 @@ export function decodePublicLogCursor(
     ) {
       return null
     }
-    const startedAt = new Date(parsed.startedAt)
-    if (Number.isNaN(startedAt.getTime())) return null
+    if (classifyTimestampCursor(parsed.startedAt) === 'invalid') return null
     return { startedAt: parsed.startedAt, id: parsed.id, order }
   } catch {
     return null
@@ -241,9 +241,6 @@ type PublicLogKeysetRow = Pick<
   'id' | 'status' | 'startedAt' | 'startedAtCursor' | 'totalDurationMs' | 'costTotal'
 >
 
-/** How `Date.toISOString()` spells an instant: the cursor value earlier releases minted. */
-const MILLISECOND_CURSOR_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
-
 /**
  * The `(startedAt, id)` keyset, over whichever table's columns are given.
  *
@@ -252,8 +249,9 @@ const MILLISECOND_CURSOR_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z
  *
  * It orders on the raw column so the `(workspace_id, started_at)` and
  * `(workflow_id, started_at)` indexes serve the sort and a page reads only its
- * own rows. A cursor minted before that carries a millisecond value and was
- * read under millisecond-truncated ordering, where rows sharing a millisecond
+ * own rows. A cursor minted before that carries a date rather than the precise
+ * form (see {@link classifyTimestampCursor}) and was read under
+ * millisecond-truncated ordering, where rows sharing a millisecond
  * fall in `id` order rather than stored order. Resuming one under the raw
  * ordering would skip or repeat rows inside that millisecond, so it keeps the
  * truncated keyset it was minted under, and so does every cursor that page
@@ -264,11 +262,10 @@ function startedAtKeyset<Row extends { id: string; startedAt: Date; startedAtCur
   idColumn: Column,
   cursorKeys: CursorKey[] | undefined
 ): KeysetKey<Row>[] {
-  const resumedStartedAt = cursorKeys?.[0]
-  const resumesMillisecondCursor =
-    typeof resumedStartedAt === 'string' && MILLISECOND_CURSOR_PATTERN.test(resumedStartedAt)
+  const resumesDateCursor =
+    cursorKeys !== undefined && classifyTimestampCursor(cursorKeys[0]) === 'date'
   return [
-    resumesMillisecondCursor
+    resumesDateCursor
       ? timestampKey<Row>(startedAtColumn, (row) => row.startedAt)
       : preciseTimestampKey<Row>(startedAtColumn, (row) => row.startedAtCursor),
     textKey<Row>(idColumn, (row) => row.id),

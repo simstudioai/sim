@@ -168,6 +168,30 @@ export function timestampKey<Row>(column: Column, read: (row: Row) => Date): Key
 const PRECISE_TIMESTAMP_CURSOR_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/
 
 /**
+ * What a timestamp cursor value is: a {@link preciseTimestampKey} position, a
+ * date for the millisecond {@link timestampKey}, or neither.
+ *
+ * The one place a timestamp cursor is classified, so a codec that validates a
+ * caller's token and the keyset that later binds it cannot disagree — a token
+ * the codec admits but the key refuses would surface as a 500 on a surface that
+ * renders its own errors.
+ *
+ * A value spelled in the precise form is precise or invalid, never a date: it
+ * must name a real instant, because the pattern admits `2026-02-30`, which a
+ * `Date` silently rolls into March and Postgres refuses outright. Anything else a
+ * `Date` parses is a date. Both classes stay within years 1 to 9999, the range
+ * whose ISO spelling Postgres reads back.
+ */
+export function classifyTimestampCursor(value: CursorKey): 'precise' | 'date' | 'invalid' {
+  if (typeof value !== 'string') return 'invalid'
+  const date = new Date(value)
+  const year = date.getUTCFullYear()
+  if (Number.isNaN(date.getTime()) || year < 1 || year > 9999) return 'invalid'
+  if (!PRECISE_TIMESTAMP_CURSOR_PATTERN.test(value)) return 'date'
+  return date.toISOString().slice(0, 23) === value.slice(0, 23) ? 'precise' : 'invalid'
+}
+
+/**
  * A `timestamp` column rendered as a {@link preciseTimestampKey} cursor value.
  *
  * Select it next to the column so each row carries its own full-precision
@@ -186,12 +210,8 @@ export function preciseTimestampText(column: Column): SQL<string> {
  * {@link timestampKey} truncates to milliseconds because its cursor value comes
  * from a JS `Date`; this key instead reads the row's {@link preciseTimestampText}
  * value, so the cursor names the exact stored instant and the raw ordering needs
- * no truncation. `timestamp` input ignores the trailing `Z`.
- *
- * A cursor value must spell a real instant. The pattern alone admits
- * `2026-02-30`, which Postgres rejects with a 500 rather than a 400, so the
- * millisecond prefix has to survive a `Date` round trip unchanged; year 0 parses
- * in JS but not in Postgres.
+ * no truncation. `timestamp` input ignores the trailing `Z`. It binds only a
+ * value {@link classifyTimestampCursor} calls precise.
  */
 export function preciseTimestampKey<Row>(
   column: Column,
@@ -201,13 +221,8 @@ export function preciseTimestampKey<Row>(
     expr: column,
     encode: read,
     boundsScan: true,
-    bind: (value) => {
-      if (typeof value !== 'string' || !PRECISE_TIMESTAMP_CURSOR_PATTERN.test(value)) return null
-      const date = new Date(value)
-      if (Number.isNaN(date.getTime()) || date.getUTCFullYear() < 1) return null
-      if (date.toISOString().slice(0, 23) !== value.slice(0, 23)) return null
-      return sql`cast(${value} as timestamp)`
-    },
+    bind: (value) =>
+      classifyTimestampCursor(value) === 'precise' ? sql`cast(${value} as timestamp)` : null,
   }
 }
 

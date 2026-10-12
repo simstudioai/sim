@@ -40,6 +40,42 @@ describe('public log cursor', () => {
 })
 
 /**
+ * The v1 route answers a cursor `decodePublicLogCursor` refuses with its own 400
+ * and renders anything thrown later as a 500, so every cursor the decoder admits
+ * has to page. Date-form cursors, which earlier releases minted or accepted, are
+ * paged in `public-queries.integration.ts`: their keyset casts through the real
+ * column type.
+ */
+describe('v1 cursor admission', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.workflowExecutionLogs, [])
+  })
+
+  const decode = (startedAt: string) =>
+    decodePublicLogCursor(encodePublicLogCursor({ startedAt, id: 'log-1', order: 'desc' }), 'desc')
+
+  it('pages from a precise cursor', async () => {
+    const cursor = decode('2024-01-01T00:00:00.123456Z')
+
+    await expect(
+      listPublicWorkflowLogs({
+        filters: { workspaceId: 'workspace-1', cursor: cursor ?? undefined },
+        limit: 50,
+        includeExecutionData: false,
+      })
+    ).resolves.toEqual({ data: [], nextCursor: null })
+  })
+
+  it.each([
+    ['an impossible calendar day', '2024-02-30T00:00:00.000000Z'],
+    ['a year Postgres cannot read back', '0000-01-01T00:00:00Z'],
+  ])('refuses a cursor naming %s at the decoder', (_case, startedAt) => {
+    expect(decode(startedAt)).toBeNull()
+  })
+})
+
+/**
  * The folder scope is resolved by the adapter, so this query sees only ids. A
  * scope that resolved to nothing has to be expressed as a predicate that matches
  * nothing: `or(undefined, undefined)` is `undefined`, which silently drops the
