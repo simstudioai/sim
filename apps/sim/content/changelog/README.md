@@ -12,7 +12,9 @@ The [editorial and media standard](./editorial-standard.md) defines story select
 
 A public update needs one clear benefit, verified availability, a useful next step, and at least one reviewed feature image or video in the article. The cover alone is not enough. A reader should understand what they can now do and see evidence of that capability. A smaller improvement can join a related edition; it does not need its own announcement because a technical version shipped.
 
-Review candidates weekly and publish when a story meets that bar. Skip an edition if there is nothing meaningful to announce. Use a separate entry for a substantial launch. Aim for one lead story and a short selection of related improvements or fixes, rather than reproducing every commit. The GitHub release link carries the complete technical history.
+Review candidates twice a week and publish when a story meets that bar. Skip an edition if there is nothing meaningful to announce. Use a separate entry for a substantial launch. Aim for one lead story and a short selection of related improvements or fixes, rather than reproducing every commit. The GitHub release link carries the complete technical history.
+
+Release versions identify the software release, not a sequence of changelog posts. Gaps are expected when a release has no meaningful user-facing story. Keep the original version numbers and use dates and titles to browse the updates; do not add filler posts to make the versions consecutive.
 
 Always make consequential breaking changes, migrations, deprecations, and changes requiring action easy to find, including the affected version, availability, and next step. For a change with no useful product screen, a clearly labeled, accurate explanatory diagram can serve as the image. Do not delay an urgent notice to produce a polished video.
 
@@ -135,7 +137,7 @@ For a migrated historical release, use its original publication timestamp and Gi
 ## Maintenance
 
 - The [Sim workflow maintenance guide](./maintenance-workflow.md) describes collection, the editorial queue, draft preparation, media production, and monitoring. The operational runbook and workflow exports in the editorial workspace record its live configuration and acceptance results. Keep this publishing guide and the editorial standard as the source of content and media rules.
-- The release editor reviews candidates weekly and checks published links and hosted media monthly. Refresh destinations when docs move and verify deep anchors manually; the audit catches missing canonical source pages during every PR.
+- The release editor reviews candidates twice a week and checks published links and hosted media monthly. Refresh destinations when docs move and verify deep anchors manually; the audit catches missing canonical source pages during every PR.
 - Keep the original slug, publication date, and RSS identity stable. Use `updated` only for a substantive correction or expansion, not a formatting edit. A future date does not schedule publication; leave the entry in draft until the intended deployment.
 - If availability changes after publication, update the existing entry with its current status and a clear next step. Preserve its URL rather than deleting it or reverting it to a draft. If a slug must change, add a redirect before moving it.
 - Keep historical media versioned. Record the capture date, environment, demonstrated steps, and final asset URLs in the brief. Never overwrite an existing recording. Recheck playback, seeking, captions, and mobile readability after any replacement.
