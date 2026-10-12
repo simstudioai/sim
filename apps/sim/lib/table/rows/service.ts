@@ -1299,6 +1299,9 @@ export async function queryRows(
     budgetBytes: TABLE_LIMITS.MAX_QUERY_RESULT_BYTES,
     pageCutBytes: getMaxPageBytes(),
     columnIds,
+    projectInSql: Boolean(
+      columnIds && columns.some((column) => !columnIds.has(getColumnId(column)))
+    ),
     readProvenance,
   })
 
@@ -1385,8 +1388,14 @@ export interface BoundedFetchParams {
   budgetBytes: number
   /** Byte cut for a **bounded** page; defaults to 5MB and is environment-overridable. */
   pageCutBytes: number
-  /** Stable column ids to keep in `data`; projected in SQL, then measured as returned. */
+  /** Stable column ids to keep in `data`; a row is measured as returned. */
   columnIds?: ReadonlySet<string>
+  /**
+   * Narrow `data` in SQL, so the columns left out are never sent. Worth it only when the
+   * selection drops some of the table's columns: rebuilding nearly the whole value costs the
+   * server more than sending it. Without it `columnIds` is applied to the fetched rows.
+   */
+  projectInSql?: boolean
 }
 
 export interface BoundedFetchResult {
@@ -1410,28 +1419,26 @@ function projectRowData(data: RowData, columnIds: ReadonlySet<string>): RowData 
 }
 
 /**
- * The SELECT list of a drained row. A column selection is applied in SQL, so the columns the
- * caller never receives are not sent: a drain's wall time tracks the bytes it pulls off the
- * socket, not the server's work on them. `storedBytes` is the whole stored value's size, which
- * still bounds a batch because the server detoasts every value it projects.
+ * The SELECT list of a drained row, with `data` narrowed to `sqlColumnIds` when given: a drain's
+ * wall time tracks the bytes it pulls off the socket, not the server's work on them.
+ *
+ * Every function that reads a TOASTed `data` detoasts it again, so the value is read once: the
+ * `|| '{}'` copy (kept from inlining by `OFFSET 0`) is the one detoast, and the object check, the
+ * key scan and the key removal all read that copy. Removing the unselected keys, rather than
+ * rebuilding the selected ones, returns the value untouched when a row wrote nothing else. A
+ * value that is not an object projects to `{}`.
  */
-function boundedRowFields(columnIds: ReadonlySet<string> | undefined) {
-  const keys = columnIds
-    ? sql.join(
-        [...columnIds].map((columnId) => sql`${columnId}`),
-        sql`, `
-      )
-    : undefined
+function boundedRowFields(sqlColumnIds: ReadonlySet<string> | undefined) {
+  if (!sqlColumnIds) return getTableColumns(userTableRows)
+  const keys = sql.join(
+    [...sqlColumnIds].map((columnId) => sql`${columnId}`),
+    sql`, `
+  )
   return {
     ...getTableColumns(userTableRows),
-    data: keys
-      ? sql<unknown>`(SELECT coalesce(jsonb_object_agg(k.key, ${userTableRows.data} -> k.key), '{}'::jsonb) FROM unnest(ARRAY[${keys}]::text[]) AS k(key) WHERE ${userTableRows.data} ? k.key)`.mapWith(
-          userTableRows.data
-        )
-      : userTableRows.data,
-    storedBytes: keys
-      ? sql<number | null>`octet_length(${userTableRows.data}::text)`
-      : sql<number | null>`NULL::int`,
+    data: sql<unknown>`(SELECT o.d - ARRAY(SELECT k FROM jsonb_object_keys(o.d) AS k WHERE k <> ALL(ARRAY[${keys}]::text[])) FROM (SELECT CASE WHEN jsonb_typeof(s.d) = 'object' THEN s.d ELSE '{}'::jsonb END AS d FROM (SELECT ${userTableRows.data} || '{}'::jsonb AS d OFFSET 0) AS s OFFSET 0) AS o)`.mapWith(
+      userTableRows.data
+    ),
   }
 }
 
@@ -1470,11 +1477,12 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
   const rows: Array<typeof userTableRows.$inferSelect> = []
   let bytes = 0
   let maxRowBytes = 0
-  // What each consumed row cost to FETCH, as stored. With a projection the
-  // response bytes above can be tiny while the SELECT still returns whole rows,
-  // so batch sizing must be bounded by this, not by the projected average.
-  let storedBytes = 0
-  let maxStoredRowBytes = 0
+  // What each consumed row cost to FETCH. A projection applied to the fetched
+  // rows leaves the response bytes above tiny while the SELECT still returned
+  // whole rows, so batch sizing must be bounded by this, not by the projected
+  // average. Projected in SQL, the SELECT returns only what is measured.
+  let fetchedBytes = 0
+  let maxFetchedRowBytes = 0
   let hasMore = false
   let anchor = params.seek
   let anchorOffset = params.startOffset
@@ -1490,16 +1498,16 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
     const remaining = Math.max(1, cutBytes === undefined ? budgetBytes : cutBytes - bytes)
     const byAverage = Math.ceil(remaining / avg) + 1
     const varianceCap = Math.ceil((8 * remaining) / Math.max(maxRowBytes, 1))
-    // A batch may hold about one budget's worth of rows AS STORED, whatever the
+    // A batch may hold about one budget's worth of rows AS FETCHED, whatever the
     // projection keeps — without this a narrow selection over wide rows would
     // size the next batch from a few projected bytes and ask for thousands of
-    // full rows. Unprojected, stored and projected bytes agree, so this is the
+    // full rows. When the rows fetched are the rows returned, this is the
     // budget-sized batch the drain already takes.
-    const fetchCap = Math.ceil(budgetBytes / Math.max(1, storedBytes / rows.length))
-    // The stored-size counterpart of varianceCap: once a wide row has been seen,
+    const fetchCap = Math.ceil(budgetBytes / Math.max(1, fetchedBytes / rows.length))
+    // The fetched-size counterpart of varianceCap: once a wide row has been seen,
     // assume the next batch could be all that wide, so a run of small rows
     // cannot talk the average into an oversized SELECT.
-    const storedVarianceCap = Math.ceil((8 * budgetBytes) / Math.max(maxStoredRowBytes, 1))
+    const fetchedVarianceCap = Math.ceil((8 * budgetBytes) / Math.max(maxFetchedRowBytes, 1))
     return Math.max(
       1,
       Math.min(
@@ -1507,26 +1515,29 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
         TABLE_LIMITS.QUERY_BATCH_MAX_ROWS,
         varianceCap,
         fetchCap,
-        storedVarianceCap
+        fetchedVarianceCap
       )
     )
   }
 
-  const rowFields = boundedRowFields(columnIds)
+  const rowFields = boundedRowFields(params.projectInSql ? columnIds : undefined)
 
   /** Consumes one fetched row in page order; `true` when it ends the page instead. */
   const consumeRow = (
-    fetchedRow: typeof userTableRows.$inferSelect & { storedBytes: number | null },
+    fetchedRow: typeof userTableRows.$inferSelect,
     returnedRows: Array<typeof userTableRows.$inferSelect>
   ): boolean => {
-    const { storedBytes: fetchedStoredBytes, ...stored } = fetchedRow
-    // Measure the payload as returned, in the caller's column order: the budget is a
-    // promise about the response, so columns the caller will never receive do not count.
+    // Project before measuring — the budget is a promise about the response, so columns the
+    // caller will never receive must not count — and in the caller's column order, which a
+    // projection built in SQL does not keep.
     const row = columnIds
-      ? { ...stored, data: projectRowData(stored.data as RowData, columnIds) }
-      : stored
+      ? { ...fetchedRow, data: projectRowData(fetchedRow.data as RowData, columnIds) }
+      : fetchedRow
     const rowBytes = Buffer.byteLength(JSON.stringify(row.data))
-    const rowStoredBytes = fetchedStoredBytes ?? rowBytes
+    const rowFetchedBytes =
+      columnIds && !params.projectInSql
+        ? Buffer.byteLength(JSON.stringify(fetchedRow.data))
+        : rowBytes
     if (cutBytes !== undefined && rows.length > 0 && bytes + rowBytes > cutBytes) {
       // Unbounded queries promise the ENTIRE result — a partial page would be
       // silent truncation, so fail fast instead (the drain has only fetched
@@ -1550,10 +1561,10 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
     rows.push(row)
     returnedRows.push(row)
     bytes += rowBytes
-    storedBytes += rowStoredBytes
+    fetchedBytes += rowFetchedBytes
     consumedSinceAnchor++
     if (rowBytes > maxRowBytes) maxRowBytes = rowBytes
-    if (rowStoredBytes > maxStoredRowBytes) maxStoredRowBytes = rowStoredBytes
+    if (rowFetchedBytes > maxFetchedRowBytes) maxFetchedRowBytes = rowFetchedBytes
     if (keysetValid && row.orderKey) {
       anchor = { orderKey: row.orderKey, id: row.id }
       anchorOffset = 0
@@ -1627,9 +1638,9 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
   /**
    * A custom sort orders by a key computed from every matching row's `data` — no index holds it,
    * so each statement that sorts re-reads and detoasts the whole view, however few rows it
-   * returns. Advancing by OFFSET paid that pass once per batch. Instead the order is read once, as
-   * ids only (up to `QUERY_BATCH_MAX_ROWS` per pass, the most any batch could have taken), and the
-   * rows are then fetched by primary key in the same byte-sized batches, consumed in that order.
+   * returns. Advancing by OFFSET paid that pass once per batch. Instead the order is read as ids
+   * only, in passes that each reach at least as far as a batch would have, and the rows are then
+   * fetched by primary key in the same byte-sized batches, consumed in that order.
    * The id pass carries the same OFFSET, LIMIT reach, and tiebreak the batches did, so the page is
    * the same rows in the same order. A row deleted between the two reads is skipped, as a row
    * deleted between two OFFSET batches already shifted the page.
@@ -1641,7 +1652,15 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
     while (true) {
       if (pendingIds.length === 0) {
         if (idsExhausted) return
-        const idsWanted = limit === undefined ? Number.POSITIVE_INFINITY : limit - rows.length + 1
+        // A bounded page needs its remaining rows plus the witness. An unbounded drain starts
+        // with a few first batches' worth, since most either end there or fail fast at the
+        // budget; any later pass reaches as far as the largest batch could.
+        const idsWanted =
+          limit !== undefined
+            ? limit - rows.length + 1
+            : idOffset === params.startOffset
+              ? 4 * firstBatchCap + 1
+              : Number.POSITIVE_INFINITY
         const idAsk = Math.min(TABLE_LIMITS.QUERY_BATCH_MAX_ROWS, idsWanted)
         const idPage = await trx
           .select({ id: userTableRows.id })

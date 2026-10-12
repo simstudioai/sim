@@ -1995,14 +1995,15 @@ describe('table row writes against real PostgreSQL', () => {
      * A custom sort is read once as ids and its rows fetched by id in byte-sized batches, so the
      * page must still be the view's order — ties broken by `order_key` then `id`, NULL and missing
      * cells last — across every batch boundary and from a mid-view offset. A 120-row limit drains
-     * in at least two batches (the first is capped at 51 rows).
+     * in at least two batches (the first is capped at 51 rows); an unbounded drain from the offset
+     * outgrows its first id pass (205 ids) and has to read the order again from where it stopped.
      */
     it('drains a custom sort across batches in the order of the whole view', async () => {
       const table = await createTable([
         { id: 'score', name: 'score', type: 'number' },
         ...textColumns('name'),
       ])
-      const fixtures = Array.from({ length: 130 }, (_, index) => {
+      const fixtures = Array.from({ length: 260 }, (_, index) => {
         const data: RowData = { name: `n${index}` }
         if (index % 9 === 0) data.score = null
         else if (index % 4 !== 0) data.score = index % 5
@@ -2041,8 +2042,16 @@ describe('table row writes against real PostgreSQL', () => {
           'sorted-drain'
         )
         expect(page.rows.map((row) => row.id)).toEqual(expected.slice(offset, offset + 120))
-        expect(page.nextCursor !== null).toBe(offset + 120 < expected.length)
+        expect(page.nextCursor).not.toBeNull()
       }
+
+      const rest = await queryRows(
+        table,
+        { sort: { score: 'desc' }, offset: 37, includeTotal: false, withExecutions: false },
+        'sorted-drain'
+      )
+      expect(rest.rows.map((row) => row.id)).toEqual(expected.slice(37))
+      expect(rest.nextCursor).toBeNull()
     })
 
     /**
