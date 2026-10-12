@@ -1,5 +1,5 @@
 import { Mail } from '@sim/emcn/icons'
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, toArray } from '@sim/utils/object'
 import { projectProspeoEnrichmentFailure } from '@/enrichments/provider-failures/prospeo'
 import { normalizeDomain, splitName, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
@@ -7,7 +7,7 @@ import type { EnrichmentConfig } from '@/enrichments/types'
 /** The address Wiza marked `valid`: the primary one, else the first in `emails`. */
 function wizaValidEmail(output: Record<string, unknown>): unknown {
   if (output.email_status === 'valid') return output.email
-  const emails = Array.isArray(output.emails) ? (output.emails as Record<string, unknown>[]) : []
+  const emails = toArray<Record<string, unknown>>(output.emails)
   return emails.find((e) => e.email_status === 'valid')?.email
 }
 
@@ -167,6 +167,7 @@ export const workEmailEnrichment: EnrichmentConfig = {
         const email = str(output.email)
         return email ? { email } : null
       },
+      isVerified: (output) => output.status === 'valid',
     }),
     toolProvider({
       id: 'dropcontact',

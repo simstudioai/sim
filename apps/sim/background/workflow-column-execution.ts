@@ -753,24 +753,10 @@ async function runWorkflowAndWriteTerminal(
             }
           }
 
-          // Every provider that ran errored (rate limit, missing hosted key, auth).
-          // Written without a data patch so an outage does not blank the row's
-          // outputs here; `error` lets a manual re-run pick the cell up again.
-          if (error) {
-            await writeState({
-              status: 'error',
-              executionId,
-              jobId: null,
-              workflowId: statusId,
-              error,
-              enrichmentDetails: detail,
-            })
-            return 'error'
-          }
-
           // Write every output column: the result value when present, else clear
           // it. A partial/empty result must blank the columns it didn't fill so a
-          // re-run that finds less than before doesn't leave stale values.
+          // re-run that finds less than before doesn't leave stale values, and a
+          // failed run must not leave old values for dependent groups to consume.
           const dataPatch: RowData = {}
           for (const out of group.outputs) {
             if (!out.outputId) continue
@@ -778,20 +764,22 @@ async function runWorkflowAndWriteTerminal(
             dataPatch[out.columnName] =
               value === undefined || value === null ? '' : (value as RowData[string])
           }
+          // Every provider that ran errored (rate limit, missing hosted key, auth):
+          // `error` rather than `completed`, so a manual re-run picks the cell up.
           await writeState(
             {
-              status: 'completed',
+              status: error ? 'error' : 'completed',
               executionId,
               jobId: null,
               workflowId: statusId,
-              error: null,
+              error,
               enrichmentDetails: detail,
             },
             dataPatch,
             undefined,
             createTableRowSecretProvenanceFromRegistry(dataPatch, enrichmentRegistry)
           )
-          return 'completed'
+          return error ? 'error' : 'completed'
         } catch (err) {
           await writeState({
             status: 'error',

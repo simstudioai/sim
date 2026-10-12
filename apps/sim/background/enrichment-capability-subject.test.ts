@@ -117,7 +117,7 @@ const GROUP = {
   type: 'enrichment' as const,
   enrichmentId: 'company-lookup',
   workflowId: '',
-  outputs: [{ columnName: 'col-out', blockId: '', path: '' }],
+  outputs: [{ columnName: 'col-out', blockId: '', path: '', outputId: 'email' }],
   inputMappings: [{ columnName: 'col-in', inputName: 'domain' }],
 }
 
@@ -295,7 +295,7 @@ describe('enrichment cell capability subject', () => {
   })
 
   /** A completed cell is final on the auto path, so an outage must not complete blank. */
-  it('marks the cell errored without blanking outputs when every provider errored', async () => {
+  it('marks the cell errored when every provider errored', async () => {
     mocks.runEnrichment.mockResolvedValue({
       result: {},
       cost: 0.02,
@@ -310,7 +310,7 @@ describe('enrichment cell capability subject', () => {
     const state = write.executionState
     expect(state.status).toBe('error')
     expect(state.error).toBe('Rate limit exceeded')
-    expect(write.dataPatch).toBeUndefined()
+    expect(write.dataPatch).toEqual({ 'col-out': '' })
     expect(billingUsageLogMockFns.mockRecordUsage).toHaveBeenCalledTimes(1)
   })
 })
