@@ -28,6 +28,8 @@ server_log=''
 status_log=''
 realtime_pid=''
 realtime_tag=''
+realtime_log=''
+browsers_pid=''
 
 finish() {
   local status=$?
@@ -44,6 +46,13 @@ finish() {
   if [ -n "$realtime_pid" ]; then
     bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$realtime_pid" "$realtime_tag" || status=1
     wait "$realtime_pid" 2>/dev/null || true
+    if [ "$status" -ne 0 ]; then
+      tail -n 100 "$realtime_log"
+    fi
+  fi
+  if [ -n "$browsers_pid" ]; then
+    kill -- "-$browsers_pid" 2>/dev/null || true
+    wait "$browsers_pid" 2>/dev/null || true
   fi
   exit "$status"
 }
@@ -74,8 +83,9 @@ start_app() {
 start_realtime() {
   local name=$1 port=$2
   realtime_tag="$name-realtime-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+  realtime_log="$report_dir/$name-realtime.log"
   (cd ../realtime && PORT="$port" E2E_APP="$realtime_tag" exec setsid bun run start \
-    > "$report_dir/$name-realtime.log" 2>&1) &
+    > "$realtime_log" 2>&1) &
   realtime_pid=$!
   wait_ready "$realtime_pid" "http://127.0.0.1:$port/health" "$name realtime server"
 }
@@ -184,12 +194,19 @@ case "$group" in
     export INTERNAL_API_SECRET=mobile-http-ci-local-secret-at-least-32-characters
     export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=12288"
     export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3025 SOCKET_SERVER_URL=http://127.0.0.1:3025
-    # The browsers install while the app boots.
-    bunx --no-install playwright install --with-deps chromium webkit &
+    # The browsers install while the app boots, in their own process group so finish() can stop them.
+    browsers_log="$report_dir/mobile-playwright-install.log"
+    setsid --wait bunx --no-install playwright install --with-deps chromium webkit > "$browsers_log" 2>&1 &
     browsers_pid=$!
     start_app mobile 3024 'mobile browser' record-http-status
     start_realtime mobile 3025
-    wait "$browsers_pid"
+    if ! wait "$browsers_pid"; then
+      browsers_pid=''
+      tail -n 100 "$browsers_log"
+      echo "::error::Playwright browser install failed."
+      exit 1
+    fi
+    browsers_pid=''
     MOBILE_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     MOBILE_E2E_DATABASE_URL="$DATABASE_URL" \
     MOBILE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
