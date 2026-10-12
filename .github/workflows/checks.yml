@@ -49,8 +49,9 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # Only push/1 runs the PostgreSQL 16 step below; an empty image skips the service elsewhere.
       postgres-legacy:
-        image: postgres:16-alpine
+        image: ${{ matrix.provision == 'push' && matrix.shard == 1 && 'postgres:16-alpine' || '' }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
