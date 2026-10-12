@@ -1094,6 +1094,17 @@ export function clearAgentContextMenu(contents: WebContents): void {
 }
 
 /**
+ * The final release of a click was sent to a live tab, and the tab was gone when that release
+ * was rejected. The press and release both reached the page; only the acknowledgement was lost.
+ */
+export class TabClosedOnReleaseError extends Error {
+  constructor() {
+    super('The tab closed as the click was released.')
+    this.name = 'TabClosedOnReleaseError'
+  }
+}
+
+/**
  * Clicks at viewport coordinates. An already-aborted `signal` rejects before any input is sent.
  * During a press-and-hold it ends the hold early: the click rejects with the abort reason and the
  * button is released at once, so a cancelled or timed-out click cannot stay held into the next
@@ -1140,15 +1151,21 @@ export async function clickAt(
         }
         signal?.throwIfAborted()
       }
-      await sendInput(contents, 'Input.dispatchMouseEvent', {
-        type: 'mouseReleased',
-        x,
-        y,
-        button,
-        buttons: 0,
-        modifiers,
-        clickCount: count,
-      })
+      const finalReleaseToLiveTab = count === clickCount && !contents.isDestroyed()
+      try {
+        await sendInput(contents, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased',
+          x,
+          y,
+          button,
+          buttons: 0,
+          modifiers,
+          clickCount: count,
+        })
+      } catch (error) {
+        if (finalReleaseToLiveTab && contents.isDestroyed()) throw new TabClosedOnReleaseError()
+        throw error
+      }
     }
     pressed = false
   } finally {

@@ -1803,19 +1803,16 @@ function navigationRescue(
 }
 
 /**
- * A page that closes itself from the click's own handler (a sign-in popup's Allow that calls
- * window.close()) can destroy its tab before Chromium acknowledges the release, and Electron then
- * rejects the pending input command with "target closed while handling command" although the press
- * landed. The same click otherwise reads as a failed dispatch whenever the close wins that race.
+ * The click's final release was sent to a live tab that was destroyed before Chromium
+ * acknowledged it (cdp.clickAt raises TabClosedOnReleaseError only then), so the press and
+ * release reached the page. Any other dispatch failure keeps its own error.
  */
 function closedTabRescue(
-  contents: WebContents,
   error: unknown,
   base: { trusted: boolean; activation: string }
 ): Record<string, unknown> | null {
-  if (!contents.isDestroyed() && !getErrorMessage(error).includes('target closed')) return null
+  if (!(error instanceof cdp.TabClosedOnReleaseError)) return null
   const activeTab = session.automationTab()
-  const nowActive = activeTab && activeTab.view.webContents !== contents ? activeTab : null
   return {
     dispatched: true,
     trusted: base.trusted,
@@ -1823,12 +1820,13 @@ function closedTabRescue(
     effectObserved: true,
     possibleEffectObserved: true,
     closedDuringDispatch: true,
+    doNotRetry: true,
     effect: { tabChanged: true },
     dialogs: [],
-    ...(nowActive
-      ? { activeTab: { tabId: nowActive.id, url: nowActive.view.webContents.getURL() } }
+    ...(activeTab
+      ? { activeTab: { tabId: activeTab.id, url: activeTab.view.webContents.getURL() } }
       : {}),
-    note: 'The tab closed while the click was being delivered, which is how a page that closes itself in response (a sign-in or permission popup) ends; that is why no postconditions are reported. Take a fresh browser_snapshot of the tab that is now active.',
+    note: 'The tab closed as the click was released, so no postconditions could be read. Do not repeat the click. If this page was not expected to close itself, verify the outcome with browser_snapshot before relying on it.',
   }
 }
 
@@ -3329,7 +3327,7 @@ async function executeToolInner(
           const nativePointer = { trusted: true, activation: 'native-pointer' }
           const rescued =
             navigationRescue(contents, epochAtDispatch, urlAtDispatch, nativePointer) ??
-            closedTabRescue(contents, error, nativePointer)
+            closedTabRescue(error, nativePointer)
           if (rescued) return rescued
           throw new ToolError(
             `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
@@ -3371,7 +3369,7 @@ async function executeToolInner(
             const nativePointer = { trusted: true, activation: 'native-pointer' }
             const rescued =
               navigationRescue(contents, epochAtDispatch, urlAtDispatch, nativePointer) ??
-              closedTabRescue(contents, error, nativePointer)
+              closedTabRescue(error, nativePointer)
             if (rescued) return rescued
             throw new ToolError(
               `Native framed click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
@@ -4796,7 +4794,7 @@ async function executeToolInner(
         const nativePointer = { trusted: true, activation: 'native-pointer' }
         const rescued =
           navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, nativePointer) ??
-          closedTabRescue(contents, error, nativePointer)
+          closedTabRescue(error, nativePointer)
         if (rescued) return rescued
         throw new ToolError(
           `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`

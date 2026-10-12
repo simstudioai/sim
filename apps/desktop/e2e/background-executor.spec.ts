@@ -122,32 +122,41 @@ test.describe('background executor', () => {
     )
     const readConsent = launched.app.waitForEvent('window')
     const localRead = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
-    await answerShellDialog(await readConsent, 'Allow folder')
+    try {
+      await answerShellDialog(await readConsent, 'Allow folder')
 
-    await window.goto(`${sim.origin}/workspace/ws-other/home`)
-    await window.reload()
-    await window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
+      await window.goto(`${sim.origin}/workspace/ws-other/home`)
+      await window.reload()
+      await window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
 
-    // Chat B's first command holds its queue until released, so a claim that waited for the
-    // calls ahead of it to run could never happen in time.
-    await check("A: every call is claimed while chat B's first command still runs", async () => {
-      await expect
-        .poll(
-          () =>
-            [...sim.calls.values()]
-              .filter((call) => call.claimedAt === undefined)
-              .map((call) => call.toolCallId),
-          { timeout: SIM_PICKUP_GRACE_MS }
-        )
-        .toEqual([])
-    })
+      // Chat B's first command holds its queue until released, so a claim that waited for the
+      // calls ahead of it to run could never happen in time.
+      await check("A: every call is claimed while chat B's first command still runs", async () => {
+        await expect
+          .poll(
+            () =>
+              [...sim.calls.values()]
+                .filter((call) => call.claimedAt === undefined)
+                .map((call) => call.toolCallId),
+            { timeout: SIM_PICKUP_GRACE_MS }
+          )
+          .toEqual([])
+        for (const call of sim.calls.values()) {
+          expect(
+            (call.claimedAt ?? Number.POSITIVE_INFINITY) - call.issuedAt,
+            call.toolCallId
+          ).toBeLessThan(SIM_PICKUP_GRACE_MS)
+        }
+      })
 
-    await check('A: the lease is renewed while calls wait and run', async () => {
-      await expect
-        .poll(() => terminalRuns.filter((id) => sim.requireCall(id).renewals === 0))
-        .toEqual([])
-    })
-    writeFileSync(releaseCommands, '')
+      await check('A: the lease is renewed while calls wait and run', async () => {
+        await expect
+          .poll(() => terminalRuns.filter((id) => sim.requireCall(id).renewals === 0))
+          .toEqual([])
+      })
+    } finally {
+      writeFileSync(releaseCommands, '')
+    }
 
     await check('A: every call completes exactly once with its own token', async () => {
       for (const id of [...clicks, ...terminalRuns, localRead]) {
