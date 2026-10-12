@@ -110,7 +110,7 @@ describe('readWorkspaceFileText', () => {
     const result = await observeWorkspaceFileDelivery(observe, () =>
       readWorkspaceFileText.execute({ principal: principals[0], input: input() })
     )
-    expect(observe).toHaveBeenCalledWith(provenance)
+    expect(observe).toHaveBeenCalledWith(provenance, FILE_ID)
     expect(result.secretProvenance).toBeUndefined()
   })
   it('does not return content if the private delivery observer refuses', async () => {
