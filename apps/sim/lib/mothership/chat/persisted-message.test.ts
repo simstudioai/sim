@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { copilotChatStopBodySchema } from '@/lib/api/contracts/copilot'
 import type { PersistedToolState } from '@/lib/api/contracts/copilot-messages'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
@@ -635,22 +636,25 @@ describe('compactToolCallParams', () => {
   })
 
   it.each(['pending', 'executing', 'awaiting_approval'] as const)(
-    'keeps a %s call whole: it can still run or await approval from these params',
+    'keeps a live %s call whole: it can still run or await approval from these params',
     (state) => {
-      const message = sandboxCall(state)
+      const message = { ...sandboxCall(state), id: getLiveAssistantMessageId('stream-1') }
       expect(compactToolCallParams(message)).toBe(message)
     }
   )
 
-  it('bounds an interrupted call, which no reload re-runs or asks to approve', () => {
-    const compacted = compactToolCallParams(sandboxCall('interrupted'))
-    const stdout = (
-      compacted.contentBlocks?.[0].toolCall?.params?.request as {
-        invocation: { stdout: string }
-      }
-    ).invocation.stdout
-    expect(stdout.length).toBeLessThanOrEqual(1024)
-  })
+  it.each(['pending', 'executing', 'awaiting_approval', 'interrupted'] as const)(
+    'bounds a stored %s call, which renders as interrupted and never re-runs or asks to approve',
+    (state) => {
+      const compacted = compactToolCallParams(sandboxCall(state))
+      const stdout = (
+        compacted.contentBlocks?.[0].toolCall?.params?.request as {
+          invocation: { stdout: string }
+        }
+      ).invocation.stdout
+      expect(stdout.length).toBeLessThanOrEqual(1024)
+    }
+  )
 
   it('is idempotent and keeps the reference once compacted', () => {
     const compacted = compactToolCallParams(sandboxCall('error'))
