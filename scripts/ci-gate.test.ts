@@ -5,10 +5,27 @@ import { describe, expect, it } from 'vitest'
 const script = fileURLToPath(new URL('../.github/scripts/ci-gate.sh', import.meta.url))
 
 type Result = 'success' | 'failure' | 'cancelled' | 'skipped'
-type Job = 'changes' | 'integration' | 'e2e' | 'desktop-live' | 'lint' | 'test' | 'build'
+type Job =
+  | 'changes'
+  | 'integration'
+  | 'e2e'
+  | 'e2e-build'
+  | 'e2e-mobile'
+  | 'desktop-live'
+  | 'lint'
+  | 'test'
+  | 'build'
 type Results = Partial<Record<Job, Result>>
 
-const GATED: Job[] = ['integration', 'e2e', 'desktop-live', 'test', 'build']
+const GATED: Job[] = [
+  'integration',
+  'e2e',
+  'e2e-build',
+  'e2e-mobile',
+  'desktop-live',
+  'test',
+  'build',
+]
 const ALL_FALSE = { full: 'false', test: 'false', build: 'false', desktop_live: 'false' }
 
 /**
@@ -80,7 +97,12 @@ describe('CI gate', () => {
       name: 'a skip whose flag is a misspelling',
       outputs: { ...ALL_FALSE, full: 'flase' },
       results: skipGated,
-      reported: ['e2e: skipped', 'integration: skipped'],
+      reported: [
+        'e2e-build: skipped',
+        'e2e-mobile: skipped',
+        'e2e: skipped',
+        'integration: skipped',
+      ],
     },
     {
       name: 'a skip whose flag is differently cased',
@@ -107,6 +129,8 @@ describe('CI gate', () => {
       reported: [
         'build: skipped',
         'desktop-live: skipped',
+        'e2e-build: skipped',
+        'e2e-mobile: skipped',
         'e2e: skipped',
         'integration: skipped',
         'test: skipped',
@@ -119,6 +143,8 @@ describe('CI gate', () => {
       reported: [
         'build: skipped',
         'desktop-live: skipped',
+        'e2e-build: skipped',
+        'e2e-mobile: skipped',
         'e2e: skipped',
         'integration: skipped',
         'test: skipped',
@@ -132,6 +158,8 @@ describe('CI gate', () => {
         'build: skipped',
         'changes: failure',
         'desktop-live: skipped',
+        'e2e-build: skipped',
+        'e2e-mobile: skipped',
         'e2e: skipped',
         'integration: skipped',
         'test: skipped',
@@ -142,6 +170,12 @@ describe('CI gate', () => {
       outputs: ALL_FALSE,
       results: { ...skipGated, changes: 'skipped' },
       reported: ['changes: skipped'],
+    },
+    {
+      name: 'a mobile skip after a failed e2e build, though its flag is true',
+      outputs: { ...ALL_FALSE, full: 'true', build: 'true' },
+      results: { 'e2e-build': 'failure', 'e2e-mobile': 'skipped' },
+      reported: ['e2e-build: failure', 'e2e-mobile: skipped'],
     },
     {
       name: 'a failed job whose flag is false',

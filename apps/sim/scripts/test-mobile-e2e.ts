@@ -64,6 +64,14 @@ const startedAt = new Date().toISOString()
 const checks: CheckResult[] = []
 const screenshots: string[] = []
 const httpErrors: { browser: string; status: number; path: string }[] = []
+/**
+ * Every document load mounts the workspace socket provider, which mints one realtime token from a
+ * route capped at 30 per minute per client IP. The suite loads well over 30 documents a minute, all
+ * from loopback, so that route's own rate-limit response is expected here; it is recorded apart
+ * from `httpErrors` and must still carry `Retry-After`, and each browser must mint at least once.
+ */
+const SOCKET_TOKEN_PATH = '/api/auth/socket-token'
+const socketTokenMints = new Map<string, { minted: number; rateLimited: number }>()
 const requestFailures: {
   browser: string
   viewport: string
@@ -507,8 +515,17 @@ async function exerciseViewport(
     }
     if (pageErrors.length < 20) pageErrors.push(error.message)
   })
+  const mints = socketTokenMints.get(browserName) ?? { minted: 0, rateLimited: 0 }
+  socketTokenMints.set(browserName, mints)
   page.on('response', (response) => {
     const url = new URL(response.url())
+    if (url.origin === baseUrl.origin && url.pathname === SOCKET_TOKEN_PATH) {
+      if (response.ok()) mints.minted += 1
+      if (response.status() === 429 && response.headers()['retry-after']) {
+        mints.rateLimited += 1
+        return
+      }
+    }
     if (url.origin === baseUrl.origin && response.status() >= 400 && httpErrors.length < 100) {
       httpErrors.push({ browser: browserName, status: response.status(), path: url.pathname })
     }
@@ -1194,6 +1211,11 @@ try {
   await check('same-origin HTTP responses succeed', undefined, async () => {
     assert.deepEqual(httpErrors, [])
   })
+  await check('each browser mints a realtime token', undefined, async () => {
+    for (const [browserName, mints] of socketTokenMints) {
+      assert(mints.minted > 0, `${browserName} never minted a realtime token`)
+    }
+  })
   await mkdir(dirname(reportPath), { recursive: true })
   await writeFile(
     reportPath,
@@ -1205,6 +1227,7 @@ try {
         checks,
         screenshots,
         httpErrors,
+        socketTokenMints: Object.fromEntries(socketTokenMints),
         requestFailures,
         navigationDiagnostics,
         viewportMeasurements,
