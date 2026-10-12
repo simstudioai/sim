@@ -560,17 +560,20 @@ describe('sandbox API provenance admission', () => {
         `/api/v2/${source === 'file' ? 'files/fixture' : 'tables/fixture/rows'}`,
         async () => {
           if (source === 'file') {
-            await reportWorkspaceFileDelivery({
-              status: 'exact',
-              entries: [
-                {
-                  name: 'TOKEN',
-                  encryptedValue: catalog[0].encryptedValue,
-                  sourceUserId: scope.userId,
-                  sourceWorkspaceId: scope.workspaceId,
-                },
-              ],
-            })
+            await reportWorkspaceFileDelivery(
+              {
+                status: 'exact',
+                entries: [
+                  {
+                    name: 'TOKEN',
+                    encryptedValue: catalog[0].encryptedValue,
+                    sourceUserId: scope.userId,
+                    sourceWorkspaceId: scope.workspaceId,
+                  },
+                ],
+              },
+              'fixture'
+            )
           } else {
             await reportTableRowDelivery(
               {
@@ -598,7 +601,7 @@ describe('sandbox API provenance admission', () => {
   it('accepts explicitly unrecorded file delivery and retains earlier secret history', async () => {
     await run('printf "%s" "$TOKEN" > saved.txt', ['TOKEN'])
     const response = await sandboxApi('/api/v2/files/fixture/download', async () => {
-      await reportWorkspaceFileDelivery({ status: 'unrecorded' })
+      await reportWorkspaceFileDelivery({ status: 'unrecorded' }, 'fixture')
       return new Response('ordinary user input')
     })
     await machine.writeFile('/home/user/input.txt', await response.text())
@@ -654,7 +657,7 @@ describe('sandbox API provenance admission', () => {
       await sandboxApi(
         `/api/v2/${source === 'file' ? 'files/fixture' : 'tables/fixture/rows'}`,
         async () => {
-          if (source === 'file') await reportWorkspaceFileDelivery({ status: 'unknown' })
+          if (source === 'file') await reportWorkspaceFileDelivery({ status: 'unknown' }, 'fixture')
           else
             await reportTableRowDelivery({ version: 1, complete: false, entries: [] }, [
               { value: 'unknown' },

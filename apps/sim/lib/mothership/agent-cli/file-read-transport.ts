@@ -13,12 +13,14 @@ import {
 import { readV2CredentialHeaders } from '@/lib/api/server/routes/v2-credential-headers'
 import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes/v2-json-route'
 import { parseRequest } from '@/lib/api/server/validation'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type CopilotChatDelegationContext,
   createCopilotChatPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
 import {
   importWorkspaceFileSnapshotProvenance,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -52,18 +54,33 @@ export function createFileReadTransport(context: {
     `${basePath}${v2ListFileFoldersContract.path}`,
     `${basePath}${v2BulkDownloadFilesContract.path}`,
   ])
-  const observe = async (workspaceId: string, provenance?: WorkspaceFileSecretProvenance) => {
-    const imported =
-      provenance &&
-      (await importWorkspaceFileSnapshotProvenance({
-        workspaceId,
-        provenance,
-        registry: context.registry,
-        actorUserId: context.userId,
-      }))
-    if (!imported) context.registry?.markIncomplete('workspace-file-provenance-unknown')
-    return imported
-  }
+  /**
+   * Admits one delivery's classification into the invocation registry. A delivery it refuses is
+   * either withheld (text and forwarded responses reach only the model, so refusing them is enough)
+   * or, for a direct download whose bytes can be persisted, delivered with the whole invocation
+   * marked incomplete so anything derived from the copy keeps the unknown classification.
+   */
+  const admit = async (
+    workspaceId: string,
+    provenance: WorkspaceFileSecretProvenance | undefined,
+    resourceId?: string
+  ): Promise<boolean> =>
+    provenance !== undefined &&
+    (await importWorkspaceFileSnapshotProvenance({
+      workspaceId,
+      provenance,
+      registry: context.registry,
+      actorUserId: context.userId,
+      resourceId,
+    }))
+  const refused = () =>
+    v2FileErrorPolicies.concealResourceAuthorization.render(
+      new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
+    ) ??
+    Response.json(
+      { error: { message: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE } },
+      { status: 403 }
+    )
 
   const forward: typeof fetch = async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : input)
@@ -72,8 +89,10 @@ export function createFileReadTransport(context: {
       return (context.transport ?? fetch)(input, init)
     }
     let provenance: WorkspaceFileSecretProvenance | undefined
+    const deliveries: { source: WorkspaceFileSecretProvenance | undefined; fileId: string }[] = []
     const response = await observeWorkspaceFileDelivery(
-      async (source) => {
+      async (source, fileId) => {
+        deliveries.push({ source, fileId })
         provenance = mergeWorkspaceFileSecretProvenance(
           provenance ?? { status: 'exact', entries: [] },
           source ?? { status: 'unknown' }
@@ -83,12 +102,19 @@ export function createFileReadTransport(context: {
     )
     if (!provenance) return response
     try {
-      if (!context.registry || !(await observe(context.invocation.workspaceId, provenance))) {
+      if (!context.registry) {
         await response.body?.cancel().catch(() => {})
         return Response.json(
           { error: { message: 'File read provenance is unavailable. Retry the read.' } },
           { status: 503 }
         )
+      }
+      /** Each delivery is admitted under its own file id, so a refusal names the file it refused. */
+      for (const { source, fileId } of deliveries) {
+        if (!(await admit(context.invocation.workspaceId, source, fileId))) {
+          await response.body?.cancel().catch(() => {})
+          return refused()
+        }
       }
       if (response.body) context.trackDownload?.(response.body, provenance)
       return response
@@ -143,8 +169,10 @@ export function createFileReadTransport(context: {
         if (!parsed.success) return parsed.response
         request.signal.throwIfAborted()
         const result = await observeWorkspaceFileDelivery(
-          async (source) => {
-            await observe(parsed.data.query.workspaceId, source)
+          async (source, fileId) => {
+            if (!(await admit(parsed.data.query.workspaceId, source, fileId))) {
+              throw new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
+            }
           },
           () =>
             readWorkspaceFileText.execute({
@@ -173,8 +201,10 @@ export function createFileReadTransport(context: {
       if (!parsed.success) return parsed.response
       request.signal.throwIfAborted()
       const result = await observeWorkspaceFileDelivery(
-        async (source) => {
-          await observe(parsed.data.query.workspaceId, source)
+        async (source, fileId) => {
+          if (!(await admit(parsed.data.query.workspaceId, source, fileId))) {
+            context.registry?.markIncomplete('workspace-file-provenance-unknown')
+          }
         },
         () =>
           downloadWorkspaceFileStream.execute({
