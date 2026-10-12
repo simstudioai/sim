@@ -5,7 +5,7 @@
 # skip list) to `true`; a change under .github/, an empty diff, or any failure to work out the
 # diff sets all of them.
 #
-#   full          integration, e2e and e2e-mobile: any file not allowlisted below
+#   full          integration, e2e, e2e-build, e2e-mobile: any file not allowlisted below
 #   test          the Vitest shards: content, docs app, and desktop changes, plus `full`
 #   build         the app's `next build`: content changes, plus `full`
 #   desktop_live  the live Electron suite: any file outside its own skip list
