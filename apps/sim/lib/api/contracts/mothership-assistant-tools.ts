@@ -404,12 +404,26 @@ export const listWorkspacesResultSchema = z.object({
   nextCursor: z.uuid().nullable(),
   storedNotes: z
     .array(
-      z.object({
-        id: z.string(),
-        kind: z.enum(['user_pref', 'workspace_fact']),
-        content: z.string(),
-        updatedAt: z.iso.datetime(),
-      })
+      z
+        .object({
+          id: z.string(),
+          content: z.string(),
+          updatedAt: z.iso.datetime(),
+          by: z.enum(['this user', 'another workspace member', 'another user']).optional(),
+          chat: z.enum(['this chat', 'another chat']).optional(),
+        })
+        .and(
+          z.union([
+            z.object({ kind: z.enum(['user_pref', 'workspace_fact']) }),
+            z.object({
+              scope: z.enum(['personal', 'project', 'workspace']),
+              visibility: z.enum(['private', 'shared']),
+              projectId: z.uuid().nullable(),
+              workspaceId: z.uuid().nullable(),
+              revision: z.number().int().positive(),
+            }),
+          ])
+        )
     )
     .optional(),
 })

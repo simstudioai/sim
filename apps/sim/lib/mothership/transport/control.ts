@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { HttpError } from '@/lib/core/utils/http-error'
 import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
@@ -12,6 +13,10 @@ import {
   INTEGRATION_CATALOG_AUDIENCE,
   readIntegrationCatalog,
 } from '@/lib/mothership/integrations/application/catalog'
+import {
+  MEMORY_ACCESS_AUDIENCE,
+  resolveMemoryAccess,
+} from '@/lib/mothership/memories/application/resolve-access'
 import {
   RUN_CONTROL_AUDIENCE,
   readRunControl,
@@ -41,13 +46,15 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
         },
         {
           audience:
-            operation.kind === 'integration_catalog'
-              ? INTEGRATION_CATALOG_AUDIENCE
-              : operation.kind === 'workspace_context'
-                ? WORKSPACE_TARGET_AUDIENCE
-                : operation.kind === 'run_control'
-                  ? RUN_CONTROL_AUDIENCE
-                  : TASK_DELEGATION_AUDIENCE,
+            operation.kind === 'memory_access'
+              ? MEMORY_ACCESS_AUDIENCE
+              : operation.kind === 'integration_catalog'
+                ? INTEGRATION_CATALOG_AUDIENCE
+                : operation.kind === 'workspace_context'
+                  ? WORKSPACE_TARGET_AUDIENCE
+                  : operation.kind === 'run_control'
+                    ? RUN_CONTROL_AUDIENCE
+                    : TASK_DELEGATION_AUDIENCE,
           ttlMs: 60_000,
         }
       )
@@ -55,18 +62,27 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
         { ...scope, workspaceId: scope.workspaceId!, delegationId: `transport:${request.id}` },
         {
           audience:
-            operation.kind === 'integration_catalog'
-              ? INTEGRATION_CATALOG_AUDIENCE
-              : operation.kind === 'workspace_context'
-                ? WORKSPACE_TARGET_AUDIENCE
-                : operation.kind === 'run_control'
-                  ? RUN_CONTROL_AUDIENCE
-                  : TASK_DELEGATION_AUDIENCE,
+            operation.kind === 'memory_access'
+              ? MEMORY_ACCESS_AUDIENCE
+              : operation.kind === 'integration_catalog'
+                ? INTEGRATION_CATALOG_AUDIENCE
+                : operation.kind === 'workspace_context'
+                  ? WORKSPACE_TARGET_AUDIENCE
+                  : operation.kind === 'run_control'
+                    ? RUN_CONTROL_AUDIENCE
+                    : TASK_DELEGATION_AUDIENCE,
           ttlMs: 60_000,
         }
       )
   try {
     switch (operation.kind) {
+      case 'memory_access':
+        return {
+          status: 200,
+          body: JSON.stringify(
+            await resolveMemoryAccess.execute({ principal, input: operation.input })
+          ),
+        }
       case 'integration_catalog':
         return {
           status: 200,
@@ -100,6 +116,9 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
       }
     }
   } catch (error) {
+    if (error instanceof HttpError) {
+      return { status: error.statusCode, body: JSON.stringify({ error: error.message }) }
+    }
     const classified = asOrchestrationError(error)
     if (!classified || classified.code === 'internal') {
       logger.error('Sim control failed', { kind: operation.kind, error: getErrorMessage(error) })

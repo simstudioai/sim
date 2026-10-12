@@ -37,6 +37,7 @@ import {
 } from '@/lib/billing/organizations/resource-handoff'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
+import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
 import {
   getProjectAccountDeletionBlockers,
   prepareProjectsForAccountDeletion,
@@ -890,6 +891,12 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
      * the same stop.
      */
     cancelledMarkers = await cancelPendingMarkersForGovernedSubject(tx, userId)
+
+    await enqueueMemoryCleanup(tx, [
+      { kind: 'private_owner', userId },
+      ...doomedWorkspaceIds.map((workspaceId) => ({ kind: 'workspace' as const, workspaceId })),
+      ...projectIdsToDelete.map((projectId) => ({ kind: 'project' as const, projectId })),
+    ])
 
     try {
       await tx.delete(user).where(eq(user.id, userId))
