@@ -699,6 +699,13 @@ export const executionLargeValues = pgTable(
      * would otherwise sequentially scan this table each time.
      */
     workflowIdIdx: index('execution_large_values_workflow_id_idx').on(table.workflowId),
+    /**
+     * Backs the `ON DELETE CASCADE` referential trigger. The cleanup indexes lead with
+     * `workspace_id` but are partial, so the trigger's unqualified `workspace_id = $1` cannot use them.
+     */
+    workspaceIdIdx: index('execution_large_values_workspace_id_idx')
+      .on(table.workspaceId)
+      .concurrently(),
   })
 )
 
@@ -3745,6 +3752,11 @@ export const document = pgTable(
   },
   (table) => ({
     knowledgeBaseIdIdx: index('doc_kb_id_idx').on(table.knowledgeBaseId),
+    /** Backs the `ON DELETE SET NULL` referential trigger on user deletion. */
+    uploadedByIdx: index('doc_uploaded_by_idx')
+      .on(table.uploadedBy)
+      .where(sql`${table.uploadedBy} IS NOT NULL`)
+      .concurrently(),
     /** Search's updated-after filter: the documents of a base changed since a time, without a base scan. */
     sourceModifiedLookupIdx: index('doc_kb_source_modified_idx')
       .on(table.knowledgeBaseId, table.sourceModifiedAt)
@@ -4033,7 +4045,10 @@ export const embedding = pgTable(
     boolean2Idx: index('emb_boolean2_idx').on(table.boolean2),
     boolean3Idx: index('emb_boolean3_idx').on(table.boolean3),
 
-    contentFtsIdx: index('emb_content_fts_idx').using('gin', table.contentTsv),
+    /** Chunk writes must not inherit a foreground merge of every other writer's pending entries. */
+    contentFtsIdx: index('emb_content_fts_idx')
+      .using('gin', table.contentTsv)
+      .with({ fastupdate: 'off' }),
 
     /**
      * Exactly one width is populated per chunk. A row with none is an
@@ -7084,6 +7099,8 @@ export const userTableDefinitions = pgTable(
   (table) => ({
     workspaceIdIdx: index('user_table_def_workspace_id_idx').on(table.workspaceId),
     folderIdIdx: index('user_table_def_folder_id_idx').on(table.folderId),
+    /** Backs the `ON DELETE CASCADE` referential trigger on user deletion. */
+    createdByIdx: index('user_table_def_created_by_idx').on(table.createdBy).concurrently(),
     workspaceNameUnique: uniqueIndex('user_table_def_workspace_name_unique')
       .on(table.workspaceId, table.name)
       .where(sql`${table.archivedAt} IS NULL`),
@@ -7131,6 +7148,11 @@ export const userTableRows = pgTable(
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   },
   (table) => ({
+    /** Backs the `ON DELETE SET NULL` referential trigger on user deletion. */
+    createdByIdx: index('user_table_rows_created_by_idx')
+      .on(table.createdBy)
+      .where(sql`${table.createdBy} IS NOT NULL`)
+      .concurrently(),
     /**
      * Tenant-scoped containment index (requires the `btree_gin` extension,
      * created in migration 0232). A plain GIN on `data` matches `@>` candidates
