@@ -35,7 +35,7 @@ export type ListSortOrder = (typeof LIST_SORT_ORDERS)[number]
  * Case-insensitive substring predicate for a v2 `search` term, or `undefined`
  * when the caller did not search (which drops out of an `and(...)`).
  */
-export function searchFilter(column: Column, term: string | undefined): SQL | undefined {
+export function searchFilter(column: Column | SQL, term: string | undefined): SQL | undefined {
   if (term === undefined) return undefined
   return ilike(column, `%${escapeLikePattern(term)}%`)
 }
@@ -69,10 +69,19 @@ export interface KeysetKey<Row> {
    * {@link keysetAfter}. Set only on a key an index serves in order.
    */
   boundsScan?: boolean
+  /**
+   * A direction this key keeps whatever order the caller requested — a tiebreaker that
+   * stays A→Z under a descending primary sort. Absent means the requested order.
+   */
+  direction?: ListSortOrder
+}
+
+function keyDirection<Row>(key: KeysetKey<Row>, order: ListSortOrder): ListSortOrder {
+  return key.direction ?? order
 }
 
 /** A text key — names, titles, ids. */
-export function textKey<Row>(column: Column, read: (row: Row) => string): KeysetKey<Row> {
+export function textKey<Row>(column: SQLWrapper, read: (row: Row) => string): KeysetKey<Row> {
   return {
     expr: column,
     encode: read,
@@ -199,7 +208,7 @@ export function classifyTimestampCursor(value: CursorKey): 'precise' | 'date' | 
  * wall-clock time: `to_char` renders a `timestamptz` in the session time zone,
  * which the trailing `Z` would misstate.
  */
-export function preciseTimestampText(column: Column): SQL<string> {
+export function preciseTimestampText(column: Column | SQL): SQL<string> {
   return sql<string>`to_char(${column}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
 }
 
@@ -214,7 +223,7 @@ export function preciseTimestampText(column: Column): SQL<string> {
  * value {@link classifyTimestampCursor} calls precise.
  */
 export function preciseTimestampKey<Row>(
-  column: Column,
+  column: SQLWrapper,
   read: (row: Row) => string
 ): KeysetKey<Row> {
   return {
@@ -238,6 +247,11 @@ export function sortDirection(order: ListSortOrder): typeof asc {
 export function listOrderBy(keys: readonly SQLWrapper[], order: ListSortOrder): SQL[] {
   const direction = sortDirection(order)
   return keys.map((key) => direction(key))
+}
+
+/** `ORDER BY` for a keyset, each key in its own {@link KeysetKey.direction} or the requested one. */
+export function keysetOrderBy<Row>(keys: readonly KeysetKey<Row>[], order: ListSortOrder): SQL[] {
+  return keys.map((key) => sortDirection(keyDirection(key, order))(key.expr))
 }
 
 /** The `expr` of each keyset key, for `ORDER BY`. */
@@ -302,8 +316,8 @@ export function keysetPage<Row>(
 
 /**
  * The `WHERE` half of the keyset: strictly after `values` in the requested
- * direction, expanded lexicographically so ties on a leading key fall through
- * to the next one.
+ * direction (or a key's own {@link KeysetKey.direction}), expanded
+ * lexicographically so ties on a leading key fall through to the next one.
  *
  * When the leading key {@link KeysetKey.boundsScan | bounds the scan}, the
  * cursor also carries that key's inclusive bound, which the expansion already
@@ -329,13 +343,15 @@ export function keysetAfter<Row>(
     bound.push(value)
   }
 
-  const beyond = order === 'asc' ? gt : lt
   const clauses = keys.map((key, i) =>
-    and(...keys.slice(0, i).map((prior, j) => eq(prior.expr, bound[j])), beyond(key.expr, bound[i]))
+    and(
+      ...keys.slice(0, i).map((prior, j) => eq(prior.expr, bound[j])),
+      (keyDirection(key, order) === 'asc' ? gt : lt)(key.expr, bound[i])
+    )
   )
   const after = or(...clauses)
   if (!after) return null
   if (keys.length === 1 || !keys[0].boundsScan) return after
-  const atOrBeyond = order === 'asc' ? gte : lte
+  const atOrBeyond = keyDirection(keys[0], order) === 'asc' ? gte : lte
   return and(atOrBeyond(keys[0].expr, bound[0]), after) ?? null
 }

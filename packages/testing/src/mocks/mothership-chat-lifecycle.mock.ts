@@ -14,6 +14,7 @@ import { vi } from 'vitest'
 export const mothershipChatLifecycleMockFns = {
   mockLoadCopilotChatMessages: vi.fn(),
   mockLoadChatMcpServerIds: vi.fn(),
+  mockLoadChatFileAttachmentsNamed: vi.fn(),
   mockGetAccessibleCopilotChatAuth: vi.fn(),
   mockGetAccessibleCopilotChatForCancellation: vi.fn(),
   mockGetAccessibleCopilotChat: vi.fn(),
@@ -32,6 +33,7 @@ export const mothershipChatLifecycleMockFns = {
 export const mothershipChatLifecycleMock = {
   loadCopilotChatMessages: mothershipChatLifecycleMockFns.mockLoadCopilotChatMessages,
   loadChatMcpServerIds: mothershipChatLifecycleMockFns.mockLoadChatMcpServerIds,
+  loadChatFileAttachmentsNamed: mothershipChatLifecycleMockFns.mockLoadChatFileAttachmentsNamed,
   getAccessibleCopilotChatAuth: mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatAuth,
   getAccessibleCopilotChatForCancellation:
     mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatForCancellation,

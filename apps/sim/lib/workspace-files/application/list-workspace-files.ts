@@ -6,6 +6,7 @@ import type { FolderIdScope } from '@/lib/folders/scope'
 import { collectDescendantFolderIdsFrom, indexFolderChildren } from '@/lib/folders/subtree'
 import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import {
+  findListedWorkspaceFiles,
   listWorkspaceFiles,
   loadActiveWorkspaceContext,
   queryWorkspaceFiles,
@@ -86,6 +87,25 @@ export const listAllWorkspaceFiles = defineAuthorizedWorkspaceFileUseCase({
     return {
       files: files.map((file) => ({ ...file, share: shares.get(file.id) ?? null })),
     }
+  },
+})
+
+interface FindActiveWorkspaceFilesByReferenceInput {
+  workspaceId: string
+  references: readonly string[]
+}
+
+/**
+ * The active workspace file a listing-based lookup would pick for each reference (an id, a
+ * VFS path, or a bare name), under the same list authorization, without reading the listing.
+ * Workspace files only: chat uploads and owned files are never matched.
+ */
+export const findActiveWorkspaceFilesByReference = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.list,
+  resolveContext: ({ input }: { input: FindActiveWorkspaceFilesByReferenceInput }) =>
+    resolveListWorkspaceFileContext(input.workspaceId),
+  async execute({ input, context }) {
+    return { files: await findListedWorkspaceFiles(context.workspaceId, input.references) }
   },
 })
 
