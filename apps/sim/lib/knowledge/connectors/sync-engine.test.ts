@@ -1591,6 +1591,50 @@ describe('completeSuccessfulSync', () => {
     expect(successWrite).toMatchObject({ consecutiveFailures: 0 })
   })
 
+  it.each([
+    { recordedDocCount: 7, written: undefined },
+    { recordedDocCount: null, written: 4 },
+  ])(
+    'leaves an unfinished pass on the last finished count unless none was recorded: $recordedDocCount',
+    async ({ recordedDocCount, written }) => {
+      const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+      queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1', lastSyncDocCount: 7 }])
+      queueTableRows(schemaMock.document, [{ count: 4 }])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([{ id: 'log-1' }])
+        .mockResolvedValueOnce([{ id: 'c-1' }])
+
+      await expect(
+        completeSuccessfulSync(
+          'c-1',
+          'kb-1',
+          'log-1',
+          60,
+          { ...RESULT, docsFailed: 0 },
+          null,
+          {
+            complete: false,
+            checkpoint: {
+              unsafe: false,
+              startedAt: '2026-09-04T00:00:00Z',
+              listedCount: 25,
+              resumeAt: null,
+            },
+          },
+          null,
+          false,
+          recordedDocCount
+        )
+      ).resolves.toBe(true)
+
+      const successWrite = dbChainMockFns.set.mock.calls
+        .map(([value]) => value as Record<string, unknown>)
+        .find((value) => value.status === 'active')
+      expect(successWrite?.lastSyncDocCount).toBe(written)
+    }
+  )
+
   it('publishes neither terminal state when lock ownership is gone', async () => {
     const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
 
