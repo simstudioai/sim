@@ -497,6 +497,89 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     )
   })
 
+  describe('grep reshapes a file line only after redacting it', () => {
+    const secret = 'sk_live_P3_FIXTURE_0123456789abcdefghij'
+    const otherSecret = 'pk_test_P3_FIXTURE_ZYXWVUTSRQPONMLKJIH'
+    const keyBlock = [
+      '-----BEGIN FIXTURE KEY-----',
+      'MIIBFIXTUREKEYLINEONE0123456789',
+      'MIIBFIXTUREKEYLINETWO0123456789',
+      '-----END FIXTURE KEY-----',
+    ].join('\n')
+    const LINE_CHARS = 2_000
+    const pad = (from: number, to: number) => 'x'.repeat(to - from)
+
+    /** A secret leaks as soon as its first or last four characters, or one of its lines, cross. */
+    function fragments(value: string): string[] {
+      return [value.slice(0, 4), value.slice(-4), ...value.split('\n')]
+    }
+
+    async function grepSecretFile(text: string, pattern: string) {
+      const plaintexts: Record<string, string> = {
+        'cipher-file': secret,
+        'cipher-other': otherSecret,
+        'cipher-key': keyBlock,
+      }
+      mocks.decrypt.mockImplementation(async (cipher: string) => ({
+        decrypted: plaintexts[cipher],
+      }))
+      mocks.buffer.mockResolvedValue(Buffer.from(text))
+      vi.stubGlobal('fetch', async () =>
+        Response.json({
+          data: [{ ...file, size: Buffer.byteLength(text), updatedAt: revision.toISOString() }],
+          nextCursor: null,
+        })
+      )
+      resetDbChainMock()
+      queueTableRows(workspaceFiles, [
+        sidecarRow('exact', revision, [
+          { name: 'FILE_SECRET', encryptedValue: 'cipher-file', sourceUserId: 'reader' },
+          { name: 'OTHER_SECRET', encryptedValue: 'cipher-other', sourceUserId: 'reader' },
+          { name: 'KEY_BLOCK', encryptedValue: 'cipher-key', sourceUserId: 'reader' },
+        ]),
+      ])
+      const trace = registry()
+      const result = await runCli(grepFiles(pattern), trace)
+      const projection = inspectToolResultForCopilot(result, trace, 'sim_cli')
+      expect(projection.safe).toBe(true)
+      return JSON.stringify(projection.result)
+    }
+
+    it.each([
+      ['straddling the clip', `NEEDLE ${pad(7, LINE_CHARS - 10)}${secret} tail`],
+      [
+        'whose redaction marker would straddle the clip',
+        `NEEDLE ${pad(7, LINE_CHARS - 5)}${secret}`,
+      ],
+      ['wholly past the clip', `NEEDLE ${pad(7, LINE_CHARS + 50)}${secret} tail`],
+      [
+        'repeated around the clip with another secret',
+        `NEEDLE ${otherSecret} ${pad(48, LINE_CHARS - 12)}${secret}${otherSecret}${secret}`,
+      ],
+    ])('never returns a fragment of a secret %s', async (_case, line) => {
+      const projected = await grepSecretFile(`${line}\nsecond line`, 'NEEDLE')
+      expect(projected).toContain('NEEDLE')
+      expect(projected).toContain('[line truncated]')
+      for (const fragment of [...fragments(secret), ...fragments(otherSecret)]) {
+        expect(projected).not.toContain(fragment)
+      }
+      const withoutMarkers = projected
+        .replaceAll('{{FILE_SECRET}}', '')
+        .replaceAll('{{OTHER_SECRET}}', '')
+        .replaceAll('[REDACTED_SECRET]', '')
+      expect(withoutMarkers).not.toContain('{{')
+      expect(withoutMarkers).not.toContain('[RED')
+    })
+
+    it('never returns one line of a multi-line secret', async () => {
+      const projected = await grepSecretFile(
+        `config start\n${keyBlock}\nconfig end`,
+        'FIXTURE KEY|KEYLINE'
+      )
+      for (const fragment of fragments(keyBlock)) expect(projected).not.toContain(fragment)
+    })
+  })
+
   it('refuses an unknown file through the actual CLI text read without loading its bytes', async () => {
     classify('unknown')
     const result = await runCli(readFile)
