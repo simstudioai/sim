@@ -24,6 +24,7 @@ interface AdmissionRow extends Record<string, unknown> {
   blocked_until_ms: number | null
   allowed: boolean
   spent: number
+  now_ms: number
 }
 
 /** An array of scalar binds; the pool cannot bind a JavaScript array as one parameter. */
@@ -35,16 +36,23 @@ function sqlArray(values: readonly (string | number)[], type: 'text' | 'float8')
 }
 
 /**
- * Locks every key in sorted order, refills each reservation to `now` with the same float8
- * arithmetic {@link DbTokenBucket.consumeTokens} uses in JavaScript, and spends all reservations
- * only when no cooldown is active and every balance covers its cost. Returns one row per
- * reservation and per cooldown key, each carrying the decision and how many buckets were spent.
+ * Locks every key in sorted order, refills each reservation to the moment every lock is held
+ * with the same float8 arithmetic {@link DbTokenBucket.consumeTokens} uses in JavaScript, and
+ * spends all reservations only when no cooldown is active and every balance covers its cost.
+ * Returns one row per reservation and per cooldown key, each carrying the decision, how many
+ * buckets were spent, and the clock the decision used.
+ *
+ * That clock is the caller's `sentAt` advanced by the time the statement spent acquiring its
+ * locks, in whole milliseconds: `clock` counts every `locked` row before reading
+ * `clock_timestamp()`, so the read happens only once the last lock is held. Measuring the wait
+ * on the database rather than reading its absolute time keeps every stored instant on the
+ * application clock that wrote it.
  */
 function buildAdmissionStatement(
   reservations: readonly TokenBucketReservation[],
   cooldownKeys: readonly string[],
   keys: readonly string[],
-  now: number
+  sentAt: number
 ): SQL {
   return sql`
     WITH reservation AS (
@@ -78,6 +86,11 @@ function buildAdmissionStatement(
       ORDER BY key
       FOR UPDATE
     ),
+    clock AS (
+      SELECT ${sentAt}::float8
+        + floor(extract(epoch FROM (held.locked_at - statement_timestamp())) * 1000) AS now_ms
+      FROM (SELECT clock_timestamp() AS locked_at FROM (SELECT count(*) FROM locked) every_lock) held
+    ),
     balance AS (
       SELECT
         r.key,
@@ -89,11 +102,12 @@ function buildAdmissionStatement(
         l.last_refill_at + (e.elapsed * r.refill_interval_ms) * interval '1 millisecond' AS last_refill_at
       FROM reservation r
       JOIN locked l ON l.key = r.key
+      CROSS JOIN clock
       CROSS JOIN LATERAL (
         SELECT (extract(epoch FROM l.last_refill_at) * 1000)::float8 AS last_ms
       ) m
       CROSS JOIN LATERAL (
-        SELECT GREATEST(0, floor((${now}::float8 - m.last_ms) / r.refill_interval_ms)) AS elapsed
+        SELECT GREATEST(0, floor((clock.now_ms - m.last_ms) / r.refill_interval_ms)) AS elapsed
       ) e
     ),
     cooldown AS (
@@ -104,26 +118,30 @@ function buildAdmissionStatement(
     decision AS (
       SELECT
         NOT EXISTS (SELECT 1 FROM balance WHERE available < cost)
-        AND NOT EXISTS (SELECT 1 FROM cooldown WHERE blocked_until_ms > ${now}::float8) AS allowed
+        AND NOT EXISTS (
+          SELECT 1 FROM cooldown, clock WHERE cooldown.blocked_until_ms > clock.now_ms
+        ) AS allowed
     ),
     spent AS (
       UPDATE ${rateLimitBucket} AS bucket
       SET
         tokens = (balance.available - balance.cost)::text::numeric,
         last_refill_at = balance.last_refill_at,
-        updated_at = timestamp '1970-01-01' + ${now}::float8 * interval '1 millisecond'
-      FROM balance, decision
+        updated_at = timestamp '1970-01-01' + clock.now_ms * interval '1 millisecond'
+      FROM balance, decision, clock
       WHERE decision.allowed AND bucket.key = balance.key
       RETURNING bucket.key
     ),
     outcome AS (
-      SELECT decision.allowed, (SELECT count(*) FROM spent)::int AS spent FROM decision
+      SELECT decision.allowed, (SELECT count(*) FROM spent)::int AS spent, clock.now_ms
+      FROM decision, clock
     )
     SELECT 'reservation' AS kind, b.cost, b.available, b.last_refill_ms, b.refill_rate,
-      b.refill_interval_ms, NULL::float8 AS blocked_until_ms, o.allowed, o.spent
+      b.refill_interval_ms, NULL::float8 AS blocked_until_ms, o.allowed, o.spent, o.now_ms
     FROM balance b CROSS JOIN outcome o
     UNION ALL
-    SELECT 'cooldown', NULL, NULL, NULL, NULL, NULL, c.blocked_until_ms, o.allowed, o.spent
+    SELECT 'cooldown', NULL, NULL, NULL, NULL, NULL, c.blocked_until_ms, o.allowed, o.spent,
+      o.now_ms
     FROM cooldown c CROSS JOIN outcome o
   `
 }
@@ -243,9 +261,8 @@ export class DbTokenBucket implements RateLimitStorageAdapter {
    *
    * The lock, refill, decision, and spend run as one statement, so the bucket rows stay locked
    * for that statement and the commit rather than for a round trip per dimension: every waiter
-   * on a hot provider key queues behind that whole hold. The clock is read just before the
-   * statement, so time spent waiting for the lock is not refilled; a contended admission can
-   * only see fewer tokens than it would have read after the wait, never more.
+   * on a hot provider key queues behind that whole hold. Refill and cooldowns are judged at the
+   * moment the locks are held, as before, so a wait for a contended lock is refilled.
    */
   async consumeTokensAtomically(
     reservations: readonly TokenBucketReservation[],
@@ -279,12 +296,13 @@ export class DbTokenBucket implements RateLimitStorageAdapter {
           )
           .onConflictDoNothing()
         options.signal?.throwIfAborted()
-        const now = Date.now()
+        const sentAt = Date.now()
         const rows = await tx.execute<AdmissionRow>(
-          buildAdmissionStatement(reservations, options.cooldownKeys, keys, now)
+          buildAdmissionStatement(reservations, options.cooldownKeys, keys, sentAt)
         )
+        const now = rows[0]?.now_ms ?? sentAt
         options.signal?.throwIfAborted()
-        if (Date.now() >= options.deadlineAt) throw new AdmissionExpiredError()
+        if (Math.max(now, Date.now()) >= options.deadlineAt) throw new AdmissionExpiredError()
         return readAdmissionResult(rows, reservations, now)
       })
     } catch (error) {
