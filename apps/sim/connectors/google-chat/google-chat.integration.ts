@@ -158,6 +158,7 @@ describe('Google Chat connector over real HTTP', () => {
 
   it('retains messages across short pages without changing continuation parameters', async () => {
     mode = 'stable-pages'
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
     const document = await read({ maxMessages: '3', lookbackDays: '90' })
     expect(document?.metadata?.messageCount).toBe(2)
     expect(document?.content).toMatch(/Older decision:[\s\S]*New decision:/)
