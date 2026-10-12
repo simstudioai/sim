@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 const { source } = vi.hoisted(() => ({
   source: {
-    rows: [] as Array<{ id: string; data: Record<string, unknown> }>,
+    rows: [] as Array<{ id: string; data: Record<string, unknown>; storedBytes?: number }>,
     /** Every LIMIT the drain asked for, in order. */
     asks: [] as number[],
   },
@@ -44,6 +44,11 @@ import { fetchRowsBounded } from '@/lib/table/rows/service'
 
 const MB = 1024 * 1024
 const BUDGET = 5 * MB
+
+/** A row as a projecting SELECT returns it: the full value's size travels beside the data. */
+function storedRow(id: string, data: Record<string, unknown>) {
+  return { id, data, storedBytes: Buffer.byteLength(JSON.stringify(data)) }
+}
 
 function drain(options: { limit?: number; columnIds?: ReadonlySet<string> }) {
   return fetchRowsBounded({
@@ -99,10 +104,9 @@ describe('fetchRowsBounded column projection', () => {
 
   it('sizes later batches by the rows as stored, not by the few projected bytes', async () => {
     // 60 rows of ~200KB: the first batch is capped at 50, so the drain must size a second one.
-    const wide = Array.from({ length: 60 }, (_, index) => ({
-      id: `row_${index}`,
-      data: { col_big: 'x'.repeat(200 * 1024), col_small: `v${index}` },
-    }))
+    const wide = Array.from({ length: 60 }, (_, index) =>
+      storedRow(`row_${index}`, { col_big: 'x'.repeat(200 * 1024), col_small: `v${index}` })
+    )
     const previous = source.rows
     source.rows = wide
     source.asks = []
@@ -123,10 +127,12 @@ describe('fetchRowsBounded column projection', () => {
     // 49 tiny rows and one ~400KB row in the first batch: the stored AVERAGE is ~8KB
     // (a cap of ~640 rows), but a batch of rows as wide as the widest seen must stay
     // within ~8x the budget (5MB * 8 / ~400KB = 103, plus the +1 witness row).
-    const mixed = Array.from({ length: 120 }, (_, index) => ({
-      id: `row_${index}`,
-      data: { col_big: index === 10 ? 'x'.repeat(400 * 1024) : 'x', col_small: `v${index}` },
-    }))
+    const mixed = Array.from({ length: 120 }, (_, index) =>
+      storedRow(`row_${index}`, {
+        col_big: index === 10 ? 'x'.repeat(400 * 1024) : 'x',
+        col_small: `v${index}`,
+      })
+    )
     const previous = source.rows
     source.rows = mixed
     source.asks = []

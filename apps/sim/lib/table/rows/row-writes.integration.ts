@@ -1989,4 +1989,88 @@ describe('table row writes against real PostgreSQL', () => {
       }
     })
   })
+
+  describe('bounded row reads', () => {
+    /**
+     * A custom sort is read once as ids and its rows fetched by id in byte-sized batches, so the
+     * page must still be the view's order — ties broken by `order_key` then `id`, NULL and missing
+     * cells last — across every batch boundary and from a mid-view offset. A 120-row limit drains
+     * in at least two batches (the first is capped at 51 rows).
+     */
+    it('drains a custom sort across batches in the order of the whole view', async () => {
+      const table = await createTable([
+        { id: 'score', name: 'score', type: 'number' },
+        ...textColumns('name'),
+      ])
+      const fixtures = Array.from({ length: 130 }, (_, index) => {
+        const data: RowData = { name: `n${index}` }
+        if (index % 9 === 0) data.score = null
+        else if (index % 4 !== 0) data.score = index % 5
+        return {
+          id: `${table.id}-${String(index).padStart(3, '0')}`,
+          data,
+          orderKey: index % 7 === 0 ? null : `a${index % 3}`,
+        }
+      })
+      await seedRows(table.id, fixtures)
+      const score = (row: (typeof fixtures)[number]) =>
+        typeof row.data.score === 'number' ? row.data.score : null
+      const expected = [...fixtures]
+        .sort((left, right) => {
+          const [l, r] = [score(left), score(right)]
+          if (l !== r) return l === null ? 1 : r === null ? -1 : r - l
+          if (left.orderKey !== right.orderKey) {
+            if (left.orderKey === null) return 1
+            if (right.orderKey === null) return -1
+            return left.orderKey < right.orderKey ? -1 : 1
+          }
+          return left.id < right.id ? -1 : 1
+        })
+        .map((row) => row.id)
+
+      for (const offset of [0, 37]) {
+        const page = await queryRows(
+          table,
+          {
+            sort: { score: 'desc' },
+            limit: 120,
+            offset,
+            includeTotal: false,
+            withExecutions: false,
+          },
+          'sorted-drain'
+        )
+        expect(page.rows.map((row) => row.id)).toEqual(expected.slice(offset, offset + 120))
+        expect(page.nextCursor !== null).toBe(offset + 120 < expected.length)
+      }
+    })
+
+    /**
+     * The selection is applied in SQL; the response must still keep exactly the selected keys a
+     * row wrote, JSON nulls included, in the caller's order rather than JSONB's key order.
+     */
+    it('narrows row data to the selected columns exactly as returned without a selection', async () => {
+      const table = await createTable(textColumns('b', 'c', 'other'))
+      const nested = { a: 'ü "q"', z: [1, { k: null }] }
+      await seedRows(table.id, [
+        { id: `${table.id}-0`, data: { b: null, c: nested, other: 'x' }, orderKey: 'a0' },
+        { id: `${table.id}-1`, data: { other: 'only' }, orderKey: 'a1' },
+      ])
+
+      const page = await queryRows(
+        table,
+        {
+          columnIds: new Set(['c', 'b', 'missing']),
+          includeTotal: false,
+          withExecutions: false,
+        },
+        'projection'
+      )
+
+      expect(page.rows.map((row) => JSON.stringify(row.data))).toEqual([
+        JSON.stringify({ c: nested, b: null }),
+        JSON.stringify({}),
+      ])
+    })
+  })
 })
