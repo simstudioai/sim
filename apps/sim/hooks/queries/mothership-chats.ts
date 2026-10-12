@@ -19,6 +19,7 @@ import {
   forkMothershipChatContract,
   getMothershipChatContract,
   getMothershipChatResponseSchema,
+  getMothershipChatStreamStatusContract,
   listMothershipChatsContract,
   type MothershipChat,
   type MothershipChatScope,
@@ -324,6 +325,21 @@ export async function fetchMothershipChatHistory(
   const history = await readMothershipChatHistory(chatId, signal)
   if (deleteSeen !== undefined) useMothershipQueueStore.getState().liftDelete(chatId, deleteSeen)
   return history
+}
+
+/**
+ * The stream a chat's server copy still lists as active, read without the
+ * transcript — for polling until a finished turn is saved.
+ */
+export async function fetchMothershipChatActiveStreamId(
+  chatId: string,
+  signal?: AbortSignal
+): Promise<string | null> {
+  const data = await requestJson(getMothershipChatStreamStatusContract, {
+    params: { chatId },
+    signal,
+  })
+  return data.activeStreamId
 }
 
 export function mothershipChatHistoryQueryOptions(chatId: string | undefined) {

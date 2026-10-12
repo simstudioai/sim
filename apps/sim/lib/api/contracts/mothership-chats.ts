@@ -468,6 +468,24 @@ export const getMothershipChatContract = defineRouteContract({
   },
 })
 
+/**
+ * The chat's live stream, without its transcript: what a tab polls while it
+ * waits for a finished turn to be saved, so each check costs a row and a lock
+ * lookup instead of the whole conversation.
+ */
+export const getMothershipChatStreamStatusContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mothership/chats/[chatId]/stream-status',
+  params: mothershipChatParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      activeStreamId: z.string().nullable(),
+    }),
+  },
+})
+
 export type MothershipChat = z.infer<typeof mothershipChatSchema>
 
 export type MothershipExecuteResult = {
