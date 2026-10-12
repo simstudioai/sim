@@ -42,11 +42,12 @@ function sqlArray(values: readonly (string | number)[], type: 'text' | 'float8')
  * Returns one row per reservation and per cooldown key, each carrying the decision, how many
  * buckets were spent, and the clock the decision used.
  *
- * That clock is the caller's `sentAt` advanced by the time the statement spent acquiring its
- * locks, in whole milliseconds: `clock` counts every `locked` row before reading
- * `clock_timestamp()`, so the read happens only once the last lock is held. Measuring the wait
- * on the database rather than reading its absolute time keeps every stored instant on the
- * application clock that wrote it.
+ * That clock is the caller's `sentAt` advanced by the time spent acquiring the locks, in whole
+ * milliseconds. `lock_start` is joined into `locked`, so it is read before the first row can
+ * reach the lock; `clock` counts every `locked` row before reading `clock_timestamp()` again, so
+ * that read happens only once the last lock is held. An uncontended admission therefore decides
+ * at exactly `sentAt`, and measuring the wait rather than reading the database's absolute time
+ * keeps every stored instant on the application clock that wrote it.
  */
 function buildAdmissionStatement(
   reservations: readonly TokenBucketReservation[],
@@ -79,17 +80,23 @@ function buildAdmissionStatement(
         )}
       ) AS r(key, cost, max_tokens, refill_rate, refill_interval_ms)
     ),
+    lock_start AS (
+      SELECT clock_timestamp() AS started_at
+    ),
     locked AS (
-      SELECT key, tokens, last_refill_at, blocked_until
-      FROM ${rateLimitBucket}
-      WHERE key = ANY(${sqlArray(keys, 'text')})
-      ORDER BY key
-      FOR UPDATE
+      SELECT bucket.key, bucket.tokens, bucket.last_refill_at, bucket.blocked_until
+      FROM ${rateLimitBucket} AS bucket
+      CROSS JOIN lock_start
+      WHERE bucket.key = ANY(${sqlArray(keys, 'text')})
+      ORDER BY bucket.key
+      FOR UPDATE OF bucket
     ),
     clock AS (
       SELECT ${sentAt}::float8
-        + floor(extract(epoch FROM (held.locked_at - statement_timestamp())) * 1000) AS now_ms
+        + GREATEST(0, floor(extract(epoch FROM (held.locked_at - lock_start.started_at)) * 1000))
+        AS now_ms
       FROM (SELECT clock_timestamp() AS locked_at FROM (SELECT count(*) FROM locked) every_lock) held
+      CROSS JOIN lock_start
     ),
     balance AS (
       SELECT
