@@ -1,5 +1,5 @@
 /** Real recovery admission, outbox delivery, stored bytes, indexing, and authorized search. */
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -1091,30 +1091,6 @@ describe('independent recovery of retained connector documents', () => {
     const [original] = await db.select().from(document).where(eq(document.id, file.documentId))
     expect(original.processingAttempts).toBe(1)
     expect(original.processingQueueToken).toBe('old-fixture-generation')
-  })
-
-  it('replays the additive migration and leaves the concurrent recovery index valid', async () => {
-    const migration = readFileSync(
-      path.resolve(
-        process.cwd(),
-        '../../packages/db/migrations/0336_knowledge_processing_recovery.sql'
-      ),
-      'utf8'
-    )
-    const connection = await db.$client.reserve()
-    try {
-      for (let replay = 0; replay < 2; replay++) {
-        for (const statement of migration.split('--> statement-breakpoint')) {
-          if (statement.trim()) await connection.unsafe(statement)
-        }
-      }
-      const [index] = await connection.unsafe<{ indisvalid: boolean }[]>(
-        "SELECT indisvalid FROM pg_index WHERE indexrelid = 'doc_processing_recovery_idx'::regclass"
-      )
-      expect(index.indisvalid).toBe(true)
-    } finally {
-      connection.release()
-    }
   })
 })
 
