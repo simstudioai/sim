@@ -5,7 +5,6 @@ import { Chip, toast } from '@sim/emcn'
 import { FolderPlus, Pencil, Plus, Trash, Upload, Workflow } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -43,6 +42,11 @@ import {
   EMPTY_CELL_PLACEHOLDER,
   Resource,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import {
+  ResourceListHeader,
+  useResourceRouter,
+  useResourceWorkspaceId,
+} from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -109,9 +113,8 @@ type WorkflowResourceItem =
  * disagree about what a workflow can do.
  */
 export function WorkflowsList() {
-  const params = useParams()
-  const router = useRouter()
-  const workspaceId = params.workspaceId as string
+  const router = useResourceRouter()
+  const workspaceId = useResourceWorkspaceId()
   const importInputRef = useRef<HTMLInputElement>(null)
 
   const { canEdit } = useUserPermissionsContext()
@@ -663,7 +666,7 @@ export function WorkflowsList() {
   return (
     <>
       <Resource>
-        <Resource.Header
+        <ResourceListHeader
           icon={Workflow}
           title={ROOT_LABEL}
           breadcrumbs={breadcrumbs}

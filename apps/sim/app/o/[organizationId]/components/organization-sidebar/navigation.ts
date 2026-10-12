@@ -35,7 +35,12 @@ export function buildOrganizationNavItems(
 ): SidebarNavItemData[] {
   const routes = organizationRoutes(organizationId)
   return ORGANIZATION_NAV_ENTRIES.filter(({ route }) =>
-    route === 'home' ? mothershipAvailable : searchAvailable
+    route === 'home'
+      ? mothershipAvailable
+      : /** With the org project view, Search is a mode of the Home composer, not a destination. */
+        route === 'search'
+        ? searchAvailable && !projectViewEnabled
+        : searchAvailable
   ).map(({ route, ...entry }) => ({
     ...entry,
     ...(route === 'home' && projectViewEnabled ? PROJECT_VIEW_HOME : {}),

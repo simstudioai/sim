@@ -51,12 +51,12 @@ async function fetchAllProjects(organizationId: string, signal: AbortSignal) {
 }
 
 /** Every active project in the organization the viewer can see, for surfaces that list them all. */
-export function useOrganizationProjects(organizationId: string) {
+export function useOrganizationProjects(organizationId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: projectKeys.complete(organizationId),
     queryFn: ({ signal }) => fetchAllProjects(organizationId, signal),
     staleTime: PROJECT_LIST_STALE_TIME,
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
   })
 }
 

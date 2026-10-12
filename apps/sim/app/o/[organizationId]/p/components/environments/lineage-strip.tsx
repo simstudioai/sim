@@ -1,45 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  Chip,
-  ChipConfirmModal,
-  ChipLink,
-  ChipTag,
-  cn,
-  OverflowText,
-  Tooltip,
-  toast,
-} from '@sim/emcn'
-import { ArrowRight, ArrowUpRight, Plus, RefreshCw, Server, TriangleAlert } from '@sim/emcn/icons'
+import { Chip, ChipConfirmModal, ChipTag, toast } from '@sim/emcn'
+import { Plus, Server, TriangleAlert } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { getWorkspaceSettingsHref } from '@/components/settings/navigation'
-import type { GetForkLineageResponse } from '@/lib/api/contracts/workspace-fork'
+import { parseAsString, useQueryStates } from 'nuqs'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { EnvironmentName } from '@/app/o/[organizationId]/p/components/environments/environment-name'
 import type { EnvironmentColumn } from '@/app/o/[organizationId]/p/components/environments/mapping-model'
-import type { ProjectScope } from '@/app/o/[organizationId]/p/hooks/use-projects'
-import { workspaceRoutes } from '@/app/o/[organizationId]/p/routes'
-import {
-  forkIdParam,
-  forkSyncDirectionParam,
-} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+import { PipelineConnector } from '@/app/o/[organizationId]/p/components/environments/pipeline-connector'
+import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { ForkWorkspaceModal } from '@/ee/workspace-forking/components/fork-workspace-modal/fork-workspace-modal'
-import { useUnlinkFork } from '@/ee/workspace-forking/hooks/workspace-fork'
-import { useWorkspaceCreationPolicy } from '@/hooks/queries/workspace'
+import { type ForkDirection, useUnlinkFork } from '@/ee/workspace-forking/hooks/workspace-fork'
+import { useWorkspaceCreationPolicy, useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-
-/** Explains a disabled Sync whose parent workspace the viewer cannot open. */
-const NO_ACCESS_TOOLTIP = "You don't have access to the parent workspace"
-
-/** The fork's sync page for its parent edge, pulling the parent's changes in. */
-function syncHref(column: EnvironmentColumn, parentId: string): string {
-  return getWorkspaceSettingsHref(
-    column.id,
-    'forks',
-    new URLSearchParams({ [forkIdParam.key]: parentId, [forkSyncDirectionParam.key]: 'pull' })
-  )
-}
 
 interface UnlinkTarget {
   column: EnvironmentColumn
@@ -50,8 +25,9 @@ interface EnvironmentCardProps {
   column: EnvironmentColumn
   parent?: EnvironmentColumn
   current: boolean
-  lineage?: GetForkLineageResponse
   canManage: boolean
+  canRename: boolean
+  onManageTeammates?: () => void
   onDisconnect: () => void
 }
 
@@ -59,59 +35,36 @@ function EnvironmentCard({
   column,
   parent,
   current,
-  lineage,
   canManage,
+  canRename,
   onDisconnect,
+  onManageTeammates,
 }: EnvironmentCardProps) {
-  const parentAccessible = lineage?.parent?.viewerAccessible ?? true
-  const undoable = lineage?.undoableRun ?? null
-  const showSync = canManage && parent !== undefined
   return (
-    <article className='flex w-[260px] shrink-0 flex-col gap-2 rounded-lg border border-[var(--border)] px-4 py-3'>
-      <div className='flex items-center gap-2'>
+    <article className='flex w-[250px] shrink-0 flex-col gap-2 rounded-lg border border-[var(--border)] px-4 py-3'>
+      <div className='flex flex-wrap items-center gap-2'>
         <Server className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-        <OverflowText label={column.label} className='text-[var(--text-body)] text-small' />
+        <EnvironmentName workspaceId={column.id} name={column.name} canRename={canRename} />
         {current ? <ChipTag variant='gray'>Current</ChipTag> : null}
-        {canManage && parent ? (
+        {onManageTeammates || (canManage && parent) ? (
           <RowActionsMenu
             label={`${column.label} actions`}
             triggerClassName='ml-auto'
             actions={[
-              // Disconnect stays enabled regardless of access: severing the edge acts on this
-              // workspace only, and must remain reachable exactly when the parent is inaccessible.
-              {
-                label: `Disconnect from ${parent.label}`,
-                destructive: true,
-                onSelect: onDisconnect,
-              },
+              ...(onManageTeammates
+                ? [{ label: 'Manage teammates', onSelect: onManageTeammates }]
+                : []),
+              ...(canManage && parent
+                ? [
+                    {
+                      label: `Disconnect from ${parent.label}`,
+                      destructive: true,
+                      onSelect: onDisconnect,
+                    },
+                  ]
+                : []),
             ]}
           />
-        ) : null}
-      </div>
-      <p className='text-[var(--text-muted)] text-caption'>
-        {parent ? `Forked from ${parent.label}` : 'Root of the lineage'}
-        {undoable ? ` · last sync from ${undoable.otherName} can be undone` : ''}
-      </p>
-      <div className='mt-auto flex flex-wrap items-center gap-1 pt-1'>
-        <ChipLink href={workspaceRoutes.workflows(column.id)} leftIcon={ArrowUpRight}>
-          Open workspace
-        </ChipLink>
-        {showSync && parent && parentAccessible ? (
-          <ChipLink href={syncHref(column, parent.id)} leftIcon={RefreshCw}>
-            Sync
-          </ChipLink>
-        ) : null}
-        {showSync && !parentAccessible ? (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <span className='inline-flex'>
-                <Chip leftIcon={RefreshCw} disabled>
-                  Sync
-                </Chip>
-              </span>
-            </Tooltip.Trigger>
-            <Tooltip.Content>{NO_ACCESS_TOOLTIP}</Tooltip.Content>
-          </Tooltip.Root>
         ) : null}
       </div>
     </article>
@@ -119,29 +72,65 @@ function EnvironmentCard({
 }
 
 interface LineageStripProps {
-  project: ProjectScope
+  project: Project
   /** Root first, each fork after its parent. */
   columns: readonly EnvironmentColumn[]
-  /** Each environment's lineage node, once loaded; empty until the fork gate passes. */
-  lineageByEnv: ReadonlyMap<string, GetForkLineageResponse | undefined>
-  /** Admin with forking available: Create fork, Sync and Disconnect are offered. */
+  /** Admin with forking available: Create fork, sync and Disconnect are offered. */
   canManage: boolean
+  /** The edge whose sync is shown below the pipeline, by its fork's id, and its direction. */
+  focus: PipelineFocus | null
+  /** Deployed workflows each edge's sync would change, by fork id and direction. */
+  changeCounts: ReadonlyMap<string, Partial<Record<ForkDirection, number>>>
+  onFocus: (focus: PipelineFocus) => void
+}
+
+/** One sync between a fork and its parent: which fork, and which way changes flow. */
+export interface PipelineFocus {
+  childId: string
+  direction: ForkDirection
 }
 
 /**
- * One card per environment of the project, in lineage order. Create fork opens the real fork
- * modal on the current environment; a fork's card links to its parent edge's sync page and
- * can disconnect from its parent.
+ * The project's environments as a pipeline, flowing toward the root on the right (Sandbox,
+ * Staging, Prod). Between a fork and its parent sits the connector that reviews a promotion
+ * or a refresh along that edge. Create fork opens the real fork modal; a fork's card can
+ * disconnect from its parent.
  */
-export function LineageStrip({ project, columns, lineageByEnv, canManage }: LineageStripProps) {
+export function LineageStrip({
+  project,
+  columns,
+  canManage,
+  focus,
+  changeCounts,
+  onFocus,
+}: LineageStripProps) {
   const { billingEnabled } = useDeploymentShape()
   const { data: creationPolicy } = useWorkspaceCreationPolicy()
+  const { data: workspaces } = useWorkspacesQuery()
   const { navigateToSettings } = useSettingsNavigation()
+  const [, setDestination] = useQueryStates(
+    {
+      project: parseAsString,
+      pane: parseAsString,
+      section: parseAsString,
+      setting: parseAsString,
+      search: parseAsString,
+    },
+    { history: 'push' }
+  )
   const unlink = useUnlinkFork()
   const [forkModalOpen, setForkModalOpen] = useState(false)
   const [confirmUnlink, setConfirmUnlink] = useState<UnlinkTarget | null>(null)
 
   const byId = new Map(columns.map((column) => [column.id, column]))
+  const renameableIds = new Set(
+    workspaces
+      ?.filter((workspace) => workspace.permissions === 'admin')
+      .map((workspace) => workspace.id)
+  )
+  /** Root-first reversed, so changes flow left to right toward production. */
+  const flow = [...columns].reverse()
+  const current = byId.get(project.id)
 
   /** Permanently dissolves the confirmed edge; both workspaces remain. */
   const runUnlink = async () => {
@@ -168,31 +157,53 @@ export function LineageStrip({ project, columns, lineageByEnv, canManage }: Line
           </Chip>
         ) : null}
       </div>
-      <ol className='flex items-stretch gap-2 overflow-x-auto pb-1'>
-        {columns.map((column, index) => {
+      <ol className='flex items-stretch overflow-x-auto pb-1'>
+        {flow.map((column, index) => {
           const parent = column.parentId ? byId.get(column.parentId) : undefined
-          /** The arrow reads "forked from" only when the parent is the card before this one. */
-          const chained = index > 0 && parent?.id === columns[index - 1].id
+          const next = flow[index + 1]
+          /** A connector links this card to the next only when the next is its parent. */
+          const edgeToNext = next !== undefined && parent?.id === next.id
+          const direction = focus?.childId === column.id ? focus.direction : 'push'
           return (
-            <li key={column.id} className='flex items-stretch gap-2'>
-              {index > 0 ? (
-                <ArrowRight
-                  className={cn(
-                    'size-[14px] shrink-0 self-center text-[var(--text-icon)]',
-                    !chained && 'invisible'
-                  )}
-                />
-              ) : null}
+            <li key={column.id} className='flex items-stretch'>
               <EnvironmentCard
                 column={column}
                 parent={parent}
-                current={column.id === project.workspaceId}
-                lineage={lineageByEnv.get(column.id)}
+                current={column.id === project.id}
                 canManage={canManage}
+                canRename={renameableIds.has(column.id)}
+                onManageTeammates={
+                  renameableIds.has(column.id)
+                    ? () => {
+                        void setDestination({
+                          project: column.id,
+                          pane: 'project',
+                          section: 'settings',
+                          setting: 'teammates',
+                          search: null,
+                        })
+                      }
+                    : undefined
+                }
                 onDisconnect={() => {
                   if (parent) setConfirmUnlink({ column, parent })
                 }}
               />
+              {edgeToNext && parent ? (
+                <PipelineConnector
+                  child={column}
+                  parent={parent}
+                  direction={direction}
+                  changeCount={changeCounts.get(column.id)?.[direction]}
+                  focused={focus?.childId === column.id}
+                  canManage={canManage}
+                  onReview={() =>
+                    onFocus({ childId: column.id, direction: focus?.direction ?? 'push' })
+                  }
+                />
+              ) : next ? (
+                <div className='w-6 shrink-0' />
+              ) : null}
             </li>
           )
         })}
@@ -201,9 +212,9 @@ export function LineageStrip({ project, columns, lineageByEnv, canManage }: Line
       <ForkWorkspaceModal
         open={forkModalOpen}
         onOpenChange={setForkModalOpen}
-        sourceWorkspaceId={project.workspaceId}
-        sourceWorkspaceName={project.environment.name}
-        sources={columns.map((column) => ({ id: column.id, name: column.label }))}
+        sourceWorkspaceId={project.id}
+        sourceWorkspaceName={current?.name || project.name}
+        sources={columns.map((column) => ({ id: column.id, name: column.name }))}
         canFork={creationPolicy?.canCreate ?? true}
         onUpgrade={() => {
           if (billingEnabled) navigateToSettings({ section: 'billing' })

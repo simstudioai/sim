@@ -49,7 +49,7 @@ export const MAPPING_STATUS: Record<
 /** Kinds a sync copies into the target when they are left unmapped. */
 const COPYABLE_KINDS: ReadonlySet<string> = new Set(forkCopyableKindSchema.options)
 
-export function isCopyableKind(kind: string): boolean {
+function isCopyableKind(kind: string): boolean {
   return COPYABLE_KINDS.has(kind)
 }
 
@@ -70,22 +70,51 @@ export interface LineageEdge {
 export interface EnvironmentColumn {
   id: string
   label: string
-  /** The environment this one was forked from; null for a root. */
+  name: string
+  /** The environment this one was forked from; null for the root. */
   parentId: string | null
 }
 
 /**
- * One column per environment, in the project's order: every edge's parent side is placed before
- * its child side, so rows can be joined edge by edge.
+ * Orders the environments root first and each fork after its parent, so every edge's parent
+ * side is placed before its child side and rows can be joined edge by edge.
  */
-export function environmentColumns(
-  environments: readonly ProjectEnvironment[]
+export function orderEnvironments(
+  rootId: string,
+  environments: readonly ProjectEnvironment[],
+  parentOf: ReadonlyMap<string, string | null>,
+  nameOf: ReadonlyMap<string, string>
 ): EnvironmentColumn[] {
-  return environments.map((environment) => ({
-    id: environment.workspaceId,
-    label: environment.name,
-    parentId: environment.parentId,
-  }))
+  const columns: EnvironmentColumn[] = []
+  const seen = new Set<string>()
+  const queue = [rootId]
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index]
+    if (seen.has(current)) continue
+    seen.add(current)
+    const environment = environments.find((candidate) => candidate.workspaceId === current)
+    if (!environment) continue
+    columns.push({
+      id: current,
+      label: nameOf.get(current) ?? environment.label,
+      name: nameOf.get(current) ?? environment.label,
+      parentId: current === rootId ? null : (parentOf.get(current) ?? null),
+    })
+    for (const candidate of environments) {
+      if (parentOf.get(candidate.workspaceId) === current) queue.push(candidate.workspaceId)
+    }
+  }
+  /** An environment whose parent left the lineage still gets a column, detached. */
+  for (const environment of environments) {
+    if (seen.has(environment.workspaceId)) continue
+    columns.push({
+      id: environment.workspaceId,
+      label: environment.label,
+      name: nameOf.get(environment.workspaceId) ?? environment.label,
+      parentId: null,
+    })
+  }
+  return columns
 }
 
 export function lineageEdges(columns: readonly EnvironmentColumn[]): LineageEdge[] {
@@ -97,7 +126,7 @@ export function lineageEdges(columns: readonly EnvironmentColumn[]): LineageEdge
 }
 
 /** One environment's side of a resource row. */
-export interface MappingCell {
+interface MappingCell {
   /** The resource's id in this environment; null while the child side has no target yet. */
   id: string | null
   label: string
@@ -132,7 +161,7 @@ function targetLabel(entry: ForkMappingEntry): string {
 /**
  * Joins the per-edge mappings into one row per resource: an entry's source on the parent side
  * joins the row that reached that resource through an earlier edge, else starts a row. Edges
- * must arrive parent first (see {@link environmentColumns}).
+ * must arrive parent first (see {@link orderEnvironments}).
  */
 export function buildMappingRows(edgeMappings: readonly EdgeMapping[]): MappingRow[] {
   const rows: MappingRow[] = []
@@ -172,22 +201,6 @@ export function buildMappingRows(edgeMappings: readonly EdgeMapping[]): MappingR
     }
   }
   return rows.sort((a, b) => a.label.localeCompare(b.label))
-}
-
-/**
- * The resource's id in the youngest environment that has it, so a row's icon follows the leaf
- * credential (one Atlassian token serves Jira and Confluence; the fork's own pick decides).
- */
-export function leafResourceId(
-  row: MappingRow,
-  columns: readonly EnvironmentColumn[]
-): { environmentId: string; id: string } | null {
-  for (let index = columns.length - 1; index >= 0; index -= 1) {
-    const column = columns[index]
-    const id = row.cells[column.id]?.id
-    if (id) return { environmentId: column.id, id }
-  }
-  return null
 }
 
 /** One environment's side of a workflow row. */

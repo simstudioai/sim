@@ -1,82 +1,45 @@
 'use client'
 
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
-import { Check, ChevronDown } from '@sim/emcn/icons'
-import { useQueryStates } from 'nuqs'
-import { DashboardPreview } from '@/components/dashboards/dashboard-preview'
-import { RunsDashboard } from '@/app/o/[organizationId]/p/components/runs-dashboard'
-import type { ProjectScope } from '@/app/o/[organizationId]/p/hooks/use-projects'
-import { projectParsers } from '@/app/o/[organizationId]/p/search-params'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
-import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'
-
-const RUNS_ID = 'runs'
-
-interface DashboardOption {
-  id: string
-  title: string
-}
+import { Chip, toast } from '@sim/emcn'
+import { DashboardResource } from '@/components/dashboards/dashboard-resource'
+import { EmptyState } from '@/components/empty-state/empty-state'
+import { sendMothershipMessage } from '@/lib/mothership/events'
+import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 
 interface ProjectDashboardProps {
-  project: ProjectScope
+  project: Project
 }
 
-/** The environment's dashboard, once Sim has saved one, then a built-in Runs dashboard. */
 export function ProjectDashboard({ project }: ProjectDashboardProps) {
-  const [{ dashboard: selected }, setParams] = useQueryStates(projectParsers)
-  const dashboardsEnabled = useFeatureFlag('dashboards')
-  const query = useWorkspaceDashboard(project.workspaceId, { enabled: dashboardsEnabled })
-
-  if (dashboardsEnabled && query.isPending)
-    return <p className='px-6 py-16 text-center text-[var(--text-muted)] text-small'>Loading…</p>
-  if (query.error)
-    return (
-      <p role='alert' className='px-6 py-16 text-center text-[var(--text-error)] text-small'>
-        {query.error.message}
-      </p>
-    )
-
-  const saved = query.data?.dashboard && query.data.content !== null ? query.data : null
-  const options: DashboardOption[] = [
-    ...(saved?.dashboard ? [{ id: saved.dashboard.id, title: saved.dashboard.name }] : []),
-    { id: RUNS_ID, title: 'Runs' },
-  ]
-  const current = options.find((option) => option.id === selected) ?? options[0]
-
-  const title = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type='button'
-          className='flex items-center gap-2 self-start rounded-lg text-left @min-[1000px]/dashboard:text-3xl text-2xl text-[var(--text-primary)] leading-tight tracking-[-0.02em]'
-        >
-          {current.title}
-          <ChevronDown className='size-[16px] text-[var(--text-icon)]' />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='start'>
-        {options.map((option) => (
-          <DropdownMenuItem
-            key={option.id}
-            onSelect={() => void setParams({ dashboard: option.id }, { history: 'replace' })}
-          >
-            <span className='flex-1'>{option.title}</span>
-            {option.id === current.id && <Check className='size-[14px] text-[var(--text-icon)]' />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-
-  if (current.id === RUNS_ID || !saved?.dashboard || saved.content === null)
-    return <RunsDashboard key={RUNS_ID} project={project} title={title} />
+  const { canBuild, mothershipAvailable } = useOrganizationContext()
+  const createDashboard = () => {
+    const message = [
+      `Help me create the first dashboard for project ${JSON.stringify(project.name)} (project ID: ${project.projectId}).`,
+      `I'm viewing environment ${JSON.stringify(project.environment)} (workspace ID: ${project.id}), which has no dashboard.`,
+      `Project environments: ${JSON.stringify(project.environments)}.`,
+      'First ask me what I want to see in the dashboard: goals, metrics, data sources, and layout. Do not create dashboards until we agree on what to include.',
+      'Then check the dashboard in every accessible environment of this project and create one for each environment that does not already have one, using that environment’s own tables and data. Preserve existing dashboards. Tell me if an environment needs data or permissions before it can be set up.',
+    ].join('\n\n')
+    if (!sendMothershipMessage(message, undefined, undefined, undefined, 'agent')) {
+      toast.error('Could not open dashboard setup in chat. Please try again.')
+    }
+  }
   return (
-    <DashboardPreview
-      key={saved.dashboard.id}
-      content={saved.content}
-      workspaceId={project.workspaceId}
-      dashboardId={saved.dashboard.id}
-      title={title}
+    <DashboardResource
+      key={project.id}
+      workspaceId={project.id}
+      emptyState={
+        <EmptyState
+          title='Create your first dashboard'
+          description='Tell Sim what you want to track across your project’s environments.'
+          action={
+            canBuild && mothershipAvailable ? (
+              <Chip onClick={createDashboard}>Create dashboard</Chip>
+            ) : undefined
+          }
+        />
+      }
     />
   )
 }

@@ -7,8 +7,8 @@ import type {
   ReactNode,
   Ref,
 } from 'react'
-import { Button, cn } from '@sim/emcn'
-import { ArrowLeft, PanelLeft } from '@sim/emcn/icons'
+import { Button, cn, Tooltip } from '@sim/emcn'
+import { ArrowLeft, Expand, Minimize, PanelLeft } from '@sim/emcn/icons'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 
 interface ChatPanelLayoutProps {
@@ -16,6 +16,8 @@ interface ChatPanelLayoutProps {
   children: ReactNode
   panel: ReactNode
   collapsed: boolean
+  chatHidden?: boolean
+  onToggleChat?: () => void
   label: string
   activityCount?: number
   onToggle: () => void
@@ -31,6 +33,8 @@ export function ChatPanelLayout({
   children,
   panel,
   collapsed,
+  chatHidden = false,
+  onToggleChat,
   label,
   activityCount = 0,
   onToggle,
@@ -43,18 +47,26 @@ export function ChatPanelLayout({
       ? `, ${activityCount} resource${activityCount === 1 ? '' : 's'} updated`
       : ''
   }`
+  const canToggleChat = Boolean(onToggleChat) && !collapsed
   return (
     <div
       ref={ref}
       className={cn(
         '@container/chat-panel relative flex h-full min-h-0 min-w-0 bg-[var(--bg)]',
-        RESOURCE_HEADER_CLASSES.layout
+        RESOURCE_HEADER_CLASSES.layout,
+        canToggleChat && !chatHidden && '[--resource-header-fixed-reserve:93px]'
       )}
     >
-      <div className={cn('contents', !collapsed && '@max-[960px]/chat-panel:hidden')}>
+      <div
+        className={cn(
+          chatHidden ? 'hidden' : 'contents',
+          !collapsed && '@max-[960px]/chat-panel:hidden'
+        )}
+        inert={chatHidden}
+      >
         {children}
       </div>
-      {!collapsed && (
+      {!collapsed && !chatHidden && (
         <div className='relative z-20 @max-[960px]/chat-panel:hidden w-0 flex-none'>
           <div
             className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--selection)]'
@@ -69,45 +81,81 @@ export function ChatPanelLayout({
         </div>
       )}
       {panel}
-      <div
-        className={cn(
-          'z-30 max-md:w-[var(--resource-header-toggle-hit-size)] max-md:justify-center',
-          RESOURCE_HEADER_CLASSES.overlay,
-          RESOURCE_HEADER_CLASSES.endPosition
-        )}
-      >
-        <Button
-          variant='ghost'
-          size={null}
-          type='button'
-          onClick={onToggle}
-          className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
-        >
-          <span className={cn('sr-only', !collapsed && '@max-[960px]/chat-panel:hidden')}>
-            {toggleLabel}
-          </span>
-          {!collapsed && (
-            <span className='sr-only @max-[960px]/chat-panel:block hidden'>Back to chat</span>
+      {!chatHidden && (
+        <div
+          className={cn(
+            'z-30 max-md:w-[var(--resource-header-toggle-hit-size)] max-md:justify-center',
+            RESOURCE_HEADER_CLASSES.overlay,
+            canToggleChat
+              ? RESOURCE_HEADER_CLASSES.adjacentEndPosition
+              : RESOURCE_HEADER_CLASSES.endPosition
           )}
-          <span className='relative'>
+        >
+          <Button
+            variant='ghost'
+            size={null}
+            type='button'
+            onClick={onToggle}
+            className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
+          >
+            <span className={cn('sr-only', !collapsed && '@max-[960px]/chat-panel:hidden')}>
+              {toggleLabel}
+            </span>
             {!collapsed && (
-              <ArrowLeft className='@max-[960px]/chat-panel:block hidden size-[16px] text-[var(--text-icon)]' />
+              <span className='sr-only @max-[960px]/chat-panel:block hidden'>Back to chat</span>
             )}
-            <PanelLeft
-              className={cn(
-                '-scale-x-100 size-[16px] text-[var(--text-icon)]',
-                !collapsed && '@max-[960px]/chat-panel:hidden'
+            <span className='relative'>
+              {!collapsed && (
+                <ArrowLeft className='@max-[960px]/chat-panel:block hidden size-[16px] text-[var(--text-icon)]' />
               )}
-            />
-            {collapsed && activityCount > 0 && (
-              <span
-                aria-hidden='true'
-                className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-blue)]'
+              <PanelLeft
+                className={cn(
+                  '-scale-x-100 size-[16px] text-[var(--text-icon)]',
+                  !collapsed && '@max-[960px]/chat-panel:hidden'
+                )}
               />
-            )}
-          </span>
-        </Button>
-      </div>
+              {collapsed && activityCount > 0 && (
+                <span
+                  aria-hidden='true'
+                  className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-blue)]'
+                />
+              )}
+            </span>
+          </Button>
+        </div>
+      )}
+      {canToggleChat && (
+        <div
+          className={cn(
+            'z-30',
+            RESOURCE_HEADER_CLASSES.overlay,
+            RESOURCE_HEADER_CLASSES.endPosition
+          )}
+        >
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                size={null}
+                type='button'
+                onClick={onToggleChat}
+                aria-label={chatHidden ? 'Restore split view' : 'Expand pane'}
+                aria-pressed={chatHidden}
+                className='size-[var(--resource-header-toggle-size)] rounded-lg hover-hover:bg-[var(--surface-active)]'
+              >
+                {chatHidden ? (
+                  <Minimize className='size-[16px] text-[var(--text-icon)]' />
+                ) : (
+                  <Expand className='size-[16px] text-[var(--text-icon)]' />
+                )}
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='bottom'>
+              {chatHidden ? 'Restore split view' : 'Expand pane'}
+            </Tooltip.Content>
+          </Tooltip.Root>
+        </div>
+      )}
     </div>
   )
 }

@@ -72,7 +72,11 @@ vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
   getMothershipUseChatOptions: (options: object) => ({ ...options, mothership: true }),
   useChat: mocks.chat,
 }))
+vi.mock('@/hooks/queries/projects', () => ({
+  useOrganizationProjects: () => ({ data: [], isPending: false }),
+}))
 vi.mock('@/hooks/queries/mothership-chats', () => ({
+  useOrganizationMothershipChats: () => ({ data: [] }),
   useMarkMothershipChatRead: () => ({ mutate: mocks.markRead }),
 }))
 vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))

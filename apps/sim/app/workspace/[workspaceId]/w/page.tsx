@@ -1,12 +1,16 @@
 'use client'
 
-import { Suspense } from 'react'
+import { lazy, Suspense } from 'react'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { FirstWorkflowRedirect } from '@/app/workspace/[workspaceId]/w/components/first-workflow-redirect/first-workflow-redirect'
-import {
-  WorkflowsList,
-  WorkflowsListLoading,
-} from '@/app/workspace/[workspaceId]/w/components/workflows-list'
+import { WorkflowsListLoading } from '@/app/workspace/[workspaceId]/w/components/workflows-list'
+
+/** Loaded only with the org project view on, so the classic route does not ship it. */
+const WorkflowsList = lazy(() =>
+  import('@/app/workspace/[workspaceId]/w/components/workflows-list/workflows-list').then((m) => ({
+    default: m.WorkflowsList,
+  }))
+)
 
 /**
  * The `/w` route. With the org project view on it is the Workflows index page: the folder

@@ -1,3 +1,4 @@
+import type { ForkMappingScope } from '@/lib/api/contracts/workspace-fork'
 import {
   defineForkUseCase,
   type ForkApplicationContext,
@@ -6,6 +7,7 @@ import { forkOperations } from '@/ee/workspace-forking/application/operations'
 import { getForkMappingView } from '@/ee/workspace-forking/lib/mapping/mapping-service'
 
 interface MappingDetailsInput {
+  scope?: ForkMappingScope
   workspaceId: string
   otherWorkspaceId: string
   direction: 'push' | 'pull'
@@ -27,7 +29,12 @@ export const getWorkspaceForkMappingDetails = defineForkUseCase({
       input.direction === 'push' ? input.workspaceId : input.otherWorkspaceId
     const targetWorkspaceId =
       input.direction === 'push' ? input.otherWorkspaceId : input.workspaceId
-    const { entries } = await getForkMappingView({ edge, sourceWorkspaceId, targetWorkspaceId })
+    const { entries } = await getForkMappingView({
+      edge,
+      sourceWorkspaceId,
+      targetWorkspaceId,
+      scope: input.scope,
+    })
     return {
       childWorkspaceId: edge.childWorkspaceId,
       parentWorkspaceId: edge.parentWorkspaceId,

@@ -1,7 +1,6 @@
 'use client'
 
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import { type SecretRowAccess, SecretsEditor } from '@/components/secrets/secrets-editor'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
@@ -14,10 +13,12 @@ import {
 } from '@/hooks/queries/environment'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 
 export function SecretsManager() {
-  const params = useParams()
-  const workspaceId = (params?.workspaceId as string) || ''
+  const workspaceId = useSettingsWorkspaceId()
+  const { getSettingsHref } = useSettingsNavigation()
   const personal = usePersonalEnvironment()
   const workspace = useWorkspaceEnvironment(workspaceId)
   const savePersonal = useSavePersonalEnvironment()
@@ -44,7 +45,7 @@ export function SecretsManager() {
       canReveal: isAdmin || credential?.role === 'admin' || Boolean(credential?.unredacted),
       description: credential?.description,
       ...(credential
-        ? { detailsHref: `/workspace/${workspaceId}/settings/secrets/${credential.id}` }
+        ? { detailsHref: getSettingsHref({ section: 'secrets', credentialId: credential.id }) }
         : {}),
     })
   }

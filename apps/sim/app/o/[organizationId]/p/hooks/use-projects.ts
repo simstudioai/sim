@@ -2,74 +2,90 @@ import { useMemo } from 'react'
 import type { ProjectRecord } from '@/lib/api/contracts/projects'
 import { useOrganizationProjects, useWorkspaceProject } from '@/hooks/queries/projects'
 
-/** One environment of a project: a workspace, named by the workspace itself. */
+/** One workspace of a project, labelled by its workspace name. */
 export interface ProjectEnvironment {
   workspaceId: string
-  name: string
+  label: string
   /** The environment this one was forked from; null for a root of the project. */
   parentId: string | null
 }
 
+/** A workspace seen as a project: the project it belongs to, with this workspace as one environment. */
 export interface Project {
+  /** The workspace this view is on; every route and hook uses it. */
   id: string
+  /** The project's own id, used for project settings. */
+  projectId: string
   name: string
   organizationId: string | null
-  /** In the API's order: roots first, each fork after its parent, siblings by name. */
+  /** The project's first environment; lists show one project per root. */
+  rootId: string
+  /** This workspace's environment, labelled by its name. */
+  environment: string
+  /** Every environment of the project the viewer can access, in the API's fork order. */
   environments: ProjectEnvironment[]
+  /** Organization admin or admin of every environment: may rename and archive the project. */
   canAdminister: boolean
 }
 
-/** A project seen from one of its environments: the workspace a project page is on. */
-export interface ProjectScope extends Project {
-  workspaceId: string
-  environment: ProjectEnvironment
+function toEnvironments(project: ProjectRecord): ProjectEnvironment[] {
+  return project.environments.map((environment) => ({
+    workspaceId: environment.id,
+    label: environment.name,
+    parentId: environment.forkedFromWorkspaceId,
+  }))
 }
 
-function byName(a: { name: string }, b: { name: string }): number {
-  return a.name.localeCompare(b.name)
+/** Each accessible workspace of each project, as the view it opens on. */
+function toProjectViews(projects: readonly ProjectRecord[]): Project[] {
+  return projects.flatMap((project) => {
+    const environments = toEnvironments(project)
+    const rootId = environments[0]?.workspaceId
+    if (!rootId) return []
+    return environments.map((environment) => ({
+      id: environment.workspaceId,
+      projectId: project.id,
+      name: project.name,
+      organizationId: project.organizationId,
+      rootId,
+      environment: environment.label,
+      environments,
+      canAdminister: project.capabilities.administer,
+    }))
+  })
 }
 
-function toProject(record: ProjectRecord): Project {
+/** The organization's projects, from the projects the viewer can access there. */
+export function useProjects(organizationId: string) {
+  const query = useOrganizationProjects(organizationId)
+  const projects = useMemo(() => toProjectViews(query.data ?? []), [query.data])
+  /** One entry per project for the sidebar and pickers: each project's root. */
+  const roots = projects.filter((project) => project.rootId === project.id)
+  const rootById = new Map(roots.map((root) => [root.id, root]))
+  /** The project each workspace belongs to, by workspace id. */
+  const projectByWorkspace = new Map<string, Project>()
+  for (const project of projects) {
+    const root = rootById.get(project.rootId)
+    if (root) projectByWorkspace.set(project.id, root)
+  }
+  /** Each project's root view, by project id, for things that record projects rather than workspaces. */
+  const projectById = new Map(roots.map((root) => [root.projectId, root]))
   return {
-    id: record.id,
-    name: record.name,
-    organizationId: record.organizationId,
-    environments: record.environments.map((environment) => ({
-      workspaceId: environment.id,
-      name: environment.name,
-      parentId: environment.forkedFromWorkspaceId,
-    })),
-    canAdminister: record.capabilities.administer,
+    projects,
+    roots,
+    projectByWorkspace,
+    projectById,
+    isPending: query.isPending,
+    error: query.error,
   }
 }
 
-/** The environment a project opens in: its first root. */
-export function defaultEnvironment(project: Project): ProjectEnvironment {
-  const [first] = project.environments
-  if (!first) throw new Error(`Project ${project.id} has no environment the viewer can open`)
-  return first
-}
-
-function scopeProject(project: Project, workspaceId: string): ProjectScope {
-  const environment = project.environments.find(
-    (candidate) => candidate.workspaceId === workspaceId
-  )
-  if (!environment) throw new Error(`Workspace ${workspaceId} is not in project ${project.id}`)
-  return { ...project, workspaceId, environment }
-}
-
-/** The organization's projects, as the sidebar and pickers list them. */
-export function useProjects(organizationId: string) {
-  const query = useOrganizationProjects(organizationId)
-  const projects = useMemo(() => [...(query.data ?? [])].sort(byName).map(toProject), [query.data])
-  return { projects, isPending: query.isPending, error: query.error }
-}
-
-/** The project a workspace belongs to, scoped to that workspace as its environment. */
-export function useProjectScope(workspaceId: string) {
+/** The project a workspace belongs to, seen from that workspace, without loading the organization's list. */
+export function useWorkspaceProjectView(workspaceId: string) {
   const query = useWorkspaceProject(workspaceId)
   const project = useMemo(
-    () => (query.data ? scopeProject(toProject(query.data), workspaceId) : undefined),
+    () =>
+      query.data ? toProjectViews([query.data]).find((view) => view.id === workspaceId) : undefined,
     [query.data, workspaceId]
   )
   return { project, isPending: query.isPending, error: query.error }

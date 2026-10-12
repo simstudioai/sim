@@ -1,15 +1,13 @@
 'use client'
 
 import { useCallback } from 'react'
-import { isProjectPinned } from '@/app/o/[organizationId]/components/organization-sidebar/components/projects-section/use-project-order'
-import { defaultEnvironment, type Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { useArchiveProject, useRenameProject } from '@/hooks/queries/projects'
 import { usePinnedWorkspaceIds, useToggleWorkspacePin } from '@/hooks/queries/workspace'
 
 /**
- * Rename, pin and delete for a project. Rename and delete act on the project itself; delete
- * archives it with every environment. Pins live on workspaces, so pinning pins the project's
- * default environment and unpinning clears every environment's pin.
+ * Rename, pin and delete for a project: a rename changes the project's own name, a delete
+ * archives the project with every environment, and the pin lives on its root workspace.
  */
 export function useProjectActions() {
   const { data: pinnedIds } = usePinnedWorkspaceIds()
@@ -18,36 +16,29 @@ export function useProjectActions() {
   const { mutateAsync: archiveProject, isPending: isDeleting } = useArchiveProject()
 
   const isPinned = useCallback(
-    (project: Project) => isProjectPinned(project, pinnedIds),
+    (project: Project) => Boolean(pinnedIds?.has(project.rootId)),
     [pinnedIds]
   )
 
   const setPinned = useCallback(
     (project: Project, pinned: boolean) => {
-      if (pinned) {
-        togglePin({ workspaceId: defaultEnvironment(project).workspaceId, pinned })
-        return
-      }
-      for (const environment of project.environments) {
-        if (pinnedIds?.has(environment.workspaceId))
-          togglePin({ workspaceId: environment.workspaceId, pinned })
-      }
+      togglePin({ workspaceId: project.rootId, pinned })
     },
-    [togglePin, pinnedIds]
+    [togglePin]
   )
 
   const rename = useCallback(
     async (project: Project, name: string) => {
-      const trimmed = name.trim()
-      if (!trimmed || trimmed === project.name) return
-      await renameProject({ projectId: project.id, name: trimmed })
+      const next = name.trim()
+      if (!next || next === project.name) return
+      await renameProject({ projectId: project.projectId, name: next })
     },
     [renameProject]
   )
 
   const remove = useCallback(
     async (project: Project) => {
-      await archiveProject({ projectId: project.id })
+      await archiveProject({ projectId: project.projectId })
     },
     [archiveProject]
   )

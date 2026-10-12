@@ -38,7 +38,13 @@ export const useProjectOrderStore = create<ProjectOrderState>()(
 /** `ids` sorted by the stored order; ids the order does not know keep their given order after it. */
 export function orderProjectIds(ids: readonly string[], order: readonly string[]): string[] {
   const rank = new Map(order.map((id, index) => [id, index]))
-  const known = ids.filter((id) => rank.has(id)).sort((a, b) => rank.get(a)! - rank.get(b)!)
+  const known = ids
+    .flatMap((id) => {
+      const position = rank.get(id)
+      return position === undefined ? [] : [{ id, position }]
+    })
+    .sort((a, b) => a.position - b.position)
+    .map(({ id }) => id)
   const unknown = ids.filter((id) => !rank.has(id))
   return [...known, ...unknown]
 }

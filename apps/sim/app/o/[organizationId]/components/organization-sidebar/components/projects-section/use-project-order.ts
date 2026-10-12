@@ -5,11 +5,6 @@ import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { usePinnedWorkspaceIds } from '@/hooks/queries/workspace'
 import { orderProjectIds, useProjectOrderStore } from '@/stores/project-order/store'
 
-/** A project reads as pinned while any of its environments' workspaces is. */
-export function isProjectPinned(project: Project, pinnedIds: ReadonlySet<string> | undefined) {
-  return project.environments.some((environment) => pinnedIds?.has(environment.workspaceId))
-}
-
 /** Where a dragged project would land relative to the row under the pointer. */
 export interface ProjectDropIndicator {
   projectId: string
@@ -43,9 +38,12 @@ export function useProjectOrder(unordered: readonly Project[]) {
   const ordered = orderProjectIds(
     unordered.map((project) => project.id),
     order
-  ).map((id) => byId.get(id)!)
-  const pinned = ordered.filter((project) => isProjectPinned(project, pinnedIds))
-  const unpinned = ordered.filter((project) => !isProjectPinned(project, pinnedIds))
+  ).flatMap((id) => {
+    const project = byId.get(id)
+    return project ? [project] : []
+  })
+  const pinned = ordered.filter((project) => pinnedIds?.has(project.rootId))
+  const unpinned = ordered.filter((project) => !pinnedIds?.has(project.rootId))
   const projects = [...pinned, ...unpinned]
   const visibleIds = projects.map((project) => project.id)
 

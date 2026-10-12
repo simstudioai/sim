@@ -634,16 +634,16 @@
       }
     },
     "app/workspace/[workspaceId]/w/page.tsx": {
-      "modules": 2413,
+      "modules": 2464,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/index.ts": 1131,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/index.ts": 847,
+        "apps/sim/app/workspace/[workspaceId]/w/components/first-workflow-redirect/first-workflow-redirect.tsx": 1069,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/index.ts": 1056,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/index.ts": 784,
         "apps/sim/triggers/registry.ts": 578,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/index.ts": 439,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/index.ts": 411,
         "apps/sim/blocks/registry.ts": 360,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-chat/index.ts": 190,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-chat/mothership-chat.tsx": 186,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/index.ts": 177
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-chat/index.ts": 194,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-chat/mothership-chat.tsx": 190
       }
     },
     "app/workspace/layout.tsx": {

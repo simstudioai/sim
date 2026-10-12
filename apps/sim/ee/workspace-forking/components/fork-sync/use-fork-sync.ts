@@ -8,6 +8,7 @@ import type {
   ForkCopyableUnmapped,
   ForkDependentReconfig,
   ForkMappingEntry,
+  ForkMappingScope,
   ForkResourceUsage,
   ForkTriggerMapping,
   ForkTriggerUrlChange,
@@ -123,6 +124,11 @@ export interface ForkSyncController {
   diffErrorMessage: string | null
   /** True once the diff payload for ANY direction is present (placeholder included). */
   hasDiff: boolean
+  /**
+   * The diff on screen is still the previous direction's placeholder, so its rows name
+   * workflows that are not part of the sync now selected.
+   */
+  diffIsStale: boolean
   /** True once the mapping payload is present (placeholder included), gating the Mappings section. */
   hasMapping: boolean
   groups: ForkMappingGroup[]
@@ -197,6 +203,9 @@ export interface ForkSyncController {
   comparisonSelection: ForkComparisonSelection | null
   openComparison: (change: Exclude<ForkWorkflowChange, { action: 'archive' }>) => void
   closeComparison: () => void
+  /** The workspace the sync page is open in, and its partner on this edge. */
+  workspaceId: string
+  otherWorkspaceId?: string
   /** Names of target workflows this sync archives, for the confirm modal. */
   archivedWorkflowNames: string[]
   /**
@@ -300,6 +309,7 @@ function takenTargetOwners(
  * and blockers all depend on the direction. Placeholder copy controls remain read-only.
  */
 export function useForkSync(params: {
+  mappingScope?: ForkMappingScope
   workspaceId: string
   /** This workspace's name, for copy that must say which side a pull overwrites. */
   workspaceName?: string
@@ -350,7 +360,13 @@ export function useForkSync(params: {
     setReviewedSourceVersions({})
   }
 
-  const mapping = useForkMapping({ workspaceId, otherWorkspaceId, direction, enabled })
+  const mapping = useForkMapping({
+    workspaceId,
+    otherWorkspaceId,
+    direction,
+    enabled,
+    scope: params.mappingScope,
+  })
   const diff = useForkDiff({ workspaceId, otherWorkspaceId, direction, enabled })
   const updateMapping = useUpdateForkMapping()
   const promote = usePromoteFork()
@@ -1077,6 +1093,7 @@ export function useForkSync(params: {
       : null,
     hasDiff: Boolean(diff.data),
     comparisonReady,
+    diffIsStale: diff.isPlaceholderData,
     hasMapping: Boolean(mapping.data),
     groups,
     kindSummaries,
@@ -1109,6 +1126,8 @@ export function useForkSync(params: {
     comparisonSelection,
     openComparison,
     closeComparison,
+    workspaceId,
+    otherWorkspaceId,
     archivedWorkflowNames,
     triggerUrlChanges,
     triggerMappings,

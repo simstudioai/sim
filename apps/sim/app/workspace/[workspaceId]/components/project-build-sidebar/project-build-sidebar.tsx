@@ -36,7 +36,7 @@ import { isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { captureEvent } from '@/lib/posthog/client'
-import { defaultEnvironment, useProjectScope } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import { useWorkspaceProjectView } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import {
   BUILD_NAV_SECTIONS,
   PROJECT_NAV_SECTIONS,
@@ -145,19 +145,17 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
   const showCollapsedTooltips = isCollapsed
   const isOnSettingsPage = pathname?.startsWith(`/workspace/${workspaceId}/settings`) ?? false
 
-  const { project: scope, error: projectError } = useProjectScope(workspaceId)
+  const { project: scope, error: projectError } = useWorkspaceProjectView(workspaceId)
   /**
    * The project this workspace belongs to. Until it loads, or when it cannot, the header names
    * the workspace itself as a one-environment project; a load failure is shown under the chip.
    */
   const project = useMemo(() => {
     if (scope) {
-      const home = workspaces?.find(
-        (workspace) => workspace.id === defaultEnvironment(scope).workspaceId
-      )
+      const home = workspaces?.find((workspace) => workspace.id === scope.rootId)
       return {
         name: scope.name,
-        environment: scope.environment.name,
+        environment: scope.environment,
         environments: scope.environments,
         logoUrl: home?.logoUrl ?? null,
       }
@@ -166,7 +164,7 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
     return {
       name,
       environment: name,
-      environments: [{ workspaceId, name, parentId: null }],
+      environments: [{ workspaceId, label: name, parentId: null }],
       logoUrl: null,
     }
   }, [scope, workspaces, workspaceId, hostContext.workspace])
@@ -423,7 +421,7 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
                               aria-current={isCurrent ? 'true' : undefined}
                             >
                               <Server />
-                              {environment.name}
+                              {environment.label}
                               {isCurrent && <Check className='ml-auto size-[14px]' />}
                             </DropdownMenuItem>
                           )

@@ -1,23 +1,25 @@
-import { Suspense } from 'react'
-import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
-import { ProjectPage } from '@/app/o/[organizationId]/p/components'
+import { notFound, redirect } from 'next/navigation'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { isProjectSection } from '@/app/o/[organizationId]/p/routes'
 
-export const metadata: Metadata = { title: 'Project' }
+interface ProjectSectionPageProps {
+  params: Promise<{ organizationId: string; workspaceId: string; section: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
 
+/** Existing project bookmarks enter the same shell as Home and organization chats. */
 export default async function ProjectSectionPage({
   params,
-}: {
-  params: Promise<{ workspaceId: string; section: string }>
-}) {
-  const { workspaceId, section } = await params
+  searchParams,
+}: ProjectSectionPageProps) {
+  const { organizationId, workspaceId, section } = await params
   if (!isProjectSection(section)) notFound()
-  return (
-    <Suspense
-      fallback={<p className='p-6 text-[var(--text-muted)] text-caption'>Loading project…</p>}
-    >
-      <ProjectPage workspaceId={workspaceId} section={section} />
-    </Suspense>
-  )
+  const incoming = await searchParams
+  const query = new URLSearchParams({ project: workspaceId, section, pane: 'project' })
+  for (const key of ['dashboard', 'edge', 'sync']) {
+    const value = incoming[key]
+    if (typeof value === 'string') query.set(key, value)
+  }
+  if (typeof incoming.resource === 'string') query.set('environment-resource', incoming.resource)
+  redirect(`${organizationRoutes(organizationId).home}?${query}`)
 }
