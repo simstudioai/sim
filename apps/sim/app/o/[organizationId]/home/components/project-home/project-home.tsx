@@ -16,7 +16,11 @@ import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
-import { type Project, useProjects } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import {
+  defaultEnvironment,
+  type Project,
+  useProjects,
+} from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { projectParsers } from '@/app/o/[organizationId]/p/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 
@@ -33,7 +37,7 @@ interface ProjectHomeProps {
 export function ProjectHome({ userName }: ProjectHomeProps) {
   const router = useRouter()
   const { organization } = useOrganizationContext()
-  const { roots: projects } = useProjects(organization.id)
+  const { projects } = useProjects(organization.id)
   const [{ project }, setParams] = useQueryStates(projectParsers)
   /** The first project is the default so a fresh visit lands in a project, not an org-wide chat. */
   const selected =
@@ -66,7 +70,7 @@ export function ProjectHome({ userName }: ProjectHomeProps) {
       onBeforeSend={(message, mode) => {
         if (mode !== 'agent' || !selected) return false
         router.push(
-          `${organizationRoutes(organization.id).project(selected.id)}?chat=new&q=${encodeURIComponent(message)}`
+          `${organizationRoutes(organization.id).project(defaultEnvironment(selected).workspaceId)}?chat=new&q=${encodeURIComponent(message)}`
         )
         return true
       }}

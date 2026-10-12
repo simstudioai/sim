@@ -3,7 +3,7 @@
 import { type ReactNode, useMemo, useState } from 'react'
 import { Chip, DashboardMetric, LineChart, Loader } from '@sim/emcn'
 import Link from 'next/link'
-import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import type { ProjectScope } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { workspaceRoutes } from '@/app/o/[organizationId]/p/routes'
 import { formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useDashboardStats } from '@/hooks/queries/logs'
@@ -16,14 +16,14 @@ const RANGES: { id: TimeRange; label: string }[] = [
 ]
 
 interface RunsDashboardProps {
-  project: Project
+  project: ProjectScope
   title: ReactNode
 }
 
 /** Runs, errors and latency for every workflow in the project, from the workspace's execution stats. */
 export function RunsDashboard({ project, title }: RunsDashboardProps) {
   const [range, setRange] = useState<TimeRange>('Past 7 days')
-  const { data, isPending, error } = useDashboardStats(project.id, {
+  const { data, isPending, error } = useDashboardStats(project.workspaceId, {
     timeRange: range,
     level: 'all',
     workflowIds: [],
@@ -122,7 +122,7 @@ export function RunsDashboard({ project, title }: RunsDashboardProps) {
                       className='flex items-center gap-4 border-[var(--border)] border-t px-4 py-2.5 text-small first:border-t-0'
                     >
                       <Link
-                        href={workspaceRoutes.workflow(project.id, workflow.workflowId)}
+                        href={workspaceRoutes.workflow(project.workspaceId, workflow.workflowId)}
                         className='min-w-0 flex-1 truncate text-[var(--text-body)] hover-hover:underline'
                       >
                         {workflow.workflowName}

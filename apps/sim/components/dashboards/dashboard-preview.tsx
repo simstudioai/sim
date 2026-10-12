@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useMemo } from 'react'
+import { type ReactNode, Suspense, useMemo } from 'react'
 import { useQueryStates } from 'nuqs'
 import { DashboardControls } from '@/components/dashboards/dashboard-controls'
 import { DashboardInteractionContext } from '@/components/dashboards/dashboard-interactions'
@@ -19,14 +19,17 @@ interface DashboardPreviewProps {
   dashboardId: string
   isStreaming?: boolean
   readOnly?: boolean
+  /** Replaces the plain title heading, e.g. with a dashboard switcher. */
+  title?: ReactNode
 }
 interface DashboardViewProps {
   spec: DashboardSpec
   workspaceId: string
   dashboardId: string
+  title?: ReactNode
 }
 
-function DashboardView({ spec, workspaceId, dashboardId }: DashboardViewProps) {
+function DashboardView({ spec, workspaceId, dashboardId, title }: DashboardViewProps) {
   const [state, setState] = useQueryStates(dashboardParsers, {
     ...dashboardUrlOptions,
     urlKeys: dashboardUrlKeys(dashboardId),
@@ -45,9 +48,11 @@ function DashboardView({ spec, workspaceId, dashboardId }: DashboardViewProps) {
     <div className='mx-auto flex w-full max-w-[1120px] flex-col gap-6'>
       <header className='grid @min-[1000px]/dashboard:grid-cols-[minmax(0,1fr)_auto] grid-cols-1 items-start gap-4'>
         <div className='flex min-w-0 flex-col gap-1'>
-          <h1 className='@min-[1000px]/dashboard:text-3xl text-2xl text-[var(--text-primary)] leading-tight tracking-[-0.02em]'>
-            {spec.title}
-          </h1>
+          {title ?? (
+            <h1 className='@min-[1000px]/dashboard:text-3xl text-2xl text-[var(--text-primary)] leading-tight tracking-[-0.02em]'>
+              {spec.title}
+            </h1>
+          )}
           {description && (
             <p className='max-w-[72ch] whitespace-pre-wrap break-words text-[var(--text-muted)] text-md'>
               {description}
@@ -89,6 +94,7 @@ export function DashboardPreview({
   dashboardId,
   isStreaming,
   readOnly,
+  title,
 }: DashboardPreviewProps) {
   const parsed = useMemo(() => parseDashboardSpec(content), [content])
   const loading = (
@@ -122,6 +128,7 @@ export function DashboardPreview({
             spec={parsed.spec}
             workspaceId={workspaceId}
             dashboardId={dashboardId}
+            title={title}
           />
         </Suspense>
       </div>

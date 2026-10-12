@@ -572,7 +572,7 @@ export function WorkflowsList() {
         }
       )
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutate is stable in v5
+    // Mutation objects are unstable; their mutate functions are stable in v5.
     [activeItem, workspaceId, workflowById, folderById]
   )
 

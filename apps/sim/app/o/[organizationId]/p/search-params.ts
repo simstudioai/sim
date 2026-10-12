@@ -8,7 +8,7 @@ export const projectParsers = {
   project: parseAsString.withDefault(''),
   /** First message handed from Home to a project's new chat; sent once, then cleared. */
   q: parseAsString.withDefault(''),
-  /** Dashboard shown on the project page: a dashboard file id, or `runs`. */
+  /** Dashboard shown on the project page: the environment's dashboard id, or `runs`. */
   dashboard: parseAsString.withDefault(''),
   /** Resource type shown in the Environments tab: workflows, then the mapping kinds. */
   resource: parseAsStringLiteral(RESOURCE_TAB_IDS).withDefault('workflow'),

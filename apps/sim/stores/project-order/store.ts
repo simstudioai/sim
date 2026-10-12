@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 
 interface ProjectOrderState {
-  /** Project (lineage root) ids in the order the viewer arranged them; unknown ids sort after. */
+  /** Project ids in the order the viewer arranged them; unknown ids sort after. */
   order: string[]
   /** Places `projectId` before `beforeId`, or last when `beforeId` is null, over `visible`. */
   moveProject: (visible: readonly string[], projectId: string, beforeId: string | null) => void

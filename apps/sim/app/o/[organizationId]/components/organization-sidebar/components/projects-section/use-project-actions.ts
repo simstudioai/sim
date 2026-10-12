@@ -1,66 +1,55 @@
 'use client'
 
 import { useCallback } from 'react'
-import { parseEnvironmentName } from '@/lib/projects'
-import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
-import {
-  useDeleteWorkspace,
-  usePinnedWorkspaceIds,
-  useToggleWorkspacePin,
-  useUpdateWorkspace,
-  useWorkspacesQuery,
-} from '@/hooks/queries/workspace'
+import { isProjectPinned } from '@/app/o/[organizationId]/components/organization-sidebar/components/projects-section/use-project-order'
+import { defaultEnvironment, type Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import { useArchiveProject, useRenameProject } from '@/hooks/queries/projects'
+import { usePinnedWorkspaceIds, useToggleWorkspacePin } from '@/hooks/queries/workspace'
 
 /**
- * Rename, pin and delete for a project, applied to every workspace of its lineage: a rename
- * keeps each environment's own suffix ("Staging", "Sandbox"), a delete removes forks before
- * their parent, and the pin lives on the root. Mock projects have no workspace, so every
- * action is a no-op for them.
+ * Rename, pin and delete for a project. Rename and delete act on the project itself; delete
+ * archives it with every environment. Pins live on workspaces, so pinning pins the project's
+ * default environment and unpinning clears every environment's pin.
  */
 export function useProjectActions() {
-  const { data: workspaces } = useWorkspacesQuery()
   const { data: pinnedIds } = usePinnedWorkspaceIds()
   const { mutate: togglePin } = useToggleWorkspacePin()
-  const { mutateAsync: updateWorkspace, isPending: isRenaming } = useUpdateWorkspace()
-  const { mutateAsync: deleteWorkspace, isPending: isDeleting } = useDeleteWorkspace()
+  const { mutateAsync: renameProject, isPending: isRenaming } = useRenameProject()
+  const { mutateAsync: archiveProject, isPending: isDeleting } = useArchiveProject()
 
   const isPinned = useCallback(
-    (project: Project) => Boolean(pinnedIds?.has(project.rootId)),
+    (project: Project) => isProjectPinned(project, pinnedIds),
     [pinnedIds]
   )
 
   const setPinned = useCallback(
     (project: Project, pinned: boolean) => {
-      togglePin({ workspaceId: project.rootId, pinned })
+      if (pinned) {
+        togglePin({ workspaceId: defaultEnvironment(project).workspaceId, pinned })
+        return
+      }
+      for (const environment of project.environments) {
+        if (pinnedIds?.has(environment.workspaceId))
+          togglePin({ workspaceId: environment.workspaceId, pinned })
+      }
     },
-    [togglePin]
+    [togglePin, pinnedIds]
   )
 
   const rename = useCallback(
     async (project: Project, name: string) => {
-      const base = name.trim()
-      if (!base || base === project.name) return
-      for (const environment of project.environments) {
-        const workspace = workspaces?.find((candidate) => candidate.id === environment.workspaceId)
-        if (!workspace) continue
-        const { environment: suffix } = parseEnvironmentName(workspace.name)
-        await updateWorkspace({
-          workspaceId: workspace.id,
-          name: suffix ? `${base} ${suffix}` : base,
-        })
-      }
+      const trimmed = name.trim()
+      if (!trimmed || trimmed === project.name) return
+      await renameProject({ projectId: project.id, name: trimmed })
     },
-    [updateWorkspace, workspaces]
+    [renameProject]
   )
 
   const remove = useCallback(
     async (project: Project) => {
-      /** Forks first: the root is the last workspace to go, so a failure leaves a valid lineage. */
-      for (const environment of [...project.environments].reverse()) {
-        await deleteWorkspace({ workspaceId: environment.workspaceId })
-      }
+      await archiveProject({ projectId: project.id })
     },
-    [deleteWorkspace]
+    [archiveProject]
   )
 
   return { isPinned, setPinned, rename, remove, isRenaming, isDeleting }

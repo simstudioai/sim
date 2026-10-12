@@ -29,7 +29,7 @@ interface StatusBadgeProps {
 }
 
 /** One cell's mapping status in the sync view's vocabulary and colors. */
-export function StatusBadge({ status }: StatusBadgeProps) {
+function StatusBadge({ status }: StatusBadgeProps) {
   const { label, variant } = MAPPING_STATUS[status]
   return (
     <Badge variant={variant} size='sm' dot>
@@ -61,10 +61,7 @@ export function EnvironmentTable({ columns, children }: EnvironmentTableProps) {
             </th>
             {columns.map((column) => (
               <th key={column.id} scope='col' className='h-9 px-3 text-left font-normal'>
-                <div className='flex items-baseline gap-2'>
-                  <span className='shrink-0 text-[var(--text-body)]'>{column.label}</span>
-                  <OverflowText label={column.name} className='text-[var(--text-muted)]' />
-                </div>
+                <OverflowText label={column.label} className='text-[var(--text-body)]' />
               </th>
             ))}
           </tr>

@@ -17,7 +17,7 @@ import { getWorkspaceSettingsHref } from '@/components/settings/navigation'
 import type { GetForkLineageResponse } from '@/lib/api/contracts/workspace-fork'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { EnvironmentColumn } from '@/app/o/[organizationId]/p/components/environments/mapping-model'
-import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import type { ProjectScope } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { workspaceRoutes } from '@/app/o/[organizationId]/p/routes'
 import {
   forkIdParam,
@@ -70,7 +70,7 @@ function EnvironmentCard({
     <article className='flex w-[260px] shrink-0 flex-col gap-2 rounded-lg border border-[var(--border)] px-4 py-3'>
       <div className='flex items-center gap-2'>
         <Server className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='text-[var(--text-body)] text-small'>{column.label}</span>
+        <OverflowText label={column.label} className='text-[var(--text-body)] text-small' />
         {current ? <ChipTag variant='gray'>Current</ChipTag> : null}
         {canManage && parent ? (
           <RowActionsMenu
@@ -88,7 +88,6 @@ function EnvironmentCard({
           />
         ) : null}
       </div>
-      <OverflowText label={column.name} className='text-[var(--text-muted)] text-small' />
       <p className='text-[var(--text-muted)] text-caption'>
         {parent ? `Forked from ${parent.label}` : 'Root of the lineage'}
         {undoable ? ` · last sync from ${undoable.otherName} can be undone` : ''}
@@ -120,7 +119,7 @@ function EnvironmentCard({
 }
 
 interface LineageStripProps {
-  project: Project
+  project: ProjectScope
   /** Root first, each fork after its parent. */
   columns: readonly EnvironmentColumn[]
   /** Each environment's lineage node, once loaded; empty until the fork gate passes. */
@@ -143,7 +142,6 @@ export function LineageStrip({ project, columns, lineageByEnv, canManage }: Line
   const [confirmUnlink, setConfirmUnlink] = useState<UnlinkTarget | null>(null)
 
   const byId = new Map(columns.map((column) => [column.id, column]))
-  const current = byId.get(project.id)
 
   /** Permanently dissolves the confirmed edge; both workspaces remain. */
   const runUnlink = async () => {
@@ -188,7 +186,7 @@ export function LineageStrip({ project, columns, lineageByEnv, canManage }: Line
               <EnvironmentCard
                 column={column}
                 parent={parent}
-                current={column.id === project.id}
+                current={column.id === project.workspaceId}
                 lineage={lineageByEnv.get(column.id)}
                 canManage={canManage}
                 onDisconnect={() => {
@@ -203,9 +201,9 @@ export function LineageStrip({ project, columns, lineageByEnv, canManage }: Line
       <ForkWorkspaceModal
         open={forkModalOpen}
         onOpenChange={setForkModalOpen}
-        sourceWorkspaceId={project.id}
-        sourceWorkspaceName={current?.name || project.name}
-        sources={columns.map((column) => ({ id: column.id, name: column.name }))}
+        sourceWorkspaceId={project.workspaceId}
+        sourceWorkspaceName={project.environment.name}
+        sources={columns.map((column) => ({ id: column.id, name: column.label }))}
         canFork={creationPolicy?.canCreate ?? true}
         onUpgrade={() => {
           if (billingEnabled) navigateToSettings({ section: 'billing' })

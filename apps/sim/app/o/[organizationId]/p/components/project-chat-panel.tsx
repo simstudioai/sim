@@ -5,14 +5,14 @@ import { cn } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
 import { LiveChat } from '@/app/o/[organizationId]/p/components/live-chat'
-import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import type { ProjectScope } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { projectParsers } from '@/app/o/[organizationId]/p/search-params'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
 
 const NEW_CHAT = 'new'
 
 interface ProjectChatPanelProps {
-  project: Project
+  project: ProjectScope
   children: ReactNode
 }
 
@@ -61,7 +61,7 @@ export function ProjectChatPanel({ project, children }: ProjectChatPanelProps) {
 }
 
 interface SideChatProps {
-  project: Project
+  project: ProjectScope
   chatId: string
   initialMessage?: string
   onChatCreated: (chatId: string) => void
@@ -77,7 +77,7 @@ function SideChat({
   onInitialMessageSent,
   onClose,
 }: SideChatProps) {
-  const { data: chats } = useMothershipChats(project.id)
+  const { data: chats } = useMothershipChats(project.workspaceId)
   const chat = chats?.find((candidate) => candidate.id === chatId)
   const title = chat?.name ?? (chatId === NEW_CHAT ? `New chat in ${project.name}` : 'Chat')
 
@@ -98,7 +98,7 @@ function SideChat({
         </button>
       </header>
       <LiveChat
-        owner={project.id}
+        owner={project.workspaceId}
         chatId={chatId === NEW_CHAT ? undefined : chatId}
         initialMessage={initialMessage}
         onInitialMessageSent={onInitialMessageSent}

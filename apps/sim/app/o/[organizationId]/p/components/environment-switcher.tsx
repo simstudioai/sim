@@ -10,33 +10,30 @@ import {
 import { Check, ChevronDown, Server } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import type { ProjectScope } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import type { ProjectSection } from '@/app/o/[organizationId]/p/routes'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 
 interface EnvironmentSwitcherProps {
-  project: Project
+  project: ProjectScope
   section: ProjectSection
 }
 
-/**
- * The project's environment (Prod, Staging, Sandbox): each is a forked workspace in the same
- * lineage, and switching keeps the section you are looking at.
- */
+/** The project's environment: each is a workspace of the project, and switching keeps the section. */
 export function EnvironmentSwitcher({ project, section }: EnvironmentSwitcherProps) {
   const router = useRouter()
   const { organization } = useOrganizationContext()
   if (project.environments.length <= 1)
     return (
       <Chip leftIcon={Server} className='text-[var(--text-muted)]'>
-        {project.environment}
+        {project.environment.name}
       </Chip>
     )
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Chip leftIcon={Server} rightIcon={ChevronDown} aria-label='Switch environment'>
-          {project.environment}
+          {project.environment.name}
         </Chip>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
@@ -49,8 +46,8 @@ export function EnvironmentSwitcher({ project, section }: EnvironmentSwitcherPro
               )
             }
           >
-            <span className='flex-1'>{environment.label}</span>
-            {environment.workspaceId === project.id && (
+            <span className='flex-1'>{environment.name}</span>
+            {environment.workspaceId === project.workspaceId && (
               <Check className='size-[14px] text-[var(--text-icon)]' />
             )}
           </DropdownMenuItem>

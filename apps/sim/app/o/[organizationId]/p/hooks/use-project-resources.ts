@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
-import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/file'
-import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import type { ProjectScope } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -9,7 +8,7 @@ import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 /** Every resource list a project page reads, from the workspace's own React Query hooks. */
-export function useProjectResources(workspaceId: string) {
+function useProjectResources(workspaceId: string) {
   const enabled = Boolean(workspaceId)
   const workflows = useWorkflows(workspaceId || undefined, { enabled })
   const folders = useFolderMap(workspaceId || undefined)
@@ -27,38 +26,28 @@ export function useProjectResources(workspaceId: string) {
     return names
   }, [members.data])
 
-  const fileLists = useMemo(() => {
-    const all = files.data ?? []
-    return {
-      files: all,
-      dashboardFiles: all.filter((file) => file.type === DASHBOARD_CONTENT_TYPE),
-    }
-  }, [files.data])
-
   return {
     workflows: workflows.data ?? [],
     folders: folders.data ?? {},
     tables: tables.data ?? [],
     knowledgeBases: knowledgeBases.data ?? [],
-    files: fileLists.files,
-    dashboardFiles: fileLists.dashboardFiles,
+    files: files.data ?? [],
     memberNames,
     isPending:
       enabled &&
       (workflows.isPending || tables.isPending || knowledgeBases.isPending || files.isPending),
-    filesPending: enabled && files.isPending,
   }
 }
-
-export type ProjectResources = ReturnType<typeof useProjectResources>
 
 function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`
 }
 
 /** What the project's workspace holds, as its description line. */
-export function useProjectDescription(project: Project): string {
-  const { workflows, tables, knowledgeBases, files, isPending } = useProjectResources(project.id)
+export function useProjectDescription(project: ProjectScope): string {
+  const { workflows, tables, knowledgeBases, files, isPending } = useProjectResources(
+    project.workspaceId
+  )
   if (isPending) return ''
   return [
     plural(workflows.length, 'workflow'),

@@ -1,46 +1,91 @@
-import { type ProjectEnvironment, resolveProjectLineages } from '@/lib/projects'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useMemo } from 'react'
+import type { ProjectRecord } from '@/lib/api/contracts/projects'
+import { useOrganizationProjects, useWorkspaceProject } from '@/hooks/queries/projects'
 
-/** A workspace seen as a project: its fork lineage, with this workspace as one environment. */
+/** One environment of a project: a workspace, named by the workspace itself. */
+export interface ProjectEnvironment {
+  workspaceId: string
+  name: string
+  /** The environment this one was forked from; null for a root of the project. */
+  parentId: string | null
+}
+
 export interface Project {
-  /** The workspace this view is on; every route and hook uses it. */
   id: string
   name: string
   organizationId: string | null
-  /** The workspace at the top of the lineage; lists show one project per root. */
-  rootId: string
-  /** Which environment this workspace is within its project: Prod, Staging, Sandbox. */
-  environment: string
-  /** Every environment of the project, root first. */
+  /** Roots first, each fork after its parent, siblings by name. */
   environments: ProjectEnvironment[]
+  canAdminister: boolean
 }
 
-/** The organization's projects: every workspace it hosts, grouped by fork lineage. */
-export function useProjects(organizationId: string) {
-  const query = useWorkspacesQuery()
-  const workspaces = (query.data ?? []).filter(
-    (workspace) => workspace.organizationId === organizationId
-  )
-  /** A handful of rows, so deriving them each render is cheaper than a memo keyed on the list. */
-  const lineages = resolveProjectLineages(workspaces)
-  const projects: Project[] = workspaces.map((workspace) => {
-    const lineage = lineages.get(workspace.id)
-    if (!lineage) throw new Error(`No lineage for workspace ${workspace.id}`)
-    return {
-      id: workspace.id,
-      name: lineage.name,
-      organizationId: workspace.organizationId ?? null,
-      rootId: lineage.rootId,
-      environment: lineage.environment,
-      environments: lineage.environments,
+/** A project seen from one of its environments: the workspace a project page is on. */
+export interface ProjectScope extends Project {
+  workspaceId: string
+  environment: ProjectEnvironment
+}
+
+function byName(a: { name: string }, b: { name: string }): number {
+  return a.name.localeCompare(b.name)
+}
+
+function toProject(record: ProjectRecord): Project {
+  const visible = new Set(record.environments.map((environment) => environment.id))
+  const children = new Map<string | null, ProjectEnvironment[]>()
+  for (const environment of record.environments) {
+    const parent = environment.forkedFromWorkspaceId
+    const parentId = parent && visible.has(parent) ? parent : null
+    const siblings = children.get(parentId) ?? []
+    siblings.push({ workspaceId: environment.id, name: environment.name, parentId })
+    children.set(parentId, siblings)
+  }
+  const environments: ProjectEnvironment[] = []
+  const visit = (parentId: string | null) => {
+    for (const environment of [...(children.get(parentId) ?? [])].sort(byName)) {
+      environments.push(environment)
+      visit(environment.workspaceId)
     }
-  })
-  /** One entry per project for the sidebar and pickers: each lineage's root. */
-  const roots = projects.filter((project) => project.rootId === project.id)
-  return { projects, roots, isPending: query.isPending, error: query.error }
+  }
+  visit(null)
+  if (environments.length !== record.environments.length)
+    throw new Error(`Project ${record.id} has a fork cycle among its environments`)
+  return {
+    id: record.id,
+    name: record.name,
+    organizationId: record.organizationId,
+    environments,
+    canAdminister: record.capabilities.administer,
+  }
 }
 
-export function useProject(organizationId: string, workspaceId: string) {
-  const { projects, isPending, error } = useProjects(organizationId)
-  return { project: projects.find((project) => project.id === workspaceId), isPending, error }
+/** The environment a project opens in: its first root. */
+export function defaultEnvironment(project: Project): ProjectEnvironment {
+  const [first] = project.environments
+  if (!first) throw new Error(`Project ${project.id} has no environment the viewer can open`)
+  return first
+}
+
+function scopeProject(project: Project, workspaceId: string): ProjectScope {
+  const environment = project.environments.find(
+    (candidate) => candidate.workspaceId === workspaceId
+  )
+  if (!environment) throw new Error(`Workspace ${workspaceId} is not in project ${project.id}`)
+  return { ...project, workspaceId, environment }
+}
+
+/** The organization's projects, as the sidebar and pickers list them. */
+export function useProjects(organizationId: string) {
+  const query = useOrganizationProjects(organizationId)
+  const projects = useMemo(() => [...(query.data ?? [])].sort(byName).map(toProject), [query.data])
+  return { projects, isPending: query.isPending, error: query.error }
+}
+
+/** The project a workspace belongs to, scoped to that workspace as its environment. */
+export function useProjectScope(workspaceId: string) {
+  const query = useWorkspaceProject(workspaceId)
+  const project = useMemo(
+    () => (query.data ? scopeProject(toProject(query.data), workspaceId) : undefined),
+    [query.data, workspaceId]
+  )
+  return { project, isPending: query.isPending, error: query.error }
 }

@@ -23,6 +23,7 @@ const projectSchema = z.object({
   environments: z.array(projectEnvironmentSchema),
   capabilities: z.object({ administer: z.boolean(), issues: z.boolean() }),
 })
+export type ProjectRecord = z.output<typeof projectSchema>
 const projectParamsSchema = z.object({ id: nonEmptyIdSchema })
 const projectQuerySchema = z.object({
   organizationId: organizationIdSchema.optional(),

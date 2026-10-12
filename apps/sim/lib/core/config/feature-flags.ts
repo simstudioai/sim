@@ -117,9 +117,9 @@ const FEATURE_FLAGS = {
   },
   'org-project-view': {
     description:
-      'Show workspaces as projects: the workspace layout mounts the project Build sidebar and the ' +
-      'organization surface lists projects. Supports orgId targeting; off-AppConfig falls back to ' +
-      'ORG_PROJECT_VIEW.',
+      'Show the organization surface as projects: the workspace layout mounts the project Build ' +
+      'sidebar and the organization surface lists projects. Reads the Project APIs, so it needs ' +
+      '`projects` on as well. Supports orgId targeting; off-AppConfig falls back to ORG_PROJECT_VIEW.',
     fallback: 'ORG_PROJECT_VIEW',
   },
 } satisfies Record<string, FeatureFlagDefinition>

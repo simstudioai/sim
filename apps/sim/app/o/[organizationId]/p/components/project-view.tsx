@@ -7,7 +7,7 @@ import { EnvironmentSwitcher } from '@/app/o/[organizationId]/p/components/envir
 import { EnvironmentsTab } from '@/app/o/[organizationId]/p/components/environments'
 import { ProjectDashboard } from '@/app/o/[organizationId]/p/components/project-dashboard'
 import { useProjectDescription } from '@/app/o/[organizationId]/p/hooks/use-project-resources'
-import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import type { ProjectScope } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import {
   PROJECT_SECTIONS,
   type ProjectSection,
@@ -16,7 +16,7 @@ import {
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 
 interface ProjectViewProps {
-  project: Project
+  project: ProjectScope
   section: ProjectSection
 }
 
@@ -35,7 +35,7 @@ export function ProjectView({ project, section }: ProjectViewProps) {
           <div className='flex shrink-0 items-center gap-1'>
             <EnvironmentSwitcher project={project} section={section} />
             <ChipLink
-              href={workspaceRoutes.workflows(project.id)}
+              href={workspaceRoutes.workflows(project.workspaceId)}
               variant='border'
               leftIcon={Expand}
             >
@@ -50,7 +50,7 @@ export function ProjectView({ project, section }: ProjectViewProps) {
           {PROJECT_SECTIONS.map((item) => (
             <ChipLink
               key={item.id}
-              href={routes.project(project.id, item.id)}
+              href={routes.project(project.workspaceId, item.id)}
               active={section === item.id}
               leftIcon={item.icon}
             >
@@ -66,13 +66,13 @@ export function ProjectView({ project, section }: ProjectViewProps) {
   )
 }
 
-function ProjectDescription({ project }: { project: Project }) {
+function ProjectDescription({ project }: { project: ProjectScope }) {
   const text = useProjectDescription(project)
   return <p className='min-h-[18px] text-[var(--text-muted)] text-small'>{text}</p>
 }
 
 interface SectionBodyProps {
-  project: Project
+  project: ProjectScope
   section: ProjectSection
 }
 

@@ -42,7 +42,7 @@ export const PROJECT_NAV_SECTIONS: readonly ProjectNavSection[] = [
   { id: 'environments', label: 'Environments', icon: Server },
 ]
 
-export type BuildSectionId =
+type BuildSectionId =
   | 'integrations'
   | 'workflows'
   | 'files'

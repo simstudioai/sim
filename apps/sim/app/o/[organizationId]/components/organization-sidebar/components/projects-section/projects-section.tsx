@@ -11,7 +11,11 @@ import {
   type ProjectDragProps,
   useProjectOrder,
 } from '@/app/o/[organizationId]/components/organization-sidebar/components/projects-section/use-project-order'
-import { type Project, useProjects } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import {
+  defaultEnvironment,
+  type Project,
+  useProjects,
+} from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { projectParsers } from '@/app/o/[organizationId]/p/search-params'
 import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { SIDEBAR_ITEM_GAP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
@@ -26,14 +30,19 @@ interface ProjectsSectionProps {
   pathname: string | null
 }
 
-/** The organization's projects, one per fork lineage, each with its chats underneath. */
+/** The organization's projects, each with its chats underneath. */
 export function ProjectsSection({ organizationId, isCollapsed, pathname }: ProjectsSectionProps) {
-  const { roots } = useProjects(organizationId)
-  const { projects, dragProps, isAnyDragActive } = useProjectOrder(roots)
+  const { projects: unordered, error } = useProjects(organizationId)
+  const { projects, dragProps, isAnyDragActive } = useProjectOrder(unordered)
   const [{ chat: openChat }] = useQueryStates(projectParsers)
   return (
     <SidebarSection title='Projects' railCollapsed={isCollapsed} className='shrink-0'>
       <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+        {error && !isCollapsed && (
+          <p role='alert' className='px-2 py-1 text-[var(--text-error)] text-caption'>
+            {error.message}
+          </p>
+        )}
         {projects.map((project) => (
           <ProjectTree
             key={project.id}
@@ -62,8 +71,8 @@ interface ProjectTreeProps {
 }
 
 /**
- * A project row with its chats listed underneath. A project spans every environment in its
- * lineage; the chats shown belong to the environment you are in.
+ * A project row with its chats listed underneath. The chats shown belong to the environment
+ * you are in, else to the project's default environment.
  */
 function ProjectTree({
   organizationId,
@@ -82,19 +91,20 @@ function ProjectTree({
       return pathname === base || pathname?.startsWith(`${base}/`)
     })?.workspaceId ?? null
   const inProject = activeId !== null
+  const homeWorkspaceId = defaultEnvironment(project).workspaceId
   /** null follows navigation (open while you're in the project); a click pins it open or shut. */
   const [override, setOverride] = useState<boolean | null>(null)
   const expanded = override ?? inProject
-  const { data: chats = [] } = useMothershipChats(activeId ?? project.id)
+  const { data: chats = [] } = useMothershipChats(activeId ?? homeWorkspaceId)
   const visible = showAll ? chats : chats.slice(0, CHAT_PREVIEW)
   const panelHref = (chatId: string) =>
-    `${inProject && pathname ? pathname : routes.project(project.id)}?chat=${chatId}`
+    `${inProject && pathname ? pathname : routes.project(homeWorkspaceId)}?chat=${chatId}`
 
   return (
     <div className='flex flex-col gap-[1px]'>
       <ProjectRow
         project={project}
-        href={routes.project(project.id)}
+        href={routes.project(homeWorkspaceId)}
         newChatHref={panelHref('new')}
         active={inProject}
         expanded={chats.length > 0 ? expanded : undefined}

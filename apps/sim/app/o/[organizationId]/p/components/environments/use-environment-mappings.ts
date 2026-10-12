@@ -28,7 +28,7 @@ import { workspaceCredentialListQueryOptions } from '@/hooks/queries/utils/fetch
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 
 /** A mapping or diff request for one edge that failed, phrased for the grid. */
-export interface EdgeError {
+interface EdgeError {
   edge: LineageEdge
   message: string
 }

@@ -4,7 +4,7 @@ import {
   type ForkWorkflowChange,
   forkCopyableKindSchema,
 } from '@/lib/api/contracts/workspace-fork'
-import type { ProjectEnvironment } from '@/lib/projects'
+import type { ProjectEnvironment } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import {
   MAPPING_SECTION,
   type MappableMappingKind,
@@ -54,7 +54,7 @@ export function isCopyableKind(kind: string): boolean {
 }
 
 /** The status of the child side of an edge entry. */
-export function entryStatus(entry: ForkMappingEntry): MappingStatus {
+function entryStatus(entry: ForkMappingEntry): MappingStatus {
   if (entry.targetId) return entry.suggested ? 'suggested' : 'mapped'
   if (isCopyableKind(entry.kind) && !entry.sourceDeleted) return 'copy'
   return 'needs-setup'
@@ -70,51 +70,22 @@ export interface LineageEdge {
 export interface EnvironmentColumn {
   id: string
   label: string
-  name: string
-  /** The environment this one was forked from; null for the root. */
+  /** The environment this one was forked from; null for a root. */
   parentId: string | null
 }
 
 /**
- * Orders the environments root first and each fork after its parent, so every edge's parent
- * side is placed before its child side and rows can be joined edge by edge.
+ * One column per environment, in the project's order: every edge's parent side is placed before
+ * its child side, so rows can be joined edge by edge.
  */
-export function orderEnvironments(
-  rootId: string,
-  environments: readonly ProjectEnvironment[],
-  parentOf: ReadonlyMap<string, string | null>,
-  nameOf: ReadonlyMap<string, string>
+export function environmentColumns(
+  environments: readonly ProjectEnvironment[]
 ): EnvironmentColumn[] {
-  const columns: EnvironmentColumn[] = []
-  const seen = new Set<string>()
-  const queue = [rootId]
-  for (let index = 0; index < queue.length; index += 1) {
-    const current = queue[index]
-    if (seen.has(current)) continue
-    seen.add(current)
-    const environment = environments.find((candidate) => candidate.workspaceId === current)
-    if (!environment) continue
-    columns.push({
-      id: current,
-      label: environment.label,
-      name: nameOf.get(current) ?? environment.label,
-      parentId: current === rootId ? null : (parentOf.get(current) ?? null),
-    })
-    for (const candidate of environments) {
-      if (parentOf.get(candidate.workspaceId) === current) queue.push(candidate.workspaceId)
-    }
-  }
-  /** An environment whose parent left the lineage still gets a column, detached. */
-  for (const environment of environments) {
-    if (seen.has(environment.workspaceId)) continue
-    columns.push({
-      id: environment.workspaceId,
-      label: environment.label,
-      name: nameOf.get(environment.workspaceId) ?? environment.label,
-      parentId: null,
-    })
-  }
-  return columns
+  return environments.map((environment) => ({
+    id: environment.workspaceId,
+    label: environment.name,
+    parentId: environment.parentId,
+  }))
 }
 
 export function lineageEdges(columns: readonly EnvironmentColumn[]): LineageEdge[] {
@@ -161,7 +132,7 @@ function targetLabel(entry: ForkMappingEntry): string {
 /**
  * Joins the per-edge mappings into one row per resource: an entry's source on the parent side
  * joins the row that reached that resource through an earlier edge, else starts a row. Edges
- * must arrive parent first (see {@link orderEnvironments}).
+ * must arrive parent first (see {@link environmentColumns}).
  */
 export function buildMappingRows(edgeMappings: readonly EdgeMapping[]): MappingRow[] {
   const rows: MappingRow[] = []

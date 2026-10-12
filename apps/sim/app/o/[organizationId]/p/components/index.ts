@@ -1,5 +1,1 @@
-export { EnvironmentSwitcher } from './environment-switcher'
-export { ProjectChatPanel } from './project-chat-panel'
-export { ProjectDashboard } from './project-dashboard'
 export { ProjectPage } from './project-page'
-export { ProjectView } from './project-view'

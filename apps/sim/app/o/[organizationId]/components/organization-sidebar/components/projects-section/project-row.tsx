@@ -176,7 +176,7 @@ export function ProjectRow({
               }}
               onDoubleClick={(event) => {
                 event.preventDefault()
-                rename.handleStartEdit()
+                if (project.canAdminister) rename.handleStartEdit()
               }}
               aria-expanded={expanded}
               className='flex min-w-0 flex-1 items-center gap-2'
@@ -243,19 +243,25 @@ export function ProjectRow({
             <Duplicate />
             Copy link
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => rename.handleStartEdit()}>
-            <Pencil />
-            Rename
-          </DropdownMenuItem>
+          {project.canAdminister && (
+            <DropdownMenuItem onSelect={() => rename.handleStartEdit()}>
+              <Pencil />
+              Rename
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={() => actions.setPinned(project, !pinned)}>
             {pinned ? <PinOff /> : <Pin />}
             {pinned ? 'Unpin' : 'Pin'}
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => setDeleteOpen(true)}>
-            <Trash />
-            Delete
-          </DropdownMenuItem>
+          {project.canAdminister && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setDeleteOpen(true)}>
+                <Trash />
+                Delete
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

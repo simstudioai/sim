@@ -31,6 +31,7 @@ import type { WorkspacesResponse } from '@/lib/api/contracts/workspaces'
 import { backgroundWorkKeys } from '@/ee/workspace-forking/hooks/background-work'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { projectKeys } from '@/hooks/queries/utils/project-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -110,6 +111,7 @@ export function useForkWorkspace() {
       })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.adminLists() })
+      queryClient.invalidateQueries({ queryKey: projectKeys.all })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
@@ -199,8 +201,9 @@ export function useUnlinkFork() {
       requestJson(unlinkForkContract, { params: { id: vars.workspaceId }, body: vars.body }),
     onSettled: () => {
       // Unlink dissolves the edge: lineage loses the row, and the edge's mappings/diff
-      // no longer exist. Workflows and deployments are untouched.
+      // no longer exist, and the fork's subtree leaves for a Project of its own.
       queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
+      queryClient.invalidateQueries({ queryKey: projectKeys.all })
       queryClient.invalidateQueries({ queryKey: forkKeys.mappings() })
       queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
       queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })

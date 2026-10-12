@@ -10,49 +10,41 @@ import {
   WorkflowGrid,
 } from '@/app/o/[organizationId]/p/components/environments/mapping-grid'
 import {
+  environmentColumns,
   lineageEdges,
-  orderEnvironments,
   RESOURCE_TABS,
   type ResourceTabId,
   WORKFLOW_TAB,
 } from '@/app/o/[organizationId]/p/components/environments/mapping-model'
 import { ResourceTabs } from '@/app/o/[organizationId]/p/components/environments/resource-tabs'
 import { useEnvironmentMappings } from '@/app/o/[organizationId]/p/components/environments/use-environment-mappings'
-import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import type { ProjectScope } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { projectParsers } from '@/app/o/[organizationId]/p/search-params'
 import { useOptionalWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useForkingAvailability } from '@/ee/workspace-forking/hooks/use-forking-available'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 interface EnvironmentsTabProps {
-  project: Project
+  project: ProjectScope
 }
 
 /**
- * The project's fork lineage and the resource mappings between its environments: one row per
- * resource, one column per environment, a sub-tab per resource type. Managing the lineage
- * needs workspace admin and the fork entitlement; otherwise the strip is read-only.
+ * The project's environments and the resource mappings between them: one row per resource, one
+ * column per environment, a sub-tab per resource type. Managing the lineage needs workspace
+ * admin and the fork entitlement; otherwise the strip is read-only.
  */
 export function EnvironmentsTab({ project }: EnvironmentsTabProps) {
   const [resource, setResource] = useQueryState(
     'resource',
     projectParsers.resource.withOptions({ history: 'replace', clearOnDefault: true })
   )
-  const { data: workspaces } = useWorkspacesQuery()
-  const availability = useForkingAvailability(project.id)
+  const availability = useForkingAvailability(project.workspaceId)
   const permissions = useOptionalWorkspacePermissionsContext()?.userPermissions
   const canAdmin = permissions?.canAdmin ?? false
   const gateLoading = availability.isLoading || (permissions?.isLoading ?? false)
   const canManage = availability.available && canAdmin
 
-  /** A handful of workspaces, so the lookups are rebuilt each render rather than memoized. */
-  const parentOf = new Map<string, string | null>()
-  const nameOf = new Map<string, string>()
-  for (const workspace of workspaces ?? []) {
-    parentOf.set(workspace.id, workspace.forkedFromWorkspaceId ?? null)
-    nameOf.set(workspace.id, workspace.name)
-  }
-  const columns = orderEnvironments(project.rootId, project.environments, parentOf, nameOf)
+  const columns = environmentColumns(project.environments)
+  const labelOf = new Map(columns.map((column) => [column.id, column.label]))
   const edges = lineageEdges(columns)
   const data = useEnvironmentMappings({
     columns,
@@ -95,8 +87,8 @@ export function EnvironmentsTab({ project }: EnvironmentsTabProps) {
               key={`${edge.parentId}:${edge.childId}`}
               className='text-[var(--text-error)] text-small'
             >
-              Couldn't load the mapping between {nameOf.get(edge.parentId) ?? edge.parentId} and{' '}
-              {nameOf.get(edge.childId) ?? edge.childId}: {message}
+              Couldn't load the mapping between {labelOf.get(edge.parentId)} and{' '}
+              {labelOf.get(edge.childId)}: {message}
             </p>
           ))}
           {data.isPending ? (

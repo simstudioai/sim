@@ -1,34 +1,45 @@
 'use client'
 
-import type { ReactNode } from 'react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
 import { Check, ChevronDown } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
-import { DashboardFile } from '@/app/o/[organizationId]/p/components/dashboard-file'
+import { DashboardPreview } from '@/components/dashboards/dashboard-preview'
 import { RunsDashboard } from '@/app/o/[organizationId]/p/components/runs-dashboard'
-import { useProjectResources } from '@/app/o/[organizationId]/p/hooks/use-project-resources'
-import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import type { ProjectScope } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { projectParsers } from '@/app/o/[organizationId]/p/search-params'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'
 
 const RUNS_ID = 'runs'
 
 interface DashboardOption {
   id: string
   title: string
-  kind: 'file' | 'runs'
 }
 
-/** The project's dashboards: its `.dashboard` files rendered live, then a built-in Runs dashboard. */
-export function ProjectDashboard({ project }: { project: Project }) {
+interface ProjectDashboardProps {
+  project: ProjectScope
+}
+
+/** The environment's dashboard, once Sim has saved one, then a built-in Runs dashboard. */
+export function ProjectDashboard({ project }: ProjectDashboardProps) {
   const [{ dashboard: selected }, setParams] = useQueryStates(projectParsers)
-  const { dashboardFiles, filesPending } = useProjectResources(project.id)
+  const dashboardsEnabled = useFeatureFlag('dashboards')
+  const query = useWorkspaceDashboard(project.workspaceId, { enabled: dashboardsEnabled })
 
-  if (filesPending)
+  if (dashboardsEnabled && query.isPending)
     return <p className='px-6 py-16 text-center text-[var(--text-muted)] text-small'>Loading…</p>
+  if (query.error)
+    return (
+      <p role='alert' className='px-6 py-16 text-center text-[var(--text-error)] text-small'>
+        {query.error.message}
+      </p>
+    )
 
+  const saved = query.data?.dashboard && query.data.content !== null ? query.data : null
   const options: DashboardOption[] = [
-    ...dashboardFiles.map((file) => ({ id: file.id, title: file.name, kind: 'file' as const })),
-    { id: RUNS_ID, title: 'Runs', kind: 'runs' },
+    ...(saved?.dashboard ? [{ id: saved.dashboard.id, title: saved.dashboard.name }] : []),
+    { id: RUNS_ID, title: 'Runs' },
   ]
   const current = options.find((option) => option.id === selected) ?? options[0]
 
@@ -37,7 +48,7 @@ export function ProjectDashboard({ project }: { project: Project }) {
       <DropdownMenuTrigger asChild>
         <button
           type='button'
-          className='flex items-center gap-2 self-start rounded-lg text-left @min-[1000px]/dashboard:text-[32px] text-[28px] text-[var(--text-primary)] leading-tight tracking-[-0.02em]'
+          className='flex items-center gap-2 self-start rounded-lg text-left @min-[1000px]/dashboard:text-3xl text-2xl text-[var(--text-primary)] leading-tight tracking-[-0.02em]'
         >
           {current.title}
           <ChevronDown className='size-[16px] text-[var(--text-icon)]' />
@@ -57,19 +68,15 @@ export function ProjectDashboard({ project }: { project: Project }) {
     </DropdownMenu>
   )
 
-  return <DashboardBody project={project} option={current} title={title} />
-}
-
-interface DashboardBodyProps {
-  project: Project
-  option: DashboardOption
-  title: ReactNode
-}
-
-function DashboardBody({ project, option, title }: DashboardBodyProps) {
-  const { dashboardFiles } = useProjectResources(project.id)
-  if (option.kind === 'runs') return <RunsDashboard key={RUNS_ID} project={project} title={title} />
-  const file = dashboardFiles.find((candidate) => candidate.id === option.id)
-  if (!file) return null
-  return <DashboardFile key={file.id} workspaceId={project.id} file={file} title={title} />
+  if (current.id === RUNS_ID || !saved?.dashboard || saved.content === null)
+    return <RunsDashboard key={RUNS_ID} project={project} title={title} />
+  return (
+    <DashboardPreview
+      key={saved.dashboard.id}
+      content={saved.content}
+      workspaceId={project.workspaceId}
+      dashboardId={saved.dashboard.id}
+      title={title}
+    />
+  )
 }

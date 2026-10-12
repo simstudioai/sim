@@ -36,7 +36,7 @@ import { isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { captureEvent } from '@/lib/posthog/client'
-import { parseEnvironmentName, resolveProjectLineages } from '@/lib/projects'
+import { defaultEnvironment, useProjectScope } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import {
   BUILD_NAV_SECTIONS,
   PROJECT_NAV_SECTIONS,
@@ -100,8 +100,8 @@ interface ProjectBuildSidebarProps {
  * Same chrome as the workspace `Sidebar` (collapse, peek, resize, footer, settings
  * sub-navigation) and the same invisible services underneath it through
  * {@link useWorkspaceSidebarServices}, but the rail lists the project instead of the
- * workspace: a back chip to the project main view, the environment the workspace plays in
- * its fork lineage, the main view's sections, the flat Build sections, and the chats. No
+ * workspace: a back chip to the project main view, the environment switcher, the main view's
+ * sections, the flat Build sections, and the chats. No
  * resource trees: every Build page owns its own folder tree in the content area.
  */
 export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
@@ -145,24 +145,31 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
   const showCollapsedTooltips = isCollapsed
   const isOnSettingsPage = pathname?.startsWith(`/workspace/${workspaceId}/settings`) ?? false
 
+  const { project: scope, error: projectError } = useProjectScope(workspaceId)
   /**
-   * The project this workspace belongs to. Until the workspace list arrives the route's own
-   * workspace stands in as a one-environment project, so the header never renders blank.
+   * The project this workspace belongs to. Until it loads, or when it cannot, the header names
+   * the workspace itself as a one-environment project; a load failure is shown under the chip.
    */
   const project = useMemo(() => {
-    const lineage = workspaces ? resolveProjectLineages(workspaces).get(workspaceId) : undefined
-    if (lineage) {
-      const root = workspaces?.find((workspace) => workspace.id === lineage.rootId)
-      return { ...lineage, logoUrl: root?.logoUrl ?? null }
+    if (scope) {
+      const home = workspaces?.find(
+        (workspace) => workspace.id === defaultEnvironment(scope).workspaceId
+      )
+      return {
+        name: scope.name,
+        environment: scope.environment.name,
+        environments: scope.environments,
+        logoUrl: home?.logoUrl ?? null,
+      }
     }
-    const { base, environment } = parseEnvironmentName(hostContext.workspace.name)
+    const { name } = hostContext.workspace
     return {
-      name: base,
-      environment: environment ?? 'Prod',
-      environments: [{ workspaceId, label: environment ?? 'Prod' }],
+      name,
+      environment: name,
+      environments: [{ workspaceId, name, parentId: null }],
       logoUrl: null,
     }
-  }, [workspaces, workspaceId, hostContext.workspace.name])
+  }, [scope, workspaces, workspaceId, hostContext.workspace])
 
   /** The page the viewer is on, relative to the workspace, so a switch lands on its peer. */
   const workspaceSubPath = useMemo(() => {
@@ -416,7 +423,7 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
                               aria-current={isCurrent ? 'true' : undefined}
                             >
                               <Server />
-                              {environment.label}
+                              {environment.name}
                               {isCurrent && <Check className='ml-auto size-[14px]' />}
                             </DropdownMenuItem>
                           )
@@ -433,6 +440,11 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </SidebarTooltip>
+                  {projectError && !isCollapsed && (
+                    <p role='alert' className='px-2 text-[var(--text-error)] text-caption'>
+                      {projectError.message}
+                    </p>
+                  )}
                 </div>
 
                 <div

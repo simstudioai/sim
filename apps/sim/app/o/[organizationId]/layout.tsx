@@ -92,7 +92,6 @@ export default async function OrganizationLayout({
           dashboards: dashboardsEnabled,
           'workflow-tests': workflowTestsEnabled,
           changelog: changelogEnabled,
-          'org-project-view': orgProjectViewEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
           'org-project-view': orgProjectViewEnabled,
