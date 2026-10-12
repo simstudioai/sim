@@ -11,7 +11,7 @@ import {
   observeContentDelivery,
 } from '@/lib/core/application/content-delivery'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
-import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 
 const hoisted = vi.hoisted(() => ({
   context: vi.fn(),

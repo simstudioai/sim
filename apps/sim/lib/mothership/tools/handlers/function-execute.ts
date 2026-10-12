@@ -36,7 +36,7 @@ import { resolveCopilotFilePrincipal } from '@/lib/mothership/auth/file-delegati
 import { messageForCopilotTableError } from '@/lib/mothership/auth/table-delegation'
 import { recordServiceCost } from '@/lib/mothership/billing/service-observer'
 import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
-import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { WorkbenchSecretNames } from '@/lib/mothership/generated/workbench'
 import { applySecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import type {

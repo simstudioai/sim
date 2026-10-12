@@ -1,7 +1,7 @@
 import { runEmbeddedCli } from 'sim/embed'
 import { describe, expect, it, vi } from 'vitest'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
-import { markCommittedWriteResponse } from '@/lib/mothership/content-delivery/dispatch'
+import { markCommittedWriteResponse } from '@/lib/mothership/content-delivery'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 
 const endpoint = 'https://sim.test'

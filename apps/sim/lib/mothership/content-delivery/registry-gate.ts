@@ -9,6 +9,7 @@ import {
   type ContentRefusalReason,
   reportContentRefusal,
 } from '@/lib/mothership/content-delivery/telemetry'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface RegistryContentGateScope {
@@ -58,6 +59,8 @@ export function createRegistryContentGate(scope: RegistryContentGateScope): Cont
     if (source.view === 'opaque') return refuse(source, 'opaque')
     const registry = scope.registry
     if (!registry) return refuse(source, 'registry')
+    /** A derived view that shows nothing needs no entry; `undefined` would mean the whole item. */
+    if (typeof source.view === 'object' && source.view.derived === undefined) return true
     const value = typeof source.view === 'object' ? source.view.derived : undefined
     const staged = new ResolvedSecretTraceRegistry([], undefined, { staged: true })
     if (!(await importDurableSecretProvenance(staged, provenance, value))) {
@@ -73,6 +76,15 @@ export function createRegistryContentGate(scope: RegistryContentGateScope): Cont
   }
 
   return {
+    project(text) {
+      /** Without a registry no admitted item holds a secret, so there is nothing to redact. */
+      if (!scope.registry) return text
+      const projection = projectResolvedSecretModelContent(
+        text,
+        scope.registry.forkForPropagatedEntries()
+      )
+      return projection.safe && typeof projection.value === 'string' ? projection.value : undefined
+    },
     async admit(sources) {
       const unrecorded: DurableSecretProvenanceUnrecordedReport[] = []
       const verdicts: boolean[] = []

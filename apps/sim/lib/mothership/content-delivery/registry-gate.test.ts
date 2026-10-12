@@ -11,8 +11,14 @@ const telemetry = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => telemetry)
 
-import type { ContentProvenance, ContentSource } from '@/lib/core/application/content-delivery'
+import {
+  type ContentProvenance,
+  type ContentSource,
+  observeContentDelivery,
+  redactBeforeCutting,
+} from '@/lib/core/application/content-delivery'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+import { sliceFileTextLines } from '@/lib/workspace-files/text-lines'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -100,6 +106,15 @@ describe('createRegistryContentGate', () => {
     expect(modelView(`other=${OTHER_SECRET}`, registry)).toContain(OTHER_SECRET)
   })
 
+  it('activates nothing for a derived view that shows nothing', async () => {
+    const registry = newRegistry()
+    const gate = createRegistryContentGate({ registry, actorUserId: 'user-1' })
+    expect(await gate.admit([item('config', exact(SECRET), { derived: undefined })])).toEqual([
+      true,
+    ])
+    expect(modelView(`token=${SECRET}`, registry)).toContain(SECRET)
+  })
+
   it('refuses an opaque view of an item holding secrets, which no redaction reaches', async () => {
     const registry = newRegistry()
     const gate = createRegistryContentGate({ registry, actorUserId: 'user-1' })
@@ -153,5 +168,19 @@ describe('createRegistryContentGate', () => {
     expect(verdicts).toEqual([false, true, true])
     expect(registry.isPermanentlyIncomplete()).toBe(false)
     expect(modelView(`token=${SECRET}`, registry)).not.toContain(SECRET)
+  })
+
+  it('redacts a multi-line secret before a line window could cut one line out of it', async () => {
+    const key = ['-----BEGIN FIXTURE KEY-----', 'FIXTURELINEONE0123', 'FIXTURELINETWO4567'].join(
+      '\n'
+    )
+    const registry = newRegistry()
+    const gate = createRegistryContentGate({ registry, actorUserId: 'user-1' })
+    const text = `config\n${key}\nend`
+    const window = await observeContentDelivery(gate, async () => {
+      expect(await gate.admit([item('key-file', exact(key))])).toEqual([true])
+      return sliceFileTextLines(redactBeforeCutting(undefined, text, 'workspace-file'), 2, 1, false)
+    })
+    for (const line of key.split('\n')) expect(window.text).not.toContain(line)
   })
 })

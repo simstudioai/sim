@@ -10,6 +10,7 @@ import {
   admitContent,
   admitWrittenContent,
   ContentRefusedError,
+  isCopilotPrincipal,
   mustClassifyContent,
 } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -93,6 +94,7 @@ import {
   createTableRowSecretProvenanceFromRegistry,
   createUnknownTableRowSecretProvenance,
   TableRowProvenanceReader,
+  tableHasUnvouchedRows,
 } from '@/lib/table/rows/secret-provenance'
 import type { FindRowMatch, RowWriteOptions } from '@/lib/table/rows/service'
 import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
@@ -563,6 +565,29 @@ export interface QueryTableRowsResult extends TableResult {
   secretProvenance?: TableRowsProvenance
 }
 
+/**
+ * The counts a query reports, as Chat may see them. The page's count is always the rows delivered.
+ * A filtered total also counts rows Chat may not read, which would answer the filter's question
+ * about their text, so Chat gets it only when every row of the table can be vouched for; otherwise
+ * the count is refused. An unfiltered total says only how many rows exist. Other callers are
+ * unchanged.
+ */
+async function countsForReader(
+  principal: Principal,
+  tableId: string,
+  result: Pick<QueryTableRowsResult, 'rowCount' | 'totalCount'>,
+  delivered: readonly unknown[],
+  query: { filtered: boolean }
+): Promise<Pick<QueryTableRowsResult, 'rowCount' | 'totalCount'>> {
+  if (!isCopilotPrincipal(principal)) {
+    return { rowCount: result.rowCount, totalCount: result.totalCount }
+  }
+  if (result.totalCount !== null && query.filtered && (await tableHasUnvouchedRows(tableId))) {
+    throw new ContentRefusedError('table-row')
+  }
+  return { rowCount: delivered.length, totalCount: result.totalCount }
+}
+
 export const queryTableRows = defineAuthorizedTableUseCase({
   operation: tableOperations.queryRows,
   resolveContext: ({ input }: { input: QueryTableRowsInput }) => resolveActiveTableContext(input),
@@ -654,6 +679,9 @@ export const queryTableRows = defineAuthorizedTableUseCase({
       return {
         table: context.table,
         ...result,
+        ...(await countsForReader(principal, context.table.id, result, rows, {
+          filtered: Boolean(predicate || legacyFilter),
+        })),
         rows: rowsForReader(principal, rows),
         ...(input.includePersistedSecretProvenance && readProvenance
           ? { secretProvenance: readProvenance.exportProvenance() }
@@ -672,13 +700,20 @@ export const queryTableRows = defineAuthorizedTableUseCase({
  */
 async function admitRowMatches(
   principal: Principal,
-  matches: FindRowMatch[]
+  matches: FindRowMatch[],
+  revisions: ReadonlyMap<string, Date | string>
 ): Promise<FindRowMatch[]> {
   if (matches.length === 0 || !mustClassifyContent(principal)) {
     await admitContent(principal, [])
     return matches
   }
-  const columns = await classifyStoredTableRowColumns(matches.map((match) => match.rowId))
+  /** Classified at the revision the search matched, so a later write cannot vouch for it. */
+  const columns = await classifyStoredTableRowColumns(
+    matches.flatMap((match) => {
+      const updatedAt = revisions.get(match.rowId)
+      return updatedAt === undefined ? [] : [{ id: match.rowId, updatedAt }]
+    })
+  )
   const sources = [...columns].map(([rowId, classification]) => ({
     kind: 'table-row' as const,
     id: rowId,
@@ -735,7 +770,7 @@ export const searchTableRows = defineAuthorizedTableUseCase({
         { q: input.q, filter, sort },
         requestId(input)
       )
-      const matches = await admitRowMatches(principal, result.matches)
+      const matches = await admitRowMatches(principal, result.matches, result.revisions)
       return {
         table: context.table,
         matches,

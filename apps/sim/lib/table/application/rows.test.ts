@@ -29,7 +29,9 @@ const {
   mockRowProvenance,
   mockFindRowMatches,
   mockClassifyColumns,
+  mockTableHasUnvouchedRows,
 } = vi.hoisted(() => ({
+  mockTableHasUnvouchedRows: vi.fn(),
   mockFindRowMatches: vi.fn(),
   mockClassifyColumns: vi.fn(),
   mockIsScopeCompatible: vi.fn(),
@@ -58,6 +60,7 @@ vi.mock('@/lib/table/column-types', () => ({
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
   ...tableRowsSecretProvenanceMock,
   classifyStoredTableRowColumns: mockClassifyColumns,
+  tableHasUnvouchedRows: mockTableHasUnvouchedRows,
   TableRowProvenanceReader: class extends tableRowsSecretProvenanceMock.TableRowProvenanceReader {
     rowProvenance(rowId: string) {
       return mockRowProvenance(rowId)
@@ -994,6 +997,57 @@ describe('row delivery to Chat', () => {
     }
   )
 
+  describe('query counts Chat sees', () => {
+    const filtered = (principal: Caller) =>
+      queryTableRows.execute({
+        principal,
+        input: {
+          tableId: TABLE.id,
+          limit: 25,
+          includeTotal: true,
+          predicate: { all: [{ field: 'name', op: 'eq', value: 'guess' }] },
+        },
+      })
+
+    beforeEach(() => {
+      mockQueryRows.mockResolvedValue({ ...PAGE, rowCount: 1, totalCount: 3 })
+    })
+
+    it('counts only the rows delivered on the page', async () => {
+      mockRowProvenance.mockReturnValue({ status: 'unknown' })
+      mockTableHasUnvouchedRows.mockResolvedValue(false)
+      const result = await observeContentDelivery({ admit: gate(false) }, () => filtered(CHAT))
+      expect(result).toMatchObject({ rows: [], rowCount: 0, totalCount: 3 })
+    })
+
+    it('refuses a filtered total over a table holding rows Chat may not read', async () => {
+      mockRowProvenance.mockReturnValue({ status: 'exact', entries: [] })
+      mockTableHasUnvouchedRows.mockResolvedValue(true)
+      await expect(
+        observeContentDelivery({ admit: gate(true) }, () => filtered(CHAT))
+      ).rejects.toBeInstanceOf(ContentRefusedError)
+    })
+
+    it('keeps an unfiltered total, which says only how many rows exist', async () => {
+      mockRowProvenance.mockReturnValue({ status: 'exact', entries: [] })
+      mockTableHasUnvouchedRows.mockResolvedValue(true)
+      const result = await observeContentDelivery({ admit: gate(true) }, () =>
+        queryTableRows.execute({
+          principal: CHAT,
+          input: { tableId: TABLE.id, limit: 25, includeTotal: true },
+        })
+      )
+      expect(result).toMatchObject({ rowCount: 1, totalCount: 3 })
+      expect(mockTableHasUnvouchedRows).not.toHaveBeenCalled()
+    })
+
+    it('answers a person with the stored counts, unread', async () => {
+      const result = await filtered(PRINCIPAL)
+      expect(result).toMatchObject({ rowCount: 1, totalCount: 3 })
+      expect(mockTableHasUnvouchedRows).not.toHaveBeenCalled()
+    })
+  })
+
   it.each(['read', 'enrichment'] as const)('%s refuses a refused row with a 403', async (name) => {
     mockRowProvenance.mockReturnValue({ status: 'unknown' })
     await expect(
@@ -1097,6 +1151,11 @@ describe('row delivery to Chat', () => {
       { ordinal: 0, rowId: 'row-a', column: 'col-secret' },
       { ordinal: 1, rowId: 'row-b', column: 'col-plain' },
     ]
+    const READ_AT = new Date('2026-01-01')
+    const REVISIONS = new Map([
+      ['row-a', READ_AT],
+      ['row-b', READ_AT],
+    ])
     const search = (principal: Caller) =>
       searchTableRows.execute({ principal, input: { tableId: TABLE.id, q: 'needle' } })
 
@@ -1110,20 +1169,46 @@ describe('row delivery to Chat', () => {
     })
 
     it('does not signal truncation through a match it withheld', async () => {
-      mockFindRowMatches.mockResolvedValue({ matches: MATCHES, truncated: true })
+      mockFindRowMatches.mockResolvedValue({
+        matches: MATCHES,
+        truncated: true,
+        revisions: REVISIONS,
+      })
       const result = await observeContentDelivery({ admit: gate(true) }, () => search(CHAT))
       expect(result.matches).toEqual([MATCHES[0]])
       expect(result.truncated).toBe(false)
     })
 
     it('keeps truncation when every match on a capped page was admitted', async () => {
-      mockFindRowMatches.mockResolvedValue({ matches: [MATCHES[0]], truncated: true })
+      mockFindRowMatches.mockResolvedValue({
+        matches: [MATCHES[0]],
+        truncated: true,
+        revisions: REVISIONS,
+      })
       const result = await observeContentDelivery({ admit: gate(true) }, () => search(CHAT))
       expect(result).toMatchObject({ matches: [MATCHES[0]], truncated: true })
     })
 
+    it('classifies each match at the revision the search read, dropping one it cannot bind', async () => {
+      mockFindRowMatches.mockResolvedValue({
+        matches: MATCHES,
+        truncated: false,
+        revisions: new Map([['row-a', READ_AT]]),
+      })
+      const result = await observeContentDelivery({ admit: gate(true) }, () => search(CHAT))
+      expect(mockClassifyColumns).toHaveBeenCalledWith([
+        { id: 'row-a', updatedAt: READ_AT },
+        { id: 'row-a', updatedAt: READ_AT },
+      ])
+      expect(result.matches).toEqual([MATCHES[0]])
+    })
+
     it('answers a person with every match and the raw truncation', async () => {
-      mockFindRowMatches.mockResolvedValue({ matches: MATCHES, truncated: true })
+      mockFindRowMatches.mockResolvedValue({
+        matches: MATCHES,
+        truncated: true,
+        revisions: REVISIONS,
+      })
       const result = await search(PRINCIPAL)
       expect(result).toMatchObject({ matches: MATCHES, truncated: true })
       expect(mockClassifyColumns).not.toHaveBeenCalled()

@@ -444,8 +444,68 @@ export async function loadKnowledgeDocumentSecretRegistry(
  * statement for all of them. A document that is gone, or whose binding no longer matches its row,
  * reads as unknown.
  */
+/**
+ * Metadata fields a person can edit in place that can hold text, which a returned snapshot is
+ * checked against. Date and boolean slots are typed columns no secret text can occupy.
+ */
+const EDITABLE_DOCUMENT_FIELDS = [
+  'filename',
+  'tag1',
+  'tag2',
+  'tag3',
+  'tag4',
+  'tag5',
+  'tag6',
+  'tag7',
+  'number1',
+  'number2',
+  'number3',
+  'number4',
+  'number5',
+] as const satisfies readonly (keyof KnowledgeDocumentSourceValue)[]
+
+/** What a result shows of a document's metadata by stored field name, to bind its class to. */
+export type KnowledgeDocumentSnapshot = Readonly<Record<string, unknown>>
+
+const isEditableField = (field: string): boolean =>
+  (EDITABLE_DOCUMENT_FIELDS as readonly string[]).includes(field)
+
+function comparableField(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null
+  return String(value)
+}
+
+/** A number slot is compared by value, since its text form can differ from its stored form. */
+function sameField(stored: unknown, shown: unknown): boolean {
+  const left = comparableField(stored)
+  const right = comparableField(shown)
+  if (left === right) return true
+  if (left === null || right === null) return false
+  return typeof stored === 'number' && Number(right) === stored
+}
+
+/** Picks the editable metadata a returned value shows, when it shows any. */
+export function knowledgeDocumentSnapshot(value: unknown): KnowledgeDocumentSnapshot | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const snapshot: Record<string, unknown> = {}
+  let shown = false
+  for (const field of EDITABLE_DOCUMENT_FIELDS) {
+    if (Object.hasOwn(value, field)) {
+      snapshot[field] = Reflect.get(value, field)
+      shown = true
+    }
+  }
+  return shown ? snapshot : undefined
+}
+
+/**
+ * Classifies the rendered metadata of each document. A document whose stored metadata no longer
+ * matches a snapshot the result shows reads as unknown: a concurrent edit must not pair the old
+ * values, which the result still carries, with the new row's classification.
+ */
 export async function classifyKnowledgeDocumentMetadata(
-  documentIds: readonly string[]
+  documentIds: readonly string[],
+  snapshots?: ReadonlyMap<string, readonly KnowledgeDocumentSnapshot[]>
 ): Promise<Map<string, DurableSecretProvenance>> {
   const ids = [...new Set(documentIds)]
   const rows = ids.length
@@ -454,12 +514,19 @@ export async function classifyKnowledgeDocumentMetadata(
   const result = new Map<string, DurableSecretProvenance>()
   for (const row of rows) {
     const source = createKnowledgeDocumentSourceValue(row)
+    const stale = (snapshots?.get(row.id) ?? []).some((snapshot) =>
+      Object.entries(snapshot).some(
+        ([field, shown]) => isEditableField(field) && !sameField(Reflect.get(source, field), shown)
+      )
+    )
     result.set(
       row.id,
-      filterKnowledgeDocumentMetadataSecretProvenance(
-        readBoundKnowledgeDocumentSecretProvenance({ ...row, source }),
-        source
-      )
+      stale
+        ? { status: 'unknown' }
+        : filterKnowledgeDocumentMetadataSecretProvenance(
+            readBoundKnowledgeDocumentSecretProvenance({ ...row, source }),
+            source
+          )
     )
   }
   for (const id of ids) if (!result.has(id)) result.set(id, { status: 'unknown' })

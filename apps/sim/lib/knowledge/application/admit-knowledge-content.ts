@@ -3,6 +3,8 @@ import { admitEach, type ContentSourceKind } from '@/lib/core/application/conten
 import {
   classifyKnowledgeChunks,
   classifyKnowledgeDocumentMetadata,
+  type KnowledgeDocumentSnapshot,
+  knowledgeDocumentSnapshot,
 } from '@/lib/knowledge/secret-provenance'
 
 interface KnowledgeAdmissionOptions {
@@ -16,18 +18,28 @@ const writtenAs = (options: KnowledgeAdmissionOptions, kind: ContentSourceKind) 
 /**
  * Admits each document whose rendered metadata a result returns, on its own, and returns the ids
  * admitted. `value` is what the result shows of the document, so only secrets it contains are
- * imported. A caller no gate observes gets every id back without a provenance read.
+ * imported; `snapshot` names the stored fields it shows, when they are not its own keys. A caller
+ * no gate observes gets every id back without a provenance read.
  */
 export async function admitKnowledgeDocuments(
   principal: Principal,
-  documents: readonly { id: string; value: unknown }[],
+  documents: readonly { id: string; value: unknown; snapshot?: KnowledgeDocumentSnapshot }[],
   options: KnowledgeAdmissionOptions = {}
 ): Promise<Set<string>> {
   const admitted = await admitEach(
     principal,
     documents,
     async (items) => {
-      const provenance = await classifyKnowledgeDocumentMetadata(items.map((item) => item.id))
+      /** Each classification is bound to the metadata the item shows; see the classifier. */
+      const snapshots = new Map<string, KnowledgeDocumentSnapshot[]>()
+      for (const item of items) {
+        const snapshot = item.snapshot ?? knowledgeDocumentSnapshot(item.value)
+        if (snapshot) snapshots.set(item.id, [...(snapshots.get(item.id) ?? []), snapshot])
+      }
+      const provenance = await classifyKnowledgeDocumentMetadata(
+        items.map((item) => item.id),
+        snapshots
+      )
       return items.map((item) => ({
         kind: 'knowledge-document' as const,
         id: item.id,

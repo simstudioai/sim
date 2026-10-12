@@ -947,21 +947,67 @@ async function classifyTableRowCrossings(
 }
 
 /**
- * For each row as it is stored now, the columns whose cells hold a recorded secret, or `unknown`
- * when the row cannot be vouched for. A match oracle (row search) consults it: a cell that matched
- * reveals something about its text whatever the result shows.
+ * Whether any row of a table cannot be vouched for: tracked, but with no current exact sidecar.
+ * A count over a filter that such a row matches would answer a question about text Chat may not
+ * read, so a Chat count is taken only over a table where every row can be vouched for.
+ */
+export async function tableHasUnvouchedRows(
+  tableId: string,
+  executor: DbExecutor = db
+): Promise<boolean> {
+  const [row] = await executor
+    .select({ id: userTableRows.id })
+    .from(userTableRows)
+    .leftJoin(
+      userTableRowSecretProvenance,
+      eq(userTableRowSecretProvenance.rowId, userTableRows.id)
+    )
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        sql`${userTableRows.secretProvenanceVersion} IS NOT NULL`,
+        sql`(${userTableRows.secretProvenanceVersion} <> ${TABLE_ROW_SECRET_PROVENANCE_VERSION}
+          OR ${userTableRowSecretProvenance.status} IS DISTINCT FROM 'exact'
+          OR ${userTableRowSecretProvenance.contentUpdatedAt} IS DISTINCT FROM ${userTableRows.updatedAt})`
+      )
+    )
+    .limit(1)
+  return row !== undefined
+}
+
+/**
+ * For each row as it was read, the columns whose cells hold a recorded secret, or `unknown` when
+ * the row cannot be vouched for. A match oracle (row search) consults it: a cell that matched
+ * reveals something about its text whatever the result shows. A row whose stored revision is no
+ * longer the one the caller read is `unknown`: its sidecar describes other text.
  */
 export async function classifyStoredTableRowColumns(
-  rowIds: readonly string[],
+  rows: readonly { id: string; updatedAt: Date | string }[],
   executor: DbExecutor = db
 ): Promise<Map<string, { status: 'exact'; secretColumns: Set<string> } | { status: 'unknown' }>> {
-  const ids = [...new Set(rowIds)]
+  const readAt = new Map<string, Date | string>()
+  const conflicting = new Set<string>()
+  for (const row of rows) {
+    const seen = readAt.get(row.id)
+    if (seen !== undefined && !sameTimestamp(seen, row.updatedAt)) conflicting.add(row.id)
+    readAt.set(row.id, row.updatedAt)
+  }
+  const ids = [...readAt.keys()]
   const currentRows = await selectRowsWithSidecars(executor, ids)
   const result = new Map<
     string,
     { status: 'exact'; secretColumns: Set<string> } | { status: 'unknown' }
   >()
   for (const current of currentRows) {
+    const expected = readAt.get(current.id)
+    if (
+      conflicting.has(current.id) ||
+      expected === undefined ||
+      !sameTimestamp(current.updatedAt, expected)
+    ) {
+      result.set(current.id, { status: 'unknown' })
+      continue
+    }
     if (current.secretProvenanceVersion === null) {
       result.set(current.id, { status: 'exact', secretColumns: new Set() })
       continue

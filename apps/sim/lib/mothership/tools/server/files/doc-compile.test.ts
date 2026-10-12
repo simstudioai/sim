@@ -8,7 +8,9 @@ const {
   readWorkspaceFileContentMock,
   readWorkspaceFileMetadataMock,
   storeCompiledDocMock,
+  runSandboxTaskMock,
 } = vi.hoisted(() => ({
+  runSandboxTaskMock: vi.fn(),
   loadCompiledDocMock: vi.fn(),
   publishCompiledDocArtifactMock: vi.fn(),
   readWorkspaceFileContentMock: vi.fn(),
@@ -26,6 +28,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => (
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadataMock },
 }))
+vi.mock('@/lib/execution/sandbox/run-task', () => ({ runSandboxTask: runSandboxTaskMock }))
 vi.mock('./doc-compiled-store', () => ({
   loadCompiledDoc: loadCompiledDocMock,
   loadPublishedCompiledDoc: vi.fn(),
@@ -33,6 +36,11 @@ vi.mock('./doc-compiled-store', () => ({
   storeCompiledDoc: storeCompiledDocMock,
 }))
 
+import {
+  type ContentDeliveryGate,
+  observeContentDelivery,
+} from '@/lib/core/application/content-delivery'
+import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { collectReferencedFileIds, compileDoc } from './doc-compile'
 
 const executeInSandboxMock = remoteSandboxMockFns.mockExecuteInSandbox
@@ -244,5 +252,80 @@ describe('collectReferencedFileIds', () => {
       'pdf',
       expect.stringContaining(ID)
     )
+  })
+})
+
+describe('isolated-VM compile for Chat', () => {
+  beforeEach(() => {
+    setEnvFlags({ isDocSandboxEnabled: false })
+  })
+
+  it('rebuilds a cached build that read an older version of a file it names', async () => {
+    const chat = createCopilotChatFilePrincipal({
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      chatId: 'chat-1',
+    })
+    const admitAll: ContentDeliveryGate = {
+      async admit(sources) {
+        return sources.map(() => true)
+      },
+    }
+    const version = (at: string) => {
+      const contentUpdatedAt = new Date(at)
+      return {
+        id: ID,
+        workspaceId: 'workspace-1',
+        name: 'reference.png',
+        key: `workspace/workspace-1/${ID}-reference.png`,
+        path: '/api/files/serve/reference.png',
+        size: 10,
+        type: 'image/png',
+        uploadedBy: 'user-1',
+        uploadedAt: contentUpdatedAt,
+        updatedAt: contentUpdatedAt,
+        contentUpdatedAt,
+        storageContext: 'workspace' as const,
+      }
+    }
+    runSandboxTaskMock.mockImplementation(
+      async (
+        _task: string,
+        _input: unknown,
+        options: { onWorkspaceFileAccess?: (identity: unknown) => void }
+      ) => {
+        const { file } = await readWorkspaceFileMetadataMock()
+        options.onWorkspaceFileAccess?.({
+          fileId: ID,
+          key: file.key,
+          context: 'workspace',
+          contentUpdatedAt: file.contentUpdatedAt,
+        })
+        return Buffer.from('%PDF-built')
+      }
+    )
+    const compile = () =>
+      observeContentDelivery(admitAll, () =>
+        compileDoc({
+          source: `image = await getFileBase64('${ID}') // cache-version`,
+          fileName: 'report.pdf',
+          workspaceId: 'workspace-1',
+          filePrincipal: chat,
+        })
+      )
+    readWorkspaceFileMetadataMock.mockResolvedValue({
+      file: version('2026-08-05T00:00:00.000Z'),
+      share: null,
+    })
+    await compile()
+    await compile()
+    expect(runSandboxTaskMock).toHaveBeenCalledOnce()
+
+    readWorkspaceFileMetadataMock.mockResolvedValue({
+      file: version('2026-08-06T00:00:00.000Z'),
+      share: null,
+    })
+    await compile()
+    expect(runSandboxTaskMock).toHaveBeenCalledTimes(2)
   })
 })

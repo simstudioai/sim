@@ -36,7 +36,7 @@ vi.mock('@/tools', () => toolsMock)
 
 import { observeContentDelivery } from '@/lib/core/application/content-delivery'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
-import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
 import {

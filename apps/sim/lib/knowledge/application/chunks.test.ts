@@ -49,7 +49,11 @@ import { admitContent } from '@/lib/core/application/content-delivery'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
-import { bulkUpdateKnowledgeChunks, listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
+import {
+  bulkUpdateKnowledgeChunks,
+  createKnowledgeChunk,
+  listKnowledgeChunks,
+} from '@/lib/knowledge/application/chunks'
 
 describe('knowledge chunk application use cases', () => {
   beforeEach(() => {
@@ -74,6 +78,37 @@ describe('knowledge chunk application use cases', () => {
       return new Set(ids)
     })
   }
+
+  it('admits a created chunk with the document name its response shows', async () => {
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+      access: { get: async () => WORKSPACE_ACCESS_SCOPE },
+      knowledgeBaseId: 'knowledge-1',
+      knowledgeBase: { id: 'knowledge-1', embeddingModel: 'text-embedding-3-small' },
+      documentId: 'document-1',
+      document: { id: 'document-1', processingStatus: 'completed', filename: 'named.txt' },
+    })
+    mocks.createChunk.mockResolvedValue({ id: 'chunk-new', content: 'body', tokenCount: 1 })
+    admitOnly(['chunk-new'])
+
+    const result = await createKnowledgeChunk.execute({
+      principal: createSessionPrincipal(),
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        documentId: 'document-1',
+        content: 'body',
+        resolveContentProvenance: () => undefined,
+      },
+    })
+
+    expect(result.chunk.documentName).toBe('named.txt')
+    const [, [item]] = mocks.admitKnowledgeChunks.mock.calls[0]
+    expect(item.value).toMatchObject({ documentId: 'document-1', documentName: 'named.txt' })
+  })
 
   describe('a searched chunk listing', () => {
     const page = {

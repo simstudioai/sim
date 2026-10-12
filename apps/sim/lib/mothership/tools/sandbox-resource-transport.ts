@@ -10,13 +10,11 @@ import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import {
+  createSessionContentGate,
   dispatchUnderContentGate,
   markCommittedWriteResponse,
-} from '@/lib/mothership/content-delivery/dispatch'
-import {
-  createSessionContentGate,
   WorkbenchProvenanceUnavailableError,
-} from '@/lib/mothership/content-delivery/session-gate'
+} from '@/lib/mothership/content-delivery'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import {
   readSandboxResourceScope,

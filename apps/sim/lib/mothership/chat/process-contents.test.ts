@@ -1152,7 +1152,6 @@ describe('processContextsServer - table_selection contexts', () => {
         legacyKeying: 'ids',
         columns: ['c_name', 'c_amount'],
         limit: 2,
-        includeTotal: true,
       },
     })
     expect(result).toHaveLength(1)
@@ -1409,6 +1408,27 @@ describe('processContextsServer - table_selection contexts', () => {
       'ws-1'
     )
     expect(context.content).toContain('1 row of 2, 1 omitted for length')
+    expect(context.content).toContain('| r1 | Ada |')
+  })
+
+  it('notes rows it did not show without saying why, inside the preview limit', async () => {
+    readTableUseCase.mockResolvedValue({
+      table: { name: 'Sales', schema: { columns: [{ id: 'name', name: 'Name' }] } },
+      folderPath: '/',
+    })
+    queryTableRows.mockResolvedValue({
+      rows: [{ id: 'r1', data: { name: 'Ada' } }],
+      totalCount: null,
+      nextCursor: null,
+    })
+    const [context] = await processContextsServer(
+      [{ kind: 'table_selection', tableId: 'tbl-1', label: 'Rows', rowIds: ['r1', 'r2'] }],
+      'user-1',
+      '',
+      'ws-1'
+    )
+    expect(context.content).toContain('1 selected row is not shown')
+    expect(context.content).not.toContain('r2')
     expect(context.content).toContain('| r1 | Ada |')
   })
 

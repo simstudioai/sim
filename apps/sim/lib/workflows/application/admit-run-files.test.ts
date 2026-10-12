@@ -168,6 +168,17 @@ describe('withholdUnadmittedInlineFiles', () => {
     expect(result.node.file).not.toHaveProperty('base64')
   })
 
+  it('keeps an own `__proto__` key as data in the copy', async () => {
+    const output = JSON.parse('{"__proto__":{"note":"kept"},"files":[]}')
+    output.files.push(runFile('secret', { base64: 'c2VjcmV0' }))
+    const result = await observeContentDelivery(GATE, () =>
+      withholdUnadmittedInlineFiles(CHAT, 'workspace-1', output)
+    )
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype)
+    expect(Object.hasOwn(result, '__proto__')).toBe(true)
+    expect(result.files[0]).not.toHaveProperty('base64')
+  })
+
   it('refuses refused bytes held by an object it cannot rebuild', async () => {
     class Envelope {
       constructor(readonly file: UserFile) {}

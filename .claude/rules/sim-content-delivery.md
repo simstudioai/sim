@@ -38,8 +38,10 @@ the workflow executor see byte-identical results.
     redaction reaches: binary, base64, archives, images, public links).
 - Gates, installed by the surface: the **registry gate** (Chat tools, CLI, mounts) imports entries
   into the registry egress projects with; the **session gate** (run_code sandbox proxy) records
-  them into the workbench history. Neither ever admits `unknown`, and one refused item never
-  latches the shared registry.
+  them into the workbench history. Neither admits `unknown`, with one exception: the CLI's direct
+  single-file download (`files get`) admits it under `unknown: 'taint'`, which latches the call's
+  registry so the whole output is withheld and the workbench copy stays unknown. It needs a
+  registry to latch; without one it refuses. One refused item never latches the shared registry.
 - `observeContentOutsideModel` reads for Chat without classifying, for content that never reaches
   the model (the user's own edit preview; a derived file that carries its sources' provenance).
   Name why at each use.
@@ -73,7 +75,7 @@ own unless noted.
 | Bulk download zip | Left out | Left out (opaque) | Included |
 | `files search` | Results dropped | Results dropped (a match is an oracle) | Returned |
 | File edit (`PATCH` content) | 403 before reading | Diagnostics redacted | Unchanged |
-| Chat public share activation | 403 | 403 (a link is opaque) | Shares |
+| Chat public share activation, and seeing an existing link (any surface, run_code included) | 403 | 403 (a link leaves every gate) | Shares |
 | Rendered view, streamed image, inline attachments | Refused | Refused (opaque) | Delivered |
 | Doc compile | Compile refused | Error text redacted | Compiles |
 | Run file download | 403 | Redacted | Delivered |
@@ -82,5 +84,5 @@ own unless noted.
 | KB export, table export download | Not available to Chat | | |
 | Table rows, query, read, `table_selection` | Row dropped (single read: 403) | Redacted | Delivered |
 | Row search | Match dropped | Match in a secret column dropped | Returned |
-| Table import from a file | Rows stored unknown | Per-cell entries | Exact-empty, as before |
+| Table import from a file | Rows stored unknown | Per-cell entries; a row whose coercion rewrote a secret, or whose raw cells cannot be checked, is stored unknown | Exact-empty, as before |
 | `tools execute` for file, knowledge, table, memory, function, custom, MCP tools | Not available to Chat | | |

@@ -1,7 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
-import { mustClassifyContent } from '@/lib/core/application/content-delivery'
+import { ContentRefusedError, mustClassifyContent } from '@/lib/core/application/content-delivery'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -20,7 +20,7 @@ import {
 } from '@/lib/mothership/tools/server/files/doc-compiled-store'
 import { PPTX_SHIM_JS } from '@/lib/mothership/tools/server/files/pptx-shim'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
+import { admitWorkspaceFiles } from '@/lib/workspace-files/application/admit-file-content'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { getContentType } from '@/app/api/files/utils'
@@ -670,14 +670,33 @@ const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
  * literally, each admitted by the caller's gate before the task runs. Other callers are
  * unrestricted, as they have always been.
  */
-async function admitBrokerFiles(args: LegacyCompileArgs): Promise<ReadonlySet<string> | undefined> {
+async function admitBrokerFiles(
+  args: LegacyCompileArgs
+): Promise<ReadonlyMap<string, ResolvedReferencedImage['record']> | undefined> {
   const principal = args.filePrincipal
   if (!principal || !mustClassifyContent(principal)) return undefined
   const { images } = await resolveReferencedImages(args.source, args.workspaceId, principal)
-  for (const { record } of images) {
-    await requireAdmittedWorkspaceFile(principal, args.workspaceId, record, 'complete')
-  }
-  return new Set(images.map((image) => image.fileId))
+  const records = images.map((image) => image.record)
+  const admitted = await admitWorkspaceFiles(principal, args.workspaceId, records, 'complete')
+  if (admitted.length < records.length) throw new ContentRefusedError('workspace-file')
+  return new Map(admitted.map((record) => [record.id, record]))
+}
+
+/** Whether a cached build read exactly the versions this compile admitted, and nothing else. */
+function cachedFromAdmittedVersions(
+  contributors: readonly WorkspaceFileSecretProvenanceIdentity[],
+  admitted: ReadonlyMap<string, ResolvedReferencedImage['record']>
+): boolean {
+  return contributors.every((contributor) => {
+    const record = admitted.get(contributor.fileId)
+    return (
+      record !== undefined &&
+      record.key === contributor.key &&
+      (record.storageContext ?? 'workspace') === contributor.context &&
+      (record.contentUpdatedAt ?? record.updatedAt).getTime() ===
+        contributor.contentUpdatedAt?.getTime()
+    )
+  })
 }
 
 async function compileDocInLegacySandbox(
@@ -695,13 +714,13 @@ async function compileDocInLegacySandbox(
   }
 
   /** Admitted before the cache too: a cached build may embed a file the gate now refuses. */
-  const readableWorkspaceFileIds = await admitBrokerFiles(args)
+  const admittedFiles = await admitBrokerFiles(args)
+  const readableWorkspaceFileIds = admittedFiles ? new Set(admittedFiles.keys()) : undefined
   const cacheKey = sha256Hex(`.${fmt.ext}${args.source}${args.workspaceId}`)
   const cached = compiledDocCache.get(cacheKey)
-  /** A build another caller made may have read files this compile may not; it rebuilds instead. */
+  /** A build that read another file, or another version of one, is rebuilt for this compile. */
   const cacheReadable =
-    !readableWorkspaceFileIds ||
-    (cached?.contributingFiles ?? []).every((file) => readableWorkspaceFileIds.has(file.fileId))
+    !admittedFiles || cachedFromAdmittedVersions(cached?.contributingFiles ?? [], admittedFiles)
   if (cached && cacheReadable) {
     return {
       buffer: cached.buffer,

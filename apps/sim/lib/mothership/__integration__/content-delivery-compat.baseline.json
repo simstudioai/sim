@@ -329,7 +329,7 @@
         "resourceId": "<file:unknown>",
         "resourceType": "file",
         "token": "<minted>",
-        "url": "<minted>"
+        "url": "http://localhost:3000/f/<minted>"
       }
     }
   },
@@ -827,7 +827,7 @@
             "name": "clean.txt",
             "size": 50,
             "type": "text/plain",
-            "url": "<minted>"
+            "url": "http://localhost:3000/api/files/serve/<minted>"
           },
           "entries": {
             "context": "execution",
@@ -836,7 +836,7 @@
             "name": "entries.txt",
             "size": 64,
             "type": "text/plain",
-            "url": "<minted>"
+            "url": "http://localhost:3000/api/files/serve/<minted>"
           },
           "unknown": {
             "context": "execution",
@@ -845,7 +845,7 @@
             "name": "unknown.txt",
             "size": 56,
             "type": "text/plain",
-            "url": "<minted>"
+            "url": "http://localhost:3000/api/files/serve/<minted>"
           }
         },
         "paused": null,

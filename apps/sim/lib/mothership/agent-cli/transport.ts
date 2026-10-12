@@ -6,10 +6,10 @@ import { createTracedCliTransport } from '@/lib/mothership/agent-cli/traced-tran
 import type { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import type { CopilotChatDelegationContext } from '@/lib/mothership/auth/application-delegation'
 import {
+  createRegistryContentGate,
   deliveredFileProvenance,
   dispatchUnderContentGate,
-} from '@/lib/mothership/content-delivery/dispatch'
-import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+} from '@/lib/mothership/content-delivery'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 

@@ -40,6 +40,11 @@ export interface ContentSource {
  */
 export interface ContentDeliveryGate {
   admit(sources: readonly ContentSource[]): Promise<readonly boolean[]>
+  /**
+   * The text as this surface's egress will show it, or `undefined` when it cannot be shown. A gate
+   * whose surface redacts (Chat's registry) implements it; see {@link redactBeforeCutting}.
+   */
+  project?(text: string): string | undefined
 }
 
 /**
@@ -135,6 +140,24 @@ export function observeContentDelivery<T>(gate: ContentDeliveryGate, execute: ()
   return gates.run(gate, execute)
 }
 
+/**
+ * Text a use case is about to cut (a line window, a clip), redacted first by the surface's gate.
+ * Egress redacts whole secrets only, so a cut through one would leave a fragment it cannot
+ * recognize. Other callers, and surfaces that do not redact, get the text unchanged.
+ */
+export function redactBeforeCutting(
+  principal: Principal | undefined,
+  text: string,
+  kind: ContentSourceKind
+): string {
+  if (principal && !isCopilotPrincipal(principal)) return text
+  const project = gates.getStore()?.project
+  if (!project) return text
+  const projected = project(text)
+  if (projected === undefined) throw new ContentRefusedError(kind)
+  return projected
+}
+
 /** Admits every item: see {@link observeContentOutsideModel}. */
 const OUTSIDE_MODEL_GATE: ContentDeliveryGate = {
   async admit(sources) {
@@ -222,8 +245,9 @@ export async function admitContent(
   ) {
     throw new ContentDeliveryUndeclaredError()
   }
-  markAccounted()
+  /** Accounting follows a decision: a caller that catches a failure has classified nothing. */
   if (sources.length === 0 || !mustClassifyContent(principal)) {
+    markAccounted()
     return new ContentAdmission(
       sources,
       sources.map(() => true)
@@ -242,6 +266,7 @@ export async function admitContent(
     }
     throw error
   }
+  markAccounted()
   if (ledger) {
     sources.forEach((source, index) => {
       if (verdicts[index]) {
@@ -274,6 +299,8 @@ export async function admitWrittenContent(
      */
     const [first] = sources
     if (!ledgers.getStore() || !first) throw error
+    /** The result is decided after all: withheld whole, as saved-not-shown. */
+    markAccounted()
     withholdAfterWrite(first.kind)
     return new ContentAdmission(
       sources,

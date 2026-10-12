@@ -363,11 +363,17 @@ async function admitTagUsage(
   principal: Principal,
   usage: Awaited<ReturnType<typeof getTagUsage>>
 ): Promise<Awaited<ReturnType<typeof getTagUsage>>> {
+  /** A base with no tag definitions returns nothing, which is still an accounting. */
+  if (usage.length === 0) await admitContent(principal, [])
   const admitted = []
   for (const definition of usage) {
     const ids = await admitKnowledgeDocuments(
       principal,
-      definition.documents.map((doc) => ({ id: doc.id, value: doc }))
+      definition.documents.map((doc) => ({
+        id: doc.id,
+        value: doc,
+        snapshot: { filename: doc.name, [definition.tagSlot]: doc.tagValue },
+      }))
     )
     const documents = definition.documents.filter((doc) => ids.has(doc.id))
     admitted.push(

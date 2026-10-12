@@ -78,8 +78,15 @@ function copilotPrincipal() {
   return copilot
 }
 
+/** Every file this suite shares reads as `provenance` now; clean unless a test says otherwise. */
+function currentProvenance(value: unknown) {
+  provenance.current.mockImplementation(
+    async (_workspaceId: string, ids: readonly string[]) => new Map(ids.map((id) => [id, value]))
+  )
+}
+
 beforeEach(() => {
-  provenance.bound.mockResolvedValue({ status: 'exact', entries: [] })
+  currentProvenance({ status: 'exact', entries: [] })
 })
 
 describe('getWorkspaceFileShares', () => {
@@ -219,20 +226,40 @@ describe('updateWorkspaceFileShare password references', () => {
   it.each([
     { status: 'unknown' },
     { status: 'exact', entries: [{ encryptedValue: 'ciphertext', sourceUserId: 'user-1' }] },
-  ])('refuses Chat a live link to a file its gate refuses: %j', async (refused) => {
-    provenance.bound.mockResolvedValue(refused)
-    environment({ SHARE_PW: 'resolved-share-password' })
-    await expect(asChat(() => share(copilotPrincipal(), '{{SHARE_PW}}'))).rejects.toBeInstanceOf(
-      ContentRefusedError
-    )
-    expect(mocks.upsertFileShare).not.toHaveBeenCalled()
-  })
+  ])(
+    'refuses Chat a live link to a file holding a secret or of unknown provenance: %j',
+    async (refused) => {
+      currentProvenance(refused)
+      environment({ SHARE_PW: 'resolved-share-password' })
+      await expect(asChat(() => share(copilotPrincipal(), '{{SHARE_PW}}'))).rejects.toBeInstanceOf(
+        ContentRefusedError
+      )
+      expect(mocks.upsertFileShare).not.toHaveBeenCalled()
+    }
+  )
 
   it('lets a person share a file whatever its provenance', async () => {
-    provenance.bound.mockResolvedValue({ status: 'unknown' })
+    currentProvenance({ status: 'unknown' })
     await share(principal, 'a-long-literal-password-value')
     expect(mocks.upsertFileShare).toHaveBeenCalled()
-    expect(provenance.bound).not.toHaveBeenCalled()
+    expect(provenance.current).not.toHaveBeenCalled()
+  })
+
+  it('refuses a secret-bearing file even under a gate that admits it, such as the workbench', async () => {
+    currentProvenance({
+      status: 'exact',
+      entries: [{ encryptedValue: 'ciphertext', sourceUserId: 'user-1' }],
+    })
+    environment({ SHARE_PW: 'resolved-share-password' })
+    const admitAll: ContentDeliveryGate = {
+      async admit(sources) {
+        return sources.map(() => true)
+      },
+    }
+    await expect(
+      observeContentDelivery(admitAll, () => share(copilotPrincipal(), '{{SHARE_PW}}'))
+    ).rejects.toBeInstanceOf(ContentRefusedError)
+    expect(mocks.upsertFileShare).not.toHaveBeenCalled()
   })
 
   it('keeps a reference literal for any other caller, under the same rules', async () => {

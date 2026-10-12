@@ -52,7 +52,7 @@ import {
   truncateSelectionText,
 } from '@/lib/mothership/chat/selection-context'
 import { quoteChatTranscript } from '@/lib/mothership/chat/text-transcript'
-import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { QueryLogs } from '@/lib/mothership/generated/tool-catalog-v1'
 import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
@@ -1176,7 +1176,6 @@ async function resolveTableSelectionResource(
           legacyKeying: 'ids',
           columns: columns.map(getColumnId),
           limit: uniqueRowIds.length,
-          includeTotal: true,
         },
       })
   )
@@ -1190,7 +1189,14 @@ async function resolveTableSelectionResource(
     return row ? [row] : []
   })
   if (rows.length === 0) return null
-  const selectedRowCount = result.totalCount ?? rows.length
+  /**
+   * A byte-limited page still has the rest of the selection to read, so those rows count as
+   * omitted for length. Otherwise a missing row was deleted or withheld; the note says so without
+   * telling which.
+   */
+  const missingRows = uniqueRowIds.length - rows.length
+  const pageLimited = result.nextCursor !== null && result.nextCursor !== undefined
+  const selectedRowCount = rows.length + (pageLimited ? missingRows : 0)
 
   const selection = JSON.stringify({
     tableId,
@@ -1236,10 +1242,16 @@ async function resolveTableSelectionResource(
     cellsProjected = false
     return ''
   }
+  const omittedRows = pageLimited ? 0 : missingRows
+  const omittedNote =
+    omittedRows > 0
+      ? `\n\n${omittedRows} selected ${omittedRows === 1 ? 'row is' : 'rows are'} not shown: deleted since the selection, or not available to Chat.`
+      : ''
   const lines: string[] = []
   let remaining =
     MAX_TABLE_SELECTION_PREVIEW_LENGTH -
-    describe(sizeClause(selectedRowCount, selectedRowCount)).length
+    describe(sizeClause(selectedRowCount, selectedRowCount)).length -
+    omittedNote.length
   for (const row of rows) {
     const line = `| ${renderTableCell(row.id)} | ${columns.map((col) => renderTableCell(projectCell(row.data[getColumnId(col)]))).join(' | ')} |`
     if (line.length + 1 > remaining) break
@@ -1249,18 +1261,19 @@ async function resolveTableSelectionResource(
 
   const rendered = `${describe(sizeClause(lines.length, selectedRowCount - lines.length))}${lines.join('\n')}`
   const projected = projectResolvedSecretModelContent(rendered, selectionRegistry)
-  const withheldRows = uniqueRowIds.length - rows.length
-  const withheldNote =
-    withheldRows > 0
-      ? `\n\n${withheldRows} selected ${withheldRows === 1 ? 'row is' : 'rows are'} not shown: ${withheldRows === 1 ? 'its' : 'their'} secret provenance could not be verified.`
-      : ''
   const preview =
     !cellsProjected || !projected.safe || typeof projected.value !== 'string'
       ? `Selected ${scope} from table "${table.name}" (${selectedRowCount} rows, ${columns.length} columns). Cell values could not be checked for secret values, so none were inlined.`
       : projected.value.length <= MAX_TABLE_SELECTION_PREVIEW_LENGTH
-        ? `${projected.value}${withheldNote}`
+        ? `${projected.value}${omittedNote}`
         : `Selected ${scope} from table "${table.name}" (${selectedRowCount} rows, ${columns.length} columns). The column headings exceed the selection content limit; no cell values were inlined.`
-  const content = `${selection}\n\n${preview}`
+  /** The descriptor names columns and rows; it is shown to the model too, so it is redacted too. */
+  const projectedSelection = projectResolvedSecretModelContent(selection, selectionRegistry)
+  const descriptor =
+    projectedSelection.safe && typeof projectedSelection.value === 'string'
+      ? projectedSelection.value
+      : JSON.stringify({ tableId })
+  const content = `${descriptor}\n\n${preview}`
   return {
     type: 'table_selection',
     tag: label ? `@${label}` : '@',

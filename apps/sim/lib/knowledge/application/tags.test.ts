@@ -396,6 +396,31 @@ describe('knowledge tag application use cases', () => {
       )
     })
 
+    it('answers Chat an empty usage for a base with no tag definitions', async () => {
+      mocks.readDetailedUsage.mockResolvedValue([])
+      await expect(
+        readDetailedKnowledgeTagUsage.execute({
+          principal: chat,
+          input: { knowledgeBaseId: 'knowledge-b' },
+        })
+      ).resolves.toMatchObject({ usage: [] })
+      expect(admission.admitKnowledgeDocuments).not.toHaveBeenCalled()
+    })
+
+    it('binds each occurrence to the stored tag value it shows', async () => {
+      await readDetailedKnowledgeTagUsage.execute({
+        principal: chat,
+        input: { knowledgeBaseId: 'knowledge-b' },
+      })
+      const [, documents] = admission.admitKnowledgeDocuments.mock.calls[1]
+      expect(documents).toEqual([
+        expect.objectContaining({
+          id: 'doc-shared',
+          snapshot: { filename: 'shared.csv', tag2: 'ops' },
+        }),
+      ])
+    })
+
     it('decides each (definition, document) occurrence on its own', async () => {
       const result = await readDetailedKnowledgeTagUsage.execute({
         principal: chat,

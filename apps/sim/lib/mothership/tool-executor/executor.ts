@@ -6,7 +6,7 @@ import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-i
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { ASSISTANT_TOOLS, isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
-import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'

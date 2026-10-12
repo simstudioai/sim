@@ -24,7 +24,7 @@ import {
   normalizeInlineChatImage,
   storeInlineChatImage,
 } from '@/lib/mothership/chat/inline-image-storage'
-import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { loadActiveWorkspaceFileContext } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'

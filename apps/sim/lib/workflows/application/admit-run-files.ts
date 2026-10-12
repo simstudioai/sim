@@ -76,7 +76,13 @@ function withoutUnadmittedBase64(
   const record: Record<string, unknown> = prototype === null ? Object.create(null) : {}
   seen.set(value, record)
   for (const [key, item] of Object.entries(value)) {
-    record[key] = withoutUnadmittedBase64(item, admittedKeys, seen)
+    /** Defined, not assigned: a `__proto__` key stays a key instead of replacing the prototype. */
+    Object.defineProperty(record, key, {
+      value: withoutUnadmittedBase64(item, admittedKeys, seen),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
   }
   return record
 }

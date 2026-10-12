@@ -75,12 +75,14 @@ async function requireAdmittedChunk(
   principal: Principal,
   documentId: string,
   chunk: { id: string; content: string },
-  options: { written?: boolean } = {}
+  options: { written?: boolean; shown?: Record<string, unknown> } = {}
 ): Promise<void> {
+  /** `shown` is every other field the response adds beside the chunk, such as its document name. */
+  const value = options.shown ? { ...chunk, ...options.shown } : chunk
   const admitted = await admitKnowledgeChunks(
     principal,
-    [{ id: chunk.id, documentId, content: chunk.content, value: chunk }],
-    options
+    [{ id: chunk.id, documentId, content: chunk.content, value }],
+    { written: options.written }
   )
   if (!options.written && !admitted.has(chunk.id)) throw new ContentRefusedError('knowledge-chunk')
 }
@@ -239,7 +241,10 @@ export const createKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
     } catch (error) {
       logger.warn('Failed to calculate cost for chunk upload', { error })
     }
-    await requireAdmittedChunk(principal, context.documentId, chunk, { written: true })
+    await requireAdmittedChunk(principal, context.documentId, chunk, {
+      written: true,
+      shown: { documentId: context.documentId, documentName: context.document.filename },
+    })
     return {
       chunk: {
         ...chunk,

@@ -60,7 +60,7 @@ vi.mock('@/lib/mothership/agent-cli/scoped-transport', () => ({
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
-import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'

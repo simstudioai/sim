@@ -246,6 +246,21 @@ describe('runDeclaredContentOperation', () => {
     expect(record.gateFailure).toBe(failure)
   })
 
+  it('does not account for a result whose admission failed and was caught', async () => {
+    const failing: ContentDeliveryGate = {
+      async admit() {
+        throw new Error('gate down')
+      },
+    }
+    const outcome = await observeContentDelivery(failing, () =>
+      runDeclaredContentOperation(SOURCED, CHAT, async () => {
+        await admitContent(CHAT, [source('read')]).catch(() => undefined)
+        return 'content returned anyway'
+      }).catch((error: unknown) => error)
+    )
+    expect(outcome).toBeInstanceOf(ContentDeliveryUnaccountedError)
+  })
+
   it('does not let a nested use case account for what its enclosing operation returns', async () => {
     const admitAll: ContentDeliveryGate = {
       async admit(sources) {

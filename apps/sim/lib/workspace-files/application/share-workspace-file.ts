@@ -8,8 +8,8 @@ import {
 } from '@/lib/api/contracts/public-shares'
 import {
   admitContent,
-  admitEach,
   ContentRefusedError,
+  isCopilotPrincipal,
 } from '@/lib/core/application/content-delivery'
 import { resolveCopilotSecretReference } from '@/lib/core/application/environment-reference'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -24,8 +24,10 @@ import {
   getWorkspaceFile,
   loadActiveWorkspaceContext,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getCurrentWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
+import {
+  getCurrentWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
@@ -75,24 +77,27 @@ export class WorkspaceFileShareNoopError extends Error {
 }
 
 /**
- * A live link serves a file's raw bytes to whoever opens it, so Chat may see a link only to a file
- * whose bytes it could be handed directly; returns the ids whose links may be shown.
+ * A live link serves a file's current bytes to whoever opens it, outside every gate: no registry
+ * redacts them and no workbench history follows them. So Chat may create or see a link only to a
+ * file holding no recorded secret, whichever surface it acts through (D1).
  */
+function isShareableByChat(provenance: WorkspaceFileSecretProvenance | undefined): boolean {
+  return (
+    provenance?.status === 'unrecorded' ||
+    (provenance?.status === 'exact' && provenance.entries.length === 0)
+  )
+}
+
+/** The ids whose live links Chat may see; every other caller sees them all, unread. */
 async function admitSharedFiles(
   principal: Principal,
   workspaceId: string,
   fileIds: readonly string[]
 ): Promise<Set<string>> {
-  const admitted = await admitEach(principal, fileIds, async (ids) => {
-    const provenance = await getCurrentWorkspaceFileSecretProvenance(workspaceId, ids)
-    return ids.map((id) => ({
-      kind: 'workspace-file' as const,
-      id,
-      provenance: provenance.get(id) ?? { status: 'unknown' as const },
-      view: 'opaque' as const,
-    }))
-  })
-  return new Set(admitted)
+  await admitContent(principal, [])
+  if (!isCopilotPrincipal(principal) || fileIds.length === 0) return new Set(fileIds)
+  const provenance = await getCurrentWorkspaceFileSecretProvenance(workspaceId, fileIds)
+  return new Set(fileIds.filter((id) => isShareableByChat(provenance.get(id))))
 }
 
 export const getWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
@@ -188,8 +193,8 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
     const effectiveAuthType = input.authType ?? existingShare?.authType ?? 'public'
     if (input.isActive) {
       await validatePublicFileSharing(userId, context.workspaceId, effectiveAuthType)
-      /** A link serves the file's raw bytes to whoever opens it, past any redaction (D1). */
-      await requireAdmittedWorkspaceFile(principal, context.workspaceId, context.file, 'opaque')
+      const [shareable] = await admitSharedFiles(principal, context.workspaceId, [context.fileId])
+      if (!shareable) throw new ContentRefusedError('workspace-file')
     } else {
       await admitContent(principal, [])
     }

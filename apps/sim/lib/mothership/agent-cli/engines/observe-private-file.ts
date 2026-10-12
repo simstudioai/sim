@@ -1,4 +1,4 @@
-import { ContentRefusedError } from '@/lib/core/application/content-delivery'
+import { ContentRefusedError, redactBeforeCutting } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { AgentCliFlags } from '@/lib/mothership/agent-cli/types'
 import { agentCliOk } from '@/lib/mothership/agent-cli/types'
@@ -77,8 +77,15 @@ export async function observePrivateFile(
   if (format) {
     const parsed = await parseFileText(file.buffer, format, file.name)
     const truncated = parsed.metadata?.truncated === true
+    const ranged = options.offset !== undefined || options.limit !== undefined
     const { text, lineRange } = sliceFileTextLines(
-      parsed.content,
+      ranged
+        ? redactBeforeCutting(
+            undefined,
+            parsed.content,
+            file.source === 'knowledge' ? 'knowledge-document' : 'workspace-file'
+          )
+        : parsed.content,
       options.offset,
       options.limit,
       truncated

@@ -42,7 +42,22 @@ import {
 const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
 /** Fields whose value is minted per write: storage keys and share tokens. */
-const MINTED_FIELDS = new Set(['key', 'token', 'url'])
+const MINTED_FIELDS = new Set(['key', 'token'])
+
+/**
+ * A URL keeps its origin and fixed path, so a wrong host or route still fails; only the segments
+ * a write minted (tokens, storage keys: anything but lowercase words) and query values vary.
+ */
+function normalizeUrl(value: string, labels: Map<string, string>): string {
+  if (!URL.canParse(value)) return String(normalize(value, labels))
+  const url = new URL(value)
+  const path = url.pathname
+    .split('/')
+    .map((segment) => (/^[a-z-]*$/.test(segment) ? segment : '<minted>'))
+    .join('/')
+  const query = [...url.searchParams.keys()].sort().join('&')
+  return `${url.origin}${path}${query ? `?${query}` : ''}`
+}
 /**
  * Ranking scores move with whatever else the shared test database indexed (order is pinned below),
  * and a table's `rowCount` is maintained by a migration trigger a pushed schema does not install.
@@ -76,7 +91,9 @@ function normalize(value: unknown, labels: Map<string, string>): unknown {
           key,
           (MINTED_FIELDS.has(key) && typeof item === 'string') || UNSTABLE_SCORES.has(key)
             ? '<minted>'
-            : normalize(item, labels),
+            : key === 'url' && typeof item === 'string'
+              ? normalizeUrl(item, labels)
+              : normalize(item, labels),
         ])
     )
   }

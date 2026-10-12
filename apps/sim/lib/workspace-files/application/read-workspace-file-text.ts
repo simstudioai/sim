@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
+import { redactBeforeCutting } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isSupportedFileType } from '@/lib/file-parsers'
@@ -172,8 +173,9 @@ export async function extractWorkspaceFileRecordText(
   const metadata = parsed.metadata ?? {}
 
   const truncated = metadata.truncated === true
+  const ranged = input.offset !== undefined || input.limit !== undefined
   const { text, lineRange } = sliceFileTextLines(
-    parsed.content,
+    ranged ? redactBeforeCutting(principal, parsed.content, 'workspace-file') : parsed.content,
     input.offset,
     input.limit,
     truncated

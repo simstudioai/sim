@@ -9,7 +9,7 @@ import {
   type CopilotChatDelegationContext,
   createCopilotChatPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
-import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
