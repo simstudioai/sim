@@ -96,6 +96,37 @@ describe.each(['PostgreSQL', 'Redis'] as const)('%s provider admission', (backen
       })
     })
 
+    it('refills fractional reservations by whole intervals and returns the full wait', async () => {
+      const reservation = {
+        key: `${key}:requests`,
+        cost: 1,
+        config: { maxTokens: 1, refillRate: 0.25, refillIntervalMs: 1000 },
+      }
+      const options = { cooldownKeys: [`${key}:cooldown`], deadlineAt: now.getTime() + 600_000 }
+      expect(await first.consumeTokensAtomically([reservation], options)).toEqual({
+        allowed: true,
+        retryAfterMs: 0,
+      })
+      vi.setSystemTime(now.getTime() + 1500)
+      expect(await second.consumeTokensAtomically([reservation], options)).toEqual({
+        allowed: false,
+        retryAfterMs: 2500,
+      })
+      expect(await first.getTokenStatus(reservation.key, reservation.config)).toMatchObject({
+        tokensAvailable: 0.25,
+        lastRefillAt: new Date(now.getTime() + 1000),
+      })
+      vi.setSystemTime(now.getTime() + 4000)
+      expect(await second.consumeTokensAtomically([reservation], options)).toEqual({
+        allowed: true,
+        retryAfterMs: 0,
+      })
+      expect(await first.getTokenStatus(reservation.key, reservation.config)).toMatchObject({
+        tokensAvailable: 0,
+        lastRefillAt: new Date(now.getTime() + 4000),
+      })
+    })
+
     it.each([
       { state: 'new', spentRequests: 0, spentTokens: 0, admitted: 8, remainingTokens: 20 },
       { state: 'existing', spentRequests: 2, spentTokens: 20, admitted: 6, remainingTokens: 20 },
