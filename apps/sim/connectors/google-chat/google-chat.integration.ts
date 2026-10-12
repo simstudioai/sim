@@ -1,5 +1,6 @@
 import { createServer } from 'node:http'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { classifyExternalDoc, contentHashMatch } from '@/lib/knowledge/connectors/sync-primitives'
 import { googleChatConnector } from '@/connectors/google-chat/google-chat'
 
 const SPACE = {
@@ -16,6 +17,8 @@ let messageReads = 0
 let requestCount = 0
 let firstParameters = ''
 let now = Date.parse('2026-10-02T12:00:00Z')
+let activity = SPACE.lastActiveTime
+let body = 'New decision: review on Friday.'
 
 const server = createServer((request, response) => {
   requestCount++
@@ -29,7 +32,7 @@ const server = createServer((request, response) => {
     return
   }
   if (url.pathname === '/v1/spaces') {
-    send({ spaces: [SPACE] })
+    send({ spaces: [{ ...SPACE, lastActiveTime: activity }] })
     return
   }
   if (url.pathname === `/v1/${SPACE.name}`) {
@@ -81,6 +84,28 @@ const server = createServer((request, response) => {
     })
     return
   }
+  if (mode === 'projected') {
+    const fields = url.searchParams.get('fields') ?? '*'
+    if (fields === '*' || fields.includes('cards')) {
+      send({ cards: 'x'.repeat(33 * 1024 * 1024) })
+      return
+    }
+    if (
+      ![
+        'nextPageToken',
+        'messages',
+        'createTime',
+        'sender',
+        'name',
+        'displayName',
+        'text',
+        'fallbackText',
+      ].every((field) => fields.includes(field))
+    ) {
+      send({ error: 'Transcript or continuation field omitted' }, 400)
+      return
+    }
+  }
   if (mode === 'empty-page' && !token) {
     send({ nextPageToken: 'page-2' })
     return
@@ -89,14 +114,14 @@ const server = createServer((request, response) => {
   const cutoff = url.searchParams.get('filter')?.match(/"([^"]+)"/)?.[1]
   send({
     messages:
-      cutoff && time <= cutoff
+      cutoff && Date.parse(time) <= Date.parse(cutoff)
         ? []
         : [
             {
               name: `${SPACE.name}/messages/${token ? 'older' : 'newer'}`,
               sender: { name: 'users/fixture-author' },
-              createTime: time,
-              text: token ? 'Older decision: launch is paused.' : 'New decision: review on Friday.',
+              createTime: mode === 'unknown-time' ? undefined : time,
+              text: token ? 'Older decision: launch is paused.' : body,
             },
           ],
     nextPageToken:
@@ -123,6 +148,8 @@ beforeEach(() => {
   requestCount = 0
   firstParameters = ''
   now = Date.parse('2026-10-02T12:00:00Z')
+  activity = SPACE.lastActiveTime
+  body = 'New decision: review on Friday.'
 })
 
 afterAll(async () => {
@@ -184,15 +211,176 @@ describe('Google Chat connector over real HTTP', () => {
     const first = await googleChatConnector.listDocuments(TOKEN, config, undefined, firstContext)
     now += 60_000
     const initial = await read(config, firstContext)
+    if (!initial) throw new Error('Expected a space document')
     expect(initial?.content).toContain('New decision:')
-    expect(initial?.contentHash).toBe(first.documents[0].contentHash)
+    expect(
+      contentHashMatch(
+        first.documents[0].contentHash,
+        initial.contentHash,
+        googleChatConnector.matchContentHash
+      )
+    ).toBe('current')
     now += 3 * 24 * 60 * 60 * 1000
     const nextContext = {}
     const next = await googleChatConnector.listDocuments(TOKEN, config, undefined, nextContext)
     expect(next.documents[0].contentHash).not.toBe(first.documents[0].contentHash)
     const expired = await read(config, nextContext)
+    if (!expired) throw new Error('Expected a space document')
     expect(expired?.content).not.toContain('New decision:')
-    expect(expired?.contentHash).toBe(next.documents[0].contentHash)
+    expect(
+      contentHashMatch(
+        next.documents[0].contentHash,
+        expired.contentHash,
+        googleChatConnector.matchContentHash
+      )
+    ).toBe('current')
+  })
+
+  it('skips unchanged rolling-window spaces until the exact next message expiry', async () => {
+    mode = 'window'
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const config = { lookbackDays: '2' }
+    const context = {}
+    await googleChatConnector.listDocuments(TOKEN, config, undefined, context)
+    const initial = await read(config, context)
+    if (!initial) throw new Error('Expected a space document')
+    const existing = { id: 'stored', contentHash: initial.contentHash, storageKey: 'indexed' }
+    const classify = async () => {
+      const page = await googleChatConnector.listDocuments(TOKEN, config, undefined, {})
+      return classifyExternalDoc(
+        page.documents[0],
+        existing,
+        false,
+        googleChatConnector.matchContentHash
+      ).type
+    }
+    now += 1
+    expect(await classify()).toBe('unchanged')
+    now = Date.parse('2026-10-03T11:59:59.999Z')
+    expect(await classify()).toBe('unchanged')
+    expect(messageReads).toBe(1)
+    now = Date.parse('2026-10-02T11:59:59.999Z')
+    expect(await classify()).toBe('update')
+    now = Date.parse('2026-10-03T11:59:59.999Z')
+    now += 1
+    expect(await classify()).toBe('update')
+    const expired = await read(config, {})
+    expect(expired?.content).not.toContain('New decision:')
+    expect(messageReads).toBe(2)
+  })
+
+  it('keeps empty windows cheap but refreshes changed settings, full syncs, and legacy hashes', async () => {
+    mode = 'window'
+    now = Date.parse('2026-10-04T12:00:00Z')
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const config = { lookbackDays: '2' }
+    const initial = await read(config, {})
+    if (!initial) throw new Error('Expected a space document')
+    const existing = { id: 'stored', contentHash: initial.contentHash, storageKey: 'indexed' }
+    now += 24 * 60 * 60 * 1000
+    const page = await googleChatConnector.listDocuments(TOKEN, config, undefined, {})
+    const stub = page.documents[0]
+    expect(
+      classifyExternalDoc(stub, existing, false, googleChatConnector.matchContentHash).type
+    ).toBe('unchanged')
+    expect(
+      classifyExternalDoc(stub, existing, true, googleChatConnector.matchContentHash).type
+    ).toBe('update')
+    expect(
+      classifyExternalDoc(
+        stub,
+        { ...existing, contentHash: 'gchat:v2:legacy' },
+        false,
+        googleChatConnector.matchContentHash
+      ).type
+    ).toBe('update')
+    const changed = await googleChatConnector.listDocuments(
+      TOKEN,
+      { ...config, maxMessages: '100' },
+      undefined,
+      {}
+    )
+    expect(
+      classifyExternalDoc(
+        changed.documents[0],
+        existing,
+        false,
+        googleChatConnector.matchContentHash
+      ).type
+    ).toBe('update')
+  })
+
+  it('rereads a lookback window when the provider omits creation timestamps', async () => {
+    mode = 'unknown-time'
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const config = { lookbackDays: '90' }
+    const initial = await read(config, {})
+    if (!initial) throw new Error('Expected a space document')
+    now += 60_000
+    const page = await googleChatConnector.listDocuments(TOKEN, config, undefined, {})
+    const existing = { id: 'stored', contentHash: initial.contentHash, storageKey: 'indexed' }
+    expect(
+      classifyExternalDoc(page.documents[0], existing, false, googleChatConnector.matchContentHash)
+        .type
+    ).toBe('update')
+  })
+
+  it('advances source metadata without replacing identical text but still indexes changed text', async () => {
+    mode = 'window'
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const load = async () => {
+      const context = {}
+      await googleChatConnector.listDocuments(TOKEN, {}, undefined, context)
+      const doc = await read({}, context)
+      if (!doc) throw new Error('Expected a space document')
+      return doc
+    }
+    const initial = await load()
+    activity = '2026-10-02T12:00:00Z'
+    const page = await googleChatConnector.listDocuments(TOKEN, {}, undefined, {})
+    expect(
+      classifyExternalDoc(
+        page.documents[0],
+        { id: 'stored', contentHash: initial.contentHash, storageKey: 'indexed' },
+        false,
+        googleChatConnector.matchContentHash
+      ).type
+    ).toBe('update')
+    const refreshed = await load()
+    expect(
+      contentHashMatch(
+        refreshed.contentHash,
+        initial.contentHash,
+        googleChatConnector.matchContentHash
+      )
+    ).toBe('equivalent')
+    body = 'Changed decision: launch is approved.'
+    const changed = await load()
+    expect(
+      contentHashMatch(
+        changed.contentHash,
+        refreshed.contentHash,
+        googleChatConnector.matchContentHash
+      )
+    ).toBe('stale')
+  })
+
+  it.each(['100.0', '1e2'])(
+    'keeps saved whole-number strings such as %s usable through validation and hydration',
+    async (maxSpaces) => {
+      vi.spyOn(Date, 'now').mockImplementation(() => now)
+      const config = { maxSpaces, maxMessages: '3.00', lookbackDays: '90.0' }
+      expect(await googleChatConnector.validateConfig(TOKEN, config)).toEqual({ valid: true })
+      const context = {}
+      await googleChatConnector.listDocuments(TOKEN, config, undefined, context)
+      expect((await read(config, context))?.metadata?.messageCount).toBe(2)
+    }
+  )
+
+  it('reads the transcript without downloading unused card payloads', async () => {
+    mode = 'projected'
+    const doc = await read()
+    expect(doc?.content).toMatch(/Older decision:[\s\S]*New decision:/)
   })
 
   it.each([401, 403])('preserves HTTP %i authorization failures', async (status) => {
@@ -203,7 +391,17 @@ describe('Google Chat connector over real HTTP', () => {
   it.each(['maxMessages', 'maxSpaces', 'lookbackDays'])(
     'rejects invalid %s before contacting the provider',
     async (field) => {
-      for (const value of ['Infinity', '0.5', '9007199254740992']) {
+      for (const value of [
+        'Infinity',
+        '0.5',
+        '1.0000000000000001',
+        '0.99999999999999999',
+        '1.0000000000000001e2',
+        '1e-400',
+        '9007199254740992',
+        true,
+        {},
+      ]) {
         const result = await googleChatConnector.validateConfig(TOKEN, { [field]: value })
         expect(result.valid, `${field}=${value}`).toBe(false)
       }
