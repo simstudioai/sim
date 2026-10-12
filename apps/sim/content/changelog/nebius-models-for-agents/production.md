@@ -10,7 +10,7 @@ One new model provider is a useful standalone update. The article explains the c
 - On October 12, 2026, the production Agent block definition returned the Nebius model options, and the [Nebius provider catalog](https://www.sim.ai/models/nebius) returned successfully. The article uses the provider catalog rather than a model page for a different provider.
 - Nebius requires a customer-provided API key. Cloud workspace admins configure it in Workspace settings → BYOK → Nebius; self-hosted users supply it in the Agent block. There is no Nebius-specific plan restriction in the provider or BYOK settings. Model-specific features vary.
 - The source PR records live API acceptance of the model catalog and adapter behavior. This publication adds no new model-execution claim or benchmark.
-- The [Agent guide](https://docs.sim.ai/workflows/blocks/agent#nebius-token-factory) gains a focused Nebius setup section in this PR. Verify its anchor in the docs deployment before merging.
+- The [Agent guide](https://docs.sim.ai/workflows/blocks/agent) gains a focused Nebius setup section in this PR. Its `#nebius-token-factory` anchor was checked in the rendered docs preview. The article links to the existing guide without the new anchor, so it remains a working destination while the site and docs deploy independently.
 
 ## Media provenance
 
