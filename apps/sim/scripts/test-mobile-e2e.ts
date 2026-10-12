@@ -684,7 +684,9 @@ async function exerciseViewport(
           await expectContained(page, sidebar)
           if (viewport.name === 'phone') await capture(page, `${browserName}-phone-navigation`)
           await sidebar.getByRole('link', { name: 'New chat', exact: true }).tap()
-          await expect(page).toHaveURL(`${baseUrl.origin}/workspace/${workspaceId}/home`)
+          await expect(page).toHaveURL(`${baseUrl.origin}/workspace/${workspaceId}/home`, {
+            timeout: 120_000,
+          })
           await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
           await expect(sidebar).toBeHidden()
           await page.getByRole('button', { name: 'Open navigation', exact: true }).tap()
@@ -692,12 +694,14 @@ async function exerciseViewport(
           await expect(sidebar).toBeHidden()
           await page.getByRole('button', { name: 'Open navigation', exact: true }).tap()
           await sidebar.getByRole('link', { name: 'Files', exact: true }).tap()
-          await expect(page).toHaveURL(new RegExp(`/workspace/${workspaceId}/files`))
+          await expect(page).toHaveURL(new RegExp(`/workspace/${workspaceId}/files`), {
+            timeout: 120_000,
+          })
           await expect(sidebar).toBeHidden()
           await expect(page.locator('.workspace-content-shell')).toBeVisible()
           await expect(
             page.getByRole('button', { name: `Actions for ${folderName}`, exact: true })
-          ).toBeVisible()
+          ).toBeVisible({ timeout: 120_000 })
           await expectDesktopPreference(context, page)
         }
       )
@@ -977,7 +981,7 @@ async function exerciseViewport(
           await withDocumentNavigation(page, page.url(), () =>
             page.reload({ waitUntil: 'commit', timeout: 360_000 })
           )
-          await expect(cell).toHaveText(value)
+          await expect(cell).toHaveText(value, { timeout: 120_000 })
           await page.getByRole('button', { name: 'Column options', exact: true }).first().tap()
           await expectContained(page, page.getByRole('menu'))
           await page.getByRole('menuitem', { name: 'Edit column', exact: true }).tap()

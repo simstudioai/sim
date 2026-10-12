@@ -26,6 +26,10 @@ server_pid=''
 app_tag=''
 server_log=''
 status_log=''
+realtime_pid=''
+realtime_tag=''
+realtime_log=''
+browsers_pid=''
 
 finish() {
   local status=$?
@@ -38,6 +42,17 @@ finish() {
     if [ "$status" -ne 0 ]; then
       tail -n 200 "$server_log"
     fi
+  fi
+  if [ -n "$realtime_pid" ]; then
+    bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$realtime_pid" "$realtime_tag" || status=1
+    wait "$realtime_pid" 2>/dev/null || true
+    if [ "$status" -ne 0 ]; then
+      tail -n 100 "$realtime_log"
+    fi
+  fi
+  if [ -n "$browsers_pid" ]; then
+    kill -- "-$browsers_pid" 2>/dev/null || true
+    wait "$browsers_pid" 2>/dev/null || true
   fi
   exit "$status"
 }
@@ -58,20 +73,39 @@ start_app() {
   E2E_APP="$app_tag" setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
     --port "$port" > "$server_log" 2>&1 &
   server_pid=$!
+  wait_ready "$server_pid" "$NEXT_PUBLIC_APP_URL/api/health" "$label app"
+}
 
+# start_realtime <name> <port>: the Socket.IO server the app's browser clients connect to, so pages
+# render connected rather than under a "Reconnecting..." notification. Start after start_app, which
+# exports the app URL the server allows as an origin; NEXT_PUBLIC_SOCKET_URL must already be set
+# when the app starts.
+start_realtime() {
+  local name=$1 port=$2
+  realtime_tag="$name-realtime-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+  realtime_log="$report_dir/$name-realtime.log"
+  (cd ../realtime && PORT="$port" E2E_APP="$realtime_tag" exec setsid bun run start \
+    > "$realtime_log" 2>&1) &
+  realtime_pid=$!
+  wait_ready "$realtime_pid" "http://127.0.0.1:$port/health" "$name realtime server"
+}
+
+# wait_ready <pid> <health-url> <label>
+wait_ready() {
+  local pid=$1 url=$2 label=$3
   local started=$SECONDS
-  until curl --fail --silent --max-time 10 "$NEXT_PUBLIC_APP_URL/api/health" > /dev/null; do
-    if ! kill -0 "$server_pid" 2>/dev/null; then
-      echo "::error::Local $label app exited during startup."
+  until curl --fail --silent --max-time 10 "$url" > /dev/null; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "::error::Local $label exited during startup."
       exit 1
     fi
     if [ $((SECONDS - started)) -ge "$ready_timeout_seconds" ]; then
-      echo "::error::Local $label app did not become ready within $ready_timeout_seconds seconds."
+      echo "::error::Local $label did not become ready within $ready_timeout_seconds seconds."
       exit 1
     fi
     sleep 2
   done
-  echo "Local $label app ready after $((SECONDS - started))s"
+  echo "Local $label ready after $((SECONDS - started))s"
 }
 
 case "$group" in
@@ -159,8 +193,20 @@ case "$group" in
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export INTERNAL_API_SECRET=mobile-http-ci-local-secret-at-least-32-characters
     export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=12288"
-    bunx --no-install playwright install --with-deps chromium webkit
+    export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3025 SOCKET_SERVER_URL=http://127.0.0.1:3025
+    # The browsers install while the app boots, in their own process group so finish() can stop them.
+    browsers_log="$report_dir/mobile-playwright-install.log"
+    setsid --wait bunx --no-install playwright install --with-deps chromium webkit > "$browsers_log" 2>&1 &
+    browsers_pid=$!
     start_app mobile 3024 'mobile browser' record-http-status
+    start_realtime mobile 3025
+    if ! wait "$browsers_pid"; then
+      browsers_pid=''
+      tail -n 100 "$browsers_log"
+      echo "::error::Playwright browser install failed."
+      exit 1
+    fi
+    browsers_pid=''
     MOBILE_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     MOBILE_E2E_DATABASE_URL="$DATABASE_URL" \
     MOBILE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
