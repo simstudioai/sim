@@ -1592,11 +1592,22 @@ describe('completeSuccessfulSync', () => {
   })
 
   it.each([
-    { recordedDocCount: 7, written: undefined },
-    { recordedDocCount: null, written: 4 },
+    {
+      scenario: 'after a finished pass',
+      lastSyncAt: new Date(),
+      lastSyncDocCount: 7,
+      written: undefined,
+    },
+    { scenario: 'with no count yet', lastSyncAt: null, lastSyncDocCount: null, written: 4 },
+    {
+      scenario: 'on a later slice of the first pass',
+      lastSyncAt: null,
+      lastSyncDocCount: 3,
+      written: 4,
+    },
   ])(
-    'leaves an unfinished pass on the last finished count unless none was recorded: $recordedDocCount',
-    async ({ recordedDocCount, written }) => {
+    'counts an unfinished slice only until a pass has finished: $scenario',
+    async ({ lastSyncAt, lastSyncDocCount, written }) => {
       const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
       queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
       queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1', lastSyncDocCount: 7 }])
@@ -1624,7 +1635,7 @@ describe('completeSuccessfulSync', () => {
           },
           null,
           false,
-          recordedDocCount
+          { lastSyncAt, lastSyncDocCount }
         )
       ).resolves.toBe(true)
 
