@@ -1,6 +1,6 @@
 # Nebius Token Factory: production record
 
-Status: prepared for publication review. Only `index.mdx` is rendered on the website.
+Status: editorial, feature, and media review completed October 12, 2026. PR #8924 is merged to staging; hosted deployment verification remains pending. Only `index.mdx` is rendered on the website.
 
 ## Story and evidence
 
@@ -20,14 +20,17 @@ Asset: `/changelog/nebius-model-picker-v1.jpg`, 510 × 268 pixels. Direct browse
 
 A still makes the new model choice easier to inspect than a setup video. No credential entry, saved placeholder key, or execution result is depicted. Availability is established separately above. These production notes are not public article copy.
 
-## Publication review
+## Completed publication review
 
-- Review concise article and announcement copy against the released provider.
-- Verify the provider catalog and the new Agent guide anchor.
-- Inspect the article and shared lightbox on desktop and at a real 390px viewport.
-- Run the content audit; use CI for repository test suites.
-- Verify the deployed article, image, index, archive, RSS, and sitemap.
-- Keep publication pending until the production canonical URL passes the publication monitor. A staging deployment is not production publication.
+Release editor and feature verification: Codex, under Waleed's delegated review for this PR. Reviewed October 12, 2026:
+
+- Article and announcement copy checked against the released provider and production model options; availability, customer-provided key requirement, and contextual links confirmed.
+- Real capture inspected with sample data. No fabricated credential acceptance or execution result; no public capture disclaimers or caption.
+- Article and shared lightbox checked at 1280px and a real 390px viewport: no horizontal overflow; image loading, zoom, dismissal, and focus return passed.
+- Nebius catalog returned 200. The new setup section and anchor rendered correctly in the docs preview; the article uses the existing guide URL to accommodate independent deployments.
+- Content audit passed. Local public article, index, archive, RSS, and sitemap included the entry with the correct canonical URL and media. No local test suites were run; repository checks run in CI.
+
+The reviewed entry is marked `draft: false` for the approved site deployment. CI and code-review results belong in the publication PR. After deployment, verify the hosted article, image, index, archive, RSS, and sitemap. Keep the edition pending until the production canonical URL passes the publication monitor; a staging deployment is not production publication.
 
 Canonical URL: https://www.sim.ai/changelog/nebius-models-for-agents
 
