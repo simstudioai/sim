@@ -391,7 +391,17 @@ describe('Google Chat connector over real HTTP', () => {
   it.each(['maxMessages', 'maxSpaces', 'lookbackDays'])(
     'rejects invalid %s before contacting the provider',
     async (field) => {
-      for (const value of ['Infinity', '0.5', '9007199254740992', true, {}]) {
+      for (const value of [
+        'Infinity',
+        '0.5',
+        '1.0000000000000001',
+        '0.99999999999999999',
+        '1.0000000000000001e2',
+        '1e-400',
+        '9007199254740992',
+        true,
+        {},
+      ]) {
         const result = await googleChatConnector.validateConfig(TOKEN, { [field]: value })
         expect(result.valid, `${field}=${value}`).toBe(false)
       }

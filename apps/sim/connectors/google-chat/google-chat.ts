@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import Decimal from 'decimal.js'
 import {
   readResponseJsonWithLimit,
   readResponseToBufferWithLimit,
@@ -121,9 +122,16 @@ function resolvePositiveInteger(value: unknown, fallback: number, label: string)
   return parsed
 }
 
-/** Preserve older numeric strings; the shared parser still rejects fractions and unsafe integers. */
+/** Check the original decimal before converting legacy numeric strings to JavaScript numbers. */
 function normalizeSavedInteger(value: unknown): unknown {
-  return typeof value === 'string' && value.trim() !== '' ? Number(value) : value
+  if (typeof value !== 'string' || value.trim() === '') return value
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed)) return value
+  try {
+    return new Decimal(value.trim()).isInteger() ? parsed : value
+  } catch {
+    return value
+  }
 }
 
 /** One cutoff per run keeps hydration consistent while inactive spaces age out on later syncs. */
