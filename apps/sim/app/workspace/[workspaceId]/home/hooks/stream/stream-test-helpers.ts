@@ -26,6 +26,7 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
       invalidateQueries: vi.fn(),
       cancelQueries: vi.fn(),
       setQueryData: vi.fn(),
+      isFetching: vi.fn(() => 0),
       // double-cast-allowed: minimal QueryClient stub for stream-loop unit fixtures
     } as unknown as QueryClient,
     assistantId: 'assistant-1',
