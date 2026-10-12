@@ -6,7 +6,7 @@ import {
   type ContentView,
   isCopilotPrincipal,
 } from '@/lib/core/application/content-delivery'
-import { collectUserFilesById, isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { getStoredFileSecretProvenanceByKey } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { UserFile } from '@/executor/types'
 
@@ -14,13 +14,14 @@ import type { UserFile } from '@/executor/types'
  * Admits each file a run produced on its own, classified by the storage key the run recorded, and
  * returns the ids admitted. A caller no gate observes gets every id back without a provenance read.
  */
-export async function admitRunFiles(
+/** Admits each run file on its own; see {@link admitRunFiles}. Returns the admitted files. */
+async function admitRunFileItems(
   principal: Principal,
   workspaceId: string,
   files: readonly UserFile[],
   view: ContentView
-): Promise<Set<string>> {
-  const admitted = await admitEach(principal, files, async (items) => {
+): Promise<UserFile[]> {
+  return admitEach(principal, files, async (items) => {
     const provenance = await getStoredFileSecretProvenanceByKey(
       workspaceId,
       items.map((file) => file.key)
@@ -35,7 +36,32 @@ export async function admitRunFiles(
       view,
     }))
   })
+}
+
+export async function admitRunFiles(
+  principal: Principal,
+  workspaceId: string,
+  files: readonly UserFile[],
+  view: ContentView
+): Promise<Set<string>> {
+  const admitted = await admitRunFileItems(principal, workspaceId, files, view)
   return new Set(admitted.map((file) => file.id))
+}
+
+/**
+ * Every file descriptor in an output that inlines bytes, once per storage key. Not deduplicated by
+ * id: an earlier descriptor of the same file without bytes must not hide a later one with them.
+ */
+function collectInlinedFiles(value: unknown, files: Map<string, UserFile>, seen: WeakSet<object>) {
+  if (!value || typeof value !== 'object' || seen.has(value)) return
+  seen.add(value)
+  if (isUserFileWithMetadata(value)) {
+    if (typeof value.base64 === 'string' && !files.has(value.key)) files.set(value.key, value)
+    return
+  }
+  for (const item of Array.isArray(value) ? value : Object.values(value)) {
+    collectInlinedFiles(item, files, seen)
+  }
 }
 
 function withoutUnadmittedBase64(
@@ -66,8 +92,10 @@ function withoutUnadmittedBase64(
    */
   const prototype = Object.getPrototypeOf(value)
   if (prototype !== Object.prototype && prototype !== null) {
-    for (const file of collectUserFilesById(value).values()) {
-      if (typeof file.base64 === 'string' && !admittedKeys.has(file.key)) {
+    const held = new Map<string, UserFile>()
+    collectInlinedFiles(value, held, new WeakSet())
+    for (const file of held.values()) {
+      if (!admittedKeys.has(file.key)) {
         throw new ContentRefusedError('execution-file')
       }
     }
@@ -102,14 +130,12 @@ export async function withholdUnadmittedInlineFiles<T>(
     await admitContent(principal, [])
     return value
   }
-  const inlined = [...collectUserFilesById(value).values()].filter(
-    (file) => typeof file.base64 === 'string'
-  )
-  const admittedIds = await admitRunFiles(principal, workspaceId, inlined, 'opaque')
-  if (admittedIds.size === inlined.length) return value
-  const admittedKeys = new Set(
-    inlined.filter((file) => admittedIds.has(file.id)).map((file) => file.key)
-  )
+  const found = new Map<string, UserFile>()
+  collectInlinedFiles(value, found, new WeakSet())
+  const inlined = [...found.values()]
+  const admitted = await admitRunFileItems(principal, workspaceId, inlined, 'opaque')
+  if (admitted.length === inlined.length) return value
+  const admittedKeys = new Set(admitted.map((file) => file.key))
   return withoutUnadmittedBase64(value, admittedKeys, new WeakMap()) as T
 }
 

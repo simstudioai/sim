@@ -20,7 +20,7 @@ import {
 } from '@sim/testing/mocks/table-rows-service.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition } from '@/lib/table/types'
+import type { TableDefinition, TablePredicate } from '@/lib/table/types'
 
 const {
   mockIsScopeCompatible,
@@ -29,9 +29,9 @@ const {
   mockRowProvenance,
   mockFindRowMatches,
   mockClassifyColumns,
-  mockTableHasUnvouchedRows,
+  mockTableHasCellsUnsafe,
 } = vi.hoisted(() => ({
-  mockTableHasUnvouchedRows: vi.fn(),
+  mockTableHasCellsUnsafe: vi.fn(),
   mockFindRowMatches: vi.fn(),
   mockClassifyColumns: vi.fn(),
   mockIsScopeCompatible: vi.fn(),
@@ -60,7 +60,7 @@ vi.mock('@/lib/table/column-types', () => ({
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
   ...tableRowsSecretProvenanceMock,
   classifyStoredTableRowColumns: mockClassifyColumns,
-  tableHasUnvouchedRows: mockTableHasUnvouchedRows,
+  tableHasCellsUnsafeForPredicate: mockTableHasCellsUnsafe,
   TableRowProvenanceReader: class extends tableRowsSecretProvenanceMock.TableRowProvenanceReader {
     rowProvenance(rowId: string) {
       return mockRowProvenance(rowId)
@@ -997,54 +997,86 @@ describe('row delivery to Chat', () => {
     }
   )
 
-  describe('query counts Chat sees', () => {
-    const filtered = (principal: Caller) =>
+  describe('predicates Chat runs over cell values', () => {
+    const query = (principal: Caller, predicate?: TablePredicate) =>
       queryTableRows.execute({
         principal,
-        input: {
-          tableId: TABLE.id,
-          limit: 25,
-          includeTotal: true,
-          predicate: { all: [{ field: 'name', op: 'eq', value: 'guess' }] },
-        },
+        input: { tableId: TABLE.id, limit: 25, includeTotal: true, predicate },
       })
+    const BY_NAME: TablePredicate = { all: [{ field: 'name', op: 'eq', value: 'guess' }] }
 
     beforeEach(() => {
       mockQueryRows.mockResolvedValue({ ...PAGE, rowCount: 1, totalCount: 3 })
+      mockTableHasCellsUnsafe.mockResolvedValue(false)
     })
 
     it('counts only the rows delivered on the page', async () => {
       mockRowProvenance.mockReturnValue({ status: 'unknown' })
-      mockTableHasUnvouchedRows.mockResolvedValue(false)
-      const result = await observeContentDelivery({ admit: gate(false) }, () => filtered(CHAT))
+      const result = await observeContentDelivery({ admit: gate(false) }, () =>
+        query(CHAT, BY_NAME)
+      )
       expect(result).toMatchObject({ rows: [], rowCount: 0, totalCount: 3 })
     })
 
-    it('refuses a filtered total over a table holding rows Chat may not read', async () => {
-      mockRowProvenance.mockReturnValue({ status: 'exact', entries: [] })
-      mockTableHasUnvouchedRows.mockResolvedValue(true)
+    it('refuses a predicate over cells it cannot vouch for, before running it', async () => {
+      mockTableHasCellsUnsafe.mockResolvedValue(true)
       await expect(
-        observeContentDelivery({ admit: gate(true) }, () => filtered(CHAT))
+        observeContentDelivery({ admit: gate(true) }, () => query(CHAT, BY_NAME))
+      ).rejects.toBeInstanceOf(ContentRefusedError)
+      expect(mockTableHasCellsUnsafe).toHaveBeenCalledWith(TABLE.id, new Set(['column-name']))
+      expect(mockQueryRows).not.toHaveBeenCalled()
+    })
+
+    it('refuses when a cell it reads becomes unsafe during the read', async () => {
+      mockTableHasCellsUnsafe.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+      mockRowProvenance.mockReturnValue({ status: 'exact', entries: [] })
+      await expect(
+        observeContentDelivery({ admit: gate(true) }, () => query(CHAT, BY_NAME))
       ).rejects.toBeInstanceOf(ContentRefusedError)
     })
 
-    it('keeps an unfiltered total, which says only how many rows exist', async () => {
+    it('checks nothing for an id-only predicate or no predicate, which read no cell', async () => {
       mockRowProvenance.mockReturnValue({ status: 'exact', entries: [] })
-      mockTableHasUnvouchedRows.mockResolvedValue(true)
-      const result = await observeContentDelivery({ admit: gate(true) }, () =>
-        queryTableRows.execute({
-          principal: CHAT,
-          input: { tableId: TABLE.id, limit: 25, includeTotal: true },
-        })
+      await observeContentDelivery({ admit: gate(true) }, () => query(CHAT))
+      await observeContentDelivery({ admit: gate(true) }, () =>
+        query(CHAT, { all: [{ field: 'id', op: 'in', value: ['row-1'] }] })
       )
-      expect(result).toMatchObject({ rowCount: 1, totalCount: 3 })
-      expect(mockTableHasUnvouchedRows).not.toHaveBeenCalled()
+      expect(mockTableHasCellsUnsafe).not.toHaveBeenCalled()
     })
 
-    it('answers a person with the stored counts, unread', async () => {
-      const result = await filtered(PRINCIPAL)
+    it('refuses a free-text search over a table with any unsafe cell', async () => {
+      mockTableHasCellsUnsafe.mockResolvedValue(true)
+      await expect(
+        observeContentDelivery({ admit: gate(true) }, () =>
+          searchTableRows.execute({ principal: CHAT, input: { tableId: TABLE.id, q: 'guess' } })
+        )
+      ).rejects.toBeInstanceOf(ContentRefusedError)
+      expect(mockTableHasCellsUnsafe).toHaveBeenCalledWith(TABLE.id, 'all')
+      expect(mockFindRowMatches).not.toHaveBeenCalled()
+    })
+
+    it('refuses an update by filter over unsafe cells before changing anything', async () => {
+      mockTableHasCellsUnsafe.mockResolvedValue(true)
+      await expect(
+        observeContentDelivery({ admit: gate(true) }, () =>
+          updateTableRows.execute({
+            principal: CHAT,
+            input: {
+              tableId: TABLE.id,
+              filter: { name: 'guess' },
+              data: { name: 'x' },
+              dataKeying: 'names',
+            },
+          })
+        )
+      ).rejects.toBeInstanceOf(ContentRefusedError)
+      expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
+    })
+
+    it('answers a person with the stored counts, unchecked', async () => {
+      const result = await query(PRINCIPAL, BY_NAME)
       expect(result).toMatchObject({ rowCount: 1, totalCount: 3 })
-      expect(mockTableHasUnvouchedRows).not.toHaveBeenCalled()
+      expect(mockTableHasCellsUnsafe).not.toHaveBeenCalled()
     })
   })
 

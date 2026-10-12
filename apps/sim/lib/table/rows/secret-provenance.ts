@@ -947,14 +947,31 @@ async function classifyTableRowCrossings(
 }
 
 /**
- * Whether any row of a table cannot be vouched for: tracked, but with no current exact sidecar.
- * A count over a filter that such a row matches would answer a question about text Chat may not
- * read, so a Chat count is taken only over a table where every row can be vouched for.
+ * Whether a predicate over `columnIds` (every column, for `'all'`) could answer a question about
+ * text Chat may not read: some row of the table cannot be vouched for (tracked, with a missing,
+ * stale, non-exact or malformed sidecar), or some row records a secret in a column the predicate
+ * reads. A predicate's matches, counts and page boundaries all depend on such cells, so Chat runs
+ * one only over a table where none exist. The answer is the same whatever the predicate asks, so
+ * the refusal itself reveals nothing about any cell.
  */
-export async function tableHasUnvouchedRows(
+export async function tableHasCellsUnsafeForPredicate(
   tableId: string,
+  columnIds: ReadonlySet<string> | 'all',
   executor: DbExecutor = db
 ): Promise<boolean> {
+  const entries = sql`CASE WHEN jsonb_typeof(${userTableRowSecretProvenance.entries}) = 'array'
+    THEN ${userTableRowSecretProvenance.entries} ELSE '[]'::jsonb END`
+  const referenced =
+    columnIds === 'all'
+      ? sql`true`
+      : columnIds.size === 0
+        ? sql`false`
+        : sql`entry->>'columnId' IN (${sql.join(
+            [...columnIds].map((columnId) => sql`${columnId}`),
+            sql`, `
+          )})`
+  const optionalText = (key: string) =>
+    sql`(jsonb_exists(entry, ${key}) AND (jsonb_typeof(entry->${key}) IS DISTINCT FROM 'string' OR entry->>${key} = ''))`
   const [row] = await executor
     .select({ id: userTableRows.id })
     .from(userTableRows)
@@ -968,7 +985,28 @@ export async function tableHasUnvouchedRows(
         sql`${userTableRows.secretProvenanceVersion} IS NOT NULL`,
         sql`(${userTableRows.secretProvenanceVersion} <> ${TABLE_ROW_SECRET_PROVENANCE_VERSION}
           OR ${userTableRowSecretProvenance.status} IS DISTINCT FROM 'exact'
-          OR ${userTableRowSecretProvenance.contentUpdatedAt} IS DISTINCT FROM ${userTableRows.updatedAt})`
+          OR ${userTableRowSecretProvenance.contentUpdatedAt} IS DISTINCT FROM ${userTableRows.updatedAt}
+          OR jsonb_typeof(${userTableRowSecretProvenance.entries}) IS DISTINCT FROM 'array'
+          OR EXISTS (
+            SELECT 1 FROM jsonb_array_elements(${entries}) AS entry
+            WHERE CASE WHEN jsonb_typeof(entry) <> 'object' THEN true ELSE (
+              jsonb_typeof(entry->'columnId') IS DISTINCT FROM 'string'
+              OR entry->>'columnId' = ''
+              OR jsonb_typeof(entry->'encryptedValue') IS DISTINCT FROM 'string'
+              OR entry->>'encryptedValue' = ''
+              OR ${optionalText('name')}
+              OR ${optionalText('sourceUserId')}
+              OR ${optionalText('sourceWorkspaceId')}
+              OR EXISTS (
+                SELECT 1 FROM jsonb_object_keys(entry) AS key
+                WHERE key NOT IN (${sql.join(
+                  [...STORED_ENTRY_KEYS].map((key) => sql`${key}`),
+                  sql`, `
+                )})
+              )
+              OR ${referenced}
+            ) END
+          ))`
       )
     )
     .limit(1)

@@ -1261,12 +1261,22 @@ async function resolveTableSelectionResource(
 
   const rendered = `${describe(sizeClause(lines.length, selectedRowCount - lines.length))}${lines.join('\n')}`
   const projected = projectResolvedSecretModelContent(rendered, selectionRegistry)
+  /** A fallback names the table, which is redacted like the rest; unredactable, it is omitted. */
+  const fallback = (reason: string) => {
+    const named = `Selected ${scope} from table ${JSON.stringify(table.name)} (${selectedRowCount} rows, ${columns.length} columns). ${reason}`
+    const projectedName = projectResolvedSecretModelContent(named, selectionRegistry)
+    return projectedName.safe && typeof projectedName.value === 'string'
+      ? projectedName.value
+      : `Selected ${scope} (${selectedRowCount} rows, ${columns.length} columns). ${reason}`
+  }
   const preview =
     !cellsProjected || !projected.safe || typeof projected.value !== 'string'
-      ? `Selected ${scope} from table "${table.name}" (${selectedRowCount} rows, ${columns.length} columns). Cell values could not be checked for secret values, so none were inlined.`
+      ? fallback('Cell values could not be checked for secret values, so none were inlined.')
       : projected.value.length <= MAX_TABLE_SELECTION_PREVIEW_LENGTH
         ? `${projected.value}${omittedNote}`
-        : `Selected ${scope} from table "${table.name}" (${selectedRowCount} rows, ${columns.length} columns). The column headings exceed the selection content limit; no cell values were inlined.`
+        : fallback(
+            'The column headings exceed the selection content limit; no cell values were inlined.'
+          )
   /** The descriptor names columns and rows; it is shown to the model too, so it is redacted too. */
   const projectedSelection = projectResolvedSecretModelContent(selection, selectionRegistry)
   const descriptor =

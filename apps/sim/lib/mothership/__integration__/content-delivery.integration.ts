@@ -51,8 +51,9 @@ vi.mock('@/lib/mothership/async-runs/repository', async (importOriginal) => ({
 }))
 
 import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
+import { copilotChats, userTableRowSecretProvenance } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
+import { eq, sql } from 'drizzle-orm'
 import contentRoutes from '@/lib/api/server/routes/copilot-content-routes.json'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
@@ -329,16 +330,68 @@ describe('content reaching Chat is admitted per item', () => {
       expectPerItem(read, { secretAdmitted: true })
     })
 
-    it('drops row-search matches that would probe unadmitted cells (#18b)', async () => {
-      const read = await cli('POST', `/api/v2/tables/${fixture.table.tableId}/rows/search`, {
+    it('refuses predicates over a table whose cells it cannot vouch for (#18b)', async () => {
+      const table = `/api/v2/tables/${fixture.table.tableId}`
+      const guess = { field: 'note', op: 'contains', value: 'second' }
+      const refused = [
+        await cli('POST', `${table}/rows/search`, { workspaceId: ws(), q: 'second' }),
+        await cli('POST', `${table}/query`, { workspaceId: ws(), predicate: guess, limit: 1 }),
+        await cli('POST', `${table}/query/count`, { workspaceId: ws(), predicate: guess }),
+      ]
+      for (const read of refused) {
+        expect(read.status).toBe(403)
+        expect(read.body).not.toContain(CANARY.unknown)
+        expect(read.body).not.toContain(CANARY.secret)
+      }
+      /** The same predicate reads nothing but row ids, so it stays available. */
+      const byId = await cli('POST', `${table}/query`, {
         workspaceId: ws(),
-        q: 'second',
+        predicate: { field: 'id', op: 'in', value: [fixture.table.rows.clean] },
       })
-      expect(read.status).toBe(200)
-      const rows = new Set(
-        JSON.parse(read.body).data.matches.map((match: { rowId: string }) => match.rowId)
-      )
-      expect(rows).toEqual(new Set([fixture.table.rows.clean]))
+      expect(byId.status).toBe(200)
+      expect(modelView(byId)).toContain(CANARY.clean)
+    })
+
+    it('runs predicates over a table whose every cell is vouched for', async () => {
+      const created = await cli('POST', '/api/v2/tables', {
+        workspaceId: ws(),
+        name: `clean_${generateId().slice(0, 8)}`,
+        schema: { columns: [{ name: 'note', type: 'string' }] },
+      })
+      expect(created.status).toBe(201)
+      const table = `/api/v2/tables/${JSON.parse(created.body).data.id}`
+      for (const note of ['alpha second', 'beta']) {
+        expect(
+          (await cli('POST', `${table}/rows`, { workspaceId: ws(), data: { note } })).status
+        ).toBe(201)
+      }
+      const guess = { field: 'note', op: 'contains', value: 'second' }
+      const search = await cli('POST', `${table}/rows/search`, { workspaceId: ws(), q: 'second' })
+      expect(search.status).toBe(200)
+      expect(JSON.parse(search.body).data.matches).toHaveLength(1)
+      const query = await cli('POST', `${table}/query`, { workspaceId: ws(), predicate: guess })
+      expect(query.status).toBe(200)
+      expect(modelView(query)).toContain('alpha second')
+      const count = await cli('POST', `${table}/query/count`, {
+        workspaceId: ws(),
+        predicate: guess,
+      })
+      expect(count.status).toBe(200)
+
+      /** A sidecar that claims exact but holds no valid entry list vouches for nothing. */
+      const malformed = await cli('POST', `${table}/rows`, {
+        workspaceId: ws(),
+        data: { note: 'gamma' },
+      })
+      await db
+        .update(userTableRowSecretProvenance)
+        .set({ entries: sql`'{"not":"a list"}'::jsonb` })
+        .where(eq(userTableRowSecretProvenance.rowId, JSON.parse(malformed.body).data.id))
+      const afterCorruption = await cli('POST', `${table}/query`, {
+        workspaceId: ws(),
+        predicate: guess,
+      })
+      expect(afterCorruption.status).toBe(403)
     })
 
     it('shares only clean files publicly on Chat’s behalf (#9, D1)', async () => {
