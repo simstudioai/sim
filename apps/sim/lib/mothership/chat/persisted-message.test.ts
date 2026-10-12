@@ -592,6 +592,18 @@ describe('compactToolCallParams', () => {
     ],
   })
 
+  it('keeps a params key named __proto__ as its own field', () => {
+    const message = sandboxCall('success')
+    const toolCall = message.contentBlocks?.[0].toolCall
+    if (!toolCall) throw new Error('fixture has a tool call')
+    toolCall.params = JSON.parse(`{"__proto__":{"note":"kept"},"output":"${'z'.repeat(5_000)}"}`)
+
+    const params = compactToolCallParams(message).contentBlocks?.[0].toolCall?.params
+
+    expect(Object.hasOwn(params ?? {}, '__proto__')).toBe(true)
+    expect(Object.getPrototypeOf(params)).toBe(Object.prototype)
+  })
+
   it('bounds every bulk string of a settled call without changing what renders', () => {
     const original = sandboxCall('success')
     const before = original.contentBlocks?.[0].toolCall?.params

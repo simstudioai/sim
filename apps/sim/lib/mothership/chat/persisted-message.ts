@@ -219,13 +219,12 @@ function compactParamValue(value: unknown): unknown {
 
 function compactParamRecord(record: Record<string, unknown>): Record<string, unknown> {
   let changed = false
-  const entries: Record<string, unknown> = {}
-  for (const [key, entry] of Object.entries(record)) {
+  const entries = Object.entries(record).map(([key, entry]) => {
     const compacted = compactParamValue(entry)
     if (compacted !== entry) changed = true
-    entries[key] = compacted
-  }
-  return changed ? entries : record
+    return [key, compacted] as const
+  })
+  return changed ? Object.fromEntries(entries) : record
 }
 
 /**
