@@ -311,7 +311,9 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     expect(mocks.stream).toHaveBeenCalledTimes(1)
   })
 
-  it('refuses a forwarded file response with unknown provenance without blanking the invocation', async () => {
+  it('refuses a forwarded response naming its unknown file, without blanking the invocation', async () => {
+    const refusals = getMockLogger('DurableSecretProvenancePersistence').error
+    refusals.mockClear()
     const trace = registry()
     const transport = createFileReadTransport({
       endpoint: 'https://sim.test',
@@ -319,16 +321,22 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
       registry: trace,
       invocation: { userId: 'reader', workspaceId: 'workspace', chatId: 'chat' },
       transport: async () => {
-        await reportWorkspaceFileDelivery({ status: 'unknown' }, 'file')
+        await reportWorkspaceFileDelivery({ status: 'exact', entries: [] }, 'clean')
+        await reportWorkspaceFileDelivery({ status: 'unknown' }, 'tainted')
         return new Response(content)
       },
     })
     const response = await transport(
-      new Request('https://sim.test/api/v2/files/file/versions/1/text?workspaceId=workspace')
+      new Request('https://sim.test/api/v2/files/bulk-download?workspaceId=workspace')
     )
     expect(response.status).toBe(403)
     expect(await response.text()).not.toContain(content)
     expect(trace.isPermanentlyIncomplete()).toBe(false)
+    expect(refusals).toHaveBeenCalledTimes(1)
+    expect(refusals).toHaveBeenCalledWith(
+      'Refusing unavailable durable secret provenance',
+      expect.objectContaining({ resourceId: 'tainted' })
+    )
   })
 
   it('refuses extracted text whose canonical revision changed before loading its bytes', async () => {

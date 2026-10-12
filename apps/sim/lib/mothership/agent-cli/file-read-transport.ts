@@ -89,8 +89,10 @@ export function createFileReadTransport(context: {
       return (context.transport ?? fetch)(input, init)
     }
     let provenance: WorkspaceFileSecretProvenance | undefined
+    const deliveries: { source: WorkspaceFileSecretProvenance | undefined; fileId: string }[] = []
     const response = await observeWorkspaceFileDelivery(
-      async (source) => {
+      async (source, fileId) => {
+        deliveries.push({ source, fileId })
         provenance = mergeWorkspaceFileSecretProvenance(
           provenance ?? { status: 'exact', entries: [] },
           source ?? { status: 'unknown' }
@@ -107,9 +109,12 @@ export function createFileReadTransport(context: {
           { status: 503 }
         )
       }
-      if (!(await admit(context.invocation.workspaceId, provenance))) {
-        await response.body?.cancel().catch(() => {})
-        return refused()
+      /** Each delivery is admitted under its own file id, so a refusal names the file it refused. */
+      for (const { source, fileId } of deliveries) {
+        if (!(await admit(context.invocation.workspaceId, source, fileId))) {
+          await response.body?.cancel().catch(() => {})
+          return refused()
+        }
       }
       if (response.body) context.trackDownload?.(response.body, provenance)
       return response
