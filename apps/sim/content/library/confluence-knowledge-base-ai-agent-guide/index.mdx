@@ -215,7 +215,7 @@ The retrieval service, not the caller or the model, applies Confluence permissio
 }
 ```
 
-Use a Condition block to send non-success API statuses or an empty `passages` array to the no-answer path. On the success path, map `<start.question>` and `<api.data.passages>` into the Agent block. In its instructions, require every claim to use those passages and every citation to reproduce a returned `title` and `url`. Set a response format with an `answer` string and a `citations` array, then map `<agent.answer>` and `<agent.citations>` into the Response block. This keeps authenticated identity at the retrieval boundary while giving the model only authorized evidence and citation metadata.
+Connect the API block's error port to the no-answer path so failed requests do not stop the run. For successful responses, use a Condition block to send an empty `passages` array to the same fallback; otherwise, map `<start.question>` and `<api.data.passages>` into the Agent block. In its instructions, require every claim to use those passages and every citation to reproduce a returned `title` and `url`. Set a response format with an `answer` string and a `citations` array, then map `<agent.answer>` and `<agent.citations>` into the Response block. This keeps authenticated identity at the retrieval boundary while giving the model only authorized evidence and citation metadata.
 
 ### How should the Sim workflow generate the answer?
 
