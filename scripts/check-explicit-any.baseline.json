@@ -1422,7 +1422,7 @@
     "apps/sim/lib/data-drains/sources/copilot-runs.ts": 2,
     "apps/sim/lib/data-drains/sources/job-logs.ts": 2,
     "apps/sim/lib/data-drains/sources/workflow-logs.ts": 2,
-    "apps/sim/lib/desktop/source-browser.ts": 3,
+    "apps/sim/lib/desktop/source-browser.ts": 1,
     "apps/sim/lib/desktop/source-connect.ts": 1,
     "apps/sim/lib/desktop/source-request.integration.ts": 1,
     "apps/sim/lib/embeddings/client.ts": 4,

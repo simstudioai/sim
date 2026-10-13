@@ -130,9 +130,13 @@ export const startOrganizationSlackConfigurationContract = defineRouteContract({
   method: 'POST',
   path: '/api/organizations/[id]/connected-accounts/[groupId]/slack-managed-users',
   params: organizationAccountsParamsSchema.extend({ groupId: z.string().min(1).max(128) }),
+  /** Omitting `appId` selects the shared Slack app for an organization with no installed bot. */
   body: startSlackCredentialGroupConfigurationBodySchema
     .omit({ slackBotCredentialId: true, clientId: true, clientSecret: true })
-    .required({ appId: true, teamId: true }),
+    .refine((body) => (body.appId === undefined) === (body.teamId === undefined), {
+      message: 'Select the Slack app and its workspace together',
+      path: ['appId'],
+    }),
   response: startSlackCredentialGroupConfigurationContract.response,
 })
 export type OrganizationAccountsSettings = z.output<
