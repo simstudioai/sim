@@ -79,6 +79,11 @@ describe('text match clauses', () => {
       expect(holdsHalfTheTerms('databases releases checklist owner')('Database release')).toBe(true)
     })
 
+    it('folds -ies plurals of both -y and -ie words, as the Porter stemmer does', () => {
+      expect(holdsHalfTheTerms('movies rotation schedule owner')('Movie rotation')).toBe(true)
+      expect(holdsHalfTheTerms('policies review schedule owner')('Policy review')).toBe(true)
+    })
+
     it('matches a term with punctuation inside it as written', () => {
       expect(holdsHalfTheTerms('ci/cd pipeline failure owner')('CI/CD pipeline')).toBe(true)
     })
