@@ -98,18 +98,10 @@ import { createEvent, hasAbortMarker } from '@/lib/mothership/request/session'
 import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
 
-const mockListAllWorkspaceFiles = workspaceFilesListMockFns.mockListAllWorkspaceFiles
+const mockFindFilesByReference = workspaceFilesListMockFns.mockFindActiveWorkspaceFilesByReference
 
 const resolveWorkspaceFileReferenceMock =
   workspaceFileManagerMockFns.mockResolveWorkspaceFileReference
-workspaceFileManagerMockFns.mockFindWorkspaceFileRecord.mockImplementation(
-  (files: Array<{ name: string; folderPath?: string | null }>, path: string) =>
-    files.find((file) => {
-      const normalized = path.replace(/^files\//, '').replaceAll('%20', ' ')
-      const filePath = file.folderPath ? `${file.folderPath}/${file.name}` : file.name
-      return filePath === normalized
-    }) ?? null
-)
 
 function createSseResponse(events: unknown[]): Response {
   const payload = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')
@@ -181,8 +173,8 @@ describe('copilot go stream helpers', () => {
     vi.stubGlobal('fetch', vi.fn())
     resolveWorkspaceFileReferenceMock.mockReset()
     resolveWorkspaceFileReferenceMock.mockResolvedValue(null)
-    mockListAllWorkspaceFiles.mockReset()
-    mockListAllWorkspaceFiles.mockResolvedValue({ files: [] })
+    mockFindFilesByReference.mockReset()
+    mockFindFilesByReference.mockResolvedValue({ files: new Map() })
     changeStoredChatResourcesMock.mockReset()
     changeStoredChatResourcesMock.mockResolvedValue([])
     materializeStreamImageMock.mockReset().mockResolvedValue({ url: '/private-image' })
@@ -577,14 +569,13 @@ describe('copilot go stream helpers', () => {
   })
 
   it('resolves workflow alias paths to the backing file before streaming previews', async () => {
-    mockListAllWorkspaceFiles.mockResolvedValue({
-      files: [
-        {
-          id: 'changelog-file-1',
-          name: 'changelog.md',
-          folderPath: 'workflows/My Workflow',
-        },
-      ],
+    mockFindFilesByReference.mockResolvedValue({
+      files: new Map([
+        [
+          'workflows/My%20Workflow/changelog.md',
+          { id: 'changelog-file-1', name: 'changelog.md', folderPath: 'workflows/My Workflow' },
+        ],
+      ]),
     })
 
     const workspaceFileCall = createEvent({
@@ -691,12 +682,15 @@ describe('copilot go stream helpers', () => {
       previewPhase: 'file_preview_complete',
       fileId: 'changelog-file-1',
     })
-    expect(mockListAllWorkspaceFiles).toHaveBeenCalledWith({
+    expect(mockFindFilesByReference).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         kind: 'delegated',
         workspaceId: 'workspace-1',
       }),
-      input: { workspaceId: 'workspace-1', scope: 'active' },
+      input: {
+        workspaceId: 'workspace-1',
+        references: ['workflows/My%20Workflow/changelog.md'],
+      },
     })
   })
 

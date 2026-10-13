@@ -19,6 +19,11 @@ import {
   type ConnectorFailureDiagnostic,
   getConnectorFailureDiagnostic,
 } from '@/lib/knowledge/connectors/connector-error'
+import {
+  admitVisionImage,
+  type ImageAdmissionState,
+  imageExtractionPolicyFor,
+} from '@/lib/knowledge/connectors/image-admission'
 import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { SyncLockLostException, type SyncRunLease } from '@/lib/knowledge/connectors/sync-lock'
 import {
@@ -30,6 +35,11 @@ import {
   type SourceMetadataFields,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
+import { canExtractImages } from '@/lib/knowledge/documents/image-extraction'
+import {
+  type ImageExtractionPolicy,
+  isSemanticImage,
+} from '@/lib/knowledge/documents/image-extraction-policy'
 import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
 import {
   DOCUMENT_LIVENESS_BATCH_SIZE,
@@ -643,6 +653,38 @@ export function resolvePreviousOwnedCount(
   return Math.max(lastSyncDocCount ?? 0, ownedDocCount)
 }
 
+/** Live documents the connector owns: what the connector list shows as its document count. */
+export async function countLiveConnectorDocuments(connectorId: string): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(document)
+    .where(
+      and(
+        eq(document.connectorId, connectorId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+  return row?.count ?? 0
+}
+
+/**
+ * Whether a slice keeps the document count the connector holds instead of counting again.
+ *
+ * Once a pass has finished, a slice that leaves the next pass unfinished keeps the count that
+ * finished pass recorded, the same pass `lastSyncAt` still names, so a large connector is not
+ * counted again on every slice of a pass whose count is replaced when it finishes. Unfinished
+ * slices never advance `lastSyncAt`, so until a pass finishes every slice is counted and a first
+ * pass shows its progress.
+ */
+export function keepsRecordedDocCount(
+  passComplete: boolean,
+  connector: { lastSyncAt: Date | null; lastSyncDocCount: number | null } | null
+): boolean {
+  return !passComplete && connector?.lastSyncAt != null && connector.lastSyncDocCount != null
+}
+
 /**
  * Fraction of a connector's owned documents that a single reconciliation pass
  * may remove before the pass is held.
@@ -932,6 +974,11 @@ export function classifyListing(input: {
   forceRehydrate: boolean
   state: SyncRunState
   matchContentHash?: ContentHashMatcher
+  /**
+   * The source's image policy. A vision image's bytes are pinned to its attachment
+   * version, so a forced rehydration would only pay to read the same image again.
+   */
+  imagePolicy?: ImageExtractionPolicy
 }): DocOp[] {
   const { externalDocs, corpus, forceRehydrate } = input
   const { result, seenExternalIds, failedExternalIds } = input.state
@@ -950,7 +997,7 @@ export function classifyListing(input: {
     const classification = classifyExternalDoc(
       extDoc,
       existing,
-      forceRehydrate,
+      forceRehydrate && !isSemanticImage(input.imagePolicy, extDoc.mimeType),
       input.matchContentHash
     )
 
@@ -1014,7 +1061,16 @@ export interface ProcessDocOpsInput {
   documentAccess: ConnectorAccessMode
   /** Yield between batches; one batch always advances an already fetched page. */
   deadlineAt?: number
-  onBatchComplete?: (documents: ExternalDocument[]) => Promise<void>
+  /** Counts this sync's vision image reads against the per-sync cap; absent, no cap. */
+  imageAdmission?: ImageAdmissionState
+  /**
+   * Called per batch with the documents it settled, and the existing images it held
+   * back for a later sync: still present at the source, so they must be marked seen.
+   */
+  onBatchComplete?: (
+    documents: ExternalDocument[],
+    heldBackExisting: ExternalDocument[]
+  ) => Promise<void>
 }
 
 /**
@@ -1036,6 +1092,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
   } = input
   const { priorByExternalId } = input.corpus
   const { result, failedExternalIds, sourceFailures } = input.state
+  const imagePolicy = imageExtractionPolicyFor(connector.connectorType)
+  let extractionAvailable: Promise<boolean> | undefined
 
   const pendingDispatch: DocumentData[] = []
   const bufferDispatch = isTriggerAvailable()
@@ -1102,7 +1160,24 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
         sourceMetadata?: SourceMetadataFields
       }> = []
 
-      const contentOps = rawBatch.filter((op) => op.type !== 'skip')
+      /**
+       * Vision images wait, unfetched, when no Gemini key can read them or the per-sync
+       * budget is spent; the next listing offers them again.
+       */
+      const imageOps = rawBatch.filter(
+        (op) => op.type !== 'skip' && isSemanticImage(imagePolicy, op.extDoc.mimeType)
+      )
+      const canRead =
+        imageOps.length > 0 &&
+        (await (extractionAvailable ??= canExtractImages(kbOwner.workspaceId)))
+      const imagesHeldBack = new Set<string>()
+      for (const op of imageOps) {
+        if (!canRead || !admitVisionImage(input.imageAdmission))
+          imagesHeldBack.add(op.extDoc.externalId)
+      }
+      const contentOps = rawBatch
+        .filter((op) => op.type !== 'skip')
+        .filter((op) => !imagesHeldBack.has(op.extDoc.externalId))
       const deferredOps = contentOps.filter((op) => op.extDoc.contentDeferred)
       const readyOps = contentOps.filter((op) => !op.extDoc.contentDeferred)
       let hydrationDeferral: unknown
@@ -1353,9 +1428,17 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
       if (!bufferDispatch) await flushDispatch()
       /** Persist completed siblings before yielding; deferred sources remain on this page for retry. */
       const attempted = rawBatch
-        .filter((op) => !deferredExternalIds.has(op.extDoc.externalId))
+        .filter(
+          (op) =>
+            !deferredExternalIds.has(op.extDoc.externalId) &&
+            !imagesHeldBack.has(op.extDoc.externalId)
+        )
         .map((op) => op.extDoc)
-      if (attempted.length > 0) await input.onBatchComplete?.(attempted)
+      const heldBackExisting = rawBatch
+        .filter((op) => op.type === 'update' && imagesHeldBack.has(op.extDoc.externalId))
+        .map((op) => op.extDoc)
+      if (attempted.length > 0 || heldBackExisting.length > 0)
+        await input.onBatchComplete?.(attempted, heldBackExisting)
       if (hydrationDeferral !== undefined) throw hydrationDeferral
     }
     return true

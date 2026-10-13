@@ -7,11 +7,11 @@ import type { EnrichmentConfig } from '@/enrichments/types'
 /**
  * Phone Number enrichment. Finds a contact's phone number from a full name plus
  * any available identifiers (company domain, LinkedIn URL) via a waterfall:
- * People Data Labs (name match) → Wiza reveal → Findymail (LinkedIn) → Prospeo
- * mobile → LeadMagic (LinkedIn) → Datagma (LinkedIn). Each provider
- * opportunistically uses whatever identifiers the row provides and self-skips
- * when it has none usable, so adding more inputs widens coverage without
- * reordering. First phone wins; all providers support hosted keys.
+ * People Data Labs (name + company or LinkedIn) → Wiza reveal → Findymail
+ * (LinkedIn) → Prospeo mobile → LeadMagic (LinkedIn) → Datagma (LinkedIn). Each
+ * provider opportunistically uses whatever identifiers the row provides and
+ * self-skips when it has none usable, so adding more inputs widens coverage
+ * without reordering. First phone wins; all providers support hosted keys.
  */
 export const phoneNumberEnrichment: EnrichmentConfig = {
   id: 'phone-number',
@@ -31,19 +31,23 @@ export const phoneNumberEnrichment: EnrichmentConfig = {
       toolId: 'pdl_person_enrich',
       buildParams: (inputs) => {
         const name = str(inputs.fullName)
-        if (!name) return null
+        const company = normalizeDomain(inputs.companyDomain)
+        const linkedin = str(inputs.linkedinUrl)
+        // A bare name is not a valid PDL match and scores below min_likelihood 6.
+        if (!name || !(company || linkedin)) return null
         // `required` makes PDL 404 (free) when the profile has no phone,
         // instead of charging a credit for a match we'd discard as a no-match.
         return filterUndefined({
           name,
-          company: normalizeDomain(inputs.companyDomain) || undefined,
+          company: company || undefined,
+          profile: linkedin || undefined,
           min_likelihood: 6,
           required: 'phone_numbers OR mobile_phone',
         })
       },
       mapOutput: (output) => {
         const person = output.person as Record<string, unknown> | undefined
-        const phone = firstNonEmpty(person?.phone_numbers) ?? str(person?.mobile_phone)
+        const phone = str(person?.mobile_phone) || firstNonEmpty(person?.phone_numbers)
         return phone ? { phone } : null
       },
     }),
@@ -102,6 +106,8 @@ export const phoneNumberEnrichment: EnrichmentConfig = {
           full_name: fullName || undefined,
           company_website: companyWebsite || undefined,
           enrich_mobile: true,
+          // An unverified mobile becomes a free NO_MATCH instead of a billed hit.
+          only_verified_mobile: true,
         })
       },
       projectFailure: projectProspeoEnrichmentFailure,

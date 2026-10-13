@@ -24,6 +24,7 @@ import {
   resolveSubscriptionUsagePeriod,
   type UsagePeriodSource,
 } from '@/lib/billing/core/reporting-period'
+import { invalidatePayerPrefixesForTopUp } from '@/lib/billing/core/reporting-usage-epoch'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
@@ -815,6 +816,7 @@ export async function recordCumulativeUsage(
   const stageDurationsMs: Partial<Record<CumulativeUsageStage, number>> = {}
   let succeeded = false
   let pgCode: string | undefined
+  let toppedUpRowCreatedAt: Date | undefined
   const enterStage = (nextStage: CumulativeUsageStage) => {
     const now = Date.now()
     stageDurationsMs[stage] = now - stageStartedAt
@@ -854,6 +856,7 @@ export async function recordCumulativeUsage(
           billingEntityId: usageLog.billingEntityId,
           billingPeriodStart: usageLog.billingPeriodStart,
           billingPeriodEnd: usageLog.billingPeriodEnd,
+          createdAt: usageLog.createdAt,
         })
         .from(usageLog)
         .where(
@@ -955,6 +958,7 @@ export async function recordCumulativeUsage(
             metadata: periodUsageMetadata(metadata, otherRows) ?? null,
           })
           .where(eq(usageLog.id, latest.id))
+        toppedUpRowCreatedAt = latest.createdAt
         enterStage('commit')
         return { billed: true, delta, total: newTotal, billingPeriod: latestPeriod }
       }
@@ -987,6 +991,9 @@ export async function recordCumulativeUsage(
       }
     })
     succeeded = true
+    if (toppedUpRowCreatedAt) {
+      invalidatePayerPrefixesForTopUp(billingContext.billingEntity, toppedUpRowCreatedAt)
+    }
     return result
   } catch (error) {
     pgCode = getPostgresErrorCode(error)

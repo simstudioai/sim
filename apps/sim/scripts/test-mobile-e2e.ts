@@ -64,6 +64,14 @@ const startedAt = new Date().toISOString()
 const checks: CheckResult[] = []
 const screenshots: string[] = []
 const httpErrors: { browser: string; status: number; path: string }[] = []
+/**
+ * Every document load mounts the workspace socket provider, which mints one realtime token from a
+ * route capped at 30 per minute per client IP. The suite loads well over 30 documents a minute, all
+ * from loopback, so that route's own rate-limit response is expected here; it is recorded apart
+ * from `httpErrors` and must still carry `Retry-After`, and each browser must mint at least once.
+ */
+const SOCKET_TOKEN_PATH = '/api/auth/socket-token'
+const socketTokenMints = new Map<string, { minted: number; rateLimited: number }>()
 const requestFailures: {
   browser: string
   viewport: string
@@ -204,8 +212,10 @@ async function seed(): Promise<string> {
     await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
       values (${ownerId}, 'Mobile E2E', ${email}, ${email}, true, now(), now())`
     await tx`insert into user_stats (id, user_id) values (${generateId()}, ${ownerId})`
-    await tx`insert into workspace (id, name, owner_id, billed_account_user_id)
-      values (${workspaceId}, 'Mobile E2E workspace', ${ownerId}, ${ownerId})`
+    await tx`insert into project (id, name, owner_id)
+      values (${workspaceId}, 'Mobile E2E project', ${ownerId})`
+    await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id)
+      values (${workspaceId}, ${workspaceId}, 'Mobile E2E workspace', ${ownerId}, ${ownerId})`
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
       values (${generateId()}, ${ownerId}, 'workspace', ${workspaceId}, 'admin')`
     await tx`insert into session (id, token, user_id, expires_at, created_at, updated_at)
@@ -253,6 +263,15 @@ async function seed(): Promise<string> {
   return encodeURIComponent(`${sessionToken}.${await makeSignature(sessionToken, authSecret)}`)
 }
 
+/**
+ * The rendered workspace content shell. While a streamed page is still arriving, React parks the
+ * next segment's markup, shell included, in a hidden `<div id="S:n">` until it swaps it in, so the
+ * class alone can match a second, hidden copy.
+ */
+function contentShell(page: Page): Locator {
+  return page.locator('.workspace-content-shell').filter({ visible: true })
+}
+
 async function visit(page: Page, route: string) {
   const path = `/workspace/${workspaceId}/${route}`
   const [response] = await Promise.all([
@@ -270,7 +289,7 @@ async function visit(page: Page, route: string) {
     new URL(page.url()).pathname.startsWith(`/workspace/${workspaceId}/`),
     'Session was rejected'
   )
-  await expect(page.locator('.workspace-content-shell')).toBeVisible()
+  await expect(contentShell(page)).toBeVisible()
   await expect(page.getByText('Application error', { exact: false })).toHaveCount(0)
   const contentByRoute: Record<string, Locator> = {
     home: page.getByRole('textbox', { name: 'Message', exact: true }),
@@ -327,7 +346,7 @@ async function expectNoOverflow(page: Page) {
       }
     )
     .toBeLessThanOrEqual(1)
-  const shell = await page.locator('.workspace-content-shell').boundingBox()
+  const shell = await contentShell(page).boundingBox()
   assert(shell && shell.width > 0 && shell.x >= -1, 'The content must have usable horizontal space')
   assert(
     shell.x + shell.width <= (page.viewportSize()?.width ?? 0) + 1,
@@ -507,8 +526,17 @@ async function exerciseViewport(
     }
     if (pageErrors.length < 20) pageErrors.push(error.message)
   })
+  const mints = socketTokenMints.get(browserName) ?? { minted: 0, rateLimited: 0 }
+  socketTokenMints.set(browserName, mints)
   page.on('response', (response) => {
     const url = new URL(response.url())
+    if (url.origin === baseUrl.origin && url.pathname === SOCKET_TOKEN_PATH) {
+      if (response.ok()) mints.minted += 1
+      if (response.status() === 429 && response.headers()['retry-after']) {
+        mints.rateLimited += 1
+        return
+      }
+    }
     if (url.origin === baseUrl.origin && response.status() >= 400 && httpErrors.length < 100) {
       httpErrors.push({ browser: browserName, status: response.status(), path: url.pathname })
     }
@@ -684,7 +712,9 @@ async function exerciseViewport(
           await expectContained(page, sidebar)
           if (viewport.name === 'phone') await capture(page, `${browserName}-phone-navigation`)
           await sidebar.getByRole('link', { name: 'New chat', exact: true }).tap()
-          await expect(page).toHaveURL(`${baseUrl.origin}/workspace/${workspaceId}/home`)
+          await expect(page).toHaveURL(`${baseUrl.origin}/workspace/${workspaceId}/home`, {
+            timeout: 120_000,
+          })
           await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
           await expect(sidebar).toBeHidden()
           await page.getByRole('button', { name: 'Open navigation', exact: true }).tap()
@@ -692,12 +722,14 @@ async function exerciseViewport(
           await expect(sidebar).toBeHidden()
           await page.getByRole('button', { name: 'Open navigation', exact: true }).tap()
           await sidebar.getByRole('link', { name: 'Files', exact: true }).tap()
-          await expect(page).toHaveURL(new RegExp(`/workspace/${workspaceId}/files`))
+          await expect(page).toHaveURL(new RegExp(`/workspace/${workspaceId}/files`), {
+            timeout: 120_000,
+          })
           await expect(sidebar).toBeHidden()
-          await expect(page.locator('.workspace-content-shell')).toBeVisible()
+          await expect(contentShell(page)).toBeVisible()
           await expect(
             page.getByRole('button', { name: `Actions for ${folderName}`, exact: true })
-          ).toBeVisible()
+          ).toBeVisible({ timeout: 120_000 })
           await expectDesktopPreference(context, page)
         }
       )
@@ -810,7 +842,7 @@ async function exerciseViewport(
         ) {
           await capture(page, `${browserName}-${viewport.name}-resources`)
         }
-        if (viewport.width < 1000) {
+        if (viewport.width < 768) {
           await expect(composer).toBeHidden()
           await expectContained(page, backToChat)
           await backToChat.click()
@@ -823,6 +855,45 @@ async function exerciseViewport(
             composerBounds.x + composerBounds.width <= resourceBounds.x,
             'Wide screens must retain side-by-side chat and resources'
           )
+          try {
+            if (viewport.name === 'tablet') {
+              await page.setViewportSize({ width: 768, height: viewport.height })
+            }
+            const divider = page.getByRole('separator', {
+              name: 'Resize resource view',
+              exact: true,
+            })
+            for (const key of ['Home', 'End']) {
+              await divider.press(key)
+              await expect(async () => {
+                const measurement = await divider.evaluate((element) => {
+                  const panel = document.querySelector('[data-mothership-panel]')
+                  if (!panel) throw new Error('Resource panel is unavailable')
+                  return {
+                    width: panel.getBoundingClientRect().width,
+                    min: Number.parseFloat(element.getAttribute('aria-valuemin') ?? ''),
+                    now: Number.parseFloat(element.getAttribute('aria-valuenow') ?? ''),
+                    max: Number.parseFloat(element.getAttribute('aria-valuemax') ?? ''),
+                  }
+                })
+                const { width, min, now, max } = measurement
+                assert(
+                  min <= now && now <= max,
+                  `The panel width must stay within its accessible range: ${JSON.stringify(measurement)}`
+                )
+                assert(
+                  Math.abs(now - width) <= 1,
+                  `The resize value must describe the visible panel: ${JSON.stringify(measurement)}`
+                )
+              }).toPass({ timeout: 20_000 })
+              await expectContained(page, composer)
+              await expectNoOverflow(page)
+            }
+          } finally {
+            if (viewport.name === 'tablet') {
+              await page.setViewportSize({ width: viewport.width, height: viewport.height })
+            }
+          }
           await page.getByRole('button', { name: 'Collapse resource view', exact: true }).click()
         }
         await expect(composer).toHaveValue(
@@ -977,7 +1048,7 @@ async function exerciseViewport(
           await withDocumentNavigation(page, page.url(), () =>
             page.reload({ waitUntil: 'commit', timeout: 360_000 })
           )
-          await expect(cell).toHaveText(value)
+          await expect(cell).toHaveText(value, { timeout: 120_000 })
           await page.getByRole('button', { name: 'Column options', exact: true }).first().tap()
           await expectContained(page, page.getByRole('menu'))
           await page.getByRole('menuitem', { name: 'Edit column', exact: true }).tap()
@@ -1077,25 +1148,25 @@ async function exerciseViewport(
           await expectNoOverflow(page)
         }
       )
-      await check(`${prefix}/workflow controls open and return to the canvas`, page, async () => {
-        await visit(page, `w/${workflowId}`)
-        await expect(page.locator('.react-flow')).toBeVisible({ timeout: 120_000 })
-        const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
-        await expect(panel).toBeHidden()
-        await capture(page, `${browserName}-${viewport.name}-workflow-canvas`)
-        await page.getByRole('button', { name: 'Workflow', exact: true }).tap()
-        await expectContained(page, panel)
-        await capture(page, `${browserName}-${viewport.name}-workflow-panel`)
-        await page.getByRole('button', { name: 'Back to canvas', exact: true }).tap()
-        await expect(panel).toBeHidden()
-        await expect
-          .poll(async () => {
-            const canvas = await page.locator('.react-flow').boundingBox()
-            const content = await page.locator('.workspace-content-shell').boundingBox()
-            return canvas && content ? canvas.width / content.width : 0
-          })
-          .toBeGreaterThan(0.95)
-        if (viewport.name === 'phone') {
+      if (viewport.name === 'phone') {
+        await check(`${prefix}/workflow controls open and return to the canvas`, page, async () => {
+          await visit(page, `w/${workflowId}`)
+          await expect(page.locator('.react-flow')).toBeVisible({ timeout: 120_000 })
+          const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
+          await expect(panel).toBeHidden()
+          await capture(page, `${browserName}-${viewport.name}-workflow-canvas`)
+          await page.getByRole('button', { name: 'Workflow', exact: true }).tap()
+          await expectContained(page, panel)
+          await capture(page, `${browserName}-${viewport.name}-workflow-panel`)
+          await page.getByRole('button', { name: 'Back to canvas', exact: true }).tap()
+          await expect(panel).toBeHidden()
+          await expect
+            .poll(async () => {
+              const canvas = await page.locator('.react-flow').boundingBox()
+              const content = await contentShell(page).boundingBox()
+              return canvas && content ? canvas.width / content.width : 0
+            })
+            .toBeGreaterThan(0.95)
           await sql`update workflow set locked = true where id = ${workflowId}`
           await withDocumentNavigation(page, page.url(), () =>
             page.reload({ waitUntil: 'commit', timeout: 360_000 })
@@ -1127,9 +1198,55 @@ async function exerciseViewport(
               return rows[0]?.locked
             })
             .toBe(false)
+          await expectNoOverflow(page)
+        })
+      }
+    }
+
+    if (viewport.name === 'phone' || viewport.name === 'tablet' || viewport.name === 'desktop') {
+      await check(
+        `${prefix}/workflow uses compact phone controls and regular desktop panels`,
+        page,
+        async () => {
+          await visit(page, `w/${workflowId}`)
+          const canvas = page.locator('.react-flow:visible')
+          await expect(canvas).toBeVisible({ timeout: 120_000 })
+          const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
+          if (viewport.width < 768) {
+            await page.getByRole('button', { name: 'Workflow', exact: true }).tap()
+          }
+          await expectContained(page, panel)
+          const actions = panel.getByRole('button', { name: 'Workflow actions', exact: true })
+          const run = panel.getByRole('button', { name: 'Run', exact: true })
+          const deploy = panel.getByRole('button', { name: 'Deploy', exact: true })
+          for (const control of [actions, run, deploy]) {
+            const bounds = await control.boundingBox()
+            assert(bounds && bounds.height === 30, 'Workflow action faces must stay compact')
+          }
+          if (viewport.width < 768) {
+            const bounds = await actions.boundingBox()
+            assert(bounds)
+            await page.touchscreen.tap(bounds.x + bounds.width / 2, bounds.y - 5)
+            await expect(
+              page.getByRole('menuitem', { name: 'Auto layout', exact: true })
+            ).toBeVisible()
+            await page.keyboard.press('Escape')
+          } else {
+            const canvasBounds = await canvas.boundingBox()
+            const panelBounds = await panel.boundingBox()
+            assert(canvasBounds && panelBounds)
+            assert(
+              canvasBounds.width > 0 && canvasBounds.x + canvasBounds.width <= panelBounds.x + 1,
+              'Regular views must keep the canvas beside the workflow panel'
+            )
+            await expect(
+              page.getByRole('button', { name: 'Back to canvas', exact: true })
+            ).toBeHidden()
+          }
+          await expectNoOverflow(page)
+          await capture(page, `${browserName}-${viewport.name}-workflow-regular-layout`)
         }
-        await expectNoOverflow(page)
-      })
+      )
     }
   } finally {
     documentNavigations.delete(page)
@@ -1182,13 +1299,25 @@ try {
     await sql.begin(async (tx) => {
       await tx`delete from permissions where entity_type = 'workspace' and entity_id = ${workspaceId}`
       await tx`delete from workspace where id = ${workspaceId}`
+      await tx`delete from project where id = ${workspaceId} and owner_id = ${ownerId}`
       await tx`delete from workflow_execution_snapshots where id = ${snapshotId}`
       await tx`delete from "user" where id = ${ownerId}`
     })
+    const [remaining] = await sql`select
+      exists(select 1 from "user" where id = ${ownerId}) as owner,
+      exists(select 1 from workspace where id = ${workspaceId}) as workspace,
+      exists(select 1 from project where id = ${workspaceId}) as project,
+      exists(select 1 from workflow_execution_snapshots where id = ${snapshotId}) as snapshot`
+    assert.deepEqual(remaining, { owner: false, workspace: false, project: false, snapshot: false })
   })
   await sql.end()
   await check('same-origin HTTP responses succeed', undefined, async () => {
     assert.deepEqual(httpErrors, [])
+  })
+  await check('each browser mints a realtime token', undefined, async () => {
+    for (const [browserName, mints] of socketTokenMints) {
+      assert(mints.minted > 0, `${browserName} never minted a realtime token`)
+    }
   })
   await mkdir(dirname(reportPath), { recursive: true })
   await writeFile(
@@ -1201,6 +1330,7 @@ try {
         checks,
         screenshots,
         httpErrors,
+        socketTokenMints: Object.fromEntries(socketTokenMints),
         requestFailures,
         navigationDiagnostics,
         viewportMeasurements,

@@ -8,7 +8,6 @@ import {
 import {
   document,
   embedding,
-  embeddingKeywordTin,
   embeddingSearch,
   knowledgeBase,
   knowledgeProjectionDirty,
@@ -16,6 +15,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import postgres from 'postgres'
@@ -115,7 +115,7 @@ beforeEach(async () => {
 })
 
 afterAll(async () => {
-  await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+  await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
   await db.delete(organization).where(eq(organization.id, ids.organizationId))
   await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   await projector?.end()
@@ -141,7 +141,7 @@ describe('ordinary KB vector repair after indexed Search retirement', () => {
     expect(await vectorsOf()).toEqual([])
   })
 
-  it('repairs deferred vectors in bounded pages without creating copied ACL or keyword rows', async () => {
+  it('repairs deferred vectors in bounded pages without creating copied ACL rows', async () => {
     const chunks = Array.from({ length: 5 }, (_, index) => chunkRow(generateId(), index))
     await defer((tx) => tx.insert(embedding).values(chunks))
     expect(await vectorsOf()).toEqual([])
@@ -161,12 +161,6 @@ describe('ordinary KB vector repair after indexed Search retirement', () => {
         (row) => row.vector512?.[511] === 1 && row.acl === null && row.connectorId === null
       )
     ).toBe(true)
-    expect(
-      await db
-        .select()
-        .from(embeddingKeywordTin)
-        .where(eq(embeddingKeywordTin.documentId, documentId))
-    ).toEqual([])
     expect(await markOf()).toBeUndefined()
   })
 
@@ -179,12 +173,6 @@ describe('ordinary KB vector repair after indexed Search retirement', () => {
     expect(await markOf(searchDocumentId)).toMatchObject({ content: true })
     await runKnowledgeProjection(projector, {})
     expect(await vectorsOf(searchDocumentId)).toEqual([])
-    expect(
-      await db
-        .select()
-        .from(embeddingKeywordTin)
-        .where(eq(embeddingKeywordTin.documentId, searchDocumentId))
-    ).toEqual([])
     expect(await markOf(searchDocumentId)).toBeUndefined()
   })
 

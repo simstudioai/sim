@@ -6,7 +6,7 @@ import {
   authorizeWorkflowByWorkspacePermission,
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
-import { and, asc, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ConversationMode,
@@ -18,9 +18,11 @@ import {
   authorizeOrganizationChatCancellation,
 } from '@/lib/mothership/chat/organization-chats'
 import {
+  type PersistedFileAttachment,
   type PersistedMessage,
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
+import { detoastedMessageContent, textMessageContent } from '@/lib/mothership/chat/text-transcript'
 import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   assertActiveWorkspaceAccess,
@@ -81,6 +83,25 @@ const copilotChatLegacyDetailColumns = {
   config: copilotChats.config,
 } as const
 
+/** Canonical transcript order; `NULLS LAST` sorts a not-yet-sequenced row after sequenced ones. */
+const TRANSCRIPT_ORDER = [
+  sql`${copilotMessages.seq} asc nulls last`,
+  asc(copilotMessages.createdAt),
+  asc(copilotMessages.id),
+]
+
+/**
+ * Each element of a message's `content -> field` array as `alias(value, ordinal)`, for a
+ * lateral join that reads one array of every message instead of whole transcripts. A
+ * message whose field is missing or not an array contributes nothing.
+ */
+function messageArrayElements(field: string, alias: string): SQL {
+  const array = sql`${copilotMessages.content} -> ${field}::text`
+  return sql`jsonb_array_elements(
+    case when jsonb_typeof(${array}) = 'array' then ${array} else '[]'::jsonb end
+  ) with ordinality as ${sql.identifier(alias)}(value, ordinal)`
+}
+
 /**
  * Load a chat's transcript from the normalized `copilot_messages` table in
  * canonical order (`seq` first, then `created_at`/`id` as a deterministic
@@ -94,13 +115,36 @@ export async function loadCopilotChatMessages(chatId: string): Promise<Persisted
     .select({ content: copilotMessages.content })
     .from(copilotMessages)
     .where(and(eq(copilotMessages.chatId, chatId), isNull(copilotMessages.deletedAt)))
-    .orderBy(
-      sql`${copilotMessages.seq} asc nulls last`,
-      asc(copilotMessages.createdAt),
-      asc(copilotMessages.id)
-    )
+    .orderBy(...TRANSCRIPT_ORDER)
   // Also strip on read: rows written before the backfill still carry outputs.
   return rows.map((row) => stripToolResultOutput(row.content as PersistedMessage))
+}
+
+/**
+ * File attachments on a chat's live messages whose `id` or `filename` equals `name`, in
+ * transcript order. Reads only the matching `fileAttachments` entries instead of
+ * materializing the whole transcript. The SQL text comparison admits a superset of the
+ * strict match, which is re-applied here so a non-string `id` never matches its spelling.
+ */
+export async function loadChatFileAttachmentsNamed(
+  chatId: string,
+  name: string
+): Promise<PersistedFileAttachment[]> {
+  const rows = await db
+    .select({ attachment: sql<PersistedFileAttachment>`file_attachment.value` })
+    .from(copilotMessages)
+    .crossJoinLateral(messageArrayElements('fileAttachments', 'file_attachment'))
+    .where(
+      and(
+        eq(copilotMessages.chatId, chatId),
+        isNull(copilotMessages.deletedAt),
+        sql`(file_attachment.value ->> 'id' = ${name} or file_attachment.value ->> 'filename' = ${name})`
+      )
+    )
+    .orderBy(...TRANSCRIPT_ORDER, sql`file_attachment.ordinal`)
+  return rows
+    .map((row) => row.attachment)
+    .filter((attachment) => attachment.id === name || attachment.filename === name)
 }
 
 /**
@@ -113,14 +157,7 @@ export async function loadChatMcpServerIds(chatId: string): Promise<string[]> {
   const rows = await db
     .select({ serverId: sql<string>`mcp_context.value ->> 'serverId'` })
     .from(copilotMessages)
-    .crossJoinLateral(
-      sql`jsonb_array_elements(
-        case when jsonb_typeof(${copilotMessages.content} -> 'contexts') = 'array'
-          then ${copilotMessages.content} -> 'contexts'
-          else '[]'::jsonb
-        end
-      ) with ordinality as mcp_context(value, ordinal)`
-    )
+    .crossJoinLateral(messageArrayElements('contexts', 'mcp_context'))
     .where(
       and(
         eq(copilotMessages.chatId, chatId),
@@ -130,12 +167,7 @@ export async function loadChatMcpServerIds(chatId: string): Promise<string[]> {
         sql`mcp_context.value ->> 'serverId' <> ''`
       )
     )
-    .orderBy(
-      sql`${copilotMessages.seq} asc nulls last`,
-      asc(copilotMessages.createdAt),
-      asc(copilotMessages.id),
-      sql`mcp_context.ordinal`
-    )
+    .orderBy(...TRANSCRIPT_ORDER, sql`mcp_context.ordinal`)
   return [...new Set(rows.map((row) => row.serverId))]
 }
 
@@ -349,6 +381,26 @@ export async function getAccessibleCopilotChatWithMessages(
 
   const messages = await loadCopilotChatMessages(chatId)
   return { ...chat, messages }
+}
+
+/**
+ * The chat {@link getAccessibleCopilotChatWithMessages} loads, with each message reduced to
+ * its role and text ({@link textMessageContent}) for a reader that quotes the transcript.
+ */
+export async function getAccessibleCopilotChatWithTextMessages(
+  chatId: string,
+  userId: string
+): Promise<CopilotChatDetailRow | null> {
+  const chat = await getAccessibleCopilotChatDetail(chatId, userId)
+  if (!chat) return null
+
+  const rows = await db
+    .select({ content: textMessageContent(['role', 'content']) })
+    .from(copilotMessages)
+    .crossJoinLateral(detoastedMessageContent)
+    .where(and(eq(copilotMessages.chatId, chatId), isNull(copilotMessages.deletedAt)))
+    .orderBy(...TRANSCRIPT_ORDER)
+  return { ...chat, messages: rows.map((row) => row.content) }
 }
 
 /**

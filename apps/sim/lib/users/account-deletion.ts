@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import {
+  apiKey,
   dataDrains,
   document,
   knowledgeBase,
@@ -10,6 +11,7 @@ import {
   tableRunDispatches,
   uploadSession,
   user,
+  workflowMcpServer,
   workspaceFile,
   workspaceFiles,
   workspaceFileVersion,
@@ -25,8 +27,18 @@ import type {
   AccountDeletionResource,
 } from '@/lib/api/contracts/user'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
-import { isSoleOwnerOfPaidOrganization } from '@/lib/billing/organizations/membership'
+import { invalidateReportingUsagePrefixes } from '@/lib/billing/core/reporting-usage-epoch'
+import {
+  acquireOrganizationMutationLock,
+  isSoleOwnerOfPaidOrganization,
+} from '@/lib/billing/organizations/membership'
+import {
+  findOrganizationSharedResourceSuccessor,
+  listSharedResourceOrganizationIdsForUser,
+  reassignOrganizationSharedResourcesTx,
+} from '@/lib/billing/organizations/resource-handoff'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   getProjectAccountDeletionBlockers,
   prepareProjectsForAccountDeletion,
@@ -38,6 +50,11 @@ import {
 } from '@/lib/table/rows/executions'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
+import {
+  listSharedResourceWorkspaceIdsForUser,
+  listUnresolvedSharedResourceWorkspaces,
+  reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx,
+} from '@/lib/workspaces/resource-handoff'
 import {
   reassignBilledAccountForUser,
   reassignOwnedWorkspacesForUser,
@@ -98,15 +115,18 @@ const WORKSPACE_COLUMNS = {
  * account's workflows, knowledge bases and files inside them would cascade away
  * with it.
  */
-async function loadRelatedWorkspaces(userId: string): Promise<WorkspaceRow[]> {
+async function loadRelatedWorkspaces(
+  userId: string,
+  executor: DbOrTx = db
+): Promise<WorkspaceRow[]> {
   const [anchored, joined] = await Promise.all([
-    db
+    executor
       .select(WORKSPACE_COLUMNS)
       .from(workspaceTable)
       .where(
         or(eq(workspaceTable.ownerId, userId), eq(workspaceTable.billedAccountUserId, userId))
       ),
-    db
+    executor
       .select(WORKSPACE_COLUMNS)
       .from(permissions)
       .innerJoin(workspaceTable, eq(workspaceTable.id, permissions.entityId))
@@ -210,25 +230,10 @@ export interface AccountDeletionFacts {
 }
 
 /**
- * Turns the gathered facts into the full picture of an account deletion: what it
- * removes, what it hands off, and every reason it would be refused.
- *
- * The governing rule is that an account is erased only once it stands alone.
- * Nearly every table that points at `user.id` does so with `ON DELETE CASCADE`,
- * and those cascades do not distinguish a workflow in the account's own workspace
- * from a knowledge base it happened to create inside somebody else's — both would
- * go. Rather than chase that blast radius across every creator column (and
- * silently lose whichever one is added next), deletion refuses while the account
- * is still entangled and names the existing action that untangles it: leave the
- * workspace, leave the organization, cancel the plan. Each of those already hands
- * the account's content to a surviving member on its own well-tested path.
- *
- * What remains is provably private, so a workspace falls into exactly one bucket:
- *  - **delete** — nobody else can reach it, so it is erased with the account.
- *  - **transfer** — the account only pays for it or is recorded as its owner
- *    while holding no access to it, so moving that anchor to a real admin
- *    changes nothing anyone can see.
- *  - **blocked** — anything else.
+ * Classifies current memberships and workspace ownership/billing anchors. Shared memberships
+ * must be left before erasure; private workspaces are deleted, and orphaned anchors transfer
+ * to a surviving administrator. Execution dependencies are checked separately, and the final
+ * transaction repairs shared creator references from departures before this policy existed.
  */
 export function classifyAccountDeletion(facts: AccountDeletionFacts): AccountDeletionPlan {
   const blockers: AccountDeletionBlocker[] = []
@@ -308,6 +313,55 @@ function formatResourceNames(resources: AccountDeletionResource[]): string {
   return formatNames(resources.map((resource) => resource.name))
 }
 
+/** Public MCP actors and live shared keys cannot acquire a new identity through attribution handoff. */
+async function sharedExecutionDeletionBlockers(
+  executor: DbOrTx,
+  userId: string,
+  doomedWorkspaceIds: string[],
+  hold = false
+): Promise<AccountDeletionBlocker[]> {
+  const doomed = new Set(doomedWorkspaceIds)
+  const serverQuery = executor
+    .select({
+      id: workflowMcpServer.id,
+      name: workflowMcpServer.name,
+      workspaceId: workflowMcpServer.workspaceId,
+      isPublic: workflowMcpServer.isPublic,
+    })
+    .from(workflowMcpServer)
+    .where(eq(workflowMcpServer.createdBy, userId))
+  const servers = await (hold ? serverQuery.for('update') : serverQuery)
+  const keyQuery = executor
+    .select({
+      id: apiKey.id,
+      name: apiKey.name,
+      workspaceId: apiKey.workspaceId,
+      expiresAt: apiKey.expiresAt,
+    })
+    .from(apiKey)
+    .where(and(eq(apiKey.userId, userId), eq(apiKey.type, 'workspace')))
+  const keys = await (hold ? keyQuery.for('update') : keyQuery)
+  const retainedServers = servers.filter((row) => row.isPublic && !doomed.has(row.workspaceId))
+  const liveKeys = keys.filter(
+    (row) =>
+      row.workspaceId &&
+      !doomed.has(row.workspaceId) &&
+      (!row.expiresAt || row.expiresAt > new Date())
+  )
+  const blockers: AccountDeletionBlocker[] = []
+  if (retainedServers.length)
+    blockers.push({
+      code: 'shared_workspace',
+      message: `Public MCP servers ${formatResourceNames(retainedServers)} still use your account to execute. Ask a workspace admin to delete them or make them private before deleting your account. Restore an archived workspace first if needed.`,
+    })
+  if (liveKeys.length)
+    blockers.push({
+      code: 'shared_workspace',
+      message: `Workspace API keys ${formatResourceNames(liveKeys)} still depend on your account. Ask a workspace admin to replace and revoke them in Settings before deleting your account.`,
+    })
+  return blockers
+}
+
 /** Gathers the facts above and classifies them. */
 export async function getAccountDeletionPlan(userId: string): Promise<AccountDeletionPlan> {
   const [workspaces, organizationNames, paidOrgCheck, personalSubscription, drains] =
@@ -345,6 +399,35 @@ export async function getAccountDeletionPlan(userId: string): Promise<AccountDel
   plan.blockers.push(
     ...projectBlockers.map((message) => ({ code: 'project_lifecycle' as const, message }))
   )
+  plan.blockers.push(
+    ...(await sharedExecutionDeletionBlockers(
+      db,
+      userId,
+      plan.workspacesToDelete.map((row) => row.id)
+    ))
+  )
+  const unresolved = await listUnresolvedSharedResourceWorkspaces(
+    db,
+    userId,
+    plan.workspacesToDelete.map((row) => row.id)
+  )
+  if (unresolved.length) {
+    plan.blockers.push({
+      code: 'shared_workspace',
+      message:
+        'Shared resources still reference your account. Ask a workspace admin to assign an active billing account before deleting your account.',
+    })
+  }
+  for (const organizationId of await listSharedResourceOrganizationIdsForUser(db, userId)) {
+    if (!(await findOrganizationSharedResourceSuccessor(db, organizationId, userId))) {
+      plan.blockers.push({
+        code: 'organization_member',
+        message:
+          'Shared organization resources need an active organization owner before this account can leave or be deleted.',
+      })
+      break
+    }
+  }
   return plan
 }
 
@@ -673,12 +756,13 @@ async function announceCancelledTableWork(
  *    rather than treated as failures.
  * 3. **Purge storage last**, once that transaction has committed. Object
  *    deletion cannot be rolled back, so it must not precede the point of no
- *    return.
+ *    return. Before it, the account's ledger rows having cascaded away, the
+ *    shared reporting-usage prefixes that may still count them are discarded.
  *
  * The ordering inside step 2 is load-bearing too: Postgres evaluates the
  * `NO ACTION` check on `workspace.billed_account_user_id` *before* the `owner_id`
  * cascade that would have removed the very same workspace, so a workspace the
- * account bills for must be handed over or gone before the `user` row is touched.
+ * account bills for must be handed over or gone before the `user` row is deleted.
  *
  * The plan is recomputed here rather than accepted from the caller: a preview is
  * a display, never an authorization.
@@ -695,11 +779,67 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   let cancelledMarkers: CancelledCellMarker[] = []
 
   await db.transaction(async (tx) => {
+    /** Organization and Project gates precede workspace rows, which precede user FK barriers. */
+    const sharedOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
+    for (const organizationId of sharedOrganizationIds) {
+      await acquireOrganizationMutationLock(tx, organizationId)
+    }
+    const workspaceIds = new Set([
+      ...doomedWorkspaceIds,
+      ...(await loadRelatedWorkspaces(userId, tx)).map((row) => row.id),
+      ...(await listSharedResourceWorkspaceIdsForUser(tx, userId)),
+    ])
     const projectIdsToDelete = await prepareProjectsForAccountDeletion(
       tx,
       userId,
-      doomedWorkspaceIds
+      doomedWorkspaceIds,
+      [...workspaceIds]
     )
+    /**
+     * An admitted insert may hold the user FK lock while waiting for a workspace above.
+     * Never wait in that cycle: refuse erasure atomically so the writer can finish. Keep
+     * the barrier through retention discovery, run cancellation, and deletion once acquired.
+     */
+    try {
+      await tx
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.id, userId))
+        .for('update', { noWait: true })
+    } catch (error) {
+      if (getPostgresErrorCode(error) !== '55P03') throw error
+      throw new AccountDeletionBlockedError([
+        {
+          code: 'shared_workspace',
+          message: 'Your account is in use by another operation. Nothing was changed — try again.',
+        },
+      ])
+    }
+    /** Discovery preceded the barrier: refuse new scopes instead of acquiring locks out of order. */
+    const currentWorkspaceIds = [
+      ...(await loadRelatedWorkspaces(userId, tx)).map((row) => row.id),
+      ...(await listSharedResourceWorkspaceIdsForUser(tx, userId)),
+    ]
+    const currentOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
+    if (
+      currentWorkspaceIds.some((id) => !workspaceIds.has(id)) ||
+      currentOrganizationIds.some((id) => !sharedOrganizationIds.includes(id))
+    ) {
+      throw new AccountDeletionBlockedError([
+        {
+          code: 'shared_workspace',
+          message:
+            'Shared resources changed while your account was being deleted. Nothing was changed — try again.',
+        },
+      ])
+    }
+    const executionBlockers = await sharedExecutionDeletionBlockers(
+      tx,
+      userId,
+      doomedWorkspaceIds,
+      true
+    )
+    if (executionBlockers.length) throw new AccountDeletionBlockedError(executionBlockers)
     if (doomedWorkspaceIds.length > 0) {
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
@@ -762,28 +902,26 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       ])
     }
 
-    /**
-     * Take the departing account's own row before cancelling anything it
-     * governs.
-     *
-     * Both cancels below are `WHERE capability_governed_user_id = userId`, so
-     * they only stop work that already exists. A dispatcher that read its
-     * status as active a moment earlier goes on to pre-stamp cells, and that
-     * insert's foreign key needs a `FOR KEY SHARE` on this very row — which
-     * `FOR UPDATE` conflicts with. Taking it first therefore splits every
-     * concurrent stamp cleanly in two: one that committed before us, which the
-     * marker cancel below then sees, and one that blocks until we commit and is
-     * refused by the (now absent) foreign key. Without the barrier a stamp
-     * landing between the marker cancel and the `user` delete is nulled by
-     * `ON DELETE SET NULL` and drained by a sibling worker as actorless — the
-     * ungated run this whole passage exists to prevent.
-     *
-     * The lock is held for the rest of the transaction, so a dispatcher holding
-     * a marker row we are about to cancel can deadlock with us; Postgres aborts
-     * one side and the deletion is retried by the person, which is the right
-     * trade against a silently ungated run.
-     */
-    await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update')
+    for (const organizationId of sharedOrganizationIds) {
+      await reassignOrganizationSharedResourcesTx(tx, organizationId, userId)
+    }
+
+    const sharedWorkspaceIds = await listSharedResourceWorkspaceIdsForUser(tx, userId)
+    const { unresolved: resourceUnresolved } =
+      await reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx({
+        tx,
+        workspaceIds: sharedWorkspaceIds,
+        departingUserId: userId,
+      })
+    if (resourceUnresolved.length > 0) {
+      throw new AccountDeletionBlockedError([
+        {
+          code: 'shared_workspace',
+          message:
+            'Shared resources still reference your account. Ask a workspace admin to assign an active billing account before deleting your account. Nothing was changed.',
+        },
+      ])
+    }
 
     /**
      * Cancel every table run this account still governs before the `user` row
@@ -845,6 +983,8 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       throw error
     }
   })
+
+  await invalidateReportingUsagePrefixes()
 
   await announceCancelledTableWork(cancelledDispatches, cancelledMarkers)
 

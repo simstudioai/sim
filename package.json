@@ -86,6 +86,7 @@
     "check:unused-exports": "bun run scripts/check-unused-exports.ts",
     "check:explicit-any": "bun run scripts/check-explicit-any.ts",
     "check:file-names": "bun run scripts/check-file-names.ts",
+    "check:test-types": "bun run scripts/check-test-types.ts",
     "desktop-bridge-contract:update": "bun run scripts/check-desktop-bridge-contract.ts --update",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
     "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",

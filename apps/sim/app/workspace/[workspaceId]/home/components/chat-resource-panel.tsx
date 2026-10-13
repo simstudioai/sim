@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { ChatPanelLayout } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
@@ -57,6 +57,7 @@ export function ChatResourcePanel({
   children,
   onSummarize,
 }: ChatResourcePanelProps) {
+  const layoutRef = useRef<HTMLDivElement>(null)
   const [overlay, setOverlay] = useState<PanelOverlay | null>(null)
   const settle = (reserve: number) => setOverlay({ mode: 'settling', reserve })
   useEffect(() => {
@@ -107,7 +108,7 @@ export function ChatResourcePanel({
   )
   return (
     <ChatPanelLayout
-      ref={panel.resourceLayoutRef}
+      ref={layoutRef}
       collapsed={isResourceCollapsed}
       chatHidden={isChatHidden}
       chatReserve={overlay?.reserve}
@@ -118,7 +119,7 @@ export function ChatResourcePanel({
               else
                 setOverlay({
                   mode: 'expanded',
-                  reserve: measurePanelWidth(panel.resourceLayoutRef.current),
+                  reserve: measurePanelWidth(layoutRef.current),
                 })
             }
           : undefined

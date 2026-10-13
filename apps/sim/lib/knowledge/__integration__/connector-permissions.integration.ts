@@ -1,6 +1,7 @@
 /** Real PostgreSQL coverage for provider-independent snapshots and administrator-managed grants. */
 import { db } from '@sim/db'
 import { knowledgeConnector, organization, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
@@ -21,7 +22,7 @@ describe('connector-owned permission storage', () => {
   })
   afterAll(async () => {
     for (const owner of owners) {
-      await db.delete(workspace).where(eq(workspace.id, owner.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, owner.workspaceId))
       await db.delete(organization).where(eq(organization.id, owner.organizationId))
       await db.delete(user).where(inArray(user.id, [owner.aliceId, owner.bobId]))
     }

@@ -42,6 +42,7 @@ import {
 import {
   decrementStorageUsageForBillingContextInTx,
   incrementStorageUsageForBillingContextInTx,
+  lockWorkspaceStorageForMutationInTx,
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
@@ -309,11 +310,13 @@ interface WorkspaceFileMetadataInsert {
  * Attempts one active workspace-file insert and reports the row that this call
  * created. Conflict losers receive `undefined` and must inspect the active key
  * in the same transaction before deciding whether the operation is idempotent.
+ * Locks the workspace row first so the insert follows the storage lock order.
  */
 async function insertWorkspaceFileMetadataInTx(
   tx: DbOrTx,
   metadata: WorkspaceFileMetadataInsert
 ): Promise<WorkspaceFileRow | undefined> {
+  await lockWorkspaceStorageForMutationInTx(tx, metadata.workspaceId)
   const [inserted] = await tx
     .insert(workspaceFiles)
     .values({
@@ -1811,24 +1814,48 @@ export async function resolveWorkspaceFileReference(
   const exactReferenceFile = await getWorkspaceFileByExactReference(workspaceId, referenceSegments)
   if (exactReferenceFile) return exactReferenceFile
 
-  const candidates = await listWorkspaceFileReferenceCandidates(
-    workspaceId,
-    [fileReference, normalizedReference],
-    referenceSegments.at(-1)
-  )
-  return findWorkspaceFileRecord(candidates, fileReference)
+  return (await findListedWorkspaceFiles(workspaceId, [fileReference])).get(fileReference) ?? null
 }
 
 /**
- * The live workspace files {@link findWorkspaceFileRecord} can match for a reference: those
- * whose id is one of `ids`, or whose name displays as `leafName`. Each of its rules requires one
- * of the two, so it picks the same file from these rows as from the whole workspace — read
- * through `workspace_files_workspace_display_name_idx` instead of every file the workspace has.
+ * The live workspace file {@link findWorkspaceFileRecord} would pick for each reference from
+ * the whole `listWorkspaceFiles` listing, read through one query for the references' candidate
+ * rows instead of every file the workspace has. Ties on `uploadedAt` break by id, where the
+ * listing had no order.
+ */
+export async function findListedWorkspaceFiles(
+  workspaceId: string,
+  fileReferences: readonly string[]
+): Promise<Map<string, WorkspaceFileRecord | null>> {
+  const ids = new Set<string>()
+  const leafNames = new Set<string>()
+  for (const reference of fileReferences) {
+    const segments = normalizeWorkspaceFileReferenceSegments(reference)
+    ids.add(reference)
+    ids.add(segments.join('/'))
+    const leaf = segments.at(-1)
+    if (leaf !== undefined) leafNames.add(normalizeDisplaySegment(leaf))
+  }
+  const candidates =
+    fileReferences.length === 0
+      ? []
+      : await listWorkspaceFileReferenceCandidates(workspaceId, [...ids], [...leafNames])
+  return new Map(
+    fileReferences.map((reference) => [reference, findWorkspaceFileRecord(candidates, reference)])
+  )
+}
+
+/**
+ * The live workspace files {@link findWorkspaceFileRecord} can match for a set of references:
+ * those whose id is one of `ids`, or whose name displays as one of `leafNames`. Each of its
+ * rules requires one of the two, so it picks the same file from these rows as from the whole
+ * workspace — read through `workspace_files_workspace_display_name_idx` instead of every file
+ * the workspace has.
  */
 async function listWorkspaceFileReferenceCandidates(
   workspaceId: string,
   ids: string[],
-  leafName: string | undefined
+  leafNames: string[]
 ): Promise<WorkspaceFileRecord[]> {
   const rows = await db
     .select(workspaceFileListColumns)
@@ -1838,9 +1865,9 @@ async function listWorkspaceFileReferenceCandidates(
         workspaceFileScopeCondition(workspaceId, 'active'),
         or(
           inArray(workspaceFiles.id, ids),
-          leafName === undefined
+          leafNames.length === 0
             ? undefined
-            : eq(displaySegmentKey(workspaceFiles.originalName), normalizeDisplaySegment(leafName))
+            : inArray(displaySegmentKey(workspaceFiles.originalName), leafNames)
         )
       )
     )
@@ -2200,6 +2227,7 @@ export async function updateWorkspaceFileContent(
     }
     try {
       finalized = await db.transaction(async (tx) => {
+        await lockWorkspaceStorageForMutationInTx(tx, workspaceId)
         const [currentFile] = await tx
           .select()
           .from(workspaceFiles)
@@ -2589,6 +2617,7 @@ export async function purgeCreatedWorkspaceFile(params: {
     isNull(workspaceFiles.deletedAt)
   )
   const cleanupEventIds = await db.transaction(async (tx) => {
+    await lockWorkspaceStorageForMutationInTx(tx, params.workspaceId)
     const [lockedFile] = await tx
       .select({
         id: workspaceFiles.id,

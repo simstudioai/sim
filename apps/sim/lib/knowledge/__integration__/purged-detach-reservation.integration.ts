@@ -14,6 +14,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -136,7 +137,7 @@ afterAll(async () => {
         )
       )
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   }

@@ -87,7 +87,7 @@ function chatRow(overrides: Record<string, unknown> = {}) {
     allowedEmails: [],
     outputConfigs: [],
     includeThinking: false,
-    includeToolCalls: null,
+    includeToolCalls: false,
     archivedAt: null,
     createdAt: new Date('2026-06-12T10:30:00.000Z'),
     updatedAt: new Date('2026-06-12T10:30:00.000Z'),

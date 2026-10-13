@@ -278,11 +278,13 @@ describe('defineV2JsonRoute', () => {
     expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
     expect(v2RouteMocks.operationRate).toHaveBeenCalledWith(
       'v2:widgets.update:api-key:key-1',
-      expect.objectContaining({ maxTokens: 100 })
+      expect.objectContaining({ maxTokens: 100 }),
+      1
     )
     expect(v2RouteMocks.operationRate).toHaveBeenCalledWith(
       'v2:widgets.update:user:user-1',
-      expect.objectContaining({ maxTokens: 100 })
+      expect.objectContaining({ maxTokens: 100 }),
+      1
     )
     expect(response.headers.get('X-RateLimit-Limit')).toBe('100')
     expect(response.headers.get('X-RateLimit-Remaining')).toBe('12')

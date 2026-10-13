@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * An inbox reply continues its parent task's chat, and the parent is found by the
  * `In-Reply-To` header — a value every recipient of the agent's reply holds. Against
@@ -97,7 +98,7 @@ async function seedWorkspace(ws: InboxWorkspace): Promise<void> {
     createdAt: now,
     updatedAt: now,
   })
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: ws.id,
     name: 'Inbox thread scope fixture',
     ownerId: ws.ownerId,
@@ -224,7 +225,7 @@ describe('inbox reply threading stays inside the receiving workspace', () => {
   afterAll(async () => {
     const ownerIds = [victim.ownerId, attacker.ownerId]
     await db.delete(permissions).where(inArray(permissions.userId, ownerIds))
-    await db.delete(workspace).where(inArray(workspace.id, [victim.id, attacker.id]))
+    await deleteWorkspaceFixture(db, inArray(workspace.id, [victim.id, attacker.id]))
     await db.delete(user).where(inArray(user.id, ownerIds))
   })
 

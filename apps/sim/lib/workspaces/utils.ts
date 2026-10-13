@@ -344,6 +344,34 @@ export async function reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
   return { reassigned, unresolved }
 }
 
+/** Resolves the billing replacement consistently for deletion previews and transactional handoff. */
+export async function findWorkspaceBillingReplacement(
+  executor: DbOrTx,
+  ws: { id: string; ownerId: string },
+  departingUserId: string
+): Promise<string | null> {
+  let replacement: string | null = ws.ownerId !== departingUserId ? ws.ownerId : null
+
+  if (!replacement) {
+    const [admin] = await executor
+      .select({ userId: permissions.userId })
+      .from(permissions)
+      .where(
+        and(
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, ws.id),
+          eq(permissions.permissionType, 'admin'),
+          ne(permissions.userId, departingUserId)
+        )
+      )
+      .limit(1)
+
+    replacement = admin?.userId ?? null
+  }
+
+  return replacement
+}
+
 /**
  * Reassigns `billedAccountUserId` on every workspace that points to `departingUserId` to
  * another eligible user, so the user can be deleted without violating the `workspace.billed_account_user_id`
@@ -383,25 +411,7 @@ export async function reassignBilledAccountForUser(
   const unresolved: string[] = []
 
   for (const ws of billedWorkspaces) {
-    let replacement: string | null = ws.ownerId !== departingUserId ? ws.ownerId : null
-
-    if (!replacement) {
-      const [admin] = await executor
-        .select({ userId: permissions.userId })
-        .from(permissions)
-        .where(
-          and(
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, ws.id),
-            eq(permissions.permissionType, 'admin'),
-            ne(permissions.userId, departingUserId)
-          )
-        )
-        .limit(1)
-
-      replacement = admin?.userId ?? null
-    }
-
+    const replacement = await findWorkspaceBillingReplacement(executor, ws, departingUserId)
     if (!replacement) {
       unresolved.push(ws.id)
       continue

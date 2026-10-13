@@ -89,6 +89,8 @@ import {
   ConnectorDeletedException,
   ConnectorSyncCapacityError,
   checkSyncTargetPresence,
+  countLiveConnectorDocuments,
+  keepsRecordedDocCount,
   RETRY_WINDOW_DAYS,
   shouldRunIncrementalSync,
   sweepStuckDocuments,
@@ -342,6 +344,7 @@ export interface ContentPassOutcome {
     unsafe: boolean
     contentFailures?: boolean
     permissionFailures?: boolean
+    imagesDeferred?: boolean
     listingFailures?: ExternalListingFailures | null
     startedAt: string
     listedCount: number
@@ -362,24 +365,9 @@ export function isContentPassIncomplete(
     !contentPass.complete ||
     contentPass.checkpoint.contentFailures === true ||
     contentPass.checkpoint.permissionFailures === true ||
+    contentPass.checkpoint.imagesDeferred === true ||
     (contentPass.checkpoint.listingFailures?.count ?? 0) > 0
   )
-}
-
-/** Live documents the connector owns: what the connector list shows as its document count. */
-async function countLiveConnectorDocuments(connectorId: string): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(document)
-    .where(
-      and(
-        eq(document.connectorId, connectorId),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
-  return row?.count ?? 0
 }
 
 /**
@@ -399,7 +387,9 @@ export async function completeSuccessfulSync(
   contentPass?: ContentPassOutcome,
   directoryNotice: string | null = null,
   /** A pending ACL rewrite this run began but did not finish: the flag stays and the next run resumes it. */
-  accessRewriteUnfinished = false
+  accessRewriteUnfinished = false,
+  /** The connector as this run locked it: whether a pass has finished, and the count it holds. */
+  lockedConnector: { lastSyncAt: Date | null; lastSyncDocCount: number | null } | null = null
 ): Promise<boolean> {
   const processingDispatchFailed = result.processingDispatch.failed > 0
   const contentNotice =
@@ -432,15 +422,18 @@ export async function completeSuccessfulSync(
    * adds and deletes would drift; when it cannot be read the previous count stands, which the
    * guard already treats as a floor.
    */
-  const actualDocCount = await countLiveConnectorDocuments(connectorId).catch((error: unknown) => {
-    const diagnostic = getConnectorFailureDiagnostic(error)
-    if (diagnostic?.category !== 'database') throw error
-    logger.warn('Could not count connector documents; keeping the previous count', {
-      connectorId,
-      diagnostic,
-    })
-    return null
-  })
+  const actualDocCount =
+    contentPass !== undefined && keepsRecordedDocCount(contentPass.complete, lockedConnector)
+      ? null
+      : await countLiveConnectorDocuments(connectorId).catch((error: unknown) => {
+          const diagnostic = getConnectorFailureDiagnostic(error)
+          if (diagnostic?.category !== 'database') throw error
+          logger.warn('Could not count connector documents; keeping the previous count', {
+            connectorId,
+            diagnostic,
+          })
+          return null
+        })
   try {
     return await db.transaction(async (tx) => {
       const [lockedKnowledgeBase] = await tx
@@ -1417,7 +1410,8 @@ export async function executeSync(
         reconciliationHoldNotice,
         contentPass,
         directoryNotice,
-        accessRewriteUnfinished
+        accessRewriteUnfinished,
+        connector
       )
 
       if (!completionLanded) {

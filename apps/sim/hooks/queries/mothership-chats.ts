@@ -40,6 +40,7 @@ import {
 } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
+import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
@@ -106,6 +107,53 @@ export const mothershipChatKeys = {
       : mothershipChatKeys.list(owner),
   details: () => [...mothershipChatKeys.all, 'detail'] as const,
   detail: (chatId: string | undefined) => [...mothershipChatKeys.details(), chatId ?? ''] as const,
+}
+
+/**
+ * How long a chat's reload in flight holds back later requests. Past it a hung fetch no longer
+ * blocks the chat: the next request starts its own reload, which replaces the stuck one.
+ */
+const CHAT_DETAIL_REFRESH_HOLD_MS = 30 * 1000
+
+interface ChatDetailRefresh {
+  startedAt: number
+  requestedAgain: boolean
+}
+
+/** Per client, the chats with a reload in flight. */
+const chatDetailRefreshes = new WeakMap<QueryClient, Map<string, ChatDetailRefresh>>()
+
+/**
+ * Invalidates a chat's detail so a mounted transcript reloads, coalescing a burst of
+ * requests (a replayed or reconnected stream re-announces every resource it touched)
+ * into one reload in flight plus one trailing reload. The trailing reload starts after
+ * the last request, so the final read reflects every change requested meanwhile; a read
+ * already in flight may predate a request and is never trusted to include it. A reload
+ * in flight longer than {@link CHAT_DETAIL_REFRESH_HOLD_MS} stops holding requests back.
+ */
+export function refreshMothershipChatDetail(queryClient: QueryClient, chatId: string): void {
+  const refreshes = chatDetailRefreshes.get(queryClient) ?? new Map<string, ChatDetailRefresh>()
+  chatDetailRefreshes.set(queryClient, refreshes)
+  const inFlight = refreshes.get(chatId)
+  if (inFlight && Date.now() - inFlight.startedAt < CHAT_DETAIL_REFRESH_HOLD_MS) {
+    inFlight.requestedAgain = true
+    return
+  }
+  const refresh: ChatDetailRefresh = { startedAt: Date.now(), requestedAgain: false }
+  refreshes.set(chatId, refresh)
+  const queryKey = mothershipChatKeys.detail(chatId)
+  // A query with no data yet joins its fetch in flight instead of replacing it, so a stuck
+  // one is cancelled first.
+  const reload = inFlight
+    ? queryClient
+        .cancelQueries({ queryKey, exact: true })
+        .then(() => queryClient.invalidateQueries({ queryKey }))
+    : queryClient.invalidateQueries({ queryKey })
+  void reload.finally(() => {
+    if (refreshes.get(chatId) !== refresh) return
+    refreshes.delete(chatId)
+    if (refresh.requestedAgain) refreshMothershipChatDetail(queryClient, chatId)
+  })
 }
 
 /** Shared by the `useMothershipChats` hook and the workspace sidebar prefetch. */
@@ -405,6 +453,7 @@ export function useRestoreMothershipChat(owner?: MothershipChatOwner) {
       useMothershipQueueStore.getState().liftDelete(chatId, context.deleteSeen)
     },
     onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() })
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
     },
   })

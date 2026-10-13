@@ -30,6 +30,7 @@ import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { UserFile } from '@/executor/types'
 import { findWorkspaceFileBySrc } from '@/hooks/queries/utils/find-workspace-file-by-src'
+import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { type ImageDimensionsSource, useFileContentSource } from '@/hooks/use-file-content-source'
 
 const logger = createLogger('WorkspaceFilesQuery')
@@ -802,6 +803,7 @@ export function useRestoreWorkspaceFile() {
       toast.error(toError(err).message)
     },
     onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() })
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
       })

@@ -4,6 +4,7 @@ import type {
   NativeSearchQuery,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import type { TextMatch } from '@/lib/sim-search/live/text-match'
 
 export interface LiveAccount {
   id: string
@@ -94,4 +95,6 @@ export interface NativeSearchInput {
   native?: NativeSearchQuery
   limit: number
   scopes: readonly string[]
+  /** How a plain query's words must match; providers without full-text search ignore it. */
+  textMatch?: TextMatch
 }

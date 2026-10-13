@@ -212,7 +212,7 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
           (globalThis as Bridge).simDesktop.browserAgent.executeTool(callId, tool, args, scope),
         { callId, tool, args, scope: SCOPE }
       )
-      expect(result.ok).toBe(true)
+      expect(result.ok, result.error).toBe(true)
       return result.ok ? result.result : undefined
     }
     /** Browser-chrome actions are user gestures, so each follows a real click in Sim. */
@@ -439,8 +439,13 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
         caret: 'initial',
       })
       await expect(shell.getByRole('button', { name: 'Stay', exact: true })).toBeFocused()
+      const shown = await pageDialog()
       await shell.keyboard.press('Escape')
-      await expect.poll(pageDialog).toBeNull()
+      await expect
+        .poll(pageDialog, {
+          message: `dialog ${shown?.requestId} was showing when Escape was pressed`,
+        })
+        .toBeNull()
       await expect
         .poll(() =>
           shellApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getURL())

@@ -18,9 +18,8 @@ name: ci
 on:
   push:
     branches: [main, staging, dev]
-  # No path filter: `checks / ci` is the required status check, and a pull request whose run
-  # never starts never reports it, so it could not merge. Docs-only pull requests are rare enough
-  # that running CI on them costs nothing measurable.
+  # No path filter: a pull request whose run never starts never reports `checks / ci`. The
+  # `changes` job in checks.yml scopes the jobs to what the diff can affect instead.
   pull_request:
     branches: [main, staging, dev]
 
@@ -113,6 +112,8 @@ jobs:
   # in place before the new app version deploys (replaces the removed ECS
   # migration sidecar)
   migrate:
+    permissions:
+      contents: read
     name: migrate
     needs: [checks]
     # Explicit need results instead of the implicit success(): a skipped job
@@ -135,6 +136,9 @@ jobs:
 
   # Same ordering for dev (schema push before the dev image lands in ECR)
   migrate-dev:
+    permissions:
+      contents: read
+      id-token: write
     name: migrate-dev
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     uses: ./.github/workflows/migrate.yml

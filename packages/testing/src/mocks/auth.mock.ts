@@ -30,6 +30,7 @@ export const authMockFns = {
   mockCreateUser: vi.fn(),
   mockRequestPasswordReset: vi.fn(),
   mockResetPassword: vi.fn(),
+  mockGenerateOneTimeToken: vi.fn(),
   mockCreateSession: vi.fn(),
   mockUpdateSession: vi.fn(),
   mockDeleteSession: vi.fn(),
@@ -57,6 +58,7 @@ export const authMock = {
       createUser: authMockFns.mockCreateUser,
       requestPasswordReset: authMockFns.mockRequestPasswordReset,
       resetPassword: authMockFns.mockResetPassword,
+      generateOneTimeToken: authMockFns.mockGenerateOneTimeToken,
     },
     $context: Promise.resolve({
       options: { socialProviders: {} },

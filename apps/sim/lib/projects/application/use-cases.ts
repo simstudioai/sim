@@ -14,7 +14,6 @@ import {
   requireProjectPrincipal,
 } from '@/lib/projects/application/authorization'
 import { projectOperations } from '@/lib/projects/application/operations'
-import { getProjectEnvironmentSource } from '@/lib/projects/environment-source'
 import { archiveProjectInTransaction, finishProjectArchive } from '@/lib/projects/lifecycle'
 import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 
@@ -24,7 +23,13 @@ const READ_SNAPSHOT = { isolationLevel: 'repeatable read', accessMode: 'read onl
 
 function presentProject(context: AuthorizedProject) {
   return {
-    ...context.record,
+    id: context.record.id,
+    name: context.record.name,
+    organizationId: context.record.organizationId,
+    ownerId: context.record.ownerId,
+    archivedAt: context.record.archivedAt,
+    createdAt: context.record.createdAt,
+    updatedAt: context.record.updatedAt,
     environments: context.environments,
     capabilities: { administer: context.canAdminister, issues: context.canUseIssues },
   }
@@ -86,7 +91,6 @@ export const listProjects: OperationUseCase<
     requireProjectPrincipal(principal, projectOperations.list)
     await requireProjectApiEnabled()
     return db.transaction(async (tx) => {
-      const environments = await getProjectEnvironmentSource(tx)
       /** Driven from the caller's grants and admin organization, so cost tracks their reach. */
       const candidates = await tx.execute<{ id: string }>(sql`
         WITH accessible AS (
@@ -98,15 +102,15 @@ export const listProjects: OperationUseCase<
           JOIN ${workspace} ON ${workspace.organizationId} = ${member.organizationId}
           WHERE ${member.userId} = ${principal.userId} AND ${inArray(member.role, ORG_ADMIN_ROLES)}
         )
-        SELECT DISTINCT ${environments.projectId} AS id
+        SELECT DISTINCT ${workspace.projectId} AS id
         FROM accessible
-        JOIN ${environments}
-          ON ${environments.id} = accessible.workspace_id AND ${environments.archivedAt} IS NULL
+        JOIN ${workspace}
+          ON ${workspace.id} = accessible.workspace_id AND ${workspace.archivedAt} IS NULL
         JOIN ${project}
-          ON ${project.id} = ${environments.projectId} AND ${project.archivedAt} IS NULL
+          ON ${project.id} = ${workspace.projectId} AND ${project.archivedAt} IS NULL
         WHERE TRUE
           ${input.organizationId ? sql`AND ${project.organizationId} = ${input.organizationId}` : sql``}
-          ${input.cursor ? sql`AND ${environments.projectId} > ${input.cursor}` : sql``}
+          ${input.cursor ? sql`AND ${workspace.projectId} > ${input.cursor}` : sql``}
         ORDER BY 1
         LIMIT ${input.limit + 1}
       `)
@@ -212,11 +216,10 @@ export const getWorkspaceProject: OperationUseCase<
     requireProjectPrincipal(principal, projectOperations.get)
     await requireProjectApiEnabled()
     return db.transaction(async (tx) => {
-      const environments = await getProjectEnvironmentSource(tx)
       const [membership] = await tx
-        .select({ projectId: environments.projectId })
-        .from(environments)
-        .where(eq(environments.id, input.workspaceId))
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(eq(workspace.id, input.workspaceId))
         .limit(1)
       if (!membership?.projectId) throw new OrchestrationError('not_found', 'Project not found')
       return {

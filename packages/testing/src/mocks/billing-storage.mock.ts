@@ -38,6 +38,7 @@ export const billingStorageMockFns = {
   mockGetUserStorageLimit: vi.fn(),
   mockGetUserStorageUsage: vi.fn(),
   mockApplyStorageUsageDeltasInTx: vi.fn(),
+  mockLockWorkspaceStorageForMutationInTx: vi.fn(),
   mockCheckAndIncrementStorageUsageInTx: vi.fn(),
   mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
   mockIncrementAdmittedStorageUsageForBillingContextInTx: vi.fn(),
@@ -64,6 +65,8 @@ export const billingStorageMock = {
   getUserStorageLimit: billingStorageMockFns.mockGetUserStorageLimit,
   getUserStorageUsage: billingStorageMockFns.mockGetUserStorageUsage,
   applyStorageUsageDeltasInTx: billingStorageMockFns.mockApplyStorageUsageDeltasInTx,
+  lockWorkspaceStorageForMutationInTx:
+    billingStorageMockFns.mockLockWorkspaceStorageForMutationInTx,
   checkAndIncrementStorageUsageInTx: billingStorageMockFns.mockCheckAndIncrementStorageUsageInTx,
   decrementStorageUsageForBillingContextInTx:
     billingStorageMockFns.mockDecrementStorageUsageForBillingContextInTx,

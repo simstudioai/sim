@@ -192,6 +192,9 @@ See [Observability](/platform/self-hosting/observability).
 
 | Variable | Description |
 |----------|-------------|
+| `KB_IMAGE_EXTRACTION_MODEL` | Gemini model that reads Confluence image attachments into searchable text. Defaults to `gemini-3.8-flash`; a value that is not a Gemini 3 model in the catalog falls back to the default. Needs `GEMINI_API_KEY` (or a workspace Gemini key); without one, image attachments are left out of syncs |
+| `KB_IMAGE_EXTRACTIONS_PER_SYNC` | New or changed images one connector sync sends for reading, at least `1`. Defaults to `500`; the rest wait for the next sync, which reports as partial |
+| `KB_CONFIG_VISION_REQUESTS_PER_MINUTE` | Image reads per minute per Gemini key, shared by every sync on the deployment. Defaults to `300`; lower it to match a key with a smaller Gemini quota |
 | `KB_EMBEDDING_MODEL` | Embedding model for new knowledge bases. Defaults to `text-embedding-3-small`; use `ollama/<model>` for a model on your own Ollama. An unrecognised hosted model id falls back to the default, but an `ollama/` id is taken at face value — if that model is not on the server, knowledge-base creation fails rather than falling back |
 | `EMBEDDING_OUTPUT_DIMS` | Vector width new knowledge bases are stored at: `384`, `768`, `1024`, `1536` (default), or `3072`. It must be a width the chosen model can emit; anything else falls back to `1536` with a warning |
 | `OPENROUTER_API_KEY` | Fallback route for the OpenAI embedding models — used when it is set and `OPENAI_API_KEY` is not the chosen path |

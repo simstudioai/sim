@@ -23,3 +23,9 @@ The article links the canonical integration catalog and exact Intune setup guide
 Bring Microsoft Intune device inventory into your agents in Sim. Read managed devices, detected applications, and compliance status to prepare IT reviews. See account requirements and setup: https://www.sim.ai/changelog/intune-device-inventory
 
 Draft only; no announcement has been sent.
+
+## Editorial revision
+
+Revised October 12, 2026, to clarify supported behavior and include selected changes from the same technical release where useful. Every public sentence describes a capability, a meaningful change, or necessary access information. Original dates, release references, RSS identities, and reviewed media are preserved. The `updated` timestamp records the substantive revision. Browser and CI evidence belongs in the revision PR.
+
+Additional v0.9.15 coverage: [Plane, #8660](https://github.com/simstudioai/sim/pull/8660) and [Buffer expansion, #8779](https://github.com/simstudioai/sim/pull/8779). The technical release includes both. Buffer schedule preservation requires the documented keep-current selections; Plane self-hosted support varies by version and action. Ramp remains outside this article pending its separate credential changes.

@@ -151,10 +151,6 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
     const queue = tableRowQueues.get(table)
     if (queue && queue.length > 0) return queue.shift() ?? null
   }
-  /** Default unit fixtures represent a migrated database after authority cutover. */
-  if (tables.includes(schemaMock.projectMembershipRollout)) {
-    return [{ id: 'membership', phase: 'column' }]
-  }
   return null
 }
 
@@ -167,7 +163,7 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
  *
  * - `select().from().where()` → returns a builder with `.limit` / `.orderBy` /
  *   `.returning` / `.groupBy` / `.for` terminals
- * - `select().from().innerJoin()|leftJoin()` → returns the same where-builder
+ * - `select().from().innerJoin()|leftJoin()|crossJoinLateral()` → returns the same where-builder
  * - `insert().values().returning()` / `update().set().where()` / `delete().where()`
  *
  * Results resolve, in priority order:
@@ -243,23 +239,13 @@ const asAlias = chainSpy()
 const forClause = chainSpy()
 const innerJoin = chainSpy()
 const leftJoin = chainSpy()
+const crossJoinLateral = chainSpy()
 const insert = chainSpy()
 const update = chainSpy()
 const set = chainSpy()
 const del = chainSpy()
 const returning = vi.fn(() => Promise.resolve([] as unknown[]))
-const execute = vi.fn((statement?: unknown) => {
-  if (
-    statement &&
-    typeof statement === 'object' &&
-    'toSQL' in statement &&
-    typeof statement.toSQL === 'function' &&
-    statement.toSQL().sql.includes("to_regclass('public.project_membership_rollout')")
-  ) {
-    return Promise.resolve([{ marker: true, complete: false }] as unknown[])
-  }
-  return Promise.resolve([] as unknown[])
-})
+const execute = vi.fn(() => Promise.resolve([] as unknown[]))
 const query = vi.fn(() => Promise.resolve([] as unknown[]))
 const onConflictDoUpdate = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<void>)
@@ -355,6 +341,8 @@ const joinBuilder = (tables: unknown[], fields: SelectedFields = {}): any => {
   builder.leftJoin = spyOrDefault(leftJoin, (table: unknown) =>
     joinBuilder([...tables, table], fields)
   )
+  // A lateral join reads a SQL expression, not a table, so the chain routes as before it.
+  builder.crossJoinLateral = spyOrDefault(crossJoinLateral, () => joinBuilder(tables, fields))
   return builder
 }
 
@@ -381,6 +369,7 @@ export const dbChainMockFns = {
   returning,
   innerJoin,
   leftJoin,
+  crossJoinLateral,
   groupBy,
   having,
   as: asAlias,

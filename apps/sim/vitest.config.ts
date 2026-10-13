@@ -37,25 +37,7 @@ export default defineConfig(({ mode }) => {
           : live
             ? ['**/*.live.test.ts']
             : ['**/*.test.{ts,tsx}'],
-        exclude: [
-          ...(integration || live ? [] : ['**/*.live.test.ts']),
-          /**
-           * Quarantined: these suites already failed against a freshly provisioned database before
-           * the integration layer was collected by glob (their fixtures predate connector and
-           * credential changes). Fix and remove them from this list; never add a passing suite here.
-           */
-          ...(integration
-            ? [
-                'lib/credentials/__integration__/organization-personal-tokens.integration.ts',
-                'lib/knowledge/__integration__/confluence-enrollment.integration.ts',
-                'lib/knowledge/__integration__/excluded-member-documents.integration.ts',
-                'lib/knowledge/__integration__/github-member.integration.ts',
-                'lib/knowledge/__integration__/gmail-member.integration.ts',
-                'lib/knowledge/__integration__/google-calendar-member.integration.ts',
-                'lib/knowledge/__integration__/jira-member.integration.ts',
-              ]
-            : []),
-        ],
+        exclude: integration || live ? [] : ['**/*.live.test.ts'],
         setupFiles: integration ? ['./vitest.integration.setup.ts'] : ['./vitest.setup.ts'],
         pool: 'threads',
         fileParallelism: !integration,

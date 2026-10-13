@@ -476,7 +476,7 @@ function OrganizationHomeContent({
 
   const hostLanding = hasChat ? undefined : landing?.(requestMode)
   const content = (
-    <div className='flex h-full min-h-0 @max-[960px]/chat-panel:min-w-0 min-w-0 flex-1 flex-col bg-[var(--bg)] md:min-w-[min(480px,100%)]'>
+    <div className='flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)] md:min-w-[min(480px,50%)]'>
       {projectViewEnabled ? (
         <header className='flex h-[calc(var(--resource-header-controls-height)+1px)] shrink-0 items-center gap-2 border-[var(--border)] border-b pr-[var(--chat-header-end-reserve,16px)] pl-4'>
           <OverflowText
