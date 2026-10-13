@@ -84,6 +84,10 @@ import {
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH,
 } from '@/lib/knowledge/constants'
 import {
+  isImageExtractionEnabled,
+  SEMANTIC_IMAGE_MIME_TYPES,
+} from '@/lib/knowledge/documents/image-extraction-policy'
+import {
   documentProcessingOutcomeSelection,
   failedDocumentCondition,
   skippedDocumentCondition,
@@ -1270,6 +1274,47 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
   },
 })
 
+/**
+ * An excluded image keeps its indexed text, and turning image attachments off
+ * skips excluded rows so the exclusion survives turning them back on. Restoring
+ * one while images are off would re-enable text the source no longer lists.
+ */
+async function assertImageRestoreAllowed(
+  connector: { id: string; connectorType: string },
+  documentIds: string[]
+) {
+  const imageExtraction = getConnectorMeta(connector.connectorType)?.imageExtraction
+  if (!imageExtraction) return
+  const [stored] = await db
+    .select({ sourceConfig: knowledgeConnector.sourceConfig })
+    .from(knowledgeConnector)
+    .where(eq(knowledgeConnector.id, connector.id))
+    .limit(1)
+  if (
+    !stored ||
+    isImageExtractionEnabled(imageExtraction, stored.sourceConfig as Record<string, unknown>)
+  ) {
+    return
+  }
+  const [image] = await db
+    .select({ id: document.id })
+    .from(document)
+    .where(
+      and(
+        eq(document.connectorId, connector.id),
+        inArray(document.id, documentIds),
+        inArray(document.mimeType, [...SEMANTIC_IMAGE_MIME_TYPES])
+      )
+    )
+    .limit(1)
+  if (image) {
+    throw new OrchestrationError(
+      'validation',
+      'Turn on image attachments for this connector before restoring an image.'
+    )
+  }
+}
+
 export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.updateConnectorDocuments,
   resolveContext: ({
@@ -1294,6 +1339,7 @@ export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCas
     if (restoring && !requiresConnectorIndexing(context.knowledgeBase.isSearchIndex)) {
       throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
     }
+    if (restoring) await assertImageRestoreAllowed(context.connector, documentIds)
     const updated = await db
       .update(document)
       .set({ userExcluded: !restoring, enabled: restoring })

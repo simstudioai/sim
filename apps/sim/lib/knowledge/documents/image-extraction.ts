@@ -298,6 +298,7 @@ export async function extractImageText(input: {
     ? createVisionCheckpoint({
         context: input.checkpoint,
         source,
+        filename,
         model,
         contractVersion: IMAGE_EXTRACTION_REPRESENTATION_VERSION,
       })

@@ -35,16 +35,18 @@ export type VisionExtractionCheckpoint = z.infer<typeof checkpointBodySchema>
 /**
  * Retry cache for one image's vision extraction, never a record: a pass that dies
  * after the paid call but before the index swap resumes from it instead of paying
- * again. Source bytes, the canonical document/pass identity, the model and the
- * extraction contract version all participate in the address.
+ * again. Every model input (source bytes and the title the prompt names), the
+ * canonical document/pass identity, the model and the extraction contract version
+ * participate in the address.
  */
 export function createVisionCheckpoint(options: {
   context: OcrCheckpointContext
   source: Buffer
+  filename: string
   model: string
   contractVersion: string
 }) {
-  const { context, source, model, contractVersion } = options
+  const { context, source, filename, model, contractVersion } = options
   if (!context.knowledgeBaseId || !context.documentId || !context.indexingPassId) {
     throw new Error('Vision checkpoint requires a canonical processing identity')
   }
@@ -53,6 +55,7 @@ export function createVisionCheckpoint(options: {
       version: 1,
       ...context,
       sourceHash: sha256Hex(source),
+      filename,
       model,
       contractVersion,
     })
