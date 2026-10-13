@@ -9,9 +9,9 @@ import {
   TriangleAlert,
 } from '@sim/emcn/icons'
 import { isEqual } from 'es-toolkit'
-import { useParams } from 'next/navigation'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import type { FallbackModelEntry } from '@/lib/workflows/blocks/fallback-models'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import {
   CheckboxList,
   Code,
@@ -473,8 +473,7 @@ function SubBlockComponent({
   labelSuffix,
   dependencyContext,
 }: SubBlockProps): JSX.Element {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
 
   const [isValidJson, setIsValidJson] = useState(true)
   const [isSearchActive, setIsSearchActive] = useState(false)

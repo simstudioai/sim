@@ -3,7 +3,6 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { filterUndefined } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import { requestRaw } from '@/lib/api/client'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { wandGenerateStreamContract } from '@/lib/api/contracts'
@@ -102,6 +101,7 @@ function buildWandContext(params?: WandContextParams): Record<string, string> | 
 }
 
 interface UseWandProps {
+  workspaceId: string
   wandConfig?: WandConfig
   currentValue?: string
   contextParams?: WandContextParams
@@ -118,6 +118,7 @@ interface UseWandProps {
 }
 
 export function useWand({
+  workspaceId,
   wandConfig,
   currentValue,
   contextParams,
@@ -128,7 +129,6 @@ export function useWand({
 }: UseWandProps) {
   const queryClient = useQueryClient()
   const { navigateToSettings } = useSettingsNavigation()
-  const { workspaceId } = useParams<{ workspaceId: string }>()
   const workflowId = useWorkflowRegistry((state) => state.hydration.workflowId)
   const [isLoading, setIsLoading] = useState(false)
   const [isPromptVisible, setIsPromptVisible] = useState(false)
@@ -245,7 +245,7 @@ export function useWand({
               history: wandConfig?.maintainHistory ? conversationHistory : [],
               generationType: wandConfig?.generationType,
               workflowId: workflowId ?? undefined,
-              workspaceId: workspaceId ?? undefined,
+              workspaceId,
               wandContext: buildWandContext(contextParams),
             },
             signal: abortControllerRef.current.signal,

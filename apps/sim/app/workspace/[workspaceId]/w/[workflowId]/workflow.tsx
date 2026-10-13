@@ -14,7 +14,6 @@ import {
   SelectionMode,
   useReactFlow,
 } from '@xyflow/react'
-import { useParams, useRouter } from 'next/navigation'
 import '@xyflow/react/dist/style.css'
 import { cn, toast, useToast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -57,6 +56,8 @@ import { getDefaultBlockName } from '@/lib/workflows/blocks/canvas-presentation'
 import { requestNoteImage, requestNoteRename } from '@/lib/workflows/notes/canvas-requests'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
+import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   CommandList,
@@ -313,17 +314,13 @@ interface AddBlockFromToolbarDetail {
  * Renders the ReactFlow canvas with blocks, edges, and all interactive features.
  */
 interface WorkflowContentProps {
-  workspaceId?: string
-  workflowId?: string
+  workspaceId: string
+  workflowId: string
   embedded?: boolean
 }
 
 const WorkflowContent = React.memo(
-  ({
-    workspaceId: propWorkspaceId,
-    workflowId: propWorkflowId,
-    embedded,
-  }: WorkflowContentProps = {}) => {
+  ({ workspaceId, workflowId: workflowIdParam, embedded }: WorkflowContentProps) => {
     const [isCanvasReady, setIsCanvasReady] = useState(false)
     const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
     const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
@@ -361,27 +358,17 @@ const WorkflowContent = React.memo(
       ? usesCredentialConfiguredOAuthClient(oauthModal.provider)
       : false
 
-    const params = useParams()
-    const router = useRouter()
+    const router = useResourceRouter()
     const colorMode = useCanvasColorMode()
     const reactFlowInstance = useReactFlow()
     const { screenToFlowPosition, getNodes, setNodes } = reactFlowInstance
     const { fitViewToBounds, getViewportCenter } = useCanvasViewport(reactFlowInstance, {
       embedded,
     })
-    const { emitCursorUpdate, joinWorkflow, leaveWorkflow } = useSocket()
+    const { emitCursorUpdate, joinWorkflow } = useSocket()
     useDynamicHandleRefresh()
 
-    const workspaceId = propWorkspaceId || (params.workspaceId as string)
-    const workflowIdParam = propWorkflowId || (params.workflowId as string)
-
-    useEffect(() => {
-      if (!embedded || !workflowIdParam) return
-      joinWorkflow(workflowIdParam)
-      return () => {
-        leaveWorkflow()
-      }
-    }, [embedded, workflowIdParam, joinWorkflow, leaveWorkflow])
+    useEffect(() => joinWorkflow(workflowIdParam), [workflowIdParam, joinWorkflow])
 
     useOAuthReturnForWorkflow(workflowIdParam)
 
@@ -5373,19 +5360,20 @@ const WorkflowContent = React.memo(
 WorkflowContent.displayName = 'WorkflowContent'
 
 interface WorkflowProps {
-  workspaceId?: string
-  workflowId?: string
+  workspaceId: string
+  workflowId: string
   embedded?: boolean
 }
 
-/** Workflow page with ReactFlowProvider and error boundary wrapper. */
-const Workflow = React.memo(({ workspaceId, workflowId, embedded }: WorkflowProps = {}) => {
+const Workflow = React.memo(({ workspaceId, workflowId, embedded }: WorkflowProps) => {
   return (
-    <ReactFlowProvider>
-      <ErrorBoundary>
-        <WorkflowContent workspaceId={workspaceId} workflowId={workflowId} embedded={embedded} />
-      </ErrorBoundary>
-    </ReactFlowProvider>
+    <WorkflowScopeProvider workspaceId={workspaceId} workflowId={workflowId}>
+      <ReactFlowProvider>
+        <ErrorBoundary>
+          <WorkflowContent workspaceId={workspaceId} workflowId={workflowId} embedded={embedded} />
+        </ErrorBoundary>
+      </ReactFlowProvider>
+    </WorkflowScopeProvider>
   )
 })
 
