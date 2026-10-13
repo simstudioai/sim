@@ -714,17 +714,6 @@ describe('authorized live retrieval', () => {
     expect(mocks.search).toHaveBeenCalledTimes(2)
   })
 
-  it('does not spend a second search on a Drive source whose verification walks folders', async () => {
-    mocks.requiresEveryTerm.mockReturnValue(true)
-    vi.mocked(livePolicyFor).mockReturnValue({
-      ...defaultLiveSearchPolicy(),
-      fileTypes: ['application/pdf'],
-    })
-    mocks.search.mockResolvedValue({ documents: [] })
-    await searchLiveKnowledge.execute({ principal, input: { ...input, query: 'launch checklist' } })
-    expect(mocks.search).toHaveBeenCalledTimes(1)
-  })
-
   it('checks the service source before returning member-visible candidates', async () => {
     const verify = vi.fn().mockResolvedValue(false)
     mocks.service.mockResolvedValue({ policy: defaultLiveSearchPolicy(), verify, partial: false })

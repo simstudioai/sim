@@ -1,26 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import {
-  confluenceTextClause,
-  driveTextClause,
-  jiraTextClause,
-} from '@/lib/sim-search/live/text-match'
+import { confluenceTextClause, jiraTextClause } from '@/lib/sim-search/live/text-match'
 
 describe('text match clauses', () => {
   it('matches either term of a two-term query, leaving out stopwords', () => {
     expect(jiraTextClause('what is the release process', 'any')).toBe(
       '(text ~ "release" OR text ~ "process")'
     )
-    expect(driveTextClause('roadmap for planning', 'any')).toBe(
-      "(fullText contains 'planning' or fullText contains 'roadmap')"
-    )
   })
 
   it('requires two of the terms of a longer query anywhere in the full text', () => {
     expect(jiraTextClause('contractor offboarding runbook', 'any')).toBe(
       '((text ~ "offboarding" AND text ~ "contractor") OR (text ~ "offboarding" AND text ~ "runbook") OR (text ~ "contractor" AND text ~ "runbook"))'
-    )
-    expect(driveTextClause('contractor offboarding runbook', 'any')).toBe(
-      "((fullText contains 'offboarding' and fullText contains 'contractor') or (fullText contains 'offboarding' and fullText contains 'runbook') or (fullText contains 'contractor' and fullText contains 'runbook'))"
     )
   })
 
@@ -41,9 +31,6 @@ describe('text match clauses', () => {
     )
     expect(confluenceTextClause('ci/cd say"hi', 'any')).toBe(
       String.raw`siteSearch ~ "ci\\/cd say\\\"hi"`
-    )
-    expect(driveTextClause(String.raw`o'brien back\slash`, 'any')).toBe(
-      String.raw`(fullText contains 'back\\slash' or fullText contains 'o\'brien')`
     )
   })
 

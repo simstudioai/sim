@@ -14,7 +14,6 @@ import { array, NativeSearchError, object, segment, string } from '@/lib/sim-sea
 import { interleaveByRank } from '@/lib/sim-search/live/pages'
 import { permitsResources } from '@/lib/sim-search/live/policy'
 import { providerText } from '@/lib/sim-search/live/text'
-import { driveTextClause } from '@/lib/sim-search/live/text-match'
 import type {
   NativeClient,
   NativeDocument,
@@ -25,6 +24,8 @@ import type {
 
 const DRIVE_FIELDS =
   'id,name,mimeType,webViewLink,description,modifiedTime,owners(displayName,emailAddress)'
+export const escapeDriveLiteral = (value: string) =>
+  value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 
 function driveDocument(row: Record<string, unknown>): NativeDocument {
   return {
@@ -47,7 +48,8 @@ export async function searchDrive(
 ): Promise<NativePage> {
   const text = nativeText(input)
   const query =
-    input.native?.query || (text ? driveTextClause(text, input.textMatch) : 'trashed = false')
+    input.native?.query ||
+    (text ? `fullText contains '${escapeDriveLiteral(text)}'` : 'trashed = false')
   const dates = nativeDateBounds(input)
   const data = object(
     await client.json('/drive/v3/files', {

@@ -18,7 +18,7 @@ import { createManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
 import { isManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
 import { readNotionMcp, searchNotionMcp } from '@/lib/sim-search/live/notion-mcp'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
-import { type LiveSearchPolicy, requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
+import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { LIVE_SEARCH_PROVIDER_CATALOG } from '@/lib/sim-search/live/provider-catalog'
 import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
@@ -190,15 +190,6 @@ export async function openLiveAccountSession(
     throw error
   })
 
-  /**
-   * A Drive source scoped to folders or file types, or verified by a service account, walks
-   * folders and checks each file's ancestry within the search's request budget; a second search
-   * would spend the requests that verify its exact matches.
-   */
-  const verifiesByWalkingDrive =
-    provider === 'google_drive' &&
-    (Boolean(boundary.scopeSearch) || requiresScopedRetrieval(provider, boundary.policy))
-
   return {
     async close() {
       await mcp?.close()
@@ -214,7 +205,7 @@ export async function openLiveAccountSession(
           client ? searchNativeProvider(provider, client, native) : searchMcp(native)
         )
       }
-      return client && requiresEveryTerm(provider) && !verifiesByWalkingDrive
+      return client && requiresEveryTerm(provider)
         ? searchWithAnyTermFallback(searchOnce, search)
         : searchOnce(search)
     },

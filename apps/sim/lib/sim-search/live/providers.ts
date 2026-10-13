@@ -90,7 +90,6 @@ export const LIVE_SEARCH_PROVIDERS = {
       avoid:
         'bare words without a term and operator, which Drive rejects, and trashed or modifiedTime clauses, which the server adds from startDate/endDate. Drive search does not search comments or replies; find the file by title/content, then read it to retrieve its discussion. PDF and DOCX reads extract text within download and parsing limits; scanned PDFs need OCR and unsupported binaries provide metadata only. Saved Google Meet transcripts and generated notes are Google Docs: use Drive fullText search and read their content. Drive date filters use file modification time, not meeting time.',
     },
-    requiresEveryTerm: true,
     previewText: previewDrive,
     search: searchDrive,
     read: (client, reference, options) => readDrive(client, reference.id, options.signal),

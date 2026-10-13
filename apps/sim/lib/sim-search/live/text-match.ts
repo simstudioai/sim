@@ -1,9 +1,9 @@
 import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
 
 /**
- * How a plain query's words must match a document. Confluence, Jira and Drive full-text search
- * require every word by default, so one word a page lacks hides it; `any` also matches pages that
- * contain only some of the query's words.
+ * How a plain query's words must match a document. Confluence and Jira text search require every
+ * word by default, so one word a page lacks hides it; `any` also matches pages that contain only
+ * some of the query's words.
  */
 export type TextMatch = 'all' | 'any'
 
@@ -68,34 +68,25 @@ export function significantTerms(query: string): string[] {
     .slice(0, MAX_ANY_TERMS)
 }
 
-/**
- * An any-term clause: every pair of terms ORed together, so a match contains at least two of them
- * somewhere in its full text, or either term of a two-term query.
- */
-function anyTermClause(
-  terms: readonly string[],
-  clause: (term: string) => string,
-  and: string,
-  or: string
-): string {
-  const groups =
-    terms.length === 2
-      ? terms.map(clause)
-      : terms.flatMap((first, index) =>
-          terms.slice(index + 1).map((second) => `(${clause(first)} ${and} ${clause(second)})`)
-        )
-  return `(${groups.join(` ${or} `)})`
-}
-
 /** Escapes a value for a quoted JQL or CQL string, treating Lucene operators as literal text. */
 const escapeSearchPhrase = (value: string) =>
   JSON.stringify(value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&'))
 
-/** The `text ~` clause for a plain query in Jira JQL. */
+/**
+ * The `text ~` clause for a plain query in Jira JQL. `any` ORs every pair of terms, so a match
+ * contains at least two of them somewhere in the issue, or either term of a two-term query.
+ */
 export function jiraTextClause(text: string, match: TextMatch = 'all'): string {
   const terms = match === 'any' ? significantTerms(text) : []
   if (terms.length < 2) return `text ~ ${escapeSearchPhrase(text)}`
-  return anyTermClause(terms, (term) => `text ~ ${escapeSearchPhrase(term)}`, 'AND', 'OR')
+  const clause = (term: string) => `text ~ ${escapeSearchPhrase(term)}`
+  const groups =
+    terms.length === 2
+      ? terms.map(clause)
+      : terms.flatMap((first, index) =>
+          terms.slice(index + 1).map((second) => `(${clause(first)} AND ${clause(second)})`)
+        )
+  return `(${groups.join(' OR ')})`
 }
 
 /**
@@ -105,21 +96,6 @@ export function jiraTextClause(text: string, match: TextMatch = 'all'): string {
  */
 export function confluenceTextClause(text: string, match: TextMatch = 'all'): string {
   return `${match === 'any' ? 'siteSearch' : 'text'} ~ ${escapeSearchPhrase(text)}`
-}
-
-export const escapeDriveLiteral = (value: string) =>
-  value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
-
-/** The `fullText contains` clause for a plain query in Drive's q language. */
-export function driveTextClause(text: string, match: TextMatch = 'all'): string {
-  const terms = match === 'any' ? significantTerms(text) : []
-  if (terms.length < 2) return `fullText contains '${escapeDriveLiteral(text)}'`
-  return anyTermClause(
-    terms,
-    (term) => `fullText contains '${escapeDriveLiteral(term)}'`,
-    'and',
-    'or'
-  )
 }
 
 /** How many distinct terms occur as whole words in the text. */
