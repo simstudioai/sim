@@ -742,26 +742,32 @@ describe('table row writes against real PostgreSQL', () => {
       )
 
     /**
-     * Index and sequential scans this transaction ran on `user_table_rows`, by relation, read from
-     * the transaction's own statistics so concurrent suites cannot skew them.
+     * Index and sequential scans this backend has counted on `user_table_rows`, by relation. The
+     * counters are the backend's unflushed statistics, which can still hold scans from earlier
+     * transactions on the same pooled connection, so callers diff two readings.
      */
-    async function rowScans(trx: DbTransaction): Promise<Record<string, number>> {
+    async function rowScans(trx: DbTransaction): Promise<Map<string, number>> {
       const scans = await trx.execute<{ relname: string; scans: number }>(sql`
         SELECT c.relname, pg_stat_get_xact_numscans(c.oid)::int AS scans
         FROM pg_class c
         WHERE c.oid = 'user_table_rows'::regclass
           OR c.oid IN (SELECT indexrelid FROM pg_index WHERE indrelid = 'user_table_rows'::regclass)`)
-      return Object.fromEntries(
-        scans.filter((row) => row.scans > 0).map((row) => [row.relname, row.scans])
-      )
+      return new Map(scans.map((row) => [row.relname, row.scans]))
     }
 
+    /** Runs the check in a transaction and returns its result with the scans the check alone ran. */
     const checkWithScans = (table: TableDefinition, rows: RowData[]) =>
       db.transaction(async (trx) => {
         // A parallel worker's scans are not counted in the leader's transaction statistics.
         await trx.execute(sql`SET LOCAL max_parallel_workers_per_gather = 0`)
+        const before = await rowScans(trx)
         const result = await checkBatchUniqueConstraintsDb(table.id, rows, table.schema, trx)
-        return { result, scans: await rowScans(trx) }
+        const scans: Record<string, number> = {}
+        for (const [relname, count] of await rowScans(trx)) {
+          const ran = count - (before.get(relname) ?? 0)
+          if (ran > 0) scans[relname] = ran
+        }
+        return { result, scans }
       })
 
     it('reports stored and in-batch conflicts across every probe group', async () => {
@@ -862,6 +868,9 @@ describe('table row writes against real PostgreSQL', () => {
         SELECT ${table.id}::text || '-' || i, ${table.id}, ${workspaceId},
           jsonb_build_object('email', 'stored-' || i || '@example.test'), i, 'a' || i
         FROM generate_series(0, 39999) AS i`
+      // A bulk insert leaves its entries in the GIN pending list, which a manual ANALYZE does not
+      // merge and which the planner charges to every probe, so flush it for a deterministic plan.
+      await control`SELECT gin_clean_pending_list('user_table_rows_tenant_data_gin_idx'::regclass)`
       await control`ANALYZE user_table_rows`
       const rows: RowData[] = Array.from({ length: 260 }, (_, i) => ({
         email: i % 10 === 0 ? `stored-${i * 100}@example.test` : `new-${i}@example.test`,
