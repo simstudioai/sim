@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { document, knowledgeConnector } from '@sim/db/schema'
-import { and, eq, inArray, isNotNull, isNull, lt, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNotNull, isNull, lt, type SQL, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -12,7 +12,10 @@ import {
   GOOGLE_COMPANY_PERMISSION_REFRESH_MS,
   isGoogleCompanySource,
 } from '@/lib/knowledge/connectors/google-company-scheduler'
-import { imageExtractionPolicyFor } from '@/lib/knowledge/connectors/image-admission'
+import {
+  type ImageAdmissionState,
+  imageExtractionPolicyFor,
+} from '@/lib/knowledge/connectors/image-admission'
 import {
   beginListingCheckpoint,
   type ListingCheckpoint,
@@ -98,6 +101,14 @@ interface ContentPassInput {
   ) => Promise<{ permissionsIncomplete: boolean } | undefined>
 }
 
+/** The image fields of a listing checkpoint that a page persists alongside its seen stamps. */
+function imageCountOf(state: ImageAdmissionState): ImageAdmissionState {
+  return {
+    imageExtractionsAdmitted: state.imageExtractionsAdmitted,
+    imagesDeferred: state.imagesDeferred,
+  }
+}
+
 /** One durable content cycle shared by content-owned and member-visibility connectors. */
 export async function runConnectorContentPass(input: ContentPassInput) {
   const { matchContentHash } = input.connectorConfig
@@ -143,10 +154,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
     })
   }
   let hydratedCount = 0
-  let storedImageCount = {
-    imageExtractionsAdmitted: checkpoint.imageExtractionsAdmitted,
-    imagesDeferred: checkpoint.imagesDeferred,
-  }
+  let storedImageCount = imageCountOf(checkpoint)
   const syncIntervalMinutes = effectiveConnectorSyncIntervalMinutes(
     input.documentAccess,
     input.connector.syncIntervalMinutes ?? SIM_SEARCH_SYNC_INTERVAL_MINUTES
@@ -267,10 +275,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
                 )
               )
           }
-          const imageCount = {
-            imageExtractionsAdmitted: cycle.imageExtractionsAdmitted,
-            imagesDeferred: cycle.imagesDeferred,
-          }
+          const imageCount = imageCountOf(cycle)
           if (
             imageCount.imageExtractionsAdmitted !== storedImageCount.imageExtractionsAdmitted ||
             imageCount.imagesDeferred !== storedImageCount.imagesDeferred
@@ -370,9 +375,11 @@ export async function runConnectorContentPass(input: ContentPassInput) {
     },
   })
   const imagesRemoved = await removeDisabledImages(input)
-  const reconciliation = checkpoint.complete
-    ? await reconcileCompletedListing(input, checkpoint, withLease, withAclPage)
-    : { finished: false, notice: null }
+  /** Images the removal has not reached yet are unlisted, so reconciling now would count them as absent. */
+  const reconciliation =
+    checkpoint.complete && imagesRemoved
+      ? await reconcileCompletedListing(input, checkpoint, withLease, withAclPage)
+      : { finished: false, notice: null }
   /** Unverified permissions, an incomplete listing and unrefreshed content are independent holds; an admin needs each, one per line. */
   const holdNotice =
     [
@@ -405,6 +412,8 @@ export async function removeDisabledImages(
   >
 ): Promise<boolean> {
   if (!input.connector.imageRemovalPending) return true
+  /** Walks by id through `doc_connector_reconciliation_v2_idx`, so each page resumes where the last ended. */
+  let afterId: string | undefined
   while (true) {
     if (Date.now() >= input.deadlineAt) return false
     await input.lease.beatIfDue()
@@ -416,11 +425,14 @@ export async function removeDisabledImages(
           eq(document.connectorId, input.connectorId),
           inArray(document.mimeType, [...SEMANTIC_IMAGE_MIME_TYPES]),
           eq(document.userExcluded, false),
-          isNull(document.archivedAt)
+          isNull(document.archivedAt),
+          afterId ? gt(document.id, afterId) : undefined
         )
       )
+      .orderBy(document.id)
       .limit(25)
     if (rows.length === 0) break
+    afterId = rows.at(-1)?.id
     const removed = await hardDeleteDocuments(
       rows.map((row) => row.id),
       input.runId,

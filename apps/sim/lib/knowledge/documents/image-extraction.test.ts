@@ -4,13 +4,16 @@
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequest, mockResolveKey, mockAdmission, mockLoad, mockSave } = vi.hoisted(() => ({
-  mockRequest: vi.fn(),
-  mockResolveKey: vi.fn(),
-  mockAdmission: vi.fn(),
-  mockLoad: vi.fn(),
-  mockSave: vi.fn(),
-}))
+const { mockRequest, mockResolveKey, mockAdmission, mockCooldown, mockLoad, mockSave } = vi.hoisted(
+  () => ({
+    mockRequest: vi.fn(),
+    mockResolveKey: vi.fn(),
+    mockAdmission: vi.fn(),
+    mockCooldown: vi.fn(),
+    mockLoad: vi.fn(),
+    mockSave: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/knowledge/documents/image-extraction-gemini', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/knowledge/documents/image-extraction-gemini')>()),
@@ -19,6 +22,7 @@ vi.mock('@/lib/knowledge/documents/image-extraction-gemini', async (importOrigin
 vi.mock('@/lib/embeddings/keys', () => ({ resolveProviderKey: mockResolveKey }))
 vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
   waitForProviderAdmission: mockAdmission,
+  recordProviderCooldown: mockCooldown,
 }))
 vi.mock('@/lib/knowledge/documents/vision-checkpoints', () => ({
   createVisionCheckpoint: () => ({ load: mockLoad, save: mockSave }),
@@ -60,15 +64,15 @@ function respond(body: unknown, finishReason = 'STOP') {
 
 /** A noisy image, so it stays over the byte floor at any tested size. */
 async function png(width: number, height: number): Promise<Buffer> {
-  const pixels = Buffer.alloc(width * height * 3)
-  let seed = 0x2545f491
-  for (let index = 0; index < pixels.length; index++) {
-    seed ^= seed << 13
-    seed ^= seed >>> 17
-    seed ^= seed << 5
-    pixels[index] = seed & 0xff
-  }
-  return sharp(pixels, { raw: { width, height, channels: 3 } })
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: '#808080',
+      noise: { type: 'gaussian', mean: 128, sigma: 60 },
+    },
+  })
     .png()
     .toBuffer()
 }
@@ -111,7 +115,9 @@ describe('extractImageText', () => {
 
   it('downscales an image wider than the model edge before sending it', async () => {
     await extract(4000, 1000)
-    const sent = await sharp(mockRequest.mock.calls[0][0].image.bytes).metadata()
+    const sent = await sharp(
+      Buffer.from(mockRequest.mock.calls[0][0].image.data, 'base64')
+    ).metadata()
     expect(Math.max(sent.width ?? 0, sent.height ?? 0)).toBe(2048)
   })
 
@@ -211,6 +217,11 @@ describe('extractImageText', () => {
   it('defers on throttling and fails on a rejected key or image', async () => {
     mockRequest.mockRejectedValueOnce(new GeminiImageExtractionError(429, 5000, ''))
     await expect(extract()).rejects.toMatchObject({ reason: 'rate_limit', retryAfterMs: 5000 })
+    /** The whole key backs off, not only this document. */
+    expect(mockCooldown).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'vision' }),
+      5000
+    )
 
     mockRequest.mockRejectedValueOnce(new GeminiImageExtractionError(403, undefined, ''))
     await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_unavailable' })
@@ -242,6 +253,7 @@ describe('extractImageText', () => {
       await vi.advanceTimersByTimeAsync(10_000)
       await expect(pending).resolves.toMatchObject({ decorative: false })
       expect(mockRequest).toHaveBeenCalledTimes(2)
+      expect(mockAdmission).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
     }
@@ -255,16 +267,20 @@ describe('extractImageText', () => {
   })
 
   it('keeps the post-call reserve when the admission wait eats into the budget', async () => {
-    const deadlineAt = Date.now() + 200_000
-    mockAdmission.mockImplementationOnce(async () => {
-      vi.setSystemTime(Date.now() + 10_000)
-    })
-    await expect(extract(400, 300, { deadlineAt })).rejects.toBeInstanceOf(
-      ProviderCapacityDeferredError
-    )
-    expect(mockAdmission.mock.calls[0][0].maxWaitMs).toBeLessThanOrEqual(5_000)
-    expect(mockRequest).not.toHaveBeenCalled()
-    vi.useRealTimers()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const deadlineAt = Date.now() + 200_000
+      mockAdmission.mockImplementationOnce(async () => {
+        vi.setSystemTime(Date.now() + 10_000)
+      })
+      await expect(extract(400, 300, { deadlineAt })).rejects.toBeInstanceOf(
+        ProviderCapacityDeferredError
+      )
+      expect(mockAdmission.mock.calls[0][0].maxWaitMs).toBeLessThanOrEqual(5_000)
+      expect(mockRequest).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('treats an image under the byte floor as decorative without a call', async () => {
@@ -281,7 +297,8 @@ describe('extractImageText', () => {
   })
 
   it('fails an image whose pixel data cannot be decoded as invalid', async () => {
-    const valid = await png(3000, 3000)
+    /** Wider than the model edge, so the pixels are decoded for downscaling. */
+    const valid = await png(2100, 64)
     const corrupt = Buffer.concat([valid.subarray(0, 64), Buffer.alloc(valid.length - 64, 7)])
     await expect(
       extractImageText({ source: corrupt, filename: 'broken.png', workspaceId: 'ws-1' })

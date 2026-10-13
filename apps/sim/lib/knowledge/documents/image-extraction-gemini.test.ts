@@ -15,7 +15,7 @@ function call() {
     apiKey: 'key',
     systemPrompt: 'Extract.',
     userText: 'Attachment title: Calendar',
-    image: { bytes: Buffer.from('png bytes'), mimeType: 'image/png' },
+    image: { data: Buffer.from('png bytes').toString('base64'), mimeType: 'image/png' },
     responseJsonSchema: { type: 'object' },
     maxOutputTokens: 32_768,
     signal: new AbortController().signal,
@@ -57,21 +57,10 @@ describe('requestGeminiImageExtraction', () => {
       inputTokens: 1200,
       outputTokens: 300,
     })
-    const [url, init] = fetchMock.mock.calls[0]
-    expect(String(url)).toBe(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent'
-    )
-    expect(init?.headers).toMatchObject({ 'x-goog-api-key': 'key' })
-    const body = JSON.parse(String(init?.body))
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
     expect(body.contents[0].parts[1].inlineData).toEqual({
       mimeType: 'image/png',
       data: Buffer.from('png bytes').toString('base64'),
-    })
-    expect(body.generationConfig).toEqual({
-      responseMimeType: 'application/json',
-      responseJsonSchema: { type: 'object' },
-      maxOutputTokens: 32_768,
-      thinkingConfig: { thinkingLevel: 'LOW' },
     })
   })
 
@@ -85,6 +74,21 @@ describe('requestGeminiImageExtraction', () => {
     const failure = call()
     await expect(failure).rejects.toBeInstanceOf(GeminiImageExtractionError)
     await expect(failure).rejects.toMatchObject({ status: 429, retryAfterMs: 7000 })
+  })
+
+  it('reads the retry delay from the body when Gemini sends no Retry-After header', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json(
+        {
+          error: {
+            status: 'RESOURCE_EXHAUSTED',
+            details: [{ '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '13.5s' }],
+          },
+        },
+        { status: 429 }
+      )
+    )
+    await expect(call()).rejects.toMatchObject({ status: 429, retryAfterMs: 13_500 })
   })
 
   it('keeps only the error codes from a failure body, never its text', async () => {

@@ -402,7 +402,7 @@ export function Document({
   const DocumentIcon =
     ConnectorIcon || getDocumentIcon(documentData?.mimeType ?? '', effectiveDocumentName)
   const isCompleted = documentData?.processingStatus === 'completed'
-  /** Only a decorative image (a logo or icon) completes with nothing indexed. */
+  /** A completed image with no chunks held nothing searchable, such as a logo or an icon. */
   const isImageWithNothingToIndex =
     isCompleted && documentData.mimeType.startsWith('image/') && documentData.chunkCount === 0
 

@@ -430,8 +430,9 @@ export async function listConfluenceAttachments(
     state.serverFailureStreak = 0
     const { page } = listing
     for (const attachment of page.results) {
-      if (attachment.status !== 'current' || !attachmentMimeType(attachment)) continue
-      if (isImageAttachment(attachment) && (!input.includeImages || isBelowImageFloor(attachment)))
+      const mimeType = attachmentMimeType(attachment)
+      if (attachment.status !== 'current' || !mimeType) continue
+      if (mimeType.startsWith('image/') && (!input.includeImages || isBelowImageFloor(attachment)))
         continue
       if (!sameParent(attachmentParent(attachment), parent)) {
         throw new Error('Confluence returned an attachment belonging to another parent')
@@ -595,7 +596,7 @@ export async function getConfluenceAttachment(
     }
   }
   if (
-    isImageAttachment(attachment) &&
+    mimeType.startsWith('image/') &&
     !isImageExtractionEnabled(confluenceConnectorMeta.imageExtraction, sourceConfig)
   ) {
     return {

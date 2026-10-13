@@ -1754,7 +1754,7 @@ async function syncDedicatedMemberContent(input: {
   })
   return {
     complete: pass.complete,
-    imageExtractionsAdmitted: pass.checkpoint.imageExtractionsAdmitted ?? 0,
+    imageExtractionsAdmitted: pass.checkpoint.imageExtractionsAdmitted,
   }
 }
 

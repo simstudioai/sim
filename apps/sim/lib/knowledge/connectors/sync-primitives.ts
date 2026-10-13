@@ -21,7 +21,6 @@ import {
 } from '@/lib/knowledge/connectors/connector-error'
 import {
   admitVisionImage,
-  canExtractImages,
   type ImageAdmissionState,
   imageExtractionPolicyFor,
 } from '@/lib/knowledge/connectors/image-admission'
@@ -36,6 +35,7 @@ import {
   type SourceMetadataFields,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
+import { canExtractImages } from '@/lib/knowledge/documents/image-extraction'
 import {
   type ImageExtractionPolicy,
   isSemanticImage,
@@ -965,7 +965,7 @@ export function classifyListing(input: {
     const classification = classifyExternalDoc(
       extDoc,
       existing,
-      forceRehydrate && !isSemanticImage(input.imagePolicy ?? 'ocr', extDoc.mimeType),
+      forceRehydrate && !isSemanticImage(input.imagePolicy, extDoc.mimeType),
       input.matchContentHash
     )
 

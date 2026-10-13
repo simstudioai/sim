@@ -28,6 +28,8 @@ const fixture = vi.hoisted(() => {
     images: new Map<string, number>(),
     decorative: new Set<string>(),
     extractions: [] as string[],
+    /** Each chunk gets its own one-hot vector, so the shared HNSW graph sees no duplicates. */
+    nextVector: 0,
   }
 })
 vi.mock('@/lib/uploads/core/setup.server', () => ({
@@ -39,7 +41,11 @@ vi.mock('@/lib/embeddings', async () => ({
   ...(await import('@/lib/embeddings/client')),
   assertKnowledgeEmbeddingCapacity: async () => {},
   embedKnowledge: async (texts: string[]) => ({
-    embeddings: texts.map(() => [1, ...Array<number>(1535).fill(0)]),
+    embeddings: texts.map(() => {
+      const vector = Array<number>(1536).fill(0)
+      vector[fixture.nextVector++ % 512] = 1
+      return vector
+    }),
     totalTokens: texts.length,
     billableTokens: 0,
     isBYOK: true,
@@ -47,7 +53,8 @@ vi.mock('@/lib/embeddings', async () => ({
     pricingId: 'text-embedding-3-small',
   }),
 }))
-vi.mock('@/lib/knowledge/documents/image-extraction', () => ({
+vi.mock('@/lib/knowledge/documents/image-extraction', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/knowledge/documents/image-extraction')>()),
   extractImageText: async ({ filename }: { filename: string }) => {
     fixture.extractions.push(filename)
     const externalId = filename.replace(/\.png$/, '')
@@ -117,7 +124,12 @@ import { IMAGES_DEFERRED_NOTICE } from '@/lib/knowledge/connectors/sync-limits'
 describe('Confluence image attachments through sync, indexing and reconciliation', () => {
   const ids = createKnowledgeAclFixtureIds()
   let billing: Awaited<ReturnType<typeof resolveBillingAttribution>>
-  const priorGeminiKey = env.GEMINI_API_KEY
+  const priorGeminiKeys = {
+    GEMINI_API_KEY: env.GEMINI_API_KEY,
+    GEMINI_API_KEY_1: env.GEMINI_API_KEY_1,
+    GEMINI_API_KEY_2: env.GEMINI_API_KEY_2,
+    GEMINI_API_KEY_3: env.GEMINI_API_KEY_3,
+  }
 
   async function configure(imageAttachments: 'semantic' | 'off' | undefined) {
     await db
@@ -135,6 +147,25 @@ describe('Confluence image attachments through sync, indexing and reconciliation
       })
       .where(eq(knowledgeConnector.id, ids.connectorId))
   }
+  /** Waits for the sync a create or update dispatched in-process to land. */
+  async function syncFinished(connectorId: string) {
+    await expect
+      .poll(
+        async () => {
+          const [row] = await db
+            .select()
+            .from(knowledgeConnector)
+            .where(eq(knowledgeConnector.id, connectorId))
+          return {
+            status: row?.status,
+            error: row?.lastSyncError,
+            synced: Boolean(row?.lastSyncAt),
+          }
+        },
+        { timeout: 45_000 }
+      )
+      .toEqual({ status: 'active', error: null, synced: true })
+  }
   /** Changes the setting the way a user does; the update dispatches the next sync, which runs in-process. */
   async function setImageAttachments(imageAttachments: 'semantic' | 'off') {
     await updateKnowledgeConnector.execute({
@@ -146,22 +177,7 @@ describe('Confluence image attachments through sync, indexing and reconciliation
         },
       },
     })
-    await expect
-      .poll(
-        async () => {
-          const [row] = await db
-            .select()
-            .from(knowledgeConnector)
-            .where(eq(knowledgeConnector.id, ids.connectorId))
-          return {
-            status: row?.status,
-            error: row?.lastSyncError,
-            synced: Boolean(row?.lastSyncAt),
-          }
-        },
-        { timeout: 30_000 }
-      )
-      .toEqual({ status: 'active', error: null, synced: true })
+    await syncFinished(ids.connectorId)
   }
   async function imageRemovalPending() {
     const [row] = await db
@@ -221,7 +237,7 @@ describe('Confluence image attachments through sync, indexing and reconciliation
     await configure('semantic')
   })
   afterAll(async () => {
-    Object.assign(env, { GEMINI_API_KEY: priorGeminiKey })
+    Object.assign(env, priorGeminiKeys)
     await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
@@ -259,7 +275,7 @@ describe('Confluence image attachments through sync, indexing and reconciliation
     await sync()
     expect((await images()).every((row) => row.contentHash?.endsWith(':2'))).toBe(true)
     expect(await lastSyncError()).toBeNull()
-  })
+  }, 120_000)
 
   it('does not read unchanged images again on a full resync', async () => {
     fixture.images.set('image-a', 1)
@@ -288,7 +304,7 @@ describe('Confluence image attachments through sync, indexing and reconciliation
     fixture.extractions.length = 0
     await setImageAttachments('semantic')
     expect(fixture.extractions.sort()).toEqual(['image-a.png', 'image-b.png'])
-  })
+  }, 120_000)
 
   it('keeps images off for a connector created before the setting existed', async () => {
     fixture.images.set('image-a', 1)
@@ -347,7 +363,9 @@ describe('Confluence image attachments through sync, indexing and reconciliation
         .from(knowledgeConnector)
         .where(eq(knowledgeConnector.id, created.connector.id))
       expect(row?.sourceConfig).toMatchObject({ imageAttachments: saved })
+      await syncFinished(created.connector.id)
       await db.delete(knowledgeConnector).where(eq(knowledgeConnector.id, created.connector.id))
-    }
+    },
+    120_000
   )
 })

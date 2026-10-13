@@ -155,32 +155,51 @@ export interface GeminiImageExtractionResponse {
   outputTokens: number
 }
 
-/** Gemini error bodies carry `error.status` and `error.details[].reason` codes. */
+/**
+ * Gemini error bodies carry `error.status`, `error.details[].reason` codes, and a
+ * `RetryInfo` detail whose `retryDelay` (such as `"13s"`) says when to retry.
+ */
 const geminiErrorBodySchema = z.object({
   error: z.object({
     status: z.string().max(64).optional(),
     details: z
-      .array(z.object({ reason: z.string().max(64).optional() }).passthrough())
+      .array(
+        z
+          .object({
+            reason: z.string().max(64).optional(),
+            retryDelay: z.string().max(32).optional(),
+          })
+          .passthrough()
+      )
       .max(20)
       .optional(),
   }),
 })
 
-/** The machine-readable codes of a Gemini error body, such as `INVALID_ARGUMENT API_KEY_INVALID`. */
-function geminiErrorCodes(body: string): string {
+/**
+ * The machine-readable codes of a Gemini error body, such as
+ * `INVALID_ARGUMENT API_KEY_INVALID`, and its retry delay when it gives one.
+ */
+function readGeminiError(body: string): { detail: string; retryAfterMs?: number } {
   let parsed: unknown
   try {
     parsed = JSON.parse(body)
   } catch {
-    return 'unparseable error body'
+    return { detail: 'unparseable error body' }
   }
   const result = geminiErrorBodySchema.safeParse(parsed)
-  if (!result.success) return 'unrecognized error body'
-  const { status, details } = result.data.error
-  const codes = [status, ...(details ?? []).map((detail) => detail.reason)].filter(
-    (code): code is string => Boolean(code) && /^[A-Z0-9_]+$/.test(code as string)
+  if (!result.success) return { detail: 'unrecognized error body' }
+  const details = result.data.error.details ?? []
+  const codes = [result.data.error.status, ...details.map((detail) => detail.reason)].filter(
+    (code): code is string => typeof code === 'string' && /^[A-Z0-9_]+$/.test(code)
   )
-  return codes.length > 0 ? codes.join(' ') : 'no error code'
+  const retryDelay = details
+    .map((detail) => detail.retryDelay?.match(/^(\d+(?:\.\d+)?)s$/)?.[1])
+    .find((seconds) => seconds !== undefined)
+  return {
+    detail: codes.length > 0 ? codes.join(' ') : 'no error code',
+    ...(retryDelay ? { retryAfterMs: Math.ceil(Number(retryDelay) * 1000) } : {}),
+  }
 }
 
 /**
@@ -194,7 +213,8 @@ export async function requestGeminiImageExtraction(input: {
   apiKey: string
   systemPrompt: string
   userText: string
-  image: { bytes: Buffer; mimeType: string }
+  /** Base64-encoded once by the caller, so a retried attempt does not encode it again. */
+  image: { data: string; mimeType: string }
   responseJsonSchema: Record<string, unknown>
   maxOutputTokens: number
   signal: AbortSignal
@@ -212,10 +232,7 @@ export async function requestGeminiImageExtraction(input: {
             parts: [
               { text: input.userText },
               {
-                inlineData: {
-                  mimeType: input.image.mimeType,
-                  data: input.image.bytes.toString('base64'),
-                },
+                inlineData: { mimeType: input.image.mimeType, data: input.image.data },
               },
             ],
           },
@@ -233,10 +250,13 @@ export async function requestGeminiImageExtraction(input: {
   )
   if (!response.ok) {
     const payload = await readBoundedHttpErrorPayload(response)
+    const error = payload.ok
+      ? readGeminiError(payload.body)
+      : { detail: 'no readable error body', retryAfterMs: undefined }
     throw new GeminiImageExtractionError(
       response.status,
-      parseRetryAfter(response.headers.get('retry-after')) ?? undefined,
-      payload.ok ? geminiErrorCodes(payload.body) : 'no readable error body'
+      parseRetryAfter(response.headers.get('retry-after')) ?? error.retryAfterMs,
+      error.detail
     )
   }
   const json = await readResponseJsonWithLimit<GeminiGenerateContentResponse>(response, {

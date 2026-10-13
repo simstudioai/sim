@@ -1,25 +1,16 @@
 import { env, envNumber } from '@/lib/core/config/env'
-import { resolveGeminiImageKey } from '@/lib/knowledge/documents/image-extraction-gemini'
 import type { ImageExtractionPolicy } from '@/lib/knowledge/documents/image-extraction-policy'
 import { getConnectorMeta } from '@/connectors/registry'
 
 /** Images one sync may send for vision extraction, new or changed; the rest wait for the next sync. */
 const IMAGE_EXTRACTIONS_PER_SYNC = envNumber(env.KB_IMAGE_EXTRACTIONS_PER_SYNC, 500, {
-  min: 0,
+  min: 1,
   integer: true,
 })
 
 /** A source's image policy, declared on its connector; uploads and undeclared sources keep OCR. */
 export function imageExtractionPolicyFor(connectorType: string | null): ImageExtractionPolicy {
   return connectorType && getConnectorMeta(connectorType)?.imageExtraction ? 'semantic' : 'ocr'
-}
-
-/**
- * Whether the workspace can have images read at all: its own Gemini key, or one
- * on the deployment. Without either, images are left unlisted rather than failed.
- */
-export async function canExtractImages(workspaceId: string | null): Promise<boolean> {
-  return (await resolveGeminiImageKey(workspaceId)) !== null
 }
 
 /**

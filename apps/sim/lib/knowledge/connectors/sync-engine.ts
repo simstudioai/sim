@@ -343,7 +343,6 @@ export interface ContentPassOutcome {
     contentFailures?: boolean
     permissionFailures?: boolean
     imagesDeferred?: boolean
-    imageExtractionsAdmitted?: number
     listingFailures?: ExternalListingFailures | null
     startedAt: string
     listedCount: number

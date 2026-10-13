@@ -2217,6 +2217,32 @@ export async function processDocumentAsync(
       const processingTime = Date.now() - startTime
       logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
 
+      /** One indexing charge on the document's billing context; callers decide when to charge. */
+      const recordIndexingUsage = async (entry: {
+        description: string
+        cost: number
+        sourceReference: string
+        inputTokens: number
+        outputTokens: number
+      }) => {
+        await recordUsage({
+          userId: documentActorUserId,
+          workspaceId: ctx.workspaceId ?? undefined,
+          ...toBillingContext(billingAttribution),
+          entries: [
+            {
+              category: 'model',
+              source: 'knowledge-base',
+              description: entry.description,
+              cost: entry.cost,
+              sourceReference: entry.sourceReference,
+              metadata: { inputTokens: entry.inputTokens, outputTokens: entry.outputTokens },
+            },
+          ],
+        })
+        await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+      }
+
       if (billableEmbeddingTokens > 0) {
         try {
           const costMultiplier = getCostMultiplier()
@@ -2256,22 +2282,13 @@ export async function processDocumentAsync(
               documentId,
               indexingPassId ?? `model:${embeddingPricingId}`,
             ].join(':')
-            await recordUsage({
-              userId: documentActorUserId,
-              workspaceId: ctx.workspaceId ?? undefined,
-              ...toBillingContext(billingAttribution),
-              entries: [
-                {
-                  category: 'model',
-                  source: 'knowledge-base',
-                  description: embeddingModelName,
-                  cost,
-                  sourceReference: usageSourceReference,
-                  metadata: { inputTokens: billableEmbeddingTokens, outputTokens: 0 },
-                },
-              ],
+            await recordIndexingUsage({
+              description: embeddingModelName,
+              cost,
+              sourceReference: usageSourceReference,
+              inputTokens: billableEmbeddingTokens,
+              outputTokens: 0,
             })
-            await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
           } else {
             logger.warn(
               `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
@@ -2290,29 +2307,17 @@ export async function processDocumentAsync(
            * sits outside the embedding gate. Its own source reference keeps the
            * embedding charge's event key unchanged and collapses retries of one pass.
            */
-          await recordUsage({
-            userId: documentActorUserId,
-            workspaceId: ctx.workspaceId ?? undefined,
-            ...toBillingContext(billingAttribution),
-            entries: [
-              {
-                category: 'model',
-                source: 'knowledge-base',
-                description: visionUsage.model,
-                cost: visionUsage.cost,
-                sourceReference: [
-                  'knowledge-document-vision',
-                  documentId,
-                  indexingPassId ?? `model:${visionUsage.model}`,
-                ].join(':'),
-                metadata: {
-                  inputTokens: visionUsage.inputTokens,
-                  outputTokens: visionUsage.outputTokens,
-                },
-              },
-            ],
+          await recordIndexingUsage({
+            description: visionUsage.model,
+            cost: visionUsage.cost,
+            sourceReference: [
+              'knowledge-document-vision',
+              documentId,
+              indexingPassId ?? `model:${visionUsage.model}`,
+            ].join(':'),
+            inputTokens: visionUsage.inputTokens,
+            outputTokens: visionUsage.outputTokens,
           })
-          await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
         } catch (billingError) {
           logger.error(`[${documentId}] Failed to record image extraction usage`, {
             error: billingError,

@@ -1,8 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { z } from 'zod'
-import { getCostMultiplier } from '@/lib/core/config/env-flags'
-import { waitForProviderAdmission } from '@/lib/core/rate-limiter/provider-admission'
+import { isTimeoutError } from '@/lib/core/execution-limits/types'
+import {
+  recordProviderCooldown,
+  waitForProviderAdmission,
+} from '@/lib/core/rate-limiter/provider-admission'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import {
@@ -28,8 +31,8 @@ import {
 } from '@/lib/knowledge/documents/vision-checkpoints'
 import { assertKnowledgeOpaqueModelInputSafe } from '@/lib/knowledge/model-input-provenance'
 import { sniffImageContentType } from '@/lib/uploads/utils/validation'
+import { calculateBillableModelCost } from '@/providers/cost-policy'
 import { INLINE_ATTACHMENT_MAX_BYTES } from '@/providers/models'
-import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('KnowledgeImageExtraction')
 
@@ -142,11 +145,22 @@ const DECORATIVE: ImageExtractionResult = { decorative: true, renderedText: '' }
 interface ImageDimensions {
   width: number
   height: number
+  /** EXIF orientation; above 1 the pixels must be rotated before the model reads them. */
+  orientation: number
 }
 
 /** Loaded on first use, so a missing native binary fails image documents only, never the module graph. */
 async function loadSharp() {
   return (await import('sharp')).default
+}
+
+/** The image's bytes cannot be read, so every retry would fail the same way. */
+function undecodableImage(cause?: unknown): PermanentDocumentProcessingError {
+  return new PermanentDocumentProcessingError(
+    'invalid_file',
+    'This image could not be decoded. Replace the attachment with a valid PNG, JPEG, WebP or GIF image, then retry.',
+    cause
+  )
 }
 
 async function readDimensions(source: Buffer): Promise<ImageDimensions> {
@@ -156,27 +170,25 @@ async function readDimensions(source: Buffer): Promise<ImageDimensions> {
     .catch(() => null)
   const width = metadata?.width ?? 0
   const height = metadata?.pageHeight ?? metadata?.height ?? 0
-  if (!width || !height) {
-    throw new PermanentDocumentProcessingError(
-      'invalid_file',
-      'This image could not be decoded. Replace the attachment with a valid PNG, JPEG, WebP or GIF image, then retry.'
-    )
-  }
-  return { width, height }
+  if (!width || !height) throw undecodableImage()
+  return { width, height, orientation: metadata?.orientation ?? 1 }
 }
 
 /**
- * Sends the original when it is already small enough; otherwise the first frame,
- * downscaled to the longest-edge limit, as lossless PNG (or JPEG if PNG is still
- * over the inline cap). GIFs always go as one still frame.
+ * Sends the original when it is already small enough and upright; otherwise the
+ * first frame, rotated upright and downscaled to the longest-edge limit, as
+ * lossless PNG (or JPEG on white if PNG is still over the inline cap). GIFs always
+ * go as one still frame.
  */
 async function prepareModelImage(
   source: Buffer,
   mimeType: string,
-  { width, height }: ImageDimensions
+  { width, height, orientation }: ImageDimensions
 ): Promise<{ bytes: Buffer; mimeType: string }> {
   const fits =
-    Math.max(width, height) <= MAX_IMAGE_EDGE_PX && source.length <= INLINE_ATTACHMENT_MAX_BYTES
+    Math.max(width, height) <= MAX_IMAGE_EDGE_PX &&
+    source.length <= INLINE_ATTACHMENT_MAX_BYTES &&
+    orientation <= 1
   if (fits && mimeType !== 'image/gif') return { bytes: source, mimeType }
   const sharp = await loadSharp()
   const resized = () =>
@@ -189,14 +201,10 @@ async function prepareModelImage(
   try {
     const png = await resized().png().toBuffer()
     if (png.length <= INLINE_ATTACHMENT_MAX_BYTES) return { bytes: png, mimeType: 'image/png' }
-    return { bytes: await resized().jpeg({ quality: 85 }).toBuffer(), mimeType: 'image/jpeg' }
+    const jpeg = await resized().flatten({ background: '#ffffff' }).jpeg({ quality: 85 }).toBuffer()
+    return { bytes: jpeg, mimeType: 'image/jpeg' }
   } catch (error) {
-    /** The header decoded but the pixel data did not, so every retry would fail the same way. */
-    throw new PermanentDocumentProcessingError(
-      'invalid_file',
-      'This image could not be decoded. Replace the attachment with a valid PNG, JPEG, WebP or GIF image, then retry.',
-      error
-    )
+    throw undecodableImage(error)
   }
 }
 
@@ -245,6 +253,14 @@ function parseExtraction(content: string): z.infer<typeof extractionSchema> {
     )
   }
   return result.data
+}
+
+/**
+ * Whether the workspace can have images read at all: its own Gemini key, or one
+ * on the deployment. Without either, sources leave images out rather than failing them.
+ */
+export async function canExtractImages(workspaceId: string | null): Promise<boolean> {
+  return (await resolveGeminiImageKey(workspaceId)) !== null
 }
 
 /**
@@ -306,30 +322,32 @@ export async function extractImageText(input: {
       'Image indexing needs a Gemini API key. Add one to the workspace, or set GEMINI_API_KEY on the deployment, then retry.'
     )
   }
-  const image = await prepareModelImage(source, mimeType, dimensions)
-  await waitForProviderAdmission({
+  const prepared = await prepareModelImage(source, mimeType, dimensions)
+  const image = { data: prepared.bytes.toString('base64'), mimeType: prepared.mimeType }
+  const admission = {
     providerId: GEMINI_IMAGE_PROVIDER_ID,
     credentialFingerprint: sha256Hex(key.apiKey),
     operation: 'vision',
-    signal,
-    maxWaitMs: Math.max(0, Math.min(EXTRACTION_TIMEOUT_MS, spareMs())),
-  })
-  if (spareMs() <= 0) throw deferForBudget()
+  } as const
 
-  let reply: {
-    response: GeminiImageExtractionResponse
-    extraction: z.infer<typeof extractionSchema>
-  }
+  let extraction: z.infer<typeof extractionSchema>
   /** Every attempt that returned a reply was billed by Gemini, including malformed ones. */
   const spent = { inputTokens: 0, outputTokens: 0 }
   try {
-    reply = await retryWithExponentialBackoff(
+    extraction = await retryWithExponentialBackoff(
       async (attemptSignal) => {
+        /** Every attempt is a billed request, so each one takes its own admission. */
+        await waitForProviderAdmission({
+          ...admission,
+          signal: attemptSignal,
+          maxWaitMs: Math.max(0, Math.min(EXTRACTION_TIMEOUT_MS, spareMs())),
+        })
+        if (spareMs() <= 0) throw deferForBudget()
         const response = await requestGeminiImageExtraction({
           model,
           apiKey: key.apiKey,
           systemPrompt: IMAGE_EXTRACTION_SYSTEM_PROMPT,
-          userText: `Attachment title: ${filename}\nMedia type: ${image.mimeType}\n\nExtract this image according to the schema.`,
+          userText: `Title: ${filename}\nMedia type: ${image.mimeType}\n\nExtract this image according to the schema.`,
           image,
           responseJsonSchema: IMAGE_EXTRACTION_RESPONSE_SCHEMA,
           maxOutputTokens: MAX_OUTPUT_TOKENS,
@@ -337,7 +355,7 @@ export async function extractImageText(input: {
         })
         spent.inputTokens += response.inputTokens
         spent.outputTokens += response.outputTokens
-        return { response, extraction: readExtraction(response) }
+        return readExtraction(response)
       },
       {
         maxRetries: 3,
@@ -362,30 +380,24 @@ export async function extractImageText(input: {
         error
       )
     }
-    if (error instanceof DOMException && error.name === 'TimeoutError') {
+    if (isTimeoutError(error)) {
       throw new ProviderCapacityDeferredError('provider_timeout', {
         providerId: GEMINI_IMAGE_PROVIDER_ID,
         cause: error,
       })
     }
-    throw error instanceof GeminiImageExtractionError
-      ? classifyGeminiImageError(error, model)
-      : error
+    if (!(error instanceof GeminiImageExtractionError)) throw error
+    if (error.status === 429 || error.status === 503) {
+      /** Every worker sharing the key backs off, not only this document. */
+      await recordProviderCooldown(admission, error.retryAfterMs ?? 1000)
+    }
+    throw classifyGeminiImageError(error, model)
   }
 
-  const { extraction } = reply
   const decorative = extraction.kind === 'decorative'
-  const costMultiplier = getCostMultiplier()
-  const cost = key.isBYOK
-    ? 0
-    : calculateCost(
-        model,
-        spent.inputTokens,
-        spent.outputTokens,
-        false,
-        costMultiplier,
-        costMultiplier
-      ).total
+  const { total: cost } = calculateBillableModelCost(model, spent.inputTokens, spent.outputTokens, {
+    isBYOK: key.isBYOK,
+  })
   const result: VisionExtractionCheckpoint = {
     decorative,
     renderedText: decorative ? '' : extraction.rendered_text.trim(),

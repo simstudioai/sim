@@ -35,8 +35,9 @@ export function semanticImageMimeType(mediaType: string | undefined): string | u
   return SEMANTIC_IMAGE_MIME_TYPES.has(canonical) ? canonical : undefined
 }
 
+/** Whether a document goes to the vision extractor; an undeclared policy keeps OCR. */
 export function isSemanticImage(
-  policy: ImageExtractionPolicy,
+  policy: ImageExtractionPolicy | undefined,
   mimeType: string | undefined
 ): boolean {
   return policy === 'semantic' && SEMANTIC_IMAGE_MIME_TYPES.has(mimeType ?? '')
@@ -47,7 +48,9 @@ export function isSemanticImage(
  * one of its own settings. The setting's `semantic` value turns reading on; any
  * other value, or none, leaves images unindexed: the source stops listing them,
  * and turning the setting off removes every indexed document of a semantic image
- * type. A source adopting this must accept that its images have no OCR fallback.
+ * type. A source adopting this must accept that its images have no OCR fallback,
+ * and must append {@link IMAGE_EXTRACTION_REPRESENTATION_VERSION} to each image's
+ * content hash so a new extraction contract re-reads its images.
  */
 export interface ImageExtractionDeclaration {
   /** The `sourceConfig` field holding the setting. */

@@ -94,7 +94,7 @@ interface StoredPage {
   sourceSeenAt: Date | null
 }
 
-/** Images on, as for a new connector, so only the image opt-out test runs its removal. */
+/** Images on, as a new connector is created. */
 const SOURCE_CONFIG = {
   domain: 'fixture.atlassian.net',
   spaceKey: 'ENG',

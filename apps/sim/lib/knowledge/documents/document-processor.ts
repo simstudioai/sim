@@ -269,7 +269,7 @@ export async function processDocument(
 
   try {
     access.signal?.throwIfAborted()
-    const image = isSemanticImage(access.imageExtraction ?? 'ocr', mimeType)
+    const image = isSemanticImage(access.imageExtraction, mimeType)
       ? await extractImageText({
           source: await downloadFileForBase64(fileUrl, access),
           filename,
@@ -304,8 +304,7 @@ export async function processDocument(
       ? { content: image.renderedText, processingMethod: 'vision-extract' }
       : await parseDocument(fileUrl, filename, mimeType, access, workspaceId)
     access.signal?.throwIfAborted()
-    const { content, processingMethod } = parseResult
-    const cloudUrl = 'cloudUrl' in parseResult ? parseResult.cloudUrl : undefined
+    const { content, processingMethod, cloudUrl } = parseResult
     if (parseResult.metadata?.detectedType || parseResult.metadata?.warning) {
       logger.info('Parser reported a warning for the document', {
         filename,

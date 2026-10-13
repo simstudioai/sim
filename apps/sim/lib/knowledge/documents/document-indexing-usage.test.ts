@@ -411,7 +411,7 @@ describe('knowledge image extraction usage', () => {
     )
   }
 
-  it('bills a decorative image and clears what an earlier pass indexed', async () => {
+  it('bills a decorative image that indexed nothing', async () => {
     armImageReads('confluence')
     mockProcessDocument.mockResolvedValue({
       chunks: [],
@@ -420,7 +420,6 @@ describe('knowledge image extraction usage', () => {
     await process()
 
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
-    expect(dbChainMockFns.delete).toHaveBeenCalled()
     expect(mockRecordUsage).toHaveBeenCalledTimes(1)
     expect(mockRecordUsage.mock.calls[0][0].entries).toEqual([
       expect.objectContaining({
