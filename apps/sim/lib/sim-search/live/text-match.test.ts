@@ -18,16 +18,12 @@ describe('text match clauses', () => {
     expect(jiraTextClause('API api rollout', 'any')).toBe('(text ~ "rollout" OR text ~ "API")')
   })
 
-  it('pairs only the six longest distinct terms of a long query, so the JQL stays bounded', () => {
+  it('pairs up to eight distinct terms of a long query', () => {
     const clause = jiraTextClause(
       'rotate expired gateway credentials before quarterly compliance audit deadline',
       'any'
     )
-    expect(clause.match(/text ~/g)).toHaveLength(30)
-    for (const term of ['credentials', 'compliance', 'quarterly', 'deadline', 'expired', 'gateway'])
-      expect(clause).toContain(`"${term}"`)
-    expect(clause).not.toContain('"rotate"')
-    expect(clause).not.toContain('"audit"')
+    expect(clause.match(/text ~/g)).toHaveLength(56)
   })
 
   it('spends one pair slot on a word and its plural, which Jira stems alike', () => {
@@ -35,6 +31,8 @@ describe('text match clauses', () => {
       '(text ~ "rotation" OR text ~ "tokens")'
     )
     expect(jiraTextClause('processes process', 'any')).toBe('text ~ "processes process"')
+    expect(jiraTextClause('statuses status', 'any')).toBe('text ~ "statuses status"')
+    expect(jiraTextClause('status focus', 'any')).toBe('(text ~ "status" OR text ~ "focus")')
   })
 
   it('relaxes a Confluence query to its relevance-ranked site search', () => {

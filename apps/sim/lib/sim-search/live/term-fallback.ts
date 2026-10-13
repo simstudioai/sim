@@ -16,9 +16,8 @@ const ANY_TERM_CANDIDATES = 25
 const ANY_TERM_RESULTS = 5
 
 /**
- * Time the any-term search may take before the all-terms page is returned without it. It runs
- * after the all-terms search inside the account's 12 s deadline and before the 2.5 s preview
- * reads, and a provider's slow OR query must not cost the account the matches it already has.
+ * Time the any-term search may take before the all-terms page is returned without it, so a slow
+ * OR query cannot cost the account the matches it already has.
  */
 const ANY_TERM_BUDGET_MS = 4000
 
@@ -71,21 +70,24 @@ export async function searchWithAnyTermFallback(
       ...input,
       limit: Math.max(input.limit, ANY_TERM_CANDIDATES),
       textMatch: 'any',
-      signal: AbortSignal.any([signal, budget.signal, ...(input.signal ? [input.signal] : [])]),
+      signal: AbortSignal.any([signal, budget.signal]),
     })
   } catch (error) {
     signal.throwIfAborted()
-    input.signal?.throwIfAborted()
-    if (!(error instanceof NativeSearchError))
-      logger.warn('Any-term search failed; keeping the all-terms page', {
-        timedOut: budget.signal.aborted,
-        error: getErrorMessage(error),
-      })
-    const reason =
-      error instanceof NativeSearchError
-        ? error.message
-        : 'Results containing only some of the search terms could not be retrieved, so only results containing every term are shown.'
-    return { ...strict, partial: true, message: joinMessages([strict.message, reason]) }
+    if (error instanceof NativeSearchError)
+      return { ...strict, partial: true, message: joinMessages([strict.message, error.message]) }
+    logger.warn('Any-term search failed; keeping the all-terms page', {
+      timedOut: budget.signal.aborted,
+      error: getErrorMessage(error),
+    })
+    return {
+      ...strict,
+      partial: true,
+      message: joinMessages([
+        strict.message,
+        'Results containing only some of the search terms could not be retrieved, so only results containing every term are shown.',
+      ]),
+    }
   } finally {
     clearTimeout(timer)
   }

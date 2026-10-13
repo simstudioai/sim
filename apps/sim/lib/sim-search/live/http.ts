@@ -146,7 +146,7 @@ export function withJsonMemo(client: NativeClient): NativeClient {
     ...client,
     json(...request) {
       const [path, options] = request
-      if (!options?.memo || options.body || options.signal) return client.json(...request)
+      if (!options?.memo || options.body) return client.json(...request)
       const key = JSON.stringify([path, options.query, options.googleService])
       let pending = memo.get(key)
       if (!pending) {
