@@ -5,6 +5,7 @@ import { and, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbTransaction } from '@/lib/db/types'
 import { loadSlackAppConfiguration } from '@/lib/slack-search/app-configuration'
 
 const id = z.string().min(1).max(200)
@@ -65,6 +66,11 @@ export const revokeSlackSearchAccess: OperationUseCase<
         or(isNull(credential.grantedAt), lte(credential.grantedAt, occurredAt)),
         ...(uninstall ? [] : [inArray(credential.providerSubjectId, revokedUsers)])
       )
+    const revokeMemberGrants = (tx: DbTransaction, organizationId?: string) =>
+      tx
+        .update(credential)
+        .set({ managedOauthStatus: 'needs_reauth', updatedAt: new Date() })
+        .where(memberGrants(organizationId))
     await db.transaction(async (tx) => {
       const [installation] = await tx
         .select()
@@ -79,17 +85,17 @@ export const revokeSlackSearchAccess: OperationUseCase<
         .limit(1)
       /** Member sign-in through the shared app needs no Search bot, so it has no installation. */
       if (!installation) {
-        if (sharedApp && (uninstall || revokedUsers.length))
-          await tx
-            .update(credential)
-            .set({ managedOauthStatus: 'needs_reauth', updatedAt: new Date() })
-            .where(memberGrants())
+        if (sharedApp && (uninstall || revokedUsers.length)) await revokeMemberGrants(tx)
         return
       }
       if (app.app.kind === 'custom' && app.app.organizationId !== installation.organizationId)
         throw new Error('Slack installation ownership is inconsistent')
       const staleInstallation = installation.updatedAt > occurredAt
-      if (uninstall && staleInstallation) return
+      if (uninstall && staleInstallation) {
+        /** A reinstall keeps its bot, but shared-app grants issued before the uninstall are gone. */
+        if (sharedApp) await revokeMemberGrants(tx)
+        return
+      }
       const revokeBot =
         !staleInstallation &&
         (uninstall ||
@@ -97,10 +103,10 @@ export const revokeSlackSearchAccess: OperationUseCase<
             (input.event.tokens.bot ?? []).includes(installation.botUserId)))
       let revokedMemberIds: string[] = []
       if (uninstall || revokedUsers.length) {
-        const revokeCredentials = tx
-          .update(credential)
-          .set({ managedOauthStatus: 'needs_reauth', updatedAt: new Date() })
-          .where(memberGrants(sharedApp ? undefined : installation.organizationId))
+        const revokeCredentials = revokeMemberGrants(
+          tx,
+          sharedApp ? undefined : installation.organizationId
+        )
         if (revokeBot) await revokeCredentials
         else {
           const revokedCredentials = await revokeCredentials.returning({

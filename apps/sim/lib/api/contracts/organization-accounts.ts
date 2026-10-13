@@ -133,8 +133,8 @@ export const startOrganizationSlackConfigurationContract = defineRouteContract({
   /** Omitting `appId` selects the shared Slack app for an organization with no installed bot. */
   body: startSlackCredentialGroupConfigurationBodySchema
     .omit({ slackBotCredentialId: true, clientId: true, clientSecret: true })
-    .refine((body) => body.appId !== undefined || body.teamId === undefined, {
-      message: 'Select the Slack app for this workspace',
+    .refine((body) => (body.appId === undefined) === (body.teamId === undefined), {
+      message: 'Select the Slack app and its workspace together',
       path: ['appId'],
     }),
   response: startSlackCredentialGroupConfigurationContract.response,

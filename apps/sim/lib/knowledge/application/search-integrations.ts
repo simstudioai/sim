@@ -179,8 +179,8 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: ApproveSearchIntegrationInput }) =>
     resolveKnowledgeOwnerContext({ organizationId: input.organizationId }),
   async execute({ input, context, principal }) {
-    if (!context.organizationId)
-      throw new OrchestrationError('validation', 'Organization is required')
+    const { organizationId } = context
+    if (!organizationId) throw new OrchestrationError('validation', 'Organization is required')
     const source = LIVE_SEARCH_SOURCE_TYPES.find(([type]) => type === input.connectorType)
     if (!source) {
       throw new OrchestrationError('validation', 'This integration is not supported by Sim Search')
@@ -276,7 +276,7 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
       /** Slack sign-in belongs to Slack setup (bot install or admin verification), not approval. */
       if (memberProvider === 'slack') {
         const group = await ensureWorkspaceAccountsGroup(
-          { kind: 'organization', organizationId: context.organizationId! },
+          { kind: 'organization', organizationId },
           requirePrincipalSubjectUserId(principal),
           undefined,
           tx
@@ -333,7 +333,10 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
                   action: AuditAction.CREDENTIAL_GROUP_UPDATED,
                   resourceType: AuditResourceType.CREDENTIAL_GROUP,
                   resourceId: result.memberAccounts.groupId,
-                  description: `Configured ${result.connectorType} member sign-in for Sim Search`,
+                  description:
+                    result.connectorType === 'slack'
+                      ? 'Created connected accounts for Slack Sim Search'
+                      : `Configured ${result.connectorType} member sign-in for Sim Search`,
                   metadata: { connectorType: result.connectorType },
                 },
               ]

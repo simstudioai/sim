@@ -181,10 +181,7 @@ describe('Slack access revocation', () => {
       expect(m.app).not.toHaveBeenCalled()
     }
   )
-  it.each([
-    { type: 'app_uninstalled' as const },
-    { type: 'tokens_revoked' as const, tokens: { bot: ['UBOT'] } },
-  ])('ignores stale installation-wide revocations before any writes: %j', async (event) => {
+  const queueReinstalledBot = () => {
     resetDbChainMock()
     queueTableRows(slackSearchInstallation, [
       {
@@ -196,7 +193,42 @@ describe('Slack access revocation', () => {
         updatedAt: new Date(input.event_time * 1000 + 1000),
       },
     ])
-    await revokeSlackSearchAccess.execute({ principal, input: { ...input, event } })
+  }
+  it('ignores a stale bot revocation before any writes', async () => {
+    queueReinstalledBot()
+    await revokeSlackSearchAccess.execute({
+      principal,
+      input: { ...input, event: { type: 'tokens_revoked', tokens: { bot: ['UBOT'] } } },
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+  it('keeps a reinstalled bot but revokes shared-app grants issued before a stale uninstall', async () => {
+    queueReinstalledBot()
+    await revokeSlackSearchAccess.execute({ principal, input })
+    expect(dbChainMockFns.update.mock.calls.map(([table]) => table)).toEqual([credential])
+    const memberGrants = dbChainMockFns.where.mock.calls[1][0]
+    expect(memberGrants.conditions).toEqual(
+      expect.arrayContaining([
+        { type: 'eq', left: credential.authorizationAppId, right: 'slack:A1:T1' },
+        {
+          type: 'or',
+          conditions: [
+            { type: 'isNull', column: credential.grantedAt },
+            { type: 'lte', left: credential.grantedAt, right: new Date(input.event_time * 1000) },
+          ],
+        },
+      ])
+    )
+    expect(memberGrants.conditions).not.toContainEqual(
+      expect.objectContaining({ left: credential.organizationId })
+    )
+  })
+  it('ignores a stale custom-app uninstall before any writes', async () => {
+    m.app.mockResolvedValue({
+      app: { id: 'A1', kind: 'custom', revision: 'r1', organizationId: 'org' },
+    })
+    queueReinstalledBot()
+    await revokeSlackSearchAccess.execute({ principal, input })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
   it.each([{ oauth: ['U1'] }, { oauth: ['U1'], bot: ['UBOT'] }])(
