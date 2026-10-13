@@ -1,10 +1,10 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   type FivetranSchemaConfigResponse,
   type FivetranUpdateSchemaConfigParams,
   SCHEMA_CONFIG_OUTPUTS,
 } from '@/tools/fivetran/types'
 import {
-  compactBody,
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_CONNECTION_ID_PARAM,
@@ -56,7 +56,7 @@ export const fivetranUpdateSchemaConfigTool: ToolConfig<
     method: 'PATCH',
     headers: (params) => fivetranHeaders(params),
     body: (params) => {
-      const body = compactBody({
+      const body = filterUndefined({
         schema_change_handling: trimmed(params.schemaChangeHandling),
         schemas: parseJsonObject(params.schemas, 'schemas'),
       })

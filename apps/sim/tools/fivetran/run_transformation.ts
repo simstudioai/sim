@@ -1,10 +1,10 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   type FivetranMessageResponse,
   type FivetranRunTransformationParams,
   MESSAGE_OUTPUTS,
 } from '@/tools/fivetran/types'
 import {
-  compactBody,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_ERROR_EXTRACTOR,
   FIVETRAN_OAUTH,
@@ -46,7 +46,7 @@ export const fivetranRunTransformationTool: ToolConfig<
       ),
     method: 'POST',
     headers: (params) => fivetranHeaders(params),
-    body: (params) => compactBody({ full_refresh: optionalBoolean(params.fullRefresh) }),
+    body: (params) => filterUndefined({ full_refresh: optionalBoolean(params.fullRefresh) }),
   },
 
   transformResponse: transformMessageResponse,

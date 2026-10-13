@@ -1,10 +1,10 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   type FivetranSchemaConfigResponse,
   type FivetranUpdateConnectionSchemaParams,
   SCHEMA_CONFIG_OUTPUTS,
 } from '@/tools/fivetran/types'
 import {
-  compactBody,
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_CONNECTION_ID_PARAM,
@@ -65,7 +65,7 @@ export const fivetranUpdateConnectionSchemaTool: ToolConfig<
     body: (params) => {
       const enabled = optionalBoolean(params.enabled)
       if (enabled === undefined) throw new Error('Specify whether the schema is enabled.')
-      return compactBody({ enabled, tables: parseJsonObject(params.tables, 'tables') })
+      return filterUndefined({ enabled, tables: parseJsonObject(params.tables, 'tables') })
     },
   },
 

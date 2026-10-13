@@ -213,15 +213,6 @@ export function parseSchemaTableMap(
   return result
 }
 
-/** Adds only the defined entries of `values` to a request body. */
-export function compactBody(values: Record<string, unknown>): Record<string, unknown> {
-  const body: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(values)) {
-    if (value !== undefined) body[key] = value
-  }
-  return body
-}
-
 /** Reads `data` from a Fivetran `{ code, message, data }` envelope. */
 export function envelopeData(body: unknown): Record<string, unknown> {
   return toRecord(toRecord(body).data)

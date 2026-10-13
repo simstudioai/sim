@@ -1,11 +1,10 @@
 import { toStringOrNull } from '@sim/utils/coerce'
-import { toRecord } from '@sim/utils/object'
+import { filterUndefined, toRecord } from '@sim/utils/object'
 import type {
   FivetranSyncConnectionParams,
   FivetranSyncConnectionResponse,
 } from '@/tools/fivetran/types'
 import {
-  compactBody,
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_CONNECTION_ID_PARAM,
@@ -47,7 +46,7 @@ export const fivetranSyncConnectionTool: ToolConfig<
       fivetranUrl(`/connections/${fivetranId(params.connectionId, 'connectionId')}/sync`),
     method: 'POST',
     headers: (params) => fivetranHeaders(params),
-    body: (params) => compactBody({ force: optionalBoolean(params.force) }),
+    body: (params) => filterUndefined({ force: optionalBoolean(params.force) }),
   },
 
   transformResponse: async (response: Response) => {

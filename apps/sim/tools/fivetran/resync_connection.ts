@@ -1,10 +1,10 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   type FivetranMessageResponse,
   type FivetranResyncConnectionParams,
   MESSAGE_OUTPUTS,
 } from '@/tools/fivetran/types'
 import {
-  compactBody,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_CONNECTION_ID_PARAM,
   FIVETRAN_ERROR_EXTRACTOR,
@@ -46,7 +46,7 @@ export const fivetranResyncConnectionTool: ToolConfig<
       fivetranUrl(`/connections/${fivetranId(params.connectionId, 'connectionId')}/resync`),
     method: 'POST',
     headers: (params) => fivetranHeaders(params),
-    body: (params) => compactBody({ scope: parseSchemaTableMap(params.scope, 'scope') }),
+    body: (params) => filterUndefined({ scope: parseSchemaTableMap(params.scope, 'scope') }),
   },
 
   transformResponse: transformMessageResponse,

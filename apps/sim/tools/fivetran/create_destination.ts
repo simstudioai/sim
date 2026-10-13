@@ -1,10 +1,10 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   DESTINATION_PROPERTIES,
   type FivetranCreateDestinationParams,
   type FivetranDestinationResponse,
 } from '@/tools/fivetran/types'
 import {
-  compactBody,
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_ERROR_EXTRACTOR,
@@ -84,7 +84,7 @@ export const fivetranCreateDestinationTool: ToolConfig<
     method: 'POST',
     headers: (params) => fivetranHeaders(params),
     body: (params) =>
-      compactBody({
+      filterUndefined({
         group_id: params.groupId?.trim(),
         service: params.service?.trim(),
         time_zone_offset: trimmed(params.timeZoneOffset),
