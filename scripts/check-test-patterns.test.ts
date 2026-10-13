@@ -147,6 +147,20 @@ describe('real-wait', () => {
       ['sleep() #1'],
     ],
     [
+      'a sleep before the install in the hook that installs fake timers',
+      [
+        HELPERS,
+        "describe('d', () => {",
+        '  beforeEach(async () => {',
+        '    await sleep(100)',
+        '    vi.useFakeTimers()',
+        '  })',
+        "  it('t', async () => { await sleep(10) })",
+        '})',
+      ],
+      ['sleep() #1'],
+    ],
+    [
       'every occurrence, numbered per kind',
       [HELPERS, 'await sleep(10)', 'await new Promise((r) => setTimeout(r, 5))', 'await sleep(20)'],
       ['sleep() #1', 'setTimeout promise #1', 'sleep() #2'],
@@ -200,6 +214,10 @@ describe('real-wait', () => {
     [
       'a sleep under a module-level beforeAll that installs fake timers',
       [HELPERS, "it('t', async () => { await sleep(10) })", 'beforeAll(() => vi.useFakeTimers())'],
+    ],
+    [
+      'a sleep after the install in the hook that installs fake timers',
+      [HELPERS, 'beforeAll(async () => {', '  vi.useFakeTimers()', '  await sleep(100)', '})'],
     ],
   ])('ignores %s', (_name, lines) => {
     expect(waits(lines.join('\n'))).toEqual([])

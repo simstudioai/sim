@@ -329,7 +329,7 @@ function isTimedPromise(node: Node): boolean {
  * Vitest's fake clock fakes each of these whenever it fakes `setTimeout`, and then the wait costs
  * no wall-clock time. Fake timers are in scope when the call sits inside a function (or
  * the module) that installed them in an earlier statement, or inside a `describe` (or the module)
- * whose `beforeEach`/`beforeAll` installs them. A file that mocks `@sim/utils/helpers` gets the
+ * whose `beforeEach`/`beforeAll` installs them, except before the install in that hook's own body. A file that mocks `@sim/utils/helpers` gets the
  * mock's `sleep`, so its imports are not real waits. Each occurrence is its own numbered entry, so
  * the baseline caps the count per file.
  */
@@ -363,7 +363,8 @@ export function findRealWaitViolations(
   }
 
   const programRange: [number, number] = [program.start ?? 0, program.end ?? 0]
-  const fakeClocks: Array<{ scope: [number, number]; after: number }> = []
+  // `real` is the stretch of the scope that runs before the clock is installed.
+  const fakeClocks: Array<{ scope: [number, number]; real: [number, number] }> = []
   const waits: Array<{ node: Node; label: string }> = []
   walkWithAncestors(program, (node, ancestors) => {
     if (isViCall(node, 'useFakeTimers') && fakesSetTimeout(node)) {
@@ -380,9 +381,13 @@ export function findRealWaitViolations(
         (hook.arguments as Node[])[0] === fn
       ) {
         const owner = ancestors[nearestFunctionIndex(ancestors, fnIndex - 1)]
-        fakeClocks.push({ scope: owner ? nodeRange(owner) : programRange, after: -1 })
+        fakeClocks.push({
+          scope: owner ? nodeRange(owner) : programRange,
+          real: [fn.start as number, node.start as number],
+        })
       } else {
-        fakeClocks.push({ scope: fn ? nodeRange(fn) : programRange, after: node.start as number })
+        const scope = fn ? nodeRange(fn) : programRange
+        fakeClocks.push({ scope, real: [scope[0], node.start as number] })
       }
       return
     }
@@ -399,7 +404,8 @@ export function findRealWaitViolations(
   for (const { node, label } of waits) {
     const start = node.start as number
     const faked = fakeClocks.some(
-      ({ scope, after }) => scope[0] <= start && start < scope[1] && start > after
+      ({ scope, real }) =>
+        scope[0] <= start && start < scope[1] && !(real[0] <= start && start < real[1])
     )
     if (faked) continue
     const count = (counts.get(label) ?? 0) + 1
