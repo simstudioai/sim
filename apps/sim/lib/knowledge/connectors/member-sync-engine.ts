@@ -2264,9 +2264,10 @@ export async function executeMemberSync(
       })
 
       /** A content pass that ran already removed disabled images; otherwise it happens here. */
+      let imageRemovalFinished = true
       if (!(connector.credentialId && contentDue)) {
         const deletedBefore = result.docsDeleted
-        await removeDisabledImages({
+        imageRemovalFinished = await removeDisabledImages({
           connectorId,
           connector,
           connectorConfig,
@@ -2590,6 +2591,7 @@ export async function executeMemberSync(
       result.membersRemaining =
         result.membersRemaining ||
         serviceContent?.complete === false ||
+        !imageRemovalFinished ||
         (await countDueMembers(run, binding)) > 0
       const landed = await completeMemberSync(run, connector.syncIntervalMinutes)
       if (!landed) {
