@@ -438,6 +438,151 @@ describe('shared resource retention across workspace departure and account erasu
     }
   )
 
+  it.each(['removal', 'deletion'] as const)(
+    'serializes Project successor removal when %s holds the workspace first',
+    async (first) => {
+      const fixture = await seedResources(false, false)
+      const successorId = generateId()
+      const grantId = generateId()
+      userIds.push(successorId)
+      await db.insert(user).values({
+        id: successorId,
+        name: 'Project successor',
+        email: `${successorId}@example.test`,
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      await db
+        .update(project)
+        .set({ ownerId: fixture.departingId })
+        .where(eq(project.id, fixture.projectId))
+      await db
+        .update(permissions)
+        .set({ permissionType: 'write' })
+        .where(eq(permissions.entityId, fixture.workspaceId))
+      await db.insert(permissions).values({
+        id: grantId,
+        userId: successorId,
+        entityId: fixture.workspaceId,
+        entityType: 'workspace',
+        permissionType: 'admin',
+      })
+      expect((await getAccountDeletionPlan(fixture.departingId)).blockers).toEqual([])
+      const ready = createDeferred<number>()
+      const release = createDeferred<void>()
+      const holding = db.transaction(async (tx) => {
+        if (first === 'removal') {
+          await tx
+            .select()
+            .from(workspace)
+            .where(eq(workspace.id, fixture.workspaceId))
+            .for('no key update')
+        } else {
+          await tx
+            .select()
+            .from(knowledgeBase)
+            .where(eq(knowledgeBase.id, fixture.kbId))
+            .for('update')
+        }
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        ready.resolve(connection.pid)
+        await release.promise
+        if (first === 'removal') {
+          return revokeWorkspaceAccessTx(tx, {
+            workspaceId: fixture.workspaceId,
+            userId: successorId,
+            expectedPermissionId: grantId,
+          })
+        }
+      })
+      const holderPid = await ready.promise
+      const holderOutcome = Promise.allSettled([holding])
+      const deleting = Promise.allSettled([deleteUserAccount(fixture.departingId)])
+      let removal: Promise<PromiseSettledResult<unknown>[]> | undefined
+      try {
+        await expect
+          .poll(
+            async () =>
+              (
+                await db.execute(
+                  sql`SELECT pid FROM pg_stat_activity WHERE ${holderPid} = ANY(pg_blocking_pids(pid))`
+                )
+              ).length,
+            { timeout: 5000 }
+          )
+          .toBeGreaterThan(0)
+        if (first === 'deletion') {
+          removal = Promise.allSettled([
+            db.transaction((tx) =>
+              revokeWorkspaceAccessTx(tx, {
+                workspaceId: fixture.workspaceId,
+                userId: successorId,
+                expectedPermissionId: grantId,
+              })
+            ),
+          ])
+          await expect
+            .poll(
+              async () =>
+                (
+                  await db.execute(
+                    sql`SELECT waiter.pid FROM pg_stat_activity waiter WHERE EXISTS (SELECT 1 FROM pg_stat_activity deleter WHERE ${holderPid} = ANY(pg_blocking_pids(deleter.pid)) AND deleter.pid = ANY(pg_blocking_pids(waiter.pid)))`
+                  )
+                ).length,
+              { timeout: 5000 }
+            )
+            .toBeGreaterThan(0)
+        }
+      } finally {
+        release.resolve()
+      }
+      expect((await holderOutcome).filter((result) => result.status === 'rejected')).toEqual([])
+      const deleted = await deleting
+      if (first === 'removal') {
+        expect(deleted).toMatchObject([
+          {
+            status: 'rejected',
+            reason: {
+              name: 'ProjectConflictError',
+              message: expect.stringContaining('Give a teammate admin access'),
+            },
+          },
+        ])
+        expect(
+          await db
+            .select({ ownerId: project.ownerId })
+            .from(project)
+            .where(eq(project.id, fixture.projectId))
+        ).toEqual([{ ownerId: fixture.departingId }])
+        expect(
+          await db
+            .select({ userId: knowledgeBase.userId })
+            .from(knowledgeBase)
+            .where(eq(knowledgeBase.id, fixture.kbId))
+        ).toEqual([{ userId: fixture.departingId }])
+        await db.insert(permissions).values({
+          id: generateId(),
+          userId: successorId,
+          entityId: fixture.workspaceId,
+          entityType: 'workspace',
+          permissionType: 'admin',
+        })
+        await deleteUserAccount(fixture.departingId)
+      } else {
+        expect(deleted.filter((result) => result.status === 'rejected')).toEqual([])
+        expect((await removal)?.filter((result) => result.status === 'rejected')).toEqual([])
+      }
+      expect(
+        await db
+          .select({ ownerId: project.ownerId })
+          .from(project)
+          .where(eq(project.id, fixture.projectId))
+      ).toEqual([{ ownerId: successorId }])
+      await assertRetained(fixture)
+    }
+  )
+
   it.each([
     ['shared', 'user'],
     ['shared', 'workspace'],

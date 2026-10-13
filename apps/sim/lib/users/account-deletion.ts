@@ -20,20 +20,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { formatQuotedNameList } from '@sim/utils/string'
-import {
-  and,
-  asc,
-  eq,
-  gt,
-  inArray,
-  isNotNull,
-  isNull,
-  lte,
-  ne,
-  notExists,
-  or,
-  sql,
-} from 'drizzle-orm'
+import { and, eq, gt, inArray, isNotNull, isNull, lte, ne, notExists, or, sql } from 'drizzle-orm'
 import type {
   AccountDeletionBlocker,
   AccountDeletionPlan,
@@ -795,24 +782,17 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
     for (const organizationId of sharedOrganizationIds) {
       await acquireOrganizationMutationLock(tx, organizationId)
     }
-    const projectIdsToDelete = await prepareProjectsForAccountDeletion(
-      tx,
-      userId,
-      doomedWorkspaceIds
-    )
     const workspaceIds = new Set([
       ...doomedWorkspaceIds,
       ...(await loadRelatedWorkspaces(userId, tx)).map((row) => row.id),
       ...(await listSharedResourceWorkspaceIdsForUser(tx, userId)),
     ])
-    if (workspaceIds.size) {
-      await tx
-        .select({ id: workspaceTable.id })
-        .from(workspaceTable)
-        .where(inArray(workspaceTable.id, [...workspaceIds]))
-        .orderBy(asc(workspaceTable.id))
-        .for('update')
-    }
+    const projectIdsToDelete = await prepareProjectsForAccountDeletion(
+      tx,
+      userId,
+      doomedWorkspaceIds,
+      [...workspaceIds]
+    )
     /**
      * An admitted insert may hold the user FK lock while waiting for a workspace above.
      * Never wait in that cycle: refuse erasure atomically so the writer can finish. Keep
