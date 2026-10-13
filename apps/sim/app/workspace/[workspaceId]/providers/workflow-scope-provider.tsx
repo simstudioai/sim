@@ -30,8 +30,17 @@ export function WorkflowScopeProvider({
   return <WorkflowScopeContext.Provider value={value}>{children}</WorkflowScopeContext.Provider>
 }
 
+/** Returns the enclosing scope, or null outside a WorkflowScopeProvider. */
+export function useOptionalWorkflowScope(): WorkflowScope | null {
+  return useContext(WorkflowScopeContext)
+}
+
+/**
+ * Returns the editor's workspace and workflow ids. `workflowId` is null in previews.
+ * Throws outside a WorkflowScopeProvider.
+ */
 export function useWorkflowScope(): WorkflowScope {
-  const scope = useContext(WorkflowScopeContext)
+  const scope = useOptionalWorkflowScope()
   if (!scope) {
     throw new Error('useWorkflowScope must be used within a WorkflowScopeProvider')
   }

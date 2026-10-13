@@ -41,6 +41,7 @@ import {
 import {
   isSocketWorkflowVisible,
   releaseWorkflowRequest,
+  type WorkflowRequest,
 } from '@/app/workspace/providers/socket-join-target'
 import { mergePresenceRoster } from '@/app/workspace/providers/socket-presence-merge'
 import { refreshSessionQuery } from '@/hooks/queries/session'
@@ -122,8 +123,8 @@ interface SocketContextType {
   blockedJoinWorkflowId: string | null
   currentWorkflowId: string | null
   currentSocketId: string | null
-  joinWorkflow: (workflowId: string) => void
-  leaveWorkflow: (workflowId: string) => void
+  /** Requests the workflow's room for one mounted editor; call the returned release on unmount. */
+  joinWorkflow: (workflowId: string) => () => void
   retryConnection: () => void
   emitWorkflowOperation: WorkflowOperationEmit
   emitSubblockUpdate: SubblockUpdateEmit
@@ -156,8 +157,7 @@ const SocketContext = createContext<SocketContextType>({
   blockedJoinWorkflowId: null,
   currentWorkflowId: null,
   currentSocketId: null,
-  joinWorkflow: () => {},
-  leaveWorkflow: () => {},
+  joinWorkflow: () => () => {},
   retryConnection: () => {},
   emitWorkflowOperation: () => false,
   emitSubblockUpdate: () => false,
@@ -195,8 +195,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [currentSocketId, setCurrentSocketId] = useState<string | null>(null)
   const [authFailed, setAuthFailed] = useState(false)
   const [blockedJoinWorkflowId, setBlockedJoinWorkflowId] = useState<string | null>(null)
-  const [workflowRequests, setWorkflowRequests] = useState<string[]>([])
-  const requestedWorkflowId = workflowRequests[workflowRequests.length - 1] ?? null
+  const [workflowRequests, setWorkflowRequests] = useState<WorkflowRequest[]>([])
+  const requestedWorkflowId = workflowRequests[workflowRequests.length - 1]?.workflowId ?? null
   const initializedRef = useRef(false)
   const socketRef = useRef<Socket | null>(null)
   const currentWorkflowIdRef = useRef<string | null>(null)
@@ -1054,17 +1054,17 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     (workflowId: string) => {
       if (!user?.id) {
         logger.warn('Cannot join workflow: user not available')
-        return
+        return () => {}
       }
 
-      setWorkflowRequests((requests) => [...requests, workflowId])
+      const token = generateId()
+      setWorkflowRequests((requests) => [...requests, { token, workflowId }])
+      return () => {
+        setWorkflowRequests((requests) => releaseWorkflowRequest(requests, token))
+      }
     },
     [user]
   )
-
-  const leaveWorkflow = useCallback((workflowId: string) => {
-    setWorkflowRequests((requests) => releaseWorkflowRequest(requests, workflowId))
-  }, [])
 
   /**
    * Retry socket connection after auth failure.
@@ -1343,7 +1343,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       currentWorkflowId,
       currentSocketId,
       joinWorkflow,
-      leaveWorkflow,
       retryConnection,
       emitWorkflowOperation,
       emitSubblockUpdate,
@@ -1374,7 +1373,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       currentWorkflowId,
       currentSocketId,
       joinWorkflow,
-      leaveWorkflow,
       retryConnection,
       emitWorkflowOperation,
       emitSubblockUpdate,

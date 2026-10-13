@@ -365,15 +365,10 @@ const WorkflowContent = React.memo(
     const { fitViewToBounds, getViewportCenter } = useCanvasViewport(reactFlowInstance, {
       embedded,
     })
-    const { emitCursorUpdate, joinWorkflow, leaveWorkflow } = useSocket()
+    const { emitCursorUpdate, joinWorkflow } = useSocket()
     useDynamicHandleRefresh()
 
-    useEffect(() => {
-      joinWorkflow(workflowIdParam)
-      return () => {
-        leaveWorkflow(workflowIdParam)
-      }
-    }, [workflowIdParam, joinWorkflow, leaveWorkflow])
+    useEffect(() => joinWorkflow(workflowIdParam), [workflowIdParam, joinWorkflow])
 
     useOAuthReturnForWorkflow(workflowIdParam)
 

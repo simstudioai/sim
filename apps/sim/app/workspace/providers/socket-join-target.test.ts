@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   isSocketWorkflowVisible,
   releaseWorkflowRequest,
+  type WorkflowRequest,
 } from '@/app/workspace/providers/socket-join-target'
+
+const request = (token: string, workflowId: string): WorkflowRequest => ({ token, workflowId })
 
 describe('socket join target helpers', () => {
   it('rejects mismatched workflow visibility', () => {
@@ -25,25 +28,28 @@ describe('socket join target helpers', () => {
   })
 
   it('keeps an earlier editor requested when a later one unmounts', () => {
-    expect(releaseWorkflowRequest(['workflow-a', 'workflow-b'], 'workflow-b')).toEqual([
-      'workflow-a',
-    ])
+    expect(
+      releaseWorkflowRequest([request('t1', 'workflow-a'), request('t2', 'workflow-b')], 't2')
+    ).toEqual([request('t1', 'workflow-a')])
   })
 
   it('removes an earlier editor without disturbing the one mounted above it', () => {
-    expect(releaseWorkflowRequest(['workflow-a', 'workflow-b'], 'workflow-a')).toEqual([
-      'workflow-b',
-    ])
+    expect(
+      releaseWorkflowRequest([request('t1', 'workflow-a'), request('t2', 'workflow-b')], 't1')
+    ).toEqual([request('t2', 'workflow-b')])
   })
 
-  it('releases only one request when the same workflow is mounted twice', () => {
-    expect(releaseWorkflowRequest(['workflow-a', 'workflow-a'], 'workflow-a')).toEqual([
-      'workflow-a',
-    ])
+  it('keeps the newer mount of a workflow on top when the older mount of it unmounts', () => {
+    expect(
+      releaseWorkflowRequest(
+        [request('t1', 'workflow-a'), request('t2', 'workflow-b'), request('t3', 'workflow-a')],
+        't1'
+      )
+    ).toEqual([request('t2', 'workflow-b'), request('t3', 'workflow-a')])
   })
 
-  it('ignores a release for a workflow that never joined', () => {
-    const requests = ['workflow-a']
-    expect(releaseWorkflowRequest(requests, 'workflow-b')).toBe(requests)
+  it('ignores a release for a mount that never joined', () => {
+    const requests = [request('t1', 'workflow-a')]
+    expect(releaseWorkflowRequest(requests, 't9')).toBe(requests)
   })
 })
