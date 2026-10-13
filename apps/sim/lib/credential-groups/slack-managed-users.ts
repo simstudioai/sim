@@ -569,6 +569,16 @@ async function resolveSharedSlackMemberApp(
       'Set up this organization’s Slack app first.',
       'invalid_response'
     )
+  const [appRow] = await db
+    .select({ kind: slackApp.kind, organizationId: slackApp.organizationId })
+    .from(slackApp)
+    .where(eq(slackApp.id, app.id))
+    .limit(1)
+  if (appRow && (appRow.kind !== 'shared' || appRow.organizationId !== null))
+    throw new SlackManagedUsersError(
+      'This Slack app belongs to another installation owner.',
+      'invalid_response'
+    )
   if (installation)
     throw new SlackManagedUsersError(
       'Select the organization’s installed Slack app.',
@@ -901,7 +911,7 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
         )
         .limit(1)
         .for('update')
-      /** A custom row holding the shared app's ID belongs to another owner; never adopt it. */
+      /** Start refuses a custom row holding the shared app's ID; this covers one added since. */
       if (sharedApp && app?.kind !== 'shared')
         throw new OrchestrationError(
           'conflict',

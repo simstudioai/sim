@@ -10,11 +10,11 @@ import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 /**
- * Serializes an organization's Slack member setup with Slack Search's own installation writes
- * (install, rebind, enable, disable, removal), so neither commits against an app or workspace the
- * other changed. Taken before any Slack app or workspace lock. Slack revocations, which must never
- * wait on setup, and the cascade from deleting a bot credential skip it: they only withdraw a bot,
- * and member setup stays valid without one.
+ * Serializes an organization's Slack member setup with Slack Search's installation writes, so a
+ * bot can never be added or rebound under a member setup that already checked the installations.
+ * Install, rebind, enable, disable and admin removal all take it, first, before any Slack app or
+ * workspace lock. Slack revocations, which must never wait on setup, and the cascade from
+ * deleting a bot credential skip it: they only withdraw a bot, which member setup tolerates.
  */
 export async function lockOrganizationSlackApp(tx: DbTransaction, organizationId: string) {
   await acquireAdvisoryXactLock(tx, 'slack_org_app', `slack-org-app:${organizationId}`)
