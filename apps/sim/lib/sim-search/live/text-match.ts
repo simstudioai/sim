@@ -72,12 +72,16 @@ function distinctTerms(query: string, keyOf: (term: string) => string): string[]
     .slice(0, MAX_ANY_TERMS)
 }
 
-/** One key for a word and its regular plural (`token`/`tokens`, `process`/`processes`). */
+/**
+ * One key for a word and its regular plural (`token`/`tokens`, `process`/`processes`). As in the
+ * Porter stemmer, a final `-y` and `-ie(s)` fold to `i`, so `policy`/`policies` and
+ * `movie`/`movies` each share a key.
+ */
 function singularKey(term: string): string {
   const key = term.toLowerCase()
-  if (key.length > 4 && key.endsWith('ies')) return `${key.slice(0, -3)}y`
-  const stem = /[^su]s$/.test(key) ? key.slice(0, -1) : key
-  return /(?:s|x|z|ch|sh)e$/.test(stem) ? stem.slice(0, -1) : stem
+  const stripped = /[^su]s$/.test(key) ? key.slice(0, -1) : key
+  const stem = /(?:s|x|z|ch|sh|i)e$/.test(stripped) ? stripped.slice(0, -1) : stripped
+  return stem.replace(/y$/, 'i')
 }
 
 /** Escapes a value for a quoted JQL or CQL string, treating Lucene operators as literal text. */
