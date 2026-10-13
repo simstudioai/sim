@@ -24,7 +24,8 @@ const documentKey = ({ container, kind, id }: NativeDocument) =>
  * provider order. The fallback runs only for a plain relevance-ordered query: native queries are
  * the caller's exact syntax, and a date-sorted page is reordered by date. It never replaces a
  * continuable page, so a cursor always continues the query that produced it. A provider refusal
- * leaves the all-terms page; cancellation and transport failures propagate like the first search.
+ * keeps the all-terms page, reported as partial with the provider's message; cancellation and
+ * transport failures propagate like the first search.
  */
 export async function searchWithAnyTermFallback(
   search: (input: NativeSearchInput) => Promise<NativePage>,
@@ -46,10 +47,11 @@ export async function searchWithAnyTermFallback(
     limit: Math.max(input.limit, ANY_TERM_CANDIDATES),
     textMatch: 'any',
   }).catch((error: unknown) => {
-    if (error instanceof NativeSearchError) return undefined
+    if (error instanceof NativeSearchError) return error
     throw error
   })
-  if (!relaxed) return strict
+  if (relaxed instanceof NativeSearchError)
+    return { ...strict, partial: true, message: joinMessages([strict.message, relaxed.message]) }
   const seen = new Set(strict.documents.map(documentKey))
   const additions = relaxed.documents
     .filter((document) => !seen.has(documentKey(document)))

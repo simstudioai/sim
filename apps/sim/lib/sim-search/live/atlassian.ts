@@ -250,8 +250,15 @@ export async function previewConfluence(
   document: NativeDocument
 ): Promise<string | undefined> {
   if (document.kind !== 'page' && document.kind !== 'blogpost') return undefined
-  return (await readAtlassian(client, 'confluence', document.id, document.container, document.kind))
-    .content
+  const page = await readAtlassian(
+    client,
+    'confluence',
+    document.id,
+    document.container,
+    document.kind
+  )
+  /** A body without text reads as its title, which says less than the search excerpt. */
+  return page.content === page.title ? undefined : page.content
 }
 
 /**

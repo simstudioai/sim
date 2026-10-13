@@ -92,10 +92,14 @@ describe('searchWithAnyTermFallback', () => {
     expect(search).toHaveBeenCalledTimes(1)
   })
 
-  it('returns the all-terms page when the provider refuses the any-term search', async () => {
-    const strict = page({ id: 'exact' })
-    const search = provider(strict, new NativeSearchError('rate_limited', 'Slow down'))
-    expect(await searchWithAnyTermFallback(search, input)).toBe(strict)
+  it('keeps the all-terms page as partial when the provider refuses the any-term search', async () => {
+    const search = provider(
+      page({ id: 'exact' }),
+      new NativeSearchError('rate_limited', 'Slow down')
+    )
+    const result = await searchWithAnyTermFallback(search, input)
+    expect(result.documents.map((document) => document.id)).toEqual(['exact'])
+    expect(result).toMatchObject({ partial: true, message: 'Slow down' })
   })
 
   it('propagates cancellation during the any-term search instead of returning a page', async () => {

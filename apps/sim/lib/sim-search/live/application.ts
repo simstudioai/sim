@@ -311,7 +311,7 @@ async function verifyCandidates(session: LiveAccountSession, candidates: LiveCan
 const PREVIEW_READS = 3
 /** A slow preview read keeps the provider's excerpt rather than delaying the search. */
 const PREVIEW_DEADLINE_MS = 2500
-/** Text kept from a preview read; the passage is cut from it, so a long document stays bounded. */
+/** Text kept around the match from a preview read, so a long document stays bounded. */
 const PREVIEW_SOURCE_CHARACTERS = 100_000
 
 /**
@@ -321,7 +321,8 @@ const PREVIEW_SOURCE_CHARACTERS = 100_000
  */
 async function withPreviewText(
   session: LiveAccountSession,
-  candidates: LiveCandidate[]
+  candidates: LiveCandidate[],
+  query: string
 ): Promise<LiveCandidate[]> {
   const deadline = AbortSignal.timeout(PREVIEW_DEADLINE_MS)
   const expired = new Promise<undefined>((resolve) =>
@@ -335,8 +336,10 @@ async function withPreviewText(
       )
   )
   return candidates.map((candidate, index) => {
-    const text = texts[index]?.trim().slice(0, PREVIEW_SOURCE_CHARACTERS)
-    return text ? { ...candidate, document: { ...candidate.document, content: text } } : candidate
+    const text = texts[index]?.trim()
+    if (!text) return candidate
+    const content = matchPassage(text, query, PREVIEW_SOURCE_CHARACTERS).content
+    return { ...candidate, document: { ...candidate.document, content } }
   })
 }
 
@@ -543,7 +546,9 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       /** A native query's operators would anchor the passage, so only plain queries preview. */
       const previewed =
         !native && input.query.trim()
-          ? await measureSearchStage('live.preview', () => withPreviewText(session, matching))
+          ? await measureSearchStage('live.preview', () =>
+              withPreviewText(session, matching, input.query)
+            )
           : matching
       const undatedExcluded = permitted.some(({ document }) =>
         lacksFilterDate(document, account.provider, queryFilters)

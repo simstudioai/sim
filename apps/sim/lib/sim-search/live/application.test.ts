@@ -642,6 +642,13 @@ describe('authorized live retrieval', () => {
       expect(mocks.preview).toHaveBeenCalledTimes(3)
     })
 
+    it('previews the passage around a match deep inside a long document', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts.slice(0, 1) })
+      mocks.preview.mockResolvedValue(`${'filler '.repeat(30_000)}the launch checklist`)
+      const [row] = (await searchLiveKnowledge.execute({ principal, input })).results
+      expect(row?.content).toContain('launch checklist')
+    })
+
     it('keeps the provider excerpt when a preview read fails', async () => {
       mocks.search.mockResolvedValue({ documents: excerpts.slice(0, 2) })
       mocks.preview
