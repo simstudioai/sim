@@ -31,6 +31,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { deleteUserAccount, getAccountDeletionPlan } from '@/lib/users/account-deletion'
+import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-workspaces'
 
@@ -428,6 +429,136 @@ describe('shared resource retention across workspace departure and account erasu
           .from(permissionGroup)
           .where(eq(permissionGroup.id, groupId))
       ).toEqual([{ createdBy: fixture.ownerId }])
+    }
+  )
+
+  it('retains a workflow created while account deletion waits for its workspace', async () => {
+    const fixture = await seedResources(false, false)
+    const workflowId = generateId()
+    const ready = createDeferred<number>()
+    const release = createDeferred<void>()
+    const creating = db.transaction(async (tx) => {
+      const row = await buildNewWorkflowRow(tx, {
+        id: workflowId,
+        userId: fixture.departingId,
+        workspaceId: fixture.workspaceId,
+        folderId: null,
+        name: 'Concurrent workflow',
+        description: null,
+      })
+      const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      ready.resolve(connection.pid)
+      await release.promise
+      await tx.insert(workflow).values(row)
+    })
+    const creatorPid = await ready.promise
+    const outcomes = Promise.allSettled([creating, deleteUserAccount(fixture.departingId)])
+    try {
+      await expect
+        .poll(
+          async () =>
+            (
+              await db.execute(
+                sql`SELECT pid FROM pg_stat_activity WHERE ${creatorPid} = ANY(pg_blocking_pids(pid))`
+              )
+            ).length,
+          { timeout: 5000 }
+        )
+        .toBeGreaterThan(0)
+    } finally {
+      release.resolve()
+    }
+    expect((await outcomes).filter((result) => result.status === 'rejected')).toEqual([])
+    await assertRetained(fixture)
+    expect(
+      await db.select({ userId: workflow.userId }).from(workflow).where(eq(workflow.id, workflowId))
+    ).toEqual([{ userId: fixture.ownerId }])
+  })
+
+  it.each(['workspace', 'organization'] as const)(
+    'refuses a new resource scope discovered while waiting for workspace locks (%s)',
+    async (scope) => {
+      const fixture = await seedResources(false, false)
+      const scopeId = generateId()
+      const resourceId = generateId()
+      if (scope === 'workspace') {
+        workspaceIds.push(scopeId)
+        await db.insert(workspace).values({
+          id: scopeId,
+          name: 'New scope',
+          ownerId: fixture.ownerId,
+          billedAccountUserId: fixture.ownerId,
+        })
+      } else {
+        organizationIds.push(scopeId)
+        await db.insert(organization).values({ id: scopeId, name: 'New scope', slug: scopeId })
+      }
+      const ready = createDeferred<number>()
+      const release = createDeferred<void>()
+      const blocker = db.transaction(async (tx) => {
+        await tx
+          .select({ id: workspace.id })
+          .from(workspace)
+          .where(eq(workspace.id, fixture.workspaceId))
+          .for('share')
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        ready.resolve(connection.pid)
+        await release.promise
+      })
+      const blockerPid = await ready.promise
+      const outcome = Promise.allSettled([deleteUserAccount(fixture.departingId)])
+      try {
+        await expect
+          .poll(
+            async () =>
+              (
+                await db.execute(
+                  sql`SELECT pid FROM pg_stat_activity WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))`
+                )
+              ).length,
+            { timeout: 5000 }
+          )
+          .toBeGreaterThan(0)
+        if (scope === 'workspace') {
+          await db.insert(userTableDefinitions).values({
+            id: resourceId,
+            workspaceId: scopeId,
+            name: 'Concurrent table',
+            schema: { columns: [] },
+            createdBy: fixture.departingId,
+          })
+        } else {
+          await db.insert(permissionGroup).values({
+            id: resourceId,
+            organizationId: scopeId,
+            name: 'Concurrent policy',
+            config: {},
+            createdBy: fixture.departingId,
+          })
+        }
+      } finally {
+        release.resolve()
+        await blocker
+      }
+      expect(await outcome).toMatchObject([
+        {
+          status: 'rejected',
+          reason: {
+            name: 'AccountDeletionBlockedError',
+            message: expect.stringContaining('Shared resources changed'),
+          },
+        },
+      ])
+      expect(
+        await db.select({ id: user.id }).from(user).where(eq(user.id, fixture.departingId))
+      ).toEqual([{ id: fixture.departingId }])
+      const resource = scope === 'workspace' ? userTableDefinitions : permissionGroup
+      expect(
+        await db
+          .select({ createdBy: resource.createdBy })
+          .from(resource)
+          .where(eq(resource.id, resourceId))
+      ).toEqual([{ createdBy: fixture.departingId }])
     }
   )
 

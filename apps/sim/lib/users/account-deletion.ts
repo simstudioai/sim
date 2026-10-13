@@ -20,7 +20,20 @@ import {
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { formatQuotedNameList } from '@sim/utils/string'
-import { and, eq, gt, inArray, isNotNull, isNull, lte, ne, notExists, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm'
 import type {
   AccountDeletionBlocker,
   AccountDeletionPlan,
@@ -112,15 +125,18 @@ const WORKSPACE_COLUMNS = {
  * account's workflows, knowledge bases and files inside them would cascade away
  * with it.
  */
-async function loadRelatedWorkspaces(userId: string): Promise<WorkspaceRow[]> {
+async function loadRelatedWorkspaces(
+  userId: string,
+  executor: DbOrTx = db
+): Promise<WorkspaceRow[]> {
   const [anchored, joined] = await Promise.all([
-    db
+    executor
       .select(WORKSPACE_COLUMNS)
       .from(workspaceTable)
       .where(
         or(eq(workspaceTable.ownerId, userId), eq(workspaceTable.billedAccountUserId, userId))
       ),
-    db
+    executor
       .select(WORKSPACE_COLUMNS)
       .from(permissions)
       .innerJoin(workspaceTable, eq(workspaceTable.id, permissions.entityId))
@@ -750,16 +766,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   let cancelledMarkers: CancelledCellMarker[] = []
 
   await db.transaction(async (tx) => {
-    /** Blocks new user FK references through retention discovery, run cancellation, and deletion. */
-    await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update')
-    const executionBlockers = await sharedExecutionDeletionBlockers(
-      tx,
-      userId,
-      doomedWorkspaceIds,
-      true
-    )
-    if (executionBlockers.length) throw new AccountDeletionBlockedError(executionBlockers)
-    /** Organization mutations acquire their fence before Project, workspace, and payer locks. */
+    /** Organization and Project gates precede workspace rows, which precede user FK barriers. */
     const sharedOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
     for (const organizationId of sharedOrganizationIds) {
       await acquireOrganizationMutationLock(tx, organizationId)
@@ -769,6 +776,46 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       userId,
       doomedWorkspaceIds
     )
+    const workspaceIds = new Set([
+      ...doomedWorkspaceIds,
+      ...(await loadRelatedWorkspaces(userId, tx)).map((row) => row.id),
+      ...(await listSharedResourceWorkspaceIdsForUser(tx, userId)),
+    ])
+    if (workspaceIds.size) {
+      await tx
+        .select({ id: workspaceTable.id })
+        .from(workspaceTable)
+        .where(inArray(workspaceTable.id, [...workspaceIds]))
+        .orderBy(asc(workspaceTable.id))
+        .for('update')
+    }
+    /** Blocks new user FK references through retention discovery, run cancellation, and deletion. */
+    await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update')
+    /** Discovery preceded the barrier: refuse new scopes instead of acquiring locks out of order. */
+    const currentWorkspaceIds = [
+      ...(await loadRelatedWorkspaces(userId, tx)).map((row) => row.id),
+      ...(await listSharedResourceWorkspaceIdsForUser(tx, userId)),
+    ]
+    const currentOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
+    if (
+      currentWorkspaceIds.some((id) => !workspaceIds.has(id)) ||
+      currentOrganizationIds.some((id) => !sharedOrganizationIds.includes(id))
+    ) {
+      throw new AccountDeletionBlockedError([
+        {
+          code: 'shared_workspace',
+          message:
+            'Shared resources changed while your account was being deleted. Nothing was changed — try again.',
+        },
+      ])
+    }
+    const executionBlockers = await sharedExecutionDeletionBlockers(
+      tx,
+      userId,
+      doomedWorkspaceIds,
+      true
+    )
+    if (executionBlockers.length) throw new AccountDeletionBlockedError(executionBlockers)
     if (doomedWorkspaceIds.length > 0) {
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
