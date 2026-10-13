@@ -26,23 +26,22 @@ function provider(strict: NativePage, relaxed: NativePage | Error) {
 }
 
 describe('searchWithAnyTermFallback', () => {
-  it('follows an exhausted all-terms page with any-term matches, most terms first', async () => {
+  it('follows an exhausted all-terms page with partial matches, most terms first', async () => {
     const search = provider(
       page({ id: 'exact', title: 'Contractor offboarding runbook' }),
       page(
-        { id: 'one-term', title: 'Runbook index' },
+        { id: 'runbook', title: 'Runbook index' },
         { id: 'exact', title: 'Contractor offboarding runbook' },
-        { id: 'two-terms', title: 'Contractor offboarding form' },
-        { id: 'one-term-later', title: 'Contractor directory' },
-        { id: 'over-limit', title: 'Runbook archive' }
+        { id: 'in-preview', title: 'Offboarding', content: 'Steps for each contractor' },
+        { id: 'in-title', title: 'Contractor offboarding form' },
+        { id: 'contractors', title: 'Contractor directory' }
       )
     )
     const result = await searchWithAnyTermFallback(search, input)
     expect(result.documents.map((document) => document.id)).toEqual([
       'exact',
-      'two-terms',
-      'one-term',
-      'one-term-later',
+      'in-title',
+      'in-preview',
     ])
     expect(result.nextCursor).toBeUndefined()
     expect(result.message).toContain('Few results contained every search term')
@@ -61,8 +60,35 @@ describe('searchWithAnyTermFallback', () => {
     const result = await searchWithAnyTermFallback(search, { ...input, limit: 2 })
     expect(result.documents.map((document) => document.title)).toEqual([
       'Contractor offboarding form',
-      'Runbook 0',
     ])
+  })
+
+  it('keeps a page sharing a few of a long query’s terms, whose preview shows only some', async () => {
+    const search = provider(
+      page(),
+      page({ id: 'enrichments', title: 'Enrichments and Workflow Columns' })
+    )
+    const result = await searchWithAnyTermFallback(search, {
+      ...input,
+      query: 'enrichments vs workflow columns built-in email draft column',
+    })
+    expect(result.documents.map((document) => document.id)).toEqual(['enrichments'])
+  })
+
+  it('keeps single-term matches of a two-term query, the closest a partial match gets', async () => {
+    const search = provider(page(), page({ id: 'contractor', title: 'Contractor directory' }))
+    const result = await searchWithAnyTermFallback(search, {
+      ...input,
+      query: 'contractor offboarding',
+    })
+    expect(result.documents.map((document) => document.id)).toEqual(['contractor'])
+  })
+
+  it('adds a few partial matches however large the page', async () => {
+    const partial = Array.from({ length: 12 }, () => ({ title: 'Contractor offboarding' }))
+    const search = provider(page(), page(...partial))
+    const result = await searchWithAnyTermFallback(search, { ...input, limit: 20 })
+    expect(result.documents).toHaveLength(5)
   })
 
   it('never relaxes a native query, which is the caller’s exact syntax', async () => {

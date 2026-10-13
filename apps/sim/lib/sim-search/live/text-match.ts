@@ -2,8 +2,8 @@ import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
 
 /**
  * How a plain query's words must match a document. Confluence, Jira and Drive full-text search
- * require every word by default, so one word a page lacks hides it; `any` matches pages containing
- * at least one of the query's significant terms.
+ * require every word by default, so one word a page lacks hides it; `any` also matches pages that
+ * contain only some of the query's words.
  */
 export type TextMatch = 'all' | 'any'
 
@@ -66,11 +66,20 @@ export function significantTerms(query: string): string[] {
 const escapeSearchPhrase = (value: string) =>
   JSON.stringify(value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&'))
 
-/** The `text ~` clause for a plain query in Jira JQL or Confluence CQL. */
-export function atlassianTextClause(text: string, match: TextMatch = 'all'): string {
+/** The `text ~` clause for a plain query in Jira JQL; `any` joins its significant terms with OR. */
+export function jiraTextClause(text: string, match: TextMatch = 'all'): string {
   const terms = match === 'any' ? significantTerms(text) : []
   if (terms.length < 2) return `text ~ ${escapeSearchPhrase(text)}`
   return `(${terms.map((term) => `text ~ ${escapeSearchPhrase(term)}`).join(' OR ')})`
+}
+
+/**
+ * The text clause for a plain query in Confluence CQL. `any` uses `siteSearch`, Confluence's own
+ * relevance search, which ranks a page with the query's rarer words above the many pages sharing
+ * one common word, where a `text ~` OR query ranks them the other way round.
+ */
+export function confluenceTextClause(text: string, match: TextMatch = 'all'): string {
+  return `${match === 'any' ? 'siteSearch' : 'text'} ~ ${escapeSearchPhrase(text)}`
 }
 
 export const escapeDriveLiteral = (value: string) =>

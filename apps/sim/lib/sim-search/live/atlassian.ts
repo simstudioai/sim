@@ -9,7 +9,7 @@ import {
 } from '@/lib/sim-search/live/http'
 import { interleaveByRank } from '@/lib/sim-search/live/pages'
 import { providerText } from '@/lib/sim-search/live/text'
-import { atlassianTextClause } from '@/lib/sim-search/live/text-match'
+import { confluenceTextClause, jiraTextClause } from '@/lib/sim-search/live/text-match'
 import type {
   NativeClient,
   NativeDocument,
@@ -161,7 +161,7 @@ export async function searchAtlassian(
           await client.json(`/ex/jira/${segment(cloudId)}/rest/api/3/search/jql`, {
             body: {
               jql: scopeAtlassianQuery(
-                input.native?.query || (text ? atlassianTextClause(text, input.textMatch) : ''),
+                input.native?.query || (text ? jiraTextClause(text, input.textMatch) : ''),
                 scope,
                 order
               ),
@@ -182,7 +182,7 @@ export async function searchAtlassian(
           query: {
             cql: scopeAtlassianQuery(
               input.native?.query ||
-                `type IN (page, blogpost)${text ? ` AND ${atlassianTextClause(text, input.textMatch)}` : ''}`,
+                `type IN (page, blogpost)${text ? ` AND ${confluenceTextClause(text, input.textMatch)}` : ''}`,
               scope,
               order
             ),

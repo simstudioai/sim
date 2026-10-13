@@ -23,7 +23,7 @@ import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { LIVE_SEARCH_PROVIDER_CATALOG } from '@/lib/sim-search/live/provider-catalog'
 import { loadLiveGitHubSources, loadLiveServiceSource } from '@/lib/sim-search/live/service-sources'
 import { liveSourcePolicy } from '@/lib/sim-search/live/source-policy'
-import { atlassianTextClause } from '@/lib/sim-search/live/text-match'
+import { confluenceTextClause } from '@/lib/sim-search/live/text-match'
 import type { NativeClient, NativeDocument, NativeSearchInput } from '@/lib/sim-search/live/types'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 
@@ -143,7 +143,7 @@ export async function createLiveServiceSession(input: {
         ].join(' AND ')
         const query =
           search.native?.query ??
-          (search.query ? atlassianTextClause(search.query, search.textMatch) : '')
+          (search.query ? confluenceTextClause(search.query, search.textMatch) : '')
         return {
           ...search,
           native: { provider, ...search.native, query: scopeAtlassianQuery(query, scope) },
