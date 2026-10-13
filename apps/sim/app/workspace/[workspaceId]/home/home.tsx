@@ -415,7 +415,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
 
   return (
     <ChatResourcePanel workspaceId={workspaceId} chat={chat} panel={panel}>
-      <div className='relative flex h-full @max-[960px]/chat-panel:min-w-0 min-w-0 flex-1 flex-col md:min-w-[min(480px,100%)]'>
+      <div className='relative flex h-full min-w-0 flex-1 flex-col md:min-w-[min(480px,50%)]'>
         {showEmptyState && (
           <div
             className={cn(
