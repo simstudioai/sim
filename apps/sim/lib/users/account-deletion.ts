@@ -27,6 +27,7 @@ import type {
   AccountDeletionResource,
 } from '@/lib/api/contracts/user'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
+import { invalidateReportingUsagePrefixes } from '@/lib/billing/core/reporting-usage-cache'
 import {
   acquireOrganizationMutationLock,
   isSoleOwnerOfPaidOrganization,
@@ -755,7 +756,8 @@ async function announceCancelledTableWork(
  *    rather than treated as failures.
  * 3. **Purge storage last**, once that transaction has committed. Object
  *    deletion cannot be rolled back, so it must not precede the point of no
- *    return.
+ *    return. Before it, the account's ledger rows having cascaded away, the
+ *    shared reporting-usage prefixes that may still count them are discarded.
  *
  * The ordering inside step 2 is load-bearing too: Postgres evaluates the
  * `NO ACTION` check on `workspace.billed_account_user_id` *before* the `owner_id`
@@ -981,6 +983,8 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       throw error
     }
   })
+
+  await invalidateReportingUsagePrefixes()
 
   await announceCancelledTableWork(cancelledDispatches, cancelledMarkers)
 
