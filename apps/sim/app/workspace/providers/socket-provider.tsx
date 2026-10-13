@@ -517,7 +517,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
                 baseMs: AUTH_RETRY_BASE_MS,
                 maxMs: AUTH_RETRY_MAX_MS,
               })
-              // Spread tabs behind one IP that share the same 429 window.
+              // Spread tabs that share the same 429 window.
               const delayMs =
                 retryAfterMs === null
                   ? backoffMs
