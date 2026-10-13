@@ -7,6 +7,7 @@ import { createDeferred } from '@sim/testing/helpers/deferred'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { copilotConfirmBodySchema } from '@/lib/api/contracts/copilot'
 import { executeComputerToolOnClient } from '@/lib/mothership/tools/client/computer-tool-execution'
+import { clearUserData } from '@/stores'
 
 const native = vi.hoisted(() => ({ execute: vi.fn(), cancel: vi.fn() }))
 vi.mock('@/lib/computer-use/transport', () => ({
@@ -345,4 +346,80 @@ describe('native computer completion during page unload', () => {
       await execution
     }
   })
+
+  it.each(['retained', 'backoff', 'request', 'native'] as const)(
+    'stops old-identity delivery during %s and admits the next identity',
+    async (phase) => {
+      const nativeResult = createDeferred<ComputerUseResult>()
+      const pendingResponse = createDeferred<Response>()
+      const pendingSignals: AbortSignal[] = []
+      let signedOut = false
+      let connected = false
+      const fetcher = vi.fn<typeof fetch>((_url, init) => {
+        if (connected) return Promise.resolve(new Response(null, { status: 200 }))
+        if (phase === 'request') {
+          const signal = init?.signal
+          if (!signal) throw new Error('Missing completion abort signal')
+          pendingSignals.push(signal)
+          return new Promise<Response>((resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+            pendingResponse.promise.then(resolve, reject)
+          })
+        }
+        return Promise.resolve(new Response(null, { status: signedOut ? 401 : 503 }))
+      })
+      vi.stubGlobal('fetch', fetcher)
+      const beacon = vi.fn(() => false)
+      Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: beacon })
+      if (phase === 'native') native.execute.mockReturnValueOnce(nativeResult.promise)
+      else native.execute.mockResolvedValueOnce({ kind: 'apps', apps: [] })
+      const id = nextId()
+      const timestamp = new Date().toISOString()
+      const execution = executeComputerToolOnClient(id, { action: 'list_apps' }, timestamp)
+      await flushMicrotasks()
+      if (phase === 'retained') {
+        await vi.advanceTimersByTimeAsync(15_000)
+        await execution
+        expect(fetcher.mock.calls.length).toBeGreaterThanOrEqual(5)
+      }
+      if (phase === 'request') {
+        window.dispatchEvent(new Event('pagehide'))
+        await flushMicrotasks()
+        expect(pendingSignals).toHaveLength(2)
+      }
+      const callsBeforeSignOut = fetcher.mock.calls.length
+      try {
+        signedOut = true
+        expect(await clearUserData()).toBe(true)
+        nativeResult.resolve({ kind: 'apps', apps: [] })
+        await flushMicrotasks()
+        expect(vi.getTimerCount()).toBe(0)
+        if (phase === 'request') expect(pendingSignals.every((signal) => signal.aborted)).toBe(true)
+        if (phase === 'native') expect(native.cancel).toHaveBeenCalledExactlyOnceWith(id)
+        beacon.mockClear()
+        window.dispatchEvent(new Event('pagehide'))
+        await vi.advanceTimersByTimeAsync(120_000)
+        expect(fetcher).toHaveBeenCalledTimes(callsBeforeSignOut)
+        expect(beacon).not.toHaveBeenCalled()
+        expect(native.execute).toHaveBeenCalledOnce()
+        connected = true
+        native.execute.mockResolvedValueOnce({ kind: 'apps', apps: [] })
+        const next = nextId()
+        await executeComputerToolOnClient(next, { action: 'list_apps' }, new Date().toISOString())
+        expect(
+          copilotConfirmBodySchema.parse(JSON.parse(String(fetcher.mock.lastCall?.[1]?.body)))
+        ).toMatchObject({ toolCallId: next, status: 'success' })
+        expect(native.execute).toHaveBeenCalledTimes(2)
+      } finally {
+        connected = true
+        nativeResult.resolve({ kind: 'apps', apps: [] })
+        pendingResponse.resolve(new Response(null, { status: 200 }))
+        await vi.advanceTimersByTimeAsync(120_000)
+        await execution
+        const cleanup = executeComputerToolOnClient(id, { action: 'list_apps' }, timestamp)
+        await vi.advanceTimersByTimeAsync(15_000)
+        await cleanup
+      }
+    }
+  )
 })

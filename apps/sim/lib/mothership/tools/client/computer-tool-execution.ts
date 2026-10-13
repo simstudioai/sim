@@ -17,6 +17,7 @@ import {
 } from '@/lib/mothership/tools/client/completion'
 import { computerToolResultForModel } from '@/lib/mothership/tools/client/computer-tool-result'
 import { compactCompletionForPageExit } from '@/lib/mothership/tools/client/page-exit-completion'
+import { registerUserDataReset } from '@/stores/user-data-reset-registry'
 
 const logger = createLogger('ComputerToolExecution')
 const MAX_EVENT_AGE_MS = 120_000
@@ -34,6 +35,7 @@ interface Completion {
   data?: unknown
 }
 interface Execution {
+  identitySignal: AbortSignal
   completion?: Completion
   reporting?: Promise<void>
   retryTimer?: ReturnType<typeof setTimeout>
@@ -41,6 +43,13 @@ interface Execution {
   release?: () => void
 }
 const executions = new Map<string, Execution>()
+let identity = new AbortController()
+
+registerUserDataReset('computer-tool-execution', () => {
+  identity.abort()
+  identity = new AbortController()
+  for (const [toolCallId, execution] of executions) releaseExecution(toolCallId, execution)
+})
 
 function releaseExecution(toolCallId: string, execution: Execution): void {
   if (executions.get(toolCallId) === execution) executions.delete(toolCallId)
@@ -60,10 +69,13 @@ async function deliver(toolCallId: string, execution: Execution): Promise<void> 
     toolCallId,
     completion.status,
     completion.message,
-    completion.data
+    completion.data,
+    undefined,
+    execution.identitySignal
   )
     .then(() => releaseExecution(toolCallId, execution))
     .catch((error) => {
+      if (execution.identitySignal.aborted) return
       logger.warn('Computer action result delivery failed; retained for redelivery', {
         toolCallId,
         error: getErrorMessage(error),
@@ -93,7 +105,7 @@ export async function executeComputerToolOnClient(
 ): Promise<void> {
   const existing = executions.get(toolCallId)
   if (existing) return deliver(toolCallId, existing)
-  const execution: Execution = {}
+  const execution: Execution = { identitySignal: identity.signal }
   const claim = replayLedger.claim(toolCallId)
   const reject = async (message: string, data?: Record<string, unknown>) => {
     const dataWithError = { error: message, ...data }
@@ -111,7 +123,9 @@ export async function executeComputerToolOnClient(
       toolCallId,
       ASYNC_TOOL_CONFIRMATION_STATUS.error,
       message,
-      dataWithError
+      dataWithError,
+      undefined,
+      execution.identitySignal
     ).catch((error) =>
       logger.warn('Could not report computer action rejection', {
         toolCallId,
@@ -145,8 +159,11 @@ export async function executeComputerToolOnClient(
     )
   executions.set(toolCallId, execution)
   const actionController = new AbortController()
+  const actionSignal = signal
+    ? AbortSignal.any([signal, execution.identitySignal])
+    : execution.identitySignal
   let dispatched = false
-  let cancelled = signal?.aborted === true
+  let cancelled = actionSignal.aborted
   const cancel = () => {
     cancelled = true
     actionController.abort()
@@ -173,7 +190,8 @@ export async function executeComputerToolOnClient(
         toolCallId,
         completion.status,
         completion.message,
-        completion.data
+        completion.data,
+        execution.identitySignal
       )
         .then(() => releaseExecution(toolCallId, execution))
         .catch((error) =>
@@ -196,7 +214,7 @@ export async function executeComputerToolOnClient(
     }
   }
   execution.release = () => window.removeEventListener('pagehide', onPageHide)
-  signal?.addEventListener('abort', cancel, { once: true })
+  actionSignal.addEventListener('abort', cancel, { once: true })
   window.addEventListener('pagehide', onPageHide)
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
@@ -252,7 +270,7 @@ export async function executeComputerToolOnClient(
     }
   } finally {
     if (timer) clearTimeout(timer)
-    signal?.removeEventListener('abort', cancel)
+    actionSignal.removeEventListener('abort', cancel)
   }
   await deliver(toolCallId, execution)
 }

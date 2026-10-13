@@ -82,7 +82,8 @@ describe('computer action delivery', () => {
             id,
             completion.status,
             completion.message,
-            completion.data
+            completion.data,
+            expect.objectContaining({ aborted: false })
           )
       } finally {
         report.resolve()
@@ -146,7 +147,9 @@ describe('computer action delivery', () => {
       id,
       'error',
       expect.stringContaining('may already have run'),
-      expect.objectContaining({ doNotRetry: true })
+      expect.objectContaining({ doNotRetry: true }),
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
   })
 
@@ -167,7 +170,9 @@ describe('computer action delivery', () => {
       id,
       'cancelled',
       expect.stringContaining('timed out'),
-      { doNotRetry: true, outcomeUnknown: true }
+      { doNotRetry: true, outcomeUnknown: true },
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
   })
 
@@ -193,7 +198,9 @@ describe('computer action delivery', () => {
         dispatchState: 'not_started',
         doNotRetry: false,
         outcomeUnknown: false,
-      }
+      },
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
     await executeComputerToolOnClient(nextId(), { action: 'list_apps' }, now())
     expect(mocks.execute).toHaveBeenCalledTimes(2)
@@ -213,7 +220,9 @@ describe('computer action delivery', () => {
       id,
       'error',
       expect.any(String),
-      expect.objectContaining({ doNotRetry: true, outcomeUnknown: true })
+      expect.objectContaining({ doNotRetry: true, outcomeUnknown: true }),
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
   })
 
@@ -234,7 +243,9 @@ describe('computer action delivery', () => {
       id,
       'error',
       expect.stringContaining('may already have run'),
-      expect.objectContaining({ doNotRetry: true })
+      expect.objectContaining({ doNotRetry: true }),
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
   })
   it.each([undefined, 'invalid', new Date(Date.now() - 121000).toISOString()])(
@@ -310,7 +321,9 @@ describe('computer action delivery', () => {
       expect.objectContaining({
         sequence: { completedSteps: 1, totalSteps: 2, error: 'Editor focus changed.' },
         observation: expect.objectContaining({ snapshotId: 'after' }),
-      })
+      }),
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
   })
 
@@ -338,7 +351,9 @@ describe('computer action delivery', () => {
       id,
       'cancelled',
       expect.any(String),
-      expect.objectContaining({ doNotRetry: true })
+      expect.objectContaining({ doNotRetry: true }),
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
   })
   it('does not dispatch a tool when Stop already won', async () => {
@@ -402,7 +417,9 @@ describe('computer action delivery', () => {
       rejectedId,
       'error',
       expect.any(String),
-      expect.anything()
+      expect.anything(),
+      undefined,
+      expect.objectContaining({ aborted: false })
     )
   })
 })
