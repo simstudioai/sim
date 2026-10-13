@@ -2878,6 +2878,13 @@
       "when": 1791839835068,
       "tag": "0411_project_membership_enforcement",
       "breakpoints": true
+    },
+    {
+      "idx": 412,
+      "version": "7",
+      "when": 1791857610719,
+      "tag": "0412_connector_image_removal_pending",
+      "breakpoints": true
     }
   ]
 }
