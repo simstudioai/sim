@@ -16,6 +16,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -139,24 +140,28 @@ describe('Confluence image attachments through sync, indexing and reconciliation
     await updateKnowledgeConnector.execute({
       principal: { kind: 'session', userId: ids.aliceId, sessionId: 'confluence-images' },
       input: {
-        knowledgeBaseId: ids.knowledgeBaseId,
         connectorId: ids.connectorId,
         updates: {
           sourceConfig: { domain: 'fixture.atlassian.net', spaceKey: 'ENG', imageAttachments },
         },
       },
     })
-    await vi.waitFor(
-      async () => {
-        const [row] = await db
-          .select({ status: knowledgeConnector.status, lastSyncAt: knowledgeConnector.lastSyncAt })
-          .from(knowledgeConnector)
-          .where(eq(knowledgeConnector.id, ids.connectorId))
-        expect(row?.status).not.toBe('error')
-        expect(row).toMatchObject({ status: 'active', lastSyncAt: expect.any(Date) })
-      },
-      { timeout: 30_000, interval: 100 }
-    )
+    await expect
+      .poll(
+        async () => {
+          const [row] = await db
+            .select()
+            .from(knowledgeConnector)
+            .where(eq(knowledgeConnector.id, ids.connectorId))
+          return {
+            status: row?.status,
+            error: row?.lastSyncError,
+            synced: Boolean(row?.lastSyncAt),
+          }
+        },
+        { timeout: 30_000 }
+      )
+      .toEqual({ status: 'active', error: null, synced: true })
   }
   async function imageRemovalPending() {
     const [row] = await db
@@ -217,7 +222,7 @@ describe('Confluence image attachments through sync, indexing and reconciliation
   })
   afterAll(async () => {
     Object.assign(env, { GEMINI_API_KEY: priorGeminiKey })
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     await rm(fixture.storageRoot, { recursive: true, force: true })

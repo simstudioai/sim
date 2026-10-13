@@ -1143,9 +1143,9 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
         if (!canRead || !admitVisionImage(input.imageAdmission))
           imagesHeldBack.add(op.extDoc.externalId)
       }
-      const contentOps = rawBatch.filter(
-        (op) => op.type !== 'skip' && !imagesHeldBack.has(op.extDoc.externalId)
-      )
+      const contentOps = rawBatch
+        .filter((op) => op.type !== 'skip')
+        .filter((op) => !imagesHeldBack.has(op.extDoc.externalId))
       const deferredOps = contentOps.filter((op) => op.extDoc.contentDeferred)
       const readyOps = contentOps.filter((op) => !op.extDoc.contentDeferred)
       let hydrationDeferral: unknown
