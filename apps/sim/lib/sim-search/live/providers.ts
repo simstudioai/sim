@@ -313,11 +313,16 @@ export function searchNativeProvider(
   return adapter.search(client, input)
 }
 
+/** True when the provider's plain-text search matches only items containing every query word. */
 export function requiresEveryTerm(provider: LiveSearchProviderId): boolean {
   const adapter = LIVE_SEARCH_PROVIDERS[provider]
   return 'requiresEveryTerm' in adapter && adapter.requiresEveryTerm === true
 }
 
+/**
+ * Full text for a search result's preview, for providers whose search returns only an excerpt or
+ * metadata. Undefined when the provider or the document's kind has no single-request text form.
+ */
 export async function previewNativeText(
   provider: LiveSearchProviderId,
   client: NativeClient,
