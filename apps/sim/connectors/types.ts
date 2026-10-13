@@ -1,6 +1,7 @@
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import type { ConnectorPermissionConfigCapability } from '@/lib/knowledge/connectors/permission-config'
+import type { ImageExtractionDeclaration } from '@/lib/knowledge/documents/image-extraction-policy'
 import type { OAuthService } from '@/lib/oauth/types'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { ConnectorSourceReasonState } from '@/connectors/source-error'
@@ -385,6 +386,12 @@ export interface ConnectorMeta {
    * knowledge-base connectors ignore these defaults.
    */
   searchDefaultSourceConfig?: Readonly<Record<string, string>>
+  /**
+   * Settings written into every new connector when the request leaves them unset,
+   * from any surface. Existing connectors are never back-filled, so an unset value
+   * keeps meaning what it meant before the default existed.
+   */
+  defaultSourceConfig?: Readonly<Record<string, string>>
   /** Unique connector identifier, e.g. 'confluence', 'google_drive', 'notion' */
   id: string
   /** Human-readable name, e.g. 'Confluence', 'Google Drive' */
@@ -422,6 +429,14 @@ export interface ConnectorMeta {
    * picked up. Only the deliberate full resync pays this re-index cost.
    */
   rehydrateOnFullSync?: boolean
+
+  /**
+   * Declared when this connector's image documents go through the vision
+   * extractor instead of OCR, gated by the named source setting. When the
+   * setting stops indexing images, the sync removes the images already indexed,
+   * as a setting change rather than a source deletion.
+   */
+  imageExtraction?: ImageExtractionDeclaration
 
   /**
    * Tag definitions this connector populates. Shown in the add-connector modal

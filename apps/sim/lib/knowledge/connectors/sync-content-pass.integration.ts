@@ -104,7 +104,8 @@ describe('completed listing reconciliation in PostgreSQL', () => {
         },
       },
       connectorConfig: confluenceConnector,
-      sourceConfig: {},
+      /** Images on, so the pass exercises reconciliation alone rather than image opt-out. */
+      sourceConfig: { imageAttachments: 'semantic' },
       syncContext: {},
       kbOwner: { workspaceId: 'workspace', userId: 'owner' },
       billingAttribution: {

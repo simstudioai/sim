@@ -1,0 +1,1 @@
+ALTER TABLE "knowledge_connector" ADD COLUMN "image_removal_pending" boolean DEFAULT false NOT NULL;

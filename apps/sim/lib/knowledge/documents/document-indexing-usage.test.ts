@@ -364,3 +364,100 @@ describe('knowledge document indexing usage', () => {
     expect(recordedSourceReference(1)).not.toBe(recordedSourceReference(0))
   })
 })
+
+describe('knowledge image extraction usage', () => {
+  const VISION_USAGE = {
+    model: 'gemini-3.8-flash',
+    cost: 0.004,
+    inputTokens: 1200,
+    outputTokens: 300,
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+    mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
+      context === 'workspace' ? [SOURCE_BINDING] : []
+    )
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+    mockGenerateEmbeddings.mockResolvedValue({
+      embeddings: [[0.1, 0.2]],
+      billableTokens: 128,
+      modelName: 'text-embedding-3-small',
+      pricingId: 'text-embedding-3-small',
+    })
+    mockCalculateCost.mockReturnValue({ total: 0.25 })
+  })
+
+  function armImageReads(connectorType: string | null): void {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ ...PERSISTED_CONTEXT, connectorId: null, connectorType }])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: DOCUMENT_ID }])
+      .mockResolvedValueOnce([{ id: DOCUMENT_ID }])
+  }
+
+  function process(passId = 'pass-1') {
+    return processDocumentAsync(
+      KNOWLEDGE_BASE_ID,
+      DOCUMENT_ID,
+      DOC_DATA,
+      {},
+      BILLING_ATTRIBUTION,
+      passId
+    )
+  }
+
+  it('bills a decorative image that indexed nothing', async () => {
+    armImageReads('confluence')
+    mockProcessDocument.mockResolvedValue({
+      chunks: [],
+      metadata: { chunkCount: 0, tokenCount: 0, characterCount: 0, visionUsage: VISION_USAGE },
+    })
+    await process()
+
+    expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+    expect(mockRecordUsage).toHaveBeenCalledTimes(1)
+    expect(mockRecordUsage.mock.calls[0][0].entries).toEqual([
+      expect.objectContaining({
+        category: 'model',
+        source: 'knowledge-base',
+        description: 'gemini-3.8-flash',
+        cost: 0.004,
+        sourceReference: `knowledge-document-vision:${DOCUMENT_ID}:pass-1`,
+        metadata: { inputTokens: 1200, outputTokens: 300 },
+      }),
+    ])
+  })
+
+  it('bills the vision call beside the embedding charge without changing it', async () => {
+    armImageReads('confluence')
+    mockProcessDocument.mockResolvedValue({
+      chunks: [{ text: 'Region: EMEA', metadata: { startIndex: 0, endIndex: 12 } }],
+      metadata: { chunkCount: 1, tokenCount: 4, characterCount: 12, visionUsage: VISION_USAGE },
+    })
+    await process()
+
+    expect(mockRecordUsage).toHaveBeenCalledTimes(2)
+    expect(recordedSourceReference(0)).toBe(`knowledge-document:${DOCUMENT_ID}:pass-1`)
+    expect(recordedSourceReference(1)).toBe(`knowledge-document-vision:${DOCUMENT_ID}:pass-1`)
+  })
+
+  it('records no vision charge when the call cost nothing, as with a workspace key', async () => {
+    armImageReads('confluence')
+    mockProcessDocument.mockResolvedValue({
+      chunks: [],
+      metadata: {
+        chunkCount: 0,
+        tokenCount: 0,
+        characterCount: 0,
+        visionUsage: { ...VISION_USAGE, cost: 0 },
+      },
+    })
+    await process()
+    expect(mockRecordUsage).not.toHaveBeenCalled()
+  })
+})
