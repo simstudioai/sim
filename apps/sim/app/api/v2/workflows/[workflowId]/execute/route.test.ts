@@ -500,11 +500,13 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(mockCheckOperationRate).toHaveBeenCalledTimes(2)
     expect(mockCheckOperationRate).toHaveBeenCalledWith(
       'v2:workflows.execute:api-key:key-1',
-      expect.anything()
+      expect.anything(),
+      1
     )
     expect(mockCheckOperationRate).toHaveBeenCalledWith(
       'v2:workflows.execute:workspace:workspace-1',
-      expect.anything()
+      expect.anything(),
+      1
     )
     expect(mockPreprocessExecution).toHaveBeenCalledWith(
       expect.objectContaining({ rateLimitCounter: 'sync' })
