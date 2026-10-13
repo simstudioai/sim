@@ -327,7 +327,7 @@ function isTimedPromise(node: Node): boolean {
   return timed
 }
 
-const WAIT_EXPORTS: Record<string, string[]> = {
+const WAIT_EXPORTS: Readonly<Record<string, readonly string[]>> = {
   '@sim/utils/helpers': ['sleep', 'interruptibleSleep'],
   'node:timers/promises': ['setTimeout'],
   'timers/promises': ['setTimeout'],
@@ -410,7 +410,7 @@ export function findRealWaitViolations(
     if (mockedId(node) === '@sim/utils/helpers') helpersMocked = true
   })
   const waitImports = new Map<string, string>()
-  const namespaces = new Map<string, string[]>()
+  const namespaces = new Map<string, readonly string[]>()
   for (const statement of program.body as Node[]) {
     if (statement.type !== 'ImportDeclaration') continue
     const source = (statement.source as { value: string }).value
