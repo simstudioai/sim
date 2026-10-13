@@ -8,7 +8,13 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { db, dbFor } from '@sim/db'
-import { organization, user, workspace, workspaceFiles } from '@sim/db/schema'
+import {
+  organization,
+  user,
+  workspace,
+  workspaceFileSearchDispatchQueue,
+  workspaceFiles,
+} from '@sim/db/schema'
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
@@ -64,7 +70,15 @@ const finalizeByRegistration: FinalizeNewFile = async (workspaceId, userId) => {
   })
 }
 
-describe('workspace file storage lock order in PostgreSQL', () => {
+/** `db:push` never installs the migration-only search-index trigger that reaches the queue row. */
+const [{ migrated }] = await db.execute<{ migrated: boolean }>(sql`SELECT EXISTS (
+  SELECT 1 FROM pg_trigger
+  WHERE tgrelid = 'workspace_files'::regclass AND tgname = 'workspace_files_search_index_pending'
+) AS migrated`)
+/** The suite's own `afterAll` never runs when it is skipped, so release the probe connection here. */
+if (!migrated) await db.$client.end()
+
+describe.skipIf(!migrated)('workspace file storage lock order in PostgreSQL', () => {
   const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
 
   beforeAll(() => {
@@ -95,6 +109,11 @@ describe('workspace file storage lock order in PostgreSQL', () => {
       'text/plain',
       { notifyWorkspaceChange: false }
     )
+    const queued = await db
+      .select({ workspaceId: workspaceFileSearchDispatchQueue.workspaceId })
+      .from(workspaceFileSearchDispatchQueue)
+      .where(eq(workspaceFileSearchDispatchQueue.workspaceId, ids.workspaceId))
+    expect(queued).toHaveLength(1)
     return { ...ids, existingFileId: existing.id }
   }
 
@@ -138,6 +157,7 @@ describe('workspace file storage lock order in PostgreSQL', () => {
           .toBe(1)
       } finally {
         finalizeIsWaiting.resolve()
+        await settled
       }
 
       const results = await settled
