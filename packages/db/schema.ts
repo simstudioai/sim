@@ -6408,6 +6408,11 @@ export const knowledgeConnector = pgTable(
      */
     accessRewritePending: boolean('access_rewrite_pending').notNull().default(false),
     /**
+     * Set when a settings change stops indexing images the connector already
+     * indexed; the next sync removes them and clears it.
+     */
+    imageRemovalPending: boolean('image_removal_pending').notNull().default(false),
+    /**
      * Where the members-mode absence reconcile resumes: the external id of the
      * last live document it checked, in `doc_connector_external_id_idx` order.
      * NULL starts a new pass from the beginning.

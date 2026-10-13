@@ -751,11 +751,12 @@ export const Panel = memo(function Panel() {
     <>
       <div
         className={cn(
-          'absolute top-3 right-3 z-[var(--z-dropdown)] @min-[960px]/workflow:hidden',
+          'absolute top-3 right-3 z-[var(--z-dropdown)] md:hidden',
           hasCanvasOverlay && 'hidden'
         )}
       >
         <Chip
+          mobileCompact
           variant='border-shadow'
           aria-expanded={isMobilePanelOpen}
           aria-controls='workflow-panel'
@@ -776,29 +777,30 @@ export const Panel = memo(function Panel() {
         ref={panelRef}
         id='workflow-panel'
         className={cn(
-          'panel-container @max-[960px]/workflow:absolute relative @max-[960px]/workflow:inset-0 @max-[960px]/workflow:z-[var(--z-dropdown)] @max-[960px]/workflow:w-full! shrink-0 overflow-hidden bg-[var(--bg)]',
-          (!isMobilePanelOpen || hasCanvasOverlay) && '@max-[960px]/workflow:hidden'
+          'panel-container relative shrink-0 overflow-hidden bg-[var(--bg)] max-md:absolute max-md:inset-0 max-md:z-[var(--z-dropdown)] max-md:w-full! md:max-w-[max(290px,40vw)]',
+          (!isMobilePanelOpen || hasCanvasOverlay) && 'max-md:hidden'
         )}
         aria-label='Workflow panel'
       >
         <div
           className={cn(
-            'flex h-full flex-col border-[var(--border)] border-l pt-3.5',
-            isSearchingEditor && '@max-[960px]/workflow:pt-0'
+            'flex h-full flex-col border-[var(--border)] border-l pt-3.5 max-md:pt-1',
+            isSearchingEditor && 'max-md:pt-0'
           )}
         >
           <div
             className={cn(
-              'flex @min-[960px]/workflow:hidden shrink-0 items-center justify-between px-3 pb-2',
-              isSearchingEditor && '@max-[960px]/workflow:hidden'
+              'flex shrink-0 items-center justify-between px-3 md:hidden',
+              isSearchingEditor && 'max-md:hidden'
             )}
           >
             <span className='text-[var(--text-body)] text-sm'>Workflow</span>
             <Button
               variant='ghost'
               size='icon'
+              mobileCompact
               aria-label='Back to canvas'
-              className='size-11'
+              className='size-[30px]'
               onClick={() => setIsMobilePanelOpen(false)}
             >
               <X className='size-[14px]' />
@@ -808,17 +810,14 @@ export const Panel = memo(function Panel() {
           <div
             className={cn(
               'flex shrink-0 items-center justify-between px-2',
-              isSearchingEditor && '@max-[960px]/workflow:hidden'
+              isSearchingEditor && 'max-md:hidden'
             )}
           >
             {/* More and Chat */}
             <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    aria-label='Workflow actions'
-                    className='@max-[960px]/workflow:size-11 size-[30px]'
-                  >
+                  <Button mobileCompact aria-label='Workflow actions' className='size-[30px]'>
                     <MoreHorizontal className='size-[14px]' />
                   </Button>
                 </DropdownMenuTrigger>
@@ -883,8 +882,9 @@ export const Panel = memo(function Panel() {
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button
+                mobileCompact
                 aria-label={isChatOpen ? 'Close chat' : 'Open chat'}
-                className='@max-[960px]/workflow:size-11 size-[30px]'
+                className='size-[30px]'
                 variant={isChatOpen ? 'active' : 'default'}
                 onClick={() => {
                   setIsChatOpen(!isChatOpen)
@@ -903,6 +903,7 @@ export const Panel = memo(function Panel() {
                 disabled={workflowLocked}
               />
               <Chip
+                mobileCompact
                 variant={isExecuting ? undefined : 'primary'}
                 active={isExecuting}
                 onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
@@ -937,8 +938,8 @@ export const Panel = memo(function Panel() {
           {/* Tabs */}
           <div
             className={cn(
-              'flex shrink-0 items-center justify-between px-2 pt-3.5',
-              isSearchingEditor && '@max-[960px]/workflow:hidden'
+              'flex shrink-0 items-center justify-between px-2 pt-3.5 max-md:pt-1.5',
+              isSearchingEditor && 'max-md:hidden'
             )}
           >
             <div className='flex gap-1'>
@@ -984,12 +985,7 @@ export const Panel = memo(function Panel() {
           </div>
 
           {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
-          <div
-            className={cn(
-              'flex-1 overflow-hidden pt-3',
-              isSearchingEditor && '@max-[960px]/workflow:pt-0'
-            )}
-          >
+          <div className={cn('flex-1 overflow-hidden pt-3', isSearchingEditor && 'max-md:pt-0')}>
             {isCopilotTabAvailable && (
               <div
                 className={
@@ -1118,7 +1114,7 @@ export const Panel = memo(function Panel() {
 
         {/* Resize Handle */}
         <div
-          className='absolute top-0 bottom-0 left-[-4px] z-20 @min-[960px]/workflow:block hidden w-[8px] cursor-ew-resize'
+          className='absolute top-0 bottom-0 left-[-4px] z-20 hidden w-[8px] cursor-ew-resize md:block'
           onPointerDown={handlePointerDown}
           role='separator'
           aria-orientation='vertical'

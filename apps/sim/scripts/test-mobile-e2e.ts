@@ -842,7 +842,7 @@ async function exerciseViewport(
         ) {
           await capture(page, `${browserName}-${viewport.name}-resources`)
         }
-        if (viewport.width < 1000) {
+        if (viewport.width < 768) {
           await expect(composer).toBeHidden()
           await expectContained(page, backToChat)
           await backToChat.click()
@@ -855,6 +855,45 @@ async function exerciseViewport(
             composerBounds.x + composerBounds.width <= resourceBounds.x,
             'Wide screens must retain side-by-side chat and resources'
           )
+          try {
+            if (viewport.name === 'tablet') {
+              await page.setViewportSize({ width: 768, height: viewport.height })
+            }
+            const divider = page.getByRole('separator', {
+              name: 'Resize resource view',
+              exact: true,
+            })
+            for (const key of ['Home', 'End']) {
+              await divider.press(key)
+              await expect(async () => {
+                const measurement = await divider.evaluate((element) => {
+                  const panel = document.querySelector('[data-mothership-panel]')
+                  if (!panel) throw new Error('Resource panel is unavailable')
+                  return {
+                    width: panel.getBoundingClientRect().width,
+                    min: Number.parseFloat(element.getAttribute('aria-valuemin') ?? ''),
+                    now: Number.parseFloat(element.getAttribute('aria-valuenow') ?? ''),
+                    max: Number.parseFloat(element.getAttribute('aria-valuemax') ?? ''),
+                  }
+                })
+                const { width, min, now, max } = measurement
+                assert(
+                  min <= now && now <= max,
+                  `The panel width must stay within its accessible range: ${JSON.stringify(measurement)}`
+                )
+                assert(
+                  Math.abs(now - width) <= 1,
+                  `The resize value must describe the visible panel: ${JSON.stringify(measurement)}`
+                )
+              }).toPass({ timeout: 20_000 })
+              await expectContained(page, composer)
+              await expectNoOverflow(page)
+            }
+          } finally {
+            if (viewport.name === 'tablet') {
+              await page.setViewportSize({ width: viewport.width, height: viewport.height })
+            }
+          }
           await page.getByRole('button', { name: 'Collapse resource view', exact: true }).click()
         }
         await expect(composer).toHaveValue(
@@ -1109,25 +1148,25 @@ async function exerciseViewport(
           await expectNoOverflow(page)
         }
       )
-      await check(`${prefix}/workflow controls open and return to the canvas`, page, async () => {
-        await visit(page, `w/${workflowId}`)
-        await expect(page.locator('.react-flow')).toBeVisible({ timeout: 120_000 })
-        const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
-        await expect(panel).toBeHidden()
-        await capture(page, `${browserName}-${viewport.name}-workflow-canvas`)
-        await page.getByRole('button', { name: 'Workflow', exact: true }).tap()
-        await expectContained(page, panel)
-        await capture(page, `${browserName}-${viewport.name}-workflow-panel`)
-        await page.getByRole('button', { name: 'Back to canvas', exact: true }).tap()
-        await expect(panel).toBeHidden()
-        await expect
-          .poll(async () => {
-            const canvas = await page.locator('.react-flow').boundingBox()
-            const content = await contentShell(page).boundingBox()
-            return canvas && content ? canvas.width / content.width : 0
-          })
-          .toBeGreaterThan(0.95)
-        if (viewport.name === 'phone') {
+      if (viewport.name === 'phone') {
+        await check(`${prefix}/workflow controls open and return to the canvas`, page, async () => {
+          await visit(page, `w/${workflowId}`)
+          await expect(page.locator('.react-flow')).toBeVisible({ timeout: 120_000 })
+          const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
+          await expect(panel).toBeHidden()
+          await capture(page, `${browserName}-${viewport.name}-workflow-canvas`)
+          await page.getByRole('button', { name: 'Workflow', exact: true }).tap()
+          await expectContained(page, panel)
+          await capture(page, `${browserName}-${viewport.name}-workflow-panel`)
+          await page.getByRole('button', { name: 'Back to canvas', exact: true }).tap()
+          await expect(panel).toBeHidden()
+          await expect
+            .poll(async () => {
+              const canvas = await page.locator('.react-flow').boundingBox()
+              const content = await contentShell(page).boundingBox()
+              return canvas && content ? canvas.width / content.width : 0
+            })
+            .toBeGreaterThan(0.95)
           await sql`update workflow set locked = true where id = ${workflowId}`
           await withDocumentNavigation(page, page.url(), () =>
             page.reload({ waitUntil: 'commit', timeout: 360_000 })
@@ -1159,9 +1198,55 @@ async function exerciseViewport(
               return rows[0]?.locked
             })
             .toBe(false)
+          await expectNoOverflow(page)
+        })
+      }
+    }
+
+    if (viewport.name === 'phone' || viewport.name === 'tablet' || viewport.name === 'desktop') {
+      await check(
+        `${prefix}/workflow uses compact phone controls and regular desktop panels`,
+        page,
+        async () => {
+          await visit(page, `w/${workflowId}`)
+          const canvas = page.locator('.react-flow:visible')
+          await expect(canvas).toBeVisible({ timeout: 120_000 })
+          const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
+          if (viewport.width < 768) {
+            await page.getByRole('button', { name: 'Workflow', exact: true }).tap()
+          }
+          await expectContained(page, panel)
+          const actions = panel.getByRole('button', { name: 'Workflow actions', exact: true })
+          const run = panel.getByRole('button', { name: 'Run', exact: true })
+          const deploy = panel.getByRole('button', { name: 'Deploy', exact: true })
+          for (const control of [actions, run, deploy]) {
+            const bounds = await control.boundingBox()
+            assert(bounds && bounds.height === 30, 'Workflow action faces must stay compact')
+          }
+          if (viewport.width < 768) {
+            const bounds = await actions.boundingBox()
+            assert(bounds)
+            await page.touchscreen.tap(bounds.x + bounds.width / 2, bounds.y - 5)
+            await expect(
+              page.getByRole('menuitem', { name: 'Auto layout', exact: true })
+            ).toBeVisible()
+            await page.keyboard.press('Escape')
+          } else {
+            const canvasBounds = await canvas.boundingBox()
+            const panelBounds = await panel.boundingBox()
+            assert(canvasBounds && panelBounds)
+            assert(
+              canvasBounds.width > 0 && canvasBounds.x + canvasBounds.width <= panelBounds.x + 1,
+              'Regular views must keep the canvas beside the workflow panel'
+            )
+            await expect(
+              page.getByRole('button', { name: 'Back to canvas', exact: true })
+            ).toBeHidden()
+          }
+          await expectNoOverflow(page)
+          await capture(page, `${browserName}-${viewport.name}-workflow-regular-layout`)
         }
-        await expectNoOverflow(page)
-      })
+      )
     }
   } finally {
     documentNavigations.delete(page)

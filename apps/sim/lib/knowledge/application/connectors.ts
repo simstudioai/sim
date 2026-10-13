@@ -717,6 +717,8 @@ async function executeCreateKnowledgeConnector({
   if (!connectorMeta) {
     throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
   }
+  /** Defaults apply only here, at creation, so an existing connector never changes meaning. */
+  const requestedSourceConfig = { ...connectorMeta.defaultSourceConfig, ...input.sourceConfig }
   if (!supportsConnectorAccessMode(connectorMeta, input.accessMode ?? 'workspace')) {
     throw new OrchestrationError(
       'validation',
@@ -769,7 +771,7 @@ async function executeCreateKnowledgeConnector({
     else if (context.workspaceId) await requireCurrentHumanRole(subjectUserId, context, 'admin')
 
     if (input.accessMode === 'admin') {
-      await assertConnectorMirrorsSourceAcls(connectorMeta, input.sourceConfig, scope)
+      await assertConnectorMirrorsSourceAcls(connectorMeta, requestedSourceConfig, scope)
       if (connectorMeta.requiresMemberIdentity) {
         await requireKnowledgeMemberAccessAvailable(owner)
         await provisionKnowledgeConnectorMembersBinding({
@@ -783,7 +785,7 @@ async function executeCreateKnowledgeConnector({
         ...owner,
         connectorMeta,
         actingUserId: subjectUserId,
-        sourceConfig: input.sourceConfig,
+        sourceConfig: requestedSourceConfig,
       })
     }
   }
@@ -797,7 +799,7 @@ async function executeCreateKnowledgeConnector({
     isSearchIndex: context.knowledgeBase.isSearchIndex === true,
     accessMode: input.accessMode ?? 'workspace',
     actingUserId,
-    sourceConfig: membersBinding?.sourceConfig ?? input.sourceConfig,
+    sourceConfig: membersBinding?.sourceConfig ?? requestedSourceConfig,
   })
   if (membersBinding) membersBinding = { ...membersBinding, sourceConfig }
   const apiKey = await resolveConnectorApiKey(input.apiKey, principal, workspaceId)
