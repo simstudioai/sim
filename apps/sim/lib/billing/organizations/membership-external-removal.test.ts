@@ -42,6 +42,7 @@ describe('external organization access removal', () => {
     queueTableRows(user, [{ email: 'departing@example.test' }])
     queueTableRows(user, [{ email: 'departing@example.test' }])
     queueTableRows(user, [{ id: 'surviving-owner' }])
+    queueTableRows(workspaceFiles, [{ id: 'cached-file', context: 'knowledge-base' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'membership' }])
 
     const result = await removeUserFromOrganization({

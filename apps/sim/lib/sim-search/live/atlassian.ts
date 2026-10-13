@@ -65,7 +65,16 @@ function issue(row: Record<string, unknown>, cloudId: string, site: string): Nat
     author: string(object(fields.creator).displayName),
   }
 }
-function page(row: Record<string, unknown>, cloudId: string, site: string): NativeDocument {
+/**
+ * Maps a CQL search hit to a readable document, or `undefined` for kinds the v2 page and blog
+ * post reads cannot open. Native CQL can match attachments, comments, whiteboards, folders,
+ * databases, and users; returning those would hand the caller a reference whose read is a 404.
+ */
+function page(
+  row: Record<string, unknown>,
+  cloudId: string,
+  site: string
+): NativeDocument | undefined {
   if (string(row.entityType) === 'space') {
     const space = object(row.space)
     return {
@@ -83,9 +92,11 @@ function page(row: Record<string, unknown>, cloudId: string, site: string): Nati
   const links = object(content._links)
   const version = object(content.version)
   const spaceKey = string(object(content.space).key)
+  const kind = string(content.type)
+  if ((kind !== 'page' && kind !== 'blogpost') || !string(content.id)) return undefined
   return {
     id: string(content.id),
-    kind: string(content.type) === 'blogpost' ? 'blogpost' : 'page',
+    kind,
     ...(spaceKey ? { accessMetadata: { spaceKey } } : {}),
     container: cloudId,
     title: string(content.title) || string(row.title),
@@ -164,6 +175,7 @@ export async function searchAtlassian(
         )
         return {
           documents: array(data.issues).map((row) => issue(row, cloudId, origin)),
+          excluded: false,
           next: string(data.nextPageToken) || undefined,
         }
       }
@@ -183,8 +195,13 @@ export async function searchAtlassian(
         })
       )
       const next = string(object(data._links).next)
+      const rows = array(data.results)
+      const documents = rows
+        .map((row) => page(row, cloudId, origin))
+        .filter((document) => document !== undefined)
       return {
-        documents: array(data.results).map((row) => page(row, cloudId, origin)),
+        documents,
+        excluded: documents.length < rows.length,
         next: next
           ? (new URL(next, 'https://api.atlassian.com').searchParams.get('cursor') ?? undefined)
           : undefined,
@@ -192,13 +209,17 @@ export async function searchAtlassian(
     })
   )
   const documents = interleaveByRank(pages.map((result) => result.documents))
+  const excluded = pages.some((result) => result.excluded)
   return {
     documents,
-    partial: !input.native?.project && allSites.length > selected.length,
+    partial: excluded || (!input.native?.project && allSites.length > selected.length),
     hasMore: pages.some((result) => Boolean(result.next)),
     nextCursor: single ? pages[0]?.next : undefined,
     message:
-      'Searches up to four accessible Atlassian sites. For a specific site and pagination, set project to its cloud ID.',
+      'Searches up to four accessible Atlassian sites. For a specific site and pagination, set project to its cloud ID.' +
+      (excluded
+        ? ' Matches other than pages, blog posts, and spaces (attachments, comments, whiteboards, folders, databases) were excluded because they cannot be read.'
+        : ''),
   }
 }
 

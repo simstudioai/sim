@@ -9,6 +9,7 @@ import {
 import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 
 /** Organization references survive even when their creator no longer has a membership row. */
 export async function listSharedResourceOrganizationIdsForUser(executor: DbOrTx, userId: string) {
@@ -27,13 +28,14 @@ export async function listSharedResourceOrganizationIdsForUser(executor: DbOrTx,
   return rows.map((row) => row.organizationId)
 }
 
-/** Retains organization-owned configuration without rewriting ACLs, credentials, or historical actors. */
-export async function reassignOrganizationSharedResourcesTx(
-  tx: DbTransaction,
+/** Uses the same eligible owner in read-only previews and locked handoffs. */
+export async function findOrganizationSharedResourceSuccessor(
+  tx: DbOrTx,
   organizationId: string,
-  departingUserId: string
+  departingUserId: string,
+  hold = false
 ): Promise<string | null> {
-  const [successor] = await tx
+  const successorQuery = tx
     .select({ userId: member.userId })
     .from(member)
     .where(
@@ -45,8 +47,26 @@ export async function reassignOrganizationSharedResourcesTx(
     )
     .orderBy(asc(member.userId))
     .limit(1)
-    .for('share')
-  if (!successor) {
+  const [successor] = await (hold ? successorQuery.for('share') : successorQuery)
+  if (!successor) return null
+  const accountQuery = tx.select({ id: user.id }).from(user).where(eq(user.id, successor.userId))
+  const [account] = await (hold ? accountQuery.for('key share') : accountQuery)
+  return account ? successor.userId : null
+}
+
+/** Retains organization-owned configuration without rewriting ACLs, credentials, or historical actors. */
+export async function reassignOrganizationSharedResourcesTx(
+  tx: DbTransaction,
+  organizationId: string,
+  departingUserId: string
+): Promise<string | null> {
+  const userId = await findOrganizationSharedResourceSuccessor(
+    tx,
+    organizationId,
+    departingUserId,
+    true
+  )
+  if (!userId) {
     const owned = await listSharedResourceOrganizationIdsForUser(tx, departingUserId)
     if (owned.includes(organizationId)) {
       throw new OrchestrationError(
@@ -56,17 +76,6 @@ export async function reassignOrganizationSharedResourcesTx(
     }
     return null
   }
-  const [account] = await tx
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.id, successor.userId))
-    .for('key share')
-  if (!account)
-    throw new OrchestrationError(
-      'conflict',
-      'The organization owner changed. Nothing was changed; try again.'
-    )
-  const userId = successor.userId
   const updatedAt = new Date()
   await tx
     .update(knowledgeBase)
@@ -78,16 +87,15 @@ export async function reassignOrganizationSharedResourcesTx(
         eq(knowledgeBase.userId, departingUserId)
       )
     )
-  await tx
-    .update(workspaceFiles)
-    .set({ userId, updatedAt })
-    .where(
-      and(
-        eq(workspaceFiles.organizationId, organizationId),
-        isNull(workspaceFiles.workspaceId),
-        eq(workspaceFiles.userId, departingUserId)
-      )
-    )
+  await handoffFileCreatorsInTx(
+    tx,
+    and(
+      eq(workspaceFiles.organizationId, organizationId),
+      isNull(workspaceFiles.workspaceId),
+      eq(workspaceFiles.userId, departingUserId)
+    ),
+    userId
+  )
   await tx
     .update(permissionGroup)
     .set({ createdBy: userId, updatedAt })

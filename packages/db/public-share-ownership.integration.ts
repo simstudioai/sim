@@ -12,10 +12,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 const databaseUrl = readTestDatabaseUrl()
 const migrations = [
   '0358_workspace_file_content_version_precision.sql',
-  '0408_file_entity_ownership.sql',
-  '0409_file_folder_version_ownership.sql',
-  '0410_file_creator_lifetime.sql',
-  '0412_public_share_entity_ownership.sql',
+  '0413_file_entity_ownership.sql',
+  '0414_file_folder_version_ownership.sql',
+  '0415_file_creator_lifetime.sql',
+  '0417_public_share_entity_ownership.sql',
 ].map((name) => readFileSync(new URL(`./migrations/${name}`, import.meta.url), 'utf8'))
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
@@ -305,7 +305,7 @@ describe('Public share canonical ownership in PostgreSQL', () => {
       const before =
         await sql`SELECT id, resource_type, resource_id, workspace_id, token, is_active, updated_at FROM public_share ORDER BY id`
       const { backfillPublicShareEntities } = await import(
-        './script-migrations/0033_backfill_public_share_entities'
+        './script-migrations/0034_backfill_public_share_entities'
       )
       const first = await backfillPublicShareEntities(sql)
       expect(first).toMatchObject({ backfilled: 502, unresolved: 3 })

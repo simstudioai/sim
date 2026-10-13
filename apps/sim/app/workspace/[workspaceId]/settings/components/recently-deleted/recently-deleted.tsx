@@ -1,15 +1,18 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Chip, ChipInput, ChipModalTabs } from '@sim/emcn'
+import { Chip, ChipInput, ChipModalTabs, cn } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
-import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import {
+  RECENTLY_DELETED_TYPES_BY_FILTER,
+  type RecentlyDeletedFilter,
+} from '@/lib/api/contracts/recently-deleted'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { folderedResourceListHref } from '@/app/workspace/[workspaceId]/components/folders'
 import {
   type ColumnOption,
@@ -18,14 +21,15 @@ import {
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { getRecentlyDeletedQueryPlan } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/query-plan'
 import {
-  type RecentlyDeletedTab,
   recentlyDeletedParsers,
   recentlyDeletedSortParams,
   recentlyDeletedUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/search-params'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   RESOURCE_LIST_STACK,
@@ -33,15 +37,15 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
-import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
-import { useMothershipChats, useRestoreMothershipChat } from '@/hooks/queries/mothership-chats'
-import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
-import { useRestoreWorkflow, useWorkflows } from '@/hooks/queries/workflows'
-import {
-  useRestoreWorkspaceFileFolder,
-  useWorkspaceFileFolders,
-} from '@/hooks/queries/workspace-file-folders'
-import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
+import { useRestoreMothershipChat } from '@/hooks/queries/mothership-chats'
+import { useRecentlyDeletedItems } from '@/hooks/queries/recently-deleted'
+import { useRestoreTable } from '@/hooks/queries/tables'
+import { useRestoreWorkflow } from '@/hooks/queries/workflows'
+import { useRestoreWorkspaceFileFolder } from '@/hooks/queries/workspace-file-folders'
+import { useRestoreWorkspaceFile } from '@/hooks/queries/workspace-files'
+import { useLoadMoreSentinel } from '@/hooks/use-load-more-sentinel'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
@@ -111,7 +115,8 @@ interface DeletedResource {
   name: string
   type: Exclude<ResourceType, 'all'>
   deletedAt: Date
-  workspaceId: string
+  /** The parent folder, for a folder row. */
+  parentId: string | null
 }
 
 interface RestoredResourceEntry {
@@ -119,7 +124,7 @@ interface RestoredResourceEntry {
   displayIndex: number
 }
 
-/** Labels for {@link RECENTLY_DELETED_TABS}, which owns the order. */
+/** Labels for {@link RECENTLY_DELETED_FILTERS}, which owns the order. */
 const TABS: { id: ResourceType; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'chat', label: 'Chats' },
@@ -152,25 +157,16 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
 }
 
 /**
- * Folder trees served by the generic folders API, other than the workflow tree that owns the
- * standalone "Folders" tab. Each entry names the deleted-resource type it produces, the
- * `resourceType` its rows are read and restored under, and the tab it files beneath — a
- * foldered resource's folders belong with the resource, the way a file folder sits under
- * Files. Declared once so adding a foldered resource is one row here rather than a fourth
- * copy of the query/collect/restore triple below.
+ * Folder trees served by the generic folders API, other than the workflow tree: the
+ * `resourceType` each deleted-folder type is restored under.
  */
 const FOLDERED_RESOURCE_TREES = [
-  { type: 'knowledge_folder', resourceType: 'knowledge_base', tab: 'knowledge' },
-  { type: 'table_folder', resourceType: 'table', tab: 'table' },
+  { type: 'knowledge_folder', resourceType: 'knowledge_base' },
+  { type: 'table_folder', resourceType: 'table' },
 ] as const satisfies readonly {
   type: Exclude<ResourceType, 'all'>
   resourceType: ServedFolderResourceType
-  tab: ResourceType
 }[]
-
-const FOLDER_TREE_TAB_BY_TYPE = new Map<ResourceType, ResourceType>(
-  FOLDERED_RESOURCE_TREES.map((tree) => [tree.type, tree.tab])
-)
 
 /**
  * Restore brings a workflow back but deliberately does NOT re-enable its schedules, webhooks,
@@ -185,10 +181,8 @@ const FOLDER_TREE_TAB_BY_TYPE = new Map<ResourceType, ResourceType>(
  */
 const PAUSED_AUTOMATION_TYPES = new Set<ResourceType>(['workflow', 'folder'])
 
-function matchesActiveTab(resource: DeletedResource, activeTab: ResourceType): boolean {
-  if (activeTab === 'all') return true
-  if (activeTab === 'file') return resource.type === 'file' || resource.type === 'workspace_folder'
-  return resource.type === activeTab || FOLDER_TREE_TAB_BY_TYPE.get(resource.type) === activeTab
+function matchesActiveTab(resource: DeletedResource, activeTab: RecentlyDeletedFilter): boolean {
+  return RECENTLY_DELETED_TYPES_BY_FILTER[activeTab].includes(resource.type)
 }
 
 export function RecentlyDeleted() {
@@ -196,7 +190,6 @@ export function RecentlyDeleted() {
   const router = useRouter()
   const workspaceId = params?.workspaceId as string
   const workspacePermissions = useUserPermissionsContext()
-  const { chatEnabled } = useDeploymentShape()
   const canEdit = canMutateWorkspaceSettingsSection('recently-deleted', workspacePermissions)
   const [{ tab: activeTab }, setRecentlyDeletedFilters] = useQueryStates(
     recentlyDeletedParsers,
@@ -213,52 +206,24 @@ export function RecentlyDeleted() {
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
-   * write is debounced. Filtering below is cheap in-memory over a small list, so
-   * it reads the instant value too.
+   * write is debounced. The list is searched on the server, so the query reads
+   * a debounced copy rather than refetching on every keystroke.
    */
   const [urlSearchTerm, setSearchTerm] = useSettingsSearch()
+  const debouncedSearch = useSearchFilterValue(urlSearchTerm, SEARCH_DEBOUNCE_MS).trim()
 
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
   const [restoredItems, setRestoredItems] = useState<Map<string, RestoredResourceEntry>>(new Map())
 
-  const queryPlan = getRecentlyDeletedQueryPlan(activeTab)
-  const workflowsQuery = useWorkflows(workspaceId, {
-    scope: 'archived',
-    enabled: queryPlan.workflows,
+  const deletedQuery = useRecentlyDeletedItems({
+    workspaceId,
+    filter: activeTab,
+    search: debouncedSearch,
+    sortBy: sortColumn,
+    sortOrder: sortDirection,
   })
-  const foldersQuery = useFolders(workspaceId, {
-    scope: 'archived',
-    enabled: queryPlan.folders,
-  })
-  const activeFoldersQuery = useFolders(workspaceId, { enabled: queryPlan.folders })
-  const tablesQuery = useTablesList(workspaceId, 'archived', { enabled: queryPlan.tables })
-  const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, {
-    scope: 'archived',
-    enabled: queryPlan.knowledge,
-  })
-  /**
-   * One archived-folder query per non-workflow tree, in the fixed order of
-   * {@link FOLDERED_RESOURCE_TREES} so the hook call order stays stable.
-   */
-  const knowledgeFoldersQuery = useFolders(workspaceId, {
-    scope: 'archived',
-    resourceType: 'knowledge_base',
-    enabled: queryPlan.knowledgeFolders,
-  })
-  const tableFoldersQuery = useFolders(workspaceId, {
-    scope: 'archived',
-    resourceType: 'table',
-    enabled: queryPlan.tableFolders,
-  })
-  const filesQuery = useWorkspaceFiles(workspaceId, 'archived', { enabled: queryPlan.files })
-  const workspaceFoldersQuery = useWorkspaceFileFolders(workspaceId, 'archived', {
-    enabled: queryPlan.workspaceFolders,
-  })
-  // Restoring a chat navigates to a route that 404s with Chat off, and this
-  // query's loading/error state feeds the whole panel's.
-  const chatsQuery = useMothershipChats(workspaceId, {
-    scope: 'archived',
-    enabled: queryPlan.chats && chatEnabled,
+  const activeFoldersQuery = useFolders(workspaceId, {
+    enabled: activeTab === 'all' || activeTab === 'folder',
   })
 
   const restoreWorkflow = useRestoreWorkflow()
@@ -269,158 +234,33 @@ export function RecentlyDeleted() {
   const restoreWorkspaceFileFolder = useRestoreWorkspaceFileFolder()
   const restoreChat = useRestoreMothershipChat(workspaceId)
 
-  const activeQueryStates = [
-    queryPlan.workflows ? workflowsQuery : null,
-    queryPlan.folders ? foldersQuery : null,
-    queryPlan.tables ? tablesQuery : null,
-    queryPlan.knowledge ? knowledgeQuery : null,
-    queryPlan.knowledgeFolders ? knowledgeFoldersQuery : null,
-    queryPlan.tableFolders ? tableFoldersQuery : null,
-    queryPlan.files ? filesQuery : null,
-    queryPlan.workspaceFolders ? workspaceFoldersQuery : null,
-    queryPlan.chats && chatEnabled ? chatsQuery : null,
-  ]
-  const isLoading = activeQueryStates.some((query) => query?.isLoading)
-  const error = activeQueryStates.find((query) => query?.error)?.error
+  const {
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+    isLoading,
+    isPlaceholderData,
+    error,
+  } = deletedQuery
 
-  const resources = useMemo<DeletedResource[]>(() => {
-    const items: DeletedResource[] = []
-
-    for (const wf of workflowsQuery.data ?? []) {
-      items.push({
-        id: wf.id,
-        name: wf.name,
-        type: 'workflow',
-        deletedAt: wf.archivedAt ? new Date(wf.archivedAt) : new Date(wf.lastModified),
-        workspaceId: wf.workspaceId ?? workspaceId,
-      })
-    }
-
-    for (const folder of foldersQuery.data ?? []) {
-      items.push({
-        id: folder.id,
-        name: folder.name,
-        type: 'folder',
-        deletedAt: folder.deletedAt ? new Date(folder.deletedAt) : new Date(folder.updatedAt),
-        workspaceId: folder.workspaceId,
-      })
-    }
-
-    for (const t of tablesQuery.data ?? []) {
-      items.push({
-        id: t.id,
-        name: t.name,
-        type: 'table',
-        deletedAt: new Date(t.archivedAt ?? t.updatedAt),
-        workspaceId: t.workspaceId,
-      })
-    }
-
-    for (const kb of knowledgeQuery.data ?? []) {
-      items.push({
-        id: kb.id,
-        name: kb.name,
-        type: 'knowledge',
-        deletedAt: kb.deletedAt ? new Date(kb.deletedAt) : new Date(kb.updatedAt),
-        workspaceId: kb.workspaceId ?? workspaceId,
-      })
-    }
-
-    /**
-     * Keyed by `tree.type`, not by array position: an index-aligned pairing would silently file
-     * knowledge folders under Tables (and vice versa) if the const above were ever reordered,
-     * with no type error and no test to catch it.
-     */
-    const folderTreeData: Record<
-      (typeof FOLDERED_RESOURCE_TREES)[number]['type'],
-      typeof knowledgeFoldersQuery.data
-    > = {
-      knowledge_folder: knowledgeFoldersQuery.data,
-      table_folder: tableFoldersQuery.data,
-    }
-    FOLDERED_RESOURCE_TREES.forEach((tree) => {
-      for (const folder of folderTreeData[tree.type] ?? []) {
-        items.push({
-          id: folder.id,
-          name: folder.name,
-          type: tree.type,
-          deletedAt: folder.deletedAt ? new Date(folder.deletedAt) : new Date(folder.updatedAt),
-          workspaceId: folder.workspaceId,
-        })
-      }
-    })
-
-    for (const f of filesQuery.data ?? []) {
-      items.push({
-        id: f.id,
-        name: f.name,
-        type: 'file',
-        deletedAt: new Date(f.deletedAt ?? f.uploadedAt),
-        workspaceId: f.workspaceId,
-      })
-    }
-
-    for (const wf of workspaceFoldersQuery.data ?? []) {
-      items.push({
-        id: wf.id,
-        name: wf.name,
-        type: 'workspace_folder',
-        deletedAt: wf.deletedAt ? new Date(wf.deletedAt) : new Date(wf.updatedAt),
-        workspaceId: wf.workspaceId,
-      })
-    }
-
-    for (const chat of chatsQuery.data ?? []) {
-      if (!chat.deletedAt) continue
-      items.push({
-        id: chat.id,
-        name: chat.name,
-        type: 'chat',
-        deletedAt: chat.deletedAt,
-        workspaceId,
-      })
-    }
-
-    return items
-  }, [
-    workflowsQuery.data,
-    foldersQuery.data,
-    tablesQuery.data,
-    knowledgeQuery.data,
-    knowledgeFoldersQuery.data,
-    tableFoldersQuery.data,
-    filesQuery.data,
-    workspaceFoldersQuery.data,
-    chatsQuery.data,
-    workspaceId,
-  ])
+  const loadMoreRef = useLoadMoreSentinel({
+    onLoadMore: fetchNextPage,
+    enabled: hasNextPage && !isFetchingNextPage && !isFetchNextPageError && !isPlaceholderData,
+  })
 
   const filtered = useMemo(() => {
-    let items = resources.filter((resource) => matchesActiveTab(resource, activeTab))
-    const normalized = urlSearchTerm.trim().toLowerCase()
-    if (normalized) {
-      items = items.filter((r) => r.name.toLowerCase().includes(normalized))
-    }
-    items.sort((a, b) => {
-      let cmp = 0
-      switch (sortColumn) {
-        case 'name':
-          cmp = a.name.localeCompare(b.name)
-          break
-        case 'type':
-          cmp = a.type.localeCompare(b.type)
-          break
-        case 'deleted':
-          cmp = a.deletedAt.getTime() - b.deletedAt.getTime()
-          break
-      }
-      if (cmp !== 0) return sortDirection === 'asc' ? cmp : -cmp
-      // Ties fall back to A→Z regardless of direction, matching the foldered
-      // resource lists — otherwise rows tied on type or deletion time land in
-      // the arbitrary order the resource families were collected in.
-      return a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
-    })
+    const items: DeletedResource[] = (deletedQuery.data?.pages ?? []).flatMap((page) =>
+      page.items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        deletedAt: new Date(item.deletedAt),
+        parentId: item.parentId,
+      }))
+    )
 
+    const normalized = debouncedSearch.toLowerCase()
     const itemIds = new Set(items.map((item) => item.id))
     for (const [id, entry] of restoredItems) {
       if (itemIds.has(id)) continue
@@ -432,25 +272,25 @@ export function RecentlyDeleted() {
     }
 
     return items
-  }, [resources, activeTab, urlSearchTerm, sortColumn, sortDirection, restoredItems])
+  }, [deletedQuery.data, debouncedSearch, activeTab, restoredItems])
 
-  const showNoResults = urlSearchTerm.trim() && filtered.length === 0 && resources.length > 0
+  const showNoResults = debouncedSearch !== '' && filtered.length === 0
 
   function handleView(resource: DeletedResource) {
     if (resource.type === 'folder') {
       const setExpanded = useFolderStore.getState().setExpanded
       const byId = new Map<string, WorkflowFolder>()
-      for (const folder of foldersQuery.data ?? []) byId.set(folder.id, folder)
       for (const folder of activeFoldersQuery.data ?? []) byId.set(folder.id, folder)
-      let current: WorkflowFolder | undefined = byId.get(resource.id)
-      const seen = new Set<string>()
+      setExpanded(resource.id, true)
+      const seen = new Set<string>([resource.id])
+      let current = resource.parentId ? byId.get(resource.parentId) : undefined
       while (current && !seen.has(current.id)) {
         seen.add(current.id)
         setExpanded(current.id, true)
         current = current.parentId ? byId.get(current.parentId) : undefined
       }
     }
-    const href = getResourceHref(resource.workspaceId, resource.type, resource.id)
+    const href = getResourceHref(workspaceId, resource.type, resource.id)
     router.push(href)
   }
 
@@ -466,13 +306,13 @@ export function RecentlyDeleted() {
         case 'workflow':
           await restoreWorkflow.mutateAsync({
             workflowId: resource.id,
-            workspaceId: resource.workspaceId,
+            workspaceId,
           })
           break
         case 'folder':
           await restoreFolder.mutateAsync({
             folderId: resource.id,
-            workspaceId: resource.workspaceId,
+            workspaceId,
           })
           break
         case 'table':
@@ -483,13 +323,13 @@ export function RecentlyDeleted() {
           break
         case 'file':
           await restoreWorkspaceFile.mutateAsync({
-            workspaceId: resource.workspaceId,
+            workspaceId,
             fileId: resource.id,
           })
           break
         case 'workspace_folder':
           await restoreWorkspaceFileFolder.mutateAsync({
-            workspaceId: resource.workspaceId,
+            workspaceId,
             folderId: resource.id,
           })
           break
@@ -499,7 +339,7 @@ export function RecentlyDeleted() {
           if (!tree) break
           await restoreFolder.mutateAsync({
             folderId: resource.id,
-            workspaceId: resource.workspaceId,
+            workspaceId,
             resourceType: tree.resourceType,
           })
           break
@@ -544,23 +384,28 @@ export function RecentlyDeleted() {
       <ChipModalTabs
         tabs={TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
         value={activeTab}
-        onChange={(v) => setRecentlyDeletedFilters({ tab: v as RecentlyDeletedTab })}
+        onChange={(v) => setRecentlyDeletedFilters({ tab: v as RecentlyDeletedFilter })}
       />
 
-      {error ? (
-        <SettingsEmptyState>
-          {toError(error).message || 'Failed to load deleted items'}
-        </SettingsEmptyState>
+      {error && !deletedQuery.data ? (
+        <SettingsQueryErrorState
+          error={error}
+          fallback='Failed to load deleted items'
+          isRetrying={deletedQuery.isFetching}
+          onRetry={() => void deletedQuery.refetch()}
+        />
       ) : isLoading && filtered.length === 0 ? null : filtered.length === 0 ? (
         showNoResults ? (
           <SettingsEmptyState variant='inline'>
-            {`No items found matching \u201c${urlSearchTerm}\u201d`}
+            {`No items found matching \u201c${debouncedSearch}\u201d`}
           </SettingsEmptyState>
         ) : (
           <SettingsEmptyState>No deleted items</SettingsEmptyState>
         )
       ) : (
-        <div className={RESOURCE_LIST_STACK}>
+        <div
+          className={cn(RESOURCE_LIST_STACK, isPlaceholderData && 'opacity-50 transition-opacity')}
+        >
           {filtered.map((resource) => {
             const isRestoring = restoringIds.has(resource.id)
             const isRestored = restoredItems.has(resource.id)
@@ -600,7 +445,11 @@ export function RecentlyDeleted() {
                       View
                     </Chip>
                   ) : (
-                    <Chip variant='primary' onClick={() => void handleRestore(resource)}>
+                    <Chip
+                      variant='primary'
+                      disabled={isPlaceholderData}
+                      onClick={() => void handleRestore(resource)}
+                    >
                       Restore
                     </Chip>
                   )
@@ -608,6 +457,17 @@ export function RecentlyDeleted() {
               />
             )
           })}
+          {isFetchNextPageError ? (
+            <SettingsQueryErrorState
+              error={error}
+              fallback='Failed to load more deleted items'
+              isRetrying={isFetchingNextPage}
+              onRetry={() => void fetchNextPage()}
+              variant='inline'
+            />
+          ) : (
+            <div ref={loadMoreRef} aria-hidden />
+          )}
         </div>
       )}
     </SettingsPanel>

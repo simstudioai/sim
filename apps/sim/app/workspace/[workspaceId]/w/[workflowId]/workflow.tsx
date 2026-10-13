@@ -5082,7 +5082,7 @@ const WorkflowContent = React.memo(
     }, [blocksStructureHash, embedded, isWorkflowReady, scheduleEmbeddedFit])
 
     return (
-      <div className='@container/workflow relative flex size-full flex-col overflow-hidden'>
+      <div className='relative flex size-full flex-col overflow-hidden'>
         {!embedded && <WorkflowSearchReplace />}
         <div className='relative flex min-h-0 min-w-0 flex-1'>
           <div className='flex min-w-0 flex-1 flex-col'>

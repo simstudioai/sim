@@ -899,6 +899,12 @@ export async function executeWorkflowService(
       } finally {
         abortSignal?.removeEventListener('abort', abortFromRequest)
         timeoutController.cleanup()
+        /**
+         * The sync result is the run's receipt: callers read its log, state, and cost as
+         * soon as it lands (a run-from-block names it as its source run). The core
+         * finalizes those in the background, so hold the result until they are durable.
+         */
+        await loggingSession.waitForPostExecution()
       }
     }
 

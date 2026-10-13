@@ -48,7 +48,7 @@ async function database(run: (sql: Sql, runner: Sql, url: string) => Promise<voi
 function migrate(sql: Sql) {
   return runScriptMigrations(
     sql,
-    scriptMigrations.filter((entry) => entry.name === '0031_project_membership')
+    scriptMigrations.filter((entry) => entry.name === '0032_project_membership')
   )
 }
 
@@ -124,7 +124,7 @@ describe('Project membership authority cutover', () => {
       await expect(migrate(runner)).rejects.toThrow('conflicts')
       expect(await phase(sql)).toEqual([{ phase: 'column' }])
       expect(
-        await sql`SELECT name FROM script_migrations WHERE name = '0031_project_membership'`
+        await sql`SELECT name FROM script_migrations WHERE name = '0032_project_membership'`
       ).toHaveLength(0)
       await sql`INSERT INTO workspace (id,name,owner_id,project_id) VALUES ('new','Column writer','owner','empty')`
       await migrate(runner)
@@ -135,7 +135,7 @@ describe('Project membership authority cutover', () => {
         { id: 'new', project_id: 'empty' },
       ])
       expect(
-        await sql`SELECT name FROM script_migrations WHERE name = '0031_project_membership'`
+        await sql`SELECT name FROM script_migrations WHERE name = '0032_project_membership'`
       ).toHaveLength(1)
     })
   })
@@ -158,7 +158,7 @@ describe('Project membership authority cutover', () => {
           { project_id: 'retained', workspace_id: 'env' },
         ])
         expect(
-          await sql`SELECT name FROM script_migrations WHERE name = '0031_project_membership'`
+          await sql`SELECT name FROM script_migrations WHERE name = '0032_project_membership'`
         ).toHaveLength(0)
       })
     }

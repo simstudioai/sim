@@ -377,15 +377,17 @@ describe('chat-delegated file version history', () => {
 
   it('withholds a historical version whose secret provenance is unknown', async () => {
     const fixture = await seedVersionedFile({ status: 'unknown' })
+    const registry = registryFor(fixture, fixture.bobId)
 
     const response = await chatTransport(
       fixture,
       fixture.bobId,
-      registryFor(fixture, fixture.bobId)
+      registry
     )(`/api/v2/files/${fixture.fileId}/versions/2/text?workspaceId=${fixture.workspaceId}`)
 
-    expect(response.status).toBe(503)
+    expect(response.status).toBe(403)
     expect(await response.text()).not.toContain(SECRET)
+    expect(registry.isPermanentlyIncomplete()).toBe(false)
   })
 
   it('keeps a secret redacted after Chat reverts the file to the version holding it', async () => {

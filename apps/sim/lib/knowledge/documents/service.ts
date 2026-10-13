@@ -82,6 +82,7 @@ import {
   SYSTEM_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/types'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { imageExtractionPolicyFor } from '@/lib/knowledge/connectors/image-admission'
 import {
   connectorIndexingCondition,
   requiresConnectorIndexing,
@@ -161,6 +162,7 @@ import {
   QUEUED_DISPATCH_GRACE_MS,
   type SortOrder,
 } from '@/lib/knowledge/documents/types'
+import type { VisionExtractionUsage } from '@/lib/knowledge/documents/vision-checkpoints'
 import {
   getEmbeddingModelInfo,
   MAX_KB_EMBEDDING_DIMENSIONS,
@@ -1644,6 +1646,7 @@ export async function processDocumentAsync(
         embeddingDimension: knowledgeBase.embeddingDimension,
         uploadedBy: document.uploadedBy,
         connectorId: document.connectorId,
+        connectorType: knowledgeConnector.connectorType,
         filename: document.filename,
         fileUrl: document.fileUrl,
         fileSize: document.fileSize,
@@ -1668,6 +1671,7 @@ export async function processDocumentAsync(
       })
       .from(document)
       .innerJoin(knowledgeBase, eq(knowledgeBase.id, document.knowledgeBaseId))
+      .leftJoin(knowledgeConnector, eq(knowledgeConnector.id, document.connectorId))
       .where(
         and(
           eq(document.id, documentId),
@@ -1865,6 +1869,7 @@ export async function processDocumentAsync(
         )
       }
       let billableEmbeddingTokens = 0
+      let visionUsage: VisionExtractionUsage | undefined
       let embeddingModelName = kbEmbeddingModel
       let embeddingPricingId = kbEmbeddingModel
 
@@ -1907,6 +1912,7 @@ export async function processDocumentAsync(
                   ...sourceFileAccessFor(ctx.connectorId, documentActorUserId),
                   signal,
                   processingDeadlineAt,
+                  imageExtraction: imageExtractionPolicyFor(ctx.connectorType),
                   ...(indexingPassId
                     ? { ocrCheckpoint: { knowledgeBaseId, documentId, indexingPassId } }
                     : {}),
@@ -1918,6 +1924,7 @@ export async function processDocumentAsync(
 
               signal.throwIfAborted()
               assertDocumentChunkCountWithinLimit(processed.chunks.length)
+              visionUsage = processed.metadata.visionUsage
 
               const now = new Date()
 
@@ -2100,9 +2107,12 @@ export async function processDocumentAsync(
                     return false
                   }
 
+                  /**
+                   * A pass that indexes nothing (a decorative image) still replaces what an
+                   * earlier pass indexed, or the document would stay searchable by stale text.
+                   */
+                  await tx.delete(embedding).where(eq(embedding.documentId, documentId))
                   if (embeddingRecords.length > 0) {
-                    await tx.delete(embedding).where(eq(embedding.documentId, documentId))
-
                     const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
                     const batches: (typeof embeddingRecords)[] = []
                     for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
@@ -2209,6 +2219,32 @@ export async function processDocumentAsync(
       const processingTime = Date.now() - startTime
       logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
 
+      /** One indexing charge on the document's billing context; callers decide when to charge. */
+      const recordIndexingUsage = async (entry: {
+        description: string
+        cost: number
+        sourceReference: string
+        inputTokens: number
+        outputTokens: number
+      }) => {
+        await recordUsage({
+          userId: documentActorUserId,
+          workspaceId: ctx.workspaceId ?? undefined,
+          ...toBillingContext(billingAttribution),
+          entries: [
+            {
+              category: 'model',
+              source: 'knowledge-base',
+              description: entry.description,
+              cost: entry.cost,
+              sourceReference: entry.sourceReference,
+              metadata: { inputTokens: entry.inputTokens, outputTokens: entry.outputTokens },
+            },
+          ],
+        })
+        await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+      }
+
       if (billableEmbeddingTokens > 0) {
         try {
           const costMultiplier = getCostMultiplier()
@@ -2248,22 +2284,13 @@ export async function processDocumentAsync(
               documentId,
               indexingPassId ?? `model:${embeddingPricingId}`,
             ].join(':')
-            await recordUsage({
-              userId: documentActorUserId,
-              workspaceId: ctx.workspaceId ?? undefined,
-              ...toBillingContext(billingAttribution),
-              entries: [
-                {
-                  category: 'model',
-                  source: 'knowledge-base',
-                  description: embeddingModelName,
-                  cost,
-                  sourceReference: usageSourceReference,
-                  metadata: { inputTokens: billableEmbeddingTokens, outputTokens: 0 },
-                },
-              ],
+            await recordIndexingUsage({
+              description: embeddingModelName,
+              cost,
+              sourceReference: usageSourceReference,
+              inputTokens: billableEmbeddingTokens,
+              outputTokens: 0,
             })
-            await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
           } else {
             logger.warn(
               `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
@@ -2272,6 +2299,31 @@ export async function processDocumentAsync(
           }
         } catch (billingError) {
           logger.error(`[${documentId}] Failed to record embedding usage`, { error: billingError })
+        }
+      }
+
+      if (visionUsage && visionUsage.cost > 0) {
+        try {
+          /**
+           * The vision call is billed whether or not the image produced chunks, so it
+           * sits outside the embedding gate. Its own source reference keeps the
+           * embedding charge's event key unchanged and collapses retries of one pass.
+           */
+          await recordIndexingUsage({
+            description: visionUsage.model,
+            cost: visionUsage.cost,
+            sourceReference: [
+              'knowledge-document-vision',
+              documentId,
+              indexingPassId ?? `model:${visionUsage.model}`,
+            ].join(':'),
+            inputTokens: visionUsage.inputTokens,
+            outputTokens: visionUsage.outputTokens,
+          })
+        } catch (billingError) {
+          logger.error(`[${documentId}] Failed to record image extraction usage`, {
+            error: billingError,
+          })
         }
       }
       return { outcome: 'indexed' }
@@ -2548,7 +2600,15 @@ export async function createDocumentRecords(
   const { returnData, storageNotification, unrecordedCount } = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
 
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+    /**
+     * `FOR NO KEY UPDATE` still serializes this insert with other document writes,
+     * KB moves, and archive, but not with the `FOR KEY SHARE` that each embedding
+     * insert takes through its foreign key, so uploads never queue behind a
+     * long-running indexing transaction in the same knowledge base.
+     */
+    await tx.execute(
+      sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR NO KEY UPDATE`
+    )
 
     const kb = await tx
       .select({
@@ -3231,7 +3291,9 @@ export async function createSingleDocument(
       await claimKnowledgeUploadForAttachment(tx, options.uploadedArtifact.cleanupEventId)
     }
 
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+    await tx.execute(
+      sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR NO KEY UPDATE`
+    )
 
     const kb = await tx
       .select({
@@ -4334,6 +4396,9 @@ async function hardDeleteDocumentBatch(
      * Lock every parent KB in stable ID order before deleting document rows.
      * Normal inserts and KB moves take the same parent lock first, so the
      * workspace snapshots used for accounting cannot change mid-delete.
+     * `no key update` lets embedding inserts keep taking their foreign-key
+     * `KEY SHARE` lock, so a delete neither waits on indexing elsewhere in the
+     * KB nor deadlocks against an indexing pass on one of its own documents.
      */
     const knowledgeBaseIds = [
       ...new Set(documentsToDelete.map((doc) => doc.knowledgeBaseId)),
@@ -4353,7 +4418,7 @@ async function hardDeleteDocumentBatch(
         )
       )
       .orderBy(asc(knowledgeBase.id))
-      .for('update')
+      .for('no key update')
     const lockedKnowledgeBaseById = new Map(lockedKnowledgeBases.map((kb) => [kb.id, kb]))
     for (const doc of documentsToDelete) {
       const lockedKb = lockedKnowledgeBaseById.get(doc.knowledgeBaseId)

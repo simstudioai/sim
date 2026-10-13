@@ -14,7 +14,10 @@ export const verifyEmailTool: ToolConfig<
   description: 'Validate an email address deliverability in real time. Uses one validation credit.',
   version: '1.0.0',
 
-  hosting: zerobounceHosting<ZeroBounceVerifyEmailParams>(() => 1),
+  // ZeroBounce never consumes a credit for an `unknown` result.
+  hosting: zerobounceHosting<ZeroBounceVerifyEmailParams>((_params, output) =>
+    output.status === 'unknown' ? 0 : 1
+  ),
 
   params: {
     email: {

@@ -143,7 +143,7 @@ export async function extractWorkspaceFileRecordText(
           contentUpdatedAt: file.contentUpdatedAt ?? undefined,
         })
       : undefined)
-  await reportWorkspaceFileDelivery(secretProvenance)
+  await reportWorkspaceFileDelivery(secretProvenance, file.id)
 
   const extension = input.allowPlainText
     ? (workspaceFileTextFormat(file) ?? getFileExtension(file.name))

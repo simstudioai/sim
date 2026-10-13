@@ -13,7 +13,7 @@ import {
 import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
-import { getTerminalHeight } from '@/lib/workflows/layout'
+import { getPanelWidth, getTerminalHeight } from '@/lib/workflows/layout'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
 import {
@@ -68,9 +68,7 @@ const SEARCH_PANEL_EXPANDED_HEIGHT = 156
 function getDefaultSearchPanelPosition() {
   if (typeof window === 'undefined') return { x: 100, y: 100 }
 
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
+  const panelWidth = getPanelWidth()
   const x = window.innerWidth - 8 - panelWidth - 32 - SEARCH_PANEL_WIDTH
   const y = 40
   return { x, y }
@@ -82,9 +80,7 @@ function constrainSearchPanelPosition(position: { x: number; y: number }, height
   const sidebarWidth = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
   )
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
+  const panelWidth = getPanelWidth()
   const terminalHeight = getTerminalHeight()
 
   return {
@@ -576,7 +572,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
       role='dialog'
       aria-label='Search and replace'
       ref={panelRef}
-      className='fixed @max-[960px]/workflow:relative @max-[960px]/workflow:top-auto! @max-[960px]/workflow:left-auto! z-[var(--z-dropdown)] flex @max-[960px]/workflow:max-h-[50%] @max-[960px]/workflow:min-h-0! @max-[960px]/workflow:w-full! @max-[960px]/workflow:shrink-0 flex-col overflow-hidden @max-[960px]/workflow:rounded-none rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
+      className='fixed z-[var(--z-dropdown)] flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2 max-md:relative max-md:top-auto! max-md:left-auto! max-md:max-h-[50%] max-md:min-h-0! max-md:w-full! max-md:shrink-0 max-md:rounded-none'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -586,7 +582,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
     >
       <div
         role='presentation'
-        className='flex @max-[960px]/workflow:h-11 h-[32px] shrink-0 @max-[960px]/workflow:cursor-default cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
+        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing max-md:h-11 max-md:cursor-default'
         onMouseDown={(event) => {
           if (isFloatingLayout()) handleMouseDown(event)
         }}
@@ -603,7 +599,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
           <Button
             aria-label='Close search'
             variant='ghost'
-            className='@max-[960px]/workflow:pointer-coarse:size-11 size-[26px] p-0'
+            className='size-[26px] p-0 max-md:pointer-coarse:size-11'
             onClick={close}
           >
             <X className='size-[14px]' />
@@ -613,16 +609,13 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
 
       <div
         ref={controlsRef}
-        className={cn(
-          'min-h-0 @max-[960px]/workflow:overflow-y-auto @max-[960px]/workflow:overscroll-contain',
-          scrollFadeClass
-        )}
+        className={cn('min-h-0 max-md:overflow-y-auto max-md:overscroll-contain', scrollFadeClass)}
         {...scrollFadeAttributes(controlsEdges)}
       >
-        <div className='grid @max-[960px]/workflow:pointer-coarse:grid-cols-[2.75rem_minmax(0,1fr)_2.75rem_2.75rem] grid-cols-[2rem_minmax(0,1fr)_2rem_2rem] items-start gap-1.5'>
+        <div className='grid grid-cols-[2rem_minmax(0,1fr)_2rem_2rem] items-start gap-1.5 max-md:pointer-coarse:grid-cols-[2.75rem_minmax(0,1fr)_2.75rem_2.75rem]'>
           <Button
             variant='ghost'
-            className='@max-[960px]/workflow:pointer-coarse:size-11 size-8 p-0'
+            className='size-8 p-0 max-md:pointer-coarse:size-11'
             aria-label={isReplaceExpanded ? 'Hide replace controls' : 'Show replace controls'}
             onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
           >
@@ -647,7 +640,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
           <Button
             aria-label='Previous match'
             variant='ghost'
-            className='@max-[960px]/workflow:pointer-coarse:size-11 size-8 p-0'
+            className='size-8 p-0 max-md:pointer-coarse:size-11'
             disabled={hydratedMatches.length === 0}
             onClick={() => handleMoveActiveMatch(-1)}
           >
@@ -656,7 +649,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
           <Button
             aria-label='Next match'
             variant='ghost'
-            className='@max-[960px]/workflow:pointer-coarse:size-11 size-8 p-0'
+            className='size-8 p-0 max-md:pointer-coarse:size-11'
             disabled={hydratedMatches.length === 0}
             onClick={() => handleMoveActiveMatch(1)}
           >

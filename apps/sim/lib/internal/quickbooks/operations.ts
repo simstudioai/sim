@@ -28,7 +28,7 @@ import {
   QUICKBOOKS_DOCUMENT_METADATA_TIMEOUT_MS,
   QUICKBOOKS_DOCUMENT_TRANSFER_TIMEOUT_MS,
   QUICKBOOKS_MAX_ATTACHMENT_BYTES,
-  QUICKBOOKS_TEMP_URL_MAX_BYTES,
+  QUICKBOOKS_URL_MAX_BYTES,
   quickBooksDocumentSignal,
   sanitizeQuickBooksFileName,
   validateQuickBooksAttachmentFileType,
@@ -105,7 +105,7 @@ async function downloadQuickBooksAttachment(
     throw await getQuickBooksDocumentError(downloadUrlResponse, metadataSignal)
   }
   const temporaryUrlText = await readResponseTextWithLimit(downloadUrlResponse, {
-    maxBytes: QUICKBOOKS_TEMP_URL_MAX_BYTES,
+    maxBytes: QUICKBOOKS_URL_MAX_BYTES,
     label: 'QuickBooks attachment temporary URL response',
     signal: metadataSignal,
   })

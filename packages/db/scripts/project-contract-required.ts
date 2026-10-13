@@ -1,6 +1,6 @@
 import { readProjectMembershipPhase } from '@sim/db/maintenance/project-rollout'
 import journal from '@sim/db/migrations/meta/_journal.json'
-import { projectMembershipMigration } from '@sim/db/script-migrations/0031_project_membership'
+import { projectMembershipMigration } from '@sim/db/script-migrations/0032_project_membership'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import postgres from 'postgres'

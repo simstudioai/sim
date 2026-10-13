@@ -7,7 +7,6 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -32,14 +31,11 @@ import {
   tableDetailParsers,
   tableDetailUrlKeys,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/search-params'
-
-/** Matches ChatPanelLayout's content-box container query. */
-const CHAT_PANEL_SPLIT_WIDTH = 960
+import { isMobileViewport, useIsMobile } from '@/hooks/use-is-mobile'
 
 /** URL selection and event attention are installed before the chat starts streaming. */
 export function useResourcePanelController() {
-  const resourceLayoutRef = useRef<HTMLDivElement>(null)
-  const [isCompactLayout, setIsCompactLayout] = useState<boolean | null>(null)
+  const isCompactLayout = useIsMobile()
   /**
    * URL is the single source of truth for the selected resource. `Home` renders
    * client-side, so nuqs reads `?resource=` from the URL on mount — the same
@@ -108,7 +104,7 @@ export function useResourcePanelController() {
       selectionOwnedByUser: resourceSelectionOwnedByUserRef.current,
     })
 
-    const keepChatVisible = isCompactLayout !== false && isResourceCollapsedRef.current
+    const keepChatVisible = isMobileViewport() && isResourceCollapsedRef.current
     if (presentation.revealPanel && !keepChatVisible) setResourceCollapsed(false)
     if (presentation.markActivity || keepChatVisible) {
       setResourceActivityIds((current) => new Set(current).add(resourceId))
@@ -131,19 +127,7 @@ export function useResourcePanelController() {
     }
   }
 
-  useLayoutEffect(() => {
-    const element = resourceLayoutRef.current
-    if (!element) return
-    setIsCompactLayout(Number.parseFloat(getComputedStyle(element).width) < CHAT_PANEL_SPLIT_WIDTH)
-    const observer = new ResizeObserver(([entry]) => {
-      setIsCompactLayout(entry.contentRect.width < CHAT_PANEL_SPLIT_WIDTH)
-    })
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
-
   return {
-    resourceLayoutRef,
     isCompactLayout,
     activeResourceParam,
     activeResourceParamRef,
@@ -305,7 +289,8 @@ export function useChatResourcePanel(
 
   useEffect(() => {
     if (
-      isCompactLayout !== false ||
+      isCompactLayout ||
+      isMobileViewport() ||
       !(resources.length > 0 && isResourceCollapsedRef.current) ||
       resourceCollapseOwnedByUser
     ) {
@@ -336,7 +321,8 @@ export function useChatResourcePanel(
     initialScrollBlocked:
       resources.length > 0 &&
       !resourceCollapseOwnedByUser &&
-      (isCompactLayout === null || (isCompactLayout === false && isResourceCollapsed)),
+      !isCompactLayout &&
+      isResourceCollapsed,
     desktopTabResourceOptions,
     mothershipRef,
     collapseResource,
