@@ -1,0 +1,3301 @@
+---
+title: Checkr
+description: Run and manage background checks with Checkr
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="checkr"
+  color="#009BB5"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Checkr](https://checkr.com/) is a background screening platform for employment checks: criminal, motor vehicle, identity, education, and employment verifications, plus ongoing monitoring.
+
+With the Checkr block, you can:
+
+- **Start background checks**: Create candidates and send them a Checkr-hosted invitation, or order a report directly when you already collect their information and consent.
+- **Track and read results**: Get reports, their estimated completion, progressive checkpoint status, verifications, address history, assessments, and the detailed results of each screening.
+- **Adjudicate**: Engage reports, apply review actions to paused reports, manage report tags, and run the adverse action process from adverse items through cancellation.
+- **Keep screening going**: Schedule recurring checks with subscriptions and enroll candidates in continuous criminal or motor vehicle monitoring.
+- **Look up account setup**: Read packages, geos, hierarchy nodes, programs, counties, candidate documents, users, and account details, and create, update, or delete geos.
+- **React to events**: Start workflows when reports, invitations, candidates, verifications, adverse actions, or continuous checks change.
+
+To connect, create a secret API key in the Checkr Dashboard under **Account Settings > Developer Settings** and paste it into the block. Use a production key: Checkr's staging environment uses a different API host and is not supported, and triggers register live-environment webhooks.
+
+Triggers register a webhook in Checkr when you deploy the workflow and verify every delivery's signature with your API key. Checkr allows at most two webhooks per account, and each deployed Checkr trigger uses one, so choose **All Events** when one workflow needs to handle several event types.
+
+In Sim, the Checkr block lets your agents send background checks the moment a candidate is selected, summarize completed reports for recruiters, queue consider results for human review, and keep drivers and other regulated roles under continuous monitoring.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Checkr into the workflow. Create and update candidates, send background check invitations, order and upgrade reports, read screening results and assessments, manage report tags, run the adverse action process, schedule recurring checks and continuous monitoring, look up packages, geos, nodes, programs, documents, and users, and react to report, invitation, candidate, verification, adverse action, and continuous check webhooks.
+
+
+
+## Actions
+
+### Checkr Add Report Tag
+
+Add a tag to a report, keeping its existing tags.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report |
+| `tag` | string | Yes | Tag to add, e.g. To Review |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Tag names on the report |
+| `count` | number | Number of tags on the report |
+
+### Checkr Apply Report Review Action
+
+Continue or skip the remaining screenings on a report that is paused awaiting a review action.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the paused report |
+| `decision` | string | Yes | continue to run the remaining screenings, or skip_remaining to skip them and complete the report |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation message from Checkr |
+
+### Checkr Cancel Adverse Action
+
+Cancel an adverse action so the post-adverse action notice is not sent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `adverseActionId` | string | Yes | ID of the adverse action to cancel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `adverseAction` | object | The canceled adverse action |
+|   ↳ `id` | string | Adverse action ID |
+|   ↳ `uri` | string | Adverse action API URI |
+|   ↳ `status` | string | Status \(pending, complete, dispute, canceled\) |
+|   ↳ `reportId` | string | Report the adverse action is based on |
+|   ↳ `createdAt` | string | Time the adverse action was created |
+|   ↳ `canceledAt` | string | Time the adverse action was canceled |
+|   ↳ `postNoticeScheduledAt` | string | Time the post-adverse action notice is scheduled to send |
+|   ↳ `postNoticeReadyAt` | string | Earliest time the post-adverse action notice can be sent |
+|   ↳ `individualizedAssessmentEngaged` | boolean | Whether an individualized assessment was engaged |
+|   ↳ `context` | string | Scoping identifier for the adverse action |
+|   ↳ `delivery` | object | Notice delivery state |
+|     ↳ `state` | string | Delivery state \(none, queued, sent, delivered, error, unknown, unopened\) |
+|     ↳ `reason` | string | Reason for the delivery state |
+|     ↳ `updatedAt` | string | Time the delivery state changed |
+|   ↳ `adverseItems` | array | Adverse items the action is based on |
+|     ↳ `id` | string | Adverse item ID |
+|     ↳ `text` | string | Description of the adverse item |
+|     ↳ `assessment` | json | Assess details \(value, rule with name and type\) when Assess is enabled |
+|   ↳ `events` | array | Lifecycle events |
+|     ↳ `id` | string | Event ID |
+|     ↳ `type` | string | Event type \(created, completed\) |
+|     ↳ `time` | string | Time of the event |
+|     ↳ `trigger` | string | What triggered the event |
+|     ↳ `user` | string | User who triggered the event |
+
+### Checkr Cancel Continuous Check
+
+Cancel a continuous check to stop monitoring the candidate.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `continuousCheckId` | string | Yes | ID of the continuous check to cancel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `continuousCheck` | object | The canceled continuous check |
+|   ↳ `id` | string | Continuous check ID |
+|   ↳ `type` | string | Continuous check type \(criminal, mvr\) |
+|   ↳ `candidateId` | string | Enrolled candidate ID |
+|   ↳ `createdAt` | string | Time the continuous check was created |
+|   ↳ `node` | string | Hierarchy node custom ID |
+|   ↳ `workLocations` | array | Work locations for the continuous check |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+
+### Checkr Cancel Invitation
+
+Cancel a pending invitation so the candidate can no longer complete it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `invitationId` | string | Yes | ID of the invitation to cancel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invitation` | object | The canceled invitation |
+|   ↳ `id` | string | Invitation ID |
+|   ↳ `uri` | string | Invitation API URI |
+|   ↳ `invitationUrl` | string | URL the candidate opens to complete the invitation |
+|   ↳ `status` | string | Status \(pending, completed, expired\) |
+|   ↳ `createdAt` | string | Time the invitation was created |
+|   ↳ `expiresAt` | string | Time the invitation expires |
+|   ↳ `completedAt` | string | Time the candidate completed the invitation |
+|   ↳ `deletedAt` | string | Time the invitation was canceled |
+|   ↳ `package` | string | Package slug for the invitation |
+|   ↳ `candidateId` | string | Invited candidate ID |
+|   ↳ `reportId` | string | ID of the report created once the invitation is completed |
+|   ↳ `archived` | boolean | Whether the invitation is archived |
+|   ↳ `archivedInfo` | json | Archive details \(time, user with email and id\) |
+
+### Checkr Cancel Subscription
+
+Cancel a subscription so no further recurring checks run.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `subscriptionId` | string | Yes | ID of the subscription to cancel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subscription` | object | The canceled subscription |
+|   ↳ `id` | string | Subscription ID |
+|   ↳ `uri` | string | Subscription API URI |
+|   ↳ `status` | string | Status \(active, inactive\) |
+|   ↳ `package` | string | Package run on each occurrence |
+|   ↳ `candidateId` | string | Screened candidate ID |
+|   ↳ `intervalCount` | number | Number of intervals between checks |
+|   ↳ `intervalUnit` | string | Interval unit \(day, week, month, year\) |
+|   ↳ `startDate` | string | Date of the first check |
+|   ↳ `nextOccurrenceDate` | string | Date of the next check |
+|   ↳ `createdAt` | string | Time the subscription was created |
+|   ↳ `canceledAt` | string | Time the subscription was canceled |
+|   ↳ `node` | string | Hierarchy node custom ID |
+|   ↳ `workLocations` | array | Work locations used for each report |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+
+### Checkr Complete Report
+
+Complete a report now, canceling any pending or suspended screenings. Canceled screenings record a cancellation reason.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report to complete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `report` | object | The completed report |
+|   ↳ `id` | string | Report ID |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) for Assess-enabled accounts |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created \(api, continuous_check, form, manual_order, recurrence, web\) |
+|   ↳ `candidateId` | string | Screened candidate ID |
+|   ↳ `includesCanceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `createdAt` | string | Time the report was created |
+|   ↳ `completedAt` | string | Time the report was completed |
+|   ↳ `revisedAt` | string | Time the report was revised |
+|   ↳ `upgradedAt` | string | Time the report was upgraded |
+|   ↳ `turnaroundTime` | number | Seconds from creation to completion |
+|   ↳ `estimatedCompletionTime` | string | Predicted completion date |
+|   ↳ `archived` | boolean | Whether the report is archived |
+|   ↳ `programId` | string | Program ID linked to the report |
+|   ↳ `segmentStamps` | array | Hierarchy node tier\|name stamps for the ordering node and its parents |
+|   ↳ `workLocations` | array | Work locations set when ordering the report |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+|   ↳ `geoIds` | array | Geo IDs |
+|   ↳ `documentIds` | array | Document IDs |
+|   ↳ `candidateStoryIds` | array | Candidate story IDs linked to the report |
+|   ↳ `ssnTraceId` | string | SSN trace ID |
+|   ↳ `sexOffenderSearchId` | string | Sex offender search ID |
+|   ↳ `nationalCriminalSearchId` | string | National criminal search ID |
+|   ↳ `globalWatchlistSearchId` | string | Global watchlist search ID |
+|   ↳ `federalCriminalSearchId` | string | Federal criminal search ID |
+|   ↳ `federalDistrictCriminalSearchId` | string | Federal district criminal search ID |
+|   ↳ `federalCivilSearchId` | string | Federal civil search ID |
+|   ↳ `federalDistrictCivilSearchId` | string | Federal district civil search ID |
+|   ↳ `motorVehicleReportId` | string | Motor vehicle report ID |
+|   ↳ `drugScreeningId` | string | Drug screening ID |
+|   ↳ `facisSearchId` | string | FACIS search ID |
+|   ↳ `socialMediaScreeningsId` | string | Social media screening ID |
+|   ↳ `identityVerificationId` | string | Identity verification ID |
+|   ↳ `drugAlcoholClearinghouseId` | string | Drug & Alcohol Clearinghouse search ID |
+|   ↳ `identityDataEvaluationId` | string | Identity data evaluation ID |
+|   ↳ `occupationalHealthScreeningId` | string | Occupational health screening ID |
+|   ↳ `arrestSearchId` | string | Arrest search ID |
+|   ↳ `internationalGlobalWatchlistSearchId` | string | International global watchlist search ID |
+|   ↳ `internationalEducationVerificationId` | string | International education verification ID |
+|   ↳ `internationalEmploymentVerificationId` | string | International employment verification ID |
+|   ↳ `internationalIdentityDocumentValidationId` | string | International identity document validation ID |
+|   ↳ `internationalCriminalSearchIds` | array | International criminal search IDs |
+|   ↳ `internationalAdverseMediaSearchIds` | array | International adverse media search IDs |
+|   ↳ `countyCriminalSearchIds` | array | County criminal search IDs |
+|   ↳ `stateCriminalSearchIds` | array | State criminal search IDs |
+|   ↳ `professionalLicenseVerificationIds` | array | Professional license verification IDs |
+|   ↳ `personalReferenceVerificationIds` | array | Personal reference verification IDs |
+|   ↳ `professionalReferenceVerificationIds` | array | Professional reference verification IDs |
+|   ↳ `drugScreening` | json | Embedded drug screening \(id, status, result, disposition, mro_notes, analytes, events, screening_pass_expires_at, appointment_id\) |
+
+### Checkr Create Adverse Action
+
+Start the adverse action process on a report by sending the pre-adverse action notice. The report must have a consider result and no active adverse action.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report the adverse action is based on |
+| `adverseItemIds` | array | Yes | IDs of the adverse items to cite, from List Adverse Items |
+| `postNoticeScheduledAt` | string | No | ISO 8601 time to send the post-adverse action notice; defaults to 7 days after creation |
+| `context` | string | No | Optional scoping identifier for the adverse action |
+| `medium` | json | No | Delivery channels as a JSON object, e.g. \{"email":\{"priority":1,"required":true\},"postal":\{"priority":0,"required":false\}\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `adverseAction` | object | The created adverse action |
+|   ↳ `id` | string | Adverse action ID |
+|   ↳ `uri` | string | Adverse action API URI |
+|   ↳ `status` | string | Status \(pending, complete, dispute, canceled\) |
+|   ↳ `reportId` | string | Report the adverse action is based on |
+|   ↳ `createdAt` | string | Time the adverse action was created |
+|   ↳ `canceledAt` | string | Time the adverse action was canceled |
+|   ↳ `postNoticeScheduledAt` | string | Time the post-adverse action notice is scheduled to send |
+|   ↳ `postNoticeReadyAt` | string | Earliest time the post-adverse action notice can be sent |
+|   ↳ `individualizedAssessmentEngaged` | boolean | Whether an individualized assessment was engaged |
+|   ↳ `context` | string | Scoping identifier for the adverse action |
+|   ↳ `delivery` | object | Notice delivery state |
+|     ↳ `state` | string | Delivery state \(none, queued, sent, delivered, error, unknown, unopened\) |
+|     ↳ `reason` | string | Reason for the delivery state |
+|     ↳ `updatedAt` | string | Time the delivery state changed |
+|   ↳ `adverseItems` | array | Adverse items the action is based on |
+|     ↳ `id` | string | Adverse item ID |
+|     ↳ `text` | string | Description of the adverse item |
+|     ↳ `assessment` | json | Assess details \(value, rule with name and type\) when Assess is enabled |
+|   ↳ `events` | array | Lifecycle events |
+|     ↳ `id` | string | Event ID |
+|     ↳ `type` | string | Event type \(created, completed\) |
+|     ↳ `time` | string | Time of the event |
+|     ↳ `trigger` | string | What triggered the event |
+|     ↳ `user` | string | User who triggered the event |
+
+### Checkr Create Candidate
+
+Create a candidate to screen. Only email is required when the candidate will be invited; ordering a report directly also needs name, date of birth, and the PII its package requires.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `email` | string | Yes | Candidate's email address |
+| `firstName` | string | No | Candidate's first name |
+| `middleName` | string | No | Candidate's middle name \(required to order a report unless noMiddleName is true\) |
+| `noMiddleName` | boolean | No | Set to true when the candidate has no middle name |
+| `lastName` | string | No | Candidate's last name |
+| `motherMaidenName` | string | No | Candidate's mother's maiden name |
+| `phone` | string | No | Candidate's phone number \(a mobile number is recommended for identity checks\) |
+| `zipcode` | string | No | Candidate's 5-digit zip code \(required for criminal screenings\) |
+| `dob` | string | No | Date of birth in YYYY-MM-DD format |
+| `ssn` | string | No | Social Security Number, e.g. 111-11-2001 \(required for criminal screenings\) |
+| `driverLicenseNumber` | string | No | Driver license number \(required for motor vehicle reports\) |
+| `driverLicenseState` | string | No | Driver license issuing state as a two-letter code, e.g. CA |
+| `previousDriverLicenseNumber` | string | No | Previous driver license number |
+| `previousDriverLicenseState` | string | No | Previous driver license issuing state as a two-letter code |
+| `copyRequested` | boolean | No | Whether the candidate wants a copy of their report |
+| `customId` | string | No | Your own unique ID for the candidate, such as an HRIS ID |
+| `geoIds` | array | No | Geo IDs to assign \(replaces existing geos\) |
+| `metadata` | json | No | Up to 50 custom key-value pairs as a JSON object |
+| `postalAddress` | json | No | Postal address as a JSON object with name, street, street2, city, state, and zipcode |
+| `workLocations` | array | No | Work locations \(required for candidates outside the US\), e.g. \[\{"country":"GB","state":"LND","city":"London"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidate` | object | The created candidate |
+|   ↳ `id` | string | Candidate ID |
+|   ↳ `uri` | string | Candidate API URI |
+|   ↳ `createdAt` | string | Time the candidate was created |
+|   ↳ `firstName` | string | First name |
+|   ↳ `middleName` | string | Middle name |
+|   ↳ `noMiddleName` | boolean | Whether the candidate has no middle name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `motherMaidenName` | string | Mother's maiden name |
+|   ↳ `email` | string | Email address |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `zipcode` | string | 5-digit zip code |
+|   ↳ `dob` | string | Date of birth \(YYYY-MM-DD\) |
+|   ↳ `ssn` | string | Social Security Number, redacted to the last four digits |
+|   ↳ `driverLicenseNumber` | string | Driver license number |
+|   ↳ `driverLicenseState` | string | Driver license issuing state \(ISO 3166-2:US\) |
+|   ↳ `previousDriverLicenseNumber` | string | Previous driver license number |
+|   ↳ `previousDriverLicenseState` | string | Previous driver license issuing state |
+|   ↳ `copyRequested` | boolean | Whether the candidate asked for a copy of their report |
+|   ↳ `customId` | string | Your own ID for the candidate |
+|   ↳ `adjudication` | string | Adjudication of the most recent report \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `reportIds` | array | IDs of reports for this candidate |
+|   ↳ `geoIds` | array | IDs of geos assigned to this candidate |
+|   ↳ `postalAddress` | json | Postal address \(name, street, street2, city, state, zipcode\) |
+|   ↳ `metadata` | json | Custom key-value metadata |
+
+### Checkr Create Continuous Check
+
+Enroll a candidate in continuous criminal or motor vehicle monitoring so new records trigger a report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `candidateId` | string | Yes | ID of the candidate to enroll |
+| `continuousCheckType` | string | Yes | Type of monitoring: criminal or mvr |
+| `mvrEnrollmentType` | string | No | For mvr checks, the enrollment type: commercial for commercial drivers or standard |
+| `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
+| `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `continuousCheck` | object | The created continuous check |
+|   ↳ `id` | string | Continuous check ID |
+|   ↳ `type` | string | Continuous check type \(criminal, mvr\) |
+|   ↳ `candidateId` | string | Enrolled candidate ID |
+|   ↳ `createdAt` | string | Time the continuous check was created |
+|   ↳ `node` | string | Hierarchy node custom ID |
+|   ↳ `workLocations` | array | Work locations for the continuous check |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+
+### Checkr Create Geo
+
+Create a geo to group candidates by work location. A geo with the same name and state already existing returns an error.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `name` | string | Yes | Name of the geo, e.g. San Francisco |
+| `state` | string | Yes | Two-letter US state for the geo, e.g. CA |
+| `city` | string | No | A major city within the state |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `geo` | object | The created geo |
+|   ↳ `id` | string | Geo ID |
+|   ↳ `uri` | string | Geo API URI |
+|   ↳ `name` | string | Geo name |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State |
+|   ↳ `createdAt` | string | Time the geo was created |
+|   ↳ `deletedAt` | string | Time the geo was deleted |
+
+### Checkr Create Invitation
+
+Invite a candidate to complete a background check through the Checkr-hosted apply flow. Checkr emails the candidate a link to provide their information and consent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `candidateId` | string | Yes | ID of the candidate to invite |
+| `package` | string | Yes | Slug of the package to run, e.g. driver_pro |
+| `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
+| `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
+| `tags` | array | No | Tags for the resulting report |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invitation` | object | The created invitation |
+|   ↳ `id` | string | Invitation ID |
+|   ↳ `uri` | string | Invitation API URI |
+|   ↳ `invitationUrl` | string | URL the candidate opens to complete the invitation |
+|   ↳ `status` | string | Status \(pending, completed, expired\) |
+|   ↳ `createdAt` | string | Time the invitation was created |
+|   ↳ `expiresAt` | string | Time the invitation expires |
+|   ↳ `completedAt` | string | Time the candidate completed the invitation |
+|   ↳ `deletedAt` | string | Time the invitation was canceled |
+|   ↳ `package` | string | Package slug for the invitation |
+|   ↳ `candidateId` | string | Invited candidate ID |
+|   ↳ `reportId` | string | ID of the report created once the invitation is completed |
+|   ↳ `archived` | boolean | Whether the invitation is archived |
+|   ↳ `archivedInfo` | json | Archive details \(time, user with email and id\) |
+
+### Checkr Create Report
+
+Order a background check report for a candidate using a package. Use only when you collect the candidate’s PII and consent yourself; otherwise create an invitation. Packages with international screenings must use invitations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `candidateId` | string | Yes | ID of the candidate to screen |
+| `package` | string | Yes | Slug of the package to run, e.g. driver_pro |
+| `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
+| `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
+| `tags` | array | No | Tags for the report |
+| `selfDisclosures` | array | No | Candidate self-disclosed criminal history. Cannot be changed after the report is created |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `report` | object | The created report |
+|   ↳ `id` | string | Report ID |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) for Assess-enabled accounts |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created \(api, continuous_check, form, manual_order, recurrence, web\) |
+|   ↳ `candidateId` | string | Screened candidate ID |
+|   ↳ `includesCanceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `createdAt` | string | Time the report was created |
+|   ↳ `completedAt` | string | Time the report was completed |
+|   ↳ `revisedAt` | string | Time the report was revised |
+|   ↳ `upgradedAt` | string | Time the report was upgraded |
+|   ↳ `turnaroundTime` | number | Seconds from creation to completion |
+|   ↳ `estimatedCompletionTime` | string | Predicted completion date |
+|   ↳ `archived` | boolean | Whether the report is archived |
+|   ↳ `programId` | string | Program ID linked to the report |
+|   ↳ `segmentStamps` | array | Hierarchy node tier\|name stamps for the ordering node and its parents |
+|   ↳ `workLocations` | array | Work locations set when ordering the report |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+|   ↳ `geoIds` | array | Geo IDs |
+|   ↳ `documentIds` | array | Document IDs |
+|   ↳ `candidateStoryIds` | array | Candidate story IDs linked to the report |
+|   ↳ `ssnTraceId` | string | SSN trace ID |
+|   ↳ `sexOffenderSearchId` | string | Sex offender search ID |
+|   ↳ `nationalCriminalSearchId` | string | National criminal search ID |
+|   ↳ `globalWatchlistSearchId` | string | Global watchlist search ID |
+|   ↳ `federalCriminalSearchId` | string | Federal criminal search ID |
+|   ↳ `federalDistrictCriminalSearchId` | string | Federal district criminal search ID |
+|   ↳ `federalCivilSearchId` | string | Federal civil search ID |
+|   ↳ `federalDistrictCivilSearchId` | string | Federal district civil search ID |
+|   ↳ `motorVehicleReportId` | string | Motor vehicle report ID |
+|   ↳ `drugScreeningId` | string | Drug screening ID |
+|   ↳ `facisSearchId` | string | FACIS search ID |
+|   ↳ `socialMediaScreeningsId` | string | Social media screening ID |
+|   ↳ `identityVerificationId` | string | Identity verification ID |
+|   ↳ `drugAlcoholClearinghouseId` | string | Drug & Alcohol Clearinghouse search ID |
+|   ↳ `identityDataEvaluationId` | string | Identity data evaluation ID |
+|   ↳ `occupationalHealthScreeningId` | string | Occupational health screening ID |
+|   ↳ `arrestSearchId` | string | Arrest search ID |
+|   ↳ `internationalGlobalWatchlistSearchId` | string | International global watchlist search ID |
+|   ↳ `internationalEducationVerificationId` | string | International education verification ID |
+|   ↳ `internationalEmploymentVerificationId` | string | International employment verification ID |
+|   ↳ `internationalIdentityDocumentValidationId` | string | International identity document validation ID |
+|   ↳ `internationalCriminalSearchIds` | array | International criminal search IDs |
+|   ↳ `internationalAdverseMediaSearchIds` | array | International adverse media search IDs |
+|   ↳ `countyCriminalSearchIds` | array | County criminal search IDs |
+|   ↳ `stateCriminalSearchIds` | array | State criminal search IDs |
+|   ↳ `professionalLicenseVerificationIds` | array | Professional license verification IDs |
+|   ↳ `personalReferenceVerificationIds` | array | Personal reference verification IDs |
+|   ↳ `professionalReferenceVerificationIds` | array | Professional reference verification IDs |
+|   ↳ `drugScreening` | json | Embedded drug screening \(id, status, result, disposition, mro_notes, analytes, events, screening_pass_expires_at, appointment_id\) |
+
+### Checkr Create Subscription
+
+Schedule a recurring background check for a candidate, running a package every interval starting on a date.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `candidateId` | string | Yes | ID of the candidate to screen |
+| `package` | string | Yes | Slug of the package to run on each occurrence |
+| `startDate` | string | Yes | Date of the first check in YYYY-MM-DD format |
+| `intervalCount` | number | No | Number of interval units between checks, e.g. 1 |
+| `intervalUnit` | string | No | Interval unit: day, week, month, or year |
+| `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
+| `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subscription` | object | The created subscription |
+|   ↳ `id` | string | Subscription ID |
+|   ↳ `uri` | string | Subscription API URI |
+|   ↳ `status` | string | Status \(active, inactive\) |
+|   ↳ `package` | string | Package run on each occurrence |
+|   ↳ `candidateId` | string | Screened candidate ID |
+|   ↳ `intervalCount` | number | Number of intervals between checks |
+|   ↳ `intervalUnit` | string | Interval unit \(day, week, month, year\) |
+|   ↳ `startDate` | string | Date of the first check |
+|   ↳ `nextOccurrenceDate` | string | Date of the next check |
+|   ↳ `createdAt` | string | Time the subscription was created |
+|   ↳ `canceledAt` | string | Time the subscription was canceled |
+|   ↳ `node` | string | Hierarchy node custom ID |
+|   ↳ `workLocations` | array | Work locations used for each report |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+
+### Checkr Delete Candidate PII
+
+Request removal of a candidate's personally identifiable information. Fails if PII was already removed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `candidateId` | string | Yes | ID of the candidate whose PII should be removed |
+| `deletionContactEmail` | string | Yes | Email address of the person requesting the PII removal |
+| `deletionContactFirstName` | string | No | First name of the person requesting the PII removal |
+| `deletionContactLastName` | string | No | Last name of the person requesting the PII removal |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidate` | object | The candidate after the PII removal request |
+|   ↳ `id` | string | Candidate ID |
+|   ↳ `uri` | string | Candidate API URI |
+|   ↳ `createdAt` | string | Time the candidate was created |
+|   ↳ `firstName` | string | First name |
+|   ↳ `middleName` | string | Middle name |
+|   ↳ `noMiddleName` | boolean | Whether the candidate has no middle name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `motherMaidenName` | string | Mother's maiden name |
+|   ↳ `email` | string | Email address |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `zipcode` | string | 5-digit zip code |
+|   ↳ `dob` | string | Date of birth \(YYYY-MM-DD\) |
+|   ↳ `ssn` | string | Social Security Number, redacted to the last four digits |
+|   ↳ `driverLicenseNumber` | string | Driver license number |
+|   ↳ `driverLicenseState` | string | Driver license issuing state \(ISO 3166-2:US\) |
+|   ↳ `previousDriverLicenseNumber` | string | Previous driver license number |
+|   ↳ `previousDriverLicenseState` | string | Previous driver license issuing state |
+|   ↳ `copyRequested` | boolean | Whether the candidate asked for a copy of their report |
+|   ↳ `customId` | string | Your own ID for the candidate |
+|   ↳ `adjudication` | string | Adjudication of the most recent report \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `reportIds` | array | IDs of reports for this candidate |
+|   ↳ `geoIds` | array | IDs of geos assigned to this candidate |
+|   ↳ `postalAddress` | json | Postal address \(name, street, street2, city, state, zipcode\) |
+|   ↳ `metadata` | json | Custom key-value metadata |
+
+### Checkr Delete Geo
+
+Delete a geo.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `geoId` | string | Yes | ID of the geo to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the geo was deleted |
+| `geoId` | string | ID of the deleted geo |
+
+### Checkr Get Account
+
+Retrieve the authenticated Checkr account, including whether it is authorized to order checks and which screenings are available.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | object | The authenticated account |
+|   ↳ `id` | string | Account ID |
+|   ↳ `name` | string | Account name |
+|   ↳ `uriName` | string | Account slug used in URLs |
+|   ↳ `purpose` | string | Permissible purpose \(employment, business, insurance, tenant\) |
+|   ↳ `authorized` | boolean | Whether the account is credentialed to order checks |
+|   ↳ `apiAuthorized` | boolean | Whether the account can order checks through the API |
+|   ↳ `geosRequired` | boolean | Whether a geo is required to order a report |
+|   ↳ `segmentationEnabled` | boolean | Whether the account hierarchy \(nodes\) is enabled |
+|   ↳ `availableScreenings` | array | Screening types available to the account |
+|   ↳ `adverseActionEmail` | string | Email that sends adverse action notices |
+|   ↳ `billingEmail` | string | Billing contact email |
+|   ↳ `complianceContactEmail` | string | Compliance contact email |
+|   ↳ `technicalContactEmail` | string | Technical contact email |
+|   ↳ `supportEmail` | string | Email candidates use to contact you |
+|   ↳ `supportPhone` | string | Phone number candidates use to contact you |
+|   ↳ `defaultComplianceCity` | string | Fallback compliance city |
+|   ↳ `defaultComplianceState` | string | Fallback compliance state |
+|   ↳ `createdAt` | string | Time the account was created |
+|   ↳ `company` | json | Company details \(name, dba_name, street, city, state, zipcode, phone, website, industry, incorporation_state, incorporation_type, tax_id\) |
+|   ↳ `accountDeauthorization` | json | Deauthorization details \(reason\) when the account is deauthorized |
+
+### Checkr Get Adverse Action
+
+Retrieve an adverse action by ID, including its status and notice delivery state.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `adverseActionId` | string | Yes | ID of the adverse action |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `adverseAction` | object | The adverse action |
+|   ↳ `id` | string | Adverse action ID |
+|   ↳ `uri` | string | Adverse action API URI |
+|   ↳ `status` | string | Status \(pending, complete, dispute, canceled\) |
+|   ↳ `reportId` | string | Report the adverse action is based on |
+|   ↳ `createdAt` | string | Time the adverse action was created |
+|   ↳ `canceledAt` | string | Time the adverse action was canceled |
+|   ↳ `postNoticeScheduledAt` | string | Time the post-adverse action notice is scheduled to send |
+|   ↳ `postNoticeReadyAt` | string | Earliest time the post-adverse action notice can be sent |
+|   ↳ `individualizedAssessmentEngaged` | boolean | Whether an individualized assessment was engaged |
+|   ↳ `context` | string | Scoping identifier for the adverse action |
+|   ↳ `delivery` | object | Notice delivery state |
+|     ↳ `state` | string | Delivery state \(none, queued, sent, delivered, error, unknown, unopened\) |
+|     ↳ `reason` | string | Reason for the delivery state |
+|     ↳ `updatedAt` | string | Time the delivery state changed |
+|   ↳ `adverseItems` | array | Adverse items the action is based on |
+|     ↳ `id` | string | Adverse item ID |
+|     ↳ `text` | string | Description of the adverse item |
+|     ↳ `assessment` | json | Assess details \(value, rule with name and type\) when Assess is enabled |
+|   ↳ `events` | array | Lifecycle events |
+|     ↳ `id` | string | Event ID |
+|     ↳ `type` | string | Event type \(created, completed\) |
+|     ↳ `time` | string | Time of the event |
+|     ↳ `trigger` | string | What triggered the event |
+|     ↳ `user` | string | User who triggered the event |
+
+### Checkr Get Candidate
+
+Retrieve a candidate by ID, including their report and geo IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `candidateId` | string | Yes | ID of the candidate to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidate` | object | The candidate |
+|   ↳ `id` | string | Candidate ID |
+|   ↳ `uri` | string | Candidate API URI |
+|   ↳ `createdAt` | string | Time the candidate was created |
+|   ↳ `firstName` | string | First name |
+|   ↳ `middleName` | string | Middle name |
+|   ↳ `noMiddleName` | boolean | Whether the candidate has no middle name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `motherMaidenName` | string | Mother's maiden name |
+|   ↳ `email` | string | Email address |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `zipcode` | string | 5-digit zip code |
+|   ↳ `dob` | string | Date of birth \(YYYY-MM-DD\) |
+|   ↳ `ssn` | string | Social Security Number, redacted to the last four digits |
+|   ↳ `driverLicenseNumber` | string | Driver license number |
+|   ↳ `driverLicenseState` | string | Driver license issuing state \(ISO 3166-2:US\) |
+|   ↳ `previousDriverLicenseNumber` | string | Previous driver license number |
+|   ↳ `previousDriverLicenseState` | string | Previous driver license issuing state |
+|   ↳ `copyRequested` | boolean | Whether the candidate asked for a copy of their report |
+|   ↳ `customId` | string | Your own ID for the candidate |
+|   ↳ `adjudication` | string | Adjudication of the most recent report \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `reportIds` | array | IDs of reports for this candidate |
+|   ↳ `geoIds` | array | IDs of geos assigned to this candidate |
+|   ↳ `postalAddress` | json | Postal address \(name, street, street2, city, state, zipcode\) |
+|   ↳ `metadata` | json | Custom key-value metadata |
+
+### Checkr Get Continuous Check
+
+Retrieve a continuous check by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `continuousCheckId` | string | Yes | ID of the continuous check |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `continuousCheck` | object | The continuous check |
+|   ↳ `id` | string | Continuous check ID |
+|   ↳ `type` | string | Continuous check type \(criminal, mvr\) |
+|   ↳ `candidateId` | string | Enrolled candidate ID |
+|   ↳ `createdAt` | string | Time the continuous check was created |
+|   ↳ `node` | string | Hierarchy node custom ID |
+|   ↳ `workLocations` | array | Work locations for the continuous check |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+
+### Checkr Get Document
+
+Retrieve a report or candidate document by ID, including a download link valid for 15 minutes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `documentId` | string | Yes | ID of the document |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `document` | object | The document |
+|   ↳ `id` | string | Document ID |
+|   ↳ `type` | string | Document type, such as driver_license or consent |
+|   ↳ `filename` | string | File name |
+|   ↳ `contentType` | string | MIME type |
+|   ↳ `filesize` | number | File size in bytes |
+|   ↳ `downloadUri` | string | Temporary download URL, valid for 15 minutes |
+|   ↳ `locale` | string | Document locale |
+|   ↳ `createdAt` | string | Time the document was created |
+
+### Checkr Get Geo
+
+Retrieve a geo by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `geoId` | string | Yes | ID of the geo |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `geo` | object | The geo |
+|   ↳ `id` | string | Geo ID |
+|   ↳ `uri` | string | Geo API URI |
+|   ↳ `name` | string | Geo name |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State |
+|   ↳ `createdAt` | string | Time the geo was created |
+|   ↳ `deletedAt` | string | Time the geo was deleted |
+
+### Checkr Get Invitation
+
+Retrieve an invitation by ID, including its status and invitation URL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `invitationId` | string | Yes | ID of the invitation to retrieve |
+| `includeDeleted` | boolean | No | Whether to return the invitation even if it was canceled |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invitation` | object | The invitation |
+|   ↳ `id` | string | Invitation ID |
+|   ↳ `uri` | string | Invitation API URI |
+|   ↳ `invitationUrl` | string | URL the candidate opens to complete the invitation |
+|   ↳ `status` | string | Status \(pending, completed, expired\) |
+|   ↳ `createdAt` | string | Time the invitation was created |
+|   ↳ `expiresAt` | string | Time the invitation expires |
+|   ↳ `completedAt` | string | Time the candidate completed the invitation |
+|   ↳ `deletedAt` | string | Time the invitation was canceled |
+|   ↳ `package` | string | Package slug for the invitation |
+|   ↳ `candidateId` | string | Invited candidate ID |
+|   ↳ `reportId` | string | ID of the report created once the invitation is completed |
+|   ↳ `archived` | boolean | Whether the invitation is archived |
+|   ↳ `archivedInfo` | json | Archive details \(time, user with email and id\) |
+
+### Checkr Get Node
+
+Retrieve an account hierarchy node by its custom ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `nodeCustomId` | string | Yes | Custom ID of the node |
+| `includePackages` | boolean | No | Include the package slugs available to the node |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `node` | object | The node |
+|   ↳ `customId` | string | Node custom ID |
+|   ↳ `name` | string | Node name |
+|   ↳ `tier` | string | Hierarchy tier label |
+|   ↳ `parentCustomId` | string | Parent node custom ID |
+|   ↳ `packages` | array | Package slugs visible to the node \(when packages are included\) |
+
+### Checkr Get Package
+
+Retrieve a package by ID, including its slug, price, and screenings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `packageId` | string | Yes | ID of the package |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `package` | object | The package |
+|   ↳ `id` | string | Package ID |
+|   ↳ `uri` | string | Package API URI |
+|   ↳ `name` | string | Package name |
+|   ↳ `slug` | string | Package slug used when ordering reports |
+|   ↳ `price` | number | Price in USD cents |
+|   ↳ `applyUrl` | string | URL where candidates can apply with this package |
+|   ↳ `createdAt` | string | Time the package was created |
+|   ↳ `deletedAt` | string | Time the package was deleted |
+|   ↳ `screenings` | array | Screenings included in the package |
+|     ↳ `type` | string | Screening type |
+|     ↳ `subtype` | string | Screening subtype |
+
+### Checkr Get Program
+
+Retrieve a program by ID, including its package and geo IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `programId` | string | Yes | ID of the program |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `program` | object | The program |
+|   ↳ `id` | string | Program ID |
+|   ↳ `name` | string | Program name |
+|   ↳ `createdAt` | string | Time the program was created |
+|   ↳ `deletedAt` | string | Time the program was deleted |
+|   ↳ `packageIds` | array | Associated package IDs |
+|   ↳ `geoIds` | array | Associated geo IDs |
+
+### Checkr Get Report
+
+Retrieve a report by ID, including its status, result, adjudication, and the IDs of each screening it ran.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `report` | object | The report |
+|   ↳ `id` | string | Report ID |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) for Assess-enabled accounts |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created \(api, continuous_check, form, manual_order, recurrence, web\) |
+|   ↳ `candidateId` | string | Screened candidate ID |
+|   ↳ `includesCanceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `createdAt` | string | Time the report was created |
+|   ↳ `completedAt` | string | Time the report was completed |
+|   ↳ `revisedAt` | string | Time the report was revised |
+|   ↳ `upgradedAt` | string | Time the report was upgraded |
+|   ↳ `turnaroundTime` | number | Seconds from creation to completion |
+|   ↳ `estimatedCompletionTime` | string | Predicted completion date |
+|   ↳ `archived` | boolean | Whether the report is archived |
+|   ↳ `programId` | string | Program ID linked to the report |
+|   ↳ `segmentStamps` | array | Hierarchy node tier\|name stamps for the ordering node and its parents |
+|   ↳ `workLocations` | array | Work locations set when ordering the report |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+|   ↳ `geoIds` | array | Geo IDs |
+|   ↳ `documentIds` | array | Document IDs |
+|   ↳ `candidateStoryIds` | array | Candidate story IDs linked to the report |
+|   ↳ `ssnTraceId` | string | SSN trace ID |
+|   ↳ `sexOffenderSearchId` | string | Sex offender search ID |
+|   ↳ `nationalCriminalSearchId` | string | National criminal search ID |
+|   ↳ `globalWatchlistSearchId` | string | Global watchlist search ID |
+|   ↳ `federalCriminalSearchId` | string | Federal criminal search ID |
+|   ↳ `federalDistrictCriminalSearchId` | string | Federal district criminal search ID |
+|   ↳ `federalCivilSearchId` | string | Federal civil search ID |
+|   ↳ `federalDistrictCivilSearchId` | string | Federal district civil search ID |
+|   ↳ `motorVehicleReportId` | string | Motor vehicle report ID |
+|   ↳ `drugScreeningId` | string | Drug screening ID |
+|   ↳ `facisSearchId` | string | FACIS search ID |
+|   ↳ `socialMediaScreeningsId` | string | Social media screening ID |
+|   ↳ `identityVerificationId` | string | Identity verification ID |
+|   ↳ `drugAlcoholClearinghouseId` | string | Drug & Alcohol Clearinghouse search ID |
+|   ↳ `identityDataEvaluationId` | string | Identity data evaluation ID |
+|   ↳ `occupationalHealthScreeningId` | string | Occupational health screening ID |
+|   ↳ `arrestSearchId` | string | Arrest search ID |
+|   ↳ `internationalGlobalWatchlistSearchId` | string | International global watchlist search ID |
+|   ↳ `internationalEducationVerificationId` | string | International education verification ID |
+|   ↳ `internationalEmploymentVerificationId` | string | International employment verification ID |
+|   ↳ `internationalIdentityDocumentValidationId` | string | International identity document validation ID |
+|   ↳ `internationalCriminalSearchIds` | array | International criminal search IDs |
+|   ↳ `internationalAdverseMediaSearchIds` | array | International adverse media search IDs |
+|   ↳ `countyCriminalSearchIds` | array | County criminal search IDs |
+|   ↳ `stateCriminalSearchIds` | array | State criminal search IDs |
+|   ↳ `professionalLicenseVerificationIds` | array | Professional license verification IDs |
+|   ↳ `personalReferenceVerificationIds` | array | Personal reference verification IDs |
+|   ↳ `professionalReferenceVerificationIds` | array | Professional reference verification IDs |
+|   ↳ `drugScreening` | json | Embedded drug screening \(id, status, result, disposition, mro_notes, analytes, events, screening_pass_expires_at, appointment_id\) |
+
+### Checkr Get Report ETA
+
+Retrieve the estimated completion date for a report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `estimateGeneratedAt` | string | Time the estimate was generated |
+| `estimatedCompletionTime` | string | Predicted completion date \(only the date is meaningful\) |
+
+### Checkr Get Progressive Report Status
+
+Retrieve checkpoint progress for an Enterprise Progressive report, including which checkpoint is waiting on a review action.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the progressive report |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `report` | object | Report identity and status |
+|   ↳ `id` | string | Report ID |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Report status |
+| `progressiveContinuationStatus` | string | Whether the report can still be advanced \(eligible, ineligible, expired\) |
+| `expiresAt` | string | Deadline for applying a review action to run the remaining screenings |
+| `checkpoints` | array | Ordered progressive checkpoints |
+|   ↳ `position` | number | 1-based checkpoint position |
+|   ↳ `name` | string | Checkpoint name |
+|   ↳ `status` | string | Checkpoint status \(defined, prepared, start_requested, in_progress, completed, skipped, canceled, failed\) |
+|   ↳ `productKeys` | array | Product keys run at this checkpoint, e.g. ssn_trace |
+|   ↳ `userReview` | object | User review state for the checkpoint |
+|     ↳ `status` | string | Review status |
+|     ↳ `decision` | string | Decision applied \(continue, skip, or a custom label\) |
+|     ↳ `expired` | boolean | Whether the review window closed and the default decision applied |
+|     ↳ `pausedAt` | string | Time the report paused for this review |
+
+### Checkr Get Report Tags
+
+List the tags on a report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Tag names on the report |
+| `count` | number | Number of tags on the report |
+
+### Checkr Get Screening
+
+Retrieve the results of one screening in a report, such as an SSN trace, county criminal search, or motor vehicle report. Get the screening ID from the report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `screeningType` | string | Yes | Screening type, one of: ssn_trace, sex_offender_search, global_watchlist_search, national_criminal_search, county_criminal_search, state_criminal_search, federal_criminal_search, federal_district_criminal_search, federal_civil_search, federal_district_civil_search, motor_vehicle_report, drug_alcohol_clearinghouse_search, fmcsa_pre_employment_screening_program_search, education_verification, employment_verification, personal_reference_verification, professional_reference_verification, professional_license_verification, social_media_screening, facis_search, identity_data_evaluation, international_adverse_media_search, international_criminal_search, international_education_verification, international_employment_verification, international_global_watchlist_search, international_identity_document_validation, international_motor_vehicle_report |
+| `screeningId` | string | Yes | ID of the screening, taken from the matching report field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `screening` | object | The screening |
+|   ↳ `id` | string | Screening ID |
+|   ↳ `object` | string | Screening object type, e.g. county_criminal_search |
+|   ↳ `uri` | string | Screening API URI |
+|   ↳ `status` | string | Status \(pending, complete, canceled, suspended\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) for Assess-enabled accounts |
+|   ↳ `createdAt` | string | Time the screening was created |
+|   ↳ `completedAt` | string | Time the screening was completed |
+|   ↳ `turnaroundTime` | number | Seconds from creation to completion |
+|   ↳ `estimatedCompletionTime` | string | Estimated completion time, where Checkr provides one |
+|   ↳ `cancellationReason` | string | Cancellation reason code when the screening was canceled |
+|   ↳ `cancellationReasonDescription` | string | Cancellation reason description |
+|   ↳ `records` | json | Records found by criminal and civil searches \(case_number, county, state, charges with charge, classification, disposition, offense_date, and more\); empty for screenings without records |
+|   ↳ `details` | json | Complete screening object as returned by Checkr, including type-specific fields such as county, state, licenses, violations, or verification results |
+
+### Checkr Get Subscription
+
+Retrieve a subscription by ID, including its schedule and next occurrence.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `subscriptionId` | string | Yes | ID of the subscription |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subscription` | object | The subscription |
+|   ↳ `id` | string | Subscription ID |
+|   ↳ `uri` | string | Subscription API URI |
+|   ↳ `status` | string | Status \(active, inactive\) |
+|   ↳ `package` | string | Package run on each occurrence |
+|   ↳ `candidateId` | string | Screened candidate ID |
+|   ↳ `intervalCount` | number | Number of intervals between checks |
+|   ↳ `intervalUnit` | string | Interval unit \(day, week, month, year\) |
+|   ↳ `startDate` | string | Date of the first check |
+|   ↳ `nextOccurrenceDate` | string | Date of the next check |
+|   ↳ `createdAt` | string | Time the subscription was created |
+|   ↳ `canceledAt` | string | Time the subscription was canceled |
+|   ↳ `node` | string | Hierarchy node custom ID |
+|   ↳ `workLocations` | array | Work locations used for each report |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+
+### Checkr Get Verification
+
+Retrieve a verification by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `verificationId` | string | Yes | ID of the verification |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `verification` | object | The verification |
+|   ↳ `id` | string | Verification ID |
+|   ↳ `uri` | string | Verification API URI |
+|   ↳ `verificationType` | string | Verification type, such as id or ssn_confirmation |
+|   ↳ `verificationUrl` | string | URL where the candidate submits the requested information |
+|   ↳ `reportId` | string | Report ID |
+|   ↳ `createdAt` | string | Time the verification was created |
+|   ↳ `completedAt` | string | Time the candidate completed the verification |
+|   ↳ `processedAt` | string | Time the verification was processed |
+
+### Checkr List Adverse Actions
+
+List the adverse actions for a report, optionally filtered by context.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report |
+| `context` | string | No | Only return adverse actions with this context |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `adverseActions` | array | Adverse actions for the report |
+|   ↳ `id` | string | Adverse action ID |
+|   ↳ `uri` | string | Adverse action API URI |
+|   ↳ `status` | string | Status \(pending, complete, dispute, canceled\) |
+|   ↳ `reportId` | string | Report the adverse action is based on |
+|   ↳ `createdAt` | string | Time the adverse action was created |
+|   ↳ `canceledAt` | string | Time the adverse action was canceled |
+|   ↳ `postNoticeScheduledAt` | string | Time the post-adverse action notice is scheduled to send |
+|   ↳ `postNoticeReadyAt` | string | Earliest time the post-adverse action notice can be sent |
+|   ↳ `individualizedAssessmentEngaged` | boolean | Whether an individualized assessment was engaged |
+|   ↳ `context` | string | Scoping identifier for the adverse action |
+|   ↳ `delivery` | object | Notice delivery state |
+|     ↳ `state` | string | Delivery state \(none, queued, sent, delivered, error, unknown, unopened\) |
+|     ↳ `reason` | string | Reason for the delivery state |
+|     ↳ `updatedAt` | string | Time the delivery state changed |
+|   ↳ `adverseItems` | array | Adverse items the action is based on |
+|     ↳ `id` | string | Adverse item ID |
+|     ↳ `text` | string | Description of the adverse item |
+|     ↳ `assessment` | json | Assess details \(value, rule with name and type\) when Assess is enabled |
+|   ↳ `events` | array | Lifecycle events |
+|     ↳ `id` | string | Event ID |
+|     ↳ `type` | string | Event type \(created, completed\) |
+|     ↳ `time` | string | Time of the event |
+|     ↳ `trigger` | string | What triggered the event |
+|     ↳ `user` | string | User who triggered the event |
+| `count` | number | Total number of matching records |
+| `nextHref` | string | URL of the next page of results, if any |
+| `previousHref` | string | URL of the previous page of results, if any |
+
+### Checkr List Adverse Items
+
+List the adverse items on a report that can be cited in an adverse action. The report must have a consider result and no active adverse action.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `adverseItems` | array | Adverse items that can be cited in an adverse action |
+|   ↳ `id` | string | Adverse item ID |
+|   ↳ `text` | string | Description of the adverse item |
+|   ↳ `assessment` | json | Assess details \(value, rule with name and type\) when Assess is enabled |
+| `count` | number | Number of adverse items |
+
+### Checkr List Assessments
+
+List the Assess results for a report, including the ruleset applied and which rule flagged each record. Requires Checkr Assess.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assessments` | array | Assessments for the report |
+|   ↳ `value` | string | Assessment value \(eligible, review, escalated\) |
+|   ↳ `createdAt` | string | Time the assessment was made |
+|   ↳ `ruleset` | json | Ruleset applied \(id, name, version with number\) |
+|   ↳ `results` | json | Rule results, each with value, assessed_objects \(object_id, object_type\), and rule \(name, type\) |
+| `count` | number | Number of assessments |
+
+### Checkr List Candidate Documents
+
+List documents a candidate provided, such as driver licenses and consent forms. Download links expire after 15 minutes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `candidateId` | string | Yes | ID of the candidate |
+| `documentTypes` | array | No | Only return these document types, e.g. driver_license, consent |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `documents` | array | Candidate documents |
+|   ↳ `id` | string | Document ID |
+|   ↳ `type` | string | Document type, such as driver_license or consent |
+|   ↳ `filename` | string | File name |
+|   ↳ `contentType` | string | MIME type |
+|   ↳ `filesize` | number | File size in bytes |
+|   ↳ `downloadUri` | string | Temporary download URL, valid for 15 minutes |
+|   ↳ `locale` | string | Document locale |
+|   ↳ `createdAt` | string | Time the document was created |
+| `count` | number | Number of documents |
+
+### Checkr List Candidates
+
+List candidates, optionally filtered by email, name, custom ID, adjudication, dates, geo, or program. Candidates with non-US work locations are not returned.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `email` | string | No | Only return candidates with this email address |
+| `fullName` | string | No | Only return candidates with this full name |
+| `customId` | string | No | Only return candidates with this custom ID |
+| `adjudication` | string | No | Only return candidates with this adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+| `createdAfter` | string | No | Only return candidates created after this date \(YYYY-MM-DD or ISO 8601\) |
+| `createdBefore` | string | No | Only return candidates created before this date \(YYYY-MM-DD or ISO 8601\) |
+| `reportAdjudicatedAfter` | string | No | Only return candidates with a report adjudicated after this date |
+| `reportAdjudicatedBefore` | string | No | Only return candidates with a report adjudicated before this date |
+| `reportAdjudicatorEmail` | string | No | Only return candidates with a report adjudicated by this user email |
+| `reportRevisedAfter` | string | No | Only return candidates with a report revised after this date |
+| `reportRevisedBefore` | string | No | Only return candidates with a report revised before this date |
+| `driverLicenseNumber` | string | No | Only return candidates with this driver license number |
+| `geoId` | string | No | Only return candidates assigned to this geo ID |
+| `programId` | string | No | Only return candidates in this program ID |
+| `page` | number | No | Page number to retrieve \(starts at 1\) |
+| `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | array | Matching candidates |
+|   ↳ `id` | string | Candidate ID |
+|   ↳ `uri` | string | Candidate API URI |
+|   ↳ `createdAt` | string | Time the candidate was created |
+|   ↳ `firstName` | string | First name |
+|   ↳ `middleName` | string | Middle name |
+|   ↳ `noMiddleName` | boolean | Whether the candidate has no middle name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `motherMaidenName` | string | Mother's maiden name |
+|   ↳ `email` | string | Email address |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `zipcode` | string | 5-digit zip code |
+|   ↳ `dob` | string | Date of birth \(YYYY-MM-DD\) |
+|   ↳ `ssn` | string | Social Security Number, redacted to the last four digits |
+|   ↳ `driverLicenseNumber` | string | Driver license number |
+|   ↳ `driverLicenseState` | string | Driver license issuing state \(ISO 3166-2:US\) |
+|   ↳ `previousDriverLicenseNumber` | string | Previous driver license number |
+|   ↳ `previousDriverLicenseState` | string | Previous driver license issuing state |
+|   ↳ `copyRequested` | boolean | Whether the candidate asked for a copy of their report |
+|   ↳ `customId` | string | Your own ID for the candidate |
+|   ↳ `adjudication` | string | Adjudication of the most recent report \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `reportIds` | array | IDs of reports for this candidate |
+|   ↳ `geoIds` | array | IDs of geos assigned to this candidate |
+|   ↳ `postalAddress` | json | Postal address \(name, street, street2, city, state, zipcode\) |
+|   ↳ `metadata` | json | Custom key-value metadata |
+| `count` | number | Total number of matching records |
+| `nextHref` | string | URL of the next page of results, if any |
+| `previousHref` | string | URL of the previous page of results, if any |
+
+### Checkr List Continuous Checks
+
+List the continuous checks a candidate is enrolled in.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `candidateId` | string | Yes | ID of the candidate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `continuousChecks` | array | Continuous checks for the candidate |
+|   ↳ `id` | string | Continuous check ID |
+|   ↳ `type` | string | Continuous check type \(criminal, mvr\) |
+|   ↳ `candidateId` | string | Enrolled candidate ID |
+|   ↳ `createdAt` | string | Time the continuous check was created |
+|   ↳ `node` | string | Hierarchy node custom ID |
+|   ↳ `workLocations` | array | Work locations for the continuous check |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+| `count` | number | Number of continuous checks |
+
+### Checkr List Counties
+
+List US counties for one or more states, with their FIPS codes. Use the county names in report self-disclosures.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `states` | string | No | Comma-separated state FIPS codes, e.g. 08,06 for Colorado and California. Leave empty for every US county |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `counties` | array | Counties grouped under their state abbreviation |
+|   ↳ `state` | string | State abbreviation, e.g. CO |
+|   ↳ `name` | string | County name, e.g. BOULDER |
+|   ↳ `fipsCode` | string | 5-digit county FIPS code \(state + county\) |
+
+### Checkr List Geos
+
+List geos (work locations used for compliance), optionally filtered by name or state.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `name` | string | No | Only return geos with this name |
+| `state` | string | No | Only return geos in this two-letter state |
+| `page` | number | No | Page number to retrieve \(starts at 1\) |
+| `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `geos` | array | Matching geos |
+|   ↳ `id` | string | Geo ID |
+|   ↳ `uri` | string | Geo API URI |
+|   ↳ `name` | string | Geo name |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State |
+|   ↳ `createdAt` | string | Time the geo was created |
+|   ↳ `deletedAt` | string | Time the geo was deleted |
+| `count` | number | Total number of matching records |
+| `nextHref` | string | URL of the next page of results, if any |
+| `previousHref` | string | URL of the previous page of results, if any |
+
+### Checkr List Invitations
+
+List invitations, optionally filtered by candidate or status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `candidateId` | string | No | Only return invitations for this candidate ID |
+| `status` | string | No | Only return invitations with this status \(pending, completed, expired\) |
+| `page` | number | No | Page number to retrieve \(starts at 1\) |
+| `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invitations` | array | Matching invitations |
+|   ↳ `id` | string | Invitation ID |
+|   ↳ `uri` | string | Invitation API URI |
+|   ↳ `invitationUrl` | string | URL the candidate opens to complete the invitation |
+|   ↳ `status` | string | Status \(pending, completed, expired\) |
+|   ↳ `createdAt` | string | Time the invitation was created |
+|   ↳ `expiresAt` | string | Time the invitation expires |
+|   ↳ `completedAt` | string | Time the candidate completed the invitation |
+|   ↳ `deletedAt` | string | Time the invitation was canceled |
+|   ↳ `package` | string | Package slug for the invitation |
+|   ↳ `candidateId` | string | Invited candidate ID |
+|   ↳ `reportId` | string | ID of the report created once the invitation is completed |
+|   ↳ `archived` | boolean | Whether the invitation is archived |
+|   ↳ `archivedInfo` | json | Archive details \(time, user with email and id\) |
+| `count` | number | Total number of matching records |
+| `nextHref` | string | URL of the next page of results, if any |
+| `previousHref` | string | URL of the previous page of results, if any |
+
+### Checkr List Nodes
+
+List the nodes in the account hierarchy. Hierarchy-enabled accounts need a node custom ID to order reports and invitations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `includePackages` | boolean | No | Include the package slugs available to each node |
+| `orderBy` | string | No | Sort field: custom_id or created_at \(default created_at\) |
+| `order` | string | No | Sort direction: asc or desc \(default asc\) |
+| `page` | number | No | Page number to retrieve \(starts at 1\) |
+| `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nodes` | array | Hierarchy nodes |
+|   ↳ `customId` | string | Node custom ID |
+|   ↳ `name` | string | Node name |
+|   ↳ `tier` | string | Hierarchy tier label |
+|   ↳ `parentCustomId` | string | Parent node custom ID |
+|   ↳ `packages` | array | Package slugs visible to the node \(when packages are included\) |
+| `count` | number | Total number of matching records |
+| `nextHref` | string | URL of the next page of results, if any |
+| `previousHref` | string | URL of the previous page of results, if any |
+
+### Checkr List Packages
+
+List the background check packages on the account, with their slugs, prices, and included screenings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `page` | number | No | Page number to retrieve \(starts at 1\) |
+| `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `packages` | array | Packages on the account |
+|   ↳ `id` | string | Package ID |
+|   ↳ `uri` | string | Package API URI |
+|   ↳ `name` | string | Package name |
+|   ↳ `slug` | string | Package slug used when ordering reports |
+|   ↳ `price` | number | Price in USD cents |
+|   ↳ `applyUrl` | string | URL where candidates can apply with this package |
+|   ↳ `createdAt` | string | Time the package was created |
+|   ↳ `deletedAt` | string | Time the package was deleted |
+|   ↳ `screenings` | array | Screenings included in the package |
+|     ↳ `type` | string | Screening type |
+|     ↳ `subtype` | string | Screening subtype |
+| `count` | number | Total number of matching records |
+| `nextHref` | string | URL of the next page of results, if any |
+| `previousHref` | string | URL of the previous page of results, if any |
+
+### Checkr List Programs
+
+List programs, which group packages and geos, optionally filtered by name.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `name` | string | No | Only return programs with this name |
+| `page` | number | No | Page number to retrieve \(starts at 1\) |
+| `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `programs` | array | Matching programs |
+|   ↳ `id` | string | Program ID |
+|   ↳ `name` | string | Program name |
+|   ↳ `createdAt` | string | Time the program was created |
+|   ↳ `deletedAt` | string | Time the program was deleted |
+|   ↳ `packageIds` | array | Associated package IDs |
+|   ↳ `geoIds` | array | Associated geo IDs |
+| `count` | number | Total number of matching records |
+| `nextHref` | string | URL of the next page of results, if any |
+| `previousHref` | string | URL of the previous page of results, if any |
+
+### Checkr List Report Addresses
+
+List the address history found for a report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report |
+| `page` | number | No | Page number to retrieve \(starts at 1\) |
+| `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `addresses` | array | Addresses found for the report |
+|   ↳ `name` | string | Location name |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State |
+|   ↳ `startDate` | string | Start of residence |
+|   ↳ `endDate` | string | End of residence |
+| `count` | number | Number of addresses |
+
+### Checkr List Subscriptions
+
+List recurring check subscriptions, optionally filtered by candidate, status, or creation date.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `candidateId` | string | No | Only return subscriptions for this candidate ID |
+| `status` | string | No | Only return subscriptions with this status \(active, inactive\) |
+| `createdAfter` | string | No | Only return subscriptions created after this date |
+| `createdBefore` | string | No | Only return subscriptions created before this date |
+| `page` | number | No | Page number to retrieve \(starts at 1\) |
+| `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subscriptions` | array | Matching subscriptions |
+|   ↳ `id` | string | Subscription ID |
+|   ↳ `uri` | string | Subscription API URI |
+|   ↳ `status` | string | Status \(active, inactive\) |
+|   ↳ `package` | string | Package run on each occurrence |
+|   ↳ `candidateId` | string | Screened candidate ID |
+|   ↳ `intervalCount` | number | Number of intervals between checks |
+|   ↳ `intervalUnit` | string | Interval unit \(day, week, month, year\) |
+|   ↳ `startDate` | string | Date of the first check |
+|   ↳ `nextOccurrenceDate` | string | Date of the next check |
+|   ↳ `createdAt` | string | Time the subscription was created |
+|   ↳ `canceledAt` | string | Time the subscription was canceled |
+|   ↳ `node` | string | Hierarchy node custom ID |
+|   ↳ `workLocations` | array | Work locations used for each report |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+| `count` | number | Total number of matching records |
+| `nextHref` | string | URL of the next page of results, if any |
+| `previousHref` | string | URL of the previous page of results, if any |
+
+### Checkr List Users
+
+List the users on the Checkr account and their roles.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `page` | number | No | Page number to retrieve \(starts at 1\) |
+| `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Users on the account |
+|   ↳ `id` | string | User ID |
+|   ↳ `email` | string | Email address |
+|   ↳ `fullName` | string | Full name |
+|   ↳ `createdAt` | string | Time the user was created |
+|   ↳ `roles` | array | Role names, e.g. admin |
+| `count` | number | Total number of matching records |
+| `nextHref` | string | URL of the next page of results, if any |
+| `previousHref` | string | URL of the previous page of results, if any |
+
+### Checkr List Verifications
+
+List the verifications on a report, such as requests for the candidate to confirm their SSN or upload an ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `verifications` | array | Verifications on the report |
+|   ↳ `id` | string | Verification ID |
+|   ↳ `uri` | string | Verification API URI |
+|   ↳ `verificationType` | string | Verification type, such as id or ssn_confirmation |
+|   ↳ `verificationUrl` | string | URL where the candidate submits the requested information |
+|   ↳ `reportId` | string | Report ID |
+|   ↳ `createdAt` | string | Time the verification was created |
+|   ↳ `completedAt` | string | Time the candidate completed the verification |
+|   ↳ `processedAt` | string | Time the verification was processed |
+| `count` | number | Number of verifications |
+
+### Checkr Remove Report Tag
+
+Remove a tag from a report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report |
+| `tag` | string | Yes | Tag to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Tag names on the report |
+| `count` | number | Number of tags on the report |
+
+### Checkr Set Report Tags
+
+Replace all tags on a report with the given list. Pass [] to remove every tag.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report |
+| `tags` | array | Yes | Complete list of tags; an empty list removes every tag |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Tag names on the report |
+| `count` | number | Number of tags on the report |
+
+### Checkr Update Candidate
+
+Update a candidate. Once a report is ordered only empty fields can change, except email, phone, previous driver license, copy requested, custom ID, and geo IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `candidateId` | string | Yes | ID of the candidate to update |
+| `email` | string | No | Candidate's email address |
+| `firstName` | string | No | Candidate's first name |
+| `middleName` | string | No | Candidate's middle name \(required to order a report unless noMiddleName is true\) |
+| `noMiddleName` | boolean | No | Set to true when the candidate has no middle name |
+| `lastName` | string | No | Candidate's last name |
+| `motherMaidenName` | string | No | Candidate's mother's maiden name |
+| `phone` | string | No | Candidate's phone number \(a mobile number is recommended for identity checks\) |
+| `zipcode` | string | No | Candidate's 5-digit zip code \(required for criminal screenings\) |
+| `dob` | string | No | Date of birth in YYYY-MM-DD format |
+| `ssn` | string | No | Social Security Number, e.g. 111-11-2001 \(required for criminal screenings\) |
+| `driverLicenseNumber` | string | No | Driver license number \(required for motor vehicle reports\) |
+| `driverLicenseState` | string | No | Driver license issuing state as a two-letter code, e.g. CA |
+| `previousDriverLicenseNumber` | string | No | Previous driver license number |
+| `previousDriverLicenseState` | string | No | Previous driver license issuing state as a two-letter code |
+| `copyRequested` | boolean | No | Whether the candidate wants a copy of their report |
+| `customId` | string | No | Your own unique ID for the candidate, such as an HRIS ID |
+| `geoIds` | array | No | Geo IDs to assign \(replaces existing geos\) |
+| `metadata` | json | No | Up to 50 custom key-value pairs as a JSON object |
+| `postalAddress` | json | No | Postal address as a JSON object with name, street, street2, city, state, and zipcode |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidate` | object | The updated candidate |
+|   ↳ `id` | string | Candidate ID |
+|   ↳ `uri` | string | Candidate API URI |
+|   ↳ `createdAt` | string | Time the candidate was created |
+|   ↳ `firstName` | string | First name |
+|   ↳ `middleName` | string | Middle name |
+|   ↳ `noMiddleName` | boolean | Whether the candidate has no middle name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `motherMaidenName` | string | Mother's maiden name |
+|   ↳ `email` | string | Email address |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `zipcode` | string | 5-digit zip code |
+|   ↳ `dob` | string | Date of birth \(YYYY-MM-DD\) |
+|   ↳ `ssn` | string | Social Security Number, redacted to the last four digits |
+|   ↳ `driverLicenseNumber` | string | Driver license number |
+|   ↳ `driverLicenseState` | string | Driver license issuing state \(ISO 3166-2:US\) |
+|   ↳ `previousDriverLicenseNumber` | string | Previous driver license number |
+|   ↳ `previousDriverLicenseState` | string | Previous driver license issuing state |
+|   ↳ `copyRequested` | boolean | Whether the candidate asked for a copy of their report |
+|   ↳ `customId` | string | Your own ID for the candidate |
+|   ↳ `adjudication` | string | Adjudication of the most recent report \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `reportIds` | array | IDs of reports for this candidate |
+|   ↳ `geoIds` | array | IDs of geos assigned to this candidate |
+|   ↳ `postalAddress` | json | Postal address \(name, street, street2, city, state, zipcode\) |
+|   ↳ `metadata` | json | Custom key-value metadata |
+
+### Checkr Update Continuous Check
+
+Change the node or work locations of a continuous check.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `continuousCheckId` | string | Yes | ID of the continuous check to update |
+| `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
+| `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `continuousCheck` | object | The updated continuous check |
+|   ↳ `id` | string | Continuous check ID |
+|   ↳ `type` | string | Continuous check type \(criminal, mvr\) |
+|   ↳ `candidateId` | string | Enrolled candidate ID |
+|   ↳ `createdAt` | string | Time the continuous check was created |
+|   ↳ `node` | string | Hierarchy node custom ID |
+|   ↳ `workLocations` | array | Work locations for the continuous check |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+
+### Checkr Update Geo
+
+Add a city to a geo. A geo’s city can only be set once.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `geoId` | string | Yes | ID of the geo |
+| `city` | string | Yes | City to set on the geo |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `geo` | object | The updated geo |
+|   ↳ `id` | string | Geo ID |
+|   ↳ `uri` | string | Geo API URI |
+|   ↳ `name` | string | Geo name |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State |
+|   ↳ `createdAt` | string | Time the geo was created |
+|   ↳ `deletedAt` | string | Time the geo was deleted |
+
+### Checkr Update Report
+
+Upgrade a report to a different package or mark it as engaged. Provide a package, an adjudication, or both.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `reportId` | string | Yes | ID of the report to update |
+| `package` | string | No | Slug of the package to upgrade the report to |
+| `adjudication` | string | No | Adjudication to set; Checkr accepts only "engaged" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `report` | object | The updated report |
+|   ↳ `id` | string | Report ID |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) for Assess-enabled accounts |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created \(api, continuous_check, form, manual_order, recurrence, web\) |
+|   ↳ `candidateId` | string | Screened candidate ID |
+|   ↳ `includesCanceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `createdAt` | string | Time the report was created |
+|   ↳ `completedAt` | string | Time the report was completed |
+|   ↳ `revisedAt` | string | Time the report was revised |
+|   ↳ `upgradedAt` | string | Time the report was upgraded |
+|   ↳ `turnaroundTime` | number | Seconds from creation to completion |
+|   ↳ `estimatedCompletionTime` | string | Predicted completion date |
+|   ↳ `archived` | boolean | Whether the report is archived |
+|   ↳ `programId` | string | Program ID linked to the report |
+|   ↳ `segmentStamps` | array | Hierarchy node tier\|name stamps for the ordering node and its parents |
+|   ↳ `workLocations` | array | Work locations set when ordering the report |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+|   ↳ `geoIds` | array | Geo IDs |
+|   ↳ `documentIds` | array | Document IDs |
+|   ↳ `candidateStoryIds` | array | Candidate story IDs linked to the report |
+|   ↳ `ssnTraceId` | string | SSN trace ID |
+|   ↳ `sexOffenderSearchId` | string | Sex offender search ID |
+|   ↳ `nationalCriminalSearchId` | string | National criminal search ID |
+|   ↳ `globalWatchlistSearchId` | string | Global watchlist search ID |
+|   ↳ `federalCriminalSearchId` | string | Federal criminal search ID |
+|   ↳ `federalDistrictCriminalSearchId` | string | Federal district criminal search ID |
+|   ↳ `federalCivilSearchId` | string | Federal civil search ID |
+|   ↳ `federalDistrictCivilSearchId` | string | Federal district civil search ID |
+|   ↳ `motorVehicleReportId` | string | Motor vehicle report ID |
+|   ↳ `drugScreeningId` | string | Drug screening ID |
+|   ↳ `facisSearchId` | string | FACIS search ID |
+|   ↳ `socialMediaScreeningsId` | string | Social media screening ID |
+|   ↳ `identityVerificationId` | string | Identity verification ID |
+|   ↳ `drugAlcoholClearinghouseId` | string | Drug & Alcohol Clearinghouse search ID |
+|   ↳ `identityDataEvaluationId` | string | Identity data evaluation ID |
+|   ↳ `occupationalHealthScreeningId` | string | Occupational health screening ID |
+|   ↳ `arrestSearchId` | string | Arrest search ID |
+|   ↳ `internationalGlobalWatchlistSearchId` | string | International global watchlist search ID |
+|   ↳ `internationalEducationVerificationId` | string | International education verification ID |
+|   ↳ `internationalEmploymentVerificationId` | string | International employment verification ID |
+|   ↳ `internationalIdentityDocumentValidationId` | string | International identity document validation ID |
+|   ↳ `internationalCriminalSearchIds` | array | International criminal search IDs |
+|   ↳ `internationalAdverseMediaSearchIds` | array | International adverse media search IDs |
+|   ↳ `countyCriminalSearchIds` | array | County criminal search IDs |
+|   ↳ `stateCriminalSearchIds` | array | State criminal search IDs |
+|   ↳ `professionalLicenseVerificationIds` | array | Professional license verification IDs |
+|   ↳ `personalReferenceVerificationIds` | array | Personal reference verification IDs |
+|   ↳ `professionalReferenceVerificationIds` | array | Professional reference verification IDs |
+|   ↳ `drugScreening` | json | Embedded drug screening \(id, status, result, disposition, mro_notes, analytes, events, screening_pass_expires_at, appointment_id\) |
+
+### Checkr Update Subscription
+
+Change the package, schedule, node, or work locations of a subscription.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Checkr production secret API key |
+| `subscriptionId` | string | Yes | ID of the subscription to update |
+| `package` | string | No | Slug of the package to run on each occurrence |
+| `startDate` | string | No | Date of the first check in YYYY-MM-DD format |
+| `intervalCount` | number | No | Number of interval units between checks |
+| `intervalUnit` | string | No | Interval unit: day, week, month, or year |
+| `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
+| `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subscription` | object | The updated subscription |
+|   ↳ `id` | string | Subscription ID |
+|   ↳ `uri` | string | Subscription API URI |
+|   ↳ `status` | string | Status \(active, inactive\) |
+|   ↳ `package` | string | Package run on each occurrence |
+|   ↳ `candidateId` | string | Screened candidate ID |
+|   ↳ `intervalCount` | number | Number of intervals between checks |
+|   ↳ `intervalUnit` | string | Interval unit \(day, week, month, year\) |
+|   ↳ `startDate` | string | Date of the first check |
+|   ↳ `nextOccurrenceDate` | string | Date of the next check |
+|   ↳ `createdAt` | string | Time the subscription was created |
+|   ↳ `canceledAt` | string | Time the subscription was canceled |
+|   ↳ `node` | string | Hierarchy node custom ID |
+|   ↳ `workLocations` | array | Work locations used for each report |
+|     ↳ `country` | string | Country \(ISO 3166-1 alpha-2\) |
+|     ↳ `state` | string | Two-letter state code |
+|     ↳ `city` | string | City name |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Checkr Adverse Action Canceled
+
+Trigger workflow when an adverse action is canceled
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `adverseAction` | object | adverseAction output from the tool |
+|   ↳ `id` | string | Adverse action ID |
+|   ↳ `object` | string | Object type \(adverse_action\) |
+|   ↳ `uri` | string | Adverse action API URI |
+|   ↳ `status` | string | Status \(pending, complete, dispute, canceled\) |
+|   ↳ `report_id` | string | Report the adverse action is based on |
+|   ↳ `created_at` | string | Time the adverse action was created |
+|   ↳ `canceled_at` | string | Time the adverse action was canceled |
+|   ↳ `post_notice_scheduled_at` | string | Time the post-adverse action notice is scheduled |
+|   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
+|   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
+|   ↳ `context` | string | Scoping identifier for the adverse action |
+|   ↳ `delivery` | object | delivery output from the tool |
+|     ↳ `state` | string | Notice delivery state |
+|     ↳ `reason` | string | Reason for the delivery state |
+|     ↳ `updated_at` | string | Time the delivery state changed |
+|   ↳ `adverse_items` | array | Adverse items \(id, object, text\) |
+
+
+---
+
+### Checkr Adverse Action Completed
+
+Trigger workflow when the post-adverse action notice is sent
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `adverseAction` | object | adverseAction output from the tool |
+|   ↳ `id` | string | Adverse action ID |
+|   ↳ `object` | string | Object type \(adverse_action\) |
+|   ↳ `uri` | string | Adverse action API URI |
+|   ↳ `status` | string | Status \(pending, complete, dispute, canceled\) |
+|   ↳ `report_id` | string | Report the adverse action is based on |
+|   ↳ `created_at` | string | Time the adverse action was created |
+|   ↳ `canceled_at` | string | Time the adverse action was canceled |
+|   ↳ `post_notice_scheduled_at` | string | Time the post-adverse action notice is scheduled |
+|   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
+|   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
+|   ↳ `context` | string | Scoping identifier for the adverse action |
+|   ↳ `delivery` | object | delivery output from the tool |
+|     ↳ `state` | string | Notice delivery state |
+|     ↳ `reason` | string | Reason for the delivery state |
+|     ↳ `updated_at` | string | Time the delivery state changed |
+|   ↳ `adverse_items` | array | Adverse items \(id, object, text\) |
+
+
+---
+
+### Checkr Adverse Action Created
+
+Trigger workflow when an adverse action is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `adverseAction` | object | adverseAction output from the tool |
+|   ↳ `id` | string | Adverse action ID |
+|   ↳ `object` | string | Object type \(adverse_action\) |
+|   ↳ `uri` | string | Adverse action API URI |
+|   ↳ `status` | string | Status \(pending, complete, dispute, canceled\) |
+|   ↳ `report_id` | string | Report the adverse action is based on |
+|   ↳ `created_at` | string | Time the adverse action was created |
+|   ↳ `canceled_at` | string | Time the adverse action was canceled |
+|   ↳ `post_notice_scheduled_at` | string | Time the post-adverse action notice is scheduled |
+|   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
+|   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
+|   ↳ `context` | string | Scoping identifier for the adverse action |
+|   ↳ `delivery` | object | delivery output from the tool |
+|     ↳ `state` | string | Notice delivery state |
+|     ↳ `reason` | string | Reason for the delivery state |
+|     ↳ `updated_at` | string | Time the delivery state changed |
+|   ↳ `adverse_items` | array | Adverse items \(id, object, text\) |
+
+
+---
+
+### Checkr Adverse Action Notice Not Delivered
+
+Trigger workflow when an adverse action notice cannot be delivered
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `adverseAction` | object | adverseAction output from the tool |
+|   ↳ `id` | string | Adverse action ID |
+|   ↳ `object` | string | Object type \(adverse_action\) |
+|   ↳ `uri` | string | Adverse action API URI |
+|   ↳ `status` | string | Status \(pending, complete, dispute, canceled\) |
+|   ↳ `report_id` | string | Report the adverse action is based on |
+|   ↳ `created_at` | string | Time the adverse action was created |
+|   ↳ `canceled_at` | string | Time the adverse action was canceled |
+|   ↳ `post_notice_scheduled_at` | string | Time the post-adverse action notice is scheduled |
+|   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
+|   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
+|   ↳ `context` | string | Scoping identifier for the adverse action |
+|   ↳ `delivery` | object | delivery output from the tool |
+|     ↳ `state` | string | Notice delivery state |
+|     ↳ `reason` | string | Reason for the delivery state |
+|     ↳ `updated_at` | string | Time the delivery state changed |
+|   ↳ `adverse_items` | array | Adverse items \(id, object, text\) |
+
+
+---
+
+### Checkr Adverse Action Paused
+
+Trigger workflow when delivery of a post-adverse action notice is paused
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `adverseAction` | object | adverseAction output from the tool |
+|   ↳ `id` | string | Adverse action ID |
+|   ↳ `object` | string | Object type \(adverse_action\) |
+|   ↳ `uri` | string | Adverse action API URI |
+|   ↳ `status` | string | Status \(pending, complete, dispute, canceled\) |
+|   ↳ `report_id` | string | Report the adverse action is based on |
+|   ↳ `created_at` | string | Time the adverse action was created |
+|   ↳ `canceled_at` | string | Time the adverse action was canceled |
+|   ↳ `post_notice_scheduled_at` | string | Time the post-adverse action notice is scheduled |
+|   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
+|   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
+|   ↳ `context` | string | Scoping identifier for the adverse action |
+|   ↳ `delivery` | object | delivery output from the tool |
+|     ↳ `state` | string | Notice delivery state |
+|     ↳ `reason` | string | Reason for the delivery state |
+|     ↳ `updated_at` | string | Time the delivery state changed |
+|   ↳ `adverse_items` | array | Adverse items \(id, object, text\) |
+
+
+---
+
+### Checkr Adverse Action Resumed
+
+Trigger workflow when a paused adverse action resumes
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `adverseAction` | object | adverseAction output from the tool |
+|   ↳ `id` | string | Adverse action ID |
+|   ↳ `object` | string | Object type \(adverse_action\) |
+|   ↳ `uri` | string | Adverse action API URI |
+|   ↳ `status` | string | Status \(pending, complete, dispute, canceled\) |
+|   ↳ `report_id` | string | Report the adverse action is based on |
+|   ↳ `created_at` | string | Time the adverse action was created |
+|   ↳ `canceled_at` | string | Time the adverse action was canceled |
+|   ↳ `post_notice_scheduled_at` | string | Time the post-adverse action notice is scheduled |
+|   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
+|   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
+|   ↳ `context` | string | Scoping identifier for the adverse action |
+|   ↳ `delivery` | object | delivery output from the tool |
+|     ↳ `state` | string | Notice delivery state |
+|     ↳ `reason` | string | Reason for the delivery state |
+|     ↳ `updated_at` | string | Time the delivery state changed |
+|   ↳ `adverse_items` | array | Adverse items \(id, object, text\) |
+
+
+---
+
+### Checkr All Events
+
+Trigger workflow on any Checkr event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `data` | json | The event object \(a report, candidate, invitation, verification, adverse action, package, continuous check, or Form I-9\) |
+
+
+---
+
+### Checkr Candidate Created
+
+Trigger workflow when a candidate is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `candidate` | object | candidate output from the tool |
+|   ↳ `id` | string | Candidate ID |
+|   ↳ `object` | string | Object type \(candidate\) |
+|   ↳ `uri` | string | Candidate API URI |
+|   ↳ `created_at` | string | Time the candidate was created |
+|   ↳ `first_name` | string | First name |
+|   ↳ `middle_name` | string | Middle name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `email` | string | Email address |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `zipcode` | string | Zip code |
+|   ↳ `dob` | string | Date of birth |
+|   ↳ `ssn` | string | SSN redacted to the last four digits |
+|   ↳ `driver_license_state` | string | Driver license state |
+|   ↳ `driver_license_number` | string | Driver license number |
+|   ↳ `adjudication` | string | Adjudication of the most recent report |
+|   ↳ `custom_id` | string | Your own ID for the candidate |
+|   ↳ `report_ids` | array | Report IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `metadata` | json | Custom key-value metadata |
+
+
+---
+
+### Checkr Candidate Updated
+
+Trigger workflow when a candidate is updated
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `candidate` | object | candidate output from the tool |
+|   ↳ `id` | string | Candidate ID |
+|   ↳ `object` | string | Object type \(candidate\) |
+|   ↳ `uri` | string | Candidate API URI |
+|   ↳ `created_at` | string | Time the candidate was created |
+|   ↳ `first_name` | string | First name |
+|   ↳ `middle_name` | string | Middle name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `email` | string | Email address |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `zipcode` | string | Zip code |
+|   ↳ `dob` | string | Date of birth |
+|   ↳ `ssn` | string | SSN redacted to the last four digits |
+|   ↳ `driver_license_state` | string | Driver license state |
+|   ↳ `driver_license_number` | string | Driver license number |
+|   ↳ `adjudication` | string | Adjudication of the most recent report |
+|   ↳ `custom_id` | string | Your own ID for the candidate |
+|   ↳ `report_ids` | array | Report IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `metadata` | json | Custom key-value metadata |
+
+
+---
+
+### Checkr Continuous Check Confirmation Required
+
+Trigger workflow when a candidate is unenrolled from Continuous MVR and must be re-enrolled
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `continuousCheck` | object | continuousCheck output from the tool |
+|   ↳ `id` | string | Continuous check ID |
+|   ↳ `object` | string | Object type \(continuous_check\) |
+|   ↳ `candidate_id` | string | Enrolled candidate ID |
+|   ↳ `created_at` | string | Time the continuous check was created |
+|   ↳ `node` | string | Hierarchy node custom ID |
+|   ↳ `work_locations` | array | Work locations \(country, state, city\) |
+
+
+---
+
+### Checkr Continuous Check Enrollment Error
+
+Trigger workflow when enrolling a candidate in Continuous MVR fails
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `continuousCheck` | object | continuousCheck output from the tool |
+|   ↳ `id` | string | Continuous check ID |
+|   ↳ `object` | string | Object type \(continuous_check\) |
+|   ↳ `candidate_id` | string | Enrolled candidate ID |
+|   ↳ `created_at` | string | Time the continuous check was created |
+|   ↳ `node` | string | Hierarchy node custom ID |
+|   ↳ `work_locations` | array | Work locations \(country, state, city\) |
+
+
+---
+
+### Checkr Invitation Canceled
+
+Trigger workflow when an invitation is canceled
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `invitation` | object | invitation output from the tool |
+|   ↳ `id` | string | Invitation ID |
+|   ↳ `object` | string | Object type \(invitation\) |
+|   ↳ `uri` | string | Invitation API URI |
+|   ↳ `status` | string | Status \(pending, completed, expired\) |
+|   ↳ `invitation_url` | string | URL the candidate opens to apply |
+|   ↳ `package` | string | Package slug |
+|   ↳ `candidate_id` | string | Invited candidate ID |
+|   ↳ `report_id` | string | Report created when the invitation was completed |
+|   ↳ `created_at` | string | Time the invitation was created |
+|   ↳ `expires_at` | string | Time the invitation expires |
+|   ↳ `completed_at` | string | Time the invitation was completed |
+|   ↳ `deleted_at` | string | Time the invitation was canceled |
+
+
+---
+
+### Checkr Invitation Completed
+
+Trigger workflow when a candidate completes an invitation
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `invitation` | object | invitation output from the tool |
+|   ↳ `id` | string | Invitation ID |
+|   ↳ `object` | string | Object type \(invitation\) |
+|   ↳ `uri` | string | Invitation API URI |
+|   ↳ `status` | string | Status \(pending, completed, expired\) |
+|   ↳ `invitation_url` | string | URL the candidate opens to apply |
+|   ↳ `package` | string | Package slug |
+|   ↳ `candidate_id` | string | Invited candidate ID |
+|   ↳ `report_id` | string | Report created when the invitation was completed |
+|   ↳ `created_at` | string | Time the invitation was created |
+|   ↳ `expires_at` | string | Time the invitation expires |
+|   ↳ `completed_at` | string | Time the invitation was completed |
+|   ↳ `deleted_at` | string | Time the invitation was canceled |
+
+
+---
+
+### Checkr Invitation Created
+
+Trigger workflow when an invitation is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `invitation` | object | invitation output from the tool |
+|   ↳ `id` | string | Invitation ID |
+|   ↳ `object` | string | Object type \(invitation\) |
+|   ↳ `uri` | string | Invitation API URI |
+|   ↳ `status` | string | Status \(pending, completed, expired\) |
+|   ↳ `invitation_url` | string | URL the candidate opens to apply |
+|   ↳ `package` | string | Package slug |
+|   ↳ `candidate_id` | string | Invited candidate ID |
+|   ↳ `report_id` | string | Report created when the invitation was completed |
+|   ↳ `created_at` | string | Time the invitation was created |
+|   ↳ `expires_at` | string | Time the invitation expires |
+|   ↳ `completed_at` | string | Time the invitation was completed |
+|   ↳ `deleted_at` | string | Time the invitation was canceled |
+
+
+---
+
+### Checkr Invitation Expired
+
+Trigger workflow when an invitation expires
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `invitation` | object | invitation output from the tool |
+|   ↳ `id` | string | Invitation ID |
+|   ↳ `object` | string | Object type \(invitation\) |
+|   ↳ `uri` | string | Invitation API URI |
+|   ↳ `status` | string | Status \(pending, completed, expired\) |
+|   ↳ `invitation_url` | string | URL the candidate opens to apply |
+|   ↳ `package` | string | Package slug |
+|   ↳ `candidate_id` | string | Invited candidate ID |
+|   ↳ `report_id` | string | Report created when the invitation was completed |
+|   ↳ `created_at` | string | Time the invitation was created |
+|   ↳ `expires_at` | string | Time the invitation expires |
+|   ↳ `completed_at` | string | Time the invitation was completed |
+|   ↳ `deleted_at` | string | Time the invitation was canceled |
+
+
+---
+
+### Checkr Report Canceled
+
+Trigger workflow when a report is canceled
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Report Completed
+
+Trigger workflow when a report is completed
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Report Created
+
+Trigger workflow when a report is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Report Dispute Completed
+
+Trigger workflow when a report dispute is resolved
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Report Disputed
+
+Trigger workflow when a candidate disputes a report
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Report Engaged
+
+Trigger workflow when a report is adjudicated as engaged
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Report Paused
+
+Trigger workflow when a report pauses awaiting a review action
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Report Post-Adverse Action Sent
+
+Trigger workflow when the post-adverse action notice for a report is sent
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Report Pre-Adverse Action Sent
+
+Trigger workflow when the pre-adverse action notice for a report is sent
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Report Resumed
+
+Trigger workflow when a suspended report resumes
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Report Suspended
+
+Trigger workflow when a report is suspended awaiting candidate documentation
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Report Updated
+
+Trigger workflow when a report is updated, such as an ETA change or drug screening update
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Report Upgraded
+
+Trigger workflow when a report is upgraded to another package
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `report` | object | report output from the tool |
+|   ↳ `id` | string | Report ID |
+|   ↳ `object` | string | Object type \(report\) |
+|   ↳ `uri` | string | Report API URI |
+|   ↳ `status` | string | Status \(pending, complete, suspended, paused, dispute, canceled\) |
+|   ↳ `result` | string | Result \(clear, consider\) |
+|   ↳ `adjudication` | string | Adjudication \(engaged, pre_adverse_action, post_adverse_action\) |
+|   ↳ `assessment` | string | Assess result \(eligible, review, escalated\) |
+|   ↳ `package` | string | Package the report was ordered with |
+|   ↳ `source` | string | How the report was created |
+|   ↳ `candidate_id` | string | Screened candidate ID |
+|   ↳ `created_at` | string | Time the report was created |
+|   ↳ `received_at` | string | Time the report was received |
+|   ↳ `completed_at` | string | Time the report was completed |
+|   ↳ `revised_at` | string | Time the report was revised |
+|   ↳ `upgraded_at` | string | Time the report was upgraded |
+|   ↳ `turnaround_time` | number | Seconds from creation to completion |
+|   ↳ `estimated_completion_time` | string | Predicted completion date |
+|   ↳ `includes_canceled` | boolean | Whether the report includes a canceled screening |
+|   ↳ `ssn_trace_id` | string | SSN trace ID |
+|   ↳ `sex_offender_search_id` | string | Sex offender search ID |
+|   ↳ `national_criminal_search_id` | string | National criminal search ID |
+|   ↳ `global_watchlist_search_id` | string | Global watchlist search ID |
+|   ↳ `motor_vehicle_report_id` | string | Motor vehicle report ID |
+|   ↳ `county_criminal_search_ids` | array | County criminal search IDs |
+|   ↳ `state_criminal_search_ids` | array | State criminal search IDs |
+|   ↳ `document_ids` | array | Document IDs |
+|   ↳ `geo_ids` | array | Geo IDs |
+|   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
+
+
+---
+
+### Checkr Verification Completed
+
+Trigger workflow when a candidate completes a verification
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `verification` | object | verification output from the tool |
+|   ↳ `id` | string | Verification ID |
+|   ↳ `object` | string | Object type \(verification\) |
+|   ↳ `uri` | string | Verification API URI |
+|   ↳ `verification_type` | string | Verification type, such as id or ssn_confirmation |
+|   ↳ `verification_url` | string | URL where the candidate submits the requested information |
+|   ↳ `report_id` | string | Report ID |
+|   ↳ `created_at` | string | Time the verification was created |
+|   ↳ `completed_at` | string | Time the candidate completed the verification |
+|   ↳ `processed_at` | string | Time the verification was processed |
+
+
+---
+
+### Checkr Verification Created
+
+Trigger workflow when a candidate is asked to verify information or upload a document
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `verification` | object | verification output from the tool |
+|   ↳ `id` | string | Verification ID |
+|   ↳ `object` | string | Object type \(verification\) |
+|   ↳ `uri` | string | Verification API URI |
+|   ↳ `verification_type` | string | Verification type, such as id or ssn_confirmation |
+|   ↳ `verification_url` | string | URL where the candidate submits the requested information |
+|   ↳ `report_id` | string | Report ID |
+|   ↳ `created_at` | string | Time the verification was created |
+|   ↳ `completed_at` | string | Time the candidate completed the verification |
+|   ↳ `processed_at` | string | Time the verification was processed |
+
+
+---
+
+### Checkr Verification Processed
+
+Trigger workflow when a verification is processed and a decision is made
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Checkr event ID, stable across delivery retries |
+| `eventType` | string | Event type, e.g. report.completed |
+| `createdAt` | string | Time the event occurred \(ISO 8601\) |
+| `accountId` | string | Checkr account ID the event belongs to |
+| `objectType` | string | Type of the object in the event, e.g. report |
+| `objectId` | string | ID of the object in the event |
+| `verification` | object | verification output from the tool |
+|   ↳ `id` | string | Verification ID |
+|   ↳ `object` | string | Object type \(verification\) |
+|   ↳ `uri` | string | Verification API URI |
+|   ↳ `verification_type` | string | Verification type, such as id or ssn_confirmation |
+|   ↳ `verification_url` | string | URL where the candidate submits the requested information |
+|   ↳ `report_id` | string | Report ID |
+|   ↳ `created_at` | string | Time the verification was created |
+|   ↳ `completed_at` | string | Time the candidate completed the verification |
+|   ↳ `processed_at` | string | Time the verification was processed |
+

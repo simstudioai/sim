@@ -15,7 +15,7 @@ import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { escapeLikePattern } from '@sim/utils/string'
-import { and, asc, count, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, eq, getTableColumns, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   assertRowCapacity,
@@ -57,7 +57,6 @@ import {
   refitRowToSchema,
 } from '@/lib/table/rows/live-schema'
 import {
-  acquireRowOrderLock,
   type DeletedTableRow,
   deleteOrderedRow,
   deleteOrderedRowsByIds,
@@ -336,8 +335,8 @@ export interface TxRowWriteOptions extends RowWriteOptions {
 
 export interface BatchInsertOptions extends TxRowWriteOptions {
   /**
-   * The caller already holds `lockUniqueColumns` for the table in this transaction (bulk imports,
-   * which take it before the row-order lock), so the batch takes no per-value locks of its own.
+   * The caller already holds `lockUniqueColumns` for the table in this transaction (bulk imports),
+   * so the batch takes no per-value locks of its own.
    */
   uniqueColumnsLocked?: boolean
 }
@@ -352,9 +351,8 @@ export interface BatchInsertOptions extends TxRowWriteOptions {
  * Capacity is NOT checked here (it would mean a billing-pool read inside the tx).
  * Callers gate it before opening the tx — see `batchInsertRows` and the import paths.
  *
- * Takes the rows' unique-value locks (see `unique-locks.ts`) before the unique check and the
- * row-order lock, so a caller must not already hold the row-order lock unless it passes
- * `uniqueColumnsLocked`. Validates against `table` unless it passes `lockSchema`, so a caller that
+ * Takes the rows' unique-value locks (see `unique-locks.ts`) before the unique check unless the
+ * caller passes `uniqueColumnsLocked`. Validates against `table` unless it passes `lockSchema`, so a caller that
  * does not reads `table` under the table's schema lock in this transaction.
  */
 export async function batchInsertRowsWithTx(
@@ -422,7 +420,6 @@ export async function batchInsertRowsWithTx(
     ...(data.userId ? { createdBy: data.userId } : {}),
   })
 
-  await acquireRowOrderLock(trx, data.tableId)
   // Undo restore passes exact saved keys; otherwise append after the current max.
   const orderKeys =
     data.orderKeys && data.orderKeys.length > 0
@@ -548,10 +545,9 @@ export async function replaceTableRows(
  * Capacity is NOT checked here (it would mean a billing-pool read inside the tx).
  * Callers gate it before opening the tx — see `replaceTableRows` and `importReplaceRows`.
  *
- * Takes the table's unique lock before its row-order lock, so a caller already holding the
- * row-order lock must take `lockUniqueColumns` first. Validates against `table` unless it passes
- * `lockSchema`, so a caller that does not reads `table` under the table's schema lock in this
- * transaction.
+ * Takes the table's unique lock exclusively, which also serializes concurrent replaces. Validates
+ * against `table` unless it passes `lockSchema`, so a caller that does not reads `table` under the
+ * table's schema lock in this transaction.
  */
 export async function replaceTableRowsWithTx(
   trx: DbTransaction,
@@ -632,15 +628,11 @@ export async function replaceTableRowsWithTx(
   if (!options.lockSchema) await setTableTxTimeouts(trx, { statementMs })
 
   // Every current row is about to go, so any concurrent write of a unique value conflicts with the
-  // replacement set: hold the unique columns exclusively, ahead of the row-order lock.
+  // replacement set: hold the unique columns exclusively. The lock is taken even without unique
+  // columns, which also serializes concurrent replaces: otherwise the second's DELETE would not see
+  // the first's rows, and the table would end up with both row sets. A plain insert that commits
+  // during a replace survives it, the outcome of running right after it.
   await lockUniqueColumns(trx, table)
-
-  // Serialize concurrent replaces (and concurrent auto-position inserts) on the
-  // same table. Without this, two concurrent replaces each see their own MVCC
-  // snapshot for the DELETE; the second's DELETE would not observe rows the
-  // first inserted, so both transactions commit and the table ends up with
-  // the union of both row sets instead of only the last caller's rows.
-  await acquireRowOrderLock(trx, data.tableId)
 
   const deleteCountRows = await trx.execute<{ count: number | string }>(sql`
     WITH deleted AS (
@@ -810,7 +802,7 @@ export async function upsertRow(
   const snapshotMatchFilter = upsertConflictProbe(target, data.data)
 
   // Resolve the plan limit BEFORE the tx (the lookup is a separate pool read; doing
-  // it inside the tx would hold a connection + the row-order lock during it). The
+  // it inside the tx would hold a connection + the value lock during it). The
   // insert branch enforces it; the update path doesn't add a row, so it's exempt.
   const rowLimit = await getMaxRowsPerTable(table.workspaceId)
 
@@ -843,7 +835,8 @@ export async function upsertRow(
       )
     }
     // Holds every unique value this row writes, the conflict target included, before the lookup
-    // and the unique check below: concurrent upserts and inserts of the same value serialize here.
+    // and the unique check below: concurrent upserts and inserts of the same value serialize here,
+    // so the lookup already sees a racing upsert's committed row.
     await lockUniqueValues(trx, live, [data.data])
 
     // Find existing row by single conflict target column
@@ -876,30 +869,8 @@ export async function upsertRow(
 
     const now = new Date()
 
-    // Resolve which row (if any) we should update. If the initial SELECT missed,
-    // acquire the lock and re-check — a concurrent upsert may have inserted the
-    // matching row between our SELECT and the INSERT path; without the re-check
-    // both transactions would insert and bypass the app-level unique check.
-    let matchedRowId = existingRow?.id
-    let previousData = existingRow?.data as RowData | undefined
-    if (!matchedRowId) {
-      await acquireRowOrderLock(trx, data.tableId)
-      const [racedRow] = await trx
-        .select({ id: userTableRows.id, data: userTableRows.data })
-        .from(userTableRows)
-        .where(
-          and(
-            eq(userTableRows.tableId, data.tableId),
-            eq(userTableRows.workspaceId, data.workspaceId),
-            matchFilter
-          )
-        )
-        .limit(1)
-      if (racedRow) {
-        matchedRowId = racedRow.id
-        previousData = racedRow.data as RowData
-      }
-    }
+    const matchedRowId = existingRow?.id
+    const previousData = existingRow?.data as RowData | undefined
 
     if (matchedRowId) {
       assertRowUpdate(table, patchColumnIds(data.data))
@@ -1328,6 +1299,9 @@ export async function queryRows(
     budgetBytes: TABLE_LIMITS.MAX_QUERY_RESULT_BYTES,
     pageCutBytes: getMaxPageBytes(),
     columnIds,
+    projectInSql: Boolean(
+      columnIds && columns.some((column) => !columnIds.has(getColumnId(column)))
+    ),
     readProvenance,
   })
 
@@ -1353,7 +1327,7 @@ export async function queryRows(
         )
       : null
 
-  logger.info(
+  logger.debug(
     `[${requestId}] Queried ${rows.length} rows from table ${table.id} (total: ${totalCount}, bytes: ${fetched.bytes}, more: ${fetched.hasMore})`
   )
 
@@ -1414,8 +1388,14 @@ export interface BoundedFetchParams {
   budgetBytes: number
   /** Byte cut for a **bounded** page; defaults to 5MB and is environment-overridable. */
   pageCutBytes: number
-  /** Stable column ids to keep in `data`; projected before a row is measured. */
+  /** Stable column ids to keep in `data`; a row is measured as returned. */
   columnIds?: ReadonlySet<string>
+  /**
+   * Narrow `data` in SQL, so the columns left out are never sent. Worth it only when the
+   * selection drops some of the table's columns: rebuilding nearly the whole value costs the
+   * server more than sending it. Without it `columnIds` is applied to the fetched rows.
+   */
+  projectInSql?: boolean
 }
 
 export interface BoundedFetchResult {
@@ -1439,6 +1419,30 @@ function projectRowData(data: RowData, columnIds: ReadonlySet<string>): RowData 
 }
 
 /**
+ * The SELECT list of a drained row, with `data` narrowed to `sqlColumnIds` when given: a drain's
+ * wall time tracks the bytes it pulls off the socket, not the server's work on them.
+ *
+ * Every function that reads a TOASTed `data` detoasts it again, so the value is read once: the
+ * `|| '{}'` copy (kept from inlining by `OFFSET 0`) is the one detoast, and the object check, the
+ * key scan and the key removal all read that copy. Removing the unselected keys, rather than
+ * rebuilding the selected ones, returns the value untouched when a row wrote nothing else. A
+ * value that is not an object projects to `{}`.
+ */
+function boundedRowFields(sqlColumnIds: ReadonlySet<string> | undefined) {
+  if (!sqlColumnIds) return getTableColumns(userTableRows)
+  const keys = sql.join(
+    [...sqlColumnIds].map((columnId) => sql`${columnId}`),
+    sql`, `
+  )
+  return {
+    ...getTableColumns(userTableRows),
+    data: sql<unknown>`(SELECT o.d - ARRAY(SELECT k FROM jsonb_object_keys(o.d) AS k WHERE k <> ALL(ARRAY[${keys}]::text[])) FROM (SELECT CASE WHEN jsonb_typeof(s.d) = 'object' THEN s.d ELSE '{}'::jsonb END AS d FROM (SELECT ${userTableRows.data} || '{}'::jsonb AS d OFFSET 0) AS s OFFSET 0) AS o)`.mapWith(
+      userTableRows.data
+    ),
+  }
+}
+
+/**
  * Drains rows in adaptively-sized bounded batches until the caller's `limit`
  * or the byte ceiling ends the page. Never issues an unbounded SELECT: the
  * first batch is capped so its worst-case bytes stay within ~4× the budget at
@@ -1452,9 +1456,10 @@ function projectRowData(data: RowData, columnIds: ReadonlySet<string>): RowData 
  *
  * Advance strategy: when `keysetValid`, the loop re-anchors on each consumed
  * keyed row and seeks `(order_key, id) > (anchor)` — delete-tolerant and an
- * index seek. Otherwise (custom sort, flag off) it advances by OFFSET from the
- * inbound position; rows deleted mid-drain can skip/duplicate exactly as
- * cross-request offset paging already does.
+ * index seek. A custom sort reads its order as ids from the inbound offset
+ * and fetches the rows by id, all in one snapshot (see `drainSortedById`); any
+ * other unanchored drain advances by OFFSET, where rows deleted mid-drain can
+ * skip/duplicate exactly as cross-request offset paging already does.
  *
  * Always returns at least one row when any match exists, even if that row
  * alone exceeds the budget.
@@ -1472,11 +1477,12 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
   const rows: Array<typeof userTableRows.$inferSelect> = []
   let bytes = 0
   let maxRowBytes = 0
-  // What each consumed row cost to FETCH, as stored. With a projection the
-  // response bytes above can be tiny while the SELECT still returns whole rows,
-  // so batch sizing must be bounded by this, not by the projected average.
-  let storedBytes = 0
-  let maxStoredRowBytes = 0
+  // What each consumed row cost to FETCH. A projection applied to the fetched
+  // rows leaves the response bytes above tiny while the SELECT still returned
+  // whole rows, so batch sizing must be bounded by this, not by the projected
+  // average. Projected in SQL, the SELECT returns only what is measured.
+  let fetchedBytes = 0
+  let maxFetchedRowBytes = 0
   let hasMore = false
   let anchor = params.seek
   let anchorOffset = params.startOffset
@@ -1492,16 +1498,16 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
     const remaining = Math.max(1, cutBytes === undefined ? budgetBytes : cutBytes - bytes)
     const byAverage = Math.ceil(remaining / avg) + 1
     const varianceCap = Math.ceil((8 * remaining) / Math.max(maxRowBytes, 1))
-    // A batch may hold about one budget's worth of rows AS STORED, whatever the
+    // A batch may hold about one budget's worth of rows AS FETCHED, whatever the
     // projection keeps — without this a narrow selection over wide rows would
     // size the next batch from a few projected bytes and ask for thousands of
-    // full rows. Unprojected, stored and projected bytes agree, so this is the
+    // full rows. When the rows fetched are the rows returned, this is the
     // budget-sized batch the drain already takes.
-    const fetchCap = Math.ceil(budgetBytes / Math.max(1, storedBytes / rows.length))
-    // The stored-size counterpart of varianceCap: once a wide row has been seen,
+    const fetchCap = Math.ceil(budgetBytes / Math.max(1, fetchedBytes / rows.length))
+    // The fetched-size counterpart of varianceCap: once a wide row has been seen,
     // assume the next batch could be all that wide, so a run of small rows
     // cannot talk the average into an oversized SELECT.
-    const storedVarianceCap = Math.ceil((8 * budgetBytes) / Math.max(maxStoredRowBytes, 1))
+    const fetchedVarianceCap = Math.ceil((8 * budgetBytes) / Math.max(maxFetchedRowBytes, 1))
     return Math.max(
       1,
       Math.min(
@@ -1509,91 +1515,185 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
         TABLE_LIMITS.QUERY_BATCH_MAX_ROWS,
         varianceCap,
         fetchCap,
-        storedVarianceCap
+        fetchedVarianceCap
       )
     )
   }
 
-  const runBatch = (
+  const rowFields = boundedRowFields(params.projectInSql ? columnIds : undefined)
+
+  /** Consumes one fetched row in page order; `true` when it ends the page instead. */
+  const consumeRow = (
+    fetchedRow: typeof userTableRows.$inferSelect,
+    returnedRows: Array<typeof userTableRows.$inferSelect>
+  ): boolean => {
+    // Project before measuring — the budget is a promise about the response, so columns the
+    // caller will never receive must not count — and in the caller's column order, which a
+    // projection built in SQL does not keep.
+    const row = columnIds
+      ? { ...fetchedRow, data: projectRowData(fetchedRow.data as RowData, columnIds) }
+      : fetchedRow
+    const rowBytes = Buffer.byteLength(JSON.stringify(row.data))
+    const rowFetchedBytes =
+      columnIds && !params.projectInSql
+        ? Buffer.byteLength(JSON.stringify(fetchedRow.data))
+        : rowBytes
+    if (cutBytes !== undefined && rows.length > 0 && bytes + rowBytes > cutBytes) {
+      // Unbounded queries promise the ENTIRE result — a partial page would be
+      // silent truncation, so fail fast instead (the drain has only fetched
+      // ~budget bytes at this point, never the whole table).
+      if (limit === undefined) {
+        throw new TableQueryValidationError(
+          `Query result exceeds the ${Math.floor(cutBytes / (1024 * 1024))}MB limit. Add a filter or a limit to narrow the result.`,
+          'TABLE_QUERY_RESULT_TOO_LARGE'
+        )
+      }
+      // Bounded page, byte cut opted in: `row` is the witness. Requires a
+      // non-empty page so a single over-budget row is still returned alone.
+      hasMore = true
+      return true
+    }
+    // Limit cut: `row` is the +1 peek witness.
+    if (rows.length === limit) {
+      hasMore = true
+      return true
+    }
+    rows.push(row)
+    returnedRows.push(row)
+    bytes += rowBytes
+    fetchedBytes += rowFetchedBytes
+    consumedSinceAnchor++
+    if (rowBytes > maxRowBytes) maxRowBytes = rowBytes
+    if (rowFetchedBytes > maxFetchedRowBytes) maxFetchedRowBytes = rowFetchedBytes
+    if (keysetValid && row.orderKey) {
+      anchor = { orderKey: row.orderKey, id: row.id }
+      anchorOffset = 0
+      consumedSinceAnchor = 0
+    }
+    return false
+  }
+
+  const runBatch = async (
     trx: DbTransaction,
     batchSeek: TableRowsCursor | undefined,
     batchOffset: number,
     ask: number
   ) => {
     const buildQuery = (executor: DbExecutor) => {
-      // `order_key` is nullable (rows predating the backfill, and forked rows that
-      // inherit a NULL key). A bare row-constructor comparison evaluates to NULL for
-      // those rows, so they are dropped by WHERE — and because NULLs sort LAST under
-      // `ORDER BY order_key, id`, the entire unkeyed tail becomes unreachable and the
-      // drain terminates early reporting `hasMore: false`. Admitting NULLs keeps the
-      // seek set exactly "the tail after the anchor", which is also what the compound
-      // `{k,i,o}` cursor's `offsetFromAnchor` accounting assumes.
-      const seekWhere = batchSeek
-        ? and(
-            baseWhere,
-            sql`(${userTableRows.orderKey} IS NULL OR (${userTableRows.orderKey}, ${userTableRows.id}) > (${batchSeek.orderKey}, ${batchSeek.id}))`
-          )
-        : baseWhere
-      const query = executor
-        .select()
+      if (!batchSeek) {
+        const query = executor
+          .select(rowFields)
+          .from(userTableRows)
+          .where(baseWhere)
+          .orderBy(orderBy)
+          .limit(ask)
+        return batchOffset > 0 ? query.offset(batchOffset) : query
+      }
+      // The seek set is "every row after the anchor in `(order_key, id)` order". `order_key` is
+      // nullable (rows predating the backfill, and forked rows that inherit a NULL key) and NULLs
+      // sort LAST, so that set is the keyed rows past the anchor followed by the whole unkeyed
+      // tail — the set the compound `{k,i,o}` cursor's `offsetFromAnchor` counts into. A bare
+      // row-constructor comparison is NULL for unkeyed rows and would drop that tail. Admitting it
+      // with `order_key IS NULL OR (...)` in one WHERE keeps the rows but defeats the
+      // `(table_id, order_key, id)` seek: the scan starts at the table's first key and filters out
+      // every row before the anchor. Each branch below is an index range on its own, each yields
+      // at most the rows the page can reach, and the planner merges the two ordered streams.
+      const reach = ask + batchOffset
+      const keyedPastAnchor = executor
+        .select(rowFields)
         .from(userTableRows)
-        .where(seekWhere)
+        .where(
+          and(
+            baseWhere,
+            sql`(${userTableRows.orderKey}, ${userTableRows.id}) > (${batchSeek.orderKey}, ${batchSeek.id})`
+          )
+        )
         .orderBy(orderBy)
+        .limit(reach)
+      const unkeyedTail = executor
+        .select(rowFields)
+        .from(userTableRows)
+        .where(and(baseWhere, isNull(userTableRows.orderKey)))
+        .orderBy(orderBy)
+        .limit(reach)
+      const query = keyedPastAnchor
+        .unionAll(unkeyedTail)
+        .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
         .limit(ask)
       return batchOffset > 0 ? query.offset(batchOffset) : query
     }
-    return (async () => {
-      const batch = await buildQuery(trx)
-      let cut = false
+    const batch = await buildQuery(trx)
+    let cut = false
+    const returnedRows: Array<typeof userTableRows.$inferSelect> = []
+    for (const fetchedRow of batch) {
+      if (consumeRow(fetchedRow, returnedRows)) {
+        cut = true
+        break
+      }
+    }
+    await params.readProvenance?.capture(trx, returnedRows)
+    return { cut, batchLength: batch.length }
+  }
+
+  /**
+   * A custom sort orders by a key computed from every matching row's `data` — no index holds it,
+   * so each statement that sorts re-reads and detoasts the whole view, however few rows it
+   * returns. Advancing by OFFSET paid that pass once per batch. Instead the order is read as ids
+   * only, in passes that each reach at least as far as a batch would have, and the rows are then
+   * fetched by primary key in the same byte-sized batches, consumed in that order.
+   * The id pass carries the same OFFSET, LIMIT reach, and tiebreak the batches did, and every
+   * statement of the drain reads one REPEATABLE READ snapshot, so the passes and fetches return
+   * exactly what one statement would have: every id read is fetched, in an order that still matches
+   * its values, and the witness row and the next pass's offset count the same rows.
+   */
+  const drainSortedById = async (trx: DbTransaction) => {
+    let idOffset = params.startOffset
+    let idsExhausted = false
+    let pendingIds: string[] = []
+    while (true) {
+      if (pendingIds.length === 0) {
+        if (idsExhausted) return
+        // A bounded page needs its remaining rows plus the witness. An unbounded drain starts
+        // with a few first batches' worth, since most either end there or fail fast at the
+        // budget; any later pass reaches as far as the largest batch could.
+        const idsWanted =
+          limit !== undefined
+            ? limit - rows.length + 1
+            : idOffset === params.startOffset
+              ? 4 * firstBatchCap + 1
+              : Number.POSITIVE_INFINITY
+        const idAsk = Math.min(TABLE_LIMITS.QUERY_BATCH_MAX_ROWS, idsWanted)
+        const idPage = await trx
+          .select({ id: userTableRows.id })
+          .from(userTableRows)
+          .where(baseWhere)
+          .orderBy(orderBy)
+          .limit(idAsk)
+          .offset(idOffset)
+        pendingIds = idPage.map((idRow) => idRow.id)
+        idOffset += pendingIds.length
+        if (pendingIds.length < idAsk) idsExhausted = true
+        if (pendingIds.length === 0) return
+      }
+      const limitRemaining = limit === undefined ? Number.POSITIVE_INFINITY : limit - rows.length
+      const batchIds = pendingIds.splice(0, Math.min(nextBatchRows(), limitRemaining) + 1)
+      const fetched = await trx
+        .select(rowFields)
+        .from(userTableRows)
+        .where(and(baseWhere, inArray(userTableRows.id, batchIds)))
+      const fetchedById = new Map(fetched.map((fetchedRow) => [fetchedRow.id, fetchedRow]))
       const returnedRows: Array<typeof userTableRows.$inferSelect> = []
-      for (const fetchedRow of batch) {
-        // Project before measuring: the budget is a promise about the response,
-        // so columns the caller will never receive must not count against it.
-        const row = columnIds
-          ? { ...fetchedRow, data: projectRowData(fetchedRow.data as RowData, columnIds) }
-          : fetchedRow
-        const rowBytes = Buffer.byteLength(JSON.stringify(row.data))
-        const rowStoredBytes = columnIds
-          ? Buffer.byteLength(JSON.stringify(fetchedRow.data))
-          : rowBytes
-        if (cutBytes !== undefined && rows.length > 0 && bytes + rowBytes > cutBytes) {
-          // Unbounded queries promise the ENTIRE result — a partial page would be
-          // silent truncation, so fail fast instead (the drain has only fetched
-          // ~budget bytes at this point, never the whole table).
-          if (limit === undefined) {
-            throw new TableQueryValidationError(
-              `Query result exceeds the ${Math.floor(cutBytes / (1024 * 1024))}MB limit. Add a filter or a limit to narrow the result.`,
-              'TABLE_QUERY_RESULT_TOO_LARGE'
-            )
-          }
-          // Bounded page, byte cut opted in: `row` is the witness. Requires a
-          // non-empty page so a single over-budget row is still returned alone.
-          hasMore = true
+      let cut = false
+      for (const id of batchIds) {
+        const fetchedRow = fetchedById.get(id)
+        if (fetchedRow && consumeRow(fetchedRow, returnedRows)) {
           cut = true
           break
-        }
-        // Limit cut: `row` is the +1 peek witness.
-        if (rows.length === limit) {
-          hasMore = true
-          cut = true
-          break
-        }
-        rows.push(row)
-        returnedRows.push(row)
-        bytes += rowBytes
-        storedBytes += rowStoredBytes
-        consumedSinceAnchor++
-        if (rowBytes > maxRowBytes) maxRowBytes = rowBytes
-        if (rowStoredBytes > maxStoredRowBytes) maxStoredRowBytes = rowStoredBytes
-        if (keysetValid && row.orderKey) {
-          anchor = { orderKey: row.orderKey, id: row.id }
-          anchorOffset = 0
-          consumedSinceAnchor = 0
         }
       }
       await params.readProvenance?.capture(trx, returnedRows)
-      return { cut, batchLength: batch.length }
-    })()
+      if (cut) return
+    }
   }
 
   /**
@@ -1608,10 +1708,17 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
    * still takes its own snapshot, so a batch sees exactly what a separate transaction would have.
    * Under REPEATABLE READ (the provenance path) the batches now share one snapshot instead of
    * taking one each, which is strictly more consistent: a row and the sidecar captured for it can
-   * no longer come from different points in time across a batch boundary.
+   * no longer come from different points in time across a batch boundary. A sorted drain always
+   * takes it: its id passes and row fetches are separate statements that only agree inside one
+   * snapshot. The transaction is read-only, so it can never fail serialization.
    */
+  const drainsSortedById = sorted && !params.seek
   await withReadGuards(
     async (trx) => {
+      if (drainsSortedById) {
+        await drainSortedById(trx)
+        return
+      }
       while (true) {
         const limitRemaining = limit === undefined ? Number.POSITIVE_INFINITY : limit - rows.length
         const target = Math.min(nextBatchRows(), limitRemaining)
@@ -1627,7 +1734,7 @@ export async function fetchRowsBounded(params: BoundedFetchParams): Promise<Boun
         if (batchLength < ask) break
       }
     },
-    { seqscanOff: sorted, repeatableRead: Boolean(params.readProvenance) }
+    { seqscanOff: sorted, repeatableRead: drainsSortedById || Boolean(params.readProvenance) }
   )
 
   return {

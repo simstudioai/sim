@@ -33,7 +33,6 @@ export class MockWorkspaceBillingAccountRemovalError extends Error {
 export const workspacesUtilsMockFns = {
   mockGetWorkspaceBillingSettings: vi.fn(),
   mockGetWorkspaceBilledAccountUserId: vi.fn(),
-  mockGetWorkspaceOrganizationId: vi.fn(),
   mockListAccessibleWorkspaceRowsForUser: vi.fn(),
   mockTransferWorkspaceOwnershipToBilledAccountForMemberRemovalTx: vi.fn(),
   mockReassignWorkflowOwnershipForWorkspaceMemberRemovalTx: vi.fn(),
@@ -72,7 +71,6 @@ export const workspacesUtilsMock = {
   WorkspaceBillingAccountRemovalError: MockWorkspaceBillingAccountRemovalError,
   getWorkspaceBillingSettings: workspacesUtilsMockFns.mockGetWorkspaceBillingSettings,
   getWorkspaceBilledAccountUserId: workspacesUtilsMockFns.mockGetWorkspaceBilledAccountUserId,
-  getWorkspaceOrganizationId: workspacesUtilsMockFns.mockGetWorkspaceOrganizationId,
   listAccessibleWorkspaceRowsForUser: workspacesUtilsMockFns.mockListAccessibleWorkspaceRowsForUser,
   transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx:
     workspacesUtilsMockFns.mockTransferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,

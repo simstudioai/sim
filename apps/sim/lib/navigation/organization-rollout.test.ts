@@ -45,46 +45,39 @@ describe('organization rollout during impersonation', () => {
     mocks.platformAdmin.mockImplementation(async (userId: string) => userId === 'platform-admin')
   })
 
-  it.each([
-    { knowledge: false, groups: false },
-    { knowledge: false, groups: true },
-    { knowledge: true, groups: false },
-    { knowledge: true, groups: true },
-  ])('uses the customer organization for both gates: %j', async ({ knowledge, groups }) => {
-    const flags: FeatureFlagsConfig = {
-      'knowledge-member-access': {
-        orgIds: ['admin-org', ...(knowledge ? ['customer-org'] : [])],
-        userIds: ['platform-admin'],
-        adminEnabled: true,
-      },
-      'credential-groups': {
-        orgIds: ['admin-org', ...(groups ? ['customer-org'] : [])],
-        userIds: ['platform-admin'],
-        adminEnabled: true,
-      },
-    }
-    mocks.appConfig.mockResolvedValue(flags)
+  it.each([false, true])(
+    'uses the customer organization for the Search gate (enabled: %s)',
+    async (knowledge) => {
+      const flags: FeatureFlagsConfig = {
+        'knowledge-member-access': {
+          orgIds: ['admin-org', ...(knowledge ? ['customer-org'] : [])],
+          userIds: ['platform-admin'],
+          adminEnabled: true,
+        },
+      }
+      mocks.appConfig.mockResolvedValue(flags)
 
-    await expect(resolveAppEntryPath({ user: { id: 'platform-admin' } })).resolves.toBe(
-      '/o/admin-org/home'
-    )
+      await expect(resolveAppEntryPath({ user: { id: 'platform-admin' } })).resolves.toBe(
+        '/o/admin-org/home'
+      )
 
-    const impersonatedSession = {
-      user: { id: 'customer-member' },
-      session: { impersonatedBy: 'platform-admin', activeOrganizationId: 'customer-org' },
-    }
-    await expect(resolveAppEntryPath(impersonatedSession)).resolves.toBe(
-      knowledge && groups ? '/o/customer-org/home' : '/workspace'
-    )
-    expect(mocks.landing).toHaveBeenLastCalledWith('customer-member', 'customer-org')
-    expect(mocks.platformAdmin).not.toHaveBeenCalled()
+      const impersonatedSession = {
+        user: { id: 'customer-member' },
+        session: { impersonatedBy: 'platform-admin', activeOrganizationId: 'customer-org' },
+      }
+      await expect(resolveAppEntryPath(impersonatedSession)).resolves.toBe(
+        knowledge ? '/o/customer-org/home' : '/workspace'
+      )
+      expect(mocks.landing).toHaveBeenLastCalledWith('customer-member', 'customer-org')
+      expect(mocks.platformAdmin).not.toHaveBeenCalled()
 
-    if (knowledge && groups) {
-      await expect(requireOrganizationSearchAvailable('customer-org')).resolves.toBeUndefined()
-    } else {
-      await expect(requireOrganizationSearchAvailable('customer-org')).rejects.toMatchObject({
-        code: 'forbidden',
-      })
+      if (knowledge) {
+        await expect(requireOrganizationSearchAvailable('customer-org')).resolves.toBeUndefined()
+      } else {
+        await expect(requireOrganizationSearchAvailable('customer-org')).rejects.toMatchObject({
+          code: 'forbidden',
+        })
+      }
     }
-  })
+  )
 })

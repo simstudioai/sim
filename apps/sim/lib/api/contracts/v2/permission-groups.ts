@@ -43,7 +43,7 @@ export const v2PermissionGroupSchema = z
     name: z.string().describe('Group name, unique within the organization.'),
     description: z.string().nullable().describe('Optional description of the group.'),
     config: permissionGroupFullConfigSchema.describe(
-      'Resolved restrictions. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none.'
+      'Resolved group settings. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none. defaultAgentModel selects the default for new Agent blocks without restricting model selection.'
     ),
     isDefault: z
       .boolean()
@@ -65,7 +65,7 @@ export const v2PermissionGroupSchema = z
   .meta({
     id: 'V2PermissionGroup',
     title: 'Permission group',
-    description: 'An organization permission group and its resolved restrictions.',
+    description: 'An organization permission group and its resolved settings.',
   })
 export type V2PermissionGroup = z.output<typeof v2PermissionGroupSchema>
 
@@ -114,9 +114,7 @@ export const v2CreatePermissionGroupBodySchema = createPermissionGroupBodySchema
       'Workspace IDs targeted by a non-default group. Required when creating a non-default group; omit for a default group.'
     ),
     config: configPatchSchema
-      .describe(
-        'Permission restrictions to set. Omitted keys use the default permission configuration.'
-      )
+      .describe('Group settings to set. Omitted keys use the default permission configuration.')
       .optional(),
   })
   .strict()
@@ -129,7 +127,7 @@ export const v2UpdatePermissionGroupBodySchema = updatePermissionGroupBodySchema
   .safeExtend({
     config: configPatchSchema
       .describe(
-        'Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list.'
+        'Patch of group settings. Omitted keys remain unchanged; each supplied array replaces that entire list.'
       )
       .optional(),
   })

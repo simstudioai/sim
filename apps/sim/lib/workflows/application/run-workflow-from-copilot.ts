@@ -94,7 +94,10 @@ interface SnapshotCopilotRunInput extends BaseCopilotRunInput {
 export interface RunFromBlockFromCopilotInput extends SnapshotCopilotRunInput {}
 export interface RunBlockFromCopilotInput extends SnapshotCopilotRunInput {}
 
-async function loadDefinition(input: BaseCopilotRunInput, workspaceId: string) {
+async function loadDefinition(
+  input: Pick<BaseCopilotRunInput, 'workflowId' | 'useDraftState'>,
+  workspaceId: string
+) {
   if (input.useDraftState) return loadWorkflowFromNormalizedTables(input.workflowId)
   try {
     return await loadDeployedWorkflowState(input.workflowId, workspaceId)
@@ -104,8 +107,20 @@ async function loadDefinition(input: BaseCopilotRunInput, workspaceId: string) {
   }
 }
 
-async function resolveTriggerExecution(params: {
-  input: TriggerCopilotRunInput
+export type TriggerExecutionRequest = Pick<
+  TriggerCopilotRunInput,
+  | 'workflowId'
+  | 'useDraftState'
+  | 'triggerBlockId'
+  | 'workflowInput'
+  | 'hasWorkflowInput'
+  | 'useMockPayload'
+  | 'inputFromExecutionId'
+>
+
+/** Picks the workflow's runnable trigger and validates the run input against it. */
+export async function resolveTriggerExecution(params: {
+  input: TriggerExecutionRequest
   workspaceId: string
 }): Promise<{ triggerBlockId: string; input: unknown }> {
   const state = await loadDefinition(params.input, params.workspaceId)

@@ -161,6 +161,42 @@ describe('execution data storage', () => {
   )
 })
 
+describe('bounded drain archive reads', () => {
+  it('rejects a drain archive whose authorization scope cannot be resolved', async () => {
+    const data = {
+      [TRACE_STORE_REF_KEY]: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_bbbbbbbbbbbb',
+        kind: 'object',
+        size: 128,
+        key: 'execution/execution-1/large-value-lv_bbbbbbbbbbbb.json',
+        executionId: 'execution-1',
+      },
+    }
+    await expect(
+      materializeExecutionData(data, { ...CONTEXT, workflowId: null, maxBytes: 1024 })
+    ).rejects.toThrow(/scope|workflow/i)
+  })
+
+  it('rejects an archive above the caller budget instead of returning an incomplete success', async () => {
+    const data = {
+      [TRACE_STORE_REF_KEY]: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_bbbbbbbbbbbb',
+        kind: 'object',
+        size: 2048,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_bbbbbbbbbbbb.json',
+        executionId: 'execution-1',
+      },
+    }
+    await expect(materializeExecutionData(data, { ...CONTEXT, maxBytes: 1024 })).rejects.toThrow(
+      /record.*(bytes|size|limit)/i
+    )
+  })
+})
+
 describe('projectExecutionDataForDisplay', () => {
   it('projects authoritative state-only block outputs without mutating execution state', async () => {
     const executionData = {

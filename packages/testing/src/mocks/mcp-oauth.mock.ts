@@ -5,7 +5,7 @@ import { vi } from 'vitest'
  *
  * @example
  * ```ts
- * import { mcpOauthMockFns } from '@sim/testing'
+ * import { mcpOauthMockFns } from '@sim/testing/mocks/mcp-oauth.mock'
  *
  * mcpOauthMockFns.mockGetOrCreateOauthRow.mockResolvedValue({ id: 'oauth-row-1', ... })
  * ```

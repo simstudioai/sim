@@ -1,12 +1,9 @@
 import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { tableConstantsMock, tableConstantsMockFns } from '@sim/testing/mocks/table-constants.mock'
 import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
 import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-trigger.mock'
-import {
-  tableTtlAvailabilityMock,
-  tableTtlAvailabilityMockFns,
-} from '@sim/testing/mocks/table-ttl-availability.mock'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -17,12 +14,8 @@ vi.unmock('drizzle-orm')
 const mockDeleteExecute = vi.fn()
 
 vi.mock('@/lib/table/events', () => tableEventsMock)
-vi.mock('@/lib/table/constants', () => ({
-  getDeleteSnapshotBatchSize: () => 500,
-  TABLE_LIMITS: { DELETE_SNAPSHOT_BATCH_MAX_BYTES: 32 * 1024 * 1024 },
-}))
+vi.mock('@/lib/table/constants', () => tableConstantsMock)
 vi.mock('@/lib/table/service', () => tableServiceMock)
-vi.mock('@/lib/table/ttl-availability', () => tableTtlAvailabilityMock)
 vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 
 import { runCleanupTableRowTtl } from '@/background/cleanup-table-row-ttl'
@@ -31,7 +24,6 @@ const mockListExecute = dbChainMockFns.execute as Mock
 const { info: mockLoggerInfo, error: mockLoggerError } = getMockLogger('CleanupTableRowTtl')
 const { mockSignalTableRowsChanged } = tableEventsMockFns
 const { mockWithLockedTable } = tableServiceMockFns
-const { mockIsTableRowTtlEnabled } = tableTtlAvailabilityMockFns
 const { mockFireTableTrigger } = tableTriggerMockFns
 
 const dialect = new PgDialect()
@@ -61,7 +53,7 @@ function returnedRows(count: number, start = 1, createdAt = '2026-01-01T00:00:00
 
 describe('table row TTL cleanup', () => {
   beforeEach(() => {
-    mockIsTableRowTtlEnabled.mockResolvedValue(true)
+    tableConstantsMockFns.mockGetDeleteSnapshotBatchSize.mockReturnValue(500)
     mockListExecute.mockResolvedValue([{ id: table.id, workspaceId: table.workspaceId }])
     mockWithLockedTable.mockImplementation(
       async (

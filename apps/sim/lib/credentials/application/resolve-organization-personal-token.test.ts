@@ -22,6 +22,7 @@ import {
   organizationAuthorizationMockFns,
 } from '@sim/testing/mocks/organization-authorization.mock'
 import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { simSearchConnectorsMock } from '@sim/testing/mocks/sim-search-connectors.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
@@ -50,6 +51,7 @@ vi.mock('@/lib/integrations/tool-projection', () => ({
   projectIntegrationToolsForViewer: hoisted.projection,
 }))
 vi.mock('@/lib/sim-search/connectors', () => ({
+  ...simSearchConnectorsMock,
   SEARCH_CONNECTORS: [
     { type: 'drive', providerId: 'google-drive', meta: { name: 'Google Drive' } },
   ],

@@ -83,6 +83,23 @@ describe('workbench file cancellation', () => {
     })
   })
 
+  it('asks the reconnect for the idle lease, which can outlast the runtime cap', async () => {
+    const IDLE_MS = 20 * 60_000
+    const capAtMs = Date.now() + 60_000
+    let leaseEndAtMs = capAtMs
+    find.mockImplementation(async (_key: string, options: { lifetimeMs?: number }) => {
+      if (options.lifetimeMs !== undefined) leaseEndAtMs = Date.now() + options.lifetimeMs
+      return {
+        readFileWithLimit: read,
+        extendLifetime: async (lifetimeMs: number) => {
+          leaseEndAtMs = Math.min(Date.now() + lifetimeMs, capAtMs)
+        },
+      }
+    })
+    expect(await readSessionSandboxFile('chat', 'input.txt')).toMatchObject({ outcome: 'read' })
+    expect(leaseEndAtMs).toBeGreaterThanOrEqual(Date.now() + IDLE_MS - 1000)
+  })
+
   it('does not write if Stop arrives during the sandbox lookup', async () => {
     const controller = new AbortController()
     find.mockImplementation(async () => {

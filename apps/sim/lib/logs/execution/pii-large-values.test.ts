@@ -2,11 +2,11 @@ import {
   executionPayloadStoreMock,
   executionPayloadStoreMockFns,
 } from '@sim/testing/mocks/execution-payload-store.mock'
+import { maskClientMock, maskClientMockFns } from '@sim/testing/mocks/mask-client.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCompact, mockMaskBatch } = vi.hoisted(() => ({
+const { mockCompact } = vi.hoisted(() => ({
   mockCompact: vi.fn(),
-  mockMaskBatch: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
@@ -23,9 +23,7 @@ vi.mock('@/lib/execution/payloads/materialization.server', () => {
     },
   }
 })
-vi.mock('@/lib/guardrails/mask-client', () => ({
-  maskPIIBatchViaHttp: mockMaskBatch,
-}))
+vi.mock('@/lib/guardrails/mask-client', () => maskClientMock)
 
 import type { LargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
@@ -35,6 +33,7 @@ import {
 } from '@/lib/logs/execution/pii-large-values'
 import { PiiRedactionError } from '@/lib/logs/execution/pii-redaction'
 
+const mockMaskBatch = maskClientMockFns.mockMaskPIIBatchViaHttp
 const mockMaterializeRef = executionPayloadStoreMockFns.mockMaterializeLargeValueRef
 const mockStoreLargeValue = executionPayloadStoreMockFns.mockStoreLargeValue
 
@@ -79,7 +78,10 @@ function makeManifest(
 }
 
 function installDefaultMocks() {
-  mockMaskBatch.mockImplementation(async (texts: string[]) => texts.map((t) => `MASKED(${t})`))
+  mockMaskBatch.mockImplementation(async (texts: string[]) => ({
+    masked: texts.map((t) => `MASKED(${t})`),
+    scrubbedCount: 0,
+  }))
   // compact echoes its input so we can assert the masked content is what's re-stored.
   mockCompact.mockImplementation(async (value: unknown) => value)
   mockMaterializeRef.mockImplementation(async (ref: { id: string }) => chunkData.get(ref.id))

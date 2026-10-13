@@ -25,10 +25,12 @@ import {
   updateWorkspaceFileDimensionsContract,
 } from '@/lib/api/contracts/workspace-files'
 import { uploadWorkspaceFileSession } from '@/lib/uploads/client/session-upload'
+import { FileTextSizeError, readFileText } from '@/lib/uploads/client/text-content'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { UserFile } from '@/executor/types'
 import { findWorkspaceFileBySrc } from '@/hooks/queries/utils/find-workspace-file-by-src'
+import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { type ImageDimensionsSource, useFileContentSource } from '@/hooks/use-file-content-source'
 
 const logger = createLogger('WorkspaceFilesQuery')
@@ -291,7 +293,7 @@ async function fetchWorkspaceFileContent(url: string, signal?: AbortSignal): Pro
     throw new Error('Failed to fetch file content')
   }
 
-  return response.text()
+  return readFileText(response)
 }
 
 /**
@@ -336,6 +338,7 @@ export function useWorkspaceFileContent(
     },
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: WORKSPACE_FILE_CONTENT_STALE_TIME,
+    retry: (failureCount, error) => failureCount < 1 && !(error instanceof FileTextSizeError),
     refetchOnWindowFocus: options?.refetchOnWindowFocus === false ? false : 'always',
     refetchInterval: options?.refetchInterval ?? false,
   })
@@ -634,6 +637,9 @@ export function useUpdateWorkspaceFileContent() {
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
       })
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.record(variables.workspaceId, variables.fileId),
+      })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onError: (error) => {
@@ -797,6 +803,7 @@ export function useRestoreWorkspaceFile() {
       toast.error(toError(err).message)
     },
     onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() })
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
       })

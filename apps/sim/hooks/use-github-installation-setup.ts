@@ -18,7 +18,7 @@ import {
   useGitHubSearchSetup,
   useStartGitHubSearchSetup,
 } from '@/hooks/queries/github-search-setup'
-import { fetchOAuthCredentials, oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
+import { fetchOAuthCredentials, oauthCredentialKeys } from '@/hooks/queries/oauth/credentials'
 import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
 
 interface GitHubInstallationSetupProps {

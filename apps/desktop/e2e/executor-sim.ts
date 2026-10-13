@@ -1,7 +1,10 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import type { Socket } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   type ElectronApplication,
@@ -9,6 +12,7 @@ import {
   expect,
   type Page,
 } from '@playwright/test'
+import { getErrorMessage } from '@sim/utils/errors'
 
 /**
  * A fixture Sim that speaks the background executor's device protocol (register, inbox,
@@ -68,8 +72,10 @@ export class FixtureSim {
   readonly streams = new Map<string, Set<ServerResponse>>()
   readonly imported: ImportedEntry[] = []
   enabled = true
-  offline = false
+  /** Connections reset while the network was cut. */
   droppedWhileOffline = 0
+  private offline = false
+  private readonly sockets = new Set<Socket>()
   private server: Server | null = null
   origin = ''
   private nextToken = 0
@@ -77,6 +83,15 @@ export class FixtureSim {
   async start(): Promise<void> {
     this.server = createServer((request, response) => {
       void this.handle(request, response)
+    })
+    this.server.on('connection', (socket) => {
+      if (this.offline) {
+        this.droppedWhileOffline += 1
+        socket.destroy()
+        return
+      }
+      this.sockets.add(socket)
+      socket.on('close', () => this.sockets.delete(socket))
     })
     await new Promise<void>((resolve) => this.server?.listen(0, '127.0.0.1', resolve))
     const address = this.server.address()
@@ -88,6 +103,19 @@ export class FixtureSim {
     for (const streams of this.streams.values()) for (const stream of streams) stream.destroy()
     this.server?.closeAllConnections()
     await new Promise<void>((resolve) => this.server?.close(() => resolve()))
+  }
+
+  /**
+   * Cuts the network between the app and Sim: every open connection drops, the doorbell stream and
+   * kept-alive request sockets included, and every new one is reset until {@link reconnect}.
+   */
+  disconnect(): void {
+    this.offline = true
+    for (const socket of this.sockets) socket.destroy()
+  }
+
+  reconnect(): void {
+    this.offline = false
   }
 
   reset(): void {
@@ -137,6 +165,13 @@ export class FixtureSim {
   approve(toolCallId: string): void {
     const call = this.requireCall(toolCallId)
     call.status = 'pending'
+    this.ring(call.deviceId, 'approval')
+  }
+
+  /** The user declines a held call: Sim settles it without the device and rings again. */
+  decline(toolCallId: string): void {
+    const call = this.requireCall(toolCallId)
+    call.status = 'cancelled'
     this.ring(call.deviceId, 'approval')
   }
 
@@ -219,11 +254,6 @@ export class FixtureSim {
     const url = new URL(request.url ?? '/', this.origin)
     const path = url.pathname
     this.requests.push(`${request.method} ${path}`)
-    if (path.startsWith('/api/desktop/') && this.offline) {
-      this.droppedWhileOffline += 1
-      request.socket.destroy()
-      return
-    }
     if (path === '/api/auth/get-session') {
       this.json(
         response,
@@ -404,6 +434,12 @@ export class FixtureSim {
   }
 }
 
+/**
+ * Launches the app against the fixture Sim. Its shells are zsh with an empty config directory, so
+ * what they do is the app's and not this machine's: a developer's `.zshrc` can stop at a question
+ * (oh-my-zsh asks before updating) and hold the first prompt for as long as nobody answers it.
+ * The terminal's handling of slow and stalled startup files has its own tests.
+ */
 export async function launch(
   sim: FixtureSim,
   userData: string,
@@ -414,6 +450,8 @@ export async function launch(
     cwd: DESKTOP_DIR,
     env: {
       ...process.env,
+      SHELL: '/bin/zsh',
+      ZDOTDIR: mkdtempSync(join(tmpdir(), 'sim-e2e-zdotdir-')),
       SIM_DESKTOP_ORIGIN: sim.origin,
       SIM_DESKTOP_USER_DATA: userData,
       ...env,
@@ -425,6 +463,7 @@ export async function launch(
   app.context().pages().forEach(leaveDialogsToDesktop)
   app.context().on('page', leaveDialogsToDesktop)
   const window = await app.firstWindow()
+  await window.waitForURL((url) => url.origin === sim.origin, { waitUntil: 'load' })
   return { app, window }
 }
 
@@ -457,6 +496,25 @@ export async function settled(
     .poll(() => sim.requireCall(toolCallId).completions.length, { timeout })
     .toBeGreaterThan(0)
   return sim.requireCall(toolCallId).completions[0] as Completion
+}
+
+/**
+ * Answers a shell dialog with one of its buttons. The dialog destroys its window as soon as the
+ * answer reaches the main process, which can happen before Chromium acknowledges the click to
+ * Playwright; the click then rejects with a closed target although the answer went through. The
+ * window closing is the proof the answer landed, so that is what this waits for.
+ */
+export async function answerShellDialog(dialog: Page, button: string): Promise<void> {
+  const closed = dialog.waitForEvent('close')
+  await dialog
+    .getByRole('button', { name: button, exact: true })
+    .click()
+    .catch((error: unknown) => {
+      if (!getErrorMessage(error).includes('Target page, context or browser has been closed')) {
+        throw error
+      }
+    })
+  await closed
 }
 
 export function refFor(outline: string, name: string): number {

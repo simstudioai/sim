@@ -1,11 +1,13 @@
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import type {
   PersistedContentBlock,
   PersistedToolCall,
   PersistedToolState,
 } from '@/lib/api/contracts/copilot-messages'
 import { buildMothershipErrorTag } from '@/lib/mothership/chat/error-tag'
+import { isStoredAssistantMessage } from '@/lib/mothership/chat/live-message-id'
 import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import {
   mergeAndRedactPersistedBlocks,
@@ -179,6 +181,77 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     }
     if (result.error !== undefined) strippedResult.error = result.error
     return { ...block, toolCall: { ...toolCall, result: strippedResult } }
+  })
+  return changed ? { ...message, contentBlocks } : message
+}
+
+/**
+ * Longest tool-call param string the chat UI receives verbatim. Every reader of
+ * a settled call's params derives a one-line title or a short id from them
+ * (path, toolId, operation, reason, url, argv, …), so 1024 code units keeps
+ * every value a renderer shows while dropping the bulk payloads the model
+ * wrote: sandbox stdout, `run_code` source, subagent task briefs.
+ */
+const MAX_DISPLAYED_PARAM_STRING_LENGTH = 1024
+const PARAM_TRUNCATION_SUFFIX = '…'
+
+/** Returns `value` itself when nothing in it exceeds the limit. */
+function compactParamValue(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return value.length > MAX_DISPLAYED_PARAM_STRING_LENGTH
+      ? truncateAtCodePoint(
+          value,
+          MAX_DISPLAYED_PARAM_STRING_LENGTH - PARAM_TRUNCATION_SUFFIX.length,
+          PARAM_TRUNCATION_SUFFIX
+        )
+      : value
+  }
+  if (Array.isArray(value)) {
+    let changed = false
+    const entries = value.map((entry) => {
+      const compacted = compactParamValue(entry)
+      if (compacted !== entry) changed = true
+      return compacted
+    })
+    return changed ? entries : value
+  }
+  return isPlainRecord(value) ? compactParamRecord(value) : value
+}
+
+function compactParamRecord(record: Record<string, unknown>): Record<string, unknown> {
+  let changed = false
+  const entries = Object.entries(record).map(([key, entry]) => {
+    const compacted = compactParamValue(entry)
+    if (compacted !== entry) changed = true
+    return [key, compacted] as const
+  })
+  return changed ? Object.fromEntries(entries) : record
+}
+
+/**
+ * Truncate long strings inside tool calls' params, keeping every key, array
+ * entry and short scalar. On the live assistant message a pending, executing or
+ * awaiting-approval call keeps its params whole: a reloaded executing workflow
+ * tool re-runs from them and the permission card previews them. A stored turn
+ * has ended, so its unfinished calls render as interrupted and are compacted
+ * like settled ones.
+ *
+ * A projection for the transcript served to the chat UI only. Stored rows keep
+ * full params: data drains export them verbatim, and fork and import copy
+ * them. Idempotent — a truncated value fits the limit — so it returns the
+ * original reference when there is nothing to compact.
+ */
+export function compactToolCallParams(message: PersistedMessage): PersistedMessage {
+  if (!message.contentBlocks?.length) return message
+  const stored = isStoredAssistantMessage(message)
+  let changed = false
+  const contentBlocks = message.contentBlocks.map((block) => {
+    const toolCall = block.toolCall
+    if (!toolCall?.params || (!stored && isUnsettledToolState(toolCall.state))) return block
+    const params = compactParamRecord(toolCall.params)
+    if (params === toolCall.params) return block
+    changed = true
+    return { ...block, toolCall: { ...toolCall, params } }
   })
   return changed ? { ...message, contentBlocks } : message
 }

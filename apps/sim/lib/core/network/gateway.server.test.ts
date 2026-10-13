@@ -43,11 +43,14 @@ const admissions: Array<{
 }> = []
 let originRequests = 0
 let receivedHeaders: Record<string, unknown> = {}
+let receivedTarget = ''
 const proxiedPorts = new Set<number>()
 const secureOrigin = httpsServer(async (req, res) => {
   res.setHeader('x-via-proxy', proxiedPorts.has(req.socket.remotePort ?? 0) ? 'yes' : 'no')
   originRequests++
   receivedHeaders = req.headers
+  receivedTarget = req.url ?? ''
+  res.setHeader('x-request-target', receivedTarget)
   if (req.url === '/redirect') {
     res.writeHead(302, { location: '/done' })
     res.end()
@@ -56,7 +59,7 @@ const secureOrigin = httpsServer(async (req, res) => {
   if (req.url === '/wait') return
   const chunks: Buffer[] = []
   for await (const chunk of req) chunks.push(Buffer.from(chunk))
-  res.end(req.method === 'POST' ? Buffer.concat(chunks) : 'tls reached')
+  res.end(req.method === 'POST' || req.method === 'PUT' ? Buffer.concat(chunks) : 'tls reached')
 })
 const proxy = httpsServer()
 proxy.on('connect', (req, socket, head) => {
@@ -150,6 +153,28 @@ const url = () => 'https://origin.invalid'
 const options = { profile: 'selfHostedService' as const }
 
 describe('organization gateways over real TLS CONNECT sockets', () => {
+  it('preserves signed request targets and origin authentication through the gateway', async () => {
+    const target = '/exports/../raw/audit_logs/event%2Fpart.ndjson?x-id=PutObject&token=%2B'
+    const response = await runWithOutboundOrganization('org_a', () =>
+      secureFetchWithPinnedIP(`${url()}${target}`, '1.1.1.1', {
+        ...options,
+        requestTarget: target,
+        method: 'PUT',
+        body: '{"id":"event"}\n',
+        headers: {
+          authorization: 'AWS4-HMAC-SHA256 signed-request',
+          'Proxy-Authorization': 'must-not-reach-origin',
+        },
+      })
+    )
+    expect(await response.text()).toBe('{"id":"event"}\n')
+    expect(response.headers.get('x-via-proxy')).toBe('yes')
+    expect(receivedTarget).toBe(target)
+    expect(receivedHeaders.authorization).toBe('AWS4-HMAC-SHA256 signed-request')
+    expect(receivedHeaders['proxy-authorization']).toBeUndefined()
+    expect(admissions.at(-1)?.destination).toBe('1.1.1.1:443')
+  })
+
   it('keeps an upgraded tunnel usable after five minutes', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     let tunnel: Socket | undefined
@@ -312,7 +337,7 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
         },
       }
     )
-    expect(admissions.length).toBe(start + 3)
+    expect(admissions.length).toBe(start + 4)
     expect(
       admissions.slice(start).every((entry) => entry.token === `Bearer ${'a'.repeat(48)}`)
     ).toBe(true)

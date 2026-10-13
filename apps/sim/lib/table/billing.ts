@@ -146,7 +146,7 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
 
     const limits = planLimits[planName] ?? planLimits.free
 
-    logger.info('Retrieved workspace table limits', {
+    logger.debug('Retrieved workspace table limits', {
       workspaceId,
       billedAccountUserId: payer.billedAccountUserId,
       planName,
@@ -193,7 +193,7 @@ function cacheLimits(workspaceId: string, limits: TablePlanLimits): void {
  * answers 400 and the workspace table ceiling answers 403
  * (`WORKSPACE_RESOURCE_LIMIT_REACHED`), where 409 arguably fits both. Both are
  * left as shipped — this error is also reachable from the internal surface,
- * which is not behind the v2 flag, so unifying them is a deliberate
+ * which is not part of the v2 surface, so unifying them is a deliberate
  * cross-surface change rather than part of a v2-only pass.
  */
 export class TableRowLimitError extends OrchestrationError {

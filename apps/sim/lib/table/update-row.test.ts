@@ -3,13 +3,7 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
 import { tableRowsLiveSchemaMock } from '@sim/testing/mocks/table-rows-live-schema.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  batchUpdateRows,
-  insertRow,
-  replaceTableRows,
-  updateRow,
-  upsertRow,
-} from '@/lib/table/rows/service'
+import { batchUpdateRows, replaceTableRows, updateRow, upsertRow } from '@/lib/table/rows/service'
 import type { TableDefinition } from '@/lib/table/types'
 import { checkUniqueConstraintsDb, getUniqueColumns } from '@/lib/table/validation'
 
@@ -169,66 +163,13 @@ describe('updateRow — partial merge', () => {
   })
 })
 
-describe('insertRow — position race safety (migration 0198 + advisory lock)', () => {
+describe('upsertRow — conflict target', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     resetDbChainMock()
     vi.mocked(getUniqueColumns).mockReturnValue([])
   })
 
-  it('auto-position inserts acquire the per-table advisory lock before reading max(position)', async () => {
-    await expect(
-      insertRow({ tableId: 'tbl-1', data: { name: 'a' }, workspaceId: 'ws-1' }, TABLE, 'req-1')
-    ).rejects.toBeDefined()
-
-    expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
-    expect(findExecutedSqlContaining('hashtextextended')).toBe(true)
-  })
-
-  it('upsertRow skips the row-order lock on the update path (match found)', async () => {
-    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        id: 'row-1',
-        tableId: 'tbl-1',
-        workspaceId: 'ws-1',
-        data: { name: 'Alice', age: 30 },
-        position: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      {
-        id: 'row-1',
-        tableId: 'tbl-1',
-        workspaceId: 'ws-1',
-        data: { name: 'Alice', age: 31 },
-        position: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ])
-
-    await upsertRow(
-      {
-        tableId: 'tbl-1',
-        workspaceId: 'ws-1',
-        data: { name: 'Alice', age: 31 },
-        conflictTarget: 'name',
-      },
-      TABLE,
-      'req-1'
-    )
-
-    expect(findExecutedSqlContaining('SELECT pg_advisory_xact_lock(')).toBe(false)
-  })
-
-  /**
-   * The v2 surface is column-NAME-keyed and resolves `conflictTarget` to its
-   * storage id before this call, so the rejection has to translate back — a
-   * caller that sent `email` cannot act on a `col_…` id it has never seen.
-   */
   it('upsertRow names the conflict column the caller does, not its storage id', async () => {
     const table: TableDefinition = {
       ...TABLE,
@@ -255,66 +196,6 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
         'req-1'
       )
     ).rejects.toThrow('Column "email" is not a unique column. Available unique columns: slug')
-  })
-
-  it('upsertRow acquires the advisory lock on the insert path (no match)', async () => {
-    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
-    // Initial existing-row check + post-lock re-check both find no match.
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-
-    await expect(
-      upsertRow(
-        {
-          tableId: 'tbl-1',
-          workspaceId: 'ws-1',
-          data: { name: 'Bob', age: 25 },
-          conflictTarget: 'name',
-        },
-        TABLE,
-        'req-1'
-      )
-    ).rejects.toBeDefined()
-
-    expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
-  })
-
-  it('upsertRow re-checks after acquiring the lock and switches to UPDATE when a racing tx inserted the row', async () => {
-    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
-    // Initial existing-row check: no match (another tx has not committed yet).
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-    // Post-lock re-check: a racing tx just inserted the row.
-    const racedRow = {
-      id: 'row-raced',
-      tableId: 'tbl-1',
-      workspaceId: 'ws-1',
-      data: { name: 'Bob', age: 25 },
-      position: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-    dbChainMockFns.limit.mockResolvedValueOnce([racedRow])
-    // UPDATE returning the patched row.
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      { ...racedRow, data: { name: 'Bob', age: 26 } },
-    ])
-
-    const result = await upsertRow(
-      {
-        tableId: 'tbl-1',
-        workspaceId: 'ws-1',
-        data: { name: 'Bob', age: 26 },
-        conflictTarget: 'name',
-      },
-      TABLE,
-      'req-1'
-    )
-
-    expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
-    expect(result.operation).toBe('update')
-    expect(result.row.id).toBe('row-raced')
-    expect(dbChainMockFns.update).toHaveBeenCalled()
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })
 

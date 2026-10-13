@@ -11,7 +11,7 @@ import {
   assertLogCostQueryAllowed,
   logProjectionSubjectUserId,
   resolveLogFieldProjection,
-} from '@/lib/logs/log-projection'
+} from '@/lib/logs/projection'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const authorizedListLogsUseCase = defineAuthorizedWorkspaceUseCase({

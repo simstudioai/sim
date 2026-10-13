@@ -38,9 +38,21 @@ async function invoke(
   signal?.throwIfAborted()
   const bridge = getDesktopBridge()
   if (!bridge?.localFiles) throw new Error('Update the Sim desktop app to use native file tools.')
-  const response = await bridge.localFiles(request)
-  signal?.throwIfAborted()
-  return response
+  const onAbort = () => {
+    void bridge
+      .localFiles?.({ operation: 'cancel', toolCallId: request.toolCallId })
+      .catch((error) =>
+        logger.warn('Could not cancel native file access', { error: getErrorMessage(error) })
+      )
+  }
+  signal?.addEventListener('abort', onAbort, { once: true })
+  try {
+    const response = await bridge.localFiles(request)
+    signal?.throwIfAborted()
+    return response
+  } finally {
+    signal?.removeEventListener('abort', onAbort)
+  }
 }
 
 /** The manifest is produced from canonical pending-tool arguments in Electron, never renderer paths. */

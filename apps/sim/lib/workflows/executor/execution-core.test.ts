@@ -19,6 +19,7 @@ import {
   largeValueMetadataMock,
   largeValueMetadataMockFns,
 } from '@sim/testing/mocks/large-value-metadata.mock'
+import { maskClientMock, maskClientMockFns } from '@sim/testing/mocks/mask-client.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import {
@@ -59,7 +60,6 @@ const {
   setExecutionDeadlineAtMock,
   projectDisplayContentMock,
   projectDiagnosticErrorMock,
-  maskBatchMock,
 } = vi.hoisted(() => ({
   mergeSubblockStateWithValuesMock: vi.fn(),
   safeStartMock: vi.fn(),
@@ -81,10 +81,10 @@ const {
   setExecutionDeadlineAtMock: vi.fn(),
   projectDisplayContentMock: vi.fn(),
   projectDiagnosticErrorMock: vi.fn(),
-  maskBatchMock: vi.fn(),
 }))
 
 const getPersonalAndWorkspaceEnvMock = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
+const maskBatchMock = maskClientMockFns.mockMaskPIIBatchViaHttp
 
 afterAll(resetEnvironmentUtilsMock)
 
@@ -97,9 +97,7 @@ const updateWorkflowRunCountsMock = workflowsUtilsMockFns.mockUpdateWorkflowRunC
 
 vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/guardrails/mask-client', () => ({
-  maskPIIBatchViaHttp: maskBatchMock,
-}))
+vi.mock('@/lib/guardrails/mask-client', () => maskClientMock)
 
 vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
@@ -987,9 +985,10 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       uploadFileMock.mockImplementation(async ({ customKey }: { customKey: string }) => ({
         key: customKey,
       }))
-      maskBatchMock.mockImplementation(async (texts: string[]) =>
-        texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>'))
-      )
+      maskBatchMock.mockImplementation(async (texts: string[]) => ({
+        masked: texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>')),
+        scrubbedCount: 0,
+      }))
       executorExecuteMock.mockResolvedValue({
         success: true,
         status: 'completed',

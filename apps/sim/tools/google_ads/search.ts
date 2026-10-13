@@ -1,4 +1,8 @@
-import type { GoogleAdsSearchParams, GoogleAdsSearchResponse } from '@/tools/google_ads/types'
+import type {
+  GoogleAdsApiResponse,
+  GoogleAdsSearchParams,
+  GoogleAdsSearchResponse,
+} from '@/tools/google_ads/types'
 import { validateNumericId } from '@/tools/google_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -25,12 +29,6 @@ export const googleAdsSearchTool: ToolConfig<GoogleAdsSearchParams, GoogleAdsSea
       required: true,
       visibility: 'user-or-llm',
       description: 'Google Ads customer ID (numeric, no dashes)',
-    },
-    developerToken: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Google Ads API developer token',
     },
     managerCustomerId: {
       type: 'string',
@@ -62,7 +60,6 @@ export const googleAdsSearchTool: ToolConfig<GoogleAdsSearchParams, GoogleAdsSea
       const headers: Record<string, string> = {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
-        'developer-token': params.developerToken,
       }
       if (params.managerCustomerId) {
         headers['login-customer-id'] = validateNumericId(
@@ -87,7 +84,7 @@ export const googleAdsSearchTool: ToolConfig<GoogleAdsSearchParams, GoogleAdsSea
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: GoogleAdsApiResponse<Record<string, unknown>> = await response.json()
 
     if (!response.ok) {
       const errorMessage =
@@ -107,7 +104,8 @@ export const googleAdsSearchTool: ToolConfig<GoogleAdsSearchParams, GoogleAdsSea
       success: true,
       output: {
         results: data.results ?? [],
-        totalResultsCount: data.totalResultsCount ? Number(data.totalResultsCount) : null,
+        totalResultsCount:
+          data.totalResultsCount !== undefined ? Number(data.totalResultsCount) : null,
         nextPageToken: data.nextPageToken ?? null,
       },
     }
@@ -115,16 +113,19 @@ export const googleAdsSearchTool: ToolConfig<GoogleAdsSearchParams, GoogleAdsSea
 
   outputs: {
     results: {
-      type: 'json',
-      description: 'Array of result objects from the GAQL query',
+      type: 'array',
+      items: { type: 'object' },
+      description: 'Rows containing only the fields selected by the GAQL query',
     },
     totalResultsCount: {
       type: 'number',
-      description: 'Total number of matching results',
+      nullable: true,
+      description: 'Total matching rows ignoring LIMIT, when returned by Google',
     },
     nextPageToken: {
       type: 'string',
-      description: 'Token for the next page of results',
+      nullable: true,
+      description: 'Token for the next page; keep the same query and customer',
     },
   },
 }

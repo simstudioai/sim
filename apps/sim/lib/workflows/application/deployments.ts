@@ -1,15 +1,26 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalAttribution, toPrincipalActor } from '@sim/auth/principal'
+import {
+  resolvePrincipalAttribution,
+  resolvePrincipalSubjectUserId,
+  toPrincipalActor,
+} from '@sim/auth/principal'
+import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
+import { getErrorMessage } from '@sim/utils/errors'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 import { listLiveWorkflowMcpToolsForWorkflow } from '@/lib/mcp/queries'
 import { notifyWorkflowReverted } from '@/lib/realtime/notify'
 import { listDeployedWebhookUrls } from '@/lib/webhooks/deployed-urls'
 import { requireWorkflowExecutionUserId } from '@/lib/workflows/application/authorization'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
+import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
+import { withWorkflowBlockScope } from '@/lib/workflows/application/workflow-block-scope'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
+import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
+import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import {
   getWorkflowDeploymentSummary,
   performActivateVersion,
@@ -19,8 +30,11 @@ import {
 } from '@/lib/workflows/orchestration'
 import {
   findPreviousDeploymentVersion,
+  loadWorkflowDeploymentVersionState,
   updateDeploymentVersionMetadata,
 } from '@/lib/workflows/persistence/utils'
+
+const logger = createLogger('WorkflowDeployments')
 
 export interface DeployWorkflowInput {
   workflowId: string
@@ -29,6 +43,12 @@ export interface DeployWorkflowInput {
   description?: string
   requestId: string
   idempotencyKey?: string
+  /**
+   * Lint the version this deploy publishes and return the report as `lint`.
+   * Opt-in because it costs reference lookups on every deploy, and only a
+   * surface that presents the findings should pay for them.
+   */
+  lintDeployedVersion?: boolean
 }
 
 export interface UndeployWorkflowInput {
@@ -88,6 +108,53 @@ async function requireMutableWorkflow(workflowId: string): Promise<void> {
   }
 }
 
+/**
+ * How long a deploy waits for its lint. The lint reads credentials, tools, and
+ * table schemas, so a slow lookup would otherwise hold a deploy that has
+ * already committed. The lookups are not cancelled; the deploy only stops
+ * waiting for them.
+ */
+const DEPLOYED_VERSION_LINT_BUDGET_MS = 5_000
+
+/**
+ * Lints the version a deploy admitted. That version serves callers once
+ * activation completes, so it is linted even while activation is still pending.
+ *
+ * Deploy does not refuse on lint: findings are advisory, and some depend on the
+ * identity that runs the workflow. But a caller that deployed without linting
+ * would otherwise first learn of a block that cannot run from a failed live
+ * execution. Linting is best-effort: a failure or an exhausted budget returns
+ * `null` and never fails the deploy that preceded it.
+ */
+async function lintDeployedVersion(
+  context: ActiveWorkflowApplicationContext,
+  deploymentVersionId: string,
+  subjectUserId: string | null
+): Promise<WorkflowLintReport | null> {
+  try {
+    return await withinDeadline(
+      () =>
+        withWorkflowBlockScope(context, async () =>
+          buildWorkflowLintReport(
+            await loadWorkflowDeploymentVersionState(
+              context.workflowId,
+              deploymentVersionId,
+              context.workspaceId
+            ),
+            { workflowId: context.workflowId, workspaceId: context.workspaceId, subjectUserId }
+          )
+        ),
+      Date.now() + DEPLOYED_VERSION_LINT_BUDGET_MS
+    )
+  } catch (error) {
+    logger.warn('Deployed version lint did not complete', {
+      workflowId: context.workflowId,
+      error: getErrorMessage(error),
+    })
+    return null
+  }
+}
+
 export const deployWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.deploy,
   resolveContext: resolvePrincipalWorkflowContext<DeployWorkflowInput>,
@@ -108,8 +175,17 @@ export const deployWorkflow = defineAuthorizedWorkflowUseCase({
       idempotencyKey: input.idempotencyKey,
     })
     if (!result.success) throwDeploymentFailure(result, 'Failed to deploy workflow')
+    const lint =
+      input.lintDeployedVersion && result.deploymentVersionId
+        ? await lintDeployedVersion(
+            context,
+            result.deploymentVersionId,
+            resolvePrincipalSubjectUserId(principal) ?? null
+          )
+        : null
     return {
       ...result,
+      lint,
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
     }

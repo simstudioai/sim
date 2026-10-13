@@ -155,4 +155,30 @@ describe('Confluence live documents', () => {
     expect(page.documents[0]?.accessMetadata).toEqual({ spaceKey: 'ENG' })
     expect(page.documents[2]?.accessMetadata).toEqual({ spaceKey: 'ENG' })
   })
+
+  it('drops native CQL matches that the page and blog post reads cannot open', async () => {
+    const api = client({
+      '/ex/confluence/cloud/wiki/rest/api/search': {
+        results: [
+          { content: { id: '123', type: 'page', title: 'Runbook' } },
+          { content: { id: '77', type: 'attachment', title: 'diagram.png' } },
+          { content: { id: '78', type: 'comment', title: 'Re: Runbook' } },
+          { content: { id: '79', type: 'whiteboard', title: 'Planning' } },
+          { content: { id: '80', type: 'folder', title: 'Archive' } },
+        ],
+        _links: {},
+      },
+    })
+    const page = await searchAtlassian(api, 'confluence', {
+      query: '',
+      native: { provider: 'confluence', query: 'title ~ "runbook"' },
+      limit: 10,
+      scopes: [],
+    })
+    expect(page.documents.map(({ id, kind }) => ({ id, kind }))).toEqual([
+      { id: '123', kind: 'page' },
+    ])
+    expect(page.message).toContain('cannot be read')
+    expect(page.partial).toBe(true)
+  })
 })

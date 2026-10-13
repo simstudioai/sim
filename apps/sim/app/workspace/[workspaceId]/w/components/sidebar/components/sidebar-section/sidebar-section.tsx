@@ -62,7 +62,7 @@ export function SidebarSection({
 
   return (
     <div className={cn('group/section flex flex-col', className)}>
-      <div className='flex h-[18px] shrink-0 items-center'>
+      <div className='flex h-[18px] shrink-0 items-center max-md:pointer-coarse:h-11'>
         {railCollapsed ? (
           <div className={TITLE_ROW_CLASS}>{label}</div>
         ) : (
@@ -82,7 +82,7 @@ export function SidebarSection({
             <ChevronDown
               className={cn(
                 disclosureChevronClass,
-                'opacity-0 group-hover/section:opacity-100 group-focus-visible/toggle:opacity-100',
+                'opacity-0 group-hover/section:opacity-100 group-focus-visible/toggle:opacity-100 max-md:pointer-coarse:opacity-100',
                 !expanded && '-rotate-90'
               )}
             />

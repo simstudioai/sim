@@ -15,6 +15,7 @@ import { executeDashboardUseCase } from '@/lib/mothership/application/execute-da
 import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-file-use-case'
 import { executeCopilotKnowledgeUseCase } from '@/lib/mothership/application/execute-knowledge-use-case'
 import { executeCopilotTableUseCase } from '@/lib/mothership/application/execute-table-use-case'
+import { executeWorkflowTestUseCase } from '@/lib/mothership/application/execute-workflow-test-use-case'
 import { executeCopilotWorkflowUseCase } from '@/lib/mothership/application/execute-workflow-use-case'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
@@ -26,6 +27,7 @@ import {
 } from '@/lib/mothership/tools/server/base-tool'
 import { readTableDefinitionUseCase } from '@/lib/table/application/tables'
 import { readTableViewUseCase } from '@/lib/table/application/views'
+import { getWorkflowTestDetail } from '@/lib/workflow-tests/application/tests'
 import { readWorkflowMetadata } from '@/lib/workflows/application/read-workflow'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 
@@ -94,6 +96,14 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
           if (dashboard?.id !== resource.id)
             throw new OrchestrationError('not_found', 'Dashboard not found')
           resources.push({ ...base, title: dashboard.name })
+          break
+        }
+        case 'test': {
+          const { test } = await executeWorkflowTestUseCase(context, getWorkflowTestDetail, {
+            workspaceId,
+            name: resource.id,
+          })
+          resources.push({ ...base, title: test.title })
           break
         }
         case 'file': {

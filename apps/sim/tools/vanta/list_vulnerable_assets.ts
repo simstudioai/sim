@@ -19,24 +19,26 @@ export const vantaListVulnerableAssetsTool: InternalToolConfig<
     'List the assets associated with vulnerabilities in a Vanta account (servers, repositories, workstations, and more)',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
+
   params: {
-    clientId: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client ID',
+      visibility: 'hidden',
+      description: 'Access token supplied by the saved Vanta credential',
     },
-    clientSecret: {
+    apiDomain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Vanta OAuth application client secret',
-    },
-    region: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Vanta API region: "us" (api.vanta.com, default) or "gov" (api.vanta-gov.com)',
+      visibility: 'hidden',
+      description: 'API origin supplied by the saved Vanta credential',
     },
     q: {
       type: 'string',
@@ -81,9 +83,8 @@ export const vantaListVulnerableAssetsTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       operation: 'vanta_list_vulnerable_assets',
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
+      accessToken: params.accessToken,
+      apiDomain: params.apiDomain,
       q: params.q,
       integrationId: params.integrationId,
       assetType: params.assetType,
@@ -107,7 +108,7 @@ export const vantaListVulnerableAssetsTool: InternalToolConfig<
       type: 'json',
       description:
         'Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page',
-      optional: true,
+      nullable: true,
       properties: VANTA_PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },

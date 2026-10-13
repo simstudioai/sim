@@ -1,2 +1,7 @@
 export { ChangelogActions } from './changelog-actions'
-export { ChangelogTimeline } from './changelog-timeline'
+export { ChangelogArticle } from './changelog-article'
+export { ChangelogHeader } from './changelog-header'
+export { ChangelogImage } from './changelog-image'
+export { ChangelogLayout } from './changelog-layout'
+export { ChangelogList } from './changelog-list'
+export { ChangelogVideo } from './changelog-video'

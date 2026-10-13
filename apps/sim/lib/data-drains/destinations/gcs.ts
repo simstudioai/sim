@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
@@ -152,7 +151,6 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
         action: input.action,
         attempt,
         bucket: input.bucket,
-        error: toError(error).message,
       })
       if (attempt < MAX_ATTEMPTS) {
         await interruptibleSleep(backoffWithJitter(attempt, null), input.signal)
@@ -277,11 +275,10 @@ export const gcsDestination: DrainDestination<GCSDestinationConfig, GCSDestinati
     })
     try {
       await deleteObject({ bucket: config.bucket, objectName: probeName, jwt, signal })
-    } catch (cleanupError) {
+    } catch {
       logger.debug('GCS test write probe cleanup failed (non-fatal)', {
         bucket: config.bucket,
         objectName: probeName,
-        error: cleanupError,
       })
     }
   },

@@ -11,13 +11,13 @@ import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/mothership/request/tools/permissions'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/mothership/request/types'
-import { decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/mothership/vfs/resource-writer'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceRepresentation,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { decodeVfsPathSegments } from '@/lib/vfs/path'
 import type { ResolvedSecretMatcher } from '@/executor/utils/resolved-secret-matcher'
 import {
   createResolvedSecretMatcher,

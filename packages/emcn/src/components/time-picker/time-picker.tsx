@@ -247,12 +247,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
             </div>
           </PopoverAnchor>
 
-          <PopoverContent
-            side='bottom'
-            align='start'
-            sideOffset={4}
-            className='w-auto rounded-md border border-[var(--border-1)] p-2'
-          >
+          <PopoverContent side='bottom' align='start' sideOffset={4} className='w-auto p-2'>
             <div className='flex items-center gap-1.5'>
               <input
                 ref={hourInputRef}

@@ -68,9 +68,16 @@ function IntentAwareChatNavigationLink({
     prefetchTimerRef.current = null
   }, [])
 
+  /**
+   * Only a chat this tab has never loaded is worth reading ahead: a cached one
+   * opens on its cached copy and revalidates on mount, so prefetching it would
+   * reload the transcript for every chat the pointer crosses.
+   */
   const prefetchHistory = () => {
-    if (chatId !== 'new') {
-      void queryClient.prefetchQuery(mothershipChatHistoryQueryOptions(chatId))
+    if (chatId === 'new') return
+    const options = mothershipChatHistoryQueryOptions(chatId)
+    if (queryClient.getQueryData(options.queryKey) === undefined) {
+      void queryClient.prefetchQuery(options)
     }
   }
 

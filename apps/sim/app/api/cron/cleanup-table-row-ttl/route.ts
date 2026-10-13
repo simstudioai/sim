@@ -3,7 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,11 +13,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const authError = verifyCronAuth(request, 'table row TTL cleanup')
     if (authError) return authError
-
-    if (!(await isTableRowTtlEnabled())) {
-      logger.info('Table row TTL cleanup skipped because the feature is disabled')
-      return NextResponse.json({ triggered: false, reason: 'feature-disabled' })
-    }
 
     const queue = await getJobQueue()
     const scheduleWindow = Math.floor(Date.now() / TTL_CLEANUP_INTERVAL_MS)

@@ -5,9 +5,9 @@ import { z } from 'zod'
 import { ChevronLeft, ChevronRight } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Chip, chipVariants } from '../chip/chip'
-import { chipContentLabelClass } from '../chip/chip-chrome'
+import { chipContentLabelClass } from '../chip/chrome'
 import { ChipTimePicker } from '../chip-time-picker/chip-time-picker'
-import { CalendarDayCell } from './calendar-day-cell'
+import { CalendarDayCell } from './day-cell'
 
 const MONTHS = [
   'January',

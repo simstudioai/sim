@@ -17,7 +17,9 @@ import postgres from 'postgres'
 import {
   type V2ExecuteWorkflowBody,
   type V2ExecuteWorkflowData,
+  type V2ResumeWorkflowBody,
   v2ExecuteWorkflowDataSchema,
+  v2WorkflowRunStatusSchema,
 } from '@/lib/api/contracts/v2/workflows'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 
@@ -83,6 +85,17 @@ interface PipelineFixture {
 
 const pipeline = fixtureIds()
 const otherPipeline = fixtureIds()
+const pausePipelines = ['human_in_the_loop', 'human_in_the_loop_v2', 'wait'].map((type) => ({
+  ...fixtureIds(),
+  type,
+}))
+const forkedPause = fixtureIds()
+const siblingPauses = fixtureIds()
+const containerPauses = ['loop', 'parallel'].map((type) => ({
+  ...fixtureIds(),
+  type,
+  inner: generateId(),
+}))
 const branch = {
   workflowId: generateId(),
   start: generateId(),
@@ -225,6 +238,46 @@ async function seed() {
     await seedPipeline(tx, pipeline)
     await seedPipeline(tx, otherPipeline)
     await seedBranch(tx)
+    for (const fixture of [
+      ...pausePipelines,
+      { ...forkedPause, type: 'human_in_the_loop' },
+      { ...siblingPauses, type: 'human_in_the_loop' },
+      ...containerPauses.map((fixture) => ({ ...fixture, type: 'human_in_the_loop' })),
+    ]) {
+      await seedPipeline(tx, fixture)
+      const subBlocks =
+        fixture.type === 'wait'
+          ? {
+              async: { id: 'async', type: 'switch', value: true },
+              timeValue: { id: 'timeValue', type: 'short-input', value: '0.001' },
+              timeUnitLong: { id: 'timeUnitLong', type: 'dropdown', value: 'minutes' },
+            }
+          : {}
+      await tx`update workflow_blocks set type = ${fixture.type}, sub_blocks = ${JSON.stringify(subBlocks)}::text::jsonb where id = ${fixture.slow}`
+    }
+    for (const fixture of [forkedPause, siblingPauses]) {
+      await tx`update workflow_edges set source_block_id = ${fixture.start} where workflow_id = ${fixture.workflowId} and target_block_id = ${fixture.check}`
+    }
+    await tx`update workflow_blocks set type = 'human_in_the_loop', sub_blocks = '{}'::jsonb where id = ${siblingPauses.check}`
+    await tx`update workflow_edges set source_block_id = ${siblingPauses.slow} where workflow_id = ${siblingPauses.workflowId} and target_block_id = ${siblingPauses.after}`
+    await tx`update workflow_blocks set sub_blocks = ${JSON.stringify(waitSubBlocks(SLOW_SECONDS))}::text::jsonb where id = ${siblingPauses.after}`
+    for (const fixture of containerPauses) {
+      const config = {
+        id: fixture.check,
+        nodes: [fixture.inner],
+        iterations: 2,
+        loopType: 'for',
+        count: 2,
+        parallelType: 'count',
+      }
+      await tx`update workflow_blocks set type = ${fixture.type}, sub_blocks = '{}'::jsonb, data = ${JSON.stringify(config)}::text::jsonb where id = ${fixture.check}`
+      await tx`insert into workflow_subflows (id, workflow_id, type, config) values (${fixture.check}, ${fixture.workflowId}, ${fixture.type}, ${JSON.stringify(config)}::text::jsonb)`
+      await tx`insert into workflow_blocks (id, workflow_id, type, name, position_x, position_y, sub_blocks, data)
+        values (${fixture.inner}, ${fixture.workflowId}, 'human_in_the_loop_v2', 'Inner', 0, 0, '{}'::jsonb, ${JSON.stringify({ parentId: fixture.check })}::text::jsonb)`
+      await tx`insert into workflow_edges (id, workflow_id, source_block_id, target_block_id, source_handle, target_handle)
+        values (${generateId()}, ${fixture.workflowId}, ${fixture.check}, ${fixture.inner}, ${`${fixture.type}-start-source`}, 'target')`
+      await tx`update workflow_edges set source_handle = ${`${fixture.type}-end-source`} where workflow_id = ${fixture.workflowId} and target_block_id = ${fixture.after}`
+    }
   })
 }
 
@@ -234,10 +287,13 @@ function isTimeout(error: unknown): boolean {
 
 async function execute(
   workflowId: string,
-  body: V2ExecuteWorkflowBody,
-  { expectedStatus = 200, timeoutMs = REQUEST_TIMEOUT_MS } = {}
+  body: V2ExecuteWorkflowBody | V2ResumeWorkflowBody,
+  { expectedStatus = 200, timeoutMs = REQUEST_TIMEOUT_MS, runId = '' } = {}
 ): Promise<Record<string, unknown>> {
-  const url = new URL(`/api/v2/workflows/${workflowId}/execute`, baseUrl)
+  const url = new URL(
+    `/api/v2/workflows/${workflowId}/${runId ? `runs/${runId}/resume` : 'execute'}`,
+    baseUrl
+  )
   const started = performance.now()
   const elapsed = () => Math.round(performance.now() - started)
   let status: number | null = null
@@ -280,6 +336,89 @@ async function run(
   const data = v2ExecuteWorkflowDataSchema.parse(record(await execute(workflowId, body)).data)
   assert.equal(data.status, 'completed', `run ${data.runId} did not complete`)
   return data
+}
+
+async function pause(fixture: PipelineFixture, stopAfterBlockId?: string) {
+  const result = v2ExecuteWorkflowDataSchema.parse(
+    record(
+      await execute(fixture.workflowId, {
+        run: { source: 'manual', ...(stopAfterBlockId ? { stopAfterBlockId } : {}) },
+        selectedOutputs: selectAll,
+      })
+    ).data
+  )
+  assert.equal(result.status, 'paused')
+  const [saved] =
+    await sql`select pause_points from paused_executions where execution_id = ${result.runId}`
+  const points = record(saved?.pause_points)
+  const contextId = Object.keys(points).find((id) => record(points[id]).blockId === fixture.slow)
+  assert(contextId, 'The pause must be durably resumable')
+  return { runId: result.runId, contextId }
+}
+
+async function get(path: string, authorization?: string): Promise<Record<string, unknown>> {
+  const started = performance.now()
+  // boundary-raw-fetch: protocol E2E exercises resume polling against the local app
+  const response = await fetch(new URL(path, baseUrl), {
+    redirect: 'error',
+    signal: AbortSignal.timeout(ROUTE_COMPILE_TIMEOUT_MS),
+    headers: { 'x-api-key': personalKey, ...(authorization ? { authorization } : {}) },
+  })
+  requests.push({
+    method: 'GET',
+    path,
+    status: response.status,
+    durationMs: Math.round(performance.now() - started),
+  })
+  const text = await readResponseTextWithLimit(response, {
+    maxBytes: MAX_RESPONSE_BYTES,
+    label: 'Stop-after poll response',
+  })
+  assert.equal(response.status, 200, truncate(text, 500))
+  return record(JSON.parse(text))
+}
+
+async function resume(
+  fixture: PipelineFixture & { type?: string },
+  paused: { runId: string; contextId: string }
+) {
+  const query = new URLSearchParams({
+    includeOutput: 'true',
+    selectedOutputs: [fixture.slow, fixture.check, fixture.after]
+      .map((id) => `${id}.status`)
+      .join(','),
+  })
+  const statusPath = `/api/v2/workflows/${fixture.workflowId}/runs/${paused.runId}?${query}`
+  if (fixture.type === 'wait') {
+    await sleep(100)
+    const poll = await get(
+      '/api/resume/poll',
+      `Bearer ${requiredEnvironment('STOP_AFTER_E2E_CRON_SECRET')}`
+    )
+    assert.deepEqual(poll.failures, [])
+    assert.equal(poll.dispatched, 1)
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const result = v2WorkflowRunStatusSchema.parse((await get(statusPath)).data)
+      if (result.status === 'completed') return result
+      assert.notEqual(result.status, 'failed', JSON.stringify(result.error))
+      await sleep(100)
+    }
+    throw new Error('Timed wait did not finish after automatic resume')
+  }
+  const result = v2ExecuteWorkflowDataSchema.parse(
+    record(
+      await execute(
+        fixture.workflowId,
+        {
+          contextId: paused.contextId,
+          input: { approved: true },
+        },
+        { runId: paused.runId, timeoutMs: ROUTE_COMPILE_TIMEOUT_MS }
+      )
+    ).data
+  )
+  assert.equal(result.status, 'completed', JSON.stringify(result.error))
+  return v2WorkflowRunStatusSchema.parse((await get(statusPath)).data)
 }
 
 async function expectBadRequest(
@@ -419,6 +558,139 @@ try {
     assert.deepEqual(until.blockOutputs, { 'Slow.status': 'completed' })
   })
 
+  await check('reaching the stop block retires a pause on another branch', async () => {
+    const result = await run(forkedPause.workflowId, {
+      run: { source: 'manual', stopAfterBlockId: forkedPause.check },
+      selectedOutputs: selectAll,
+    })
+    assert.equal(result.blockOutputs?.['Check.status'], 'completed')
+    assert.equal(result.blockOutputs?.['After.status'], undefined)
+    const [{ count }] =
+      await sql`select count(*)::int as count from paused_executions where execution_id = ${result.runId}`
+    assert.equal(count, 0, 'A completed stop-after run must not persist resume points')
+  })
+
+  for (const fixture of pausePipelines) {
+    await check(`${fixture.type}: resume retains a downstream stop target`, async () => {
+      const result = await resume(fixture, await pause(fixture, fixture.check))
+      assert.equal(result.blockOutputs?.[`${fixture.check}.status`], 'completed')
+      assert.equal(result.blockOutputs?.[`${fixture.after}.status`], undefined)
+    })
+    await check(
+      `${fixture.type}: a pausing stop target completes on resume without running downstream`,
+      async () => {
+        const result = await resume(fixture, await pause(fixture, fixture.slow))
+        assert.equal(result.blockOutputs?.[`${fixture.check}.status`], undefined)
+        assert.equal(result.blockOutputs?.[`${fixture.after}.status`], undefined)
+      }
+    )
+    await check(`${fixture.type}: an ordinary resume still runs downstream`, async () => {
+      const result = await resume(fixture, await pause(fixture))
+      assert.equal(result.blockOutputs?.[`${fixture.check}.status`], 'completed')
+      assert.equal(result.blockOutputs?.[`${fixture.after}.status`], 'completed')
+    })
+  }
+
+  await check('a stop reached on resume retires previously persisted sibling pauses', async () => {
+    const paused = await pause(siblingPauses, siblingPauses.after)
+    const [before] =
+      await sql`select pause_points from paused_executions where execution_id = ${paused.runId}`
+    const siblingContext = Object.keys(record(before.pause_points)).find(
+      (id) => id !== paused.contextId
+    )
+    assert(siblingContext)
+    const completion = resume(siblingPauses, paused)
+    try {
+      let claimed = false
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const [{ count }] =
+          await sql`select count(*)::int as count from resume_queue where parent_execution_id = ${paused.runId} and status = 'claimed'`
+        if (count === 1) {
+          claimed = true
+          break
+        }
+        await sleep(20)
+      }
+      assert(claimed, 'The first resume must own the run before its sibling is queued')
+      await execute(
+        siblingPauses.workflowId,
+        { contextId: siblingContext },
+        { runId: paused.runId, expectedStatus: 202 }
+      )
+    } finally {
+      await completion
+    }
+    const [saved] =
+      await sql`select status, next_resume_at from paused_executions where execution_id = ${paused.runId}`
+    assert.equal(saved.status, 'fully_resumed')
+    assert.equal(saved.next_resume_at, null)
+    const [log] =
+      await sql`select status from workflow_execution_logs where execution_id = ${paused.runId}`
+    assert.equal(
+      log.status,
+      'completed',
+      'Sibling pauses must not reopen a completed stop-after run'
+    )
+    const [{ count }] =
+      await sql`select count(*)::int as count from resume_queue where parent_execution_id = ${paused.runId} and status in ('pending', 'claimed')`
+    assert.equal(count, 0, 'Queued sibling resumes must be retired before they can run')
+  })
+
+  for (const fixture of containerPauses) {
+    await check(
+      `${fixture.type}: pauses before and inside the container retain its stop target`,
+      async () => {
+        const paused = await pause(fixture, fixture.check)
+        const resumedScopes = new Set<number>()
+        const query = new URLSearchParams({
+          includeOutput: 'true',
+          selectedOutputs: `${fixture.after}.status`,
+        })
+        for (let step = 0; step < 3; step++) {
+          const [saved] =
+            await sql`select pause_points from paused_executions where execution_id = ${paused.runId}`
+          const pending = Object.entries(record(saved.pause_points)).find(
+            ([, point]) => record(point).resumeStatus !== 'resumed'
+          )
+          assert(pending, 'Every iteration or branch must pause before the container finishes')
+          const [contextId, point] = pending
+          if (step === 0) {
+            assert.equal(contextId, paused.contextId)
+          } else {
+            assert(String(record(point).blockId).startsWith(fixture.inner))
+            const scope = record(record(point)[`${fixture.type}Scope`])
+            assert.equal(scope[`${fixture.type}Id`], fixture.check)
+            const index = fixture.type === 'loop' ? scope.iteration : scope.branchIndex
+            assert(typeof index === 'number')
+            assert(!resumedScopes.has(index), 'Each iteration or branch resumes once')
+            resumedScopes.add(index)
+          }
+          const resumed = v2ExecuteWorkflowDataSchema.parse(
+            record(
+              await execute(
+                fixture.workflowId,
+                { contextId, input: { approved: true } },
+                { runId: paused.runId, timeoutMs: ROUTE_COMPILE_TIMEOUT_MS }
+              )
+            ).data
+          )
+          assert.notEqual(resumed.status, 'failed', JSON.stringify(resumed.error))
+          const status = v2WorkflowRunStatusSchema.parse(
+            (await get(`/api/v2/workflows/${fixture.workflowId}/runs/${paused.runId}?${query}`))
+              .data
+          )
+          assert.equal(status.blockOutputs?.[`${fixture.after}.status`], undefined)
+          if (step < 2) {
+            assert.notEqual(status.status, 'completed', 'The container still has a pending pause')
+          } else {
+            assert.equal(status.status, 'completed')
+          }
+        }
+        assert.equal(resumedScopes.size, 2)
+      }
+    )
+  }
+
   const branchOutputs = ['Taken.status', 'Tail.status', 'Skipped.status']
 
   await check(
@@ -546,7 +818,15 @@ try {
     await check('remove disposable fixtures', async () => {
       // A response returns before its run finishes persisting logs and large-value
       // references; a cascade delete racing those writes can be chosen as a deadlock victim.
-      const workflowIds = [pipeline.workflowId, otherPipeline.workflowId, branch.workflowId]
+      const workflowIds = [
+        pipeline.workflowId,
+        otherPipeline.workflowId,
+        branch.workflowId,
+        forkedPause.workflowId,
+        siblingPauses.workflowId,
+        ...pausePipelines.map((fixture) => fixture.workflowId),
+        ...containerPauses.map((fixture) => fixture.workflowId),
+      ]
       for (let attempt = 0; attempt < 120; attempt++) {
         const [{ open }] =
           await sql`select count(*)::int as open from workflow_execution_logs where workflow_id in ${sql(workflowIds)} and ended_at is null`

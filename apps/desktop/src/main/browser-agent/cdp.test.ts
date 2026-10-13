@@ -22,6 +22,7 @@ import {
   releaseFileInput,
   resolveFileInput,
   setFileInputFiles,
+  TabClosedOnReleaseError,
 } from '@/main/browser-agent/cdp'
 
 function createOopifFrameFixture() {
@@ -61,11 +62,22 @@ function createOopifFrameFixture() {
   }
 }
 
+/** Callbacks for a page with no user to ask, so the shell answers every dialog. */
+const shellAnswersDialogs = {
+  claimUserDialog: () => false,
+  onDialogClosed: () => {},
+  claimUserLeave: () => false,
+}
+
 describe('browser-agent CDP instrumentation', () => {
   it('leaves file chooser dialogs native so users can upload files', async () => {
     const contents = new WebContentsView().webContents
 
-    await ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+    await ensureInstrumented(contents, {
+      onDialog: vi.fn(),
+      dialogResponse: () => null,
+      ...shellAnswersDialogs,
+    })
 
     expect(contents.debugger.sendCommand).toHaveBeenCalledWith('Page.enable', undefined)
     expect(contents.debugger.sendCommand).not.toHaveBeenCalledWith(
@@ -86,10 +98,18 @@ describe('browser-agent CDP instrumentation', () => {
     })
 
     await expect(
-      ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+      ensureInstrumented(contents, {
+        onDialog: vi.fn(),
+        dialogResponse: () => null,
+        ...shellAnswersDialogs,
+      })
     ).rejects.toThrow('setup acknowledgement lost')
     await expect(
-      ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+      ensureInstrumented(contents, {
+        onDialog: vi.fn(),
+        dialogResponse: () => null,
+        ...shellAnswersDialogs,
+      })
     ).resolves.toBeUndefined()
 
     expect(autoAttachAttempts).toBe(2)
@@ -98,7 +118,11 @@ describe('browser-agent CDP instrumentation', () => {
   it('dismisses an OOPIF dialog on the flattened child session', async () => {
     const contents = new WebContentsView().webContents
     const onDialog = vi.fn()
-    await ensureInstrumented(contents, { onDialog, dialogResponse: () => null })
+    await ensureInstrumented(contents, {
+      onDialog,
+      dialogResponse: () => null,
+      ...shellAnswersDialogs,
+    })
     const listener = vi
       .mocked(contents.debugger.on)
       .mock.calls.find(([event]) => event === 'message')?.[1] as
@@ -132,7 +156,7 @@ describe('browser-agent CDP instrumentation', () => {
     const contents = new WebContentsView().webContents
     const onDialog = vi.fn()
     const dialogResponse = vi.fn(() => ({ accept: true }))
-    await ensureInstrumented(contents, { onDialog, dialogResponse })
+    await ensureInstrumented(contents, { onDialog, dialogResponse, ...shellAnswersDialogs })
     const listener = vi
       .mocked(contents.debugger.on)
       .mock.calls.find(([event]) => event === 'message')?.[1] as
@@ -229,6 +253,78 @@ describe('browser-agent CDP instrumentation', () => {
     ])
   })
 
+  describe('a tab that closes during a click', () => {
+    /**
+     * Rejects the mouse event matching `type` and `clickCount` with `failure`, first marking the
+     * tab destroyed when `destroy` is `'at-rejection'`. `'before-release'` instead marks it
+     * destroyed as the press resolves, so the release is sent to an already-dead tab.
+     */
+    function failMouseEvent(
+      contents: WebContents,
+      fail: { type: string; clickCount: number },
+      failure: Error,
+      destroy: 'at-rejection' | 'before-release' | 'never'
+    ) {
+      let destroyed = false
+      vi.mocked(contents.isDestroyed).mockImplementation(() => destroyed)
+      vi.mocked(contents.debugger.sendCommand).mockImplementation(async (_method, params) => {
+        const { type, clickCount } = toRecord(params)
+        if (destroy === 'before-release' && type === 'mousePressed') destroyed = true
+        if (type === fail.type && clickCount === fail.clickCount) {
+          if (destroy === 'at-rejection') destroyed = true
+          throw failure
+        }
+        return {}
+      })
+    }
+
+    it('reports a final release rejected because the tab closed as TabClosedOnReleaseError', async () => {
+      const contents = new WebContentsView().webContents
+      failMouseEvent(
+        contents,
+        { type: 'mouseReleased', clickCount: 1 },
+        new Error('Target closed'),
+        'at-rejection'
+      )
+
+      await expect(clickAt(contents, 12, 24)).rejects.toBeInstanceOf(TabClosedOnReleaseError)
+    })
+
+    it('keeps the original error when the release fails on a tab that is still alive', async () => {
+      const contents = new WebContentsView().webContents
+      const failure = new Error('release rejected')
+      failMouseEvent(contents, { type: 'mouseReleased', clickCount: 1 }, failure, 'never')
+
+      await expect(clickAt(contents, 12, 24)).rejects.toBe(failure)
+    })
+
+    it('keeps the original error when the tab was already gone before the release was sent', async () => {
+      const contents = new WebContentsView().webContents
+      const failure = new Error('Target closed')
+      failMouseEvent(contents, { type: 'mouseReleased', clickCount: 1 }, failure, 'before-release')
+
+      await expect(clickAt(contents, 12, 24)).rejects.toBe(failure)
+    })
+
+    it('keeps the original error when the press fails as the tab closes', async () => {
+      const contents = new WebContentsView().webContents
+      const failure = new Error('Target closed')
+      failMouseEvent(contents, { type: 'mousePressed', clickCount: 1 }, failure, 'at-rejection')
+
+      await expect(clickAt(contents, 12, 24)).rejects.toBe(failure)
+    })
+
+    it('keeps the original error when a non-final release of a multi-click fails as the tab closes', async () => {
+      const contents = new WebContentsView().webContents
+      const failure = new Error('Target closed')
+      failMouseEvent(contents, { type: 'mouseReleased', clickCount: 1 }, failure, 'at-rejection')
+
+      await expect(
+        clickAt(contents, 12, 24, true, { ...PRIMARY_CLICK, clickCount: 2 })
+      ).rejects.toBe(failure)
+    })
+  })
+
   it('times out a hung press and sends cleanup before the tool watchdog can release', async () => {
     vi.useFakeTimers()
     try {
@@ -275,7 +371,11 @@ describe('browser-agent CDP instrumentation', () => {
     async (treeKind) => {
       const contents = new WebContentsView().webContents
       const { child, frameTree } = createOopifFrameFixture()
-      await ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+      await ensureInstrumented(contents, {
+        onDialog: vi.fn(),
+        dialogResponse: () => null,
+        ...shellAnswersDialogs,
+      })
       const listener = vi
         .mocked(contents.debugger.on)
         .mock.calls.find(([event]) => event === 'message')?.[1] as
@@ -378,7 +478,11 @@ describe('browser-agent CDP instrumentation', () => {
   it('falls back to the root target when OOPIF isolated-world creation fails', async () => {
     const contents = new WebContentsView().webContents
     const { child, frameTree } = createOopifFrameFixture()
-    await ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+    await ensureInstrumented(contents, {
+      onDialog: vi.fn(),
+      dialogResponse: () => null,
+      ...shellAnswersDialogs,
+    })
     const listener = vi
       .mocked(contents.debugger.on)
       .mock.calls.find(([event]) => event === 'message')?.[1] as
@@ -458,7 +562,11 @@ describe('browser-agent file input handles', () => {
   async function fileInputFixture(childSession = false) {
     const contents = new WebContentsView().webContents
     const { child, frameTree } = createOopifFrameFixture()
-    await ensureInstrumented(contents, { onDialog: vi.fn(), dialogResponse: () => null })
+    await ensureInstrumented(contents, {
+      onDialog: vi.fn(),
+      dialogResponse: () => null,
+      ...shellAnswersDialogs,
+    })
     if (childSession) {
       const onMessage = vi.mocked(contents.debugger.on).mock.calls[0]?.[1] as
         | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)

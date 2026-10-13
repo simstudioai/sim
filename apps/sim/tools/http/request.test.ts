@@ -15,7 +15,6 @@ import { processUrl } from '@/tools/http/utils'
 process.env.VITEST = 'true'
 
 describe('HTTP Request Tool', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let tester: ToolTester<any, any>
 
   beforeEach(() => {

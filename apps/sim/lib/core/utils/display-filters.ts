@@ -1,13 +1,17 @@
+import { truncateAtCodePoint } from '@sim/utils/string'
 import { filterUserFileForDisplay, isUserFile } from '@/lib/core/utils/user-file'
 
 const MAX_STRING_LENGTH = 15000
 const MAX_DEPTH = 50
 
+/**
+ * Never cuts inside a surrogate pair: a lone half has no UTF-8 encoding, and
+ * these values flow on to PII redaction, whose service rejects such text.
+ */
 function truncateString(value: string, maxLength = MAX_STRING_LENGTH): string {
-  if (value.length <= maxLength) {
-    return value
-  }
-  return `${value.substring(0, maxLength)}... [truncated ${value.length - maxLength} chars]`
+  if (value.length <= maxLength) return value
+  const kept = truncateAtCodePoint(value, maxLength, '')
+  return `${kept}... [truncated ${value.length - kept.length} chars]`
 }
 
 function filterUserFile(data: any): any {

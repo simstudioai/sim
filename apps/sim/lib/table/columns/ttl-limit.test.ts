@@ -1,8 +1,4 @@
 import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
-import {
-  tableTtlAvailabilityMock,
-  tableTtlAvailabilityMockFns,
-} from '@sim/testing/mocks/table-ttl-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition, TableLocks } from '@/lib/table/types'
 
@@ -11,12 +7,10 @@ const { mockTimeoutExecute } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/table/service', () => tableServiceMock)
-vi.mock('@/lib/table/ttl-availability', () => tableTtlAvailabilityMock)
 
 import { addTableColumn } from '@/lib/table/columns/service'
 
 const mockWithLockedTable = tableServiceMockFns.mockWithLockedTable
-const mockAssertTableRowTtlEnabled = tableTtlAvailabilityMockFns.mockAssertTableRowTtlEnabled
 
 const UNLOCKED: TableLocks = {
   schemaLocked: false,
@@ -57,20 +51,10 @@ const transaction = new Proxy(
 
 describe('TTL column mutation limit', () => {
   beforeEach(() => {
-    mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
     mockTimeoutExecute.mockResolvedValue([])
     mockWithLockedTable.mockImplementation(async (_tableId, mutate) =>
       mutate(makeTable(), transaction)
     )
-  })
-
-  it('rejects adding a TTL column before locking when the feature is disabled', async () => {
-    mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('Expiration columns are not enabled'))
-
-    await expect(
-      addTableColumn('table-1', { name: 'expiry', type: 'ttl' }, 'request-1')
-    ).rejects.toThrow('Expiration columns are not enabled')
-    expect(mockWithLockedTable).not.toHaveBeenCalled()
   })
 
   it('rejects adding a second TTL column before persistence', async () => {

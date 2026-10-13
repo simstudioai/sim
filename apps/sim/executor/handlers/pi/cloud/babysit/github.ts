@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { classifyFailure, markFailureKind } from '@/lib/core/errors/failure-log'
 import type { BabysitRoundDecision } from '@/executor/handlers/pi/cloud/babysit/round'
 import {
   fetchPrSnapshot,
@@ -23,6 +24,7 @@ import type {
   StatusCheckRollupContext,
   SubmittedReviewSummary,
 } from '@/tools/github/types'
+import type { ToolResponse } from '@/tools/types'
 
 const MAX_PAGES = 10
 const MAX_COMMENTS_PER_THREAD = 50
@@ -204,6 +206,11 @@ function toolFailure(label: string, error: unknown): Error {
   )
 }
 
+/** Carries the tool layer's attribution; these calls carry no run identity, so not its logged mark. */
+function attributedToolFailure(label: string, result: ToolResponse): Error {
+  return markFailureKind(toolFailure(label, result.error), classifyFailure(result.output))
+}
+
 function parseReviewThread(value: unknown, index: number): ReviewThread {
   if (!isRecordLike(value)) throw new Error(`Review thread ${index} must be an object`)
   const commentsValue = value.comments
@@ -288,7 +295,7 @@ export async function fetchBabysitThreads(
       },
       { signal }
     )
-    if (!result.success) throw toolFailure('Failed to fetch review threads', result.error)
+    if (!result.success) throw attributedToolFailure('Failed to fetch review threads', result)
     const output = result.output
     if (!isRecordLike(output) || !Array.isArray(output.threads)) {
       throw new Error('Review thread response is incomplete')
@@ -423,7 +430,7 @@ export async function fetchBabysitCheckState(
         },
         { signal }
       )
-      if (!result.success) throw toolFailure('Failed to fetch checks', result.error)
+      if (!result.success) throw attributedToolFailure('Failed to fetch checks', result)
       const output = result.output
       if (!isRecordLike(output) || !Array.isArray(output.contexts)) {
         throw new Error('Check response is incomplete')

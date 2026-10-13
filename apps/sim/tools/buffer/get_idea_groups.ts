@@ -1,9 +1,11 @@
+import { toArray } from '@sim/utils/object'
 import {
   BUFFER_API_URL,
   type BufferGetIdeaGroupsParams,
   type BufferIdeaGroupsResponse,
   bufferHeaders,
   IDEA_GROUP_OUTPUT_PROPERTIES,
+  mapBufferIdeaGroup,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
 import type { ToolConfig } from '@/tools/types'
@@ -60,11 +62,7 @@ export const bufferGetIdeaGroupsTool: ToolConfig<
     return {
       success: true,
       output: {
-        ideaGroups: (data.ideaGroups ?? []).map((group: Record<string, any>) => ({
-          id: group.id,
-          name: group.name ?? '',
-          isLocked: group.isLocked ?? false,
-        })),
+        ideaGroups: toArray(data.ideaGroups).map(mapBufferIdeaGroup),
       },
     }
   },

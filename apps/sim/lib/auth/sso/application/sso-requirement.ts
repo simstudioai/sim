@@ -2,35 +2,20 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
 import { organization } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
+import { ssoSettingsOperations } from '@/lib/auth/sso/application/operations'
 import { hasSignInCapableSsoProvider } from '@/lib/auth/sso/verified-provider'
 import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
-import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { isBillingEnabled, isSsoEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-/**
- * permission-group-exempt: The sign-in requirement is managed by organization owners and administrators, the same gate as the rest of SSO settings.
- */
-export const readSsoRequirementOperation = defineOrganizationOperation({
-  id: 'organization.sso.read_requirement',
-  minimumRole: 'member',
-  principalKinds: ['session'],
-  capability: 'none',
-})
+const readSsoRequirementOperation = ssoSettingsOperations.readRequirement
 
-/**
- * permission-group-exempt: The sign-in requirement is managed by organization owners and administrators, the same gate as the rest of SSO settings.
- */
-export const setSsoRequirementOperation = defineOrganizationOperation({
-  id: 'organization.sso.set_requirement',
-  minimumRole: 'admin',
-  principalKinds: ['session'],
-  capability: 'none',
-})
+const setSsoRequirementOperation = ssoSettingsOperations.setRequirement
 
 export interface SsoRequirement {
   /** The stored setting. */
@@ -106,8 +91,8 @@ export const setSsoRequirement: OperationUseCase<
      * the entitlement came back, with no administrator action behind it.
      */
     if (input.requireSso && !(await isOrganizationFeatureEntitled(organizationId, isSsoEnabled))) {
-      throw new OrchestrationError(
-        'forbidden',
+      throw new ForbiddenOperationError(
+        isBillingEnabled ? 'ENTERPRISE_PLAN_REQUIRED' : 'SSO_DISABLED',
         isBillingEnabled
           ? 'Single Sign-On is available on Enterprise plans only'
           : 'Single Sign-On is disabled. Set ENTERPRISE_ENABLED or SSO_ENABLED to enable it.'

@@ -102,7 +102,7 @@ export const SUPPORTED_VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'mkv', 'webm'] a
  */
 export const SUPPORTED_ARCHIVE_EXTENSIONS = ['zip'] as const
 
-export const SUPPORTED_IMAGE_EXTENSIONS = [
+const SUPPORTED_IMAGE_EXTENSIONS = [
   'png',
   'jpg',
   'jpeg',

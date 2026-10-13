@@ -179,6 +179,15 @@ const api: SimDesktopApi = {
     getPreferences: (): Promise<DesktopPreferences> => ipcRenderer.invoke('desktop:settings:get'),
     setPreference: (key: DesktopPreferenceKey, value: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set', key, value),
+    setFullFileAccess: (enabled: boolean): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set-full-file-access', enabled),
+    onFullFileAccessChanged: (
+      callback: (preferences: DesktopPreferences) => void
+    ): (() => void) => {
+      const listener = (_event: unknown, preferences: DesktopPreferences) => callback(preferences)
+      ipcRenderer.on('desktop:settings:full-file-access-changed', listener)
+      return () => ipcRenderer.removeListener('desktop:settings:full-file-access-changed', listener)
+    },
     setPreventSleepWhileRunning: (enabled: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set-prevent-sleep', enabled),
     setBrowserSearchSuggestionsEnabled: (enabled: boolean): Promise<DesktopPreferences> =>

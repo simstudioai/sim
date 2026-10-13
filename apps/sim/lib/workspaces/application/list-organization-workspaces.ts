@@ -7,8 +7,6 @@ import {
 } from '@/lib/permission-groups/capabilities'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
-import { getTableQueryAvailability } from '@/lib/table/query-availability'
 import { organizationWorkspaceOperations } from '@/lib/workspaces/application/organization-operations'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
@@ -69,16 +67,6 @@ export const listOrganizationWorkspaces = {
           ? {
               capabilityDetail: 'full' as const,
               capabilities,
-              operationAvailability: createToolAccessGate(config?.deniedTools)(
-                'table_query_rows_v2'
-              )
-                ? {
-                    table_query_rows_v2: await getTableQueryAvailability({
-                      userId: context.userId,
-                      orgId: context.organizationId,
-                    }),
-                  }
-                : {},
             }
           : {
               capabilityDetail: 'restrictions' as const,

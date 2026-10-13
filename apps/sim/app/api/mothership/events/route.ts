@@ -30,7 +30,7 @@ const mothershipEventsHandler = createWorkspaceSSE({
   label: 'mothership-events',
   subscriptions: [
     {
-      subscribe: (workspaceId, send) => {
+      subscribe: (workspaceId, send, viewerUserId) => {
         if (!chatPubSub) return () => {}
         return chatPubSub.onStatusChanged((event) => {
           if (event.workspaceId !== workspaceId) return
@@ -38,6 +38,8 @@ const mothershipEventsHandler = createWorkspaceSSE({
             chatId: event.chatId,
             type: event.type,
             ...(event.streamId ? { streamId: event.streamId } : {}),
+            // Whether the chat is the viewer's own, never whose it is; absent when unknown.
+            ...(event.userId ? { ownChat: event.userId === viewerUserId } : {}),
             timestamp: Date.now(),
           })
         })

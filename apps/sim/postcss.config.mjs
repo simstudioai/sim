@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
  * directory, so a project-relative specifier is not found there.
  */
 const hairlineBorderWidth = fileURLToPath(
-  new URL('./lib/postcss/hairline-border-width.mjs', import.meta.url)
+  new URL('./lib/postcss/hairline-border-width.cjs', import.meta.url)
 )
 
 /** @type {import('postcss-load-config').Config} */

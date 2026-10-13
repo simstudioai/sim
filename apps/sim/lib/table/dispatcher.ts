@@ -556,13 +556,34 @@ export async function dispatcherStep(
       .select()
       .from(userTableRows)
       .where(and(...filters))
-      .orderBy(asc(userTableRows.position))
+      .orderBy(asc(userTableRows.position), asc(userTableRows.id))
       .limit(windowSize)
   // Filtered scopes carry a jsonb predicate the planner can't estimate — left alone it
   // seq-scans the whole shared relation per window; keep it on the tenant's position index.
-  const chunk = hasJsonbFilter
-    ? await withSeqscanOff(async (trx) => windowQuery(trx))
-    : await windowQuery(db)
+  const runQuery = async <T>(query: (executor: DbExecutor) => PromiseLike<T>): Promise<T> =>
+    hasJsonbFilter ? withSeqscanOff(async (trx) => query(trx)) : query(db)
+  const chunk = await runQuery(windowQuery)
+
+  // Inserts assign `position` without a lock, so concurrent ones can share it. The next window
+  // starts strictly after this one's last position, so a full window takes the rest of that tie.
+  if (chunk.length === windowSize) {
+    const lastPosition = chunk[chunk.length - 1].position
+    const seen = chunk.filter((r) => r.position === lastPosition).map((r) => r.id)
+    const ties = await runQuery((executor) =>
+      executor
+        .select()
+        .from(userTableRows)
+        .where(
+          and(
+            ...filters,
+            eq(userTableRows.position, lastPosition),
+            notInArray(userTableRows.id, seen)
+          )
+        )
+        .orderBy(asc(userTableRows.id))
+    )
+    chunk.push(...ties)
+  }
 
   if (chunk.length === 0) {
     // Through the shared, guarded completion like the other two exits: this

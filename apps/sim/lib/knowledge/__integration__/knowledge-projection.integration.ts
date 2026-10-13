@@ -8,8 +8,6 @@ import {
 import {
   document,
   embedding,
-  embeddingKeywordSearch,
-  embeddingKeywordTin,
   embeddingSearch,
   knowledgeBase,
   knowledgeProjectionDirty,
@@ -123,7 +121,26 @@ afterAll(async () => {
 })
 
 describe('ordinary KB vector repair after indexed Search retirement', () => {
-  it('repairs deferred vectors in bounded pages without creating copied ACL or keyword rows', async () => {
+  it('keeps canonical chunk writes after the retired keyword projection is removed', async () => {
+    const [relations] =
+      await projector`SELECT to_regclass('public.embedding_keyword_search') AS keyword`
+    expect(relations.keyword).toBeNull()
+    const chunk = chunkRow(generateId(), 0)
+    await db.insert(embedding).values(chunk)
+    await db
+      .update(embedding)
+      .set({ content: 'updated searchable text' })
+      .where(eq(embedding.id, chunk.id))
+    const [canonical] =
+      await projector`SELECT content_tsv @@ plainto_tsquery('english', 'searchable') AS matches
+      FROM embedding WHERE id = ${chunk.id}`
+    expect(canonical.matches).toBe(true)
+    expect((await vectorsOf()).map((row) => row.id)).toEqual([chunk.id])
+    await db.delete(embedding).where(eq(embedding.id, chunk.id))
+    expect(await vectorsOf()).toEqual([])
+  })
+
+  it('repairs deferred vectors in bounded pages without creating copied ACL rows', async () => {
     const chunks = Array.from({ length: 5 }, (_, index) => chunkRow(generateId(), index))
     await defer((tx) => tx.insert(embedding).values(chunks))
     expect(await vectorsOf()).toEqual([])
@@ -143,18 +160,6 @@ describe('ordinary KB vector repair after indexed Search retirement', () => {
         (row) => row.vector512?.[511] === 1 && row.acl === null && row.connectorId === null
       )
     ).toBe(true)
-    expect(
-      await db
-        .select()
-        .from(embeddingKeywordSearch)
-        .where(eq(embeddingKeywordSearch.documentId, documentId))
-    ).toEqual([])
-    expect(
-      await db
-        .select()
-        .from(embeddingKeywordTin)
-        .where(eq(embeddingKeywordTin.documentId, documentId))
-    ).toEqual([])
     expect(await markOf()).toBeUndefined()
   })
 
@@ -167,18 +172,6 @@ describe('ordinary KB vector repair after indexed Search retirement', () => {
     expect(await markOf(searchDocumentId)).toMatchObject({ content: true })
     await runKnowledgeProjection(projector, {})
     expect(await vectorsOf(searchDocumentId)).toEqual([])
-    expect(
-      await db
-        .select()
-        .from(embeddingKeywordSearch)
-        .where(eq(embeddingKeywordSearch.documentId, searchDocumentId))
-    ).toEqual([])
-    expect(
-      await db
-        .select()
-        .from(embeddingKeywordTin)
-        .where(eq(embeddingKeywordTin.documentId, searchDocumentId))
-    ).toEqual([])
     expect(await markOf(searchDocumentId)).toBeUndefined()
   })
 

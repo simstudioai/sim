@@ -14,6 +14,7 @@ import {
   generateIconMappings,
   getToolInfo,
   isFactoryToolDeclaration,
+  parseConstProperties,
   parsePropertiesContent,
 } from './generate-docs'
 
@@ -50,6 +51,69 @@ describe('documentation editor icon metadata', () => {
 })
 
 describe('documentation tool metadata', () => {
+  it('preserves nested fields referenced by private constants in the same module', () => {
+    const source = `
+      const MONEY_FIELDS = {
+        currency: { type: 'string', description: 'Currency code' },
+        value: { type: 'number', description: 'Minor units' },
+      } as const
+    `
+    expect(
+      parseConstProperties(
+        "amount: { type: 'json', properties: MONEY_FIELDS }",
+        'private-constant-fixture',
+        source,
+        0
+      )
+    ).toEqual({
+      amount: {
+        type: 'json',
+        description: '',
+        properties: {
+          currency: { type: 'string', description: 'Currency code' },
+          value: { type: 'number', description: 'Minor units' },
+        },
+      },
+    })
+  })
+
+  it.each(['object', 'array'])('keeps nested constant fields inside their %s container', (type) => {
+    const source = `
+      const IMAGE_FIELDS = {
+        url: { type: 'string', description: 'Image URL' },
+        altText: { type: 'string', description: 'Alternative text' },
+      } as const
+    `
+    const properties = `
+      id: { type: 'string', description: 'Product ID' },
+      featuredImage: { type: 'object', properties: IMAGE_FIELDS },
+    `
+    const descriptor =
+      type === 'array'
+        ? `type: 'array', items: { type: 'object', properties: { ${properties} } }`
+        : `type: 'object', properties: { ${properties} }`
+    const parsed = parseConstProperties(
+      `products: { ${descriptor} }`,
+      `nested-constant-${type}-fixture`,
+      source,
+      0
+    )
+    const expected = {
+      id: { type: 'string', description: 'Product ID' },
+      featuredImage: {
+        type: 'object',
+        description: '',
+        properties: {
+          url: { type: 'string', description: 'Image URL' },
+          altText: { type: 'string', description: 'Alternative text' },
+        },
+      },
+    }
+    expect(
+      type === 'array' ? parsed.products.items.properties : parsed.products.properties
+    ).toEqual(expected)
+  })
+
   it('preserves a satisfies block and replaces only the versioned download operation', () => {
     const [block] = extractAllBlockConfigs(`
       export const DownloadBlock = ({

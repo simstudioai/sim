@@ -2344,6 +2344,50 @@ describe('credential protection', () => {
     })
   })
 
+  it('reports a click whose tab closed during its release as unconfirmed, not failed', async () => {
+    const contents = await openPage()
+    let destroyed = false
+    vi.mocked(contents.isDestroyed).mockImplementation(() => destroyed)
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'describePointTarget')) {
+        return Promise.resolve({ found: true, element: 'Close', cursor: 'pointer' })
+      }
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        return Promise.resolve({
+          url: 'https://example.com/popup',
+          title: 'Popup',
+          focus: 'body',
+          mutationRevision: 0,
+          dialogs: [],
+          popups: [],
+          scroll: [0],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation(async (method, params) => {
+      if (method === 'Input.dispatchMouseEvent' && toRecord(params).type === 'mouseReleased') {
+        destroyed = true
+        throw new Error('Target closed')
+      }
+      return {}
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', { x: 100, y: 200 })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        dispatched: true,
+        closedDuringDispatch: true,
+        doNotRetry: true,
+        possibleEffectObserved: true,
+      },
+    })
+    expect(toRecord(result.result)).not.toHaveProperty('effectObserved')
+  })
+
   it('reports navigation obstructed by a dialog that opened with it', async () => {
     const contents = await openPage()
     let actionReads = 0

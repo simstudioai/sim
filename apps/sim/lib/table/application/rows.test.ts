@@ -3,7 +3,6 @@ import {
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
 import {
   tableApplicationContextMock,
@@ -20,10 +19,6 @@ import {
   tableRowsServiceMockFns,
 } from '@sim/testing/mocks/table-rows-service.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
-import {
-  workspacesUtilsMock,
-  workspacesUtilsMockFns,
-} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
@@ -34,10 +29,6 @@ const { mockIsScopeCompatible, mockLoadExecutionsForRow, mockLoadEnrichmentDetai
     mockLoadEnrichmentDetail: vi.fn(),
   })
 )
-
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
-
-vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 vi.mock('@sim/audit', () => auditMock)
 
@@ -121,8 +112,6 @@ const {
 } = tableRowsSecretProvenanceMockFns
 const mockReplaceRowsWithTx = tableRowsServiceMockFns.mockReplaceTableRowsWithTx
 const mockResolveContext = tableApplicationContextMockFns.mockResolveActiveTableContext
-const mockIsFeatureEnabled = featureFlagsMockFns.mockIsFeatureEnabled
-const mockGetWorkspaceOrganizationId = workspacesUtilsMockFns.mockGetWorkspaceOrganizationId
 const mockRecordAudit = auditMockFns.mockRecordAudit
 const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 const mockSignalRowsChanged = tableEventsMockFns.mockSignalTableRowsChanged
@@ -406,8 +395,6 @@ describe('row query and upsert application semantics', () => {
   beforeEach(() => {
     mockResolvePermission.mockResolvedValue('write')
     mockResolveContext.mockResolvedValue(contextFor())
-    mockIsFeatureEnabled.mockResolvedValue(true)
-    mockGetWorkspaceOrganizationId.mockResolvedValue('organization-1')
   })
 
   it('rejects a malformed POST query cursor before querying storage', async () => {

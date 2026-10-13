@@ -191,29 +191,32 @@ export const credentialOperations = {
     principalKinds: ['session'],
   }),
   listMembers: defineWorkspaceOperation({
+    oauthScope: 'api:read',
     id: 'credentials.members.list',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
-    principalKinds: ['session'],
+    ...HUMAN_AND_COPILOT_PRINCIPALS,
   }),
   upsertMember: defineCredentialOperation(
     defineWorkspaceOperation({
+      oauthScope: 'api:write',
       id: 'credentials.members.upsert',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'integrations.manage',
-      principalKinds: ['session'],
+      ...HUMAN_AND_COPILOT_PRINCIPALS,
     }),
     'admin'
   ),
   removeMember: defineCredentialOperation(
     defineWorkspaceOperation({
+      oauthScope: 'api:write',
       id: 'credentials.members.remove',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'integrations.manage',
-      principalKinds: ['session'],
+      ...HUMAN_AND_COPILOT_PRINCIPALS,
     }),
     'admin'
   ),

@@ -6,6 +6,7 @@ import { generateId, isValidUuid } from '@sim/utils/id'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -847,7 +848,7 @@ export async function executeWorkflowService(
           })
         }
 
-        reqLogger.error(`Execution failed: ${errorMessage}`)
+        logFailureOnce(reqLogger, `Execution failed: ${errorMessage}`, error, { executionId })
 
         let compactErrorOutput: NormalizedBlockOutput | undefined
         let compactErrorBlockOutputs: Record<string, unknown> | null = null
@@ -898,6 +899,12 @@ export async function executeWorkflowService(
       } finally {
         abortSignal?.removeEventListener('abort', abortFromRequest)
         timeoutController.cleanup()
+        /**
+         * The sync result is the run's receipt: callers read its log, state, and cost as
+         * soon as it lands (a run-from-block names it as its source run). The core
+         * finalizes those in the background, so hold the result until they are durable.
+         */
+        await loggingSession.waitForPostExecution()
       }
     }
 

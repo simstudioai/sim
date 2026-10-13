@@ -4,7 +4,7 @@ import { defineOrganizationOperation } from '@/lib/core/application/organization
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
-import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
+import { loadChatFileAttachmentsNamed } from '@/lib/mothership/chat/lifecycle'
 import { readOrganizationChatAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
@@ -53,14 +53,8 @@ export const readChatAttachment = defineAuthorizedChatUseCase({
     } catch {
       throw new OrchestrationError('validation', 'Invalid attachment reference')
     }
-    const messages = await loadCopilotChatMessages(context.chatId)
-    const matches = new Map(
-      messages.flatMap((message) =>
-        (message.fileAttachments ?? [])
-          .filter((file) => file.id === name || file.filename === name)
-          .map((file) => [file.id, file] as const)
-      )
-    )
+    const attachments = await loadChatFileAttachmentsNamed(context.chatId, name)
+    const matches = new Map(attachments.map((file) => [file.id, file] as const))
     if (matches.size !== 1)
       throw new OrchestrationError(
         'not_found',

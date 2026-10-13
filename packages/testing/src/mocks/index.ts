@@ -1,18 +1,17 @@
 /**
- * Mock implementations for common dependencies.
+ * Mock implementations for common dependencies. Tests import each one from its own file, not
+ * from this barrel.
  *
  * @example
  * ```ts
- * import { createMockLogger, setupGlobalFetchMock, databaseMock } from '@sim/testing/mocks'
+ * import { encryptionMock } from '@sim/testing/mocks/encryption.mock'
+ * import { setupGlobalFetchMock } from '@sim/testing/mocks/fetch.mock'
  *
- * // Mock the logger
- * vi.mock('@sim/logger', () => ({ createLogger: () => createMockLogger() }))
+ * vi.mock('@/lib/core/security/encryption', () => encryptionMock)
  *
- * // Mock fetch globally
- * setupGlobalFetchMock({ json: { success: true } })
- *
- * // Mock database
- * vi.mock('@sim/db', () => databaseMock)
+ * beforeEach(() => {
+ *   setupGlobalFetchMock({ json: { success: true } })
+ * })
  * ```
  */
 
@@ -128,6 +127,10 @@ export {
   billingSubscriptionMockFns,
 } from './billing-subscription.mock'
 export {
+  billingSubscriptionSyncMock,
+  billingSubscriptionSyncMockFns,
+} from './billing-subscription-sync.mock'
+export {
   billingSubscriptionUtilsMock,
   billingSubscriptionUtilsMockFns,
 } from './billing-subscription-utils.mock'
@@ -172,7 +175,7 @@ export {
   toolsUtilsMock,
   toolsUtilsMockFns,
 } from './blocks.mock'
-// Copilot HTTP mocks (for @/lib/copilot/request/http)
+// Copilot HTTP mocks (for @/lib/mothership/request/http)
 export {
   copilotHttpMock,
   copilotHttpMockFns,
@@ -372,6 +375,10 @@ export {
   resetIdMock,
 } from './id.mock'
 export {
+  idempotencyServiceMock,
+  idempotencyServiceMockFns,
+} from './idempotency-service.mock'
+export {
   inputValidationMock,
   inputValidationMockFns,
 } from './input-validation.mock'
@@ -486,6 +493,7 @@ export {
   loggingSessionMock,
   loggingSessionMockFns,
 } from './logging-session.mock'
+export { maskClientMock, maskClientMockFns } from './mask-client.mock'
 // MCP OAuth mocks (for @/lib/mcp/oauth)
 export {
   McpOauthRedirectRequiredMock,
@@ -746,14 +754,15 @@ export {
   storageServiceMockFns,
 } from './storage-service.mock'
 export {
+  createInMemoryStripe,
   createMockStripeEvent,
+  type InMemoryStripe,
   stripeClientMock,
   stripePaymentMethodMock,
 } from './stripe.mock'
 export {
   MockCsvImportValidationError,
   MockTableQueryValidationError,
-  MockTableRowTtlDisabledError,
   MockTableViewValidationError,
   tableMock,
   tableMockFns,
@@ -769,7 +778,6 @@ export {
 export {
   MockProjectedWireRowsValidationError,
   MockTableRowsValidationError,
-  MockTableV2FeatureDisabledError,
   tableApplicationRowsMock,
   tableApplicationRowsMockFns,
 } from './table-application-rows.mock'
@@ -820,10 +828,6 @@ export {
   tableTriggerMock,
   tableTriggerMockFns,
 } from './table-trigger.mock'
-export {
-  tableTtlAvailabilityMock,
-  tableTtlAvailabilityMockFns,
-} from './table-ttl-availability.mock'
 export {
   tableWireMock,
   tableWireMockFns,
@@ -925,8 +929,6 @@ export {
 export {
   v1PersonalKeyCredential,
   v1RateLimitContextModuleMock,
-  v1RateLimiterModuleMock,
-  v1SubscriptionModuleMock,
   v1WorkspaceKeyCredential,
 } from './v1-route.mock'
 export {
@@ -937,6 +939,10 @@ export {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from './v2-route.mock'
+export {
+  webhooksPollingUtilsMock,
+  webhooksPollingUtilsMockFns,
+} from './webhooks-polling-utils.mock'
 export {
   webhooksProcessorMock,
   webhooksProcessorMockFns,

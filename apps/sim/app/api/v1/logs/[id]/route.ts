@@ -9,7 +9,7 @@ import {
   projectCostTotal,
   projectExecutionData,
   resolveLogFieldProjection,
-} from '@/lib/logs/log-projection'
+} from '@/lib/logs/projection'
 import { getPublicWorkflowLog } from '@/lib/logs/public-queries'
 import { createApiResponse, getUserLimits, projectUserLimits } from '@/app/api/v1/logs/meta'
 import {

@@ -5,7 +5,10 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getGlobalWorkSummary } from '@/lib/global-work/summary'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
-import { adminValidationErrorResponse, internalErrorResponse } from '@/app/api/v1/admin/responses'
+import {
+  adminInternalErrorResponse,
+  adminValidationErrorResponse,
+} from '@/app/api/v1/admin/responses'
 
 const logger = createLogger('AdminGlobalWorkAPI')
 
@@ -32,7 +35,7 @@ export const GET = withRouteHandler(
       return NextResponse.json({ data })
     } catch (error) {
       logger.error('Failed to build Global Work summary', { error })
-      return internalErrorResponse('Failed to build Global Work summary')
+      return adminInternalErrorResponse('Failed to build Global Work summary')
     }
   })
 )

@@ -9,7 +9,7 @@ export const FILE_SHARE_AUTH_TYPES = ['public', 'password', 'email', 'sso'] as c
 const shareAuthType = z.enum(FILE_SHARE_AUTH_TYPES)
 
 /**
- * Which mechanism refuses a request when this key is set.
+ * How this key controls access or initializes a resource.
  *
  * - `capability`: an operation declares a capability whose rule reads the key,
  *   so the authorization funnel refuses before the use case runs.
@@ -18,6 +18,7 @@ const shareAuthType = z.enum(FILE_SHARE_AUTH_TYPES)
  *   operation-level gate can express.
  * - `ui-only`: the key hides a surface without withholding it, so a caller that
  *   skips the UI still reaches the API.
+ * - `default`: a preference used when initializing a resource, without restricting access.
  *
  * Declared rather than inferred, because `ui-only` is the value an admin is
  * most likely to mistake for a control — twelve keys shipped that way.
@@ -31,7 +32,7 @@ const shareAuthType = z.enum(FILE_SHARE_AUTH_TYPES)
  * they share, and `check:permission-group-enforcement` is what keeps it honest
  * in both directions.
  */
-type PermissionGroupEnforcement = 'capability' | 'executor' | 'ui-only'
+type PermissionGroupEnforcement = 'capability' | 'executor' | 'ui-only' | 'default'
 
 /**
  * Which group a key's capability is actually read from when it is enforced.
@@ -146,7 +147,7 @@ interface DenylistField<TItem extends z.ZodType = z.ZodType> {
  * exists for `satisfies`, never as an annotation.
  */
 type PermissionGroupField = {
-  readonly kind: 'boolean-restriction' | 'allowlist' | 'denylist'
+  readonly kind: 'boolean-restriction' | 'allowlist' | 'denylist' | 'preference'
   readonly writeSchema: z.ZodType
   readonly readSchema: z.ZodType
   readonly tolerantSchema: z.ZodType
@@ -209,6 +210,13 @@ function denylist<TItem extends z.ZodType>(
   }
 }
 
+const agentDefaultModelSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .nullable()
+  .describe('Default model for new Agent blocks. Null uses the platform default.')
+
 /**
  * Every permission-group config key, in wire order.
  *
@@ -219,9 +227,9 @@ function denylist<TItem extends z.ZodType>(
  *
  * Adding a key here adds it to the write schema, the read schema, the type, the
  * defaults, the tolerant parser and — for a boolean — the admin editor. It does
- * not add enforcement: `enforcement` names the mechanism that refuses, and
- * `check:permission-group-enforcement` refuses a key that claims one it does
- * not have.
+ * not add enforcement: `enforcement` names how the key applies, and
+ * `check:permission-group-enforcement` refuses a key that claims a capability
+ * mechanism it does not have.
  */
 export const PERMISSION_GROUP_FIELDS = {
   allowedIntegrations: allowlist(z.string(), 'executor', {
@@ -511,10 +519,29 @@ export const PERMISSION_GROUP_FIELDS = {
     'capability',
     'Issues in the listed Projects are unavailable to teammates without access to every active environment.'
   ),
+  defaultAgentModel: {
+    kind: 'preference',
+    writeSchema: agentDefaultModelSchema.optional(),
+    readSchema: agentDefaultModelSchema.default(null),
+    tolerantSchema: agentDefaultModelSchema.catch(null),
+    default: null,
+    enforcement: 'default',
+  },
 } satisfies Record<string, PermissionGroupField>
 
 export type PermissionGroupFields = typeof PERMISSION_GROUP_FIELDS
 export type PermissionGroupConfigKey = keyof PermissionGroupFields
+
+export type PermissionGroupRestrictionKey = {
+  [K in PermissionGroupConfigKey]: PermissionGroupFields[K]['kind'] extends 'preference' ? never : K
+}[PermissionGroupConfigKey]
+
+/** Restriction fields that access-request approvals may change. */
+export const PERMISSION_GROUP_RESTRICTION_KEYS = (
+  Object.keys(PERMISSION_GROUP_FIELDS) as PermissionGroupConfigKey[]
+).filter(
+  (key): key is PermissionGroupRestrictionKey => PERMISSION_GROUP_FIELDS[key].kind !== 'preference'
+)
 
 type DerivedPermissionGroupConfig = {
   [K in PermissionGroupConfigKey]: z.infer<PermissionGroupFields[K]['readSchema']>

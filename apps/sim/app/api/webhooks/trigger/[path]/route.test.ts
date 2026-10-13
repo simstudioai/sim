@@ -703,6 +703,97 @@ describe('Webhook Trigger API Route', () => {
     })
   })
 
+  it('does not let an acknowledged admission refusal mask another target that must retry', async () => {
+    testData.webhooks.push(
+      {
+        id: 'refused-webhook',
+        provider: 'generic',
+        path: 'fan-out-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      },
+      {
+        id: 'failing-webhook',
+        provider: 'generic',
+        path: 'fan-out-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      }
+    )
+    dispatchResolvedWebhookTargetMock
+      .mockResolvedValueOnce({
+        outcome: 'ignored',
+        reason: 'admission-rejected',
+        response: new NextResponse(null, { status: 200 }),
+      })
+      .mockResolvedValueOnce({
+        outcome: 'failed',
+        reason: 'preprocessing',
+        response: new NextResponse(null, { status: 503 }),
+      })
+
+    const response = await POST(
+      createMockRequest('POST', { event: 'x' }),
+      createRouteContext({ path: 'fan-out-path' })
+    )
+
+    expect(response.status).toBe(503)
+  })
+
+  it('answers with a failing target rather than a missing block so the sender retries', async () => {
+    testData.webhooks.push(
+      {
+        id: 'missing-block-webhook',
+        provider: 'generic',
+        path: 'mixed-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      },
+      {
+        id: 'failing-webhook',
+        provider: 'generic',
+        path: 'mixed-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      }
+    )
+    dispatchResolvedWebhookTargetMock
+      .mockResolvedValueOnce({
+        outcome: 'ignored',
+        reason: 'block-missing',
+        response: new NextResponse('Trigger block not found in deployment', {
+          status: 404,
+          headers: { 'x-slack-no-retry': '1' },
+        }),
+      })
+      .mockResolvedValueOnce({
+        outcome: 'failed',
+        reason: 'queue-failed',
+        response: new NextResponse(null, { status: 500 }),
+      })
+
+    const response = await POST(
+      createMockRequest('POST', { event: 'x' }),
+      createRouteContext({ path: 'mixed-path' })
+    )
+
+    expect(response.status).toBe(500)
+    expect(response.headers.get('x-slack-no-retry')).toBeNull()
+  })
+
+  it('tells Slack not to redeliver a POST to a path with no webhook', async () => {
+    const req = createMockRequest('POST', { type: 'event_callback' })
+
+    const response = await POST(req, createRouteContext({ path: 'deleted-path' }))
+
+    expect(response.status).toBe(404)
+    expect(response.headers.get('x-slack-no-retry')).toBe('1')
+  })
+
   describe('PUT, PATCH and DELETE deliveries', () => {
     /**
      * Every non-POST rejection is the same 405, whether the path is unknown, holds only

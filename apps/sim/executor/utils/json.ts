@@ -29,6 +29,17 @@ export function isJSONString(value: string): boolean {
   return trimmed.startsWith('{') || trimmed.startsWith('[')
 }
 
+const JSON_SCALAR_TEXT = /^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)$/
+
+/**
+ * Whether trimmed text can be JSON at all — unlike {@link isJSONString}, this also admits
+ * strings and scalars. Every valid JSON text passes, so it only skips parses that would fail.
+ */
+export function mayBeJsonText(text: string): boolean {
+  const first = text[0]
+  return first === '{' || first === '[' || first === '"' || JSON_SCALAR_TEXT.test(text)
+}
+
 /**
  * Recursively parses JSON strings within an object or array.
  * Useful for normalizing data that may contain stringified JSON at various levels.

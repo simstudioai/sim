@@ -17,6 +17,7 @@ import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/appl
 import {
   hasWorkspaceFileDeliveryObserver,
   reportWorkspaceFileDelivery,
+  requireCopilotWorkspaceFileDeliveryObserver,
 } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
@@ -100,6 +101,7 @@ async function executeDownloadWorkspaceFileStream({
   DownloadWorkspaceFileInput,
   ActiveWorkspaceFileContext
 >): Promise<DownloadWorkspaceFileStreamResult> {
+  requireCopilotWorkspaceFileDeliveryObserver(principal)
   const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
     throwOnError: true,
   })
@@ -113,7 +115,7 @@ async function executeDownloadWorkspaceFileStream({
           contentUpdatedAt: file.contentUpdatedAt ?? undefined,
         })
       : undefined
-  await reportWorkspaceFileDelivery(secretProvenance)
+  await reportWorkspaceFileDelivery(secretProvenance, file.id)
   return streamWorkspaceFileRecord(
     file,
     principal,

@@ -272,8 +272,9 @@ const CLAUDE_GEO_PROFILE_MODEL_IDS = new Set([
   'anthropic.claude-sonnet-4-6',
 ])
 
-/** These models currently publish US and global inference profiles only. */
+/** Unqualified IDs for these models use US geographic inference profiles. */
 const US_GEO_PROFILE_MODEL_IDS = new Set([
+  'openai.gpt-6.1-sol',
   'anthropic.claude-fable-5',
   'openai.gpt-6-astra',
   'openai.gpt-5.6-sol',
@@ -328,7 +329,7 @@ export function getBedrockInferenceProfileId(modelId: string, region: string): s
     if (region.startsWith('us-') && !region.startsWith('us-gov-')) return `us.${baseModelId}`
     throw new Error(
       `${baseModelId} only has a US geographic inference profile. ` +
-        'Supply an explicit bedrock/global. model ID to use global inference.'
+        'Use an enabled US region. Supply an explicit bedrock/global. model ID only for models with a global profile.'
     )
   }
 

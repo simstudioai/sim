@@ -77,6 +77,10 @@ import { TERMINAL_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/util
 import { countPendingSeatInvitations } from '@/lib/billing/validation/seat-management'
 import { withEnterpriseReconciliationLease } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
+import {
+  lockSubscriptionForSyncRetry,
+  recommitSubscriptionSync,
+} from '@/lib/billing/webhooks/subscription-sync'
 import { env } from '@/lib/core/config/env'
 import {
   continueOutboxHandler,
@@ -2103,6 +2107,9 @@ export async function retryEnterpriseFollowUpJob(
 
   const retried = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, operationPayload.request.organizationId)
+    if (snapshotDetail.kind === 'personal_subscription_cancellation') {
+      await lockSubscriptionForSyncRetry(tx, snapshotDetail.subjectId)
+    }
     const [row] = await tx
       .select({
         status: outboxEvent.status,
@@ -2119,7 +2126,9 @@ export async function retryEnterpriseFollowUpJob(
       !detail ||
       !getEnterpriseFollowUpOperationIds(row.eventType, row.payload).includes(operationId) ||
       (detail.kind === 'member_reconciliation' &&
-        detail.subjectId !== operationPayload.request.organizationId)
+        detail.subjectId !== operationPayload.request.organizationId) ||
+      detail.kind !== snapshotDetail.kind ||
+      detail.subjectId !== snapshotDetail.subjectId
     ) {
       throw new EnterpriseProvisioningError('Enterprise follow-up job not found')
     }
@@ -2135,6 +2144,13 @@ export async function retryEnterpriseFollowUpJob(
         processedAt: null,
       })
       .where(eq(outboxEvent.id, jobEventId))
+    if (detail.kind === 'personal_subscription_cancellation') {
+      await recommitSubscriptionSync(
+        tx,
+        OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+        detail.subjectId
+      )
+    }
     return true
   })
 

@@ -3,24 +3,19 @@ import { db } from '@sim/db'
 import { ssoDomain, ssoProvider } from '@sim/db/schema'
 import { verifiedDomainOfProvider } from '@sim/db/sso-primary-provider'
 import { and, eq, exists, sql } from 'drizzle-orm'
+import { ssoSettingsOperations } from '@/lib/auth/sso/application/operations'
 import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
+import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
-import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-/**
- * permission-group-exempt: SSO providers are managed by organization owners and administrators, the same gate as the rest of SSO settings.
- */
-export const setPrimarySsoProviderOperation = defineOrganizationOperation({
-  id: 'organization.sso.set_primary_provider',
-  minimumRole: 'admin',
-  principalKinds: ['session'],
-  capability: 'none',
-})
+const setPrimarySsoProviderOperation = ssoSettingsOperations.setPrimary
 
 export interface SetPrimarySsoProviderInput {
   providerId: string
+  assertedOrganizationId?: string
 }
 
 export interface SetPrimarySsoProviderResult {
@@ -42,6 +37,9 @@ export const setPrimarySsoProvider: OperationUseCase<
 > = {
   operation: setPrimarySsoProviderOperation,
   async execute({ principal, input, request }) {
+    if (!setPrimarySsoProviderOperation.principalKinds.some((kind) => kind === principal.kind))
+      throw new PrincipalKindAuthorizationError(principal.kind, setPrimarySsoProviderOperation.id)
+    requireOAuthOperationScope(principal, setPrimarySsoProviderOperation)
     const [provider] = await db
       .select({
         id: ssoProvider.id,
@@ -51,7 +49,10 @@ export const setPrimarySsoProvider: OperationUseCase<
       .from(ssoProvider)
       .where(eq(ssoProvider.providerId, input.providerId))
       .limit(1)
-    if (!provider?.organizationId) {
+    if (
+      !provider?.organizationId ||
+      (input.assertedOrganizationId && provider.organizationId !== input.assertedOrganizationId)
+    ) {
       throw new OrchestrationError('not_found', 'Provider not found')
     }
     const { organizationId } = await authorizeOrganizationOperation(

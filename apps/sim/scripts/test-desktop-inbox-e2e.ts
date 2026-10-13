@@ -34,9 +34,8 @@ import {
  * real HTTP boundary: registration, the SSE doorbell, the inbox pull, claim, lease renewal and
  * completion. No chat view is open at any point.
  *
- * Start the app with the executor flag on and Redis configured, for example:
- *   MSHIP_DESKTOP_BACKGROUND_EXECUTOR=true COPILOT_TOOL_PERMISSIONS_ENABLED=true \
- *     REDIS_URL=redis://127.0.0.1:6379 bun run dev
+ * Start the app with Redis configured, which the executor needs, for example:
+ *   COPILOT_TOOL_PERMISSIONS_ENABLED=true REDIS_URL=redis://127.0.0.1:6379 bun run dev
  * then run:
  *   DESKTOP_INBOX_E2E_BASE_URL=http://127.0.0.1:3000 \
  *   DESKTOP_INBOX_E2E_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/sim_test \
@@ -416,11 +415,7 @@ async function run() {
 
   await check('registers the desktop and receives the executor timing contract', async () => {
     const registration = await register(desktop)
-    assert.equal(
-      registration.enabled,
-      true,
-      'Start the app with MSHIP_DESKTOP_BACKGROUND_EXECUTOR=true'
-    )
+    assert.equal(registration.enabled, true, 'Start the app with REDIS_URL set')
     assert(registration.leaseRenewMs < registration.leaseMs)
     assert(registration.reconcileMs < PICKUP_GRACE_SECONDS * 1000)
   })

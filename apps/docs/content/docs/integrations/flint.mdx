@@ -56,7 +56,7 @@ Start a background Flint agent task that generates up to 10 pages from a templat
 | `apiKey` | string | Yes | Flint API key \(found in Flint team settings, starts with ak_\) |
 | `siteId` | string | Yes | ID of the Flint site the agent should modify |
 | `templatePageSlug` | string | Yes | Slug of the existing template page to generate from \(e.g., /case-studies/template\) |
-| `items` | json | Yes | JSON array of 1-10 pages to generate. Each item requires targetPageSlug \(slug for the new page\) and context \(content details the agent should use\). |
+| `items` | array | Yes | JSON array of 1-10 pages to generate. Each item requires targetPageSlug \(slug for the new page\) and context \(content details the agent should use\). |
 | `callbackUrl` | string | No | HTTPS webhook URL that Flint will POST to when the task completes or fails |
 | `publish` | boolean | No | Whether to automatically publish the generated pages when the task completes |
 

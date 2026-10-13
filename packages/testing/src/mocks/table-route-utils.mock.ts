@@ -75,8 +75,7 @@ function errorResponse(message: string, status: number, details?: unknown): Resp
  * `rootErrorMessage`, `csvProxyBodyCapResponse`, `multipartErrorResponse`,
  * `capabilityGovernedUserId`, `accessError`, `errorResponse`, `badRequestResponse`,
  * `unauthorizedResponse`, `forbiddenResponse`, `notFoundResponse`.
- * `tablesV2GateError` resolves `null` (the gate is open); `tableFilterError` returns `null` (the
- * filter is valid). `checkAccess` is a bare `vi.fn()`.
+ * `tableFilterError` returns `null` (the filter is valid). `checkAccess` is a bare `vi.fn()`.
  *
  * @example
  * ```ts
@@ -86,9 +85,6 @@ function errorResponse(message: string, status: number, details?: unknown): Resp
  * ```
  */
 export const tableRouteUtilsMockFns = {
-  mockTablesV2GateError: vi.fn(
-    async (_userId: string, _workspaceId: string): Promise<Response | null> => null
-  ),
   mockTableLockErrorResponse: vi.fn((error: unknown): Response | null => lockResponse(error)),
   mockTableFilterError: vi.fn((_filter: unknown, _columns: unknown): Response | null => null),
   mockRootErrorMessage: vi.fn((error: unknown): string => {
@@ -183,7 +179,6 @@ export const tableRouteUtilsMockFns = {
  */
 export const tableRouteUtilsMock = {
   CSV_IMPORT_PROXY_BODY_CAP_BYTES: 10 * 1024 * 1024,
-  tablesV2GateError: tableRouteUtilsMockFns.mockTablesV2GateError,
   tableLockErrorResponse: tableRouteUtilsMockFns.mockTableLockErrorResponse,
   tableFilterError: tableRouteUtilsMockFns.mockTableFilterError,
   rootErrorMessage: tableRouteUtilsMockFns.mockRootErrorMessage,

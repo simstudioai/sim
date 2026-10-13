@@ -10,9 +10,9 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getAdminAuditActor } from '@/app/api/v1/admin/dashboard/actor'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -34,9 +34,10 @@ export const POST = withRouteHandler(
         )
       )
     } catch (error) {
-      if (error instanceof EnterpriseProvisioningError) return badRequestResponse(error.message)
+      if (error instanceof EnterpriseProvisioningError)
+        return adminBadRequestResponse(error.message)
       logger.error('Failed to retry Enterprise provisioning', { error })
-      return internalErrorResponse('Failed to retry Enterprise provisioning')
+      return adminInternalErrorResponse('Failed to retry Enterprise provisioning')
     }
   })
 )

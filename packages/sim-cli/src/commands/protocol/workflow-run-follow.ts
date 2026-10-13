@@ -2,13 +2,13 @@ import { isRecordLike } from '@sim/utils/object'
 import type { Command } from 'commander'
 import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
-import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
 import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { readNdjson } from '../../http/ndjson'
 import { safeOneLine, sanitize } from '../../output/render'
+import { connect } from '../../runtime/called-operations'
 import { executeOperation, runFailureMessage } from '../../runtime/execute'
 import { retypeApiError } from '../../runtime/naming'
 import { buildRequest } from '../../runtime/request'
@@ -169,14 +169,14 @@ function withEmbeddedFileReferences(
 /** Runs synchronously while keeping idle-limited HTTP paths active. */
 async function runWithResultStream(workflowId: string, command: Command): Promise<void> {
   const flags = command.optsWithGlobals() as Record<string, unknown>
-  const { client, profile } = clientFrom(command)
+  const { client, profile } = connect(command, ['executeWorkflow'])
   const operation = V2_OPERATIONS.executeWorkflow as OperationSpec
   const commandSpec = CLI_CONTRACT.executeWorkflow ?? {}
 
   try {
     const request = await buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
-    const response = await client.requestRaw(request.path, {
-      method: operation.method,
+    const response = await client.requestRaw('executeWorkflow', {
+      params: request.params,
       query: request.query,
       body: withEmbeddedFileReferences(request.body),
       headers: { ...request.headers, accept: WORKFLOW_RESULT_STREAM_CONTENT_TYPE },
@@ -369,12 +369,12 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
   const includeToolCalls = flags.includeToolCalls === true
   const negotiates = includeThinking || includeToolCalls
 
-  const { client, profile } = clientFrom(command)
+  const { client, profile } = connect(command, ['executeWorkflow'])
   const operation = V2_OPERATIONS.executeWorkflow as OperationSpec
   const request = await buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
 
-  const response = await client.requestRaw(request.path, {
-    method: 'POST',
+  const response = await client.requestRaw('executeWorkflow', {
+    params: request.params,
     query: request.query,
     body: {
       ...withEmbeddedFileReferences(request.body),

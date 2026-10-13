@@ -14,7 +14,7 @@ import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import { getDeleteSnapshotBatchSize, TABLE_LIMITS } from '@/lib/table/constants'
 import type { MutationProof } from '@/lib/table/mutation-locks'
-import { keyBetween, nKeysBetween } from '@/lib/table/order-key'
+import { appendKeys, keyBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import {
@@ -149,18 +149,10 @@ export async function nextImportStartOrderKey(tableId: string): Promise<string |
 }
 
 /**
- * Serializes writers that assign `position` for the same table. The row-count
- * trigger (migration 0198) serializes capacity via a row lock on
- * `user_table_definitions`, but it fires AFTER INSERT, so two concurrent
- * auto-positioned inserts could read the same snapshot and assign the same
- * position (the `(table_id, position)` index is non-unique). This advisory lock
- * restores per-table serialization. Released at COMMIT/ROLLBACK.
+ * Next append position for a table (max(position) + 1, or 0 if empty). Read without a lock, so
+ * concurrent appends can share a position: `position` is a creation-order hint, never unique, and
+ * the run dispatcher pages through ties (see `dispatcher.ts`).
  */
-export async function acquireRowOrderLock(trx: DbTransaction, tableId: string) {
-  await acquireAdvisoryXactLock(trx, 'user_table_rows_pos', `user_table_rows_pos:${tableId}`)
-}
-
-/** Next append position for a table (max(position) + 1, or 0 if empty). */
 export async function nextRowPosition(trx: DbTransaction, tableId: string): Promise<number> {
   const [{ maxPos }] = await trx
     .select({
@@ -174,8 +166,7 @@ export async function nextRowPosition(trx: DbTransaction, tableId: string): Prom
 /**
  * The append anchors — `max(order_key)` and the next free `position` — in ONE round trip.
  *
- * An append needs both, and asking separately is two serial round trips inside the row-order
- * advisory lock, which every other inserting request is waiting on. Postgres plans each `max()`
+ * An append needs both, and asking separately is two serial round trips. Postgres plans each `max()`
  * as its own InitPlan, so the combined statement still serves each aggregate from its own index
  * (`(table_id, order_key, id)` and `(table_id, position)`) with an index-only backward scan —
  * exactly the two plans the separate queries produced, in one statement rather than two.
@@ -208,15 +199,16 @@ export async function maxOrderKey(executor: DbOrTx, tableId: string): Promise<st
 
 /**
  * Computes the fractional `order_key` for a row inserted at the integer
- * `requestedPosition` (or appended when omitted). Used by position-based callers
- * (mothership tool, v1 API, undo position-fallback, transient old clients).
+ * `requestedPosition` (appended when omitted or past the last row). Used by position-based
+ * callers (mothership tool, v1 API, undo position-fallback, transient old clients).
  *
  * The neighbor at slot `s` is the `s`-th row in `order_key, id` order (`OFFSET
  * s`) — positions are gappy and non-authoritative, so `position = s` would miss;
  * the visual ordinal is the key's ordinal. O(s), acceptable for these low-volume
  * callers.
  *
- * Caller holds the row-order lock.
+ * No lock serializes inserts, so neighbors can share a key: the upper bound is the next key
+ * strictly above the lower one, which places the row after every tie instead of throwing.
  */
 export async function resolveInsertOrderKey(
   trx: DbTransaction,
@@ -235,18 +227,34 @@ export async function resolveInsertOrderKey(
     return r?.orderKey ?? null
   }
   if (requestedPosition === undefined) {
-    return keyBetween(await maxOrderKey(trx, tableId), null)
+    return appendKeys(await maxOrderKey(trx, tableId), 1)[0]
+  }
+  if (requestedPosition === 0) {
+    const first = await orderKeyAtSlot(0)
+    return first === null ? appendKeys(null, 1)[0] : keyBetween(null, first)
   }
   const lo = await orderKeyAtSlot(requestedPosition - 1)
-  const hi = await orderKeyAtSlot(requestedPosition)
-  return keyBetween(lo, hi)
+  if (lo === null) return appendKeys(await maxOrderKey(trx, tableId), 1)[0]
+  const hi = await keyAbove(trx, tableId, lo)
+  return hi === null ? appendKeys(lo, 1)[0] : keyBetween(lo, hi)
+}
+
+/** The smallest `order_key` strictly greater than `key`, skipping any row that shares it. */
+async function keyAbove(trx: DbTransaction, tableId: string, key: string): Promise<string | null> {
+  const [next] = await trx
+    .select({ orderKey: userTableRows.orderKey })
+    .from(userTableRows)
+    .where(and(eq(userTableRows.tableId, tableId), gt(userTableRows.orderKey, key)))
+    .orderBy(asc(userTableRows.orderKey))
+    .limit(1)
+  return next?.orderKey ?? null
 }
 
 /**
  * Resolves the `order_key` for an insert expressed by an anchor row id —
  * `afterRowId` (place directly after) or `beforeRowId` (directly before). Finds
  * the anchor and its adjacent key via the `(table_id, order_key, id)` index
- * (O(1)) and mints a key between them. Caller holds the row-order lock.
+ * (O(1)) and mints a key between them, or an append key when the anchor is the last row.
  */
 export async function resolveInsertByNeighbor(
   trx: DbTransaction,
@@ -274,17 +282,8 @@ export async function resolveInsertByNeighbor(
   }
 
   if (afterRowId) {
-    // hi = the smallest key strictly GREATER than the anchor key. Comparing keys
-    // (not the `(order_key, id)` row tuple) skips past any sibling that shares the
-    // anchor's key, so `keyBetween` always gets strictly-ordered bounds and can't
-    // throw on a stray duplicate. Identical to the row tuple when keys are distinct.
-    const [next] = await trx
-      .select({ orderKey: userTableRows.orderKey })
-      .from(userTableRows)
-      .where(and(eq(userTableRows.tableId, tableId), gt(userTableRows.orderKey, anchorKey)))
-      .orderBy(asc(userTableRows.orderKey))
-      .limit(1)
-    return keyBetween(anchorKey, next?.orderKey ?? null)
+    const next = await keyAbove(trx, tableId, anchorKey)
+    return next === null ? appendKeys(anchorKey, 1)[0] : keyBetween(anchorKey, next)
   }
 
   // beforeRowId: lo = the largest key strictly LESS than the anchor key (distinct,
@@ -302,14 +301,14 @@ export async function resolveInsertByNeighbor(
  * Computes fractional `order_key`s for a batch insert by appending a contiguous
  * run after the current max key. `order_key` is authoritative, so callers needing
  * exact placement pass explicit `orderKeys` (handled before this function); here
- * we just append a run. Caller holds the lock.
+ * we just append a run (see {@link appendKeys}).
  */
 export async function resolveBatchInsertOrderKeys(
   trx: DbTransaction,
   tableId: string,
   count: number
 ): Promise<string[]> {
-  return nKeysBetween(await maxOrderKey(trx, tableId), null, count)
+  return appendKeys(await maxOrderKey(trx, tableId), count)
 }
 
 /**
@@ -333,8 +332,7 @@ export async function insertOrderedRow(params: {
   /** Proof the caller asserted the insert lock (see `mutation-locks.ts`). */
   proof: MutationProof<'insert'>
   /**
-   * Opens the transaction in place of the default timeouts, before the row-order lock: the
-   * caller's schema guard (see `live-schema.ts`), which applies the timeouts, then its unique-value
+   * Opens the transaction in place of the default timeouts: the caller's schema guard (see `live-schema.ts`), which applies the timeouts, then its unique-value
    * locks and unique check (see `unique-locks.ts`), so the check sees any concurrent insert of the
    * same value.
    */
@@ -362,21 +360,19 @@ export async function insertOrderedRow(params: {
   const [row] = await db.transaction(async (trx) => {
     if (params.validate) await params.validate(trx)
     else await setTableTxTimeouts(trx)
-    await acquireRowOrderLock(trx, tableId)
 
     // Resolve the authoritative order key from neighbor ids when given, else from the requested
     // position. `order_key` is authoritative — `position` is a best-effort, no-shift companion.
     //
     // A plain append needs only the two table maxima, so it reads them together
-    // ({@link appendAnchors}) rather than paying a second round trip under the order lock. The
-    // anchored and positional forms resolve their key by walking to a slot, so they still ask
-    // for the next position separately.
+    // ({@link appendAnchors}). The anchored and positional forms resolve their key by walking to a
+    // slot, so they still ask for the next position separately.
     const appending = !afterRowId && !beforeRowId && position === undefined
     let orderKey: string
     let targetPosition: number
     if (appending) {
       const anchors = await appendAnchors(trx, tableId)
-      orderKey = keyBetween(anchors.maxOrderKey, null)
+      orderKey = appendKeys(anchors.maxOrderKey, 1)[0]
       targetPosition = anchors.nextPosition
     } else {
       orderKey =
@@ -623,9 +619,8 @@ export async function guardBatch(
 
 /**
  * Deletes one page of rows for the async delete-job worker, committing each `DELETE_BATCH_SIZE`
- * chunk in its own short transaction. One statement per transaction bounds how long the
- * statement-level row_count trigger's lock on the definition row is held (a page-wide transaction
- * held it for the entire page, starving concurrent inserts and overrunning `statement_timeout`),
+ * chunk in its own short transaction. One statement per transaction keeps each transaction short
+ * (a page-wide transaction held its row locks for the entire page and overran `statement_timeout`),
  * and a mid-page failure loses at most one uncommitted batch — the keyset walker (or a task
  * retry) re-walks whatever remains. Skips legacy position compaction: under fractional ordering
  * it's unnecessary, and in the legacy path `position` gaps are harmless — rows still order by

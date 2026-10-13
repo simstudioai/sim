@@ -106,7 +106,8 @@ export interface DesktopToolRunnerDeps {
   localFiles: {
     request(
       call: ClaimedDesktopCall,
-      request: DesktopLocalFileRequest
+      request: DesktopLocalFileRequest,
+      signal: AbortSignal
     ): Promise<DesktopLocalFileResponse>
   }
   imports: {
@@ -289,7 +290,8 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
     const folders: DesktopLocalFileImportResult['folders'] = []
     const targetWorkspaceId =
       typeof call.args.targetWorkspaceId === 'string' ? call.args.targetWorkspaceId : ''
-    const read = (request: DesktopLocalFileRequest) => deps.localFiles.request(call, request)
+    const read = (request: DesktopLocalFileRequest) =>
+      deps.localFiles.request(call, request, signal)
     try {
       const response = await read({ operation: 'manifest', toolCallId: call.toolCallId })
       if (!response.ok) throw new Error(response.error)
@@ -337,10 +339,14 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
         if (!deps.accountDataAvailable()) return localAccessUnavailable()
         if (call.toolName === 'read_local_file') {
           return localFileReadCompletion(
-            await deps.localFiles.request(call, {
-              operation: 'read',
-              toolCallId: call.toolCallId,
-            })
+            await deps.localFiles.request(
+              call,
+              {
+                operation: 'read',
+                toolCallId: call.toolCallId,
+              },
+              signal
+            )
           )
         }
         if (call.toolName === 'import_local_files') return await runImport(call, signal)

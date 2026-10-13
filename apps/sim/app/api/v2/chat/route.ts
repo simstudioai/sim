@@ -36,6 +36,7 @@ import {
   buildPersistedUserMessage,
 } from '@/lib/mothership/chat/persisted-message'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
+import { computeEntitlements } from '@/lib/mothership/entitlements'
 import {
   type CopilotEnvironmentContext,
   createCopilotEnvironmentContext,
@@ -343,6 +344,8 @@ export const POST = withRouteHandler(
         chatId,
         messageId,
         integrationCatalog: { mcpServerIds: [] },
+        mode: 'agent',
+        entitlements: await computeEntitlements({ principal, workspaceId }),
         ...(effort ? { effort } : {}),
       }
 

@@ -19,7 +19,10 @@ const { mockGetIntegrationAvailability, mockGetOAuthServiceAvailability } =
 
 describe('allowed integrations response', () => {
   beforeEach(() => {
-    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
+    })
     mockGetIntegrationAvailability.mockReturnValue([
       { type: 'github_v2', state: 'ready', oauthAvailable: false, missingFields: [] },
     ])

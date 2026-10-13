@@ -161,7 +161,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   if (error && !(isApiClientError(error) && error.status === 404)) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <SettingsEmptyState variant='inline' tone='error'>
+        <SettingsEmptyState variant='inline'>
           {isApiClientError(error) && error.status === 403
             ? 'You do not have access to this secret.'
             : 'Could not load this secret.'}

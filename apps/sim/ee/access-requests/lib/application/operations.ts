@@ -1,11 +1,13 @@
-import type { Principal } from '@sim/auth/principal'
+import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
-export type AccessRequestPrincipal = Extract<
-  Principal,
-  { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }
->
+/** Chat acting for the requester joins the direct callers on the workspace routes only. */
+export type AccessRequestPrincipal =
+  | Extract<Principal, { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }>
+  | (DelegatedPrincipal & { serviceId: 'copilot' })
+
+export const ACCESS_REQUEST_DELEGATION_AUDIENCE = 'sim:settings'
 
 function defineAccessRequestOperation(
   id: string,
@@ -22,17 +24,34 @@ function defineAccessRequestOperation(
      */
     capability: 'none',
   })
-  const workspaceOperation = defineWorkspaceOperation({
-    id,
-    oauthScope,
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
-    /**
-     * permission-group-exempt: requests never grant a withheld capability without administrator review.
-     */
-    capability: 'none',
-  })
+  /**
+   * A member's own requests admit Chat delegated by that member. Review stays with direct
+   * callers: it is organization-scoped and never reached through a workspace.
+   */
+  const workspaceOperation = admin
+    ? defineWorkspaceOperation({
+        id,
+        oauthScope,
+        minimumRole: 'read',
+        workspaceApiKey: 'deny',
+        principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+        /**
+         * permission-group-exempt: requests never grant a withheld capability without administrator review.
+         */
+        capability: 'none',
+      })
+    : defineWorkspaceOperation({
+        id,
+        oauthScope,
+        minimumRole: 'read',
+        workspaceApiKey: 'deny',
+        principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
+        delegatedServices: ['copilot'],
+        /**
+         * permission-group-exempt: requests never grant a withheld capability without administrator review.
+         */
+        capability: 'none',
+      })
   return Object.freeze({ ...workspaceOperation, organizationOperation, admin })
 }
 

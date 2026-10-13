@@ -36,7 +36,7 @@ const logger = createLogger('CopilotTaskWake')
 export async function runWakeTurn(input: WakeRequest): Promise<void> {
   const { taskId, chatId, workspaceId, organizationId, userId, message, runId } = input
   const userMessageId = runId
-  const owner = organizationId ? { organizationId, userId } : { workspaceId: workspaceId! }
+  const owner = organizationId ? { organizationId, userId } : { workspaceId: workspaceId!, userId }
   chatPubSub?.publishStatusChanged({
     ...owner,
     chatId,

@@ -178,6 +178,10 @@ export const bedrockProvider: ProviderConfig = {
     )
 
     const { messages, systemContent } = convertBedrockRequestHistory(request)
+    const canonicalModelId = `bedrock/${getBedrockBaseModelId(request.model)}`
+    const knownModel = isKnownModelId(canonicalModelId)
+    const modelCapabilities = getModelCapabilities(canonicalModelId)
+    const canForceTools = modelCapabilities?.forcedToolUse !== false
 
     if (messages.length === 0) {
       messages.push({
@@ -207,6 +211,11 @@ export const bedrockProvider: ProviderConfig = {
           },
         }
         logger.info(`Using native structured outputs: ${schemaName}`)
+      } else if (!canForceTools) {
+        systemContent.push({
+          text: `Respond with only a valid JSON object matching this schema: ${JSON.stringify(schema)}`,
+        })
+        logger.info(`Using schema instructions for model without forced tool choice: ${schemaName}`)
       } else {
         structuredOutputTool = {
           toolSpec: {
@@ -263,7 +272,9 @@ export const bedrockProvider: ProviderConfig = {
         : undefined
 
       if (bedrockTools?.length) {
-        if (preparedToolChoice === 'auto') {
+        if (preparedToolChoice !== 'none' && !canForceTools) {
+          toolChoice = { auto: {} }
+        } else if (preparedToolChoice === 'auto') {
           toolChoice = { auto: {} }
         } else if (preparedToolChoice === 'none') {
           toolChoice = undefined
@@ -337,9 +348,6 @@ export const bedrockProvider: ProviderConfig = {
 
     const systemPromptWithSchema = systemContent
 
-    const canonicalModelId = `bedrock/${getBedrockBaseModelId(request.model)}`
-    const knownModel = isKnownModelId(canonicalModelId)
-    const modelCapabilities = getModelCapabilities(canonicalModelId)
     const inferenceConfig: { temperature?: number; maxTokens?: number } = {}
     if (
       (knownModel && modelCapabilities?.temperature) ||

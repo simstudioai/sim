@@ -31,7 +31,7 @@ import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-docu
 import { type KnowledgeFileAccess, verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createConditionalFileResponse,
-  createErrorResponse,
+  createFileErrorResponse,
   createFileResponse,
   FileNotFoundError,
   type FileResponse,
@@ -397,16 +397,18 @@ export const GET = withRouteHandler(
       if (orchestrationError?.code === 'not_found') {
         const notFound = new FileNotFoundError('File not found')
         logServeFailure('Error serving file:', notFound)
-        return createErrorResponse(notFound)
+        return createFileErrorResponse(notFound)
       }
 
       logServeFailure('Error serving file:', error)
 
       if (error instanceof FileNotFoundError) {
-        return createErrorResponse(error)
+        return createFileErrorResponse(error)
       }
 
-      return createErrorResponse(error instanceof Error ? error : new Error('Failed to serve file'))
+      return createFileErrorResponse(
+        error instanceof Error ? error : new Error('Failed to serve file')
+      )
     }
   }
 )

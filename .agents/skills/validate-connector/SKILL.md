@@ -110,7 +110,7 @@ For **every** API call in the connector (`listDocuments`, `getDocument`, `valida
   - OData `$filter`: single quotes escaped with `''` (e.g., `externalId.replace(/'/g, "''")`)
   - SOQL: single quotes escaped with `\'`
   - GraphQL variables: passed as variables, not interpolated into query strings
-  - URL path segments: `encodeURIComponent()` applied
+  - A single ID URL path segment: `safeUrlPathSegment(value, 'paramName')` from `@/tools/url-path`; query values: `encodeURIComponent()`
 - [ ] URL-type config fields (e.g., `siteUrl`, `instanceUrl`) are normalized:
   - Strip `https://` / `http://` prefix if the API expects bare domains
   - Strip trailing `/`
@@ -133,7 +133,7 @@ Scopes must be correctly declared and sufficient for all API calls the connector
 - [ ] No invalid, deprecated, or made-up scopes are listed
 - [ ] No unnecessary excess scopes beyond what the connector actually needs
 
-### Scope Subset Validation (CRITICAL)
+### Scope Subset Validation
 - [ ] Every scope in `requiredScopes` exists in the OAuth provider's `scopes` array in `lib/oauth/oauth.ts`
 - [ ] Find the provider in `OAUTH_PROVIDERS[providerGroup].services[serviceId].scopes`
 - [ ] Verify: `requiredScopes` ⊆ `OAUTH_PROVIDERS scopes` (every required scope is present in the provider config)
@@ -164,7 +164,7 @@ For each API endpoint the connector calls:
 - [ ] No off-by-one errors in pagination tracking
 - [ ] The connector does NOT hit known API pagination limits silently (e.g., HubSpot search 10k cap)
 
-### Deletion-Reconciliation Safety (`listingCapped`) — CRITICAL
+### Deletion-Reconciliation Safety (`listingCapped`)
 The sync engine tombstones, then hard-deletes, any stored document absent from a full listing. Audit every path where `listDocuments` can return less than the full source set:
 - [ ] `syncContext.listingCapped = true` is set when a `maxItems`-style cap truncates the listing while more documents exist
 - [ ] `listingCapped` is set when a transient per-item error drops a still-existing document from the listing
@@ -177,7 +177,7 @@ Verify it against the `checkpoint.unsafe` computation in `lib/knowledge/connecto
 
 ## Step 6: Validate Data Transformation
 
-### Content Deferral (CRITICAL)
+### Content Deferral
 Connectors that require per-document API calls to fetch content (file download, export, blocks fetch) MUST use `contentDeferred: true`. This is the standard pattern for reliability — without it, content downloads during listing can exhaust the sync task's time budget before any documents are saved.
 
 - [ ] If the connector downloads content per-doc during `listDocuments`, it MUST use `contentDeferred: true` instead

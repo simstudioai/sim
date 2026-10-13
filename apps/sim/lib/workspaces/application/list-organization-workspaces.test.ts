@@ -1,5 +1,4 @@
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import {
   organizationAuthorizationMock,
   organizationAuthorizationMockFns,
@@ -14,7 +13,6 @@ import {
 } from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
@@ -23,7 +21,6 @@ import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { listOrganizationWorkspaces } from '@/lib/workspaces/application/list-organization-workspaces'
 
 const mocks = {
-  feature: featureFlagsMockFns.mockIsFeatureEnabled,
   rows: workspacesUtilsMockFns.mockListAccessibleWorkspaceRowsForUser,
   authorize: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
   config: permissionGroupScopeMockFns.mockResolvePermissionGroupConfig,
@@ -37,7 +34,6 @@ const row = (id: string, organizationId = 'org', role: 'read' | 'write' | 'admin
 beforeEach(() => {
   mocks.authorize.mockResolvedValue({ userId: 'user', organizationId: 'org' })
   mocks.config.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
-  mocks.feature.mockResolvedValue(false)
   mocks.rows.mockResolvedValue([row('b', 'org', 'write'), row('a'), row('outside', 'other')])
 })
 describe('organization workspace inventory', () => {
@@ -50,7 +46,6 @@ describe('organization workspace inventory', () => {
         })
       ).workspaces
     ).toEqual([])
-    expect(mocks.feature).not.toHaveBeenCalled()
     mocks.authorize.mockRejectedValue(new Error('Membership revoked'))
     await expect(
       listOrganizationWorkspaces.execute({ principal, input: { organizationId: 'org', limit: 1 } })
@@ -73,17 +68,4 @@ describe('organization workspace inventory', () => {
       deniedCapabilities: ['personal_api_key.use'],
     })
   })
-})
-
-it('does not disclose rollout detail for a denied operation', async () => {
-  mocks.config.mockResolvedValue({
-    ...DEFAULT_PERMISSION_GROUP_CONFIG,
-    deniedTools: ['table_query_rows_v2'],
-  })
-  const result = await listOrganizationWorkspaces.execute({
-    principal,
-    input: { organizationId: 'org', workspaceId: 'a', limit: 1 },
-  })
-  expect(result.workspaces[0]).toMatchObject({ operationAvailability: {} })
-  expect(mocks.feature).not.toHaveBeenCalled()
 })

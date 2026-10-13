@@ -363,7 +363,6 @@ export function ResourceTabs({
       // The chat owner handles optimistic state and its single ordered persistence queue.
       onAddResource(resource)
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [desktopScopeId, onAddResource, selectResource]
   )
 
@@ -477,7 +476,6 @@ export function ResourceTabs({
         anchorIdRef.current = null
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       activeId,
       chatId,
@@ -574,7 +572,6 @@ export function ResourceTabs({
         ).catch(() => toast.error('Could not reorder that terminal. Please try again.'))
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [chatId, desktopScopeId, resources, onReorderResources]
   )
 

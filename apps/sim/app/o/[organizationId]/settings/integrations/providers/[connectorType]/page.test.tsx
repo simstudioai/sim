@@ -1,5 +1,6 @@
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import { simSearchConnectorsMock } from '@sim/testing/mocks/sim-search-connectors.mock'
 import { beforeEach, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ authorize: vi.fn() }))
@@ -8,6 +9,7 @@ vi.mock('@/lib/settings/application/organization-section-access', () => ({
 }))
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/sim-search/connectors', () => ({
+  ...simSearchConnectorsMock,
   SEARCH_SOURCE_TYPES: [
     ['jira', { name: 'Jira' }],
     ['confluence', { name: 'Confluence' }],

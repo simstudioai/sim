@@ -39,7 +39,7 @@ import {
 } from '@/main/resource-shortcuts'
 import { readForegroundProcessGroup, signalProcessGroup } from '@/main/terminal/process-group'
 import type { RunLedger } from '@/main/terminal/run-ledger'
-import { elide, TerminalSession } from '@/main/terminal/session'
+import { elide, type ShellStartupBounds, TerminalSession } from '@/main/terminal/session'
 import {
   activePane,
   awaitRun,
@@ -65,11 +65,15 @@ import {
 const logger = createLogger('DesktopTerminal')
 
 /**
- * How long to let a just-spawned shell finish its startup files before
- * concluding it has no integration. Generous because a heavy `.zshrc`
- * (nvm, pyenv, starship) can take a while on a cold start.
+ * How long a just-spawned shell gets to reach its first prompt. It begins our startup files
+ * before anything of the user's runs, so one that has not within seconds was never instrumented.
+ * The user's own files get far longer, since a heavy `.zshrc` (oh-my-zsh, nvm, pyenv) is slow on
+ * a cold start and slower on a busy machine; past that, it is waiting on something.
  */
-const SHELL_INTEGRATION_TIMEOUT_MS = 8_000
+const SHELL_STARTUP_BOUNDS: ShellStartupBounds = { unstartedMs: 8_000, startingMs: 30_000 }
+
+/** Enough of a stalled startup's screen to show what it is waiting on. */
+const STARTUP_SCREEN_LINES = 20
 
 /** Grace for a program to react to input before its screen is worth reading. */
 const INPUT_ECHO_MS = 250
@@ -1388,13 +1392,7 @@ export class TerminalService {
       throw new TerminalError('INVALID_REQUEST', 'run needs a `command`.')
     }
     if (!session.hasShellIntegration) {
-      await session.waitForShellIntegration(SHELL_INTEGRATION_TIMEOUT_MS)
-    }
-    if (!session.hasShellIntegration) {
-      throw new TerminalError(
-        'NO_SHELL_INTEGRATION',
-        'This shell did not load Sim shell integration, so command boundaries and exit codes cannot be determined. Ask the user to run the command themselves, or use a bash/zsh session.'
-      )
+      await this.awaitShellStartup(session, latch)
     }
     if (session.isBusy) {
       throw new TerminalError(
@@ -1406,6 +1404,31 @@ export class TerminalService {
     if (latch.signal.aborted) throw stoppedBeforeStart()
     latch.stopRunning = () => this.stopCommand(session, toolCallId)
     return session.runCommand(command, toolCallId, resolveRunWaitMs(args.waitSeconds))
+  }
+
+  /** Waits for a shell's first prompt, refusing the run with what it is doing if none comes. */
+  private async awaitShellStartup(session: TerminalSession, latch: StopLatch): Promise<void> {
+    const readiness = await session.waitForShellIntegration(SHELL_STARTUP_BOUNDS, latch.signal)
+    switch (readiness) {
+      case 'ready':
+        return
+      case 'stopped':
+        throw stoppedBeforeStart()
+      case 'exited':
+        throw new TerminalError('SESSION_CLOSED', 'The shell exited before it reached a prompt.')
+      case 'starting': {
+        const screen = (await session.readScrollback(STARTUP_SCREEN_LINES)).output.trim()
+        throw new TerminalError(
+          'NO_SHELL_INTEGRATION',
+          `The shell began its startup files over ${SHELL_STARTUP_BOUNDS.startingMs / 1000} s ago but never reached a prompt Sim can track, so nothing was run. Its screen:\n${screen || '(empty)'}\nIf a startup file is waiting for an answer, ask the user to answer it in that terminal (terminalId ${session.terminalId}), then run the command again. If the screen shows a prompt, a startup file replaced the shell (such as exec tmux or exec fish), so ask the user to run the command themselves.`
+        )
+      }
+      case 'not-instrumented':
+        throw new TerminalError(
+          'NO_SHELL_INTEGRATION',
+          'This shell did not load Sim shell integration, so command boundaries and exit codes cannot be determined. Ask the user to run the command themselves, or use a bash/zsh session.'
+        )
+    }
   }
 
   private spawn(

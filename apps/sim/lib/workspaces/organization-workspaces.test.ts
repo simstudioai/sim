@@ -191,6 +191,7 @@ describe('organization workspace helpers', () => {
         { id: 'ws-1', ownerId: 'creator-1', billedAccountUserId: 'old-owner' },
       ])
       queueTableRows(schemaMock.invitation, [{ id: 'invite-pending' }, { id: 'invite-terminal' }])
+      queueTableRows(schemaMock.workspace, [{ id: null }])
       queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
 
       const result =
@@ -328,6 +329,7 @@ describe('organization workspace helpers', () => {
       { id: 'ws-2', ownerId: 'creator-2', billedAccountUserId: 'old-owner' },
     ])
     queueTableRows(schemaMock.invitation, [{ id: 'invite-2' }])
+    queueTableRows(schemaMock.workspace, [{ id: null }])
     queueTableRows(schemaMock.workspace, [{ id: 'ws-2' }])
 
     const result = await detachOrganizationWorkspaces('org-1')

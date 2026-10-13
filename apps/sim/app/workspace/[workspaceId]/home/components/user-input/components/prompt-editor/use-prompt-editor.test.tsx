@@ -3,7 +3,8 @@
  */
 import { act, type ReactNode } from 'react'
 import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
-import { createRoot, type Root } from 'react-dom/client'
+import { createRoot, hydrateRoot, type Root } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
@@ -456,5 +457,72 @@ it('inserts a canonical built-in skill globally without inheriting a workspace',
     ])
   } finally {
     unmount()
+  }
+})
+
+it('keeps text typed into the server-rendered textarea before hydration', () => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  let latest: ReturnType<typeof usePromptEditor> | undefined
+  function Editor({ revision }: { revision: number }) {
+    const editor = usePromptEditor({ workspaceId: 'ws-1' })
+    latest = editor
+    return (
+      <textarea
+        ref={editor.textareaRef}
+        value={editor.value}
+        onChange={editor.handleInputChange}
+        data-revision={revision}
+      />
+    )
+  }
+  const container = document.createElement('div')
+  container.innerHTML = renderToString(<Editor revision={0} />)
+  document.body.appendChild(container)
+  const textarea = container.querySelector('textarea')
+  if (!textarea) throw new Error('The server must render the textarea')
+  textarea.value = 'Typed while the page loaded'
+  let root: Root | undefined
+  try {
+    act(() => {
+      root = hydrateRoot(container, <Editor revision={0} />)
+    })
+    act(() => root?.render(<Editor revision={1} />))
+    expect(latest?.getValue()).toBe('Typed while the page loaded')
+    expect(textarea.value).toBe('Typed while the page loaded')
+  } finally {
+    act(() => root?.unmount())
+    container.remove()
+  }
+})
+
+it('re-chipifies a seeded draft once skills load', () => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  const skill = {
+    id: 'review',
+    workspaceId: 'ws-1',
+    userId: null,
+    name: 'Review',
+    description: '',
+    content: '',
+    canEdit: false,
+    createdAt: '',
+    updatedAt: '',
+  }
+  let latest: ReturnType<typeof usePromptEditor> | undefined
+  function Editor({ skills }: { skills: (typeof skill)[] }) {
+    latest = usePromptEditor({ workspaceId: 'ws-1', availableSkills: skills })
+    return null
+  }
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    act(() => root.render(<Editor skills={[]} />))
+    act(() => latest?.setValue('/Review the draft', { seed: true }))
+    act(() => root.render(<Editor skills={[skill]} />))
+    expect(latest?.getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'review', label: 'Review' },
+    ])
+  } finally {
+    act(() => root.unmount())
   }
 })

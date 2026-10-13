@@ -95,7 +95,11 @@ export async function captureProviderConversationStep(
   protocol: ConversationProtocol,
   value: unknown,
   usage?: ConversationUsage,
-  options?: { requestHistory?: readonly unknown[] }
+  options?: {
+    requestHistory?: readonly unknown[]
+    /** Answer retained by the provider when its terminal native message has no text. */
+    fallbackAssistantContent?: string
+  }
 ): Promise<void> {
   const runtime = getConversationRequestContext(request)
   if (!runtime?.agentConversation || !runtime.conversationProvider) return
@@ -103,6 +107,14 @@ export async function captureProviderConversationStep(
     const captured = providerHistoryAdapters[protocol].capture(value)
     await runtime.agentConversation.captureStep({
       ...captured,
+      ...(options?.fallbackAssistantContent !== undefined
+        ? {
+            assistant: {
+              ...captured.assistant,
+              content: captured.assistant.content || options.fallbackAssistantContent,
+            },
+          }
+        : {}),
       calls: captured.calls.map((call) => {
         const tool = request.tools?.find((candidate) => candidate.id === call.toolId)
         return {

@@ -90,6 +90,17 @@ describe('canonical provider wire adapters', () => {
       [{ type: 'message', content: [{ type: 'output_text', text: '{"answer":true}' }] }],
     ],
     ['chat-completions', { role: 'assistant', content: '{"answer":true}' }],
+    [
+      'chat-completions',
+      {
+        role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: [{ type: 'text', text: 'private-state' }] },
+          { type: 'text', text: '{"answer":' },
+          { type: 'text', text: 'true}' },
+        ],
+      },
+    ],
     ['anthropic', [{ type: 'text', text: '{"answer":true}' }]],
     ['gemini', { role: 'model', parts: [{ text: '{"answer":true}' }] }],
     ['bedrock', { role: 'assistant', content: [{ text: '{"answer":true}' }] }],

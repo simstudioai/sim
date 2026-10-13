@@ -6,8 +6,11 @@ import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace
 import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AgentTurnState } from '@/lib/memory/conversation-types'
+import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
+import { bindConversationRequestContext } from '@/providers/conversation-history'
 import type { AgentStreamEvent } from '@/providers/stream-events'
-import type { ProviderToolConfig } from '@/providers/types'
+import type { ProviderRequest, ProviderToolConfig } from '@/providers/types'
 
 vi.mock('openai', () => openaiMock)
 vi.mock('@/providers', () => providersMock)
@@ -55,6 +58,171 @@ describe('mistralProvider.executeRequest', () => {
   beforeEach(() => {
     mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })
   })
+
+  const answerBlocks = [
+    {
+      type: 'thinking',
+      thinking: [{ type: 'text', text: 'Reasoning stays out of the answer.' }],
+      signature: 'test-replay-signature',
+    },
+    { type: 'text', text: '{"ok":' },
+    { type: 'text', text: 'true}' },
+  ]
+  const usage = { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 }
+  const toolResponse = {
+    choices: [
+      {
+        message: {
+          content: null,
+          tool_calls: [
+            { id: 'call_1', type: 'function', function: { name: 'lookup', arguments: '{}' } },
+          ],
+        },
+      },
+    ],
+    usage,
+  }
+  const answerResponse = { choices: [{ message: { content: answerBlocks } }], usage }
+
+  it('returns answer text from Mistral content blocks without including thinking', async () => {
+    mockCreate.mockResolvedValueOnce(answerResponse)
+    const result = await mistralProvider.executeRequest({
+      model: 'mistral-large-4',
+      apiKey: 'key',
+      messages: [{ role: 'user', content: 'Return JSON' }],
+    })
+    if ('stream' in result) throw new Error('Expected a settled response')
+    expect(JSON.parse(result.content)).toEqual({ ok: true })
+  })
+
+  it('preserves text from streamed Mistral content blocks', async () => {
+    async function* chunks() {
+      yield { choices: [{ delta: { content: answerBlocks.slice(0, 2) }, index: 0 }] }
+      yield {
+        choices: [{ delta: { content: answerBlocks.slice(2) }, index: 0, finish_reason: 'stop' }],
+        usage,
+      }
+    }
+    mockCreate.mockResolvedValueOnce(chunks())
+    const result = await mistralProvider.executeRequest({
+      model: 'zai-glm-5-3',
+      apiKey: 'key',
+      messages: [{ role: 'user', content: 'Return JSON' }],
+      stream: true,
+    })
+    if (!('stream' in result)) throw new Error('Expected a stream')
+    const events = await readAgentEvents(result.stream as ReadableStream<AgentStreamEvent>)
+    const answer = events
+      .filter((event) => event.type === 'text_delta')
+      .map((event) => event.text)
+      .join('')
+    expect(JSON.parse(answer)).toEqual({ ok: true })
+    expect(result.execution.output.content).toBe(answer)
+  })
+
+  it.each(
+    [
+      { content: [] },
+      { content: [{ type: 'thinking', thinking: [{ type: 'text', text: 'Private thought.' }] }] },
+    ].flatMap(({ content }) => [false, true].map((capped) => ({ content, capped })))
+  )(
+    'persists and returns an earlier tool answer with no final text (capped: $capped): $content',
+    async ({ content, capped }) => {
+      let checkpoint: AgentTurnState | undefined
+      const session = new AgentTurnStateMachine({
+        save: async (state) => {
+          checkpoint = state
+        },
+      })
+      const request: ProviderRequest = {
+        model: 'mistral-large-4',
+        apiKey: 'key',
+        messages: [{ role: 'user', content: 'Use a tool' }],
+        tools: [makeTool('lookup')],
+      }
+      bindConversationRequestContext(request, {
+        agentConversation: session,
+        conversationProvider: { providerId: 'mistral', binding: 'test-binding' },
+      })
+      const terminalResponse = { choices: [{ message: { content } }], usage }
+      const previousLimit = providersMock.MAX_TOOL_ITERATIONS
+      if (capped) providersMock.MAX_TOOL_ITERATIONS = 1
+      try {
+        mockCreate
+          .mockResolvedValueOnce({
+            ...toolResponse,
+            choices: [{ message: { ...toolResponse.choices[0].message, content: answerBlocks } }],
+          })
+          .mockResolvedValueOnce(capped ? toolResponse : terminalResponse)
+        if (capped) mockCreate.mockResolvedValueOnce(terminalResponse)
+        const result = await mistralProvider.executeRequest(request)
+        if ('stream' in result) throw new Error('Expected a settled response')
+        expect(JSON.parse(result.content)).toEqual({ ok: true })
+        const nextPayload = mockCreate.mock.calls[1][0]
+        expect(
+          nextPayload.messages.find((message: { role: string }) => message.role === 'assistant')
+            .content
+        ).toEqual(answerBlocks)
+        expect(checkpoint?.steps.at(-1)?.native?.value).toEqual(terminalResponse.choices[0].message)
+        await session.finalize(session.getFinalAssistantContent() ?? '', result.model)
+        const restored = new AgentTurnStateMachine({ save: async () => {} }, checkpoint)
+        expect(restored.getFinalResponse()?.content).toBe(result.content)
+      } finally {
+        providersMock.MAX_TOOL_ITERATIONS = previousLimit
+      }
+    }
+  )
+
+  it.each([false, true])(
+    'normalizes the answer on the final allowed tool turn (streaming: %s)',
+    async (stream) => {
+      const previousLimit = providersMock.MAX_TOOL_ITERATIONS
+      providersMock.MAX_TOOL_ITERATIONS = 1
+      try {
+        mockCreate.mockResolvedValueOnce(toolResponse).mockResolvedValueOnce(answerResponse)
+        const result = await mistralProvider.executeRequest({
+          model: 'mistral-large-4',
+          apiKey: 'key',
+          messages: [{ role: 'user', content: 'Use a tool' }],
+          tools: [makeTool('lookup')],
+          stream,
+        })
+        if ('stream' in result) {
+          await readAgentEvents(result.stream as ReadableStream<AgentStreamEvent>)
+          expect(JSON.parse(result.execution.output.content)).toEqual({ ok: true })
+        } else expect(JSON.parse(result.content)).toEqual({ ok: true })
+      } finally {
+        providersMock.MAX_TOOL_ITERATIONS = previousLimit
+      }
+    }
+  )
+
+  it.each([false, true])(
+    'normalizes the synthesis answer after the tool cap (streaming: %s)',
+    async (stream) => {
+      const previousLimit = providersMock.MAX_TOOL_ITERATIONS
+      providersMock.MAX_TOOL_ITERATIONS = 1
+      try {
+        mockCreate
+          .mockResolvedValueOnce(toolResponse)
+          .mockResolvedValueOnce(toolResponse)
+          .mockResolvedValueOnce(answerResponse)
+        const result = await mistralProvider.executeRequest({
+          model: 'zai-glm-5-3',
+          apiKey: 'key',
+          messages: [{ role: 'user', content: 'Use a tool' }],
+          tools: [makeTool('lookup')],
+          stream,
+        })
+        if ('stream' in result) {
+          await readAgentEvents(result.stream as ReadableStream<AgentStreamEvent>)
+          expect(JSON.parse(result.execution.output.content)).toEqual({ ok: true })
+        } else expect(JSON.parse(result.content)).toEqual({ ok: true })
+      } finally {
+        providersMock.MAX_TOOL_ITERATIONS = previousLimit
+      }
+    }
+  )
 
   it('projects the settled tool-loop answer without a final streaming request', async () => {
     mockCreate

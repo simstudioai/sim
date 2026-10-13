@@ -1,11 +1,21 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type ElectronApplication, expect, test } from '@playwright/test'
 import type { SimDesktopApi } from '@sim/desktop-bridge'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { recordCheck } from './check-report'
 import {
+  answerShellDialog,
   type FixtureCall,
   FixtureSim,
   launch,
@@ -24,37 +34,35 @@ import {
  * device protocol (register, inbox, doorbell, claim, lease, complete, import) the way Sim's
  * routes do.
  * The window navigates, reloads and leaves the chats while their calls run: nothing in this
- * suite depends on a chat view, which is the point. Each scenario's checks land in a JSON
- * report at BACKGROUND_EXECUTOR_REPORT_PATH.
+ * suite depends on a chat view, which is the point. Each check lands in a JSON report at
+ * BACKGROUND_EXECUTOR_REPORT_PATH as it finishes.
  */
+
+/** Sim's window for a device to claim an offered call (DESKTOP_TOOL_PICKUP_GRACE_MS in Sim). */
+const SIM_PICKUP_GRACE_MS = 15_000
 
 const CHAT_A = 'chat-browser-a'
 const CHAT_B = 'chat-terminal-b'
 const CHAT_C = 'chat-idle-c'
 
-interface ReportCheck {
-  name: string
-  status: 'passed' | 'failed'
-  durationMs: number
-  error?: string
-}
-
-const report: ReportCheck[] = []
-
 const sim = new FixtureSim()
 
+/** Runs one check and adds its outcome to the report as soon as it is known. */
 async function check(name: string, body: () => Promise<void>): Promise<void> {
   const startedAt = Date.now()
+  const record = (status: 'passed' | 'failed', error?: unknown) =>
+    recordCheck(process.env.BACKGROUND_EXECUTOR_REPORT_PATH, 'background-executor', {
+      name,
+      status,
+      durationMs: Date.now() - startedAt,
+      retry: test.info().retry,
+      ...(error === undefined ? {} : { error: getErrorMessage(error) }),
+    })
   try {
     await body()
-    report.push({ name, status: 'passed', durationMs: Date.now() - startedAt })
+    record('passed')
   } catch (error) {
-    report.push({
-      name,
-      status: 'failed',
-      durationMs: Date.now() - startedAt,
-      error: getErrorMessage(error),
-    })
+    record('failed', error)
     throw error
   }
 }
@@ -74,13 +82,6 @@ test.describe('background executor', () => {
 
   test.afterAll(async () => {
     await sim.stop()
-    const reportPath = process.env.BACKGROUND_EXECUTOR_REPORT_PATH
-    if (reportPath) {
-      writeFileSync(
-        reportPath,
-        JSON.stringify({ suite: 'background-executor', checks: report }, null, 2)
-      )
-    }
   })
 
   test('A: two chats run browser and terminal work while the user is elsewhere and reloads', async () => {
@@ -92,6 +93,7 @@ test.describe('background executor', () => {
     await window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
 
     const marker = join(userData, 'terminal-marker.txt')
+    const releaseCommands = join(userData, 'release-commands')
     const readable = join(userData, 'notes.txt')
     writeFileSync(readable, 'background read fixture')
 
@@ -112,14 +114,49 @@ test.describe('background executor', () => {
     const terminalRuns = [1, 2, 3].map((n) =>
       sim.issue(deviceId, CHAT_B, 'terminal', {
         operation: 'run',
-        args: { command: `sleep 1; echo B-${n} >> '${marker}'`, waitSeconds: 30 },
+        args: {
+          command: `until [ -e '${releaseCommands}' ]; do sleep 0.1; done; echo B-${n} >> '${marker}'`,
+          waitSeconds: 30,
+        },
       })
     )
+    const readConsent = launched.app.waitForEvent('window')
     const localRead = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+    try {
+      await answerShellDialog(await readConsent, 'Allow folder')
 
-    await window.goto(`${sim.origin}/workspace/ws-other/home`)
-    await window.reload()
-    await window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
+      await window.goto(`${sim.origin}/workspace/ws-other/home`)
+      await window.reload()
+      await window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
+
+      // Chat B's first command holds its queue until released, so a claim that waited for the
+      // calls ahead of it to run could never happen in time.
+      await check("A: every call is claimed while chat B's first command still runs", async () => {
+        await expect
+          .poll(
+            () =>
+              [...sim.calls.values()]
+                .filter((call) => call.claimedAt === undefined)
+                .map((call) => call.toolCallId),
+            { timeout: SIM_PICKUP_GRACE_MS }
+          )
+          .toEqual([])
+        for (const call of sim.calls.values()) {
+          expect(
+            (call.claimedAt ?? Number.POSITIVE_INFINITY) - call.issuedAt,
+            call.toolCallId
+          ).toBeLessThan(SIM_PICKUP_GRACE_MS)
+        }
+      })
+
+      await check('A: the lease is renewed while calls wait and run', async () => {
+        await expect
+          .poll(() => terminalRuns.filter((id) => sim.requireCall(id).renewals === 0))
+          .toEqual([])
+      })
+    } finally {
+      writeFileSync(releaseCommands, '')
+    }
 
     await check('A: every call completes exactly once with its own token', async () => {
       for (const id of [...clicks, ...terminalRuns, localRead]) {
@@ -154,21 +191,174 @@ test.describe('background executor', () => {
         sim.requests.filter((request) => request.includes('/api/desktop/tool/authorize'))
       ).toEqual([])
     })
+  })
 
-    await check('A: calls are picked up within 1.5 s at p95', async () => {
-      const latencies = [...sim.calls.values()]
-        .map((call) => (call.claimedAt ?? Number.POSITIVE_INFINITY) - call.issuedAt)
-        .sort((a, b) => a - b)
-      const p95 = latencies[Math.ceil(latencies.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY
-      expect(p95).toBeLessThan(1_500)
+  test('background file reads require consent and Stop cancels pending permission', async () => {
+    const userData = mkdtempSync(join(tmpdir(), 'sim-executor-consent-'))
+    const launched = await launch(sim, userData)
+    app = launched.app
+    const deviceId = await registeredDevice(sim)
+    const readable = join(userData, 'private.txt')
+    writeFileSync(readable, 'background consent fixture')
+
+    await check('background read stays pending until folder consent', async () => {
+      const shown = launched.app.waitForEvent('window', { timeout: 10_000 })
+      const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+      const prompt = await shown
+      await expect(prompt.getByRole('button', { name: 'Allow folder', exact: true })).toBeVisible()
+      expect(sim.requireCall(call).completions).toHaveLength(0)
+      await answerShellDialog(prompt, "Don't allow")
+      const completion = await settled(sim, call)
+      expect(completion.status).toBe('error')
+      expect(JSON.stringify(completion)).not.toContain('background consent fixture')
     })
 
-    await check('A: the lease is renewed while calls wait and run', async () => {
-      expect(Math.max(...terminalRuns.map((id) => sim.requireCall(id).renewals))).toBeGreaterThan(0)
+    await check('Stop dismisses background consent without granting access', async () => {
+      const shown = launched.app.waitForEvent('window', { timeout: 10_000 })
+      const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+      const prompt = await shown
+      await expect(prompt.getByRole('button', { name: 'Allow folder', exact: true })).toBeVisible()
+      sim.stopCall(call)
+      await expect.poll(() => prompt.isClosed()).toBe(true)
+      await settled(sim, call)
+      expect(sim.requireCall(call).completions[0]?.outcome).toBe('superseded')
+    })
+
+    await check('approved background reads reuse the shared folder grant', async () => {
+      const shown = launched.app.waitForEvent('window', { timeout: 10_000 })
+      const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+      const prompt = await shown
+      await answerShellDialog(prompt, 'Allow folder')
+      expect((await settled(sim, call)).status).toBe('success')
+      const next = sim.issue(deviceId, CHAT_A, 'read_local_file', { path: readable })
+      expect(JSON.stringify((await settled(sim, next)).data)).toContain(
+        'background consent fixture'
+      )
     })
   })
 
-  test('B: a result produced while offline is delivered once after reconnecting', async () => {
+  test('background consent cannot grant access when Sim cannot verify the call', async () => {
+    const userData = mkdtempSync(join(tmpdir(), 'sim-executor-offline-consent-'))
+    const launched = await launch(sim, userData)
+    app = launched.app
+    const deviceId = await registeredDevice(sim)
+    const readable = join(userData, 'private.txt')
+    writeFileSync(readable, 'offline consent fixture')
+
+    await check('offline approval returns an error without remembering a grant', async () => {
+      const shown = launched.app.waitForEvent('window')
+      const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+      const prompt = await shown
+      await expect(prompt.getByRole('button', { name: 'Allow folder', exact: true })).toBeVisible()
+      sim.disconnect()
+      await answerShellDialog(prompt, 'Allow folder')
+      await expect
+        .poll(() =>
+          launched.app.evaluate(({ safeStorage }, toolCallId) => {
+            const fs = process.getBuiltinModule('node:fs')
+            const path = `${process.env.SIM_DESKTOP_USER_DATA}/desktop-executor-journal.json`
+            const envelope = JSON.parse(fs.readFileSync(path, 'utf8'))
+            const journal = JSON.parse(
+              safeStorage.decryptString(Buffer.from(envelope.ciphertext, 'base64'))
+            ) as { entries: { toolCallId: string; state: string }[] }
+            return journal.entries.find((entry) => entry.toolCallId === toolCallId)?.state
+          }, call)
+        )
+        .toBe('result')
+      sim.reconnect()
+      const completion = await settled(sim, call)
+      expect(completion.status).toBe('error')
+      expect(JSON.stringify(completion)).not.toContain('offline consent fixture')
+      const nextPrompt = launched.app.waitForEvent('window')
+      const next = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+      await answerShellDialog(await nextPrompt, "Don't allow")
+      expect((await settled(sim, next)).status).toBe('error')
+    })
+  })
+
+  test('background consent does not reopen the main app after its windows are closed', async () => {
+    test.skip(process.platform !== 'darwin', 'The macOS app remains running without a window.')
+    const userData = mkdtempSync(join(tmpdir(), 'sim-executor-windowless-consent-'))
+    const launched = await launch(sim, userData)
+    app = launched.app
+    const deviceId = await registeredDevice(sim)
+    const readable = join(userData, 'private.txt')
+    writeFileSync(readable, 'windowless consent fixture')
+    await launched.window.close()
+
+    await check('only the standalone consent window opens for a background read', async () => {
+      const shown = launched.app.waitForEvent('window')
+      const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+      const prompt = await shown
+      await expect(prompt.getByRole('button', { name: 'Allow folder', exact: true })).toBeVisible()
+      expect(
+        await launched.app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().map((window) => window.getParentWindow() === null)
+        )
+      ).toEqual([true])
+      await answerShellDialog(prompt, "Don't allow")
+      expect((await settled(sim, call)).status).toBe('error')
+    })
+  })
+
+  test('sign-out clears folder grants even when desktop settings cannot be saved', async () => {
+    const userData = mkdtempSync(join(tmpdir(), 'sim-executor-grant-cleanup-'))
+    const launched = await launch(sim, userData)
+    app = launched.app
+    const deviceId = await registeredDevice(sim)
+    const readable = join(userData, 'private.txt')
+    writeFileSync(readable, 'cleanup consent fixture')
+    const shown = launched.app.waitForEvent('window')
+    const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
+    await answerShellDialog(await shown, 'Allow folder')
+    expect((await settled(sim, call)).status).toBe('success')
+    const grants = join(userData, 'local-filesystem-grants.json')
+    expect(existsSync(grants)).toBe(true)
+    await launched.window.evaluate(() => {
+      const button = document.createElement('button')
+      button.textContent = 'Enable full file access'
+      button.onclick = async () => {
+        const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+        await api.settings.setFullFileAccess?.(true)
+        button.textContent = 'Full file access enabled'
+      }
+      document.body.append(button)
+    })
+    await launched.window
+      .getByRole('button', { name: 'Enable full file access', exact: true })
+      .click()
+    await expect(
+      launched.window.getByRole('button', { name: 'Full file access enabled', exact: true })
+    ).toBeVisible()
+    const settings = join(userData, 'settings.json')
+    if (existsSync(settings)) renameSync(settings, `${settings}.backup`)
+    mkdirSync(settings)
+
+    try {
+      await check(
+        'failed settings persistence does not skip independent grant cleanup',
+        async () => {
+          const failedSignOut = launched.app.waitForEvent('window')
+          await launched.app.evaluate(({ Menu }) => {
+            const item = Menu.getApplicationMenu()
+              ?.items.flatMap((entry) => entry.submenu?.items ?? [])
+              .find((entry) => entry.label === 'Sign Out')
+            if (!item) throw new Error('Missing Sign Out menu item')
+            item.click()
+          })
+          const failure = await failedSignOut
+          await answerShellDialog(failure, 'OK')
+          expect(existsSync(join(userData, 'account-data-teardown-required.json'))).toBe(true)
+          await expect.poll(() => existsSync(grants)).toBe(false)
+        }
+      )
+    } finally {
+      rmSync(settings, { recursive: true, force: true })
+      if (existsSync(`${settings}.backup`)) renameSync(`${settings}.backup`, settings)
+    }
+  })
+
+  test('B: a result produced while the network is cut is delivered once after reconnecting', async () => {
     const userData = mkdtempSync(join(tmpdir(), 'sim-executor-b-'))
     app = (await launch(sim, userData)).app
     const deviceId = await registeredDevice(sim)
@@ -178,21 +368,33 @@ test.describe('background executor', () => {
       args: { command: 'sleep 2; echo offline-done', waitSeconds: 30 },
     })
     await expect.poll(() => sim.requireCall(run).claims).toBe(1)
-    sim.offline = true
-    await sleep(6_000)
+    sim.disconnect()
 
-    await check('B: nothing reached Sim while offline', async () => {
-      expect(sim.requireCall(run).completions).toHaveLength(0)
-      expect(sim.droppedWhileOffline).toBeGreaterThan(0)
-    })
-    sim.offline = false
+    await check(
+      'B: the cut drops the doorbell and nothing reaches Sim while it lasts',
+      async () => {
+        await expect.poll(() => sim.streams.get(deviceId)?.size ?? 0).toBe(0)
+        await expect.poll(() => sim.droppedWhileOffline, { timeout: 15_000 }).toBeGreaterThan(0)
+        await sleep(4_000)
+        expect(sim.requireCall(run).completions).toHaveLength(0)
+      }
+    )
+    sim.reconnect()
 
     await check('B: the result arrives once after reconnecting', async () => {
       const completion = await settled(sim, run, 60_000)
-      expect(completion.status).toBe('success')
+      expect(completion.status, completion.message).toBe('success')
       expect(JSON.stringify(completion.data)).toContain('offline-done')
       await sleep(3_000)
       expect(sim.requireCall(run).completions).toHaveLength(1)
+      expect(sim.requireCall(run).claims).toBe(1)
+    })
+
+    await check('B: the device reopens its doorbell and picks up new work', async () => {
+      await expect.poll(() => sim.streams.get(deviceId)?.size ?? 0, { timeout: 45_000 }).toBe(1)
+      const after = sim.issue(deviceId, CHAT_B, 'browser_list_tabs', {})
+      const completion = await settled(sim, after)
+      expect(completion.status, completion.message).toBe('success')
     })
   })
 
@@ -236,11 +438,14 @@ test.describe('background executor', () => {
     writeFileSync(join(source, 'q3', 'export.bin'), large)
     await launched.window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
 
+    const importConsent = launched.app.waitForEvent('window')
     const call = sim.issue(deviceId, CHAT_B, 'import_local_files', {
       path: source,
       targetWorkspaceId: WORKSPACE,
       folderId: 'folder-e2e',
     })
+
+    await answerShellDialog(await importConsent, 'Allow folder')
 
     await check('D: the import completes with every entry it stored', async () => {
       const completion = await settled(sim, call, 60_000)
@@ -373,6 +578,38 @@ test.describe('background executor', () => {
       const completion = await settled(sim, gated)
       expect((sim.requireCall(gated).claimedAt ?? 0) - approvedAt).toBeLessThan(1_500)
       expect(JSON.stringify(completion.data)).toContain('approved-run')
+    })
+  })
+
+  test('F: a call the user declines in a background chat never runs', async () => {
+    const userData = mkdtempSync(join(tmpdir(), 'sim-executor-f-declined-'))
+    const marker = join(userData, 'declined-marker.txt')
+    app = (await launch(sim, userData)).app
+    const deviceId = await registeredDevice(sim)
+    const pulls = () =>
+      sim.requests.filter((request) => request.startsWith('GET /api/desktop/inbox')).length
+    const claimAttempts = () =>
+      sim.requests.filter((request) => request === 'POST /api/desktop/tool/claim').length
+    const pullsBefore = pulls()
+    const claimAttemptsBefore = claimAttempts()
+
+    const gated = sim.issue(
+      deviceId,
+      CHAT_B,
+      'terminal',
+      { operation: 'run', args: { command: `echo ran >> '${marker}'`, waitSeconds: 30 } },
+      'awaiting_approval'
+    )
+    // The device has pulled its inbox and seen the call waiting for approval.
+    await expect.poll(pulls).toBeGreaterThan(pullsBefore)
+    sim.decline(gated)
+
+    await check('F: the declined call is never claimed, and its command never runs', async () => {
+      await sleep(RECONCILE_MS * 2)
+      // Attempts, not successful claims: the fixture refuses a declined call's claim itself.
+      expect(claimAttempts() - claimAttemptsBefore).toBe(0)
+      expect(sim.requireCall(gated).completions).toEqual([])
+      expect(readFileSafe(marker)).toBe('')
     })
   })
 

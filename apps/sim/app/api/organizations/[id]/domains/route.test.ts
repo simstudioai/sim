@@ -107,6 +107,7 @@ describe('org domains route', () => {
 
     it('re-adds an existing pending domain idempotently without rotating its token', async () => {
       queueTableRows(member, [{ role: 'owner' }]) // membership
+      queueTableRows(member, [{ role: 'owner' }])
       queueTableRows(ssoDomain, []) // verified-elsewhere check → none
       queueTableRows(ssoDomain, [
         {
@@ -131,8 +132,10 @@ describe('org domains route', () => {
 
     it('stays idempotent when a concurrent claim wins the unique index race', async () => {
       queueTableRows(member, [{ role: 'owner' }]) // membership
+      queueTableRows(member, [{ role: 'owner' }])
       queueTableRows(ssoDomain, []) // verified-elsewhere check → none
       queueTableRows(ssoDomain, []) // org-domains read → none existing, under the cap
+      queueTableRows(ssoDomain, [])
       // insert().returning() loses the race and hits sso_domain_org_domain_unique
       dbChainMockFns.returning.mockRejectedValueOnce(
         Object.assign(new Error('duplicate key'), { code: '23505' })

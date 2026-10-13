@@ -99,6 +99,11 @@ describe('a chat keeps the effort its owner picked', () => {
     expect(await nextTurnEffort(chatId)).toBe('high')
   })
 
+  it('runs a chat whose stored pick is the retired none effort at low', async () => {
+    const chatId = await createChat({ effort: 'none' })
+    expect(await nextTurnEffort(chatId)).toBe('low')
+  })
+
   it("refuses to change another user's chat in a shared workspace", async () => {
     const chatId = await createChat(null)
     await expect(

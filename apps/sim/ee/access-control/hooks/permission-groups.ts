@@ -27,6 +27,7 @@ import {
   PERMISSION_GROUPS_STALE_TIME,
   permissionGroupKeys,
 } from '@/hooks/queries/utils/permission-group-keys'
+import { shouldRetrySettingsRead } from '@/hooks/queries/utils/settings-read-retry'
 
 export type {
   PermissionGroup,
@@ -48,6 +49,8 @@ export function usePermissionGroups(organizationId?: string, enabled = true) {
     },
     enabled: Boolean(organizationId) && enabled,
     staleTime: PERMISSION_GROUPS_STALE_TIME,
+    retry: shouldRetrySettingsRead,
+    retryOnMount: true,
   })
 }
 

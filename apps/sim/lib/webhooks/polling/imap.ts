@@ -13,11 +13,15 @@ import {
 import {
   getProviderConfig,
   type PollingProviderHandler,
+  type PollOutcome,
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
+  PollAdmissionRefusedError,
+  skipAdmissionRefusedPoll,
+  throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -113,7 +117,7 @@ export const imapPollingHandler: PollingProviderHandler = {
   provider: 'imap',
   label: 'IMAP',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
 
@@ -200,7 +204,10 @@ export const imapPollingHandler: PollingProviderHandler = {
         } catch {}
         throw innerError
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof PollAdmissionRefusedError) {
+        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+      }
       logger.error(`[${requestId}] Error processing IMAP webhook ${webhookId}`)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
@@ -574,6 +581,7 @@ async function processEmails(
             )
 
             if (!result.success) {
+              throwIfAdmissionRefused(result)
               logger.error(
                 `[${requestId}] Failed to process webhook for email ${email.uid}:`,
                 result.statusCode,
@@ -606,7 +614,8 @@ async function processEmails(
           `[${requestId}] Successfully processed email ${email.uid} from ${email.mailboxPath} for webhook ${webhookData.id}`
         )
         processedCount++
-      } catch {
+      } catch (error) {
+        if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
         logger.error(`[${requestId}] Error processing email ${email.uid}`)
         failedCount++
       }

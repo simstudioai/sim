@@ -1,3 +1,4 @@
+import { sortObjectKeysDeep } from '@sim/utils/object'
 import { foldSearchWhitespace } from '@sim/utils/string'
 import type {
   WorkflowSearchMatch,
@@ -27,18 +28,6 @@ export const OVERLAPPING_MATCH_KIND_PRIORITY: Record<WorkflowSearchMatchKind, nu
   'selector-resource': 3,
 }
 
-export function stableStringifyWorkflowSearchValue(value: unknown): string {
-  if (!value || typeof value !== 'object') return JSON.stringify(value)
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringifyWorkflowSearchValue(item)).join(',')}]`
-  }
-
-  return `{${Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, item]) => `${JSON.stringify(key)}:${stableStringifyWorkflowSearchValue(item)}`)
-    .join(',')}}`
-}
-
 export function buildWorkflowSearchResourceGroupKey(
   resource: Pick<
     WorkflowSearchResourceMeta,
@@ -48,7 +37,7 @@ export function buildWorkflowSearchResourceGroupKey(
   const provider = resource.providerId ?? resource.serviceId ?? ''
   const selectorKey = resource.selectorKey ?? ''
   const selectorContext = resource.selectorContext
-    ? stableStringifyWorkflowSearchValue(resource.selectorContext)
+    ? JSON.stringify(sortObjectKeysDeep(resource.selectorContext))
     : ''
 
   return [resource.kind, provider, selectorKey, selectorContext].join(':')

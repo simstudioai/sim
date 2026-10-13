@@ -1,9 +1,11 @@
+import { listSearchSourcesContract } from '@/lib/api/contracts/knowledge/connectors'
 import {
   type OrganizationSearchSourcesInput,
   type OrganizationSearchSourcesOutput,
   organizationSearchSourcesInputSchema,
   organizationSearchSourcesOutputSchema,
 } from '@/lib/api/contracts/mothership-search-sources'
+import { cursorRoute } from '@/lib/api/cursor-binding'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import {
@@ -47,18 +49,23 @@ export const organizationSearchSourcesServerTool: BaseServerTool<
     context?.userStopSignal?.throwIfAborted()
     const input = organizationSearchSourcesInputSchema.parse(args)
     const owner = { organizationId: trusted.organizationId }
+    // Shares the Search page's cursor namespace, so a page cursor stays valid on either surface.
+    const sourcesCursorRoute = cursorRoute(listSearchSourcesContract)
     switch (input.action) {
       case 'list': {
         const { action, ...filters } = input
         return {
           action,
-          ...(await listSearchSources.execute({ principal, input: { ...owner, ...filters } })),
+          ...(await listSearchSources.execute({
+            principal,
+            input: { ...owner, ...filters, cursorRoute: sourcesCursorRoute },
+          })),
         }
       }
       case 'get': {
         const page = await listSearchSources.execute({
           principal,
-          input: { ...owner, connectorId: input.connectorId },
+          input: { ...owner, connectorId: input.connectorId, cursorRoute: sourcesCursorRoute },
         })
         const source = page.sources[0]
         if (!source) throw new OrchestrationError('not_found', 'Search source not found')

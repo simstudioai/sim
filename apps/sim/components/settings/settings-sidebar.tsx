@@ -23,7 +23,7 @@ import {
 } from '@/components/settings/navigation'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { usePendingSettingsSelection } from '@/components/settings/use-pending-settings-selection'
-import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { APP_ENTRY_PATH, LANDING_HREF } from '@/lib/navigation/paths'
 import { popSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
@@ -35,12 +35,6 @@ import {
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
-
-/**
- * The marketing landing page. `?home` is required: the proxy bounces a
- * signed-in user off `/` to the app entry unless the param is present.
- */
-const LANDING_HREF = '/?home'
 
 interface SettingsNavigationGroup {
   key: string

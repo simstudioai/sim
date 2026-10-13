@@ -8,7 +8,7 @@ import { getSession } from '@/lib/auth'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkChatAccess } from '@/app/api/chat/utils'
-import { createErrorResponse } from '@/app/api/workflows/utils'
+import { createCodedErrorResponse } from '@/app/api/workflows/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +26,7 @@ export const GET = withRouteHandler(
       const session = await getSession()
 
       if (!session) {
-        return createErrorResponse('Unauthorized', 401)
+        return createCodedErrorResponse('Unauthorized', 401)
       }
 
       const parsed = await parseRequest(getChatPasswordContract, request, context)
@@ -41,11 +41,11 @@ export const GET = withRouteHandler(
       } = await checkChatAccess(chatId, session.user.id)
 
       if (!hasAccess || !chatRecord) {
-        return createErrorResponse('Chat not found or access denied', 404)
+        return createCodedErrorResponse('Chat not found or access denied', 404)
       }
 
       if (chatRecord.authType !== 'password' || !chatRecord.password) {
-        return createErrorResponse('This chat does not have a password set', 404)
+        return createCodedErrorResponse('This chat does not have a password set', 404)
       }
 
       const { decrypted } = await decryptSecret(chatRecord.password)
@@ -75,7 +75,7 @@ export const GET = withRouteHandler(
        * decryption, whose messages describe the stored ciphertext's shape.
        * The logged error carries the detail for operators.
        */
-      return createErrorResponse('Failed to reveal chat password', 500)
+      return createCodedErrorResponse('Failed to reveal chat password', 500)
     }
   }
 )

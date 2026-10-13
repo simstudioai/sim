@@ -4,6 +4,7 @@ import { cache } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import matter from 'gray-matter'
+import type { MDXRemoteProps } from 'next-mdx-remote/rsc'
 import { compileMDX } from 'next-mdx-remote/rsc'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import rehypeSlug from 'rehype-slug'
@@ -31,10 +32,14 @@ export interface ContentRegistryConfig {
   basePath: string
   /** Per-slug custom MDX component overrides, merged over the base `mdxComponents` map. */
   componentLoaders?: ContentComponentLoaders
+  /** Shared MDX components for this section, overridden by per-post components. */
+  components?: MDXRemoteProps['components']
+  /** Prefixes heading IDs with the post slug when a collection renders multiple bodies. */
+  scopeHeadingIds?: boolean
 }
 
 export interface ContentRegistry {
-  getAllPostMeta: () => Promise<ContentMeta[]>
+  getAllPostMeta: (options?: { includeDrafts?: boolean }) => Promise<ContentMeta[]>
   getPostBySlug: (slug: string) => Promise<ContentPost | null>
   /** Raw markdown body (frontmatter stripped) of a published post, or null if none. */
   getPostSource: (slug: string) => Promise<string | null>
@@ -89,7 +94,14 @@ async function loadAuthorsForDir(authorsDir: string): Promise<Record<string, Aut
  * (see `loadAuthorsForDir`).
  */
 export function createContentRegistry(config: ContentRegistryConfig): ContentRegistry {
-  const { contentDir, authorsDir, basePath, componentLoaders = {} } = config
+  const {
+    contentDir,
+    authorsDir,
+    basePath,
+    componentLoaders = {},
+    components = {},
+    scopeHeadingIds = false,
+  } = config
 
   const postComponentsRegistry: Record<string, Record<string, React.ComponentType>> = {}
   let metaPromise: Promise<ContentMeta[]> | null = null
@@ -194,6 +206,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
           wordCount,
           draft: fm.draft,
           featured: fm.featured ?? false,
+          release: fm.release,
           technical: fm.technical,
         }
       })
@@ -201,8 +214,12 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
     return results.filter((result): result is ContentMeta => result !== null).sort(byDateDesc)
   }
 
-  async function getAllPostMeta(): Promise<ContentMeta[]> {
-    return (await scanFrontmatters()).filter((p) => !p.draft)
+  async function getAllPostMeta({
+    includeDrafts = false,
+  }: {
+    includeDrafts?: boolean
+  } = {}): Promise<ContentMeta[]> {
+    return (await scanFrontmatters()).filter((p) => includeDrafts || !p.draft)
   }
 
   /**
@@ -274,7 +291,8 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
     const fm = ContentFrontmatterSchema.parse(data)
 
     const postComponents = await loadPostComponents(slug)
-    const mergedComponents = { ...mdxComponents, ...postComponents }
+    const mergedComponents = { ...mdxComponents, ...components, ...postComponents }
+    const headingPrefix = scopeHeadingIds ? `${slug}-` : ''
 
     const compiled = await compileMDX({
       source: content,
@@ -284,7 +302,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
         mdxOptions: {
           remarkPlugins: [remarkGfm],
           rehypePlugins: [
-            rehypeSlug,
+            [rehypeSlug, { prefix: headingPrefix }],
             [rehypeAutolinkHeadings, { behavior: 'wrap', properties: { className: 'anchor' } }],
           ],
         },
@@ -296,7 +314,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
       const match = /^##\s+(.+)$/.exec(line.trim())
       if (match) {
         const text = match[1].trim()
-        headings.push({ text, id: slugifyHeading(text) })
+        headings.push({ text, id: `${headingPrefix}${slugifyHeading(text)}` })
       }
     }
     return {

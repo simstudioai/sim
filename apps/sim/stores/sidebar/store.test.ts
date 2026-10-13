@@ -41,10 +41,10 @@ describe('sidebar width CSS variables', () => {
       window.innerWidth = 1200
       useSidebarStore.getState().setSidebarWidth(300)
       useSidebarStore.getState().toggleCollapsed()
-      window.innerWidth = 600
+      window.innerWidth = 800
       useSidebarStore.getState().syncWidth()
 
-      expect(widthVars().expanded).toBe(`${SIDEBAR_WIDTH.MIN}px`)
+      expect(widthVars().expanded).toBe('240px')
       expect(useSidebarStore.getState().sidebarWidth).toBe(300)
 
       window.innerWidth = 1200

@@ -67,15 +67,12 @@ case with trusted execution context; use the `migrate-application-operation` ski
 Use this structure only for an absolute external provider API:
 
 ```typescript
-import type { {ServiceName}{Action}Params } from '@/tools/{service}/types'
+import type {
+  {ServiceName}{Action}Params,
+  {ServiceName}{Action}Response,
+} from '@/tools/{service}/types'
 import type { ToolConfig } from '@/tools/types'
-
-interface {ServiceName}{Action}Response {
-  success: boolean
-  output: {
-    // Define output structure here
-  }
-}
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const {serviceName}{Action}Tool: ToolConfig<
   {ServiceName}{Action}Params,
@@ -117,7 +114,8 @@ export const {serviceName}{Action}Tool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.service.com/v1/resource/${params.id}`,
+    url: (params) =>
+      `https://api.service.com/v1/resource/${safeUrlPathSegment(params.someId, 'someId')}`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -189,6 +187,8 @@ fallback, or caller-controlled `_context` authority.
 - `'llm-only'` - Computed by the LLM only; never shown as a user field
 
 A required `'hidden'` param needs an `oauth` declaration or `hosting.apiKeyParam` to supply it (`bun run check:tool-param-reachability`).
+
+A declared `timeout` param is an ordinary tool input — put it in the request body or URL yourself if the provider expects it; it becomes Sim's millisecond request deadline only when the tool sets `timeoutParamIsDeadline: true` (e.g. `http_request`). A `method` param on a tool with a fixed `request.method` would be sent as the HTTP verb, so the same audit rejects it.
 
 ### Parameter Types
 - `'string'` - Text values
@@ -360,7 +360,7 @@ Only use bare `type: 'json'` without `properties` when the shape is truly dynami
 ## Critical Rules for transformResponse
 
 ### Handle Nullable Fields
-ALWAYS use `?? null` for fields that may be undefined:
+Use `?? null` for fields that may be undefined:
 ```typescript
 transformResponse: async (response: Response) => {
   const data = await response.json()
@@ -453,7 +453,7 @@ export const tools = {
 3. Regenerate the tool metadata artifacts:
 
 ```bash
-bun run tool-metadata:generate
+bun run generate:tool-metadata
 ```
 
 Client code reads a tool's `params`/`outputs` from generated metadata rather than
@@ -463,7 +463,7 @@ these are regenerated — and CI fails on stale artifacts. Commit the result. Se
 
 ## Wiring Tools into the Block (Required)
 
-After registering in `tools/registry.ts`, you MUST also update the block definition at `apps/sim/blocks/blocks/{service}.ts`. This is not optional — tools are only usable from the UI if they are wired into the block.
+After registering in `tools/registry.ts`, also update the block definition at `apps/sim/blocks/blocks/{service}.ts`: a tool is usable from the UI only once the block wires it.
 
 ### 1. Add to `tools.access`
 
@@ -612,10 +612,10 @@ If creating V2 tools (API-aligned outputs), use `_v2` suffix:
 - [ ] Types file has all interfaces
 - [ ] Index.ts exports all tools and re-exports types (`export * from './types'`)
 - [ ] Tools registered in `tools/registry.ts`
-- [ ] `bun run tool-metadata:generate` run and the regenerated artifacts committed
+- [ ] `bun run generate:tool-metadata` run and the regenerated artifacts committed
 - [ ] `bun run scripts/generate-docs.ts` run and the refreshed docs committed — the integration's
       docs page is rendered from each tool's description, params, and outputs, and CI's
-      `bun run docs:check` fails on stale pages
+      `bun run check:docs` fails on stale pages
 - [ ] Block wired: `tools.access`, dropdown options, subBlocks, `tools.config`, outputs, inputs
 - [ ] Model, durable-storage, and internal-execution boundaries use the shared provenance mechanisms
       only where a concrete Sim `{{...}}` resolution path requires them

@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'
 import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
 import { BlockType, EDGE } from '@/executor/constants'
@@ -128,8 +129,22 @@ export class ExecutionEngine {
         throw this.executionError
       }
 
+      if (this.stopBlockReached) {
+        this.pausedBlocks.clear()
+        this.context.metadata.pausePoints = []
+        this.context.metadata.status = 'completed'
+        this.context.metadata.stopAfterBlockReached = true
+      }
+
       /** A pause keeps a run whose stop block can still run; one proven unreachable fails. */
-      if (!this.cancelledFlag && (this.stopBlockUnreachable || this.pausedBlocks.size === 0)) {
+      const waitingForPausedBranch =
+        this.context.metadata.resumeFromSnapshot === true &&
+        this.context.metadata.resumeHasPendingPauses === true &&
+        !this.responseOutputLocked
+      if (
+        !this.cancelledFlag &&
+        (this.stopBlockUnreachable || (this.pausedBlocks.size === 0 && !waitingForPausedBranch))
+      ) {
         this.assertStopBlockReached()
       }
 
@@ -182,10 +197,11 @@ export class ExecutionEngine {
       this.finalizeIncompleteLogs()
 
       const errorMessage = normalizeError(error)
-      this.execLogger.error(
-        'Execution failed',
-        projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry)
-      )
+      logFailureOnce(this.execLogger, 'Execution failed', error, {
+        metadata: () =>
+          projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry),
+        executionId: this.context.executionId,
+      })
 
       const executionResult: ExecutionResult = {
         success: false,
@@ -293,6 +309,19 @@ export class ExecutionEngine {
   }
 
   private initializeQueue(triggerBlockId?: string): void {
+    const stopBlockId = this.context.stopAfterBlockId
+    if (
+      this.context.metadata.resumeFromSnapshot &&
+      this.context.metadata.stopAfterBlockReached &&
+      stopBlockId
+    ) {
+      this.stopBlockReached = true
+      this.stoppedEarlyFlag = true
+      const state = this.context.blockStates.get(stopBlockId)
+      if (state) this.setFinalOutput(stopBlockId, state.output)
+      return
+    }
+
     if (this.context.runFromBlockContext) {
       const { startBlockId } = this.context.runFromBlockContext
       this.execLogger.info('Initializing queue for run-from-block mode', {
@@ -450,11 +479,20 @@ export class ExecutionEngine {
         })
       }
     } catch (error) {
-      this.execLogger.error('Node execution failed', {
-        nodeId,
-        ...projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry),
+      /**
+       * Block failures were logged by the block executor. This catches a completion-handling
+       * fault, which only this frame sees when a concurrent failure already won `executionError`.
+       * Normalized first, as `trackExecution` would, so `run()` sees the mark on the same object.
+       */
+      const failure = toError(error)
+      logFailureOnce(this.execLogger, 'Node execution failed', failure, {
+        metadata: () =>
+          projectResolvedSecretDiagnosticError(failure, this.context.resolvedSecretTraceRegistry, {
+            nodeId,
+          }),
+        executionId: this.context.executionId,
       })
-      throw error
+      throw failure
     }
   }
 

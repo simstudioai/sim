@@ -2,10 +2,12 @@ import { isDeepStrictEqual } from 'node:util'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
+import { adoptToolFailure } from '@/lib/core/errors/failure-log'
 import { getBlock } from '@/blocks/index'
 import { isMcpTool } from '@/executor/constants'
 import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
 import { readStatusCode } from '@/executor/utils/errors'
+import { mayBeJsonText } from '@/executor/utils/json'
 import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
@@ -195,11 +197,13 @@ export class GenericBlockHandler implements BlockHandler {
       if (blockConfig?.inputs) {
         for (const [key, inputSchema] of Object.entries(blockConfig.inputs)) {
           const value = finalInputs[key]
-          if (typeof value === 'string' && value.trim().length > 0) {
+          const text = typeof value === 'string' ? value.trim() : ''
+          if (text.length > 0) {
             const inputType = typeof inputSchema === 'object' ? inputSchema.type : inputSchema
-            if (inputType === 'json' || inputType === 'array') {
+            // Plain strings (a file id, URL, or reference) are valid json-input values kept as-is.
+            if ((inputType === 'json' || inputType === 'array') && mayBeJsonText(text)) {
               try {
-                finalInputs[key] = JSON.parse(value.trim())
+                finalInputs[key] = JSON.parse(text)
               } catch (error) {
                 /**
                  * The failure class, not the thrown message. This parses a resolved input, so the
@@ -359,6 +363,7 @@ export class GenericBlockHandler implements BlockHandler {
           // error so `getExecutionErrorStatus` can still reach the API caller.
           ...(typeof result.statusCode === 'number' ? { statusCode: result.statusCode } : {}),
         })
+        adoptToolFailure(error, result)
 
         throw error
       }

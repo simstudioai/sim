@@ -8,21 +8,29 @@ import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilePreview')
 
+interface UnsupportedPreviewProps {
+  name: string
+  reason?: string
+}
+
 /**
  * Terminal fallback for a file this app cannot render — either the format has no
  * viewer at all, or a viewer that was expected to work failed (e.g. a HEIC whose
  * server-side derivative could not be produced).
  */
-export const UnsupportedPreview = memo(function UnsupportedPreview({ name }: { name: string }) {
+export const UnsupportedPreview = memo(function UnsupportedPreview({
+  name,
+  reason,
+}: UnsupportedPreviewProps) {
   const ext = getFileExtension(name)
 
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
       <p className='text-[14px] text-[var(--text-primary)]'>
-        Preview not available{ext ? ` for .${ext} files` : ' for this file'}
+        Preview not available{reason ? '' : ext ? ` for .${ext} files` : ' for this file'}
       </p>
       <p className='text-[var(--text-muted)] text-small'>
-        Use the download button to view this file
+        {reason ?? 'Use the download button to view this file'}
       </p>
     </div>
   )

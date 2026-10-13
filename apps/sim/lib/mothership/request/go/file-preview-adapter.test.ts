@@ -307,7 +307,7 @@ describe('processFilePreviewStreamEvent — preview target resolution', () => {
 
   beforeEach(() => {
     executeCopilotFileUseCaseMock.mockResolvedValue({
-      files: [{ id: 'file-9', name: 'notes.md', folderPath: null }],
+      files: new Map([['files/notes.md', { id: 'file-9', name: 'notes.md', folderPath: null }]]),
     })
   })
 

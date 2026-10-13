@@ -17,10 +17,12 @@ import {
   MAX_GREP_RESULTS,
   MAX_READ_LINES,
 } from '@sim/desktop-bridge/local-filesystem-limits'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { escapeRegExp, stripTrailingSlashes, truncate } from '@sim/utils/string'
-import { app, dialog, shell } from 'electron'
+import type { BrowserWindow } from 'electron'
+import { app, dialog, Menu, shell } from 'electron'
 import micromatch from 'micromatch'
 import safeRegex from 'safe-regex2'
 import {
@@ -30,10 +32,12 @@ import {
   runAccountDataMutation,
   waitForAccountDataMutations,
 } from '@/main/account-data-generation'
+import { showShellDialog } from '@/main/dialogs'
 import type {
   LocalFilesystemGrantStore,
   PersistedLocalFilesystemGrant,
 } from '@/main/local-filesystem-grant-store'
+import { openNativeFile } from '@/main/native-directory'
 
 const MAX_URI_LENGTH = 4096
 const MAX_LIST_ENTRIES = 500
@@ -93,6 +97,8 @@ const GRANT_SCOPED_OPERATIONS: ReadonlySet<string> = new Set([
 
 interface GrantedMount extends LocalFilesystemMount {
   rootPath: string
+  dev: bigint
+  ino: bigint
   bookmark?: string
   stopAccessing?: () => void
 }
@@ -346,6 +352,12 @@ async function selectDirectoryEntries(
   return { entries, truncated: seen > entries.length }
 }
 
+export interface LocalFileAccess {
+  path: string
+  resolve: (path: string) => Promise<string>
+  open: (path: string, directory?: boolean) => ReturnType<typeof openNativeFile>
+}
+
 export class LocalFilesystemService {
   private readonly mounts = new Map<string, GrantedMount>()
   private readonly activeRequests = new Map<string, AbortController>()
@@ -488,12 +500,12 @@ export class LocalFilesystemService {
               'Local filesystem operation is not supported.'
             )
         }
+        if (grant) await this.assertMountCurrent(grant)
       } finally {
         if (requestId) {
           this.activeRequests.delete(requestId)
         }
       }
-      if (grant && this.mounts.get(grant.id)?.rootPath !== grant.rootPath) throw mountNotFound()
       return { ok: true, data }
     } catch (error) {
       const safe = safeError(error)
@@ -629,7 +641,18 @@ export class LocalFilesystemService {
       throw new LocalFilesystemError('CANCELLED', 'The folder request expired during sign-out.')
     }
 
-    const selected = typeof selection === 'string' ? { path: selection } : selection
+    return this.grantDirectory(
+      typeof selection === 'string' ? { path: selection } : selection,
+      generation
+    )
+  }
+
+  /** Records a folder selected through trusted desktop UI, with the identity shown at consent. */
+  async grantDirectory(
+    selected: SelectedDirectory,
+    generation: number,
+    expected?: { dev: bigint; ino: bigint }
+  ): Promise<LocalFilesystemData> {
     const stopAccessing = selected.bookmark
       ? this.startAccessingBookmark(selected.bookmark)
       : undefined
@@ -644,7 +667,7 @@ export class LocalFilesystemService {
 
     try {
       const rootPath = await realpath(selected.path)
-      const rootStat = await stat(rootPath)
+      const rootStat = await stat(rootPath, { bigint: true })
       if (!isAccountDataGenerationCurrent(generation)) {
         throw new LocalFilesystemError('CANCELLED', 'The folder request expired during sign-out.')
       }
@@ -652,7 +675,24 @@ export class LocalFilesystemService {
         throw new LocalFilesystemError('NOT_A_DIRECTORY', 'The selected item is not a directory.')
       }
 
+      if (
+        expected &&
+        (rootPath !== selected.path ||
+          rootStat.dev !== expected.dev ||
+          rootStat.ino !== expected.ino)
+      ) {
+        throw new LocalFilesystemError(
+          'ACCESS_DENIED',
+          'The folder changed while awaiting permission. Request access again.'
+        )
+      }
       const existing = [...this.mounts.values()].find((mount) => mount.rootPath === rootPath)
+      if (!existing && this.mounts.size >= 256) {
+        throw new LocalFilesystemError(
+          'INVALID_REQUEST',
+          'Forget an unused folder in File → Folder Access before adding more.'
+        )
+      }
       const id = existing?.id ?? generateId()
       const bookmark = selected.bookmark ?? existing?.bookmark
       const nextStopAccessing = selected.bookmark
@@ -667,6 +707,8 @@ export class LocalFilesystemService {
         name: basename(rootPath) || 'Local files',
         uri: localUri(id),
         rootPath,
+        dev: rootStat.dev,
+        ino: rootStat.ino,
         remembered: existing?.remembered ?? false,
         ...(bookmark ? { bookmark } : {}),
         ...(nextStopAccessing ? { stopAccessing: nextStopAccessing } : {}),
@@ -691,6 +733,98 @@ export class LocalFilesystemService {
     }
   }
 
+  /** Resolves native tool paths through the same remembered grants as VFS reads. */
+  async nativeAccess(candidate: string): Promise<LocalFileAccess | null> {
+    const path = await realpath(candidate)
+    for (const mount of this.mounts.values()) {
+      if (!isWithinRoot(mount.rootPath, path)) continue
+      try {
+        await this.assertMountCurrent(mount)
+      } catch {
+        continue
+      }
+      const resolveGranted = async (requested: string): Promise<string> => {
+        await this.assertMountCurrent(mount)
+        const resolved = await realpath(requested)
+        if (!isWithinRoot(mount.rootPath, resolved)) {
+          throw new LocalFilesystemError(
+            'ACCESS_DENIED',
+            'This path is outside the approved folder.'
+          )
+        }
+        await this.assertMountCurrent(mount)
+        return resolved
+      }
+      return {
+        path,
+        resolve: resolveGranted,
+        open: async (requested, directory = false) => {
+          const canonical = await resolveGranted(requested)
+          if (canonical !== requested) throw new Error('The local path changed. Try again.')
+          const file = await openNativeFile(
+            mount.rootPath,
+            relative(mount.rootPath, canonical),
+            mount,
+            directory
+          )
+          try {
+            await this.assertMountCurrent(mount)
+            return file
+          } catch (error) {
+            await file.close()
+            throw error
+          }
+        },
+      }
+    }
+    return null
+  }
+
+  private async assertMountCurrent(mount: GrantedMount): Promise<void> {
+    const root = await lstat(mount.rootPath, { bigint: true })
+    const current = this.mounts.get(mount.id)
+    if (!current || current.rootPath !== mount.rootPath) throw mountNotFound()
+    if (
+      current.dev !== mount.dev ||
+      current.ino !== mount.ino ||
+      !root.isDirectory() ||
+      root.dev !== mount.dev ||
+      root.ino !== mount.ino
+    ) {
+      throw new LocalFilesystemError(
+        'ACCESS_DENIED',
+        'Folder access was removed or the folder changed. Request access again.'
+      )
+    }
+  }
+
+  /** Native controls share the same grant store and revocation path as the desktop bridge. */
+  showAccessMenu(parent: BrowserWindow): void {
+    const generation = captureAccountDataGeneration()
+    const run = (operation: () => Promise<unknown>) => {
+      if (!isAccountDataGenerationCurrent(generation) || parent.isDestroyed()) return
+      void operation().catch((error) =>
+        showShellDialog(parent, {
+          title: 'Folder access',
+          message: getErrorMessage(error),
+          buttons: ['OK'],
+        })
+      )
+    }
+    Menu.buildFromTemplate([
+      { label: 'Add Folder…', click: () => run(() => this.mountDirectory()) },
+      { type: 'separator' },
+      ...[...this.mounts.values()].map((mount) => ({
+        label: mount.rootPath,
+        submenu: [
+          { label: 'Show Folder', click: () => run(async () => this.revealMount(mount.uri)) },
+          { label: 'Forget Folder', click: () => run(() => this.forgetMount(mount.uri)) },
+        ],
+      })),
+      ...(this.mounts.size === 0 ? [{ label: 'No folders allowed', enabled: false }] : []),
+    ]).popup({ window: parent })
+  }
+
   private listMounts(): LocalFilesystemData {
     return { mounts: [...this.mounts.values()].map((mount) => this.publicMount(mount)) }
   }
@@ -709,42 +843,52 @@ export class LocalFilesystemService {
     const generation = captureAccountDataGeneration()
     const grants = await this.grantStore.load()
     if (!isAccountDataGenerationCurrent(generation)) return
-    let skipped = false
+    let needsPersist = false
 
     for (const grant of grants) {
       if (!/^[a-zA-Z0-9-]{1,128}$/.test(grant.id) || this.mounts.has(grant.id)) {
-        skipped = true
+        needsPersist = true
         continue
       }
       const stopAccessing = grant.bookmark ? this.startAccessingBookmark(grant.bookmark) : undefined
       try {
         const rootPath = await realpath(grant.rootPath)
-        const rootStat = await stat(rootPath)
+        const rootStat = await stat(rootPath, { bigint: true })
         if (!isAccountDataGenerationCurrent(generation)) {
           stopAccessing?.()
           return
         }
-        if (!rootStat.isDirectory()) {
+        if (
+          !rootStat.isDirectory() ||
+          rootPath !== grant.rootPath ||
+          (grant.dev !== undefined &&
+            (grant.ino === undefined ||
+              BigInt(grant.dev) !== rootStat.dev ||
+              BigInt(grant.ino) !== rootStat.ino))
+        ) {
           stopAccessing?.()
-          skipped = true
+          needsPersist = true
           continue
         }
+        if (grant.dev === undefined) needsPersist = true
         this.mounts.set(grant.id, {
           id: grant.id,
           name: basename(rootPath) || grant.name || 'Local files',
           uri: localUri(grant.id),
           rootPath,
+          dev: rootStat.dev,
+          ino: rootStat.ino,
           remembered: true,
           ...(grant.bookmark ? { bookmark: grant.bookmark } : {}),
           ...(stopAccessing ? { stopAccessing } : {}),
         })
       } catch {
         stopAccessing?.()
-        skipped = true
+        needsPersist = true
       }
     }
 
-    if (skipped) {
+    if (needsPersist) {
       await runAccountDataMutation(generation, () => this.persistMounts())
     }
   }
@@ -754,6 +898,8 @@ export class LocalFilesystemService {
       id: mount.id,
       name: mount.name,
       rootPath: mount.rootPath,
+      dev: mount.dev.toString(),
+      ino: mount.ino.toString(),
       ...(mount.bookmark ? { bookmark: mount.bookmark } : {}),
     }))
   }
@@ -940,6 +1086,7 @@ export class LocalFilesystemService {
 
   private async resolveUri(uri: string): Promise<ResolvedLocalPath> {
     const { mount, relativePath } = this.parseUri(uri)
+    await this.assertMountCurrent(mount)
     const lexicalPath = resolve(mount.rootPath, ...relativePath.split('/').filter(Boolean))
     if (!isWithinRoot(mount.rootPath, lexicalPath)) {
       throw new LocalFilesystemError(
@@ -954,6 +1101,7 @@ export class LocalFilesystemService {
         'The requested path is outside the selected folder.'
       )
     }
+    await this.assertMountCurrent(mount)
     return { mount, relativePath, lexicalPath, realPath }
   }
 

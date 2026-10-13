@@ -11,9 +11,9 @@ Each organization has at most one pool. Creating it does not give any workspace 
 
 ## Availability
 
-Connected accounts must be enabled for your organization. Sim Cloud also requires an active Enterprise plan. Organization owners and admins manage the pool, subject to the organization's permission settings. A workspace admin who is not an organization admin cannot change the pool or its workspace access.
+Sim Cloud requires an active Enterprise plan. Organization owners and admins manage the pool, subject to the organization's permission settings. A workspace admin who is not an organization admin cannot change the pool or its workspace access.
 
-For self-hosted deployments using environment-based feature flags, set `CREDENTIAL_GROUPS=true`. Availability is organization-scoped; personal workspaces cannot use an organization pool.
+For self-hosted deployments, set `CREDENTIAL_GROUPS=true`, or `ENTERPRISE_ENABLED=true` to enable the whole enterprise suite. Availability is organization-scoped; personal workspaces cannot use an organization pool.
 
 Manage the pool under **Settings → Credential Groups**. It remains available independently of Search. Search administrators use **Settings → Sources**, while members connect personal Search accounts under **Integrations** in the main sidebar. These surfaces can share grants without sharing their purpose or resource settings.
 

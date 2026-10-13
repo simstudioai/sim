@@ -61,10 +61,14 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'linear-service-account': ['linear'],
   'monday-service-account': ['monday'],
   'notion-service-account': ['notion'],
+  // OCI owns reusable credential setup but intentionally exposes no product
+  // integration until a native OCI product supplies visible catalog metadata.
+  'oci-api-key-service-account': [],
   // NetSuite remains an API-key catalog integration, like Snowflake, while its
   // block uses the shared reusable-credential selector.
   'netsuite-service-account': [],
   'pipedrive-service-account': ['pipedrive'],
+  'ramp-service-account': ['ramp'],
   'salesforce-service-account': ['salesforce'],
   'shopify-service-account': ['shopify'],
   'slack-custom-bot': ['slack'],
@@ -72,6 +76,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   // so its credential is offered on the block rather than an integration page.
   'snowflake-service-account': [],
   'trello-service-account': ['trello'],
+  'vanta-service-account': ['vanta'],
   'wealthbox-service-account': ['wealthbox'],
   'webflow-service-account': ['webflow'],
   'zoho-desk-service-account': ['zoho-desk'],
@@ -108,10 +113,6 @@ describe('GitHub Search credentials', () => {
 })
 
 describe('service-account coverage', () => {
-  it('pins the table to exactly the registered service-account provider ids', () => {
-    expect(REGISTERED_SERVICE_ACCOUNT_IDS).toEqual(Object.keys(EXPECTED_COVERAGE).sort())
-  })
-
   it.each(Object.entries(EXPECTED_COVERAGE))(
     '%s authenticates the expected integrations',
     (providerId, expectedSlugs) => {

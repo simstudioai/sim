@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import type { StorageContext } from '@/lib/uploads'
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 import {
   ACCEPTED_FILE_TYPES,
   isAlphanumericExtension,
@@ -199,7 +200,7 @@ export function getFileExtension(filename: string): string {
  * merge) to exactly the files that can be open in that editor.
  */
 export function isMarkdownFile(file: { type?: string | null; name: string }): boolean {
-  if (file.type === 'text/markdown') return true
+  if (normalizeMimeType(file.type) === 'text/markdown') return true
   const ext = getFileExtension(file.name)
   return ext === 'md' || ext === 'markdown'
 }

@@ -93,7 +93,9 @@ import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
 import {
-  leaseDesktopTool,
+  type DesktopToolSession,
+  type DesktopToolTurn,
+  desktopToolSession,
   stopDesktopTools,
 } from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
@@ -117,6 +119,7 @@ import { useNativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/hooks/
 import { resolveEffectiveResourceId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
+  fetchMothershipChatActiveStreamId,
   fetchMothershipChatHistory,
   type MothershipChatHistory,
   mothershipChatHistoryQueryOptions,
@@ -518,10 +521,10 @@ function startClientBrowserTool(
   toolArgs: Record<string, unknown>,
   scopeId: string,
   eventTs?: string,
-  turnStreamId?: string
+  desktopTurn?: DesktopToolTurn
 ): void {
   if (!isCurrentBrowserToolName(toolName)) return
-  const lease = turnStreamId ? leaseDesktopTool(turnStreamId) : undefined
+  const lease = desktopTurn?.lease()
   void executeBrowserToolOnClient(
     toolCallId,
     toolName,
@@ -1003,6 +1006,8 @@ export function useChat(
   const chatIdRef = useRef<string | undefined>(initialChatId)
   /** Cleared on unmount, so late async work cannot act on a surface the user left. */
   const surfaceMountedRef = useRef(true)
+  const desktopToolsRef = useRef<DesktopToolSession | null>(null)
+  const desktopTools = (desktopToolsRef.current ??= desktopToolSession())
   useEffect(() => {
     surfaceMountedRef.current = true
     return () => {
@@ -1060,7 +1065,9 @@ export function useChat(
   const streamRequestIdRef = useRef<string | undefined>(undefined)
   const locallyTerminalStreamIdRef = useRef<string | undefined>(undefined)
   /** The finished stream whose saved transcript is being waited for, if any. */
-  const persistedTurnWaitRef = useRef<string | null>(null)
+  const persistedTurnWaitRef = useRef<{ streamId: string; controller: AbortController } | null>(
+    null
+  )
   const lastCursorRef = useRef('0')
   const logResyncedStreamIdRef = useRef<string | null>(null)
   const activeStreamReturnRecoveryRef = useRef<ActiveStreamRecovery | null>(null)
@@ -1654,7 +1661,7 @@ export function useChat(
       toolCallId: string,
       toolName: string,
       toolArgs: Record<string, unknown>,
-      turnStreamId: string | undefined
+      desktopTurn: DesktopToolTurn | undefined
     ) => {
       if (
         !isNativeFileTool(toolName) &&
@@ -1666,7 +1673,7 @@ export function useChat(
         return
       }
       handledClientLocalFilesystemToolIds.add(toolCallId)
-      const lease = turnStreamId ? leaseDesktopTool(turnStreamId) : undefined
+      const lease = desktopTurn?.lease()
       const options = {
         workspaceId,
         chatId: chatIdRef.current ?? selectedChatIdRef.current,
@@ -1993,15 +2000,24 @@ export function useChat(
    * before it saves the turn, so the transcript read right after can still be the
    * in-flight copy: the stream listed as active and the answer under its live id.
    * That copy matches the optimistic one, so nothing would read it again; re-read
-   * until the saved turn is there. The first pass joins finalize's own read. The
-   * wait ends as soon as this chat moves on (another send, or another chat) or
-   * the chat view unmounts.
+   * until the saved turn is there. The first pass joins finalize's own read; later
+   * passes poll only the chat's stream status and re-read the transcript once the
+   * stream is no longer listed (or the status read fails). The wait ends as soon
+   * as this chat moves on (another send, or another chat) or the chat view
+   * unmounts.
    */
   const awaitPersistedTurn = useCallback(
     async (chatId: string, streamId: string) => {
-      if (persistedTurnWaitRef.current === streamId) return
-      persistedTurnWaitRef.current = streamId
+      if (persistedTurnWaitRef.current?.streamId === streamId) return
+      persistedTurnWaitRef.current?.controller.abort('superseded:persisted_turn_wait')
+      const wait = { streamId, controller: new AbortController() }
+      persistedTurnWaitRef.current = wait
       const deadline = Date.now() + PERSISTED_TURN_WAIT_MS
+      const isStillWaiting = () =>
+        !wait.controller.signal.aborted &&
+        surfaceMountedRef.current &&
+        locallyTerminalStreamIdRef.current === streamId &&
+        chatIdRef.current === chatId
       try {
         for (let attempt = 0; Date.now() < deadline; attempt++) {
           if (attempt > 0) {
@@ -2011,13 +2027,14 @@ export function useChat(
                 maxMs: PERSISTED_TURN_REFETCH_MAX_DELAY_MS,
               })
             )
+            if (!isStillWaiting()) return
+            const activeStreamId = await fetchMothershipChatActiveStreamId(
+              chatId,
+              wait.controller.signal
+            ).catch(() => undefined)
+            if (activeStreamId === streamId) continue
           }
-          if (
-            !surfaceMountedRef.current ||
-            locallyTerminalStreamIdRef.current !== streamId ||
-            chatIdRef.current !== chatId
-          )
-            return
+          if (!isStillWaiting()) return
           await queryClient.refetchQueries(
             { queryKey: mothershipChatKeys.detail(chatId), exact: true },
             { cancelRefetch: false }
@@ -2028,7 +2045,7 @@ export function useChat(
           if (history?.activeStreamId !== streamId) return
         }
       } finally {
-        if (persistedTurnWaitRef.current === streamId) persistedTurnWaitRef.current = null
+        if (persistedTurnWaitRef.current === wait) persistedTurnWaitRef.current = null
       }
     },
     [queryClient]
@@ -2297,7 +2314,7 @@ export function useChat(
         shouldContinue?: () => boolean
       }
     ) => {
-      const turnStreamId = streamIdRef.current
+      const desktopTurn = streamIdRef.current ? desktopTools.turn(streamIdRef.current) : undefined
       const activityTracker = getResourceActivityTracker(
         expectedGen ?? streamGenRef.current,
         options?.targetChatId
@@ -2318,7 +2335,7 @@ export function useChat(
         eventTs?: string
       ) => {
         const scopeId = activityScopeId()
-        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, turnStreamId)
+        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, desktopTurn)
       }
       const startClientTerminalToolForStream = (
         toolCallId: string,
@@ -2351,7 +2368,7 @@ export function useChat(
         removeResource,
         startClientWorkflowTool,
         startClientLocalFilesystemTool: (toolCallId, toolName, toolArgs) =>
-          startClientLocalFilesystemTool(toolCallId, toolName, toolArgs, turnStreamId),
+          startClientLocalFilesystemTool(toolCallId, toolName, toolArgs, desktopTurn),
         startClientBrowserTool: startClientBrowserToolForStream,
         startClientTerminalTool: startClientTerminalToolForStream,
         startBrowserAgentRun: startBrowserAgentRunForStream,
@@ -5375,6 +5392,7 @@ export function useChat(
         controller.abort('unmount:detached_chat_resolution')
       }
       detachedChatResolutionControllers.clear()
+      persistedTurnWaitRef.current?.controller.abort('unmount:persisted_turn_wait')
       clearActiveTurn()
       sendingRef.current = false
       // Release the editing slot — the composer it binds to is unmounting.

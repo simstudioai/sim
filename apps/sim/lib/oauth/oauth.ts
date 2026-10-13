@@ -39,6 +39,7 @@ import {
   HarmonicIcon,
   HubspotIcon,
   InstagramIcon,
+  IntuneIcon,
   JiraIcon,
   LinearIcon,
   LinkedInIcon,
@@ -54,10 +55,12 @@ import {
   MondayIcon,
   NetSuiteIcon,
   NotionIcon,
+  OracleIcon,
   OutlookIcon,
   PipedriveIcon,
   PowerBIIcon,
   QuickBooksIcon,
+  RampIcon,
   RedditIcon,
   SalesforceIcon,
   ShopifyIcon,
@@ -66,6 +69,7 @@ import {
   SpotifyIcon,
   TikTokIcon,
   TrelloIcon,
+  VantaIcon,
   VertexIcon,
   WealthboxIcon,
   WebflowIcon,
@@ -91,6 +95,7 @@ import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import { MONDAY_OAUTH_TOKEN_URL, resolveMondayAccessTokenExpiresAt } from '@/lib/oauth/monday'
 import type { QuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
 import { QUICKBOOKS_TOKEN_URL } from '@/lib/oauth/quickbooks-constants'
+import { isCredentialRevocationError } from '@/lib/oauth/refresh-error-codes'
 import {
   SALESFORCE_ADDITIONAL_PROVIDER_IDS,
   SALESFORCE_LOGIN_HOSTS,
@@ -429,6 +434,22 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: MicrosoftExcelIcon,
         baseProviderIcon: MicrosoftIcon,
         scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+      },
+      'microsoft-intune': {
+        name: 'Microsoft Intune',
+        description: 'Read managed devices and policies, and request remote device actions.',
+        providerId: 'microsoft-intune',
+        icon: IntuneIcon,
+        baseProviderIcon: MicrosoftIcon,
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'DeviceManagementManagedDevices.Read.All',
+          'DeviceManagementConfiguration.Read.All',
+          'DeviceManagementManagedDevices.PrivilegedOperations.All',
+          'offline_access',
+        ],
       },
       'microsoft-planner': {
         name: 'Microsoft Planner',
@@ -1072,6 +1093,74 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  oracledb: {
+    name: 'Oracle Database',
+    icon: OracleIcon,
+    services: {
+      oracledb: {
+        name: 'Oracle Database',
+        description: 'Query and manage Oracle Database with a saved connection.',
+        providerId: 'oracledb',
+        serviceAccountProviderId: 'oracledb-service-account',
+        authType: 'service_account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'oracledb',
+  },
+  oci: {
+    name: 'Oracle Cloud Infrastructure',
+    icon: OracleIcon,
+    services: {
+      oci: {
+        name: 'Oracle Cloud Infrastructure',
+        description: 'Connect OCI services with an API signing key.',
+        providerId: 'oci',
+        serviceAccountProviderId: 'oci-api-key-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oci',
+  },
+  'oracle-epm': {
+    name: 'Oracle EPM',
+    icon: OracleIcon,
+    services: {
+      'oracle-epm': {
+        name: 'Oracle EPM',
+        description: 'Connect an EPM environment with an integration user.',
+        providerId: 'oracle-epm',
+        serviceAccountProviderId: 'oracle-epm-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-epm',
+  },
+  'oracle-fusion': {
+    name: 'Oracle Fusion',
+    icon: OracleIcon,
+    services: {
+      'oracle-fusion': {
+        name: 'Oracle Fusion',
+        description: 'Connect Fusion Applications with an integration user.',
+        providerId: 'oracle-fusion',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-fusion',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,
@@ -1299,6 +1388,51 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'quickbooks',
+  },
+  ramp: {
+    name: 'Ramp',
+    icon: RampIcon,
+    services: {
+      ramp: {
+        name: 'Ramp',
+        description:
+          'Read company spending, cards, bills, and reimbursements, and manage transaction memos.',
+        providerId: 'ramp',
+        serviceAccountProviderId: 'ramp-service-account',
+        authType: 'oauth',
+        icon: RampIcon,
+        baseProviderIcon: RampIcon,
+        scopes: [
+          'business:read',
+          'users:read',
+          'transactions:read',
+          'cards:read',
+          'vendors:read',
+          'bills:read',
+          'reimbursements:read',
+          'memos:read',
+          'memos:write',
+        ],
+      },
+    },
+    defaultService: 'ramp',
+  },
+  vanta: {
+    name: 'Vanta',
+    icon: VantaIcon,
+    services: {
+      vanta: {
+        name: 'Vanta',
+        description: 'Read compliance data and manage evidence in Vanta.',
+        providerId: 'vanta',
+        serviceAccountProviderId: 'vanta-service-account',
+        authType: 'service_account',
+        icon: VantaIcon,
+        baseProviderIcon: VantaIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'vanta',
   },
   hubspot: {
     name: 'HubSpot',
@@ -1892,6 +2026,20 @@ function getProviderAuthConfig(
         },
       }
     }
+    case 'ramp': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'ramp',
+        'RAMP_CLIENT_ID',
+        'RAMP_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: 'https://api.ramp.com/developer/v1/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: false,
+      }
+    }
     case 'wealthbox': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'wealthbox',
@@ -2022,22 +2170,8 @@ function getProviderAuthConfig(
         supportsRefreshTokenRotation: true,
       }
     }
-    case 'shopify': {
-      // Shopify access tokens don't expire and don't support refresh tokens
-      // This configuration is provided for completeness but won't be used for token refresh
-      const { clientId, clientSecret } = getConfiguredClientCredentials(
-        'shopify',
-        'SHOPIFY_CLIENT_ID',
-        'SHOPIFY_CLIENT_SECRET'
-      )
-      return {
-        tokenEndpoint: 'https://accounts.shopify.com/oauth/token',
-        clientId,
-        clientSecret,
-        useBasicAuth: false,
-        supportsRefreshTokenRotation: false,
-      }
-    }
+    case 'shopify':
+      throw new Error('Shopify refresh requires its persisted installation context')
     case 'zoom': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'zoom',
@@ -2287,6 +2421,13 @@ function oauthResponseRecord(value: unknown): Record<string, unknown> | undefine
 
 const OAUTH_RESPONSE_OMITTED = '[token endpoint response omitted]'
 
+/** A revoked grant is its owner's to reconnect, not a fault of ours, so it logs at WARN. */
+function logRefreshRejection(errorCode: string | undefined, providerId: string) {
+  return isCredentialRevocationError(errorCode, providerId)
+    ? logger.warn.bind(logger)
+    : logger.error.bind(logger)
+}
+
 async function refreshInstagramLongLivedToken(
   config: ProviderAuthConfig,
   longLivedToken: string,
@@ -2311,7 +2452,7 @@ async function refreshInstagramLongLivedToken(
   if (!response.ok) {
     const exactSecrets = [longLivedToken, config.clientSecret ?? '']
     const errorCode = safeOAuthErrorCode(responseData, exactSecrets)
-    logger.error('Instagram long-lived token refresh failed:', {
+    logRefreshRejection(errorCode, providerId)('Instagram long-lived token refresh failed:', {
       status: response.status,
       error: OAUTH_RESPONSE_OMITTED,
       errorCode,
@@ -2385,7 +2526,7 @@ export async function refreshOAuthToken(
     if (!response.ok) {
       const errorCode = safeOAuthErrorCode(responseData, exactSecrets)
 
-      logger.error('Token refresh failed:', {
+      logRefreshRejection(errorCode, providerId)('Token refresh failed:', {
         status: response.status,
         error: OAUTH_RESPONSE_OMITTED,
         errorCode,
@@ -2413,7 +2554,7 @@ export async function refreshOAuthToken(
       (provider === 'github-repositories' && typeof data.error === 'string')
     ) {
       const errorCode = safeOAuthErrorCode(data, exactSecrets)
-      logger.error('Token refresh failed:', {
+      logRefreshRejection(errorCode, providerId)('Token refresh failed:', {
         status: response.status,
         error: OAUTH_RESPONSE_OMITTED,
         errorCode,

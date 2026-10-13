@@ -119,7 +119,7 @@ const fixtures: readonly CoercionFixture[] = [
     expected: { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: ['slack'] },
   },
   {
-    name: 'a fully populated config',
+    name: 'a fully populated legacy config',
     input: {
       allowedIntegrations: ['slack_v2'],
       allowedModelProviders: ['anthropic'],
@@ -209,6 +209,7 @@ const fixtures: readonly CoercionFixture[] = [
       disableOAuthAppAccess: true,
       disableKnowledgeBaseExport: true,
       deniedPartialAccessProjectIssues: ['project-a'],
+      defaultAgentModel: null,
     },
   },
 ]

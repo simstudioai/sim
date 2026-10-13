@@ -1,5 +1,6 @@
-import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
+import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { normalizeWorkspaceFileItemName } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { decodeVfsPathSegments } from '@/lib/vfs/path'
 
 export function parseWorkspaceFileCreatePath(path: string): {
   folderSegments: string[]

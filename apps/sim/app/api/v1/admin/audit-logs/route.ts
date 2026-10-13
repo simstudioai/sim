@@ -28,8 +28,8 @@ import { buildFilterConditions } from '@/lib/audit-logs/query'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminInternalErrorResponse,
   adminValidationErrorResponse,
-  internalErrorResponse,
   listResponse,
 } from '@/app/api/v1/admin/responses'
 import { type AdminAuditLog, createPaginationMeta, toAdminAuditLog } from '@/app/api/v1/admin/types'
@@ -82,7 +82,7 @@ export const GET = withRouteHandler(
       return listResponse(data, pagination)
     } catch (error) {
       logger.error('Admin API: Failed to list audit logs', { error })
-      return internalErrorResponse('Failed to list audit logs')
+      return adminInternalErrorResponse('Failed to list audit logs')
     }
   })
 )

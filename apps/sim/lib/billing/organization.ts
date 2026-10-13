@@ -12,6 +12,7 @@ import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/bill
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
+import { SubscriptionReferenceNotFoundError } from '@/lib/billing/subscriptions/errors'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { toDecimal } from '@/lib/billing/utils/decimal'
 import type { DbTransaction } from '@/lib/db/types'
@@ -127,8 +128,21 @@ export async function ensureOrganizationForTeamSubscription(
    * checks under the org mutation lock) or creates a new organization. This
    * keeps re-homing deterministic in the webhook flow instead of depending on
    * a client-side transfer call after checkout.
+   *
+   * A reference that is neither an organization nor a user (an organization
+   * deleted under a live subscription) has no one to re-home onto, so it
+   * fails as a dangling reference instead of seeding an organization owned
+   * by a nonexistent user.
    */
   const userId = subscription.referenceId
+  const [userData] = await db
+    .select({ name: user.name, email: user.email })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+  if (!userData) {
+    throw new SubscriptionReferenceNotFoundError(subscription.referenceId)
+  }
 
   logger.info('Creating organization for team subscription', {
     subscriptionId: subscription.id,
@@ -267,16 +281,10 @@ export async function ensureOrganizationForTeamSubscription(
     throw new Error('User is already member of another organization')
   }
 
-  const [userData] = await db
-    .select({ name: user.name, email: user.email })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1)
-
   const orgId = await createOrganizationForTeamPlan(
     userId,
-    userData?.name || undefined,
-    userData?.email || undefined
+    userData.name || undefined,
+    userData.email || undefined
   )
 
   await db.transaction(async (tx) => {
@@ -509,9 +517,7 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
         .limit(1)
 
       if (users.length === 0) {
-        throw new Error(
-          `Subscription reference ${subscription.referenceId} does not match a user or organization`
-        )
+        throw new SubscriptionReferenceNotFoundError(subscription.referenceId)
       }
 
       await syncUsageLimitsFromSubscription(subscription.referenceId)

@@ -45,11 +45,11 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import type { AdminMember, AdminMemberDetail } from '@/app/api/v1/admin/types'
@@ -78,7 +78,7 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!orgData) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       const [memberData] = await db
@@ -100,7 +100,7 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!memberData) {
-        return notFoundResponse('Member')
+        return adminNotFoundResponse('Member')
       }
 
       const { usageByUser } = await getOrganizationMemberUsageSnapshot(organizationId, {
@@ -125,7 +125,7 @@ export const GET = withRouteHandler(
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to get member', { error, organizationId, memberId })
-      return internalErrorResponse('Failed to get member')
+      return adminInternalErrorResponse('Failed to get member')
     }
   })
 )
@@ -156,7 +156,7 @@ export const PATCH = withRouteHandler(
         .limit(1)
 
       if (!orgData) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       const [existingMember] = await db
@@ -170,11 +170,11 @@ export const PATCH = withRouteHandler(
         .limit(1)
 
       if (!existingMember) {
-        return notFoundResponse('Member')
+        return adminNotFoundResponse('Member')
       }
 
       if (existingMember.role === 'owner') {
-        return badRequestResponse('Cannot change owner role')
+        return adminBadRequestResponse('Cannot change owner role')
       }
 
       const [updated] = await db
@@ -223,7 +223,7 @@ export const PATCH = withRouteHandler(
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to update member', { error, organizationId, memberId })
-      return internalErrorResponse('Failed to update member')
+      return adminInternalErrorResponse('Failed to update member')
     }
   })
 )
@@ -246,7 +246,7 @@ export const DELETE = withRouteHandler(
         .limit(1)
 
       if (!orgData) {
-        return notFoundResponse('Organization')
+        return adminNotFoundResponse('Organization')
       }
 
       const [existingMember] = await db
@@ -260,7 +260,7 @@ export const DELETE = withRouteHandler(
         .limit(1)
 
       if (!existingMember) {
-        return notFoundResponse('Member')
+        return adminNotFoundResponse('Member')
       }
 
       const userId = existingMember.userId
@@ -274,15 +274,15 @@ export const DELETE = withRouteHandler(
 
       if (!result.success) {
         if (result.error === 'Cannot remove organization owner') {
-          return badRequestResponse(result.error)
+          return adminBadRequestResponse(result.error)
         }
         if (result.error === 'Member not found') {
-          return notFoundResponse('Member')
+          return adminNotFoundResponse('Member')
         }
         if (result.error === WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR) {
-          return badRequestResponse(result.error)
+          return adminBadRequestResponse(result.error)
         }
-        return internalErrorResponse(result.error || 'Failed to remove member')
+        return adminInternalErrorResponse(result.error || 'Failed to remove member')
       }
 
       logger.info(`Admin API: Removed member ${memberId} from organization ${organizationId}`, {
@@ -314,7 +314,7 @@ export const DELETE = withRouteHandler(
       })
     } catch (error) {
       logger.error('Admin API: Failed to remove member', { error, organizationId, memberId })
-      return internalErrorResponse('Failed to remove member')
+      return adminInternalErrorResponse('Failed to remove member')
     }
   })
 )

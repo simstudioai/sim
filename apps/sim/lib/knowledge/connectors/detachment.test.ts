@@ -1,10 +1,4 @@
-import {
-  document,
-  embeddingKeywordTin,
-  embeddingSearch,
-  knowledgeBase,
-  knowledgeConnector,
-} from '@sim/db/schema'
+import { document, embeddingSearch, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
 import {
@@ -68,12 +62,10 @@ function queueBatch(documentIds: string[], reservedBytes = 0) {
 }
 
 /** Row ids the projection release returns, in the order the handler updates the tables. */
-function releaseProjectionRows(searchRows: number, keywordRows: number) {
+function releaseProjectionRows(searchRows: number) {
   const rows = (count: number) =>
     Array.from({ length: count }, (_, index) => ({ id: `c-${index}` }))
-  dbChainMockFns.returning
-    .mockResolvedValueOnce(rows(searchRows))
-    .mockResolvedValueOnce(rows(keywordRows))
+  dbChainMockFns.returning.mockResolvedValueOnce(rows(searchRows))
 }
 
 function updatedTables() {
@@ -92,7 +84,7 @@ describe('connector detachment', () => {
 
   it('releases documents against the reservation, then settles what remains with the connector', async () => {
     queueBatch(['doc-1', 'doc-2'], 25)
-    releaseProjectionRows(3, 3)
+    releaseProjectionRows(3)
     dbChainMockFns.returning.mockResolvedValueOnce([
       { fileSize: 10, deletedAt: null },
       { fileSize: 5, deletedAt: new Date('2026-09-01T00:00:00.000Z') },
@@ -108,12 +100,7 @@ describe('connector detachment', () => {
       context()
     )
 
-    expect(updatedTables()).toEqual([
-      embeddingSearch,
-      embeddingKeywordTin,
-      document,
-      knowledgeConnector,
-    ])
+    expect(updatedTables()).toEqual([embeddingSearch, document, knowledgeConnector])
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ connectorId: null })
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ connectorId: null, deletedAt: expect.anything() })
@@ -131,7 +118,7 @@ describe('connector detachment', () => {
   it('keeps documents attached until their search rows fit one page, without spending retries', async () => {
     for (let batch = 0; batch < 4; batch++) {
       queueBatch(['doc-1'])
-      releaseProjectionRows(250, 0)
+      releaseProjectionRows(250)
     }
 
     expect(await detachKnowledgeConnector(payload, context())).toMatchObject({

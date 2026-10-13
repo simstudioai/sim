@@ -61,7 +61,10 @@ export async function openSessionFileSnapshot(
   try {
     return await withSandboxSessionLock(sessionKey, signal, async (accessSignal) => {
       const provider = resolveProvider()
-      const sandbox = await provider.findSessionSandbox?.(sessionKey, {})
+      // The reconnect grants the idle lease itself, so it can reset a workbench near its runtime cap.
+      const sandbox = await provider.findSessionSandbox?.(sessionKey, {
+        lifetimeMs: SESSION_SANDBOX_IDLE_MS,
+      })
       accessSignal.throwIfAborted()
       if (!sandbox) throw new Error(`No workbench exists for this chat; write "${path}" first.`)
       const readStream = sandbox.readFileStream?.bind(sandbox)
@@ -84,7 +87,6 @@ export async function openSessionFileSnapshot(
         return disposed
       }
       try {
-        await sandbox.extendLifetime?.(SESSION_SANDBOX_IDLE_MS)
         accessSignal.throwIfAborted()
         const copied = await sandbox.runCommand(COPY_FILE, {
           envs: {

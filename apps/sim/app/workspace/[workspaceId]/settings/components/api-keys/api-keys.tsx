@@ -245,7 +245,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
         actions={actions}
       >
         {apiKeysError && apiKeysData === undefined ? (
-          <SettingsEmptyState tone='error'>
+          <SettingsEmptyState>
             {getErrorMessage(apiKeysError, 'Failed to load API keys')}
           </SettingsEmptyState>
         ) : isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (

@@ -17,6 +17,8 @@ export interface ContentSection {
   basePath: string
   /** Collection-page description used in `CollectionPage` JSON-LD. */
   description: string
+  /** Visible article text available for spoken summaries; defaults to headline and description. */
+  speakableSelectors?: readonly string[]
 }
 
 export function buildPostMetadata(post: ContentMeta): Metadata {
@@ -84,7 +86,10 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
  * posts that are genuinely technical/developer content (`post.technical`) —
  * general announcements (funding, company news) get `BlogPosting` alone.
  */
-export function buildArticleJsonLd(post: ContentMeta) {
+export function buildArticleJsonLd(
+  post: ContentMeta,
+  speakableSelectors: readonly string[] = ['[itemprop="headline"]', '[itemprop="description"]']
+) {
   return {
     '@type': post.technical ? ['BlogPosting', 'TechArticle'] : 'BlogPosting',
     url: post.canonical,
@@ -130,7 +135,7 @@ export function buildArticleJsonLd(post: ContentMeta) {
     inLanguage: 'en-US',
     speakable: {
       '@type': 'SpeakableSpecification',
-      cssSelector: ['[itemprop="headline"]', '[itemprop="description"]'],
+      cssSelector: speakableSelectors,
     },
   }
 }
@@ -165,7 +170,7 @@ export function buildFaqJsonLd(items: { q: string; a: string }[] | undefined) {
 
 export function buildPostGraphJsonLd(post: ContentMeta, section: ContentSection) {
   const graph: Record<string, unknown>[] = [
-    buildArticleJsonLd(post),
+    buildArticleJsonLd(post, section.speakableSelectors),
     buildBreadcrumbJsonLd(post, section),
   ]
 

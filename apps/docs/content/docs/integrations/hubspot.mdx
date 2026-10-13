@@ -47,8 +47,9 @@ Retrieve all users from HubSpot account
 |   ↳ `properties` | object | Record properties |
 |   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `totalItems` | number | Total number of users returned |
 | `success` | boolean | Operation success status |
 
@@ -70,29 +71,36 @@ Retrieve all contacts from HubSpot account with pagination support
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts` | array | Array of HubSpot contact records |
-|   ↳ `email` | string | Contact email address |
-|   ↳ `firstname` | string | Contact first name |
-|   ↳ `lastname` | string | Contact last name |
-|   ↳ `phone` | string | Contact phone number |
-|   ↳ `mobilephone` | string | Contact mobile phone number |
-|   ↳ `company` | string | Associated company name |
-|   ↳ `website` | string | Contact website URL |
-|   ↳ `jobtitle` | string | Contact job title |
-|   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
-|   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `address` | string | Street address |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State/Region |
-|   ↳ `zip` | string | Postal/ZIP code |
-|   ↳ `country` | string | Country |
-|   ↳ `fax` | string | Fax number |
-|   ↳ `hs_timezone` | string | Contact timezone |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Contact properties |
+|     ↳ `email` | string | Contact email address |
+|     ↳ `firstname` | string | Contact first name |
+|     ↳ `lastname` | string | Contact last name |
+|     ↳ `phone` | string | Contact phone number |
+|     ↳ `mobilephone` | string | Contact mobile phone number |
+|     ↳ `company` | string | Associated company name |
+|     ↳ `website` | string | Contact website URL |
+|     ↳ `jobtitle` | string | Contact job title |
+|     ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+|     ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `address` | string | Street address |
+|     ↳ `city` | string | City |
+|     ↳ `state` | string | State/Region |
+|     ↳ `zip` | string | Postal/ZIP code |
+|     ↳ `country` | string | Country |
+|     ↳ `fax` | string | Fax number |
+|     ↳ `hs_timezone` | string | Contact timezone |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -116,26 +124,32 @@ Retrieve a single contact by ID or email from HubSpot
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contact` | object | HubSpot contact record |
-|   ↳ `email` | string | Contact email address |
-|   ↳ `firstname` | string | Contact first name |
-|   ↳ `lastname` | string | Contact last name |
-|   ↳ `phone` | string | Contact phone number |
-|   ↳ `mobilephone` | string | Contact mobile phone number |
-|   ↳ `company` | string | Associated company name |
-|   ↳ `website` | string | Contact website URL |
-|   ↳ `jobtitle` | string | Contact job title |
-|   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
-|   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `address` | string | Street address |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State/Region |
-|   ↳ `zip` | string | Postal/ZIP code |
-|   ↳ `country` | string | Country |
-|   ↳ `fax` | string | Fax number |
-|   ↳ `hs_timezone` | string | Contact timezone |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Contact properties |
+|     ↳ `email` | string | Contact email address |
+|     ↳ `firstname` | string | Contact first name |
+|     ↳ `lastname` | string | Contact last name |
+|     ↳ `phone` | string | Contact phone number |
+|     ↳ `mobilephone` | string | Contact mobile phone number |
+|     ↳ `company` | string | Associated company name |
+|     ↳ `website` | string | Contact website URL |
+|     ↳ `jobtitle` | string | Contact job title |
+|     ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+|     ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `address` | string | Street address |
+|     ↳ `city` | string | City |
+|     ↳ `state` | string | State/Region |
+|     ↳ `zip` | string | Postal/ZIP code |
+|     ↳ `country` | string | Country |
+|     ↳ `fax` | string | Fax number |
+|     ↳ `hs_timezone` | string | Contact timezone |
+|   ↳ `associations` | object | Associated records \(companies, deals, etc.\) |
 | `contactId` | string | The retrieved contact ID |
 | `success` | boolean | Operation success status |
 
@@ -155,26 +169,32 @@ Create a new contact in HubSpot. Requires at least one of: email, firstname, or 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contact` | object | HubSpot contact record |
-|   ↳ `email` | string | Contact email address |
-|   ↳ `firstname` | string | Contact first name |
-|   ↳ `lastname` | string | Contact last name |
-|   ↳ `phone` | string | Contact phone number |
-|   ↳ `mobilephone` | string | Contact mobile phone number |
-|   ↳ `company` | string | Associated company name |
-|   ↳ `website` | string | Contact website URL |
-|   ↳ `jobtitle` | string | Contact job title |
-|   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
-|   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `address` | string | Street address |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State/Region |
-|   ↳ `zip` | string | Postal/ZIP code |
-|   ↳ `country` | string | Country |
-|   ↳ `fax` | string | Fax number |
-|   ↳ `hs_timezone` | string | Contact timezone |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Contact properties |
+|     ↳ `email` | string | Contact email address |
+|     ↳ `firstname` | string | Contact first name |
+|     ↳ `lastname` | string | Contact last name |
+|     ↳ `phone` | string | Contact phone number |
+|     ↳ `mobilephone` | string | Contact mobile phone number |
+|     ↳ `company` | string | Associated company name |
+|     ↳ `website` | string | Contact website URL |
+|     ↳ `jobtitle` | string | Contact job title |
+|     ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+|     ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `address` | string | Street address |
+|     ↳ `city` | string | City |
+|     ↳ `state` | string | State/Region |
+|     ↳ `zip` | string | Postal/ZIP code |
+|     ↳ `country` | string | Country |
+|     ↳ `fax` | string | Fax number |
+|     ↳ `hs_timezone` | string | Contact timezone |
+|   ↳ `associations` | object | Associated records \(companies, deals, etc.\) |
 | `contactId` | string | The created contact ID |
 | `success` | boolean | Operation success status |
 
@@ -195,26 +215,32 @@ Update an existing contact in HubSpot by ID or email
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contact` | object | HubSpot contact record |
-|   ↳ `email` | string | Contact email address |
-|   ↳ `firstname` | string | Contact first name |
-|   ↳ `lastname` | string | Contact last name |
-|   ↳ `phone` | string | Contact phone number |
-|   ↳ `mobilephone` | string | Contact mobile phone number |
-|   ↳ `company` | string | Associated company name |
-|   ↳ `website` | string | Contact website URL |
-|   ↳ `jobtitle` | string | Contact job title |
-|   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
-|   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `address` | string | Street address |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State/Region |
-|   ↳ `zip` | string | Postal/ZIP code |
-|   ↳ `country` | string | Country |
-|   ↳ `fax` | string | Fax number |
-|   ↳ `hs_timezone` | string | Contact timezone |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Contact properties |
+|     ↳ `email` | string | Contact email address |
+|     ↳ `firstname` | string | Contact first name |
+|     ↳ `lastname` | string | Contact last name |
+|     ↳ `phone` | string | Contact phone number |
+|     ↳ `mobilephone` | string | Contact mobile phone number |
+|     ↳ `company` | string | Associated company name |
+|     ↳ `website` | string | Contact website URL |
+|     ↳ `jobtitle` | string | Contact job title |
+|     ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+|     ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `address` | string | Street address |
+|     ↳ `city` | string | City |
+|     ↳ `state` | string | State/Region |
+|     ↳ `zip` | string | Postal/ZIP code |
+|     ↳ `country` | string | Country |
+|     ↳ `fax` | string | Fax number |
+|     ↳ `hs_timezone` | string | Contact timezone |
+|   ↳ `associations` | object | Associated records \(companies, deals, etc.\) |
 | `contactId` | string | The updated contact ID |
 | `success` | boolean | Operation success status |
 
@@ -238,29 +264,36 @@ Search for contacts in HubSpot using filters, sorting, and queries
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contacts` | array | Array of HubSpot contact records |
-|   ↳ `email` | string | Contact email address |
-|   ↳ `firstname` | string | Contact first name |
-|   ↳ `lastname` | string | Contact last name |
-|   ↳ `phone` | string | Contact phone number |
-|   ↳ `mobilephone` | string | Contact mobile phone number |
-|   ↳ `company` | string | Associated company name |
-|   ↳ `website` | string | Contact website URL |
-|   ↳ `jobtitle` | string | Contact job title |
-|   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
-|   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `address` | string | Street address |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State/Region |
-|   ↳ `zip` | string | Postal/ZIP code |
-|   ↳ `country` | string | Country |
-|   ↳ `fax` | string | Fax number |
-|   ↳ `hs_timezone` | string | Contact timezone |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Contact properties |
+|     ↳ `email` | string | Contact email address |
+|     ↳ `firstname` | string | Contact first name |
+|     ↳ `lastname` | string | Contact last name |
+|     ↳ `phone` | string | Contact phone number |
+|     ↳ `mobilephone` | string | Contact mobile phone number |
+|     ↳ `company` | string | Associated company name |
+|     ↳ `website` | string | Contact website URL |
+|     ↳ `jobtitle` | string | Contact job title |
+|     ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+|     ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `address` | string | Street address |
+|     ↳ `city` | string | City |
+|     ↳ `state` | string | State/Region |
+|     ↳ `zip` | string | Postal/ZIP code |
+|     ↳ `country` | string | Country |
+|     ↳ `fax` | string | Fax number |
+|     ↳ `hs_timezone` | string | Contact timezone |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -285,30 +318,37 @@ Retrieve all companies from HubSpot account with pagination support
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `companies` | array | Array of HubSpot company records |
-|   ↳ `name` | string | Company name |
-|   ↳ `domain` | string | Company website domain \(unique identifier\) |
-|   ↳ `description` | string | Company description |
-|   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
-|   ↳ `phone` | string | Company phone number |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State/Region |
-|   ↳ `zip` | string | Postal/ZIP code |
-|   ↳ `country` | string | Country |
-|   ↳ `address` | string | Street address |
-|   ↳ `numberofemployees` | string | Total number of employees |
-|   ↳ `annualrevenue` | string | Annual revenue estimate |
-|   ↳ `lifecyclestage` | string | Lifecycle stage |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
-|   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
-|   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
-|   ↳ `website` | string | Company website URL |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Company properties |
+|     ↳ `name` | string | Company name |
+|     ↳ `domain` | string | Company website domain \(unique identifier\) |
+|     ↳ `description` | string | Company description |
+|     ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+|     ↳ `phone` | string | Company phone number |
+|     ↳ `city` | string | City |
+|     ↳ `state` | string | State/Region |
+|     ↳ `zip` | string | Postal/ZIP code |
+|     ↳ `country` | string | Country |
+|     ↳ `address` | string | Street address |
+|     ↳ `numberofemployees` | string | Total number of employees |
+|     ↳ `annualrevenue` | string | Annual revenue estimate |
+|     ↳ `lifecyclestage` | string | Lifecycle stage |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+|     ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+|     ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+|     ↳ `website` | string | Company website URL |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -332,27 +372,33 @@ Retrieve a single company by ID or domain from HubSpot
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `company` | object | HubSpot company record |
-|   ↳ `name` | string | Company name |
-|   ↳ `domain` | string | Company website domain \(unique identifier\) |
-|   ↳ `description` | string | Company description |
-|   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
-|   ↳ `phone` | string | Company phone number |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State/Region |
-|   ↳ `zip` | string | Postal/ZIP code |
-|   ↳ `country` | string | Country |
-|   ↳ `address` | string | Street address |
-|   ↳ `numberofemployees` | string | Total number of employees |
-|   ↳ `annualrevenue` | string | Annual revenue estimate |
-|   ↳ `lifecyclestage` | string | Lifecycle stage |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
-|   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
-|   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
-|   ↳ `website` | string | Company website URL |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Company properties |
+|     ↳ `name` | string | Company name |
+|     ↳ `domain` | string | Company website domain \(unique identifier\) |
+|     ↳ `description` | string | Company description |
+|     ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+|     ↳ `phone` | string | Company phone number |
+|     ↳ `city` | string | City |
+|     ↳ `state` | string | State/Region |
+|     ↳ `zip` | string | Postal/ZIP code |
+|     ↳ `country` | string | Country |
+|     ↳ `address` | string | Street address |
+|     ↳ `numberofemployees` | string | Total number of employees |
+|     ↳ `annualrevenue` | string | Annual revenue estimate |
+|     ↳ `lifecyclestage` | string | Lifecycle stage |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+|     ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+|     ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+|     ↳ `website` | string | Company website URL |
+|   ↳ `associations` | object | Associated records \(contacts, deals, etc.\) |
 | `companyId` | string | The retrieved company ID |
 | `success` | boolean | Operation success status |
 
@@ -372,27 +418,33 @@ Create a new company in HubSpot
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `company` | object | HubSpot company record |
-|   ↳ `name` | string | Company name |
-|   ↳ `domain` | string | Company website domain \(unique identifier\) |
-|   ↳ `description` | string | Company description |
-|   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
-|   ↳ `phone` | string | Company phone number |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State/Region |
-|   ↳ `zip` | string | Postal/ZIP code |
-|   ↳ `country` | string | Country |
-|   ↳ `address` | string | Street address |
-|   ↳ `numberofemployees` | string | Total number of employees |
-|   ↳ `annualrevenue` | string | Annual revenue estimate |
-|   ↳ `lifecyclestage` | string | Lifecycle stage |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
-|   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
-|   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
-|   ↳ `website` | string | Company website URL |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Company properties |
+|     ↳ `name` | string | Company name |
+|     ↳ `domain` | string | Company website domain \(unique identifier\) |
+|     ↳ `description` | string | Company description |
+|     ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+|     ↳ `phone` | string | Company phone number |
+|     ↳ `city` | string | City |
+|     ↳ `state` | string | State/Region |
+|     ↳ `zip` | string | Postal/ZIP code |
+|     ↳ `country` | string | Country |
+|     ↳ `address` | string | Street address |
+|     ↳ `numberofemployees` | string | Total number of employees |
+|     ↳ `annualrevenue` | string | Annual revenue estimate |
+|     ↳ `lifecyclestage` | string | Lifecycle stage |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+|     ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+|     ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+|     ↳ `website` | string | Company website URL |
+|   ↳ `associations` | object | Associated records \(contacts, deals, etc.\) |
 | `companyId` | string | The created company ID |
 | `success` | boolean | Operation success status |
 
@@ -413,27 +465,33 @@ Update an existing company in HubSpot by ID or domain
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `company` | object | HubSpot company record |
-|   ↳ `name` | string | Company name |
-|   ↳ `domain` | string | Company website domain \(unique identifier\) |
-|   ↳ `description` | string | Company description |
-|   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
-|   ↳ `phone` | string | Company phone number |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State/Region |
-|   ↳ `zip` | string | Postal/ZIP code |
-|   ↳ `country` | string | Country |
-|   ↳ `address` | string | Street address |
-|   ↳ `numberofemployees` | string | Total number of employees |
-|   ↳ `annualrevenue` | string | Annual revenue estimate |
-|   ↳ `lifecyclestage` | string | Lifecycle stage |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
-|   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
-|   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
-|   ↳ `website` | string | Company website URL |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Company properties |
+|     ↳ `name` | string | Company name |
+|     ↳ `domain` | string | Company website domain \(unique identifier\) |
+|     ↳ `description` | string | Company description |
+|     ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+|     ↳ `phone` | string | Company phone number |
+|     ↳ `city` | string | City |
+|     ↳ `state` | string | State/Region |
+|     ↳ `zip` | string | Postal/ZIP code |
+|     ↳ `country` | string | Country |
+|     ↳ `address` | string | Street address |
+|     ↳ `numberofemployees` | string | Total number of employees |
+|     ↳ `annualrevenue` | string | Annual revenue estimate |
+|     ↳ `lifecyclestage` | string | Lifecycle stage |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+|     ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+|     ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+|     ↳ `website` | string | Company website URL |
+|   ↳ `associations` | object | Associated records \(contacts, deals, etc.\) |
 | `companyId` | string | The updated company ID |
 | `success` | boolean | Operation success status |
 
@@ -457,30 +515,37 @@ Search for companies in HubSpot using filters, sorting, and queries
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `companies` | array | Array of HubSpot company records |
-|   ↳ `name` | string | Company name |
-|   ↳ `domain` | string | Company website domain \(unique identifier\) |
-|   ↳ `description` | string | Company description |
-|   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
-|   ↳ `phone` | string | Company phone number |
-|   ↳ `city` | string | City |
-|   ↳ `state` | string | State/Region |
-|   ↳ `zip` | string | Postal/ZIP code |
-|   ↳ `country` | string | Country |
-|   ↳ `address` | string | Street address |
-|   ↳ `numberofemployees` | string | Total number of employees |
-|   ↳ `annualrevenue` | string | Annual revenue estimate |
-|   ↳ `lifecyclestage` | string | Lifecycle stage |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
-|   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
-|   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
-|   ↳ `website` | string | Company website URL |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Company properties |
+|     ↳ `name` | string | Company name |
+|     ↳ `domain` | string | Company website domain \(unique identifier\) |
+|     ↳ `description` | string | Company description |
+|     ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+|     ↳ `phone` | string | Company phone number |
+|     ↳ `city` | string | City |
+|     ↳ `state` | string | State/Region |
+|     ↳ `zip` | string | Postal/ZIP code |
+|     ↳ `country` | string | Country |
+|     ↳ `address` | string | Street address |
+|     ↳ `numberofemployees` | string | Total number of employees |
+|     ↳ `annualrevenue` | string | Annual revenue estimate |
+|     ↳ `lifecyclestage` | string | Lifecycle stage |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+|     ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+|     ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+|     ↳ `website` | string | Company website URL |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -505,21 +570,28 @@ Retrieve all deals from HubSpot account with pagination support
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deals` | array | Array of HubSpot deal records |
-|   ↳ `dealname` | string | Deal name |
-|   ↳ `amount` | string | Deal amount |
-|   ↳ `dealstage` | string | Current deal stage |
-|   ↳ `pipeline` | string | Pipeline the deal is in |
-|   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
-|   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
-|   ↳ `description` | string | Deal description |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `num_associated_contacts` | string | Number of associated contacts |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Deal properties |
+|     ↳ `dealname` | string | Deal name |
+|     ↳ `amount` | string | Deal amount |
+|     ↳ `dealstage` | string | Current deal stage |
+|     ↳ `pipeline` | string | Pipeline the deal is in |
+|     ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+|     ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+|     ↳ `description` | string | Deal description |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `num_associated_contacts` | string | Number of associated contacts |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -543,18 +615,24 @@ Retrieve a single deal by ID from HubSpot
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deal` | object | HubSpot deal record |
-|   ↳ `dealname` | string | Deal name |
-|   ↳ `amount` | string | Deal amount |
-|   ↳ `dealstage` | string | Current deal stage |
-|   ↳ `pipeline` | string | Pipeline the deal is in |
-|   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
-|   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
-|   ↳ `description` | string | Deal description |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `num_associated_contacts` | string | Number of associated contacts |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Deal properties |
+|     ↳ `dealname` | string | Deal name |
+|     ↳ `amount` | string | Deal amount |
+|     ↳ `dealstage` | string | Current deal stage |
+|     ↳ `pipeline` | string | Pipeline the deal is in |
+|     ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+|     ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+|     ↳ `description` | string | Deal description |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `num_associated_contacts` | string | Number of associated contacts |
+|   ↳ `associations` | object | Associated records \(contacts, companies, line items, etc.\) |
 | `dealId` | string | The retrieved deal ID |
 | `success` | boolean | Operation success status |
 
@@ -574,18 +652,24 @@ Create a new deal in HubSpot with the given properties (e.g., dealname, amount, 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deal` | object | HubSpot deal record |
-|   ↳ `dealname` | string | Deal name |
-|   ↳ `amount` | string | Deal amount |
-|   ↳ `dealstage` | string | Current deal stage |
-|   ↳ `pipeline` | string | Pipeline the deal is in |
-|   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
-|   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
-|   ↳ `description` | string | Deal description |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `num_associated_contacts` | string | Number of associated contacts |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Deal properties |
+|     ↳ `dealname` | string | Deal name |
+|     ↳ `amount` | string | Deal amount |
+|     ↳ `dealstage` | string | Current deal stage |
+|     ↳ `pipeline` | string | Pipeline the deal is in |
+|     ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+|     ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+|     ↳ `description` | string | Deal description |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `num_associated_contacts` | string | Number of associated contacts |
+|   ↳ `associations` | object | Associated records \(contacts, companies, line items, etc.\) |
 | `dealId` | string | The created deal ID |
 | `success` | boolean | Operation success status |
 
@@ -606,18 +690,24 @@ Update an existing deal in HubSpot by ID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deal` | object | HubSpot deal record |
-|   ↳ `dealname` | string | Deal name |
-|   ↳ `amount` | string | Deal amount |
-|   ↳ `dealstage` | string | Current deal stage |
-|   ↳ `pipeline` | string | Pipeline the deal is in |
-|   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
-|   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
-|   ↳ `description` | string | Deal description |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `num_associated_contacts` | string | Number of associated contacts |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Deal properties |
+|     ↳ `dealname` | string | Deal name |
+|     ↳ `amount` | string | Deal amount |
+|     ↳ `dealstage` | string | Current deal stage |
+|     ↳ `pipeline` | string | Pipeline the deal is in |
+|     ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+|     ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+|     ↳ `description` | string | Deal description |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `num_associated_contacts` | string | Number of associated contacts |
+|   ↳ `associations` | object | Associated records \(contacts, companies, line items, etc.\) |
 | `dealId` | string | The updated deal ID |
 | `success` | boolean | Operation success status |
 
@@ -641,21 +731,28 @@ Search for deals in HubSpot using filters, sorting, and queries
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deals` | array | Array of HubSpot deal records |
-|   ↳ `dealname` | string | Deal name |
-|   ↳ `amount` | string | Deal amount |
-|   ↳ `dealstage` | string | Current deal stage |
-|   ↳ `pipeline` | string | Pipeline the deal is in |
-|   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
-|   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
-|   ↳ `description` | string | Deal description |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
-|   ↳ `num_associated_contacts` | string | Number of associated contacts |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Deal properties |
+|     ↳ `dealname` | string | Deal name |
+|     ↳ `amount` | string | Deal amount |
+|     ↳ `dealstage` | string | Current deal stage |
+|     ↳ `pipeline` | string | Pipeline the deal is in |
+|     ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+|     ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+|     ↳ `description` | string | Deal description |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|     ↳ `num_associated_contacts` | string | Number of associated contacts |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -680,19 +777,26 @@ Retrieve all tickets from HubSpot account with pagination support
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tickets` | array | Array of HubSpot ticket records |
-|   ↳ `subject` | string | Ticket subject/name |
-|   ↳ `content` | string | Ticket content/description |
-|   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
-|   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
-|   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
-|   ↳ `hs_ticket_category` | string | Ticket category |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Ticket properties |
+|     ↳ `subject` | string | Ticket subject/name |
+|     ↳ `content` | string | Ticket content/description |
+|     ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+|     ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+|     ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+|     ↳ `hs_ticket_category` | string | Ticket category |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -716,16 +820,22 @@ Retrieve a single ticket by ID from HubSpot
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ticket` | object | HubSpot ticket record |
-|   ↳ `subject` | string | Ticket subject/name |
-|   ↳ `content` | string | Ticket content/description |
-|   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
-|   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
-|   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
-|   ↳ `hs_ticket_category` | string | Ticket category |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Ticket properties |
+|     ↳ `subject` | string | Ticket subject/name |
+|     ↳ `content` | string | Ticket content/description |
+|     ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+|     ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+|     ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+|     ↳ `hs_ticket_category` | string | Ticket category |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(contacts, companies, etc.\) |
 | `ticketId` | string | The retrieved ticket ID |
 | `success` | boolean | Operation success status |
 
@@ -745,16 +855,22 @@ Create a new ticket in HubSpot. Requires subject and hs_pipeline_stage propertie
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ticket` | object | HubSpot ticket record |
-|   ↳ `subject` | string | Ticket subject/name |
-|   ↳ `content` | string | Ticket content/description |
-|   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
-|   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
-|   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
-|   ↳ `hs_ticket_category` | string | Ticket category |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Ticket properties |
+|     ↳ `subject` | string | Ticket subject/name |
+|     ↳ `content` | string | Ticket content/description |
+|     ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+|     ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+|     ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+|     ↳ `hs_ticket_category` | string | Ticket category |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(contacts, companies, etc.\) |
 | `ticketId` | string | The created ticket ID |
 | `success` | boolean | Operation success status |
 
@@ -775,16 +891,22 @@ Update an existing ticket in HubSpot by ID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ticket` | object | HubSpot ticket record |
-|   ↳ `subject` | string | Ticket subject/name |
-|   ↳ `content` | string | Ticket content/description |
-|   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
-|   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
-|   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
-|   ↳ `hs_ticket_category` | string | Ticket category |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Ticket properties |
+|     ↳ `subject` | string | Ticket subject/name |
+|     ↳ `content` | string | Ticket content/description |
+|     ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+|     ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+|     ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+|     ↳ `hs_ticket_category` | string | Ticket category |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(contacts, companies, etc.\) |
 | `ticketId` | string | The updated ticket ID |
 | `success` | boolean | Operation success status |
 
@@ -808,19 +930,26 @@ Search for tickets in HubSpot using filters, sorting, and queries
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tickets` | array | Array of HubSpot ticket records |
-|   ↳ `subject` | string | Ticket subject/name |
-|   ↳ `content` | string | Ticket content/description |
-|   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
-|   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
-|   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
-|   ↳ `hs_ticket_category` | string | Ticket category |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Ticket properties |
+|     ↳ `subject` | string | Ticket subject/name |
+|     ↳ `content` | string | Ticket content/description |
+|     ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+|     ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+|     ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+|     ↳ `hs_ticket_category` | string | Ticket category |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -845,16 +974,23 @@ Retrieve all notes from HubSpot account with pagination support
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `notes` | array | Array of HubSpot note records |
-|   ↳ `hs_note_body` | string | Note text/body \(supports rich text/HTML\) |
-|   ↳ `hs_timestamp` | string | Note activity time \(ISO 8601\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_attachment_ids` | string | Semicolon-separated IDs of files attached to the note |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Note creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Note properties |
+|     ↳ `hs_note_body` | string | Note text/body \(supports rich text/HTML\) |
+|     ↳ `hs_timestamp` | string | Note activity time \(ISO 8601\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_attachment_ids` | string | Semicolon-separated IDs of files attached to the note |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Note creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -877,13 +1013,19 @@ Retrieve a single note by ID from HubSpot
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `note` | object | HubSpot note record |
-|   ↳ `hs_note_body` | string | Note text/body \(supports rich text/HTML\) |
-|   ↳ `hs_timestamp` | string | Note activity time \(ISO 8601\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_attachment_ids` | string | Semicolon-separated IDs of files attached to the note |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Note creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Note properties |
+|     ↳ `hs_note_body` | string | Note text/body \(supports rich text/HTML\) |
+|     ↳ `hs_timestamp` | string | Note activity time \(ISO 8601\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_attachment_ids` | string | Semicolon-separated IDs of files attached to the note |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Note creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(contacts, companies, deals, etc.\) |
 | `noteId` | string | The retrieved note ID |
 | `success` | boolean | Operation success status |
 
@@ -903,13 +1045,19 @@ Log a note in HubSpot and optionally associate it with contacts, companies, or d
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `note` | object | HubSpot note record |
-|   ↳ `hs_note_body` | string | Note text/body \(supports rich text/HTML\) |
-|   ↳ `hs_timestamp` | string | Note activity time \(ISO 8601\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_attachment_ids` | string | Semicolon-separated IDs of files attached to the note |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Note creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Note properties |
+|     ↳ `hs_note_body` | string | Note text/body \(supports rich text/HTML\) |
+|     ↳ `hs_timestamp` | string | Note activity time \(ISO 8601\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_attachment_ids` | string | Semicolon-separated IDs of files attached to the note |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Note creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(contacts, companies, deals, etc.\) |
 | `noteId` | string | The created note ID |
 | `success` | boolean | Operation success status |
 
@@ -933,16 +1081,23 @@ Search for notes in HubSpot using filters, sorting, and queries
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `notes` | array | Array of HubSpot note records |
-|   ↳ `hs_note_body` | string | Note text/body \(supports rich text/HTML\) |
-|   ↳ `hs_timestamp` | string | Note activity time \(ISO 8601\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_attachment_ids` | string | Semicolon-separated IDs of files attached to the note |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Note creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Note properties |
+|     ↳ `hs_note_body` | string | Note text/body \(supports rich text/HTML\) |
+|     ↳ `hs_timestamp` | string | Note activity time \(ISO 8601\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_attachment_ids` | string | Semicolon-separated IDs of files attached to the note |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Note creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -967,22 +1122,29 @@ Retrieve all email engagements from HubSpot account with pagination support
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `emails` | array | Array of HubSpot email engagement records |
-|   ↳ `hs_timestamp` | string | Email activity time \(ISO 8601\) |
-|   ↳ `hs_email_direction` | string | Direction \(EMAIL = outgoing, INCOMING_EMAIL, FORWARDED_EMAIL\) |
-|   ↳ `hs_email_status` | string | Send status \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\) |
-|   ↳ `hs_email_subject` | string | Email subject line |
-|   ↳ `hs_email_text` | string | Plain-text email body |
-|   ↳ `hs_email_html` | string | HTML email body |
-|   ↳ `hs_email_headers` | string | JSON-encoded from/to/cc/bcc headers |
-|   ↳ `hs_email_from_email` | string | Sender email address |
-|   ↳ `hs_email_to_email` | string | Recipient email address\(es\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Email creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Email properties |
+|     ↳ `hs_timestamp` | string | Email activity time \(ISO 8601\) |
+|     ↳ `hs_email_direction` | string | Direction \(EMAIL = outgoing, INCOMING_EMAIL, FORWARDED_EMAIL\) |
+|     ↳ `hs_email_status` | string | Send status \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\) |
+|     ↳ `hs_email_subject` | string | Email subject line |
+|     ↳ `hs_email_text` | string | Plain-text email body |
+|     ↳ `hs_email_html` | string | HTML email body |
+|     ↳ `hs_email_headers` | string | JSON-encoded from/to/cc/bcc headers |
+|     ↳ `hs_email_from_email` | string | Sender email address |
+|     ↳ `hs_email_to_email` | string | Recipient email address\(es\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Email creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -1005,19 +1167,25 @@ Retrieve a single email engagement by ID from HubSpot (content requires the sale
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `email` | object | HubSpot email engagement record |
-|   ↳ `hs_timestamp` | string | Email activity time \(ISO 8601\) |
-|   ↳ `hs_email_direction` | string | Direction \(EMAIL = outgoing, INCOMING_EMAIL, FORWARDED_EMAIL\) |
-|   ↳ `hs_email_status` | string | Send status \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\) |
-|   ↳ `hs_email_subject` | string | Email subject line |
-|   ↳ `hs_email_text` | string | Plain-text email body |
-|   ↳ `hs_email_html` | string | HTML email body |
-|   ↳ `hs_email_headers` | string | JSON-encoded from/to/cc/bcc headers |
-|   ↳ `hs_email_from_email` | string | Sender email address |
-|   ↳ `hs_email_to_email` | string | Recipient email address\(es\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Email creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Email properties |
+|     ↳ `hs_timestamp` | string | Email activity time \(ISO 8601\) |
+|     ↳ `hs_email_direction` | string | Direction \(EMAIL = outgoing, INCOMING_EMAIL, FORWARDED_EMAIL\) |
+|     ↳ `hs_email_status` | string | Send status \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\) |
+|     ↳ `hs_email_subject` | string | Email subject line |
+|     ↳ `hs_email_text` | string | Plain-text email body |
+|     ↳ `hs_email_html` | string | HTML email body |
+|     ↳ `hs_email_headers` | string | JSON-encoded from/to/cc/bcc headers |
+|     ↳ `hs_email_from_email` | string | Sender email address |
+|     ↳ `hs_email_to_email` | string | Recipient email address\(es\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Email creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(contacts, companies, deals, etc.\) |
 | `emailId` | string | The retrieved email engagement ID |
 | `success` | boolean | Operation success status |
 
@@ -1037,19 +1205,25 @@ Log an email engagement in HubSpot and optionally associate it with contacts. Re
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `email` | object | HubSpot email engagement record |
-|   ↳ `hs_timestamp` | string | Email activity time \(ISO 8601\) |
-|   ↳ `hs_email_direction` | string | Direction \(EMAIL = outgoing, INCOMING_EMAIL, FORWARDED_EMAIL\) |
-|   ↳ `hs_email_status` | string | Send status \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\) |
-|   ↳ `hs_email_subject` | string | Email subject line |
-|   ↳ `hs_email_text` | string | Plain-text email body |
-|   ↳ `hs_email_html` | string | HTML email body |
-|   ↳ `hs_email_headers` | string | JSON-encoded from/to/cc/bcc headers |
-|   ↳ `hs_email_from_email` | string | Sender email address |
-|   ↳ `hs_email_to_email` | string | Recipient email address\(es\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Email creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Email properties |
+|     ↳ `hs_timestamp` | string | Email activity time \(ISO 8601\) |
+|     ↳ `hs_email_direction` | string | Direction \(EMAIL = outgoing, INCOMING_EMAIL, FORWARDED_EMAIL\) |
+|     ↳ `hs_email_status` | string | Send status \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\) |
+|     ↳ `hs_email_subject` | string | Email subject line |
+|     ↳ `hs_email_text` | string | Plain-text email body |
+|     ↳ `hs_email_html` | string | HTML email body |
+|     ↳ `hs_email_headers` | string | JSON-encoded from/to/cc/bcc headers |
+|     ↳ `hs_email_from_email` | string | Sender email address |
+|     ↳ `hs_email_to_email` | string | Recipient email address\(es\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Email creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(contacts, companies, deals, etc.\) |
 | `emailId` | string | The created email engagement ID |
 | `success` | boolean | Operation success status |
 
@@ -1073,22 +1247,29 @@ Search for email engagements in HubSpot using filters, sorting, and queries
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `emails` | array | Array of HubSpot email engagement records |
-|   ↳ `hs_timestamp` | string | Email activity time \(ISO 8601\) |
-|   ↳ `hs_email_direction` | string | Direction \(EMAIL = outgoing, INCOMING_EMAIL, FORWARDED_EMAIL\) |
-|   ↳ `hs_email_status` | string | Send status \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\) |
-|   ↳ `hs_email_subject` | string | Email subject line |
-|   ↳ `hs_email_text` | string | Plain-text email body |
-|   ↳ `hs_email_html` | string | HTML email body |
-|   ↳ `hs_email_headers` | string | JSON-encoded from/to/cc/bcc headers |
-|   ↳ `hs_email_from_email` | string | Sender email address |
-|   ↳ `hs_email_to_email` | string | Recipient email address\(es\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Email creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Email properties |
+|     ↳ `hs_timestamp` | string | Email activity time \(ISO 8601\) |
+|     ↳ `hs_email_direction` | string | Direction \(EMAIL = outgoing, INCOMING_EMAIL, FORWARDED_EMAIL\) |
+|     ↳ `hs_email_status` | string | Send status \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\) |
+|     ↳ `hs_email_subject` | string | Email subject line |
+|     ↳ `hs_email_text` | string | Plain-text email body |
+|     ↳ `hs_email_html` | string | HTML email body |
+|     ↳ `hs_email_headers` | string | JSON-encoded from/to/cc/bcc headers |
+|     ↳ `hs_email_from_email` | string | Sender email address |
+|     ↳ `hs_email_to_email` | string | Recipient email address\(es\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Email creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -1112,11 +1293,23 @@ Read property definitions and their enumeration (picklist) options for a HubSpot
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `properties` | array | Array of HubSpot property definitions |
-|   ↳ `label` | string | Human-readable option label |
-|   ↳ `value` | string | Internal value used when setting the property |
-|   ↳ `displayOrder` | number | Display order \(-1 sorts last\) |
-|   ↳ `hidden` | boolean | Whether the option is hidden in the HubSpot UI |
-|   ↳ `description` | string | Option description |
+|   ↳ `name` | string | Internal property name |
+|   ↳ `label` | string | Human-readable label |
+|   ↳ `type` | string | Property data type \(string, number, enumeration, bool, datetime, etc.\) |
+|   ↳ `fieldType` | string | Field type controlling HubSpot UI rendering |
+|   ↳ `description` | string | Property help text |
+|   ↳ `groupName` | string | Property group the property belongs to |
+|   ↳ `options` | array | Enumeration/picklist options \(empty for non-enumerated properties\) |
+|     ↳ `label` | string | Human-readable option label |
+|     ↳ `value` | string | Internal value used when setting the property |
+|     ↳ `displayOrder` | number | Display order \(-1 sorts last\) |
+|     ↳ `hidden` | boolean | Whether the option is hidden in the HubSpot UI |
+|     ↳ `description` | string | Option description |
+|   ↳ `displayOrder` | number | Display order |
+|   ↳ `calculated` | boolean | Whether the property is calculated by HubSpot |
+|   ↳ `hidden` | boolean | Whether the property is hidden |
+|   ↳ `hubspotDefined` | boolean | Whether the property is a HubSpot default property |
+|   ↳ `archived` | boolean | Whether the property is archived |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of property definitions returned |
 |   ↳ `objectType` | string | Object type the properties belong to |
@@ -1147,8 +1340,9 @@ List records of one object type associated with a given record, e.g. all emails 
 |     ↳ `typeId` | number | Association type ID |
 |     ↳ `label` | string | Association label |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -1331,22 +1525,29 @@ Search for line items in HubSpot using filters, sorting, and queries
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `lineItems` | array | Array of HubSpot line item records |
-|   ↳ `name` | string | Line item name |
-|   ↳ `description` | string | Full description of the product |
-|   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
-|   ↳ `quantity` | string | Number of units included |
-|   ↳ `price` | string | Unit price |
-|   ↳ `amount` | string | Total cost \(quantity * unit price\) |
-|   ↳ `hs_line_item_currency_code` | string | Currency code |
-|   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
-|   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
-|   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Line item properties |
+|     ↳ `name` | string | Line item name |
+|     ↳ `description` | string | Full description of the product |
+|     ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+|     ↳ `quantity` | string | Number of units included |
+|     ↳ `price` | string | Unit price |
+|     ↳ `amount` | string | Total cost \(quantity * unit price\) |
+|     ↳ `hs_line_item_currency_code` | string | Currency code |
+|     ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+|     ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+|     ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -1373,16 +1574,23 @@ Search for quotes in HubSpot using filters, sorting, and queries
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `quotes` | array | Array of HubSpot quote records |
-|   ↳ `hs_title` | string | Quote name/title |
-|   ↳ `hs_expiration_date` | string | Expiration date |
-|   ↳ `hs_status` | string | Quote status |
-|   ↳ `hs_esign_enabled` | string | Whether e-signatures are enabled |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Quote properties |
+|     ↳ `hs_title` | string | Quote name/title |
+|     ↳ `hs_expiration_date` | string | Expiration date |
+|     ↳ `hs_status` | string | Quote status |
+|     ↳ `hs_esign_enabled` | string | Whether e-signatures are enabled |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -1406,8 +1614,9 @@ Retrieve the record IDs that are members of a HubSpot list, ordered by record ID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -1472,22 +1681,29 @@ Retrieve all line items from HubSpot account with pagination support
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `lineItems` | array | Array of HubSpot line item records |
-|   ↳ `name` | string | Line item name |
-|   ↳ `description` | string | Full description of the product |
-|   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
-|   ↳ `quantity` | string | Number of units included |
-|   ↳ `price` | string | Unit price |
-|   ↳ `amount` | string | Total cost \(quantity * unit price\) |
-|   ↳ `hs_line_item_currency_code` | string | Currency code |
-|   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
-|   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
-|   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Line item properties |
+|     ↳ `name` | string | Line item name |
+|     ↳ `description` | string | Full description of the product |
+|     ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+|     ↳ `quantity` | string | Number of units included |
+|     ↳ `price` | string | Unit price |
+|     ↳ `amount` | string | Total cost \(quantity * unit price\) |
+|     ↳ `hs_line_item_currency_code` | string | Currency code |
+|     ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+|     ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+|     ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -1511,19 +1727,25 @@ Retrieve a single line item by ID from HubSpot
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `lineItem` | object | HubSpot line item record |
-|   ↳ `name` | string | Line item name |
-|   ↳ `description` | string | Full description of the product |
-|   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
-|   ↳ `quantity` | string | Number of units included |
-|   ↳ `price` | string | Unit price |
-|   ↳ `amount` | string | Total cost \(quantity * unit price\) |
-|   ↳ `hs_line_item_currency_code` | string | Currency code |
-|   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
-|   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
-|   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Line item properties |
+|     ↳ `name` | string | Line item name |
+|     ↳ `description` | string | Full description of the product |
+|     ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+|     ↳ `quantity` | string | Number of units included |
+|     ↳ `price` | string | Unit price |
+|     ↳ `amount` | string | Total cost \(quantity * unit price\) |
+|     ↳ `hs_line_item_currency_code` | string | Currency code |
+|     ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+|     ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+|     ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(deals, quotes, etc.\) |
 | `lineItemId` | string | The retrieved line item ID |
 | `success` | boolean | Operation success status |
 
@@ -1543,19 +1765,25 @@ Create a new line item in HubSpot. Requires at least a name property
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `lineItem` | object | HubSpot line item record |
-|   ↳ `name` | string | Line item name |
-|   ↳ `description` | string | Full description of the product |
-|   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
-|   ↳ `quantity` | string | Number of units included |
-|   ↳ `price` | string | Unit price |
-|   ↳ `amount` | string | Total cost \(quantity * unit price\) |
-|   ↳ `hs_line_item_currency_code` | string | Currency code |
-|   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
-|   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
-|   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Line item properties |
+|     ↳ `name` | string | Line item name |
+|     ↳ `description` | string | Full description of the product |
+|     ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+|     ↳ `quantity` | string | Number of units included |
+|     ↳ `price` | string | Unit price |
+|     ↳ `amount` | string | Total cost \(quantity * unit price\) |
+|     ↳ `hs_line_item_currency_code` | string | Currency code |
+|     ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+|     ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+|     ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(deals, quotes, etc.\) |
 | `lineItemId` | string | The created line item ID |
 | `success` | boolean | Operation success status |
 
@@ -1576,19 +1804,25 @@ Update an existing line item in HubSpot by ID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `lineItem` | object | HubSpot line item record |
-|   ↳ `name` | string | Line item name |
-|   ↳ `description` | string | Full description of the product |
-|   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
-|   ↳ `quantity` | string | Number of units included |
-|   ↳ `price` | string | Unit price |
-|   ↳ `amount` | string | Total cost \(quantity * unit price\) |
-|   ↳ `hs_line_item_currency_code` | string | Currency code |
-|   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
-|   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
-|   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Line item properties |
+|     ↳ `name` | string | Line item name |
+|     ↳ `description` | string | Full description of the product |
+|     ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+|     ↳ `quantity` | string | Number of units included |
+|     ↳ `price` | string | Unit price |
+|     ↳ `amount` | string | Total cost \(quantity * unit price\) |
+|     ↳ `hs_line_item_currency_code` | string | Currency code |
+|     ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+|     ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+|     ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(deals, quotes, etc.\) |
 | `lineItemId` | string | The updated line item ID |
 | `success` | boolean | Operation success status |
 
@@ -1610,16 +1844,23 @@ Retrieve all quotes from HubSpot account with pagination support
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `quotes` | array | Array of HubSpot quote records |
-|   ↳ `hs_title` | string | Quote name/title |
-|   ↳ `hs_expiration_date` | string | Expiration date |
-|   ↳ `hs_status` | string | Quote status |
-|   ↳ `hs_esign_enabled` | string | Whether e-signatures are enabled |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Quote properties |
+|     ↳ `hs_title` | string | Quote name/title |
+|     ↳ `hs_expiration_date` | string | Expiration date |
+|     ↳ `hs_status` | string | Quote status |
+|     ↳ `hs_esign_enabled` | string | Whether e-signatures are enabled |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -1643,13 +1884,19 @@ Retrieve a single quote by ID from HubSpot
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `quote` | object | HubSpot quote record |
-|   ↳ `hs_title` | string | Quote name/title |
-|   ↳ `hs_expiration_date` | string | Expiration date |
-|   ↳ `hs_status` | string | Quote status |
-|   ↳ `hs_esign_enabled` | string | Whether e-signatures are enabled |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Quote properties |
+|     ↳ `hs_title` | string | Quote name/title |
+|     ↳ `hs_expiration_date` | string | Expiration date |
+|     ↳ `hs_status` | string | Quote status |
+|     ↳ `hs_esign_enabled` | string | Whether e-signatures are enabled |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(deals, line items, etc.\) |
 | `quoteId` | string | The retrieved quote ID |
 | `success` | boolean | Operation success status |
 
@@ -1671,17 +1918,24 @@ Retrieve all appointments from HubSpot account with pagination support
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `appointments` | array | Array of HubSpot appointment records |
-|   ↳ `hs_appointment_name` | string | Appointment title/name |
-|   ↳ `hs_appointment_start` | string | Start time \(ISO 8601\) |
-|   ↳ `hs_appointment_end` | string | End time \(ISO 8601\) |
-|   ↳ `hs_appointment_status` | string | Appointment status \(e.g., SCHEDULED\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Appointment properties |
+|     ↳ `hs_appointment_name` | string | Appointment title/name |
+|     ↳ `hs_appointment_start` | string | Start time \(ISO 8601\) |
+|     ↳ `hs_appointment_end` | string | End time \(ISO 8601\) |
+|     ↳ `hs_appointment_status` | string | Appointment status \(e.g., SCHEDULED\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -1705,14 +1959,20 @@ Retrieve a single appointment by ID from HubSpot
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `appointment` | object | HubSpot appointment record |
-|   ↳ `hs_appointment_name` | string | Appointment title/name |
-|   ↳ `hs_appointment_start` | string | Start time \(ISO 8601\) |
-|   ↳ `hs_appointment_end` | string | End time \(ISO 8601\) |
-|   ↳ `hs_appointment_status` | string | Appointment status \(e.g., SCHEDULED\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Appointment properties |
+|     ↳ `hs_appointment_name` | string | Appointment title/name |
+|     ↳ `hs_appointment_start` | string | Start time \(ISO 8601\) |
+|     ↳ `hs_appointment_end` | string | End time \(ISO 8601\) |
+|     ↳ `hs_appointment_status` | string | Appointment status \(e.g., SCHEDULED\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(contacts, companies, etc.\) |
 | `appointmentId` | string | The retrieved appointment ID |
 | `success` | boolean | Operation success status |
 
@@ -1732,14 +1992,20 @@ Create a new appointment in HubSpot
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `appointment` | object | HubSpot appointment record |
-|   ↳ `hs_appointment_name` | string | Appointment title/name |
-|   ↳ `hs_appointment_start` | string | Start time \(ISO 8601\) |
-|   ↳ `hs_appointment_end` | string | End time \(ISO 8601\) |
-|   ↳ `hs_appointment_status` | string | Appointment status \(e.g., SCHEDULED\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Appointment properties |
+|     ↳ `hs_appointment_name` | string | Appointment title/name |
+|     ↳ `hs_appointment_start` | string | Start time \(ISO 8601\) |
+|     ↳ `hs_appointment_end` | string | End time \(ISO 8601\) |
+|     ↳ `hs_appointment_status` | string | Appointment status \(e.g., SCHEDULED\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(contacts, companies, etc.\) |
 | `appointmentId` | string | The created appointment ID |
 | `success` | boolean | Operation success status |
 
@@ -1760,14 +2026,20 @@ Update an existing appointment in HubSpot by ID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `appointment` | object | HubSpot appointment record |
-|   ↳ `hs_appointment_name` | string | Appointment title/name |
-|   ↳ `hs_appointment_start` | string | Start time \(ISO 8601\) |
-|   ↳ `hs_appointment_end` | string | End time \(ISO 8601\) |
-|   ↳ `hs_appointment_status` | string | Appointment status \(e.g., SCHEDULED\) |
-|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
-|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
-|   ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
-|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Appointment properties |
+|     ↳ `hs_appointment_name` | string | Appointment title/name |
+|     ↳ `hs_appointment_start` | string | Start time \(ISO 8601\) |
+|     ↳ `hs_appointment_end` | string | End time \(ISO 8601\) |
+|     ↳ `hs_appointment_status` | string | Appointment status \(e.g., SCHEDULED\) |
+|     ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|     ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|     ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
+|     ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `associations` | object | Associated records \(contacts, companies, etc.\) |
 | `appointmentId` | string | The updated appointment ID |
 | `success` | boolean | Operation success status |
 
@@ -1796,8 +2068,9 @@ Retrieve all carts from HubSpot account with pagination support
 |   ↳ `properties` | object | Record properties |
 |   ↳ `associations` | object | Associated records |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -1858,8 +2131,9 @@ Retrieve all owners from HubSpot account with pagination support
 |   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
 |   ↳ `archived` | boolean | Whether the owner is archived |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -1900,8 +2174,9 @@ Retrieve all marketing events from HubSpot account with pagination support
 |   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
@@ -1969,8 +2244,9 @@ Search and retrieve lists from HubSpot account
 |   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
 | `paging` | object | Pagination information for fetching more results |
-|   ↳ `after` | string | Cursor for next page of results |
-|   ↳ `link` | string | Link to next page |
+|   ↳ `next` | object | Next page cursor information |
+|     ↳ `after` | string | Cursor for next page of results |
+|     ↳ `link` | string | Link to next page |
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |

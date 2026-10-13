@@ -15,6 +15,7 @@ export function getSharedHubSpotMcpClient() {
   return {
     clientId,
     clientSecret,
+    issuer: MANAGED_MCP_CONNECTORS.hubspot.authorizationServer,
     configurationFingerprint: sha256Hex(
       JSON.stringify([
         'shared-hubspot-mcp',
@@ -40,6 +41,7 @@ export function getSharedZoomMcpClient() {
     clientSecret,
     scope,
     tokenEndpointAuthMethod,
+    issuer: MANAGED_MCP_CONNECTORS.zoom.authorizationServer,
     configurationFingerprint: sha256Hex(
       JSON.stringify([
         'shared-zoom-mcp',

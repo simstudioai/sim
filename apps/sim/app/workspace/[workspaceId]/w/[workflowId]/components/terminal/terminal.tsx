@@ -48,6 +48,7 @@ import {
   type VisibleTerminalRow,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
 import { useContextMenu } from '@/hooks/use-context-menu'
+import { isMobileViewport, useIsMobile } from '@/hooks/use-is-mobile'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
 import {
@@ -553,6 +554,7 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
  * Terminal component with resizable height that persists across page refreshes.
  */
 export const Terminal = memo(function Terminal() {
+  const isMobile = useIsMobile()
   const terminalRef = useRef<HTMLElement>(null)
   const prevWorkflowEntriesLengthRef = useRef(0)
   const hasInitializedEntriesRef = useRef(false)
@@ -572,7 +574,7 @@ export const Terminal = memo(function Terminal() {
   const openOnRun = useTerminalStore((state) => state.openOnRun)
   const setOpenOnRun = useTerminalStore((state) => state.setOpenOnRun)
   const setHasHydrated = useTerminalStore((state) => state.setHasHydrated)
-  const isExpanded = useTerminalStore(
+  const isDesktopExpanded = useTerminalStore(
     (state) => state.terminalHeight > TERMINAL_CONFIG.NEAR_MIN_THRESHOLD
   )
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -592,6 +594,8 @@ export const Terminal = memo(function Terminal() {
   const [showInput, setShowInput] = useState(false)
   const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
+  const [isMobileExpanded, setIsMobileExpanded] = useState(false)
+  const isExpanded = isMobile ? isMobileExpanded : isDesktopExpanded
 
   const [isPlaygroundEnabled] = useState(() => isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
 
@@ -620,6 +624,10 @@ export const Terminal = memo(function Terminal() {
    * Expands the terminal to its last meaningful height
    */
   const expandToLastHeight = useCallback(() => {
+    if (isMobile) {
+      setIsMobileExpanded(true)
+      return
+    }
     setIsToggling(true)
     const maxHeight = window.innerHeight * 0.7
     const desiredHeight = Math.max(
@@ -628,7 +636,7 @@ export const Terminal = memo(function Terminal() {
     )
     const targetHeight = Math.min(desiredHeight, maxHeight)
     setTerminalHeight(targetHeight)
-  }, [setTerminalHeight])
+  }, [isMobile, setTerminalHeight])
 
   const allWorkflowEntries = entries
 
@@ -814,14 +822,23 @@ export const Terminal = memo(function Terminal() {
     })
   }, [])
 
+  const handleBackToLogs = useCallback(() => {
+    setAutoSelectEnabled(false)
+    setSelectedEntryId(null)
+  }, [setSelectedEntryId])
+
   const handleHeaderClick = useCallback(() => {
+    if (isMobile) {
+      setIsMobileExpanded((expanded) => !expanded)
+      return
+    }
     if (isExpanded) {
       setIsToggling(true)
       setTerminalHeight(MIN_HEIGHT)
     } else {
       expandToLastHeight()
     }
-  }, [expandToLastHeight, isExpanded, setTerminalHeight])
+  }, [expandToLastHeight, isExpanded, isMobile, setTerminalHeight])
 
   const handleTransitionEnd = useCallback(() => {
     setIsToggling(false)
@@ -1128,10 +1145,10 @@ export const Terminal = memo(function Terminal() {
    */
   useEffect(() => {
     const el = terminalRef.current
-    if (!el) return
+    if (!el || isMobile) return
 
     const handleResize = () => {
-      if (!selectedEntry) return
+      if (!selectedEntry || isMobileViewport()) return
 
       if (el.style.getPropertyValue('--output-panel-width')) return
 
@@ -1158,15 +1175,16 @@ export const Terminal = memo(function Terminal() {
     observer.observe(el)
 
     return () => observer.disconnect()
-  }, [selectedEntry, outputPanelWidth, setOutputPanelWidth])
+  }, [selectedEntry, outputPanelWidth, setOutputPanelWidth, isMobile])
 
   return (
     <>
       <aside
         ref={terminalRef}
         className={cn(
-          'terminal-container relative shrink-0 overflow-hidden border-[var(--border)] border-t bg-[var(--bg)]',
-          isToggling && 'transition-[height] duration-100 ease-out'
+          'terminal-container relative shrink-0 overflow-hidden border-[var(--border)] border-t bg-[var(--bg)] motion-reduce:transition-none max-md:motion-safe:transition-[height] max-md:motion-safe:duration-150',
+          isToggling && 'transition-[height] duration-100 ease-out',
+          isMobileExpanded ? 'max-md:h-[min(40dvh,20rem)]!' : 'max-md:h-11!'
         )}
         onTransitionEnd={handleTransitionEnd}
         onFocus={handleTerminalFocus}
@@ -1176,7 +1194,7 @@ export const Terminal = memo(function Terminal() {
       >
         {/* Resize Handle */}
         <div
-          className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
+          className='absolute top-[-4px] right-0 left-0 z-20 hidden h-[8px] cursor-ns-resize md:block'
           onPointerDown={handlePointerDown}
           role='separator'
           aria-orientation='horizontal'
@@ -1186,12 +1204,20 @@ export const Terminal = memo(function Terminal() {
         <div className='relative flex h-full'>
           {/* Left Section - Logs */}
           <div
-            className={cn('flex flex-col', !selectedEntry && 'flex-1')}
-            style={selectedEntry ? { width: 'calc(100% - var(--output-panel-width))' } : undefined}
+            className={cn(
+              'flex min-w-0 flex-col',
+              !selectedEntry && 'flex-1',
+              selectedEntry && 'max-md:hidden'
+            )}
+            style={
+              selectedEntry && !isMobile
+                ? { width: 'calc(100% - var(--output-panel-width))' }
+                : undefined
+            }
           >
             {/* Header */}
             <div
-              className='group flex h-[30px] shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4'
+              className='group flex h-11 shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4 md:h-[30px]'
               onClick={handleHeaderClick}
             >
               {/* Left side - Logs label */}
@@ -1352,6 +1378,7 @@ export const Terminal = memo(function Terminal() {
           {/* Right Section - Block Output (Overlay) */}
           {selectedEntry && (
             <OutputPanel
+              onBackToLogs={handleBackToLogs}
               selectedEntry={selectedEntry}
               handleOutputPanelResizePointerDown={handleOutputPanelResizePointerDown}
               handleHeaderClick={handleHeaderClick}

@@ -11,6 +11,7 @@ import {
   Globe,
   Library,
   Search,
+  ShieldCheck,
   Table as TableIcon,
   Task,
   TerminalWindow,
@@ -193,6 +194,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Dashboard} />,
   },
+  test: {
+    type: 'test',
+    label: 'Tests',
+    icon: ShieldCheck,
+    renderTabIcon: (_resource, className) => (
+      <ShieldCheck className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={ShieldCheck} />,
+  },
   file: {
     type: 'file',
     label: 'Files',
@@ -299,6 +309,7 @@ export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
   'integration',
   'task',
   'dashboard',
+  'test',
   'table',
   'file',
   'filefolder',

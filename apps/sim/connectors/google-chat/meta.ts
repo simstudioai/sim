@@ -48,7 +48,9 @@ export const googleChatConnectorMeta: ConnectorMeta = {
    * revision counter to key on instead, so a routine hash-gated sync cannot see
    * an edit-only or delete-only change until a newer message lands.
    *
-   * Routine syncs therefore stay cheap, and an explicit full resync re-hydrates
+   * Routine syncs reuse unchanged transcripts until a message leaves the lookback
+   * window. Rehydration with identical text advances metadata without re-indexing.
+   * An explicit full resync re-hydrates
    * every space (one messages listing per space) so edits and deletions are
    * picked up on demand. That cost is paid on every full resync, not once.
    */

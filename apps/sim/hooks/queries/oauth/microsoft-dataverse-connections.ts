@@ -11,7 +11,7 @@ import {
   MICROSOFT_DATAVERSE_PROVIDER_ID,
   normalizeMicrosoftDataverseEnvironmentUrl,
 } from '@/lib/oauth/microsoft-dataverse'
-import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
+import { oauthConnectionsKeys } from '@/hooks/queries/oauth/connections'
 
 const logger = createLogger('MicrosoftDataverseOAuthConnections')
 

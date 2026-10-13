@@ -1,3 +1,4 @@
+import { GOOGLE_CLICK_ID_PARAMETERS, UTM_PARAMETERS } from '@/lib/analytics/campaign-parameters'
 import { isNoindexPath } from '@/lib/navigation/paths'
 
 const GOOGLE_ANALYTICS_ORIGINS = new Set(['https://sim.ai', 'https://www.sim.ai'])
@@ -8,18 +9,7 @@ const TOKEN_UTILITY_PATHS = [
   '/enterprise/claim',
 ] as const
 
-const GOOGLE_CAMPAIGN_PARAMETERS = [
-  'utm_source',
-  'utm_medium',
-  'utm_campaign',
-  'utm_id',
-  'utm_term',
-  'utm_content',
-  'gclid',
-  'dclid',
-  'gbraid',
-  'wbraid',
-] as const
+const GOOGLE_CAMPAIGN_PARAMETERS = [...UTM_PARAMETERS, ...GOOGLE_CLICK_ID_PARAMETERS] as const
 
 interface GooglePageContext {
   page_location: string

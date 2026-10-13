@@ -166,6 +166,47 @@ describe('bedrockProvider credential handling', () => {
     expect(ConverseCommand).toHaveBeenCalledWith(expect.objectContaining({ inferenceConfig: {} }))
   })
 
+  it('uses schema instructions and automatic tools when Converse cannot force a named tool', async () => {
+    vi.mocked(getModelCapabilities).mockReturnValueOnce({ forcedToolUse: false })
+    vi.mocked(prepareToolsWithUsageControl).mockReturnValueOnce({
+      tools: [
+        {
+          name: 'lookup',
+          description: 'Lookup',
+          input_schema: { type: 'object', properties: {}, required: [] },
+        },
+      ],
+      toolChoice: { type: 'tool', name: 'lookup' },
+      forcedTools: ['lookup'],
+      hasFilteredTools: false,
+    })
+    const schema = {
+      type: 'object',
+      properties: { answer: { type: 'string' } },
+      required: ['answer'],
+    }
+    await bedrockProvider.executeRequest({
+      ...baseRequest,
+      model: 'bedrock/openai.gpt-6.1-sol',
+      responseFormat: { name: 'answer', schema },
+      tools: [
+        {
+          id: 'lookup',
+          name: 'lookup',
+          description: 'Lookup',
+          params: {},
+          parameters: { type: 'object', properties: {}, required: [] },
+          usageControl: 'force',
+        },
+      ],
+    })
+    const payload = vi.mocked(ConverseCommand).mock.calls.at(-1)?.[0]
+    expect(payload?.toolConfig?.toolChoice).toEqual({ auto: {} })
+    expect(payload?.toolConfig?.tools?.map((tool) => tool.toolSpec?.name)).toEqual(['lookup'])
+    expect(payload?.system?.map((block) => block.text).join('\n')).toContain(JSON.stringify(schema))
+    expect(payload?.system?.[0]).toEqual({ text: 'You are helpful.' })
+  })
+
   it('preserves explicit temperature for a custom model without catalog capabilities', async () => {
     vi.mocked(isKnownModelId).mockReturnValueOnce(false)
     await bedrockProvider.executeRequest({

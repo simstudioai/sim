@@ -30,11 +30,11 @@ async function fetchDomains(orgId: string, signal?: AbortSignal): Promise<Domain
   return data
 }
 
-export function useOrganizationDomains(orgId: string | undefined) {
+export function useOrganizationDomains(orgId: string | undefined, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: domainKeys.list(orgId ?? ''),
     queryFn: ({ signal }) => fetchDomains(orgId as string, signal),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && (options?.enabled ?? true),
     staleTime: DOMAINS_STALE_TIME,
   })
 }

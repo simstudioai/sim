@@ -7,7 +7,7 @@ import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { getReadTargetBlock } from '@/lib/mothership/tools/client/read-block'
 import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
 import { humanizeDisplayIdentifier, humanizeToolName } from '@/lib/mothership/tools/tool-display'
-import { decodeVfsSegmentSafe } from '@/lib/mothership/vfs/path-utils'
+import { decodeVfsSegmentSafe } from '@/lib/vfs/path'
 
 /** Respond tools are internal handoff tools shown with a friendly generic label. */
 const HIDDEN_TOOL_SUFFIX = '_respond'

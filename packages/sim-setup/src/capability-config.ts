@@ -1089,6 +1089,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     REDDIT_CLIENT_ID: { input: 'text' },
     REDDIT_CLIENT_SECRET: { input: 'secret' },
   },
+  ramp: {
+    RAMP_CLIENT_ID: { input: 'text' },
+    RAMP_CLIENT_SECRET: { input: 'secret' },
+  },
   wealthbox: {
     WEALTHBOX_CLIENT_ID: { input: 'text' },
     WEALTHBOX_CLIENT_SECRET: { input: 'secret' },

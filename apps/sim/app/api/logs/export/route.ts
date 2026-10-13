@@ -12,7 +12,7 @@ import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-s
 import { withheldSpendData } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
-import { logQuerySelectsCost } from '@/lib/logs/log-projection'
+import { logQuerySelectsCost } from '@/lib/logs/projection'
 import {
   capabilityDeniedBy,
   capabilityRefusal,

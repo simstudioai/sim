@@ -6,6 +6,7 @@ const {
   create,
   list,
   connect,
+  pause,
   nextItems,
   getInfo,
   writeFile,
@@ -22,6 +23,7 @@ const {
   create: vi.fn(),
   list: vi.fn(),
   connect: vi.fn(),
+  pause: vi.fn(),
   nextItems: vi.fn(),
   getInfo: vi.fn(),
   writeFile: vi.fn(),
@@ -36,14 +38,18 @@ const {
   NotFoundError: class NotFoundError extends Error {},
 }))
 vi.mock('@e2b/code-interpreter', () => ({
-  Sandbox: { create, list, connect, getInfo },
+  Sandbox: { create, list, connect, pause, getInfo },
   NotFoundError,
 }))
 vi.mock('@/lib/execution/remote-sandbox/session-lock', () => ({
   withSandboxSessionLock: sessionLock,
 }))
 
-import { e2bProvider, stopE2BSessionProcess } from '@/lib/execution/remote-sandbox/e2b'
+import {
+  E2B_MAX_SANDBOX_LIFETIME_MS,
+  e2bProvider,
+  stopE2BSessionProcess,
+} from '@/lib/execution/remote-sandbox/e2b'
 import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/execution-observer'
 
 setEnv({ E2B_API_KEY: 'test', MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-template' })
@@ -51,7 +57,8 @@ setEnv({ E2B_API_KEY: 'test', MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-template' 
 function candidate(sandboxId: string, time: number) {
   return {
     sandboxId,
-    startedAt: new Date(time),
+    state: 'running',
+    startedAt: new Date(Date.now() - 3_600_000 + time),
     endAt: new Date(Date.now() + 3_600_000),
     metadata: { simSessionKey: 'chat', simSessionOwnership: 'tracked-v1' },
   }
@@ -679,5 +686,119 @@ describe('E2B session lease', () => {
     expect(plane.requests).toBe(3)
     await sandbox?.extendLifetime?.(IDLE_MS)
     expect(plane.requests).toBe(3)
+  })
+})
+
+describe('E2B continuous-runtime cap', () => {
+  const CAP_MS = E2B_MAX_SANDBOX_LIFETIME_MS
+  const LEASE_MS = 21 * 60_000
+
+  /** Models E2B: every timeout is clamped to the cap, and resuming a paused sandbox restarts it. */
+  function cappedPlane(runningForMs: number) {
+    const plane = { startedAtMs: Date.now() - runningForMs, endAtMs: 0, paused: false }
+    const clampedEnd = (timeoutMs: number) =>
+      Math.min(Date.now() + timeoutMs, plane.startedAtMs + CAP_MS)
+    plane.endAtMs = clampedEnd(5 * 60_000)
+    list.mockReturnValue({ nextItems, hasNext: false })
+    nextItems.mockImplementation(async () => [
+      {
+        ...candidate('retained', 0),
+        state: plane.paused ? 'paused' : 'running',
+        startedAt: new Date(plane.startedAtMs),
+        endAt: new Date(plane.endAtMs),
+      },
+    ])
+    pause.mockImplementation(async () => {
+      plane.paused = true
+      return true
+    })
+    const sandbox = {
+      sandboxId: 'retained',
+      getInfo: async () => ({ endAt: new Date(plane.endAtMs) }),
+      setTimeout: async (timeoutMs: number) => {
+        plane.endAtMs = clampedEnd(timeoutMs)
+      },
+      commands: {
+        run: async (_command: string, options: { background?: boolean }) => {
+          if (options.background === false) {
+            return { stdout: '{"settled": true}', stderr: '', exitCode: 0 }
+          }
+          throw Object.assign(new Error('Sandbox timeout: end of life'), { name: 'TimeoutError' })
+        },
+      },
+    }
+    connect.mockImplementation(async (_id: string, options: { timeoutMs: number }) => {
+      if (plane.paused) {
+        plane.paused = false
+        plane.startedAtMs = Date.now()
+      }
+      plane.endAtMs = clampedEnd(options.timeoutMs)
+      return sandbox
+    })
+    return plane
+  }
+
+  it('never records a reused lease past the cap when the runtime cannot be reset', async () => {
+    const plane = cappedPlane(CAP_MS - 10 * 60_000)
+    pause.mockRejectedValueOnce(new Error('pause unavailable'))
+    const sandbox = await e2bProvider.findSessionSandbox?.('chat', { lifetimeMs: LEASE_MS })
+    const now = Date.now()
+    expect(plane.endAtMs).toBeLessThan(now + LEASE_MS)
+    expect(sandbox?.outlives?.(LEASE_MS, now)).toBe(false)
+    expect(sandbox?.outlives?.(plane.endAtMs - now - 1000, now)).toBe(true)
+    await sandbox?.extendLifetime?.(LEASE_MS)
+    expect(sandbox?.outlives?.(LEASE_MS, Date.now())).toBe(false)
+  })
+
+  it('pauses and resumes a workbench whose lease would outrun the cap', async () => {
+    const plane = cappedPlane(CAP_MS - 10 * 60_000)
+    const requestedAtMs = Date.now()
+    const sandbox = await e2bProvider.findSessionSandbox?.('chat', { lifetimeMs: LEASE_MS })
+    expect(plane.startedAtMs).toBeGreaterThanOrEqual(requestedAtMs)
+    expect(plane.endAtMs).toBeGreaterThanOrEqual(requestedAtMs + LEASE_MS)
+    expect(sandbox?.outlives?.(LEASE_MS, requestedAtMs)).toBe(true)
+  })
+
+  it('reports reaching the cap as the provider limit, not a user timeout', async () => {
+    cappedPlane(CAP_MS - 30_000)
+    pause.mockRejectedValueOnce(new Error('pause unavailable'))
+    const sandbox = await e2bProvider.findSessionSandbox?.('chat', { lifetimeMs: LEASE_MS })
+    const result = await sandbox?.runCommand('long job', { timeoutMs: LEASE_MS })
+    expect(result?.providerFailure).toBe('provider_limit')
+    expect(result?.timedOut).toBeUndefined()
+  })
+
+  it('measures the command deadline from dispatch, after a slow ownership write', async () => {
+    cappedPlane(CAP_MS - 30_000)
+    pause.mockRejectedValueOnce(new Error('pause unavailable'))
+    const sandbox = await e2bProvider.findSessionSandbox?.('chat', { lifetimeMs: LEASE_MS })
+    if (!sandbox) throw new Error('Missing sandbox')
+    const realNow = Date.now
+    let ownershipWriteMs = 0
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => realNow() + ownershipWriteMs)
+    try {
+      const result = await observeSandboxExecution(
+        {
+          hold: vi.fn(),
+          unsettled: vi.fn(),
+          claimProcess: async () => {
+            ownershipWriteMs = 2_000
+          },
+        },
+        () => sandbox.runCommand('long job', { timeoutMs: 29_000 })
+      )
+      expect(result.providerFailure).toBe('provider_limit')
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('keeps a command that reaches its own timeout near the cap a user timeout', async () => {
+    cappedPlane(CAP_MS - 50_000)
+    pause.mockRejectedValueOnce(new Error('pause unavailable'))
+    const sandbox = await e2bProvider.findSessionSandbox?.('chat', { lifetimeMs: LEASE_MS })
+    const result = await sandbox?.runCommand('short job', { timeoutMs: 1000 })
+    expect(result?.providerFailure).toBeUndefined()
+    expect(result?.timedOut).toBe(true)
   })
 })

@@ -53,7 +53,8 @@ interface BundleSpec {
   entry: string
 }
 
-const POLYFILLS_PATH = join(HERE, '_polyfills.ts')
+const POLYFILLS_PATH = join(HERE, 'isolate-polyfills.ts')
+const EVENT_POLYFILLS_PATH = join(HERE, 'event-polyfills.ts')
 const POLYFILL_PRELUDE = `
 // Isolate-side polyfills must execute BEFORE any other import (process/browser
 // captures setTimeout at module-init time). Keep this as the first import.
@@ -93,6 +94,65 @@ ${POLYFILL_PRELUDE}
 import PptxGenJS from 'pptxgenjs'
 globalThis.__bundles = globalThis.__bundles || {}
 globalThis.__bundles['pptxgenjs'] = PptxGenJS
+`,
+  },
+  {
+    /**
+     * Vitest's own `expect` and spies for workflow tests. `vitest` itself can't be bundled for
+     * an isolate (its expect is entangled with the runner's worker RPC), so this builds the
+     * standalone packages vitest is made of the way vitest's `createExpect` assembles them.
+     */
+    name: 'vitest-expect',
+    outFile: 'vitest-expect.cjs',
+    entry: `
+import '${POLYFILLS_PATH}'
+import '${EVENT_POLYFILLS_PATH}'
+import { disableDefaultColors } from 'tinyrainbow'
+import * as chai from 'chai'
+import {
+  ASYMMETRIC_MATCHERS_OBJECT,
+  JestAsymmetricMatchers,
+  JestChaiExpect,
+  JestExtend,
+  getState,
+  setState,
+} from '@vitest/expect'
+import { fn, isMockFunction, spyOn } from '@vitest/spy'
+
+disableDefaultColors()
+chai.use(JestExtend)
+chai.use(JestChaiExpect)
+chai.use(JestAsymmetricMatchers)
+
+function createExpect() {
+  const expect = (value, message) => {
+    const { assertionCalls } = getState(expect)
+    setState({ assertionCalls: assertionCalls + 1 }, expect)
+    return chai.expect(value, message)
+  }
+  Object.assign(expect, chai.expect)
+  Object.assign(expect, globalThis[ASYMMETRIC_MATCHERS_OBJECT])
+  expect.getState = () => getState(expect)
+  expect.setState = (state) => setState(state, expect)
+  setState(
+    {
+      assertionCalls: 0,
+      isExpectingAssertions: false,
+      isExpectingAssertionsError: null,
+      expectedAssertionsNumber: null,
+      expectedAssertionsNumberErrorGen: null,
+    },
+    expect
+  )
+  expect.assert = chai.assert
+  expect.extend = (matchers) => chai.expect.extend(expect, matchers)
+  expect.unreachable = (message) =>
+    chai.assert.fail('expected' + (message ? ' "' + message + '" ' : ' ') + 'not to be reached')
+  return expect
+}
+
+globalThis.__bundles = globalThis.__bundles || {}
+globalThis.__bundles['vitest-expect'] = { createExpect, fn, spyOn, isMockFunction }
 `,
   },
 ]

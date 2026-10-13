@@ -151,6 +151,10 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
     const queue = tableRowQueues.get(table)
     if (queue && queue.length > 0) return queue.shift() ?? null
   }
+  /** Default unit fixtures represent a migrated database after authority cutover. */
+  if (tables.includes(schemaMock.projectMembershipRollout)) {
+    return [{ id: 'membership', phase: 'column' }]
+  }
   return null
 }
 
@@ -178,21 +182,24 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
  * implementation returns a sentinel that the chain replaces with the
  * chain-local builder, while any `mock*` override on the spy wins verbatim.
  *
+ * `unionAll` resolves to the LEFT chain's rows (its own queued set or the outer
+ * `.limit` override); the right chain is never awaited, so it consumes nothing.
+ *
  * `for` mirrors drizzle's `.for('update')` — it returns a Promise with
  * `.limit` / `.orderBy` / `.returning` / `.groupBy` attached, so both
  * `await .where().for('update')` (terminal) and
  * `await .where().for('update').limit(1)` (chained) work.
  *
- * `vi.clearAllMocks()` clears call history but preserves default wiring. Tests
+ * The shared config's `clearMocks` clears call history but preserves default wiring. Tests
  * that replace a wiring with `mockReturnValue(...)` (not `...Once`) must
  * re-wire via `resetDbChainMock()` in their own `beforeEach`.
  *
  * @example
  * ```ts
- * import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+ * import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+ * import { schemaMock } from '@sim/testing/mocks/schema.mock'
  *
  * beforeEach(() => {
- *   vi.clearAllMocks()
  *   resetDbChainMock()
  * })
  *
@@ -229,6 +236,7 @@ const where = chainSpy()
 const limit = chainSpy()
 const offset = chainSpy()
 const orderBy = chainSpy()
+const unionAll = chainSpy()
 const groupBy = chainSpy()
 const having = chainSpy()
 const asAlias = chainSpy()
@@ -240,7 +248,18 @@ const update = chainSpy()
 const set = chainSpy()
 const del = chainSpy()
 const returning = vi.fn(() => Promise.resolve([] as unknown[]))
-const execute = vi.fn(() => Promise.resolve([] as unknown[]))
+const execute = vi.fn((statement?: unknown) => {
+  if (
+    statement &&
+    typeof statement === 'object' &&
+    'toSQL' in statement &&
+    typeof statement.toSQL === 'function' &&
+    statement.toSQL().sql.includes("to_regclass('public.project_membership_rollout')")
+  ) {
+    return Promise.resolve([{ marker: true, complete: false }] as unknown[])
+  }
+  return Promise.resolve([] as unknown[])
+})
 const query = vi.fn(() => Promise.resolve([] as unknown[]))
 const onConflictDoUpdate = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<void>)
@@ -293,12 +312,13 @@ const lazyRowsThenable = (getRows: RowsSupplier): any => ({
 })
 
 // `.limit()` returns a builder that is awaitable and also exposes `.offset()`
-// for keyset/OFFSET paging (`.limit(n).offset(m)`) and `.for()` for drizzle's
-// `.limit(1).for('update')` row-lock form.
+// for keyset/OFFSET paging (`.limit(n).offset(m)`), `.for()` for drizzle's
+// `.limit(1).for('update')` row-lock form, and `.unionAll()` for a limited branch.
 const limitBuilder = (getRows: RowsSupplier, fields: SelectedFields = {}) => {
   const thenable = lazyRowsThenable(getRows)
   thenable.offset = spyOrDefault(offset, () => limitBuilder(getRows, fields))
   thenable.for = spyOrDefault(forClause, () => limitBuilder(getRows, fields))
+  thenable.unionAll = spyOrDefault(unionAll, () => terminalBuilder(getRows, fields))
   thenable.as = spyOrDefault(asAlias, (alias: string) => subqueryFields(fields, alias))
   return thenable
 }
@@ -307,6 +327,7 @@ const terminalBuilder = (getRows: RowsSupplier, fields: SelectedFields = {}): an
   const thenable = lazyRowsThenable(getRows)
   thenable.limit = spyOrDefault(limit, () => limitBuilder(getRows, fields))
   thenable.orderBy = spyOrDefault(orderBy, () => terminalBuilder(getRows, fields))
+  thenable.unionAll = spyOrDefault(unionAll, () => terminalBuilder(getRows, fields))
   thenable.as = spyOrDefault(asAlias, (alias: string) => subqueryFields(fields, alias))
   thenable.returning = returning
   thenable.groupBy = spyOrDefault(groupBy, () => {
@@ -356,6 +377,7 @@ export const dbChainMockFns = {
   limit,
   offset,
   orderBy,
+  unionAll,
   returning,
   innerJoin,
   leftJoin,
@@ -377,10 +399,10 @@ export const dbChainMockFns = {
 /**
  * Restores every `dbChainMockFns` entry to its default wiring, drains any
  * unconsumed `...Once` overrides, and clears all table-routed row queues.
- * Call this in `beforeEach` (after `vi.clearAllMocks()`) so each test starts
- * from fresh defaults — a `...Once` override queued by a previous test but
- * never consumed would otherwise leak into the next test (`vi.clearAllMocks`
- * clears call history only, not once-queues).
+ * Call this in `beforeEach` so each test starts from fresh defaults — a
+ * `...Once` override queued by a previous test but never consumed would
+ * otherwise leak into the next test (`clearMocks` clears call history only,
+ * not once-queues).
  */
 export function resetDbChainMock(): void {
   tableRowQueues.clear()

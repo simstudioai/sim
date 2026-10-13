@@ -3,7 +3,6 @@ import { authMockFns } from '@sim/testing'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
-import { tableTtlAvailabilityMock } from '@sim/testing/mocks/table-ttl-availability.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -20,7 +19,6 @@ const {
   mockUseMothershipChatEvents: vi.fn(),
 }))
 
-vi.mock('@/lib/table/ttl-availability', () => tableTtlAvailabilityMock)
 vi.mock('@/app/workspace/providers/socket-provider', () => ({
   SocketProvider: ({ children }: { children: import('react').ReactNode }) => children,
 }))
@@ -63,6 +61,7 @@ vi.mock('@/app/o/[organizationId]/components/organization-sidebar', () => ({
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
   WorkspaceChrome: mockWorkspaceChrome,
+  WorkspaceViewport: ({ children }: { children: ReactNode }) => children,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/providers/global-commands-provider', () => ({

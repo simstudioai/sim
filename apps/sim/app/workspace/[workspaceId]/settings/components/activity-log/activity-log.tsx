@@ -1,7 +1,7 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { type ReactNode, useRef, useState } from 'react'
+import { cn, scrollFadeAttributes, scrollFadeXClass, useScrollEdges } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
@@ -165,37 +165,53 @@ export function ActivityLog({
   emptyState,
   footer,
 }: ActivityLogProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const edges = useScrollEdges(scrollRef, { axis: 'x' })
   const hasTrailingColumn = entries.some((entry) => entry.trailing != null)
 
   return (
-    <div className='flex flex-col'>
-      <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
-        <span className='w-[160px] shrink-0'>Timestamp</span>
-        <span className={cn(EVENT_COLUMN_WIDTH_CLASS[eventColumn], 'shrink-0')}>{eventLabel}</span>
-        <span className='min-w-0 flex-1'>{descriptionLabel}</span>
-        <span className='w-[160px] shrink-0 text-right'>Actor</span>
-        {/* Row actions carry no header, but the column must still be reserved
+    <div className='min-w-0'>
+      <div
+        ref={scrollRef}
+        className={cn('overflow-x-auto', scrollFadeXClass)}
+        {...scrollFadeAttributes(edges)}
+      >
+        <div
+          className={cn(
+            'flex flex-col md:min-w-0',
+            hasTrailingColumn ? 'min-w-[800px]' : 'min-w-[700px]'
+          )}
+        >
+          <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
+            <span className='w-[160px] shrink-0'>Timestamp</span>
+            <span className={cn(EVENT_COLUMN_WIDTH_CLASS[eventColumn], 'shrink-0')}>
+              {eventLabel}
+            </span>
+            <span className='min-w-0 flex-1'>{descriptionLabel}</span>
+            <span className='w-[160px] shrink-0 text-right'>Actor</span>
+            {/* Row actions carry no header, but the column must still be reserved
             here or every label above would sit left of the data below it. */}
-        {hasTrailingColumn && (
-          <span className={cn(TRAILING_COLUMN_WIDTH_CLASS, 'shrink-0')} aria-hidden />
-        )}
-      </div>
+            {hasTrailingColumn && (
+              <span className={cn(TRAILING_COLUMN_WIDTH_CLASS, 'shrink-0')} aria-hidden />
+            )}
+          </div>
 
-      {entries.length === 0 ? (
-        emptyState
-      ) : (
-        <div className='flex flex-col gap-0.5'>
-          {entries.map((entry) => (
-            <ActivityLogRow
-              key={entry.id}
-              entry={entry}
-              eventColumn={eventColumn}
-              hasTrailingColumn={hasTrailingColumn}
-            />
-          ))}
-          {footer}
+          {entries.length > 0 && (
+            <div className='flex flex-col gap-0.5'>
+              {entries.map((entry) => (
+                <ActivityLogRow
+                  key={entry.id}
+                  entry={entry}
+                  eventColumn={eventColumn}
+                  hasTrailingColumn={hasTrailingColumn}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
+      {entries.length > 0 && footer && <div className='mt-0.5'>{footer}</div>}
+      {entries.length === 0 && emptyState}
     </div>
   )
 }

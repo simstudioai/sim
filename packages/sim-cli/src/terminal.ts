@@ -3,7 +3,7 @@ import { dump } from 'js-yaml'
 import { styles } from '#sim-cli/output/presentation'
 import { CliUpdateError } from '#sim-cli/update/install'
 import { ProfileConfigError } from './config/index'
-import { clientFrom } from './context'
+import { profileFrom } from './context'
 import {
   formatApiErrorDetails,
   isRequestTimeout,
@@ -36,7 +36,7 @@ function explainFailure(error: unknown, program: Command): number | null {
   if (error instanceof SimApiError) {
     let output = program.opts().output
     try {
-      output = clientFrom(program).profile.output
+      output = profileFrom(program).output
     } catch {
       /** Preserve the original error when configuration is invalid. */
     }

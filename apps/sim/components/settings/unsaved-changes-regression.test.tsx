@@ -32,8 +32,12 @@ import { SessionPolicySettings } from '@/ee/session-policy/components/session-po
 import { sessionPolicyKeys } from '@/ee/session-policy/hooks/session-policy'
 import { SsoProviderSettings } from '@/ee/sso/components/sso-provider-settings'
 import { SSO } from '@/ee/sso/components/sso-settings'
+import { VerifiedDomainsSection } from '@/ee/sso/components/verified-domains-section'
 import { domainKeys } from '@/ee/sso/hooks/domains'
 import { ssoKeys } from '@/ee/sso/hooks/sso'
+import { Forks } from '@/ee/workspace-forking/components/forks'
+import { forkAvailabilityKeys } from '@/ee/workspace-forking/hooks/use-forking-available'
+import { forkKeys } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { sandboxKeys } from '@/hooks/queries/sandboxes'
 import { type SubscriptionApiResponse, useSubscriptionData } from '@/hooks/queries/subscription'
@@ -41,6 +45,8 @@ import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { permissionGroupKeys } from '@/hooks/queries/utils/permission-group-keys'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
+import { workspaceKeys } from '@/hooks/queries/workspace'
+import * as stores from '@/stores'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 vi.mock(
@@ -197,6 +203,9 @@ afterEach(async () => {
   container.remove()
   nextNavigationMockFns.mockUseParams.mockReset()
   authClientMockFns.mockUseSession.mockReset()
+  authClientMockFns.mockClient.admin.listUsers.mockReset()
+  authClientMockFns.mockClient.admin.impersonateUser.mockReset()
+  nextNavigationMockFns.router.push.mockReset()
   resetDeploymentShape()
   vi.useRealTimers()
 })
@@ -830,3 +839,229 @@ it('keeps generated organization defaults clean while protecting authored recove
   expect(input('#orgSlug').value).toBe(slug)
   expectLeave(true)
 })
+
+it.each(['leave', 'edit', 'overwrite', 'acknowledge', 'discard'])(
+  'protects a generated one-time license key during %s',
+  async (action) => {
+    let issuedKeys = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        const endpoint = new URL(String(url), 'http://localhost').searchParams.get('endpoint')
+        return jsonResponse(
+          endpoint === 'licenses/generate'
+            ? { license_key: `one-time-license-${++issuedKeys}` }
+            : { licenses: [] }
+        )
+      })
+    )
+    await render(<Mothership />, '?tab=licenses')
+    edit('input[placeholder="e.g. Acme Corp"]', 'Review enterprise')
+    edit('input[placeholder="Signed order form or written approval"]', 'Review approval')
+    click('Generate')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10)
+      await flushMicrotasks()
+    })
+    expect(
+      [...container.querySelectorAll('input')].some((field) => field.value === 'one-time-license-1')
+    ).toBe(true)
+    expect(input('input[placeholder="e.g. Acme Corp"]').value).toBe('')
+    if (action === 'leave') {
+      expectLeave(false)
+      return
+    }
+    edit('input[placeholder="e.g. Acme Corp"]', 'Next enterprise')
+    edit('input[placeholder="Signed order form or written approval"]', 'Next approval')
+    if (action === 'discard') {
+      act(() => {
+        useSettingsDirtyStore.getState().requestLeave(() => {})
+        useSettingsDirtyStore.getState().confirmLeave()
+      })
+      expect(
+        [...container.querySelectorAll('input')].some(
+          (field) => field.value === 'one-time-license-1'
+        )
+      ).toBe(false)
+      expect(input('input[placeholder="e.g. Acme Corp"]').value).toBe('')
+      expectLeave(true)
+      return
+    }
+    if (action === 'acknowledge') {
+      click('Done')
+      expect(input('input[placeholder="e.g. Acme Corp"]').value).toBe('Next enterprise')
+      expectLeave(false)
+    } else if (action === 'edit') {
+      expect(
+        [...container.querySelectorAll('input')].some(
+          (field) => field.value === 'one-time-license-1'
+        )
+      ).toBe(true)
+      return
+    }
+    click('Generate')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10)
+      await flushMicrotasks()
+    })
+    expect(issuedKeys).toBe(action === 'overwrite' ? 1 : 2)
+    expectLeave(false)
+  }
+)
+
+it.each(['request', 'cleanup', 'reopened-request', 'reopened-cleanup', 'failed', 'rejected'])(
+  'serializes impersonation targets during the %s phase',
+  async (phase) => {
+    const firstTransition = createDeferred<unknown>()
+    const cleanup = createDeferred<boolean>()
+    const requestedIdentities: string[] = []
+    vi.spyOn(stores, 'clearUserData').mockImplementation(() => cleanup.promise)
+    authClientMockFns.mockUseSession.mockReturnValue({
+      data: { user: { id: 'admin-a', role: 'admin' } },
+      isPending: false,
+      error: null,
+    })
+    authClientMockFns.mockClient.admin.listUsers.mockResolvedValue({
+      data: {
+        users: [
+          { id: 'user-a', name: 'A', email: 'a@example.com', role: 'user' },
+          { id: 'user-b', name: 'B', email: 'b@example.com', role: 'user' },
+        ],
+        total: 2,
+      },
+      error: null,
+    })
+    authClientMockFns.mockClient.admin.impersonateUser.mockImplementation(
+      ({ userId }: { userId: string }) => {
+        requestedIdentities.push(userId)
+        return phase.endsWith('cleanup')
+          ? Promise.resolve({ data: {}, error: null })
+          : firstTransition.promise
+      }
+    )
+    await render(<Admin />, '?q=example')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10)
+      await flushMicrotasks()
+    })
+    const first = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Impersonate a@example.com"]'
+    )
+    if (!first) throw new Error('Impersonation rows did not load')
+    await act(async () => {
+      first.click()
+      await vi.advanceTimersByTimeAsync(10)
+    })
+    if (phase === 'failed') {
+      await act(async () => {
+        firstTransition.reject(new Error('Identity switch failed'))
+        await vi.advanceTimersByTimeAsync(10)
+      })
+    } else if (phase === 'rejected') {
+      await act(async () => {
+        firstTransition.resolve({
+          data: null,
+          error: { message: 'Identity switch failed', status: 403, statusText: 'Forbidden' },
+        })
+        await vi.advanceTimersByTimeAsync(10)
+      })
+    }
+    if (phase.startsWith('reopened-')) {
+      let left = false
+      act(() =>
+        useSettingsDirtyStore.getState().requestLeave(() => {
+          left = true
+        })
+      )
+      if (left) {
+        await render(null)
+        await render(<Admin />, '?q=example')
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10)
+          await flushMicrotasks()
+        })
+      }
+    }
+    const second = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Impersonate b@example.com"]'
+    )
+    if (!second) throw new Error('Impersonation rows did not load')
+    await act(async () => {
+      second.click()
+      await vi.advanceTimersByTimeAsync(10)
+    })
+    const switchFailed = phase === 'failed' || phase === 'rejected'
+    expect(requestedIdentities).toEqual(switchFailed ? ['user-a', 'user-b'] : ['user-a'])
+    expectLeave(switchFailed)
+  }
+)
+
+it('avoids a cold domains request while the preserved editor is inactive', async () => {
+  const domainRequests: string[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      domainRequests.push(String(url))
+      return jsonResponse({ domains: [] })
+    })
+  )
+  await render(<VerifiedDomainsSection organizationId='org-a' active={false} />)
+  expect(domainRequests).toEqual([])
+  await render(<VerifiedDomainsSection organizationId='org-a' />)
+  expect(domainRequests).toHaveLength(1)
+})
+
+it.each(['dirty', 'busy'])(
+  'guards the real fork workspace action while an editor is %s',
+  async (condition) => {
+    client.setQueryData(forkAvailabilityKeys.detail('workspace-a'), { available: true })
+    client.setQueryData(workspaceKeys.list('active'), {
+      workspaces: [{ id: 'workspace-a', name: 'Current' }],
+      creationPolicy: { canCreate: true },
+    })
+    client.setQueryData(forkKeys.lineage('workspace-a'), {
+      workspaceId: 'workspace-a',
+      parent: { id: 'parent-a', name: 'Parent', organizationId: null, viewerAccessible: true },
+      children: [],
+      undoableRun: null,
+    })
+    client.setQueryData(forkKeys.mapping('workspace-a', 'parent-a', 'push'), { entries: [] })
+    client.setQueryData(forkKeys.diff('workspace-a', 'parent-a', 'push'), {
+      sourceWorkspaceId: 'workspace-a',
+      targetWorkspaceId: 'parent-a',
+      workflows: [],
+      sourceVersions: [],
+      dependentReconfigs: [],
+      resourceUsages: [],
+      copyableUnmapped: [],
+      clearedRefs: [],
+      triggerMappings: [],
+      retiringTriggerUrls: [],
+      excludedSourceWorkflows: [],
+      excludedTargetWorkflows: [],
+      mcpReauthServerIds: [],
+      inlineSecretSources: [],
+    })
+    let destination = 'settings'
+    nextNavigationMockFns.router.push.mockImplementation(() => {
+      destination = 'workspace'
+    })
+    await render(<Forks />, '?fork-id=parent-a')
+    await act(async () => {
+      await vi.dynamicImportSettled()
+      await vi.advanceTimersByTimeAsync(10)
+    })
+    act(() =>
+      useSettingsDirtyStore.getState().setGuard('test-editor', {
+        isDirty: condition === 'dirty',
+        navigationBlocked: condition === 'busy',
+      })
+    )
+    click('Open workspace')
+    expect(destination).toBe('settings')
+    if (condition === 'dirty') {
+      act(() => useSettingsDirtyStore.getState().confirmLeave())
+      expect(destination).toBe('workspace')
+    }
+  }
+)

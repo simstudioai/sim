@@ -8,7 +8,7 @@ import { vi } from 'vitest'
  *
  * @example
  * ```ts
- * import { foldersOrchestrationMockFns } from '@sim/testing'
+ * import { foldersOrchestrationMockFns } from '@sim/testing/mocks/folders-orchestration.mock'
  *
  * foldersOrchestrationMockFns.mockCreateFolder.mockResolvedValue({ success: true, folder })
  * ```

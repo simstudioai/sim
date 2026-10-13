@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { isLoopbackIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { describeError, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { isPlainRecord, isRecordLike } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike, toRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -18,6 +18,13 @@ import {
 import { isHosted } from '@/lib/core/config/env-flags'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import {
+  classifyFailure,
+  logFailureOnce,
+  markFailureKind,
+  markFailureLogged,
+} from '@/lib/core/errors/failure-log'
+import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
+import {
   createTimeoutAbortController,
   DEFAULT_EXECUTION_TIMEOUT_MS,
   getMaxExecutionTimeout,
@@ -29,6 +36,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { waitWithAbort } from '@/lib/core/utils/concurrency'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -83,6 +91,7 @@ import {
   recordServiceCost,
   recordServiceMeteringFailure,
 } from '@/lib/mothership/billing/service-observer'
+import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -104,6 +113,7 @@ import {
   getOwnEnumerableDataEntries,
   prepareToolRequest,
   projectToolModelInputParams,
+  readRequestedDeadline,
 } from '@/tools/request-transport'
 import type {
   BYOKProviderId,
@@ -1051,31 +1061,14 @@ const RESPONSE_SIZE_LIMIT_ERROR_MESSAGE =
 const SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE =
   'External integration tools cannot target this Sim instance; use an internal operation'
 
-/**
- * Validates request body size and throws a user-friendly error if exceeded
- * @param body - The request body string to check
- * @param requestId - Request ID for logging
- * @param context - Context string for logging (e.g., toolId)
- * @throws Error if body size exceeds the limit
- */
-function validateRequestBodySize(
-  body: string | undefined,
-  requestId: string,
-  context: string
-): void {
-  if (!body) return
+/** The author's data is too large to send, so it is a user failure. */
+function bodySizeLimitError(): Error {
+  return markFailureKind(new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE), 'user')
+}
 
-  const bodySize = Buffer.byteLength(body, 'utf8')
-  if (bodySize > MAX_REQUEST_BODY_SIZE_BYTES) {
-    const bodySizeMB = (bodySize / (1024 * 1024)).toFixed(2)
-    const maxSizeMB = (MAX_REQUEST_BODY_SIZE_BYTES / (1024 * 1024)).toFixed(0)
-    logger.error(`[${requestId}] Request body size exceeds limit for ${context}:`, {
-      bodySize,
-      bodySizeMB: `${bodySizeMB}MB`,
-      maxSize: MAX_REQUEST_BODY_SIZE_BYTES,
-      maxSizeMB: `${maxSizeMB}MB`,
-    })
-    throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+function validateRequestBodySize(body: string | undefined): void {
+  if (body && Buffer.byteLength(body, 'utf8') > MAX_REQUEST_BODY_SIZE_BYTES) {
+    throw bodySizeLimitError()
   }
 }
 
@@ -1096,51 +1089,16 @@ function isBodySizeLimitError(errorMessage: string): boolean {
   )
 }
 
-/**
- * Handles body size limit errors by logging and throwing a user-friendly error
- * @param error - The original error
- * @param requestId - Request ID for logging
- * @param context - Context string for logging (e.g., toolId)
- * @throws Error with user-friendly message if it's a size limit error
- * @returns false if not a size limit error (caller should continue handling)
- */
-function handleBodySizeLimitError(
-  error: unknown,
-  requestId: string,
-  context: string,
-  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
-  structuralOnlyWithoutRegistry = false
-): boolean {
-  const errorMessage = toError(error).message
-
-  if (isBodySizeLimitError(errorMessage)) {
-    logger.error(
-      `[${requestId}] Request body size limit exceeded for ${context}:`,
-      projectToolLogMetadata(
-        { originalError: errorMessage },
-        resolvedSecretTraceRegistry,
-        {
-          hasOriginalError: errorMessage.length > 0,
-        },
-        structuralOnlyWithoutRegistry
-      )
-    )
-    throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
-  }
-
-  return false
+/** Rethrows a transport-level body size rejection as the user-facing size limit error. */
+function handleBodySizeLimitError(error: unknown): void {
+  if (isBodySizeLimitError(toError(error).message)) throw bodySizeLimitError()
 }
 
-function handleResponseSizeLimitError(error: unknown, requestId: string, context: string): boolean {
-  if (!isPayloadSizeLimitError(error)) return false
-
-  logger.error(`[${requestId}] Response body size limit exceeded for ${context}:`, {
-    label: error.label,
-    maxBytes: error.maxBytes,
-    observedBytes: error.observedBytes,
-  })
+/** The author's request returned more than a tool response may carry; a user failure. */
+function handleResponseSizeLimitError(error: unknown): void {
+  if (!isPayloadSizeLimitError(error)) return
   if (error.maxBytes !== MAX_TOOL_RESPONSE_BODY_BYTES) throw error
-  throw new Error(RESPONSE_SIZE_LIMIT_ERROR_MESSAGE)
+  throw markFailureKind(new Error(RESPONSE_SIZE_LIMIT_ERROR_MESSAGE), 'user')
 }
 
 function cloneResponseHeaders(headers: Headers | HeadersInit | undefined): Headers {
@@ -1192,6 +1150,44 @@ async function readToolResponseBody(
     )
     return Buffer.alloc(0)
   }
+}
+
+/**
+ * Upstream rejections from the external HTTP path. Only their (extractor-redacted) response body
+ * is logged: an internal operation's or a Function's body carries the author's data, stdout, and
+ * source lines.
+ */
+const externalHttpFailures = new WeakSet<object>()
+
+function createExternalHttpFailure(errorInfo?: ErrorInfo, extractorId?: string): Error {
+  const failure = createTransformedErrorFromErrorInfo(errorInfo, extractorId)
+  externalHttpFailures.add(failure)
+  /** An error payload on a 2xx carries no status but is still the provider refusing. */
+  return errorInfo?.status === undefined ? markFailureKind(failure, 'third_party_client') : failure
+}
+
+/**
+ * Attributes a failed in-process operation. Its status is Sim's own, not a third party's: a 4xx
+ * is the author's input or code (a Function's 422), a 5xx is Sim's fault.
+ */
+function createInternalOperationFailure(errorInfo: ErrorInfo, extractorId?: string): Error {
+  return markFailureKind(
+    createTransformedErrorFromErrorInfo(errorInfo, extractorId),
+    errorInfo.status !== undefined && errorInfo.status < 500 ? 'user' : 'internal'
+  )
+}
+
+/**
+ * The `output` of a failed tool result this layer has logged. Marked so that `adoptToolFailure`
+ * carries the logged mark and attribution onto the error a block handler rebuilds from it.
+ */
+function loggedFailureOutput(
+  error: unknown,
+  output: Record<string, unknown> = {}
+): Record<string, unknown> {
+  markFailureLogged(output)
+  markFailureKind(output, classifyFailure(error))
+  return output
 }
 
 /**
@@ -1836,10 +1832,14 @@ async function executeToolImplementation(
       }
     }
 
-    validateRequiredParametersAfterMerge(toolId, tool, contextParams)
-
     if (!tool) {
       throw new Error(`Tool not found: ${toolId}`)
+    }
+
+    try {
+      validateRequiredParametersAfterMerge(toolId, tool, contextParams)
+    } catch (validationError) {
+      throw markFailureKind(validationError, 'user')
     }
 
     await normalizeFileParams(tool, contextParams, scope, executionContext)
@@ -1885,6 +1885,7 @@ async function executeToolImplementation(
       contextParams.credentialId = undefined
       contextParams.oauthCredential = undefined
     }
+    let refreshCredential: ((signal: AbortSignal) => Promise<void>) | undefined
     if (contextParams.credential) {
       logger.info(`[${requestId}] Resolving tool access token`, { toolId: normalizedToolId })
       try {
@@ -1911,96 +1912,120 @@ async function executeToolImplementation(
          */
         const enforceCredentialAccess = Boolean(contextParams._context?.enforceCredentialAccess)
 
-        let data: CredentialTokenPayload
-        if (typeof window === 'undefined') {
-          /**
-           * Dynamic import for the same client-bundle reason as the workflow_executor
-           * runner below: the resolver pulls the db/audit dependency graph, which must
-           * never enter the client-bundled tool registry.
-           */
-          const { resolveExecutorCredentialToken } = await import(
-            '@/executor/utils/credential-token'
-          )
-          data = await resolveExecutorCredentialToken({
-            requestId,
-            credentialId,
-            userId,
-            workflowId,
-            toolId,
-            toolLabel,
-            scopes: providerScopes,
-            impersonateEmail,
-            enforceCredentialAccess,
-            executorDelegationOrigin: executionContext?.executorDelegationOrigin,
-            ...(operationContext?.copilotToolExecution
-              ? { copilotExecutionContext: operationContext }
-              : {}),
-          })
-        } else {
-          data = await fetchCredentialTokenFromRoute({
-            requestId,
-            toolId,
-            toolLabel,
-            credentialId,
-            workflowId,
-            impersonateEmail,
-            scopes: providerScopes,
-            callerUserId: userId && enforceCredentialAccess ? userId : undefined,
-          })
-        }
+        const credentialTool = tool
+        const resolveCredential = async (signal?: AbortSignal): Promise<void> => {
+          signal?.throwIfAborted()
+          let data: CredentialTokenPayload
+          if (typeof window === 'undefined') {
+            /**
+             * Dynamic import for the same client-bundle reason as the workflow_executor
+             * runner below: the resolver pulls the db/audit dependency graph, which must
+             * never enter the client-bundled tool registry.
+             */
+            const { resolveExecutorCredentialToken } = await import(
+              '@/executor/utils/credential-token'
+            )
+            data = await waitWithAbort(
+              resolveExecutorCredentialToken({
+                requestId,
+                credentialId,
+                userId,
+                workflowId,
+                toolId,
+                toolLabel,
+                scopes: providerScopes,
+                impersonateEmail,
+                enforceCredentialAccess,
+                executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+                ...(operationContext?.copilotToolExecution
+                  ? { copilotExecutionContext: operationContext }
+                  : {}),
+              }),
+              signal
+            )
+          } else {
+            data = await waitWithAbort(
+              fetchCredentialTokenFromRoute({
+                requestId,
+                toolId,
+                toolLabel,
+                credentialId,
+                workflowId,
+                impersonateEmail,
+                scopes: providerScopes,
+                callerUserId: userId && enforceCredentialAccess ? userId : undefined,
+              }),
+              signal
+            )
+          }
 
-        if (tool.oauth?.credentialKind) {
-          const actualCredentialKind =
-            data.credentialType === 'service_account'
-              ? 'service-account'
-              : data.credentialType === 'oauth' || data.credentialType === 'managed_oauth'
-                ? 'oauth'
-                : null
-          if (actualCredentialKind !== tool.oauth.credentialKind) {
-            throw new Error(`${tool.name} requires a ${tool.oauth.credentialKind} credential`)
+          signal?.throwIfAborted()
+
+          if (credentialTool.oauth?.credentialKind) {
+            const actualCredentialKind =
+              data.credentialType === 'service_account'
+                ? 'service-account'
+                : data.credentialType === 'oauth' || data.credentialType === 'managed_oauth'
+                  ? 'oauth'
+                  : null
+            if (actualCredentialKind !== credentialTool.oauth.credentialKind) {
+              throw new Error(
+                `${credentialTool.name} requires a ${credentialTool.oauth.credentialKind} credential`
+              )
+            }
+          }
+
+          if (operationContext?.requestMode === 'assistant') {
+            await registerAssistantCredentialSecrets(resolvedSecretTraceRegistry, [
+              data.accessToken,
+              data.idToken,
+            ])
+          }
+          for (const paramId of credentialTool.oauth?.authoritativeParams ?? []) {
+            contextParams[paramId] = undefined
+          }
+          contextParams.accessToken = data.accessToken
+          if (operationContext?.requestMode === 'assistant') {
+            const tokenParam = assistantConnectedAccountTokenParam(credentialTool)
+            if (tokenParam) contextParams[tokenParam] = data.accessToken
+          }
+          if (
+            data.credentialType &&
+            credentialTool.oauth?.authoritativeParams?.includes('credentialType')
+          ) {
+            contextParams.credentialType = data.credentialType
+          }
+          if (data.idToken) {
+            contextParams.idToken = data.idToken
+          }
+          if (data.instanceUrl) {
+            contextParams.instanceUrl = data.instanceUrl
+          }
+          if (data.apiDomain && !contextParams.apiDomain) {
+            contextParams.apiDomain = data.apiDomain
+          }
+          if (data.cloudId && !contextParams.cloudId) {
+            contextParams.cloudId = data.cloudId
+          }
+          if (data.domain && !contextParams.domain) {
+            contextParams.domain = data.domain
+          }
+          if (data.realmId && credentialTool.oauth?.authoritativeParams?.includes('realmId')) {
+            contextParams.realmId = data.realmId
+          }
+          if (
+            data.quickBooksEnvironment &&
+            credentialTool.oauth?.authoritativeParams?.includes('quickBooksEnvironment')
+          ) {
+            contextParams.quickBooksEnvironment = data.quickBooksEnvironment
+          }
+          if (data.authStyle && !contextParams.authStyle) {
+            contextParams.authStyle = data.authStyle
           }
         }
-
-        if (operationContext?.requestMode === 'assistant') {
-          await registerAssistantCredentialSecrets(resolvedSecretTraceRegistry, [
-            data.accessToken,
-            data.idToken,
-          ])
-        }
-        contextParams.accessToken = data.accessToken
-        if (operationContext?.requestMode === 'assistant') {
-          const tokenParam = assistantConnectedAccountTokenParam(tool)
-          if (tokenParam) contextParams[tokenParam] = data.accessToken
-        }
-        if (data.credentialType && tool.oauth?.authoritativeParams?.includes('credentialType')) {
-          contextParams.credentialType = data.credentialType
-        }
-        if (data.idToken) {
-          contextParams.idToken = data.idToken
-        }
-        if (data.instanceUrl) {
-          contextParams.instanceUrl = data.instanceUrl
-        }
-        if (data.apiDomain && !contextParams.apiDomain) {
-          contextParams.apiDomain = data.apiDomain
-        }
-        if (data.cloudId && !contextParams.cloudId) {
-          contextParams.cloudId = data.cloudId
-        }
-        if (data.domain && !contextParams.domain) {
-          contextParams.domain = data.domain
-        }
-        if (data.realmId && tool.oauth?.authoritativeParams?.includes('realmId')) {
-          contextParams.realmId = data.realmId
-        }
-        if (
-          data.quickBooksEnvironment &&
-          tool.oauth?.authoritativeParams?.includes('quickBooksEnvironment')
-        ) {
-          contextParams.quickBooksEnvironment = data.quickBooksEnvironment
-        }
-        if (data.authStyle && !contextParams.authStyle) {
-          contextParams.authStyle = data.authStyle
+        await resolveCredential(effectiveSignal)
+        if (tool.oauth?.retryOnUnauthorized && tool.operation) {
+          refreshCredential = resolveCredential
         }
 
         logger.info(`[${requestId}] Successfully got access token for ${toolId}`)
@@ -2017,9 +2042,12 @@ async function executeToolImplementation(
         contextParams.impersonateUserEmail = undefined
         if (contextParams.workflowId) contextParams.workflowId = undefined
       } catch (error: any) {
-        logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {
-          error: toError(error).message,
-        })
+        // A revoked credential is the user's to reconnect; the resolver already logged it.
+        if (!(error instanceof CredentialRevokedError)) {
+          logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {
+            error: toError(error).message,
+          })
+        }
         throw error
       }
     }
@@ -2136,6 +2164,7 @@ async function executeToolImplementation(
         privateToolMetadataType,
         resolvedSecretTraceRegistry,
         internalSandboxProfile,
+        refreshCredential,
       })
 
       let finalResult = result
@@ -2292,32 +2321,41 @@ async function executeToolImplementation(
     const normalizedError = toError(error)
     const databaseQueryError = findDatabaseQueryError(error)
     const databaseErrorCause = databaseQueryError ? describeError(error) : undefined
-    logger.error(
-      `[${requestId}] Error executing tool ${toolId}:`,
-      projectToolLogMetadata(
-        {
-          ...(databaseErrorCause
-            ? { cause: databaseErrorCause }
-            : {
-                error: normalizedError.message,
-                stack: error instanceof Error ? error.stack : undefined,
-              }),
-        },
-        resolvedSecretTraceRegistry,
-        {
-          errorName: normalizedError.name,
-          hasStack: !databaseErrorCause && Boolean(error instanceof Error && error.stack),
-          ...(databaseErrorCause ? { cause: databaseErrorCause } : {}),
-        },
-        structuralOnlyToolLogs
-      )
-    )
+    const upstreamStatus: unknown = error?.status
+    const hostedKeyFailure = hostedKeyForMetrics ? classifyHostedKeyFailure(error) : undefined
+    /** Sim's own hosted key being refused or throttled is Sim's fault and Sim's capacity. */
+    if (hostedKeyFailure && hostedKeyFailure !== 'other') markFailureKind(error, 'internal')
+    const toolContext = toRecord(params._context)
+    logFailureOnce(logger, `[${requestId}] Error executing tool ${toolId}:`, error, {
+      metadata: () => ({
+        toolId,
+        workflowId: executionContext?.workflowId ?? undefined,
+        executionId: executionContext?.executionId,
+        blockId: typeof toolContext.blockId === 'string' ? toolContext.blockId : undefined,
+        ...(typeof upstreamStatus === 'number' ? { status: upstreamStatus } : {}),
+        ...projectToolLogMetadata(
+          {
+            ...(databaseErrorCause
+              ? { cause: databaseErrorCause }
+              : {
+                  error: normalizedError.message,
+                  stack: error instanceof Error ? error.stack : undefined,
+                  ...(externalHttpFailures.has(error) ? { errorData: error.data } : {}),
+                }),
+          },
+          resolvedSecretTraceRegistry,
+          {
+            errorName: normalizedError.name,
+            hasStack: !databaseErrorCause && Boolean(error instanceof Error && error.stack),
+            ...(databaseErrorCause ? { cause: databaseErrorCause } : {}),
+          },
+          structuralOnlyToolLogs
+        ),
+      }),
+    })
 
-    if (hostedKeyForMetrics) {
-      hostedKeyMetrics.recordFailed({
-        ...hostedKeyForMetrics,
-        reason: classifyHostedKeyFailure(error),
-      })
+    if (hostedKeyForMetrics && hostedKeyFailure) {
+      hostedKeyMetrics.recordFailed({ ...hostedKeyForMetrics, reason: hostedKeyFailure })
     }
 
     let errorMessage = 'Unknown error occurred'
@@ -2391,10 +2429,10 @@ async function executeToolImplementation(
       normalizedToolId === 'function_execute' ? readFunctionSandboxCost(responseData) : undefined
     return {
       success: false,
-      output: {
+      output: loggedFailureOutput(error, {
         ...errorDetails,
         ...(functionSandboxCost ? { cost: functionSandboxCost } : {}),
-      },
+      }),
       error: errorMessage,
       ...(responseData?.retryable === false ? { retryable: false } : {}),
       // Sim's own status (hosted-key 429/503) survives the flattening from a
@@ -2546,6 +2584,7 @@ interface ExecuteDeclaredInternalOperationInput {
   privateToolMetadataType?: PrivateToolMetadataType
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   internalSandboxProfile?: InternalSandboxProfile
+  refreshCredential?: (signal: AbortSignal) => Promise<void>
 }
 
 function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
@@ -2593,6 +2632,7 @@ async function executeDeclaredInternalOperation({
   privateToolMetadataType,
   resolvedSecretTraceRegistry,
   internalSandboxProfile,
+  refreshCredential,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
   const organizationScratch =
     toolId === 'function_execute' &&
@@ -2626,14 +2666,18 @@ async function executeDeclaredInternalOperation({
     'schema' in operationInput &&
     'params' in operationInput
   ) {
-    validateClientSideParams(
-      operationInput.params as Record<string, any>,
-      operationInput.schema as {
-        type: string
-        properties: Record<string, any>
-        required?: string[]
-      }
-    )
+    try {
+      validateClientSideParams(
+        operationInput.params as Record<string, any>,
+        operationInput.schema as {
+          type: string
+          properties: Record<string, any>
+          required?: string[]
+        }
+      )
+    } catch (validationError) {
+      throw markFailureKind(validationError, 'user')
+    }
   }
 
   const headers = new Headers()
@@ -2675,7 +2719,7 @@ async function executeDeclaredInternalOperation({
   if (privateToolMetadataType) {
     headers.set(PRIVATE_TOOL_METADATA_REQUEST_HEADER, privateToolMetadataType)
   }
-  validateRequestBodySize(JSON.stringify(operationInput), requestId, toolId)
+  validateRequestBodySize(JSON.stringify(operationInput))
   const deadline = serializeExecutionDeadlineHeader(signal)
   if (deadline) headers.set(INTERNAL_EXECUTION_DEADLINE_HEADER, deadline)
   const billingAttribution = context.billingAttribution
@@ -2706,7 +2750,7 @@ async function executeDeclaredInternalOperation({
   } else {
     const handler = await getInternalToolOperationHandler(toolId)
     if (!handler) throw new Error(`No internal operation registered for ${toolId}`)
-    const requestedTimeout = Number(params.timeout)
+    const requestedTimeout = Number(readRequestedDeadline(tool, params))
     const operationTimeout =
       Number.isFinite(requestedTimeout) && requestedTimeout > 0
         ? Math.min(requestedTimeout, getMaxExecutionTimeout())
@@ -2723,6 +2767,23 @@ async function executeDeclaredInternalOperation({
         requestId,
         signal: operationController.signal,
       })
+      if (result instanceof Response && result.status === 401 && refreshCredential) {
+        await result.body?.cancel()
+        operationController.signal.throwIfAborted()
+        await refreshCredential(operationController.signal)
+        operationController.signal.throwIfAborted()
+        return await executeDeclaredInternalOperation({
+          toolId,
+          tool,
+          params,
+          context,
+          signal: operationController.signal,
+          requestId,
+          privateToolMetadataType,
+          resolvedSecretTraceRegistry,
+          internalSandboxProfile,
+        })
+      }
       response = await presentInternalToolOperationResult(
         result,
         context,
@@ -2764,7 +2825,7 @@ async function executeDeclaredInternalOperation({
     } catch {
       errorData = errorText
     }
-    throw createTransformedErrorFromErrorInfo(
+    throw createInternalOperationFailure(
       { status: response.status, statusText: response.statusText, data: errorData },
       tool.errorExtractor
     )
@@ -2782,6 +2843,11 @@ async function executeDeclaredInternalOperation({
   }
 }
 
+/** A tool or proxy URL the author configured that Sim refuses to call; the author's to fix. */
+function invalidToolTarget(message: string): Error {
+  return markFailureKind(new Error(message), 'user')
+}
+
 /** Executes one external tool request with DNS validation and IP pinning. */
 async function executeToolRequest(
   toolId: string,
@@ -2792,7 +2858,6 @@ async function executeToolRequest(
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 ): Promise<ToolResponse> {
   const requestId = generateRequestId()
-  const structuralOnlyToolLogs = false
   try {
     const requestParams = prepareToolRequest(tool, params, resolvedSecretTraceRegistry)
     const { headers } = requestParams
@@ -2800,7 +2865,7 @@ async function executeToolRequest(
     const targetsThisSimInstance = isSelfOriginUrl(fullUrl)
 
     if (targetsThisSimInstance && tool.request.allowSameOrigin !== true) {
-      throw new Error(SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE)
+      throw invalidToolTarget(SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE)
     }
 
     if (targetsThisSimInstance) {
@@ -2810,7 +2875,7 @@ async function executeToolRequest(
       }
     }
 
-    validateRequestBodySize(requestParams.body, requestId, toolId)
+    validateRequestBodySize(requestParams.body)
 
     const headersRecord: Record<string, string> = {}
     headers.forEach((value, key) => {
@@ -2832,14 +2897,14 @@ async function executeToolRequest(
       try {
         const urlValidation = await validateUrlWithDNS(fullUrl, 'toolUrl', 'requestTarget')
         if (!urlValidation.isValid) {
-          throw new Error(`Invalid tool URL: ${urlValidation.error}`)
+          throw invalidToolTarget(`Invalid tool URL: ${urlValidation.error}`)
         }
 
         let proxyOption: string | undefined
         if (requestParams.proxyUrl) {
           const proxyValidation = await validateAndPinProxyUrl(requestParams.proxyUrl)
           if (!proxyValidation.isValid) {
-            throw new Error(`Invalid proxy URL: ${proxyValidation.error}`)
+            throw invalidToolTarget(`Invalid proxy URL: ${proxyValidation.error}`)
           }
           proxyOption = proxyValidation.pinnedProxyUrl
         }
@@ -2860,7 +2925,7 @@ async function executeToolRequest(
               ? undefined
               : (redirectUrl) => {
                   if (isSelfOriginUrl(redirectUrl)) {
-                    throw new Error(SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE)
+                    throw invalidToolTarget(SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE)
                   }
                 },
         })
@@ -2973,46 +3038,13 @@ async function executeToolRequest(
         data: errorData,
       }
 
-      const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
+      const errorToTransform = createExternalHttpFailure(errorInfo, tool.errorExtractor)
       const hasStructuredErrorPayload =
         isRecordLike(errorData) && ('error' in errorData || 'message' in errorData)
 
       if (response.status === 413 && !hasStructuredErrorPayload) {
-        logger.error(
-          `[${requestId}] Request body too large for ${toolId} (HTTP 413):`,
-          projectToolLogMetadata(
-            {
-              status: response.status,
-              statusText: response.statusText,
-              errorData,
-            },
-            resolvedSecretTraceRegistry,
-            {
-              status: response.status,
-              statusText: response.statusText,
-              hasErrorData: errorData !== null,
-            },
-            structuralOnlyToolLogs
-          )
-        )
-        throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+        throw bodySizeLimitError()
       }
-
-      logger.error(
-        `[${requestId}] External tool error for ${toolId}:`,
-        projectToolLogMetadata(
-          {
-            status: errorInfo.status,
-            errorData: errorInfo.data,
-          },
-          resolvedSecretTraceRegistry,
-          {
-            status: errorInfo.status,
-            hasErrorData: errorInfo.data !== null,
-          },
-          structuralOnlyToolLogs
-        )
-      )
 
       throw errorToTransform
     }
@@ -3028,17 +3060,11 @@ async function executeToolRequest(
         try {
           responseData = await response.json()
         } catch (jsonError) {
-          const normalizedError = toError(jsonError)
-          logger.error(
-            `[${requestId}] JSON parse error for ${toolId}:`,
-            projectToolLogMetadata(
-              { error: normalizedError.message },
-              resolvedSecretTraceRegistry,
-              { errorName: normalizedError.name },
-              structuralOnlyToolLogs
-            )
+          /** The endpoint answered with a body that is not JSON; not Sim's fault. */
+          throw markFailureKind(
+            new Error(`Failed to parse response from ${toolId}: ${jsonError}`),
+            'third_party_server'
           )
-          throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
         }
       }
     }
@@ -3046,86 +3072,64 @@ async function executeToolRequest(
     const { isError, errorInfo } = isErrorResponse(response, responseData)
 
     if (isError) {
-      const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
-
-      logger.error(
-        `[${requestId}] External tool error for ${toolId}:`,
-        projectToolLogMetadata(
-          {
-            status: errorInfo?.status,
-            errorData: errorInfo?.data,
-          },
-          resolvedSecretTraceRegistry,
-          {
-            status: errorInfo?.status,
-            hasErrorData: errorInfo?.data !== null && errorInfo?.data !== undefined,
-          },
-          structuralOnlyToolLogs
-        )
-      )
-
-      throw errorToTransform
+      throw createExternalHttpFailure(errorInfo, tool.errorExtractor)
     }
 
     if (tool.transformResponse) {
-      try {
-        // Forward the real body stream. Some transformResponse helpers (e.g. TikTok)
-        // read via readResponseTextWithLimit, which requires `.body` (or Content-Length)
-        // and otherwise mis-reports a false "response exceeded maximum size" error.
-        const mockResponse = {
-          ok: response.ok,
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers,
-          url: fullUrl,
-          body: response.body,
-          json: () => response.json(),
-          text: () => response.text(),
-          arrayBuffer: () => response.arrayBuffer(),
-          blob: () => response.blob(),
-        } as Response
+      // Forward the real body stream. Some transformResponse helpers (e.g. TikTok)
+      // read via readResponseTextWithLimit, which requires `.body` (or Content-Length)
+      // and otherwise mis-reports a false "response exceeded maximum size" error.
+      const mockResponse = {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+        url: fullUrl,
+        body: response.body,
+        json: () => response.json(),
+        text: () => response.text(),
+        arrayBuffer: () => response.arrayBuffer(),
+        blob: () => response.blob(),
+      } as Response
 
-        const data = await tool.transformResponse(mockResponse, params, { signal })
-        if (tool.request.responseType === 'binary' && data.success) {
-          if (!context) throw new Error('Binary file output requires trusted execution context')
-          const file = data.output?.file
-          if (
-            !isRecordLike(file) ||
-            !Buffer.isBuffer(file.data) ||
-            typeof file.name !== 'string' ||
-            typeof file.mimeType !== 'string'
-          ) {
-            throw new Error('Binary download tools must return a buffered file output')
-          }
-          return await storeInternalToolFileResult(
-            createInternalToolFileResult(
-              { buffer: file.data, name: file.name, mimeType: file.mimeType },
-              (stored) => ({ ...data, output: { ...data.output, file: stored } })
-            ),
-            context,
-            (body) => {
-              if (!isToolResponse(body)) throw new Error('Invalid binary tool response')
-              return body
-            },
-            signal
-          )
-        }
-        return data
+      /**
+       * A transform throws a plain `Error` to report what the provider rejected (Slack's
+       * `{ ok: false }` arrives as a 200). A `TypeError` from the transform itself is ours.
+       */
+      let data: ToolResponse
+      try {
+        data = await tool.transformResponse(mockResponse, params, { signal })
       } catch (transformError) {
-        const normalizedError = toError(transformError)
-        logger.error(
-          `[${requestId}] Transform response error for ${toolId}:`,
-          projectToolLogMetadata(
-            { error: normalizedError.message },
-            resolvedSecretTraceRegistry,
-            {
-              errorName: normalizedError.name,
-            },
-            structuralOnlyToolLogs
-          )
-        )
-        throw transformError
+        throw transformError instanceof Error &&
+          Object.getPrototypeOf(transformError) === Error.prototype
+          ? markFailureKind(transformError, 'third_party_client')
+          : transformError
       }
+      if (tool.request.responseType === 'binary' && data.success) {
+        if (!context) throw new Error('Binary file output requires trusted execution context')
+        const file = data.output?.file
+        if (
+          !isRecordLike(file) ||
+          !Buffer.isBuffer(file.data) ||
+          typeof file.name !== 'string' ||
+          typeof file.mimeType !== 'string'
+        ) {
+          throw new Error('Binary download tools must return a buffered file output')
+        }
+        return await storeInternalToolFileResult(
+          createInternalToolFileResult(
+            { buffer: file.data, name: file.name, mimeType: file.mimeType },
+            (stored) => ({ ...data, output: { ...data.output, file: stored } })
+          ),
+          context,
+          (body) => {
+            if (!isToolResponse(body)) throw new Error('Invalid binary tool response')
+            return body
+          },
+          signal
+        )
+      }
+      return data
     }
 
     return {
@@ -3134,28 +3138,11 @@ async function executeToolRequest(
       error: undefined,
     }
   } catch (error: any) {
-    handleResponseSizeLimitError(error, requestId, toolId)
+    handleResponseSizeLimitError(error)
 
-    handleBodySizeLimitError(
-      error,
-      requestId,
-      toolId,
-      resolvedSecretTraceRegistry,
-      structuralOnlyToolLogs
-    )
+    handleBodySizeLimitError(error)
 
-    const normalizedError = toError(error)
-    logger.error(
-      `[${requestId}] External request error for ${toolId}:`,
-      projectToolLogMetadata(
-        { error: normalizedError.message },
-        resolvedSecretTraceRegistry,
-        {
-          errorName: normalizedError.name,
-        },
-        structuralOnlyToolLogs
-      )
-    )
+    if (isRetryableNetworkError(error)) markFailureKind(error, 'third_party_server')
 
     throw error
   }
@@ -3245,7 +3232,7 @@ async function executeMcpTool(
 
   try {
     logger.info(`[${actualRequestId}] Executing MCP tool: ${toolId}`)
-    validateRequestBodySize(JSON.stringify(params), actualRequestId, `mcp:${toolId}`)
+    validateRequestBodySize(JSON.stringify(params))
     const handler = await getInternalToolOperationHandler(toolId)
     if (!handler) throw new Error(`No internal operation registered for ${toolId}`)
     const resultResponse = await handler({
@@ -3336,17 +3323,34 @@ async function executeMcpTool(
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - new Date(actualStartTime).getTime()
 
+    /** These lines replace the block executor's, so they carry the run identity themselves. */
+    const blockId = toRecord(params._context).blockId
+    const runIdentity = {
+      workflowId: context?.workflowId,
+      executionId: context?.executionId,
+      blockId: typeof blockId === 'string' ? blockId : undefined,
+    }
     const errorMsg = toError(error).message
     if (isBodySizeLimitError(errorMsg)) {
-      logger.error(
+      const failure = bodySizeLimitError()
+      logFailureOnce(
+        logger,
         `[${actualRequestId}] Request body size limit exceeded for mcp:${toolId}:`,
-        projectToolLogMetadata({ originalError: errorMsg }, context?.resolvedSecretTraceRegistry, {
-          hasOriginalError: errorMsg.length > 0,
-        })
+        failure,
+        {
+          metadata: () => ({
+            ...runIdentity,
+            ...projectToolLogMetadata(
+              { originalError: errorMsg },
+              context?.resolvedSecretTraceRegistry,
+              { hasOriginalError: errorMsg.length > 0 }
+            ),
+          }),
+        }
       )
       return {
         success: false,
-        output: {},
+        output: loggedFailureOutput(failure),
         error: BODY_SIZE_LIMIT_ERROR_MESSAGE,
         timing: {
           startTime: actualStartTime,
@@ -3357,26 +3361,28 @@ async function executeMcpTool(
     }
 
     const normalizedError = toError(error)
-    logger.error(
-      `[${actualRequestId}] Error executing MCP tool ${toolId}:`,
-      projectToolLogMetadata(
-        {
-          error: normalizedError.message,
-          stack: error instanceof Error ? error.stack : undefined,
-        },
-        context?.resolvedSecretTraceRegistry,
-        {
-          errorName: normalizedError.name,
-          hasStack: Boolean(error instanceof Error && error.stack),
-        }
-      )
-    )
+    logFailureOnce(logger, `[${actualRequestId}] Error executing MCP tool ${toolId}:`, error, {
+      metadata: () => ({
+        ...runIdentity,
+        ...projectToolLogMetadata(
+          {
+            error: normalizedError.message,
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+          context?.resolvedSecretTraceRegistry,
+          {
+            errorName: normalizedError.name,
+            hasStack: Boolean(error instanceof Error && error.stack),
+          }
+        ),
+      }),
+    })
 
     const errorMessage = getErrorMessage(error, `Failed to execute MCP tool ${toolId}`)
 
     return {
       success: false,
-      output: {},
+      output: loggedFailureOutput(error),
       error: errorMessage,
       timing: {
         startTime: actualStartTime,

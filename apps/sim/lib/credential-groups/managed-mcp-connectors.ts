@@ -31,6 +31,8 @@ interface DatabricksManagedMcpConnector extends ManagedMcpConnectorMetadata {
 interface FixedPreregisteredManagedMcpConnector extends ManagedMcpConnectorMetadata {
   id: 'hubspot' | 'zoom'
   url: string
+  /** The only authorization server the deployment client secret is ever presented to. */
+  authorizationServer: string
   oauthClientRegistration: 'preregistered'
 }
 
@@ -45,6 +47,7 @@ export const MANAGED_MCP_CONNECTORS = {
     name: 'Zoom',
     description: 'Search past meetings, transcripts and notes using your Zoom account',
     url: 'https://mcp.zoom.us/mcp/meeting/streamable',
+    authorizationServer: 'https://zoom.us',
     oauthClientRegistration: 'preregistered',
   },
   lucid: {
@@ -60,6 +63,7 @@ export const MANAGED_MCP_CONNECTORS = {
     name: 'HubSpot',
     description: 'Search CRM records using each person’s HubSpot permissions',
     url: 'https://mcp.hubspot.com',
+    authorizationServer: 'https://mcp.hubspot.com',
     oauthClientRegistration: 'preregistered',
   },
   coda: {

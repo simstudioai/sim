@@ -51,13 +51,18 @@ vi.mock('@/lib/oauth/slack', () => ({
   fanOutSlackTokenChain: vi.fn(),
   getFreshestSlackChain: hoisted.getFreshestSlackChain,
   hasSlackChainMoved: vi.fn(() => false),
+  installationFilter: vi.fn(),
   isSlackProvider: (providerId: string) => providerId === 'slack',
 }))
 
 vi.mock('@/lib/oauth/terminal-errors', () => ({
   getRecentTerminalError: hoisted.getRecentTerminalError,
-  isTerminalRefreshError: vi.fn(() => false),
   markCredentialDead: vi.fn(),
+}))
+
+vi.mock('@/lib/oauth/refresh-error-codes', () => ({
+  isCredentialRevocationError: vi.fn(() => false),
+  isTerminalRefreshError: vi.fn(() => false),
 }))
 
 import {
@@ -72,8 +77,9 @@ import {
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import { isMicrosoftProvider } from '@/lib/oauth/microsoft'
 import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
+import { isTerminalRefreshError } from '@/lib/oauth/refresh-error-codes'
 import { fanOutSlackTokenChain } from '@/lib/oauth/slack'
-import { isTerminalRefreshError, markCredentialDead } from '@/lib/oauth/terminal-errors'
+import { markCredentialDead } from '@/lib/oauth/terminal-errors'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 const serviceLogger = getMockLogger('OAuthCredentialService')
@@ -503,6 +509,7 @@ describe('OAuth access-token refresh headroom', () => {
   it('returns no token when the rotation write finds the account gone', async () => {
     queueCredentialAccount(createOAuthAccount())
     dbChainMockFns.returning.mockResolvedValueOnce([])
+    queueTableRows(account, [createOAuthAccount()])
     queueTableRows(account, [])
     await expect(
       resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
@@ -512,7 +519,8 @@ describe('OAuth access-token refresh headroom', () => {
   it('does not flag a credential dead when a terminal failure follows a newer rotation', async () => {
     queueCredentialAccount(createOAuthAccount())
     vi.mocked(isTerminalRefreshError).mockReturnValue(true)
-    mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_grant' })
+    mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_client' })
+    queueTableRows(account, [createOAuthAccount()])
     queueTableRows(account, [
       {
         ...createOAuthAccount(3_600_000),
@@ -529,19 +537,20 @@ describe('OAuth access-token refresh headroom', () => {
   it('flags a credential dead on a terminal failure when its chain did not move', async () => {
     queueCredentialAccount(createOAuthAccount())
     vi.mocked(isTerminalRefreshError).mockReturnValue(true)
-    mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_grant' })
+    mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_client' })
+    queueTableRows(account, [createOAuthAccount()])
     queueTableRows(account, [createOAuthAccount()])
     await expect(
       resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
     ).resolves.toBeNull()
-    expect(markCredentialDead).toHaveBeenCalledWith(expect.any(String), 'invalid_grant')
-    expect(isTerminalRefreshError).toHaveBeenCalledWith('invalid_grant', 'google-drive')
+    expect(markCredentialDead).toHaveBeenCalledWith(expect.any(String), 'invalid_client')
   })
 
   it('uses the stored chain when the rotation write loses to a newer one', async () => {
     queueCredentialAccount(createOAuthAccount())
     /** Another writer rotated first: no row still holds the token this refresh started from. */
     dbChainMockFns.returning.mockResolvedValueOnce([])
+    queueTableRows(account, [createOAuthAccount()])
     queueTableRows(account, [{ ...createOAuthAccount(3_600_000), accessToken: 'winner-token' }])
     await expect(
       resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
@@ -577,7 +586,9 @@ describe('OAuth access-token refresh headroom', () => {
         expect.objectContaining({
           accessToken: refresh ? 'refreshed-access-token' : 'installation-access-token',
         }),
-        { ifChainUnchangedSince: chainVersion }
+        refresh
+          ? { ifChainUnchangedSince: chainVersion, freshlyIssued: true }
+          : { ifChainUnchangedSince: chainVersion }
       )
     }
   )
@@ -884,5 +895,18 @@ describe('getCredentialTerminalRefreshError', () => {
     ])
     await expect(getCredentialTerminalRefreshError(RAW_CREDENTIAL_ID)).resolves.toBeNull()
     expect(mocks.getRecentTerminalError).not.toHaveBeenCalled()
+  })
+})
+
+describe('OCI service-account resolver', () => {
+  it('returns only the authoritative resolved credential ID for hidden in-process handoff', async () => {
+    await expect(
+      resolveServiceAccountToken(
+        'credential-authoritative',
+        'oci-api-key-service-account',
+        [],
+        undefined
+      )
+    ).resolves.toEqual({ accessToken: 'credential-authoritative' })
   })
 })

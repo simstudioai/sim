@@ -959,8 +959,12 @@ Get a single comment thread by ID from Attio
 | --------- | ---- | ----------- |
 | `threadId` | string | The thread ID |
 | `comments` | array | Comments in the thread |
-|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
-|   ↳ `id` | string | The actor ID |
+|   ↳ `commentId` | string | The comment ID |
+|   ↳ `contentPlaintext` | string | Comment content as plaintext |
+|   ↳ `author` | object | The comment author |
+|     ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|     ↳ `id` | string | The actor ID |
+|   ↳ `createdAt` | string | When the comment was created |
 | `createdAt` | string | When the thread was created |
 
 ### Attio List Webhooks

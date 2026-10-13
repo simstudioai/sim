@@ -5,19 +5,27 @@ import {
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
   NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
   partitionClientCredentialFields,
+  RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
   SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID,
+  VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
 import { mintNetSuiteServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/netsuite'
+import { mintOracleEpmServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-epm'
+import { mintOracleFusionServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-fusion'
+import { mintRampServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/ramp'
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
+import { mintVantaServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/vanta'
 import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoho-desk'
 import { mintZoomServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoom'
 import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
 
-/** Raw fields a client-credential minter receives (already trimmed). */
+/** Credential fields normalized according to the provider descriptor; passwords retain exact bytes. */
 export interface ClientCredentialAccountFields {
   clientId: string
   /** Certificate mapping identifier used as the JWT `kid` by NetSuite. */
@@ -29,16 +37,17 @@ export interface ClientCredentialAccountFields {
   clientSecret?: string
   /**
    * Provider-specific org identifier (Zoom Account ID, Box Enterprise ID,
-   * Salesforce My Domain host, Zoho Desk organization ID, or NetSuite
-   * SuiteTalk origin).
+   * Salesforce My Domain host, Zoho Desk organization ID, NetSuite SuiteTalk
+   * origin, or an Oracle EPM environment URL).
    */
   orgId: string
   /**
-   * Optional provider region selector. Only Zoho Desk uses it (the Self Client
-   * mints against a per-data-center accounts server); every other provider
-   * ignores it, and a blank value keeps the provider's default region.
+   * Optional provider region or deployment selector. A blank value keeps the
+   * provider default; reconnect preserves the stored selection.
    */
   dataCenter?: string
+  /** Provider permissions selected when connecting the application. */
+  scope?: string
   /**
    * Which grant the provider's minter should use, for providers that offer
    * more than one. Only Salesforce does (`client_credentials` | `jwt_bearer`);
@@ -84,8 +93,8 @@ export interface ClientCredentialAccountMintResult {
   accessToken: string
   expiresInSeconds: number
   /**
-   * Provider API origin the minted token must be used against (Salesforce or
-   * NetSuite), forwarded to tools alongside the token.
+   * Provider API destination the minted token must be used against (Salesforce,
+   * NetSuite, or Oracle EPM), forwarded to tools alongside the token.
    */
   instanceUrl?: string
   /**
@@ -101,6 +110,8 @@ export interface ClientCredentialAccountMintResult {
 
 /** Options controlling how much work a mint performs. */
 export interface ClientCredentialAccountMintOptions {
+  /** Cancels provider token exchange when supported by the minter. */
+  signal?: AbortSignal
   /**
    * Skips the best-effort identity lookup (extra provider round-trip on Box
    * and Salesforce). Execution-time token resolution discards `identity`, so
@@ -130,6 +141,10 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID]: mintSalesforceServiceAccountToken,
   [ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID]: mintZohoDeskServiceAccountToken,
   [NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID]: mintNetSuiteServiceAccountToken,
+  [RAMP_SERVICE_ACCOUNT_PROVIDER_ID]: mintRampServiceAccountToken,
+  [VANTA_SERVICE_ACCOUNT_PROVIDER_ID]: mintVantaServiceAccountToken,
+  [ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID]: mintOracleFusionServiceAccountToken,
+  [ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID]: mintOracleEpmServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(
@@ -155,6 +170,8 @@ export interface ClientCredentialAccountSecretBlob {
   orgId: string
   /** Optional region selector; absent on every credential created before it existed. */
   dataCenter?: string
+  /** Provider permissions selected when connecting the application. */
+  scope?: string
   /** Absent on every credential created before multi-grant support existed. */
   authMethod?: string
   privateKey?: string

@@ -13,7 +13,7 @@ export const MOTHERSHIP_EFFORT_OPTIONS: Array<{ value: MothershipEffort; label: 
 
 export const MOTHERSHIP_MODEL_OPTIONS = [
   { value: 'gpt-6-astra', label: 'GPT-6 Astra' },
-  { value: 'gpt-6-sol', label: 'GPT-6 Sol' },
+  { value: 'gpt-6-sol', label: 'GPT-6.1 Sol' },
   { value: 'claude-opus-5-5', label: 'Opus 5.5' },
 ] satisfies Array<{ value: ModelSelection['model']; label: string }>
 
@@ -32,12 +32,6 @@ export const MOTHERSHIP_SIMPLE_EFFORT_OPTIONS = MOTHERSHIP_EFFORT_OPTIONS.filter
   SIMPLE_EFFORT_VALUES.has(option.value)
 )
 
-export function mothershipEffortOptions(model: ModelSelection['model']) {
-  return model === 'gpt-6-sol'
-    ? [{ value: 'none' as const, label: 'None' }, ...MOTHERSHIP_EFFORT_OPTIONS]
-    : MOTHERSHIP_EFFORT_OPTIONS
-}
-
 /**
  * Shared by the visible controls, send path and server admission so hidden preferences cannot leak.
  * Without the model picker no selection is sent, so the worker routes every model role itself.
@@ -47,15 +41,15 @@ export function resolveMothershipModelSettings(
   advanced: boolean
 ): { effort: MothershipEffort; modelSelection: ModelSelection | undefined } {
   let effort = settings.effort ?? DEFAULT_MOTHERSHIP_EFFORT
+  // No served model reasons at `none`; a pick stored before it was retired runs at the nearest effort.
+  if (effort === 'none') effort = 'low'
   if (!advanced) {
-    if (effort === 'none') effort = DEFAULT_MOTHERSHIP_EFFORT
     if (effort === 'max') effort = 'xhigh'
     return { effort, modelSelection: undefined }
   }
   const modelSelection = normalizeModelSelection(
     settings.modelSelection ?? { model: 'gpt-6-astra', fastMode: false }
   )
-  if (effort === 'none' && modelSelection.model !== 'gpt-6-sol') effort = DEFAULT_MOTHERSHIP_EFFORT
   return { effort, modelSelection }
 }
 

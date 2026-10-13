@@ -3,7 +3,7 @@ import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/princip
 import { db } from '@sim/db'
 import { dataDrainRuns, dataDrains } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode, toError } from '@sim/utils/errors'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
 import { and, asc, desc, eq, ne } from 'drizzle-orm'
@@ -15,7 +15,6 @@ import {
 } from '@/lib/core/application/authorized-workspace-use-case'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
-import { getJobQueue } from '@/lib/core/async-jobs'
 import { isBillingEnabled, isDataDrainsEnabled } from '@/lib/core/config/env-flags'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import {
@@ -28,6 +27,8 @@ import {
 } from '@/lib/data-drains/application/operations'
 import { getDestination } from '@/lib/data-drains/destinations/registry'
 import { decryptCredentials, encryptCredentials } from '@/lib/data-drains/encryption'
+import { enqueueDrain } from '@/lib/data-drains/enqueue'
+import { createCredentialErrorRedactor } from '@/lib/data-drains/errors'
 import {
   type CreateDataDrainInput,
   createDataDrainBodySchema,
@@ -350,12 +351,7 @@ export const runDataDrain = defineDrainUseCase({
       .limit(1)
     if (inFlight)
       throw new OrchestrationError('conflict', 'A run is already in progress for this drain')
-    const queue = await getJobQueue()
-    const jobId = await queue.enqueue(
-      'run-data-drain',
-      { drainId: drain.id, trigger: 'manual' },
-      { concurrencyKey: `data-drain:${drain.id}` }
-    )
+    const jobId = await enqueueDrain(drain.id, 'manual')
     return { jobId, drain: publicDrain(drain) }
   },
   projectAudit: ({ result }) => ({
@@ -378,19 +374,20 @@ export const testDataDrain = defineDrainUseCase({
         'validation',
         `Destination '${drain.destinationType}' does not support connection testing`
       )
-    const config = destination.configSchema.parse(drain.destinationConfig)
-    const credentials = destination.credentialsSchema.parse(
-      await decryptCredentials(drain.destinationCredentials)
-    )
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 10_000)
+    let redactError = createCredentialErrorRedactor()
     try {
+      const config = destination.configSchema.parse(drain.destinationConfig)
+      const savedCredentials = await decryptCredentials(drain.destinationCredentials)
+      redactError = createCredentialErrorRedactor(savedCredentials)
+      const credentials = destination.credentialsSchema.parse(savedCredentials)
       await runWithOutboundOrganization(drain.organizationId, () =>
         test({ config, credentials, signal: controller.signal })
       )
       return { drain: publicDrain(drain), ok: true as const }
     } catch (error) {
-      const message = toError(error).message
+      const message = redactError(error)
       logger.warn('Data drain test connection failed', {
         drainId: drain.id,
         destinationType: drain.destinationType,

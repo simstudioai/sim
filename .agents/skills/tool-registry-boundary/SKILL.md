@@ -40,8 +40,8 @@ All lookups guard with `Object.hasOwn`. `JSON.parse` yields an object with the n
 `apps/sim/tools/generated/tool-ids.ts`, `tool-metadata.ts` and `tool-outputs.ts` are produced by `scripts/sync-tool-metadata.ts`:
 
 ```bash
-bun run tool-metadata:generate   # after adding/changing a tool
-bun run tool-metadata:check      # what CI runs; fails if stale
+bun run generate:tool-metadata   # after adding/changing a tool
+bun run check:tool-metadata      # what CI runs; fails if stale
 ```
 
 Never hand-edit them. If you add a tool or change a tool's `params`/`outputs`, regenerate and commit the result, or CI fails.

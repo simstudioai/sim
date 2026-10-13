@@ -16,8 +16,13 @@ import {
 } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
-import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import {
+  enqueueCancelAtPeriodEndSync,
+  enqueueSubscriptionSeatsSync,
+  isCancelAtPeriodEndSettled,
+  readCommittedSeats,
+  recordCancelAtPeriodEnd,
+} from '@/lib/billing/webhooks/subscription-sync'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('ProvisionSeat')
@@ -236,40 +241,50 @@ async function convertPersonalSubscriptionToTeam(
  * the post-join seat reconcile is skipped or fails. Any scheduled cancellation
  * is cleared (DB + Stripe) so a freshly-activated Team is not left scheduled to
  * cancel, including the legacy personal-scoped Team case where the plan is
- * unchanged.
+ * unchanged. The row is read under its lock, so a cancellation committed after
+ * the caller's earlier read is still cleared and recorded.
  */
 async function activateTeamSubscription(
-  sub: { id: string; cancelAtPeriodEnd?: boolean | null; stripeSubscriptionId: string | null },
+  sub: { id: string },
   targetPlan: string,
   { planChanged }: { planChanged: boolean },
-  executor: DbOrTx
+  tx: DbOrTx
 ): Promise<void> {
-  const shouldClearCancellation =
-    Boolean(sub.cancelAtPeriodEnd) && Boolean(sub.stripeSubscriptionId)
+  const [locked] = await tx
+    .select({
+      cancelAtPeriodEnd: subscriptionTable.cancelAtPeriodEnd,
+      seats: subscriptionTable.seats,
+      stripeSubscriptionId: subscriptionTable.stripeSubscriptionId,
+    })
+    .from(subscriptionTable)
+    .where(eq(subscriptionTable.id, sub.id))
+    .for('update')
+    .limit(1)
 
-  const apply = async (tx: DbOrTx) => {
-    await tx
-      .update(subscriptionTable)
-      .set({ plan: targetPlan, cancelAtPeriodEnd: false })
-      .where(eq(subscriptionTable.id, sub.id))
+  await tx
+    .update(subscriptionTable)
+    .set({ plan: targetPlan, cancelAtPeriodEnd: false })
+    .where(eq(subscriptionTable.id, sub.id))
 
-    if (planChanged) {
-      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS, {
-        subscriptionId: sub.id,
-        reason: 'pro-to-team-conversion',
-      })
-    }
-
-    if (shouldClearCancellation) {
-      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
-        stripeSubscriptionId: sub.stripeSubscriptionId as string,
-        subscriptionId: sub.id,
-        reason: 'pro-to-team-conversion',
-      })
-    }
+  if (planChanged) {
+    await enqueueSubscriptionSeatsSync(tx, {
+      subscriptionId: sub.id,
+      seats: await readCommittedSeats(tx, sub.id, locked?.seats ?? 1),
+      reason: 'pro-to-team-conversion',
+    })
   }
 
-  await apply(executor)
+  if (!locked?.stripeSubscriptionId) return
+  if (!(await isCancelAtPeriodEndSettled(tx, sub.id, Boolean(locked.cancelAtPeriodEnd), false))) {
+    await enqueueCancelAtPeriodEndSync(tx, {
+      stripeSubscriptionId: locked.stripeSubscriptionId,
+      subscriptionId: sub.id,
+      cancelAtPeriodEnd: false,
+      reason: 'pro-to-team-conversion',
+    })
+  } else {
+    await recordCancelAtPeriodEnd(tx, sub.id, false)
+  }
 }
 
 /**

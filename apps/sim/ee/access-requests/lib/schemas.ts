@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { PLATFORM_FEATURES } from '@/lib/permission-groups/features'
-import { FILE_SHARE_AUTH_TYPES, PERMISSION_GROUP_FIELDS } from '@/lib/permission-groups/fields'
+import {
+  FILE_SHARE_AUTH_TYPES,
+  PERMISSION_GROUP_FIELDS,
+  PERMISSION_GROUP_RESTRICTION_KEYS,
+} from '@/lib/permission-groups/fields'
 import type { AccessRequestTarget as DomainAccessRequestTarget } from '@/ee/access-requests/lib/targets'
 
 const targetIdSchema = z
@@ -79,7 +83,7 @@ export const storedAccessRequestPolicyValueSchema = z.union([
 export const storedAccessRequestPolicyChangeSchema = z
   .object({
     configKey: z
-      .enum(Object.keys(PERMISSION_GROUP_FIELDS) as (keyof typeof PERMISSION_GROUP_FIELDS)[])
+      .enum(PERMISSION_GROUP_RESTRICTION_KEYS)
       .describe('Permission restriction changed by approval.'),
     label: z.string().min(1).max(512).describe('Human-readable permission name.'),
     before: storedAccessRequestPolicyValueSchema.describe('Current value of the restriction.'),
@@ -104,7 +108,7 @@ export const storedAccessRequestDecisionSchema = z.object({
     .describe('Whether approval changes group permissions or a member credit cap.'),
   changes: z
     .array(storedAccessRequestPolicyChangeSchema)
-    .max(Object.keys(PERMISSION_GROUP_FIELDS).length)
+    .max(PERMISSION_GROUP_RESTRICTION_KEYS.length)
     .describe('Permission changes applied to the governing group.'),
   impact: z
     .object({

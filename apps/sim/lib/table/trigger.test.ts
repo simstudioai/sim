@@ -5,24 +5,23 @@
  * the `await`, never inside a mock factory.
  */
 import {
+  webhooksPollingUtilsMock,
+  webhooksPollingUtilsMockFns,
+} from '@sim/testing/mocks/webhooks-polling-utils.mock'
+import {
   webhooksProcessorMock,
   webhooksProcessorMockFns,
 } from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchActiveWebhooks } = vi.hoisted(() => ({
-  mockFetchActiveWebhooks: vi.fn(),
-}))
-
-vi.mock('@/lib/webhooks/polling/utils', () => ({
-  fetchActiveWebhooks: mockFetchActiveWebhooks,
-}))
+vi.mock('@/lib/webhooks/polling/utils', () => webhooksPollingUtilsMock)
 vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
 import { fireTableTrigger } from '@/lib/table/trigger'
 import type { RowData, TableSchema } from '@/lib/table/types'
 
 const mockProcessPolledWebhookEvent = webhooksProcessorMockFns.mockProcessPolledWebhookEvent
+const { mockFetchActiveWebhooks } = webhooksPollingUtilsMockFns
 
 const schema: TableSchema = {
   columns: [

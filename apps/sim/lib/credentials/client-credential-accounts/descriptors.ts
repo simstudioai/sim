@@ -20,6 +20,7 @@ export type ClientCredentialAccountFieldId =
   | 'certificateId'
   | 'orgId'
   | 'dataCenter'
+  | 'scope'
   | 'authMethod'
   | 'privateKey'
   | 'username'
@@ -42,6 +43,8 @@ export interface ClientCredentialAccountField {
   placeholder: string
   /** Rendered with SecretInput and never echoed back. */
   secret: boolean
+  /** Preserve exact password bytes instead of normalizing surrounding whitespace. */
+  preserveWhitespace?: boolean
   /**
    * Renders a multi-line control instead of a single-line one. Required for
    * PEM-encoded material (a private key spans ~28 newline-separated lines and
@@ -110,7 +113,21 @@ export const ZOOM_SERVICE_ACCOUNT_PROVIDER_ID = 'zoom-service-account' as const
 export const BOX_SERVICE_ACCOUNT_PROVIDER_ID = 'box-service-account' as const
 export const SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID = 'salesforce-service-account' as const
 export const ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zoho-desk-service-account' as const
+export const RAMP_SERVICE_ACCOUNT_PROVIDER_ID = 'ramp-service-account' as const
+export const VANTA_SERVICE_ACCOUNT_PROVIDER_ID = 'vanta-service-account' as const
 export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' as const
+export const ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-epm-service-account' as const
+export const ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-fusion-service-account' as const
+
+/** Permissions requested when connecting a Manage Vanta application. */
+export const VANTA_PERMISSION_OPTIONS = [
+  { value: 'vanta-api.all:read', label: 'Read only' },
+  { value: 'vanta-api.all:read vanta-api.all:write', label: 'Read and write' },
+  {
+    value: 'vanta-api.all:read vanta-api.all:write vanta-api.documents:upload',
+    label: 'Read, write, and upload documents',
+  },
+] as const
 
 export type ClientCredentialAccountProviderId =
   | typeof ZOOM_SERVICE_ACCOUNT_PROVIDER_ID
@@ -118,6 +135,10 @@ export type ClientCredentialAccountProviderId =
   | typeof SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof RAMP_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof VANTA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -145,6 +166,40 @@ export function normalizeNetSuiteSuiteTalkOrigin(rawUrl: string): string | undef
       parsed.hash ||
       (parsed.pathname !== '' && parsed.pathname !== '/') ||
       !NETSUITE_SUITETALK_ORIGIN_REGEX.test(parsed.origin)
+    ) {
+      return undefined
+    }
+    return parsed.origin
+  } catch {
+    return undefined
+  }
+}
+
+/** Canonical Oracle-assigned Fusion Applications origin used by product REST APIs. */
+const ORACLE_FUSION_APPLICATION_ORIGIN_REGEX =
+  /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.fa\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.oraclecloud\.com$/
+const ORACLE_FUSION_APPLICATION_INPUT_REGEX =
+  /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.fa\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.oraclecloud\.com\/?$/i
+
+/**
+ * Normalizes a Fusion Applications URL to its authoritative HTTPS origin.
+ * Explicit ports are rejected even when they match HTTPS's default port so a
+ * saved credential can never silently broaden the accepted endpoint shape.
+ */
+export function normalizeOracleFusionApplicationOrigin(rawUrl: string): string | undefined {
+  try {
+    const trimmed = rawUrl.trim()
+    if (!ORACLE_FUSION_APPLICATION_INPUT_REGEX.test(trimmed)) return undefined
+    const parsed = new URL(trimmed)
+    if (
+      parsed.protocol !== 'https:' ||
+      parsed.port ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash ||
+      (parsed.pathname !== '' && parsed.pathname !== '/') ||
+      !ORACLE_FUSION_APPLICATION_ORIGIN_REGEX.test(parsed.origin)
     ) {
       return undefined
     }
@@ -323,6 +378,65 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
   ClientCredentialAccountProviderId,
   ClientCredentialAccountDescriptor
 > = {
+  [RAMP_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Ramp',
+    connectNoun: 'application',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/ramp',
+  },
+  [VANTA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Vanta',
+    connectNoun: 'application',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+      {
+        id: 'scope',
+        label: 'Permissions',
+        placeholder: 'Select permissions',
+        secret: false,
+        optional: true,
+        options: VANTA_PERMISSION_OPTIONS,
+      },
+      {
+        id: 'dataCenter',
+        label: 'Deployment',
+        placeholder: 'Select a deployment',
+        secret: false,
+        optional: true,
+        options: [
+          { value: 'us', label: 'Standard (US, EU, Australia)' },
+          { value: 'gov', label: 'Vanta Government' },
+        ],
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/vanta',
+  },
   [ZOOM_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Zoom',
@@ -530,6 +644,74 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/netsuite-service-account',
     helpText:
       'Use the account-specific SuiteTalk URL and the client ID, certificate ID, and private key from one OAuth 2.0 client-credentials mapping.',
+  },
+  [ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Oracle EPM Cloud',
+    connectNoun: 'integration user',
+    fields: [
+      {
+        id: 'orgId',
+        label: 'REST Base URL',
+        placeholder: 'https://example.oraclecloud.com',
+        secret: false,
+        hintPattern: /^https:\/\//,
+        hintMessage: 'Expected the HTTPS REST base URL for one Oracle EPM environment.',
+        hint: 'Enter the HTTPS base URL for your environment without /epmcloud or an API endpoint path. Include a gateway prefix only if your deployment requires it.',
+      },
+      {
+        id: 'clientId',
+        label: 'Integration username',
+        placeholder: 'integration.user@example.com',
+        secret: false,
+        hint: 'Basic authentication requires a user without MFA. Credentials are checked on the first product request.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Password',
+        placeholder: 'Paste the integration user password',
+        secret: true,
+        preserveWhitespace: true,
+      },
+    ],
+    docsUrl:
+      'https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/authentication.html',
+    helpText:
+      'The credential is bound to one EPM environment. Use a dedicated integration user with only the permissions its workflows require.',
+  },
+  [ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Oracle Fusion',
+    connectNoun: 'integration user',
+    fields: [
+      {
+        id: 'orgId',
+        label: 'Fusion Applications URL',
+        placeholder: 'https://your-environment.fa.ocs.oraclecloud.com',
+        secret: false,
+        hintPattern: ORACLE_FUSION_APPLICATION_ORIGIN_REGEX,
+        hintNormalize: (value) =>
+          normalizeOracleFusionApplicationOrigin(value) ?? value.trim().toLowerCase(),
+        hintMessage:
+          'Expected the Oracle-assigned HTTPS application URL with no path, port, credentials, query, or fragment.',
+      },
+      {
+        id: 'clientId',
+        label: 'Integration username',
+        placeholder: 'Paste the integration username',
+        secret: false,
+      },
+      {
+        id: 'clientSecret',
+        label: 'Password',
+        placeholder: 'Paste the password',
+        secret: true,
+        preserveWhitespace: true,
+      },
+    ],
+    docsUrl: 'https://docs.oracle.com/en/cloud/saas/applications-common/26b/farca/Quick_Start.html',
+    helpText:
+      'The application URL is validated when saved. Oracle authenticates the integration user on the first product request.',
   },
 }
 

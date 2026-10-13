@@ -1,9 +1,9 @@
 import { sleep } from '@sim/utils/helpers'
 import type { Command } from 'commander'
-import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
-import { type GetWorkspaceOperationResponse, V2_OPERATIONS } from '../../generated/v2-api'
-import { resolvePath, SimApiError, type SimClient } from '../../http/client'
+import type { GetWorkspaceOperationResponse } from '../../generated/v2-api'
+import { SimApiError } from '../../http/client'
+import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { renderResult } from '../../runtime/result'
 
 type WorkspaceOperation = GetWorkspaceOperationResponse['data']
@@ -79,7 +79,7 @@ export function assertWorkspaceOperationOutcome(
 
 /** Polls only the existing operation; uncertain mutations are never retried with a new ID. */
 export async function waitWorkspaceOperation(
-  client: SimClient,
+  client: OperationClient<'getWorkspaceOperation'>,
   workspaceId: string,
   operationId: string,
   timeoutSeconds: number,
@@ -87,7 +87,6 @@ export async function waitWorkspaceOperation(
 ): Promise<{ report: WorkspaceOperation; timedOut: boolean }> {
   const deadline =
     timeoutSeconds === 0 ? Number.POSITIVE_INFINITY : Date.now() + timeoutSeconds * 1000
-  const path = resolvePath(V2_OPERATIONS.getWorkspaceOperation.path, { workspaceId, operationId })
   let report = initial
   let delay = 1000
   for (;;) {
@@ -112,7 +111,8 @@ export async function waitWorkspaceOperation(
     }
     try {
       const nextReport = readWorkspaceOperation(
-        await client.request(path, {
+        await client.request('getWorkspaceOperation', {
+          params: { workspaceId, operationId },
           signal: Number.isFinite(remaining)
             ? AbortSignal.timeout(Math.max(1, Math.ceil(remaining)))
             : undefined,
@@ -161,17 +161,17 @@ export async function waitWorkspaceOperation(
 }
 
 export function attachWorkspaceOperationWait(operations: Command): void {
-  operations
-    .command('wait')
+  const [wait, connectWait] = apiCommand(operations, 'wait', ['getWorkspaceOperation'])
+  wait
     .argument('<operationId>', 'Operation ID returned by import, fork, push, or pull')
     .allowExcessArguments(false)
     .description(
       'Wait for copy and deployment readiness; exit 3 for configuration, 1 for failure, or 4 for timeout'
     )
     .option('--wait-timeout <seconds>', 'Maximum total wait (default 3600; 0 waits indefinitely)')
-    .action(async (operationId: string, options: { waitTimeout?: string }, command: Command) => {
+    .action(async (operationId: string, options: { waitTimeout?: string }) => {
       const timeout = workspaceWaitTimeout(options.waitTimeout)
-      const { client, profile } = clientFrom(command)
+      const { client, profile } = connectWait()
       const workspaceId = client.requireWorkspace()
       const result = await waitWorkspaceOperation(client, workspaceId, operationId, timeout)
       renderResult(

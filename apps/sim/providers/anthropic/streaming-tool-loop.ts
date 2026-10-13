@@ -180,11 +180,8 @@ export function createAnthropicStreamingToolLoopStream(
             turnPayload.tool_choice = { type: 'none' }
           }
 
-          // Forced tool_choice vs thinking — same rules as silent loop.
-          const thinkingEnabled = !!payload.thinking
           if (
             !finalSynthesis &&
-            !thinkingEnabled &&
             typeof originalToolChoice === 'object' &&
             hasUsedForcedTool &&
             forcedToolNames.length > 0
@@ -197,7 +194,6 @@ export function createAnthropicStreamingToolLoopStream(
             }
           } else if (
             !finalSynthesis &&
-            !thinkingEnabled &&
             hasUsedForcedTool &&
             typeof originalToolChoice === 'object'
           ) {

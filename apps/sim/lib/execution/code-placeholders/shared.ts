@@ -327,12 +327,12 @@ export function createOffsetRangeLookup(
  * The placeholders lying wholly inside `[start, end]`. Occurrences are ordered and never
  * overlap, so the matches are one contiguous run found by bisection.
  */
-export function occurrencesWithin(
-  occurrences: readonly CodePlaceholderOccurrence[],
+export function occurrencesWithin<T extends Pick<CodePlaceholderOccurrence, 'start' | 'end'>>(
+  occurrences: readonly T[],
   start: number,
   end: number
-): CodePlaceholderOccurrence[] {
-  const matches: CodePlaceholderOccurrence[] = []
+): T[] {
+  const matches: T[] = []
   for (
     let index = partitionPoint(occurrences, (occurrence) => occurrence.start < start);
     index < occurrences.length && occurrences[index].end <= end;

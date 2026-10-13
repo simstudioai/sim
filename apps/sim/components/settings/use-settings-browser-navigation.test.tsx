@@ -576,4 +576,14 @@ describe('native settings navigation', () => {
     await settle()
     expect(window.location.pathname).toBe('/prior')
   })
+
+  it('allows unload immediately after the identity guard is cleared', () => {
+    render(false, true)
+    const unload = new Event('beforeunload', { cancelable: true })
+    act(() => {
+      useSettingsDirtyStore.getState().reset()
+      window.dispatchEvent(unload)
+    })
+    expect(unload.defaultPrevented).toBe(false)
+  })
 })

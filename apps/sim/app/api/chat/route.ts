@@ -9,7 +9,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { deployWorkflowChat } from '@/lib/workflows/application/chat-deployments'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { createInternalChatDeploymentErrorPolicy } from '@/app/api/chat/error-policy'
-import { createErrorResponse } from '@/app/api/workflows/utils'
+import { createCodedErrorResponse } from '@/app/api/workflows/utils'
 
 /**
  * Deploys a workflow as a chat.
@@ -34,7 +34,7 @@ export const POST = defineInternalJsonRoute({
      * as the literal "Validation error" and demotes the specifics to `details`.
      */
     validationErrorResponse: (error) =>
-      createErrorResponse(getValidationErrorMessage(error), 400, 'VALIDATION_ERROR'),
+      createCodedErrorResponse(getValidationErrorMessage(error), 400, 'VALIDATION_ERROR'),
   },
   mapInput: ({ body }) => ({ ...body, requestId: generateRequestId() }),
   useCase: deployWorkflowChat,

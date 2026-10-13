@@ -554,6 +554,7 @@ function recordNotice(notice: string): void {
 function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
   const issue = session.pageIssueForContents(contents)
   const mediaPermissionRequest = session.mediaPermissionRequestForContents(contents)
+  const dialog = session.pageDialogForContents(contents)
   return {
     scopeId: session.getBrowserScopeId(),
     tabId,
@@ -564,6 +565,7 @@ function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
     canGoForward: session.canGoForward(contents),
     ...(issue ? { issue } : {}),
     ...(mediaPermissionRequest ? { mediaPermissionRequest } : {}),
+    ...(dialog ? { dialog } : {}),
   }
 }
 
@@ -615,6 +617,10 @@ function instrumentTab(contents: WebContents): void {
         const requested = driverScopeState().dialogResponse
         return requested?.contents === contents ? requested.response : null
       }),
+    claimUserDialog: () =>
+      session.withBrowserScope(scopeId, () => session.claimUserDialog(contents)),
+    onDialogClosed: inScope(() => session.notePageDialogClosed(contents)),
+    claimUserLeave: () => session.withBrowserScope(scopeId, () => session.claimUserLeave(contents)),
   }
   void (async () => {
     let lastError: unknown
@@ -1793,6 +1799,34 @@ function navigationRescue(
     effect: { urlChanged: true },
     dialogs: [],
     note: 'The click triggered a page navigation, and the origin document was torn down before its result could be read — that teardown is why no postconditions are reported, not a failure. Take a fresh browser_snapshot of the new page.',
+  }
+}
+
+/**
+ * The tab closed while the click's final release was in flight (cdp.clickAt raises
+ * TabClosedOnReleaseError only then). Whether the release reached the page cannot be confirmed,
+ * so the result reports the tab change but not the click's effect, and forbids a repeat. Any other
+ * dispatch failure keeps its own error.
+ */
+function closedTabRescue(
+  error: unknown,
+  base: { trusted: boolean; activation: string }
+): Record<string, unknown> | null {
+  if (!(error instanceof cdp.TabClosedOnReleaseError)) return null
+  const activeTab = session.automationTab()
+  return {
+    dispatched: true,
+    trusted: base.trusted,
+    activation: base.activation,
+    possibleEffectObserved: true,
+    closedDuringDispatch: true,
+    doNotRetry: true,
+    effect: { tabChanged: true },
+    dialogs: [],
+    ...(activeTab
+      ? { activeTab: { tabId: activeTab.id, url: activeTab.view.webContents.getURL() } }
+      : {}),
+    note: "The tab closed while the click's release was in flight, so the click's outcome could not be confirmed. Do not repeat the click; verify the outcome with browser_snapshot before relying on it.",
   }
 }
 
@@ -3290,10 +3324,10 @@ async function executeToolInner(
           trusted = true
           activation = 'native-pointer'
         } catch (error) {
-          const rescued = navigationRescue(contents, epochAtDispatch, urlAtDispatch, {
-            trusted: true,
-            activation: 'native-pointer',
-          })
+          const nativePointer = { trusted: true, activation: 'native-pointer' }
+          const rescued =
+            navigationRescue(contents, epochAtDispatch, urlAtDispatch, nativePointer) ??
+            closedTabRescue(error, nativePointer)
           if (rescued) return rescued
           throw new ToolError(
             `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
@@ -3332,10 +3366,10 @@ async function executeToolInner(
             activation = 'native-pointer'
             prepared = finalSurface
           } catch (error) {
-            const rescued = navigationRescue(contents, epochAtDispatch, urlAtDispatch, {
-              trusted: true,
-              activation: 'native-pointer',
-            })
+            const nativePointer = { trusted: true, activation: 'native-pointer' }
+            const rescued =
+              navigationRescue(contents, epochAtDispatch, urlAtDispatch, nativePointer) ??
+              closedTabRescue(error, nativePointer)
             if (rescued) return rescued
             throw new ToolError(
               `Native framed click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
@@ -4757,10 +4791,10 @@ async function executeToolInner(
       try {
         await cdp.clickAt(contents, x, y, true, click, signal)
       } catch (error) {
-        const rescued = navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, {
-          trusted: true,
-          activation: 'native-pointer',
-        })
+        const nativePointer = { trusted: true, activation: 'native-pointer' }
+        const rescued =
+          navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, nativePointer) ??
+          closedTabRescue(error, nativePointer)
         if (rescued) return rescued
         throw new ToolError(
           `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
@@ -5221,6 +5255,14 @@ export async function executeTool(
       ) {
         throw new ToolError('This browser action was cancelled before it started.')
       }
+      session.withBrowserScope(resolvedScopeId, () => {
+        const automation = session.automationTab()
+        if (automation && session.hasPendingPageDialog(automation.view.webContents)) {
+          throw new ToolError(
+            'The user is answering a dialog on this page. Wait for their answer before using it.'
+          )
+        }
+      })
       state.activeToolCallId = toolCallId ?? null
       const executionController = new AbortController()
       let cancelActiveExecution: () => void = () => {}
@@ -5456,6 +5498,16 @@ export async function handlePanelAction(
       }
       return
     }
+    if (action.action === 'enable-page-dialogs') {
+      session.enablePageDialogs()
+      return
+    }
+    if (action.action === 'respond-dialog') {
+      if (typeof action.requestId === 'string' && typeof action.allowed === 'boolean') {
+        session.respondToPageDialog(action.requestId, action.allowed)
+      }
+      return
+    }
     if (action.action === 'respond-site-permission') {
       /** Older renderers can still send a response to the retired task-navigation prompt. */
       return
@@ -5471,8 +5523,11 @@ export async function handlePanelAction(
           action.url,
           { agentOwned: false }
         )
-        session.prepareExplicitNavigation(contents)
-        void contents.loadURL(action.url).catch(() => {})
+        const url = action.url
+        session.navigateForUser(contents, () => {
+          session.prepareExplicitNavigation(contents)
+          void contents.loadURL(url).catch(() => {})
+        })
         session.focusPageForUser(contents)
       }
       return
@@ -5495,13 +5550,13 @@ export async function handlePanelAction(
     const contents = tab.view.webContents
     switch (action.action) {
       case 'reload':
-        session.reloadPage(contents)
+        session.navigateForUser(contents, () => session.reloadPage(contents))
         return
       case 'back':
-        session.goBack(contents)
+        session.navigateForUser(contents, () => session.goBack(contents))
         return
       case 'forward':
-        session.goForward(contents)
+        session.navigateForUser(contents, () => session.goForward(contents))
         return
       case 'print':
         contents.print({ printBackground: true })

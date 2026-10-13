@@ -25,12 +25,14 @@ function writePost(
   section: string,
   slug: string,
   body: string,
-  frontmatter: Record<string, string> = {}
+  frontmatter: Record<string, string> = {},
+  includeMedia = true
 ) {
   const fields = {
     slug,
     ...CLEAN_FRONTMATTER,
     ogImage: `/${section}/${slug}/cover.jpg`,
+    ...(section === 'changelog' ? { ogAlt: 'A sample workflow result in Sim' } : {}),
     ...frontmatter,
   }
   const yaml = Object.entries(fields)
@@ -38,7 +40,11 @@ function writePost(
     .join('\n')
   const dir = path.join(config.contentDir, section, slug)
   mkdirSync(dir, { recursive: true })
-  writeFileSync(path.join(dir, 'index.mdx'), `---\n${yaml}\n---\n\n${body}\n`)
+  const media =
+    section === 'changelog' && includeMedia
+      ? `\n<ChangelogImage src="/${section}/${slug}/cover.jpg" alt="A sample workflow result" width="1200" height="675" caption="The result of the demonstrated workflow." />\n`
+      : ''
+  writeFileSync(path.join(dir, 'index.mdx'), `---\n${yaml}\n---\n\n${body}\n${media}`)
   const imageDir = path.join(config.publicDir, section, slug)
   mkdirSync(imageDir, { recursive: true })
   writeFileSync(path.join(imageDir, 'cover.jpg'), '')
@@ -54,10 +60,21 @@ beforeEach(() => {
   config = {
     contentDir: path.join(root, 'content'),
     publicDir: path.join(root, 'public'),
-    reservedSegments: { blog: new Set(['tags']), library: new Set(['tags']), customers: new Set() },
+    reservedSegments: {
+      blog: new Set(['tags']),
+      library: new Set(['tags']),
+      customers: new Set(),
+      changelog: new Set(['archive', 'preview']),
+    },
     mergedSlugs: { 'old-guide': 'kept-guide' },
     movedBlogSlugs: ['moved-post'],
     customerSlugs: ['acme'],
+    linkedPages: new Set([
+      'https://www.sim.ai/integrations/you-com',
+      'https://docs.sim.ai/workflows/deployment',
+      'https://www.sim.ai/models/anthropic',
+      'https://www.sim.ai/models/anthropic/claude-opus-4-6',
+    ]),
   }
   mkdirSync(path.join(config.contentDir, 'authors'), { recursive: true })
   writeFileSync(path.join(config.contentDir, 'authors', 'sim.json'), '{"id":"sim","name":"Sim"}')
@@ -70,6 +87,137 @@ afterEach(() => {
 })
 
 describe('check-library-content', () => {
+  it.each([
+    'An update with only a cover image.',
+    '```mdx\n<ChangelogImage src="/changelog/post/cover.jpg" alt="Example" width="1200" height="675" />\n```',
+  ])('rejects a published changelog without rendered feature media: %s', async (body) => {
+    writePost('changelog', 'post', body, {}, false)
+    expect(await findingsFor('changelog', 'post')).toEqual([
+      expect.objectContaining({ rule: 'media', message: expect.stringContaining('at least one') }),
+    ])
+    writePost('changelog', 'post', body, { draft: 'true' }, false)
+    expect(await findingsFor('changelog', 'post')).toEqual([])
+  })
+
+  it.each([
+    { date: '2999-01-01T00:00:00Z' },
+    { date: '2026-09-01T00:00:00Z', updated: '2026-08-01T00:00:00Z' },
+  ])('rejects misleading publication dates in a changelog: %o', async (dates) => {
+    writePost('changelog', 'post', 'A product update.', dates)
+    expect(await findingsFor('changelog', 'post')).toEqual([
+      expect.objectContaining({ rule: 'frontmatter', message: expect.stringContaining('date') }),
+    ])
+  })
+
+  it('rejects two published updates with the same RSS identity', async () => {
+    const release =
+      '\n  versions: [v0.9.10]\n  url: https://github.com/simstudioai/sim/releases/tag/v0.9.10'
+    writePost('changelog', 'first-story', 'One capability.', { release })
+    writePost('changelog', 'second-story', 'Another capability.', { release })
+    const { findings } = await checkContent(config)
+    expect(findings).toEqual([
+      expect.objectContaining({
+        rule: 'frontmatter',
+        message: expect.stringContaining('RSS identity'),
+      }),
+    ])
+    writePost('changelog', 'second-story', 'Another capability.', { release, draft: 'true' })
+    expect((await checkContent(config)).findings).toEqual([])
+  })
+
+  it.each([
+    '[You.com](/integrations/youcom)',
+    '[Deployment guide](https://docs.sim.ai/workflows/deployments)',
+    '[Deployment guide][guide]\n\n[guide]: https://docs.sim.ai/workflows/deployments',
+    '<a href="https://docs.sim.ai/workflows/deployments">Deployment guide</a>',
+    '[Model provider](/models/missing-provider)',
+    '[Model](https://www.sim.ai/models/anthropic/missing-model)',
+    '[Model][model]\n\n[model]: /models/anthropic/missing-model',
+    '<a href="/models/anthropic/missing-model">Model</a>',
+  ])('rejects a changelog backlink to a missing page: %s', async (invalidLink) => {
+    writePost(
+      'changelog',
+      'post',
+      [
+        '[You.com](/integrations/you-com)',
+        '[Deployment guide](https://docs.sim.ai/workflows/deployment?source=changelog#api)',
+        '[Anthropic](/models/anthropic/)',
+        '[Claude Opus](https://www.sim.ai/models/anthropic/claude-opus-4-6?source=changelog#capabilities)',
+        '```md',
+        '[Example](https://docs.sim.ai/workflows/missing-example)',
+        '```',
+        invalidLink,
+      ].join('\n\n')
+    )
+    expect(await findingsFor('changelog', 'post')).toEqual([
+      expect.objectContaining({
+        rule: 'internal-link',
+        message: expect.stringContaining('does not exist'),
+      }),
+    ])
+  })
+
+  it('rejects a changelog link to an unpublished draft', async () => {
+    writePost('changelog', 'draft-update', 'Draft.', { draft: 'true' })
+    writePost('changelog', 'post', '[Next update](/changelog/draft-update)')
+    expect(await findingsFor('changelog', 'post')).toEqual([
+      expect.objectContaining({ rule: 'internal-link', message: expect.stringContaining('draft') }),
+    ])
+  })
+
+  it('rejects a changelog slug that shadows the archive route', async () => {
+    writePost('changelog', 'archive', 'Body.')
+    expect(await findingsFor('changelog', 'archive')).toEqual([
+      expect.objectContaining({ rule: 'slug', message: expect.stringContaining('reserved') }),
+    ])
+  })
+
+  it('rejects changelog body headings that collide with the page hierarchy', async () => {
+    writePost('changelog', 'post', '## Improvements\n\nA clearer comparison.')
+    expect(await findingsFor('changelog', 'post')).toEqual([
+      expect.objectContaining({ rule: 'mdx', message: expect.stringContaining('heading') }),
+    ])
+  })
+
+  it('accepts local media and the approved CDN and rejects a lookalike origin', async () => {
+    const origin = 'https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com'
+    mkdirSync(path.join(config.publicDir, 'changelog/media'), { recursive: true })
+    writeFileSync(path.join(config.publicDir, 'changelog/media/demo.mp4'), 'recording')
+    writeFileSync(path.join(config.publicDir, 'changelog/media/demo.vtt'), 'WEBVTT\n')
+    for (const [slug, src] of [
+      ['good-video', `${origin}/changelog/demo-v1.mp4`],
+      ['local-video', '/changelog/media/demo.mp4'],
+      ['bad-video', `${origin}.example.com/changelog/demo-v1.mp4`],
+    ]) {
+      writePost(
+        'changelog',
+        slug,
+        `<ChangelogVideo src="${src}" poster="/changelog/${slug}/cover.jpg" caption="Compare deployments" captionsSrc="/changelog/media/demo.vtt" />`
+      )
+    }
+    const { findings } = await checkContent(config)
+    expect(findings).toEqual([
+      expect.objectContaining({
+        file: path.join(config.contentDir, 'changelog/bad-video/index.mdx'),
+        rule: 'media',
+      }),
+    ])
+  })
+
+  it.each([
+    '<ChangelogImage src="/changelog/post/cover.jpg" alt="Review changes" width={1200} height="800" />',
+    '<ChangelogImage src="/changelog/post/cover.jpg" alt="Review changes" width="0" height="800" />',
+    '<ChangelogVideo src="/changelog/media/missing.mp4" poster="/changelog/post/cover.jpg" caption="Compare deployments" />',
+    '<ChangelogVideo src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/changelog/demo.mp4" poster="/changelog/post/cover.jpg" caption="Compare deployments" captionsSrc="/changelog/media/missing.vtt" />',
+    '<ChangelogVideo src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/changelog/demo.mp4" poster="/changelog/missing.jpg" caption="Compare deployments" />',
+    '<ChangelogVideo src="https://example.com/demo.mp4" poster="/changelog/post/cover.jpg" caption="Compare deployments" />',
+  ])('rejects changelog media that cannot render or load: %s', async (body) => {
+    writePost('changelog', 'post', body)
+    expect(await findingsFor('changelog', 'post')).toEqual([
+      expect.objectContaining({ rule: 'media' }),
+    ])
+  })
+
   it('passes a clean post with valid internal links, assets, reserved routes, and code samples', async () => {
     writePost(
       'library',

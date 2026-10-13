@@ -1,11 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { usePostHog } from 'posthog-js/react'
 import type { AccountSettingsSection } from '@/components/settings/navigation'
-import { captureEvent } from '@/lib/posthog/client'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
+import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 
 const Billing = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then(
@@ -33,11 +31,7 @@ interface AccountSettingsRendererProps {
 }
 
 export function AccountSettingsRenderer({ section }: AccountSettingsRendererProps) {
-  const posthog = usePostHog()
-
-  useEffect(() => {
-    captureEvent(posthog, 'settings_tab_viewed', { plane: 'account', section })
-  }, [posthog, section])
+  useCaptureWhenReady('settings_tab_viewed', { plane: 'account', section }, section)
 
   if (section === 'general') return <General />
   if (section === 'billing') return <Billing scope='account' />

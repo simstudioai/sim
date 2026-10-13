@@ -1258,6 +1258,53 @@ describe('ExecutionEngine', () => {
       expect(executed).toEqual(['start', 'condition', 'stop'])
     })
 
+    it.each([
+      ['approval', 'stop'],
+      ['stop', 'approval'],
+    ])(
+      'completes without retaining a sibling pause when %s finishes before %s',
+      async (first, second) => {
+        const { engine, executed } = buildRun(
+          {
+            version: '1',
+            blocks: [
+              block('start', BlockType.STARTER),
+              block('approval'),
+              block('stop'),
+              block('after'),
+            ],
+            connections: [
+              { source: 'start', target: first },
+              { source: 'start', target: second },
+              { source: 'stop', target: 'after' },
+            ],
+            loops: {},
+            parallels: {},
+          },
+          'stop',
+          {
+            approval: {
+              _pauseMetadata: {
+                contextId: 'approval',
+                blockId: 'approval',
+                response: {},
+                timestamp: new Date().toISOString(),
+                pauseKind: 'human',
+              },
+            },
+          }
+        )
+
+        const result = await engine.run('start')
+
+        expect(result.success).toBe(true)
+        expect(result.status).not.toBe('paused')
+        expect(result.pausePoints).toBeUndefined()
+        expect(result.snapshotSeed).toBeUndefined()
+        expect(executed).toEqual(['start', first, second])
+      }
+    )
+
     it('runs a join reached through one taken and one skipped branch', async () => {
       const { engine, executed } = buildRun(
         {

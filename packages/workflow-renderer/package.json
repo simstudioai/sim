@@ -4,7 +4,7 @@
   "private": true,
   "sideEffects": [
     "**/*.css",
-    "**/note-block-view.tsx"
+    "**/note/block-view.tsx"
   ],
   "type": "module",
   "license": "Apache-2.0",
@@ -22,12 +22,12 @@
       "default": "./src/dimensions.ts"
     },
     "./note-colors": {
-      "types": "./src/note/note-colors.ts",
-      "default": "./src/note/note-colors.ts"
+      "types": "./src/note/colors.ts",
+      "default": "./src/note/colors.ts"
     },
     "./note-content": {
-      "types": "./src/note/note-content.ts",
-      "default": "./src/note/note-content.ts"
+      "types": "./src/note/content.ts",
+      "default": "./src/note/content.ts"
     },
     "./formatted-text": {
       "types": "./src/formatted-text.tsx",

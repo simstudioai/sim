@@ -6,15 +6,19 @@
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl } = await vi.hoisted(async () => {
+const { redisUrl, presence } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
   const url = readTestRedisUrl()
   /** The real Redis module reads this at import. */
   if (url) process.env.REDIS_URL = url
-  return { redisUrl: url }
+  return { redisUrl: url, presence: { available: true } }
 })
 
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+/** Redis is always configured here; `presence.available` stands in for an install without it. */
+vi.mock('@/lib/desktop/executor/presence', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/desktop/executor/presence')>()),
+  isDesktopPresenceAvailable: () => presence.available,
+}))
 
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
@@ -29,7 +33,6 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createDeferred } from '@sim/testing/helpers/deferred'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { eq, inArray, sql } from 'drizzle-orm'
@@ -69,8 +72,8 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
    * A signed-in desktop: its user (created unless `sameUserAs` names one), its Better Auth
    * session, and its install id, registered the way the app registers after sign-in.
    */
-  async function signedInDesktop(sameUserAs?: string, newUserId?: string) {
-    const userId = sameUserAs ?? newUserId ?? generateId()
+  async function signedInDesktop(sameUserAs?: string) {
+    const userId = sameUserAs ?? generateId()
     const now = new Date()
     if (!sameUserAs) {
       userIds.push(userId)
@@ -229,18 +232,8 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
     return settled
   }
 
-  /** The flag targets users; `excluded` is outside its rollout. */
-  const excluded = new Set<string>()
   beforeEach(() => {
-    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
-      async (flag, context) =>
-        flag === 'mothership-desktop-background-executor' &&
-        typeof context === 'object' &&
-        context !== null &&
-        'userId' in context &&
-        typeof context.userId === 'string' &&
-        !excluded.has(context.userId)
-    )
+    presence.available = true
   })
 
   afterAll(async () => {
@@ -255,10 +248,15 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
   })
 
   describe('registration', () => {
-    it('writes nothing and reports the executor off for a user outside the rollout', async () => {
-      const userId = generateId()
-      excluded.add(userId)
-      const desktop = await signedInDesktop(undefined, userId)
+    it('reports the executor on wherever Sim can track presence', async () => {
+      const desktop = await signedInDesktop()
+      expect(desktop.enabled).toBe(true)
+      await expect(inbox(desktop)).resolves.toEqual({ items: [] })
+    })
+
+    it('writes nothing and reports the executor off where Sim cannot track presence', async () => {
+      presence.available = false
+      const desktop = await signedInDesktop()
       expect(desktop.enabled).toBe(false)
       const [stored] = await db
         .select()

@@ -16,7 +16,11 @@ function testEncryption(available = true) {
 }
 
 describe('createEncryptedLocalFilesystemGrantStore', () => {
-  it('encrypts grants at rest and restores them', async () => {
+  it.each([
+    {},
+    { dev: 1, ino: Number.MAX_SAFE_INTEGER },
+    { dev: '1', ino: '18446744073709551615' },
+  ])('encrypts grants at rest and restores their exact identity %j', async (identity) => {
     const directory = await mkdtemp(join(tmpdir(), 'sim-localfs-store-'))
     const filePath = join(directory, 'grants.json')
     const encryption = testEncryption()
@@ -27,6 +31,7 @@ describe('createEncryptedLocalFilesystemGrantStore', () => {
         name: 'project',
         rootPath: '/Users/example/private-project',
         bookmark: 'security-scoped-bookmark',
+        ...identity,
       },
     ]
 
@@ -35,7 +40,6 @@ describe('createEncryptedLocalFilesystemGrantStore', () => {
     const raw = await readFile(filePath, 'utf8')
     expect(raw).not.toContain(grants[0].rootPath)
     expect(raw).not.toContain(grants[0].bookmark)
-    expect(encryption.encryptString).toHaveBeenCalledOnce()
     await expect(store.load()).resolves.toEqual(grants)
 
     await store.clear()

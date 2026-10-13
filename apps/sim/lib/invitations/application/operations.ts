@@ -50,3 +50,19 @@ export const invitationAuthorityOperations = {
     oauthScope: 'api:write',
   }),
 } as const
+
+/**
+ * One workspace's invitations. Direct callers and a Chat caller delegated by the
+ * same user share it, so both pass the same role and capability checks.
+ */
+export const workspaceInvitationOperations = {
+  sendBatch: defineWorkspaceOperation({
+    id: 'workspace_invitations.send_batch',
+    minimumRole: 'admin',
+    capability: 'invitations.send',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
+    delegatedServices: ['copilot'],
+    oauthScope: 'api:write',
+  }),
+} as const

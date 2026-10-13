@@ -255,7 +255,7 @@ export const resolveAccessRequest = defineAuthorizedAccessRequestUseCase({
       storedAccessRequestTargetSchema.parse(row.target).kind
     )
   },
-  async execute({ principal, input, executor, prepared }) {
+  async execute({ input, actorUserId, executor, prepared }) {
     const row = await loadStoredAccessRequest(executor, input.organizationId, input.requestId, true)
     if (row.status !== 'pending')
       return { request: await presentAccessRequest(executor, row), changed: false }
@@ -266,7 +266,7 @@ export const resolveAccessRequest = defineAuthorizedAccessRequestUseCase({
         .set({
           status: 'declined',
           decisionReason: input.decision.reason,
-          decidedBy: principal.userId,
+          decidedBy: actorUserId,
           decidedAt: now,
           updatedAt: now,
         })
@@ -306,7 +306,7 @@ export const resolveAccessRequest = defineAuthorizedAccessRequestUseCase({
         row.organizationId,
         row.requesterId,
         creditsToDollars(newLimitCredits),
-        principal.userId,
+        actorUserId,
         executor
       )
     } else {
@@ -344,7 +344,7 @@ export const resolveAccessRequest = defineAuthorizedAccessRequestUseCase({
       .update(permissionAccessRequest)
       .set({
         status: 'fulfilled',
-        decidedBy: principal.userId,
+        decidedBy: actorUserId,
         decidedAt: now,
         updatedAt: now,
         decision,

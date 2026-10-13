@@ -62,11 +62,12 @@ export async function readSessionSandboxFile(
     await prepareSandboxSessionAccess(sessionKey, accessSignal)
     return await withSandboxSessionLock(sessionKey, accessSignal, async (signal) => {
       const provider = resolveProvider()
-      const sandbox = await provider.findSessionSandbox?.(sessionKey, {})
+      // The reconnect grants the idle lease itself, so it can reset a workbench near its runtime cap.
+      const sandbox = await provider.findSessionSandbox?.(sessionKey, {
+        lifetimeMs: SESSION_SANDBOX_IDLE_MS,
+      })
       signal.throwIfAborted()
       if (!sandbox) return { outcome: 'no-session' }
-      await sandbox.extendLifetime?.(SESSION_SANDBOX_IDLE_MS)
-      signal.throwIfAborted()
       let file: { content: string }
       try {
         file = await sandbox.readFileWithLimit(resolved, {

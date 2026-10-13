@@ -1,19 +1,13 @@
-import { setEnvFlags } from '@sim/testing'
+import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
+import { envFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockRegisterSSOProvider } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockRegisterSSOProvider: vi.fn(),
-}))
+const mockGetSession = authMockFns.mockGetSession
 
-/** Better Auth's registration is replaced by the row it writes, untrusted until the route grants it. */
-vi.mock('@/lib/core/config/env-flags', async () => (await import('@sim/testing')).envFlagsMock)
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-  auth: { api: { registerSSOProvider: mockRegisterSSOProvider, updateSSOProvider: vi.fn() } },
-}))
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
+vi.mock('@/lib/auth', () => authMock)
 vi.mock('@/lib/billing', () => ({ hasSSOAccess: vi.fn(async () => true) }))
 /** Identity provider endpoints are validated by DNS, which test hosts do not have. */
 vi.mock('@/lib/core/security/input-validation.server', () => ({
@@ -102,22 +96,6 @@ describe('Primary SSO provider per organization domain in PostgreSQL', () => {
       .values({ id: generateId(), userId, organizationId, role: 'owner', createdAt: now })
     mockGetSession.mockResolvedValue({ user: { id: userId }, session: { id: generateId() } })
     setEnvFlags({ isSsoEnabled: true })
-    mockRegisterSSOProvider.mockImplementation(
-      async ({ body }: { body: { providerId: string; issuer: string; domain: string } }) => {
-        const rowId = generateId()
-        await runtime.db.insert(runtime.schema.ssoProvider).values({
-          id: rowId,
-          issuer: body.issuer,
-          domain: body.domain,
-          userId,
-          providerId: body.providerId,
-          organizationId,
-          oidcConfig: '{}',
-          domainVerified: false,
-        })
-        return { id: rowId, providerId: body.providerId }
-      }
-    )
   })
 
   afterEach(async () => {
@@ -503,7 +481,7 @@ describe('Primary SSO provider per organization domain in PostgreSQL', () => {
       await insertProvider({
         name: 'foreign',
         organization: otherOrganizationId,
-        providerDomain: domain(),
+        providerDomain: domain().toUpperCase(),
       })
       expect(await register('okta')).toBe(409)
     })

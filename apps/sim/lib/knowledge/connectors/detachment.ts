@@ -1,12 +1,6 @@
 import { db } from '@sim/db'
 import { PROJECTION_ROW_BATCH_SIZE } from '@sim/db/knowledge-projection'
-import {
-  document,
-  embeddingKeywordTin,
-  embeddingSearch,
-  knowledgeBase,
-  knowledgeConnector,
-} from '@sim/db/schema'
+import { document, embeddingSearch, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { and, asc, eq, inArray, isNotNull, lt, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
@@ -77,8 +71,6 @@ export function keptDocumentBytes() {
     ELSE 0
   END`
 }
-
-const SEARCH_PROJECTIONS = [embeddingSearch, embeddingKeywordTin] as const
 
 /**
  * Settles what is left of a detached connector's reservation: an unreleased remainder is refunded,
@@ -196,8 +188,8 @@ export async function settleDetachedConnectorReservations(
  * Releases a detached connector's documents as standalone entries, then deletes the connector.
  *
  * Nulling a document's `connector_id` fires the projection trigger, which rewrites every enabled
- * chunk of it in both search projections, each a fresh index entry. So each transaction first
- * releases at most 250 projection rows per table of the next 100 documents, and flips those
+ * chunk of it in the vector projection, each a fresh index entry. So each transaction first
+ * releases at most 250 vector projection rows of the next 100 documents, and flips those
  * documents only once none of their rows still name the connector; the trigger then finds nothing
  * to rewrite. A document larger than one page spans several transactions, and its released rows
  * read as an upload in the meantime, which grants the same access: only workspace-access
@@ -299,27 +291,23 @@ export const detachKnowledgeConnector: OutboxHandler = async (rawPayload, contex
         return drained
       }
 
-      let projectionPageFull = false
-      for (const projection of SEARCH_PROJECTIONS) {
-        const page = tx
-          .select({ id: projection.id })
-          .from(projection)
-          .where(
-            and(
-              inArray(projection.documentId, documentIds),
-              eq(projection.enabled, true),
-              isNotNull(projection.connectorId)
-            )
+      const page = tx
+        .select({ id: embeddingSearch.id })
+        .from(embeddingSearch)
+        .where(
+          and(
+            inArray(embeddingSearch.documentId, documentIds),
+            eq(embeddingSearch.enabled, true),
+            isNotNull(embeddingSearch.connectorId)
           )
-          .limit(PROJECTION_ROW_BATCH_SIZE)
-        const released = await tx
-          .update(projection)
-          .set({ connectorId: null })
-          .where(inArray(projection.id, page))
-          .returning({ id: projection.id })
-        if (released.length === PROJECTION_ROW_BATCH_SIZE) projectionPageFull = true
-      }
-      if (projectionPageFull) return 'progress'
+        )
+        .limit(PROJECTION_ROW_BATCH_SIZE)
+      const released = await tx
+        .update(embeddingSearch)
+        .set({ connectorId: null })
+        .where(inArray(embeddingSearch.id, page))
+        .returning({ id: embeddingSearch.id })
+      if (released.length === PROJECTION_ROW_BATCH_SIZE) return 'progress'
 
       const releasedDocuments = await tx
         .update(document)

@@ -51,7 +51,6 @@ const {
   storageConfig,
   mockGetBlobContainerClient,
 } = vi.hoisted(() => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const actualPath = require('path') as typeof import('path')
   return {
     mockVerifyFileAccess: vi.fn().mockResolvedValue(true),

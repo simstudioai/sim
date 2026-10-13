@@ -34,7 +34,7 @@ export function TerminalThemePicker({
   const selectedValue = typeof value === 'string' ? value : value.id
 
   return (
-    <div className='w-[240px] shrink-0'>
+    <div className='w-[240px] max-w-[55%] shrink-0 md:max-w-none'>
       <ChipCombobox
         aria-label='Terminal theme'
         align='start'
