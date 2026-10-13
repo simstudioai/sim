@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { authMockFns, createMockRequest, requestUtilsMockFns } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { createMockRequest, requestUtilsMockFns } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { buckets } = vi.hoisted(() => ({ buckets: new Map<string, number>() }))
@@ -33,21 +34,14 @@ vi.mock('next/headers', () => ({
 
 import { POST } from '@/app/api/auth/socket-token/route'
 
-/** Upper bound on requests a test sends while draining a bucket. */
-const DRAIN_CAP = 1_000
+/** The route's per-user budget and per-address backstop; a change to either should fail here. */
+const USER_BUDGET = 30
+const IP_BACKSTOP = 300
 
 async function mintAs(userId: string | null, ip: string) {
   requestUtilsMockFns.mockGetClientIp.mockReturnValue(ip)
   authMockFns.mockGetSession.mockResolvedValue(userId ? { user: { id: userId } } : null)
   return POST(createMockRequest('POST'))
-}
-
-async function drainUntilRateLimited(send: (attempt: number) => Promise<Response>) {
-  for (let attempt = 0; attempt < DRAIN_CAP; attempt++) {
-    const response = await send(attempt)
-    if (response.status === 429) return response
-  }
-  throw new Error(`no 429 within ${DRAIN_CAP} requests`)
 }
 
 describe('POST /api/auth/socket-token', () => {
@@ -56,21 +50,25 @@ describe('POST /api/auth/socket-token', () => {
     authMockFns.mockGenerateOneTimeToken.mockResolvedValue({ token: 'one-time-token' })
   })
 
-  it('rate-limits a user across addresses and answers 429 with Retry-After', async () => {
-    const limited = await drainUntilRateLimited((attempt) =>
-      mintAs('user-a', `198.51.100.${attempt % 250}`)
-    )
-
-    expect(limited.headers.get('retry-after')).toMatch(/^\d+$/)
+  it('allows a user exactly their budget across addresses, then answers 429 with Retry-After', async () => {
+    for (let attempt = 0; attempt < USER_BUDGET; attempt++) {
+      expect((await mintAs('user-a', `198.51.100.${attempt}`)).status).toBe(200)
+    }
     authMockFns.mockGenerateOneTimeToken.mockClear()
 
-    expect((await mintAs('user-a', '192.0.2.77')).status).toBe(429)
+    const limited = await mintAs('user-a', '192.0.2.77')
+
+    expect(limited.status).toBe(429)
+    expect(limited.headers.get('retry-after')).toMatch(/^\d+$/)
     expect(authMockFns.mockGenerateOneTimeToken).not.toHaveBeenCalled()
   })
 
   it('gives two users behind one address separate budgets', async () => {
     const officeIp = '203.0.113.10'
-    await drainUntilRateLimited(() => mintAs('user-a', officeIp))
+    for (let attempt = 0; attempt < USER_BUDGET; attempt++) {
+      expect((await mintAs('user-a', officeIp)).status).toBe(200)
+    }
+    expect((await mintAs('user-a', officeIp)).status).toBe(429)
 
     const other = await mintAs('user-b', officeIp)
 
@@ -78,21 +76,18 @@ describe('POST /api/auth/socket-token', () => {
     expect(await other.json()).toEqual({ token: 'one-time-token' })
   })
 
-  it('answers 401 without minting, then 429s an address over the backstop before any session lookup', async () => {
+  it('answers 401 without minting up to the backstop, then 429 before any session lookup', async () => {
     const attackerIp = '192.0.2.200'
-    const first = await mintAs(null, attackerIp)
-    expect(first.status).toBe(401)
-
-    const limited = await drainUntilRateLimited(async () => {
-      const response = await mintAs(null, attackerIp)
-      if (response.status !== 429) expect(response.status).toBe(401)
-      return response
-    })
-    expect(limited.headers.get('retry-after')).toMatch(/^\d+$/)
+    for (let attempt = 0; attempt < IP_BACKSTOP; attempt++) {
+      expect((await mintAs(null, attackerIp)).status).toBe(401)
+    }
     expect(authMockFns.mockGenerateOneTimeToken).not.toHaveBeenCalled()
-
     authMockFns.mockGetSession.mockClear()
-    expect((await mintAs(null, attackerIp)).status).toBe(429)
+
+    const limited = await mintAs(null, attackerIp)
+
+    expect(limited.status).toBe(429)
+    expect(limited.headers.get('retry-after')).toMatch(/^\d+$/)
     expect(authMockFns.mockGetSession).not.toHaveBeenCalled()
   })
 })

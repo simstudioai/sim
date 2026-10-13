@@ -44,7 +44,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ token: 'anonymous-socket-token' })
   }
 
-  const ipLimited = await enforceIpRateLimit('socket-token', request, IP_BACKSTOP_LIMIT)
+  const ipLimited = await enforceIpRateLimit('socket-token-ip', request, IP_BACKSTOP_LIMIT)
   if (ipLimited) return ipLimited
 
   try {
