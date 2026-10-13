@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { document, knowledgeConnector } from '@sim/db/schema'
-import { and, eq, inArray, isNotNull, isNull, lt, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNotNull, isNull, lt, type SQL, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -12,6 +12,10 @@ import {
   GOOGLE_COMPANY_PERMISSION_REFRESH_MS,
   isGoogleCompanySource,
 } from '@/lib/knowledge/connectors/google-company-scheduler'
+import {
+  type ImageAdmissionState,
+  imageExtractionPolicyFor,
+} from '@/lib/knowledge/connectors/image-admission'
 import {
   beginListingCheckpoint,
   type ListingCheckpoint,
@@ -27,6 +31,7 @@ import {
   walkReconciliationWindows,
 } from '@/lib/knowledge/connectors/reconciliation-window'
 import {
+  IMAGES_DEFERRED_NOTICE,
   SOURCE_CONTENT_ERROR,
   SOURCE_PERMISSION_ERROR,
 } from '@/lib/knowledge/connectors/sync-limits'
@@ -57,6 +62,7 @@ import {
   storedHashIsCurrent,
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { hasVisibleUserDocuments } from '@/lib/knowledge/connectors/user-document-visibility'
+import { SEMANTIC_IMAGE_MIME_TYPES } from '@/lib/knowledge/documents/image-extraction-policy'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { googleCompanyUserContextSchema } from '@/connectors/google-workspace/company-work'
@@ -70,6 +76,7 @@ interface ContentPassInput {
     listingCheckpoint?: unknown
     lastSyncDocCount?: number | null
     syncIntervalMinutes?: number
+    imageRemovalPending?: boolean
   }
   connectorConfig: ConnectorConfig
   sourceConfig: Record<string, unknown>
@@ -92,6 +99,14 @@ interface ContentPassInput {
     documents: ExternalDocument[],
     generationStartedAt: Date
   ) => Promise<{ permissionsIncomplete: boolean } | undefined>
+}
+
+/** The image fields of a listing checkpoint that a page persists alongside its seen stamps. */
+function imageCountOf(state: ImageAdmissionState): ImageAdmissionState {
+  return {
+    imageExtractionsAdmitted: state.imageExtractionsAdmitted,
+    imagesDeferred: state.imagesDeferred,
+  }
 }
 
 /** One durable content cycle shared by content-owned and member-visibility connectors. */
@@ -139,6 +154,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
     })
   }
   let hydratedCount = 0
+  let storedImageCount = imageCountOf(checkpoint)
   const syncIntervalMinutes = effectiveConnectorSyncIntervalMinutes(
     input.documentAccess,
     input.connector.syncIntervalMinutes ?? SIM_SEARCH_SYNC_INTERVAL_MINUTES
@@ -259,6 +275,23 @@ export async function runConnectorContentPass(input: ContentPassInput) {
                 )
               )
           }
+          const imageCount = imageCountOf(cycle)
+          if (
+            imageCount.imageExtractionsAdmitted !== storedImageCount.imageExtractionsAdmitted ||
+            imageCount.imagesDeferred !== storedImageCount.imagesDeferred
+          ) {
+            /**
+             * Merged into the stored checkpoint with the batch's seen stamps, so a restart in the
+             * middle of this page still counts the images it already read.
+             */
+            await tx
+              .update(knowledgeConnector)
+              .set({
+                listingCheckpoint: sql`${knowledgeConnector.listingCheckpoint} || ${JSON.stringify(imageCount)}::jsonb`,
+              })
+              .where(input.lease.stillHeld())
+            storedImageCount = imageCount
+          }
         })
       }
       const pendingOps = classifyListing({
@@ -267,6 +300,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         forceRehydrate: !page.permissionsOnly && cycle.forceRehydrate,
         state,
         matchContentHash,
+        imagePolicy: imageExtractionPolicyFor(input.connector.connectorType),
       })
       const pendingIds = new Set(pendingOps.map((op) => op.extDoc.externalId))
       await persistAttempted(remaining.filter((item) => !pendingIds.has(item.externalId)))
@@ -277,9 +311,10 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         pendingOps,
         forceRehydrate: !page.permissionsOnly && cycle.forceRehydrate,
         matchContentHash,
-        onBatchComplete: async (attempted) => {
+        imageAdmission: cycle,
+        onBatchComplete: async (attempted, heldBackExisting) => {
           hydratedCount += attempted.filter((item) => item.contentDeferred).length
-          await persistAttempted(attempted)
+          await persistAttempted([...attempted, ...heldBackExisting])
         },
       })
       if (!finished) return false
@@ -339,24 +374,86 @@ export async function runConnectorContentPass(input: ContentPassInput) {
       company?.didCommit(next.cursor)
     },
   })
-  const reconciliation = checkpoint.complete
-    ? await reconcileCompletedListing(input, checkpoint, withLease, withAclPage)
-    : { finished: false, notice: null }
+  const imagesRemoved = await removeDisabledImages(input)
+  /** Images the removal has not reached yet are unlisted, so reconciling now would count them as absent. */
+  const reconciliation =
+    checkpoint.complete && imagesRemoved
+      ? await reconcileCompletedListing(input, checkpoint, withLease, withAclPage)
+      : { finished: false, notice: null }
   /** Unverified permissions, an incomplete listing and unrefreshed content are independent holds; an admin needs each, one per line. */
   const holdNotice =
     [
       checkpoint.permissionFailures ? SOURCE_PERMISSION_ERROR : null,
       reconciliation.notice,
       checkpoint.contentFailures ? SOURCE_CONTENT_ERROR : null,
+      checkpoint.imagesDeferred ? IMAGES_DEFERRED_NOTICE : null,
     ]
       .filter(Boolean)
       .join('\n') || null
   return {
     checkpoint,
-    complete: checkpoint.complete && reconciliation.finished,
+    complete: checkpoint.complete && reconciliation.finished && imagesRemoved,
     holdNotice,
     hydratedCount,
   }
+}
+
+/**
+ * Removes the indexed vision images a settings change queued for removal
+ * (`imageRemovalPending`), then clears the flag. Turning images off is a setting
+ * change, not a source deletion, so it skips the soft-delete and the
+ * mass-deletion hold that guard a listing which suddenly lost documents;
+ * switching back reads the images again.
+ */
+export async function removeDisabledImages(
+  input: Pick<
+    ContentPassInput,
+    'connectorId' | 'connector' | 'lease' | 'leaseKind' | 'runId' | 'deadlineAt' | 'result'
+  >
+): Promise<boolean> {
+  if (!input.connector.imageRemovalPending) return true
+  /** Walks by id through `doc_connector_reconciliation_v2_idx`, so each page resumes where the last ended. */
+  let afterId: string | undefined
+  while (true) {
+    if (Date.now() >= input.deadlineAt) return false
+    await input.lease.beatIfDue()
+    const rows = await db
+      .select({ id: document.id })
+      .from(document)
+      .where(
+        and(
+          eq(document.connectorId, input.connectorId),
+          inArray(document.mimeType, [...SEMANTIC_IMAGE_MIME_TYPES]),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          afterId ? gt(document.id, afterId) : undefined
+        )
+      )
+      .orderBy(document.id)
+      .limit(25)
+    if (rows.length === 0) break
+    afterId = rows.at(-1)?.id
+    const removed = await hardDeleteDocuments(
+      rows.map((row) => row.id),
+      input.runId,
+      input.connectorId,
+      input.connector.knowledgeBaseId,
+      {
+        connectorId: input.connectorId,
+        knowledgeBaseId: input.connector.knowledgeBaseId,
+        syncLockToken: input.runId,
+        lease: input.leaseKind,
+      }
+    )
+    /** Nothing removable is left, e.g. a row detached from this connector mid-walk. */
+    if (removed === 0) break
+    input.result.docsDeleted += removed
+  }
+  await db
+    .update(knowledgeConnector)
+    .set({ imageRemovalPending: false })
+    .where(input.lease.stillHeld())
+  return true
 }
 
 /** Reconciles absence only after EOF, with bounded queries and the existing deletion guards. */

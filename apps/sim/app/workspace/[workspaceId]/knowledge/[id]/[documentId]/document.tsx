@@ -402,6 +402,9 @@ export function Document({
   const DocumentIcon =
     ConnectorIcon || getDocumentIcon(documentData?.mimeType ?? '', effectiveDocumentName)
   const isCompleted = documentData?.processingStatus === 'completed'
+  /** A completed image with no chunks held nothing searchable, such as a logo or an icon. */
+  const isImageWithNothingToIndex =
+    isCompleted && documentData.mimeType.startsWith('image/') && documentData.chunkCount === 0
 
   /**
    * Kept separate from `documentError`: without the document there is no page to draw,
@@ -1284,6 +1287,12 @@ export function Document({
           emptyState={
             chunkError ? (
               <ChunkLoadError message={chunkError} kind={initialError ? 'load' : 'search'} />
+            ) : isImageWithNothingToIndex ? (
+              <EmptyState
+                graphic={<FileX className='size-[24px] text-[var(--text-icon)]' />}
+                title='Nothing to index'
+                description='This image holds no searchable information, such as a logo or an icon.'
+              />
             ) : undefined
           }
           selectable={chunkError ? undefined : selectableConfig}

@@ -342,6 +342,7 @@ export interface ContentPassOutcome {
     unsafe: boolean
     contentFailures?: boolean
     permissionFailures?: boolean
+    imagesDeferred?: boolean
     listingFailures?: ExternalListingFailures | null
     startedAt: string
     listedCount: number
@@ -362,6 +363,7 @@ export function isContentPassIncomplete(
     !contentPass.complete ||
     contentPass.checkpoint.contentFailures === true ||
     contentPass.checkpoint.permissionFailures === true ||
+    contentPass.checkpoint.imagesDeferred === true ||
     (contentPass.checkpoint.listingFailures?.count ?? 0) > 0
   )
 }

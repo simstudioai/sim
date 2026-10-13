@@ -18,6 +18,7 @@ import {
 import {
   EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
   OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
+  VISION_CHECKPOINT_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/checkpoint-events'
 import { checkDeferredDocumentRetry } from '@/lib/knowledge/documents/deferred-retry-check'
 import {
@@ -58,6 +59,7 @@ import {
 } from '@/lib/knowledge/documents/service'
 import { cleanupKnowledgeStorage } from '@/lib/knowledge/documents/storage-cleanup'
 import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
+import { cleanupVisionCheckpoint } from '@/lib/knowledge/documents/vision-checkpoints'
 
 function requirePayloadRecord(payload: unknown): Record<string, unknown> {
   if (!isRecordLike(payload)) {
@@ -240,6 +242,7 @@ export const knowledgeDocumentProcessingOutboxHandlers = {
   [OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT]: cleanupOcrCheckpoint,
   [KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT]: checkDeferredDocumentRetry,
   [EMBEDDING_CHECKPOINT_CLEANUP_EVENT]: cleanupEmbeddingCheckpoint,
+  [VISION_CHECKPOINT_CLEANUP_EVENT]: cleanupVisionCheckpoint,
   [KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT]: withOutboxHandlerTimeout(
     processKnowledgeDocument,
     KNOWLEDGE_HANDLER_TIMEOUT_MS

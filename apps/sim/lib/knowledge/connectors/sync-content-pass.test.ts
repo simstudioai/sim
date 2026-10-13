@@ -94,7 +94,12 @@ interface StoredPage {
   sourceSeenAt: Date | null
 }
 
-const SOURCE_CONFIG = { domain: 'fixture.atlassian.net', spaceKey: 'ENG' }
+/** Images on, as a new connector is created. */
+const SOURCE_CONFIG = {
+  domain: 'fixture.atlassian.net',
+  spaceKey: 'ENG',
+  imageAttachments: 'semantic',
+}
 const EXISTING: StoredPage = {
   id: 'document',
   externalId: 'page',
