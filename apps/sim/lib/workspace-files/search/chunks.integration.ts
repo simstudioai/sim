@@ -514,7 +514,7 @@ describe('chunked workspace file search on PostgreSQL', () => {
       ).toBe(0)
     }
   )
-  it('keeps cleanup to its batch/run budget and resumes', async () => {
+  it('keeps cleanup to its batch-count budget and resumes', async () => {
     const build = (await beginFileSearchBuild(revision))!
     const count = FILE_SEARCH_CLEANUP_BATCH_ROWS * FILE_SEARCH_CLEANUP_MAX_BATCHES + 1
     await connection`INSERT INTO workspace_file_search_chunk (build_id, workspace_id, ordinal, line_start, fragment, content)
@@ -522,11 +522,16 @@ describe('chunked workspace file search on PostgreSQL', () => {
     await connection`UPDATE workspace_file_search_build SET expires_at = now() WHERE id = ${build.id}`
     await addFile('file-2')
     expect((await prepareWorkspaceFileSearchDispatch()).payloads).toEqual([])
-    expect(await cleanupFileSearchBuilds()).toBeLessThanOrEqual(count - 1)
-    expect(
-      (await connection`SELECT count(*)::int AS count FROM workspace_file_search_chunk`)[0].count
-    ).toBeGreaterThan(0)
-    await cleanupFileSearchBuilds()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now())
+    try {
+      expect(await cleanupFileSearchBuilds()).toBe(count - 1)
+      expect(
+        (await connection`SELECT count(*)::int AS count FROM workspace_file_search_chunk`)[0].count
+      ).toBe(1)
+      await cleanupFileSearchBuilds()
+    } finally {
+      clock.mockRestore()
+    }
     expect((await prepareWorkspaceFileSearchDispatch()).payloads.map((row) => row.fileId)).toEqual([
       'file-2',
     ])

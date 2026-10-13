@@ -1,4 +1,5 @@
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
 import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { mothershipChatStatusMock } from '@sim/testing/mocks/mothership-chat-status.mock'
@@ -31,7 +32,8 @@ vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-import { GET } from '@/app/api/mothership/chats/route'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { GET, POST } from '@/app/api/mothership/chats/route'
 
 function createRequest(workspaceId: string) {
   return createMockRequest({
@@ -39,7 +41,7 @@ function createRequest(workspaceId: string) {
   })
 }
 
-describe('GET /api/mothership/chats', () => {
+describe('/api/mothership/chats', () => {
   beforeEach(() => {
     resetDbChainMock()
     workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext.mockImplementation(
@@ -101,7 +103,7 @@ describe('GET /api/mothership/chats', () => {
       ])
     )
 
-    const response = await GET(createRequest('ws-1'))
+    const response = await GET(createRequest('ws-1'), createRouteContext({}))
     expect(response.status).toBe(200)
     const body = await response.json()
 
@@ -120,6 +122,21 @@ describe('GET /api/mothership/chats', () => {
       expect.objectContaining({ id: 'chat-idle', activeStreamId: null }),
     ])
   })
+
+  it.each(['forbidden', 'not_found'] as const)(
+    'identifies the workspace in a POST %s refusal',
+    async (code) => {
+      workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext.mockRejectedValueOnce(
+        new OrchestrationError(code, 'Workspace unavailable')
+      )
+      const response = await POST(
+        createMockRequest('POST', { workspaceId: 'ws-denied' }),
+        createRouteContext({})
+      )
+      expect(response.status).toBe(403)
+      expect(await response.json()).toEqual({ error: 'Workspace access denied' })
+    }
+  )
 
   afterAll(() => {
     resetDbChainMock()

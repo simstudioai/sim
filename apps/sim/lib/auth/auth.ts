@@ -74,7 +74,6 @@ import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
 import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
 import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
-import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
   assertPersonalCheckoutAllowed,
   authorizeSubscriptionReference,
@@ -89,6 +88,7 @@ import {
 import { invalidateReportingUsagePrefixes } from '@/lib/billing/core/reporting-usage-epoch'
 import {
   getOrganizationIdForSubscriptionReference,
+  sendPlanWelcomeEmail,
   syncSubscriptionPlan,
   writeBillingInterval,
 } from '@/lib/billing/core/subscription'

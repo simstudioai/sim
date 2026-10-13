@@ -17,6 +17,7 @@ import {
   resolveOrganizationSurfaceSection,
 } from '@/app/o/[organizationId]/settings/navigation'
 import { warmOrganizationSettingsSectionQuery } from '@/app/o/[organizationId]/settings/settings-query-warmers'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 
 interface OrganizationSettingsSidebarProps {
@@ -27,6 +28,7 @@ interface OrganizationSettingsSidebarProps {
 export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarProps) {
   const { organization, viewer, connectedAccountsAvailable, searchAccess, settingsFeatures } =
     useOrganizationContext()
+  const knowledgeGraphs = useFeatureFlag('mothership-memory-spaces')
   const pathname = usePathname()
   const queryClient = useQueryClient()
   const refreshPlan = viewer.isAdmin && settingsFeatures.hosted && settingsFeatures.billingEnabled
@@ -68,6 +70,7 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
       items={organizationSurfaceSettingsNavigation(isAdmin, features, {
         connectedAccounts: connectedAccountsAvailable,
         search: searchAccess.memberScoped,
+        knowledgeGraphs,
       })}
       hrefForSection={(section) => routes.settingsSection(section)}
       onSectionIntent={(section) =>

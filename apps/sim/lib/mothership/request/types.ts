@@ -249,6 +249,7 @@ export interface OrchestratorOptions {
   /** Checks the server controller, independently of user cancellation. */
   assertControllerOwnership?: () => Promise<void>
   autoExecuteTools?: boolean
+  /** Optional caller-requested deadline; healthy runs have no default wall-clock limit. */
   timeout?: number
   onEvent?: (event: StreamEvent) => void | Promise<void>
   /**

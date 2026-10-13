@@ -12,6 +12,7 @@ import {
   type AsyncCompletionData,
   type AsyncConfirmationStatus,
   type AsyncTerminalStatus,
+  DESKTOP_TOOL_CLAIM_OWNER,
   getTerminalConfirmationStatus,
   isDeliveredAsyncStatus,
   isTerminalAsyncStatus,
@@ -42,7 +43,7 @@ import {
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import {
   getDesktopToolClaimOwner,
-  isDesktopToolCall,
+  isBackgroundDesktopToolCall,
   isNativeDesktopTool,
 } from '@/lib/mothership/tools/desktop-tools'
 import {
@@ -210,7 +211,10 @@ export const POST = withRouteHandler((req: NextRequest) => {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         }
 
-        if (run.desktopDeviceId && isDesktopToolCall(existing.toolName, toRecord(existing.args))) {
+        if (
+          run.desktopDeviceId &&
+          isBackgroundDesktopToolCall(existing.toolName, toRecord(existing.args))
+        ) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Forbidden)
           return NextResponse.json(
             {
@@ -317,6 +321,16 @@ export const POST = withRouteHandler((req: NextRequest) => {
         ) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
           return heldByAnotherReporterResponse()
+        }
+
+        if (
+          existing.toolName === 'computer' &&
+          (status === ASYNC_TOOL_CONFIRMATION_STATUS.background ||
+            (existing.status === ASYNC_TOOL_STATUS.running &&
+              existing.claimedBy !== DESKTOP_TOOL_CLAIM_OWNER.computer))
+        ) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
+          return createNotFoundResponse('Claimed computer tool call not found')
         }
 
         let effectiveStatus = status
@@ -429,7 +443,16 @@ export const POST = withRouteHandler((req: NextRequest) => {
           projected.data,
           {
             ...(isWorkflowTool && executionId ? { executionId } : {}),
-            ...(isPreclaimNativeTerminalOutcome ? { guard: { kind: 'pending' } as const } : {}),
+            ...(isPreclaimNativeTerminalOutcome
+              ? { guard: { kind: 'pending' } as const }
+              : existing.toolName === 'computer'
+                ? {
+                    guard: {
+                      kind: 'claimed',
+                      claimedBy: DESKTOP_TOOL_CLAIM_OWNER.computer,
+                    } as const,
+                  }
+                : {}),
           }
         )
 

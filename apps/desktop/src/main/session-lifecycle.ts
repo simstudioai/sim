@@ -264,8 +264,10 @@ export async function tearDownSession(
   clearHandoffState: () => void | Promise<void>,
   events: EventRecorder,
   clearBrowserProfile: () => Promise<void>,
-  revokeSession: () => Promise<void>
+  revokeSession: () => Promise<void>,
+  stopLocalActions?: () => void
 ): Promise<void> {
+  stopLocalActions?.()
   if (!beginAccountDataTeardown('account', origin)) {
     throw new Error('Could not persist account-data recovery marker.')
   }
@@ -303,6 +305,8 @@ export interface SessionLifecycleDeps {
   appSession: Session
   origin: () => string
   events: EventRecorder
+  /** Stops live device actions before account persistence or server revocation can block. */
+  stopLocalActions: () => void
   clearHandoffState: () => void | Promise<void>
   /** Clears the embedded browser's own partition. See {@link tearDownSession}. */
   clearBrowserProfile: () => Promise<void>
@@ -366,7 +370,8 @@ export function createSessionLifecycleCoordinator(
         if (win) {
           await revokeAppSession(win, origin)
         }
-      }
+      },
+      deps.stopLocalActions
     )
       .then(() => {
         for (const win of deps.getWindows()) {

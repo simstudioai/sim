@@ -22,7 +22,7 @@ import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/typ
  */
 type CopilotChatRow = Omit<
   typeof copilotChats.$inferSelect,
-  'messages' | 'externalConversationKey' | 'externalConversationMetadata'
+  'memorySpaceId' | 'messages' | 'externalConversationKey' | 'externalConversationMetadata'
 > & {
   messages: unknown[]
 }

@@ -80,6 +80,7 @@ import {
   sanitizeChatResources,
 } from '@/lib/mothership/resources/types'
 import { executeBrowserToolOnClient } from '@/lib/mothership/tools/client/browser-tool-execution'
+import { executeComputerToolOnClient } from '@/lib/mothership/tools/client/computer-tool-execution'
 import {
   bindRunToolToExecution,
   executeRunToolOnClient,
@@ -136,7 +137,10 @@ import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
 import { useChatPanelStore } from '@/stores/chat-panel/store'
-import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
+import {
+  useMothershipEffortStore,
+  useMothershipPlanEffortStore,
+} from '@/stores/mothership-effort/store'
 import {
   liveQueueKey,
   liveQueuePosition,
@@ -737,6 +741,7 @@ export function useChat(
   options?: UseChatOptions
 ): UseChatReturn {
   const modelSelectorEnabled = useFeatureFlag('mothership-model-selector')
+  const computerUseEnabled = useFeatureFlag('mothership-computer-use')
   const workspaceId = typeof owner === 'string' ? owner : undefined
   const organizationId = typeof owner === 'string' ? undefined : owner.organizationId
   const scopeKey = typeof owner === 'string' ? owner : `organization:${owner.organizationId}`
@@ -2369,6 +2374,12 @@ export function useChat(
         startClientWorkflowTool,
         startClientLocalFilesystemTool: (toolCallId, toolName, toolArgs) =>
           startClientLocalFilesystemTool(toolCallId, toolName, toolArgs, desktopTurn),
+        startClientComputerTool: (toolCallId, args, eventTs) => {
+          const lease = desktopTurn?.lease()
+          void executeComputerToolOnClient(toolCallId, args, eventTs, lease?.signal).finally(() =>
+            lease?.release()
+          )
+        },
         startClientBrowserTool: startClientBrowserToolForStream,
         startClientTerminalTool: startClientTerminalToolForStream,
         startBrowserAgentRun: startBrowserAgentRunForStream,
@@ -3917,7 +3928,7 @@ export function useChat(
         const desktopChatCapabilities =
           options?.requestMode === 'assistant'
             ? {}
-            : await getDesktopChatCapabilities(desktopScopeIdRef.current)
+            : await getDesktopChatCapabilities(desktopScopeIdRef.current, computerUseEnabled)
 
         admissionUnknown = true
         /** A reload from here on may find the server holding this id. */
@@ -3949,8 +3960,12 @@ export function useChat(
             ...(options?.requestMode !== 'assistant'
               ? {
                   modelSelection: resolveMothershipModelSettings(
-                    useMothershipEffortStore.getState(),
-                    modelSelectorEnabled
+                    (options?.requestMode === 'plan'
+                      ? useMothershipPlanEffortStore
+                      : useMothershipEffortStore
+                    ).getState(),
+                    modelSelectorEnabled,
+                    options?.requestMode === 'plan'
                   ).modelSelection,
                   ...(effortChoice ? { effort: effortChoice } : {}),
                 }
@@ -4274,6 +4289,7 @@ export function useChat(
       queryClient,
       upsertChatHistory,
       modelSelectorEnabled,
+      computerUseEnabled,
       processSSEStream,
       finalize,
       resumeOrFinalize,

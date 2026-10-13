@@ -27,6 +27,7 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
       organizationId: copilotChats.organizationId,
       type: copilotChats.type,
       mode: conversationModeSelection,
+      memorySpaceId: copilotChats.memorySpaceId,
     })
     .from(copilotChats)
     .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.deletedAt)))
@@ -53,5 +54,6 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
     chatId,
     userId: chat.userId,
     mode: chat.mode,
+    memorySpaceId: chat.memorySpaceId ?? null,
   }
 }

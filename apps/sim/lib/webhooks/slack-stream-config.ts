@@ -5,12 +5,7 @@ import {
   resolveOutputBlockRef,
 } from '@/lib/workflows/streaming/output-selector'
 import { normalizeName } from '@/executor/constants'
-
-export const SLACK_STREAM_RESPONSE_EVENTS = [
-  'message',
-  'app_mention',
-  'assistant_thread_started',
-] as const
+import { SLACK_STREAM_RESPONSE_EVENTS } from '@/triggers/slack/shared'
 
 export interface SlackStreamOutputConfig {
   workflowId?: string

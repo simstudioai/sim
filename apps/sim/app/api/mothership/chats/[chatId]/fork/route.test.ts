@@ -1,4 +1,4 @@
-import { copilotChats, member } from '@sim/db/schema'
+import { copilotChats, member, workspace } from '@sim/db/schema'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createRouteContext } from '@sim/testing/helpers/http'
 import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
@@ -145,17 +145,26 @@ function createRequest(chatId: string, body?: unknown) {
   })
 }
 
+function mockWorkspaceForkRows(
+  chat: Omit<typeof parentRow, 'resources'> & { resources: unknown[] } = parentRow
+) {
+  resetDbChainMock()
+  queueTableRows(copilotChats, [chat])
+  queueTableRows(copilotChats, [chat])
+  queueTableRows(workspace, [{ organizationId: null, archivedAt: null }])
+  queueTableRows(copilotChats, [{ id: chat.id, memorySpaceId: null }])
+  dbChainMockFns.returning.mockResolvedValue([{ id: 'row-id', workspaceId: 'ws-1' }])
+}
+
 describe('POST /api/mothership/chats/[chatId]/fork', () => {
   beforeEach(() => {
-    resetDbChainMock()
+    mockWorkspaceForkRows()
     setEnv({ COPILOT_API_KEY: undefined })
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
       principal: createSessionPrincipal(),
     })
-    dbChainMockFns.limit.mockResolvedValue([parentRow])
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'row-id', workspaceId: 'ws-1' }])
     mockListForkableChatFiles.mockResolvedValue([])
     mockLoadCopilotChatMessages.mockResolvedValue(threeMessages)
     mockPlanChatFileCopies.mockReturnValue({
@@ -180,12 +189,13 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   })
 
   it('forks organization history under current membership without inventing workspace files', async () => {
-    dbChainMockFns.limit.mockReset()
+    resetDbChainMock()
     const chat = { ...parentRow, workspaceId: null, organizationId: 'org-1', resources: [] }
     queueTableRows(copilotChats, [chat])
     queueTableRows(copilotChats, [chat])
     queueTableRows(member, [{ role: 'member' }])
     queueTableRows(copilotChats, [{ id: chat.id }])
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'row-id', workspaceId: null }])
     const attachments = [
       {
         id: 'upload-1',
@@ -220,7 +230,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     // The fork shares its attachment keys with the source, and cleanup deletes an unreferenced
     // key only after deleting the source row: publishing without the source would leave the
     // fork pointing at bytes that cleanup is about to delete.
-    dbChainMockFns.limit.mockReset()
+    resetDbChainMock()
     const chat = { ...parentRow, workspaceId: null, organizationId: 'org-1', resources: [] }
     queueTableRows(copilotChats, [chat])
     queueTableRows(copilotChats, [chat])
@@ -239,7 +249,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   it.each(['membership', 'capability'] as const)(
     'denies organization forks after %s revocation before copying',
     async (revocation) => {
-      dbChainMockFns.limit.mockReset()
+      resetDbChainMock()
       const chat = { ...parentRow, workspaceId: null, organizationId: 'org-1' }
       queueTableRows(copilotChats, [chat])
       queueTableRows(copilotChats, [chat])
@@ -254,7 +264,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   )
 
   it('404s when the chat belongs to another user', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ ...parentRow, userId: 'someone-else' }])
+    mockWorkspaceForkRows({ ...parentRow, userId: 'someone-else' })
     const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
     expect(res.status).toBe(404)
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
@@ -447,19 +457,17 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
 
   it('drops a Sources tab whose response is past the cut', async () => {
     const kept = { type: 'sources', id: 'cited-sources', title: 'Sources' }
-    dbChainMockFns.limit.mockResolvedValue([
-      { ...parentRow, resources: [{ ...kept, sources: { messageId: 'msg-3' } }] },
-    ])
+    mockWorkspaceForkRows({
+      ...parentRow,
+      resources: [{ ...kept, sources: { messageId: 'msg-3' } }],
+    })
     await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
     expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ resources: [] }))
 
-    dbChainMockFns.values.mockClear()
-    dbChainMockFns.limit.mockResolvedValue([
-      {
-        ...parentRow,
-        resources: [{ ...kept, sources: { messageId: 'live-id', requestId: 'req-2' } }],
-      },
-    ])
+    mockWorkspaceForkRows({
+      ...parentRow,
+      resources: [{ ...kept, sources: { messageId: 'live-id', requestId: 'req-2' } }],
+    })
     mockLoadCopilotChatMessages.mockResolvedValue([
       threeMessages[0],
       { ...threeMessages[1], requestId: 'req-2' },
@@ -479,18 +487,16 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     // copies the kept upload AND the pre-cut apple; only the post-cut banana
     // stays behind, so only its resource is dropped — not left pointing at
     // the source chat.
-    dbChainMockFns.limit.mockResolvedValue([
-      {
-        ...parentRow,
-        resources: [
-          { type: 'file', id: OLD_FILE_ID, title: 'cat.png' },
-          { type: 'file', id: 'wf_apple', title: 'apple.png' },
-          { type: 'file', id: 'wf_banana', title: 'banana.png' },
-          { type: 'file', id: 'wf_shared', title: 'shared.pdf' },
-          { type: 'workflow', id: 'wflow-1', title: 'My flow' },
-        ],
-      },
-    ])
+    mockWorkspaceForkRows({
+      ...parentRow,
+      resources: [
+        { type: 'file', id: OLD_FILE_ID, title: 'cat.png' },
+        { type: 'file', id: 'wf_apple', title: 'apple.png' },
+        { type: 'file', id: 'wf_banana', title: 'banana.png' },
+        { type: 'file', id: 'wf_shared', title: 'shared.pdf' },
+        { type: 'workflow', id: 'wflow-1', title: 'My flow' },
+      ],
+    })
     // Every chat-owned file of the source chat in the single read; messageId
     // drives the in-memory cut.
     mockListForkableChatFiles.mockResolvedValue([

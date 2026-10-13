@@ -11,6 +11,7 @@ export async function lockActiveWorkspace(tx: DbTransaction, workspaceId: string
   const [record] = await tx
     .select({
       archivedAt: workspace.archivedAt,
+      organizationId: workspace.organizationId,
       forkSyncNewWorkflowsExcluded: workspace.forkSyncNewWorkflowsExcluded,
     })
     .from(workspace)

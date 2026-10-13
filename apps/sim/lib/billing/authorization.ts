@@ -3,9 +3,11 @@ import { subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { APIError } from 'better-auth/api'
 import { and, eq, isNotNull } from 'drizzle-orm'
-import { hasPaidSubscription } from '@/lib/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
-import { getOrganizationCoverageForMember } from '@/lib/billing/core/subscription'
+import {
+  getOrganizationCoverageForMember,
+  hasPaidSubscription,
+} from '@/lib/billing/core/subscription'
 import {
   assertNoUnresolvedEnterpriseIssuance,
   EnterpriseIssuanceInProgressError,
