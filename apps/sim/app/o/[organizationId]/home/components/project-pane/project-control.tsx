@@ -125,12 +125,6 @@ export function ProjectControl({ active, onShow }: ProjectControlProps) {
             )}
             {...scrollFadeAttributes(listEdges)}
           >
-            {!needle && (
-              <DropdownMenuItem size='lg' active={!project} onSelect={() => pick('')}>
-                <IdentityTile initial={organization.name[0]} />
-                <DropdownMenuItemLabel label={organization.name} />
-              </DropdownMenuItem>
-            )}
             {visibleRoots.length === 0 && needle && (
               <div className='px-2 py-[5px] text-[var(--text-muted)] text-caption'>
                 No results for "{search}"
