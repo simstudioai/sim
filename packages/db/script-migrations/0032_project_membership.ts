@@ -82,7 +82,8 @@ export const projectMembershipMigration: ScriptMigration = {
               await archiveProjectRepairWorkflows(sql, repair)
               break
             } catch (error) {
-              if (!retryable(error) || attempt >= 2) throw error
+              if (!(error instanceof ProjectBackfillBusy || retryable(error)) || attempt >= 2)
+                throw error
               await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 250, maxMs: 1000 }))
             }
           }

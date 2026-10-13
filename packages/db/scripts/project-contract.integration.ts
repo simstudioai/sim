@@ -125,7 +125,11 @@ async function prepareAndEnforce(sql: Sql) {
   await applyMigration(sql, migration)
 }
 
-async function runRegisteredProjectMigration(url: string, reviews?: ProjectGroupingReview[]) {
+async function runRegisteredProjectMigration(
+  url: string,
+  reviews?: ProjectGroupingReview[],
+  onQuery?: (query: string) => void
+) {
   const previousPath = process.env.PROJECT_BACKFILL_REVIEW_PATH
   const previousUrl = process.env.MIGRATION_DATABASE_URL
   const directory = reviews ? await mkdtemp(join(tmpdir(), 'project-review-')) : null
@@ -137,7 +141,12 @@ async function runRegisteredProjectMigration(url: string, reviews?: ProjectGroup
       JSON.stringify({ version: 1, databaseId: projectBackfillDatabaseId(url), groupings: reviews })
     )
   }
-  const runner = postgres(url, { max: 1, onnotice: () => undefined, max_lifetime: null })
+  const runner = postgres(url, {
+    max: 1,
+    onnotice: () => undefined,
+    max_lifetime: null,
+    debug: onQuery ? (_connection, query) => onQuery(query) : false,
+  })
   try {
     await runScriptMigrations(
       runner,
@@ -215,6 +224,52 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       )
     })
   })
+
+  it.each(['temporary', 'persistent'] as const)(
+    'retries %s archive repair contention with a bounded budget',
+    async (contention) => {
+      await database(async (sql, url) => {
+        await archiveRepairFixture(sql)
+        const held = createDeferred<void>()
+        const release = createDeferred<void>()
+        const holder = sql.begin(async (tx) => {
+          await tx`SELECT pg_advisory_xact_lock_shared(hashtextextended('project-backfill:old', 0))`
+          held.resolve()
+          await release.promise
+        })
+        let rollbacks = 0
+        try {
+          await held.promise
+          const migration = runRegisteredProjectMigration(url, undefined, (query) => {
+            if (query.trim().toLowerCase() === 'rollback') {
+              rollbacks++
+              if (contention === 'temporary') release.resolve()
+            }
+          })
+          if (contention === 'temporary') {
+            await migration
+            expect(rollbacks).toBe(1)
+            expect(await sql`SELECT archived_at::text FROM workflow WHERE id='repair'`).toEqual([
+              { archived_at: '2026-01-02 00:00:00' },
+            ])
+            expect(await sql`SELECT name FROM script_migrations`).toEqual([
+              { name: '0032_project_membership' },
+            ])
+          } else {
+            await expect(migration).rejects.toThrow('Project backfill target is busy')
+            expect(rollbacks).toBe(3)
+            expect(await sql`SELECT archived_at FROM workflow WHERE id='repair'`).toEqual([
+              { archived_at: null },
+            ])
+            expect(await sql`SELECT * FROM script_migrations`).toHaveLength(0)
+          }
+        } finally {
+          release.resolve()
+          await holder
+        }
+      })
+    }
+  )
 
   it.each(['provider', 'previous-subscription'] as const)(
     'preserves the provider cleanup guard for %s webhooks',
