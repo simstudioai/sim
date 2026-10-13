@@ -141,10 +141,10 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
       },
     })
 
-  const startSetup = (credentialGroupId: string) =>
+  const startSetup = (credentialGroupId: string, app?: { appId: string; teamId: string }) =>
     startSlackCredentialGroupConfiguration.execute({
       principal: principal(),
-      input: { organizationId: ids.organization, credentialGroupId },
+      input: { organizationId: ids.organization, credentialGroupId, ...app },
     })
 
   const completeSetup = (state: string) =>
@@ -317,7 +317,24 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
     await installBot(CUSTOM_APP_ID, OTHER_TEAM)
     provideSlackConsent(MEMBER_TEAM)
     await expect(completeSetup(pending.searchParams.get('state') ?? '')).rejects.toThrow(
-      'installed during authorization'
+      'installations changed during authorization'
+    )
+    expect(await accountsGroup()).toEqual(before)
+  })
+
+  it('refuses member setup when another bot joins an installed one during authorization', async () => {
+    const groupId = (await approveSlack()).memberAccounts?.groupId
+    if (!groupId) throw new Error('Approval did not provision organization accounts')
+    await installBot(SHARED_APP_ID, MEMBER_TEAM)
+    const pending = new URL(
+      (await startSetup(groupId, { appId: SHARED_APP_ID, teamId: MEMBER_TEAM })).authorizationUrl
+    )
+    expect(pending.searchParams.get('team')).toBe(MEMBER_TEAM)
+    const before = await accountsGroup()
+    await installBot(CUSTOM_APP_ID, OTHER_TEAM)
+    provideSlackConsent(MEMBER_TEAM)
+    await expect(completeSetup(pending.searchParams.get('state') ?? '')).rejects.toThrow(
+      'installations changed during authorization'
     )
     expect(await accountsGroup()).toEqual(before)
   })
@@ -354,7 +371,7 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
       release.resolve()
       await install
     }
-    await expect(completion).rejects.toThrow('installed during authorization')
+    await expect(completion).rejects.toThrow('installations changed during authorization')
     expect(await accountsGroup()).toEqual(before)
   })
 

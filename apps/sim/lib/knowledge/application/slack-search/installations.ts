@@ -86,10 +86,14 @@ export const listSlackSearchInstallations = defineAuthorizedKnowledgeUseCase({
       readSharedSlackSearchApp(context.organizationId),
       loadOrganizationSlackMemberApps(context.organizationId),
     ])
-    const memberAppId = memberApps[0]?.configuration.slack?.appId
+    const memberAppIds = memberApps.flatMap((row) =>
+      row.configuration.slack ? [row.configuration.slack.appId] : []
+    )
+    /** Any custom member app blocks the shared-app path, so it wins over a shared one. */
     let memberAppKind: 'shared' | 'custom' | null = null
-    if (memberAppId)
-      memberAppKind = getSharedSlackSearchAppConfiguration(memberAppId) ? 'shared' : 'custom'
+    if (memberAppIds.some((appId) => !getSharedSlackSearchAppConfiguration(appId)))
+      memberAppKind = 'custom'
+    else if (memberAppIds.length) memberAppKind = 'shared'
     if (installations.length > 100 || bots.length > 100)
       throw new OrchestrationError(
         'validation',
