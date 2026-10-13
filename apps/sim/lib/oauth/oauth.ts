@@ -1636,6 +1636,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'cloud_recording:read:list_user_recordings',
           'cloud_recording:read:list_recording_files',
           'cloud_recording:delete:recording_file',
+          'cloud_recording:delete:meeting_recording',
         ],
         serviceAccountProviderId: 'zoom-service-account',
       },
