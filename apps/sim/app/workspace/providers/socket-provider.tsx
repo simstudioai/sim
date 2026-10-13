@@ -73,8 +73,8 @@ const AUTH_RETRY_BASE_MS = 1000
 const AUTH_RETRY_MAX_MS = 30000
 
 /**
- * Upper bound on an honored socket-token `Retry-After`. The token route's IP
- * bucket refills over 60 s, so the default 30 s cap would retry into a 429.
+ * Upper bound on an honored socket-token `Retry-After`. The token route's
+ * buckets refill over 60 s, so the default 30 s cap would retry into a 429.
  */
 const SOCKET_TOKEN_RETRY_AFTER_MAX_MS = 5 * 60_000
 
