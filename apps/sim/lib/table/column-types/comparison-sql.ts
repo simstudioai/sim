@@ -9,7 +9,7 @@ import type { ColumnDefinition } from '@/lib/table/types'
  */
 export function equalityCast(column: ColumnDefinition): string | undefined {
   const definition = columnTypeOf(column)
-  return definition.valueForEquality ? definition.jsonbCast : undefined
+  return definition.valueForEquality ? (definition.jsonbCast ?? undefined) : undefined
 }
 
 /** Casts stored text for equality, treating malformed explicit timestamps as absent instants. */
