@@ -263,6 +263,15 @@ async function seed(): Promise<string> {
   return encodeURIComponent(`${sessionToken}.${await makeSignature(sessionToken, authSecret)}`)
 }
 
+/**
+ * The rendered workspace content shell. While a streamed page is still arriving, React parks the
+ * next segment's markup, shell included, in a hidden `<div id="S:n">` until it swaps it in, so the
+ * class alone can match a second, hidden copy.
+ */
+function contentShell(page: Page): Locator {
+  return page.locator('.workspace-content-shell').filter({ visible: true })
+}
+
 async function visit(page: Page, route: string) {
   const path = `/workspace/${workspaceId}/${route}`
   const [response] = await Promise.all([
@@ -280,7 +289,7 @@ async function visit(page: Page, route: string) {
     new URL(page.url()).pathname.startsWith(`/workspace/${workspaceId}/`),
     'Session was rejected'
   )
-  await expect(page.locator('.workspace-content-shell')).toBeVisible()
+  await expect(contentShell(page)).toBeVisible()
   await expect(page.getByText('Application error', { exact: false })).toHaveCount(0)
   const contentByRoute: Record<string, Locator> = {
     home: page.getByRole('textbox', { name: 'Message', exact: true }),
@@ -337,7 +346,7 @@ async function expectNoOverflow(page: Page) {
       }
     )
     .toBeLessThanOrEqual(1)
-  const shell = await page.locator('.workspace-content-shell').boundingBox()
+  const shell = await contentShell(page).boundingBox()
   assert(shell && shell.width > 0 && shell.x >= -1, 'The content must have usable horizontal space')
   assert(
     shell.x + shell.width <= (page.viewportSize()?.width ?? 0) + 1,
@@ -717,7 +726,7 @@ async function exerciseViewport(
             timeout: 120_000,
           })
           await expect(sidebar).toBeHidden()
-          await expect(page.locator('.workspace-content-shell')).toBeVisible()
+          await expect(contentShell(page)).toBeVisible()
           await expect(
             page.getByRole('button', { name: `Actions for ${folderName}`, exact: true })
           ).toBeVisible({ timeout: 120_000 })
@@ -1114,7 +1123,7 @@ async function exerciseViewport(
         await expect
           .poll(async () => {
             const canvas = await page.locator('.react-flow').boundingBox()
-            const content = await page.locator('.workspace-content-shell').boundingBox()
+            const content = await contentShell(page).boundingBox()
             return canvas && content ? canvas.width / content.width : 0
           })
           .toBeGreaterThan(0.95)
