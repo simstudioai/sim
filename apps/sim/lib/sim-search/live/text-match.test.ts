@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { confluenceTextClause, jiraTextClause } from '@/lib/sim-search/live/text-match'
+import {
+  confluenceTextClause,
+  holdsHalfTheTerms,
+  jiraTextClause,
+} from '@/lib/sim-search/live/text-match'
 
 describe('text match clauses', () => {
   it('matches either term of a two-term query, leaving out stopwords', () => {
@@ -56,5 +60,31 @@ describe('text match clauses', () => {
 
   it('falls back to the all-terms clause when fewer than two terms are distinctive', () => {
     expect(jiraTextClause('how does it work', 'any')).toBe('text ~ "how does it work"')
+  })
+
+  describe('holdsHalfTheTerms', () => {
+    it('needs at least half the distinct terms, rounding up', () => {
+      const holds = holdsHalfTheTerms('glean token creator role request')
+      expect(holds('Role request form')).toBe(false)
+      expect(holds('Token creator role')).toBe(true)
+    })
+
+    it('counts a word and its plural as one term in either direction', () => {
+      expect(holdsHalfTheTerms('glean token creator role request')('Glean tokens, creators')).toBe(
+        true
+      )
+      expect(
+        holdsHalfTheTerms('database release checklist owner')('Databases and weekly releases')
+      ).toBe(true)
+      expect(holdsHalfTheTerms('databases releases checklist owner')('Database release')).toBe(true)
+    })
+
+    it('matches a term with punctuation inside it as written', () => {
+      expect(holdsHalfTheTerms('ci/cd pipeline failure owner')('CI/CD pipeline')).toBe(true)
+    })
+
+    it('accepts one matching term for a two-term query', () => {
+      expect(holdsHalfTheTerms('contractor offboarding')('Contractor directory')).toBe(true)
+    })
   })
 })
