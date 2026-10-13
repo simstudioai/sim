@@ -81,7 +81,7 @@ export async function searchDrive(
     nextCursor: string(data.nextPageToken) || undefined,
     partial: data.incompleteSearch === true,
     message:
-      'Drive searches file names and full text, including Docs, Sheets and Slides. The top Docs and Slides results preview their text; other previews are file metadata, so read a result for its content.',
+      'Drive searches file names and full text, including Docs, Sheets and Slides. For a plain-text search the top Docs and Slides results preview their text; other previews are file metadata, so read a result for its content.',
   }
 }
 
