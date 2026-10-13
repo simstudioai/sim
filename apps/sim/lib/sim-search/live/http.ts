@@ -39,9 +39,11 @@ export function createNativeClient(input: {
       query?: Record<string, string | string[]>
       body?: unknown
       googleService?: 'sheets'
+      signal?: AbortSignal
     }
   ) {
-    input.signal.throwIfAborted()
+    const signal = options?.signal ? AbortSignal.any([input.signal, options.signal]) : input.signal
+    signal.throwIfAborted()
     if (++requests > (input.requestBudget ?? NATIVE_SEARCH_REQUEST_BUDGET))
       throw new NativeSearchError('unavailable', 'Request budget reached. Narrow the query.')
     const url = new URL(input.origin)
@@ -68,7 +70,7 @@ export function createNativeClient(input: {
       },
       method: options?.body ? 'POST' : 'GET',
       ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
-      signal: input.signal,
+      signal,
       timeout: 10_000,
       maxResponseBytes: NATIVE_RESPONSE_MAX_BYTES,
       maxRedirects: 0,

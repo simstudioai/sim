@@ -24,7 +24,11 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import {
+  type MothershipChatHistory,
+  mothershipChatKeys,
+  refreshMothershipChatDetail,
+} from '@/hooks/queries/mothership-chats'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
@@ -61,6 +65,18 @@ function applyResourceEffect(
       .cancelQueries({ queryKey, exact: true }, { revert: false })
       .then(() => queryClient.refetchQueries({ queryKey, exact: true }))
   }
+}
+
+/**
+ * Recovery reloads the current panel state from the stored chat instead of
+ * repeating historical focus commands. A batch replay reloads once at its
+ * terminal flush; a reconnected live tail coalesces its reloads.
+ */
+function refreshRecoveredChatResources(ctx: StreamLoopContext): void {
+  const chatId = ctx.deps.chatIdRef.current
+  if (!chatId) return
+  if (ctx.deps.options.deferFlushes) ctx.state.deferredChatDetailRefreshes.add(chatId)
+  else refreshMothershipChatDetail(ctx.deps.queryClient, chatId)
 }
 
 /**
@@ -159,9 +175,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       }
     }
     if (payload.replay || ctx.deps.options.deferFlushes) {
-      const chatId = ctx.deps.chatIdRef.current
-      if (chatId)
-        void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+      refreshRecoveredChatResources(ctx)
       return
     }
     if (ctx.deps.citedSourcesEnabled) return
@@ -190,9 +204,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   }
   if (payload.op === 'refresh') return
   if (payload.replay || ctx.deps.options.deferFlushes) {
-    /** Recovery refetches current panel state instead of repeating historical focus commands. */
-    const chatId = ctx.deps.chatIdRef.current
-    if (chatId) void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+    refreshRecoveredChatResources(ctx)
     return
   }
   if (payload.op === 'clear_view') {

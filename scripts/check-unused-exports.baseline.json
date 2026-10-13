@@ -4221,7 +4221,6 @@
   "apps/sim/lib/chunkers/index.ts#ChunkBudget",
   "apps/sim/lib/chunkers/utils.ts#assertPositiveSafeInteger",
   "apps/sim/lib/chunkers/utils.ts#iterateWordBoundaryChunkSpans",
-  "apps/sim/lib/cleanup/chat-cleanup.ts#collectChatFiles",
   "apps/sim/lib/cleanup/chat-cleanup.ts#deleteStorageFiles",
   "apps/sim/lib/collab-doc/collab-state.ts#CollabDocStateToken",
   "apps/sim/lib/colors/brightness.ts#isLightColor",

@@ -2497,6 +2497,25 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     color: '#4285F4',
     models: [
       {
+        id: 'gemini-4-argon',
+        pricing: {
+          input: 2,
+          cachedInput: 0.1,
+          output: 10,
+          updatedAt: '2026-10-13',
+        },
+        capabilities: {
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+          maxOutputTokens: 65536,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-09-30',
+        recommended: true,
+      },
+      {
         id: 'gemini-3.8-flash',
         pricing: {
           input: 0.75,

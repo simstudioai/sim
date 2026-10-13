@@ -109,6 +109,60 @@ export const mothershipChatKeys = {
   detail: (chatId: string | undefined) => [...mothershipChatKeys.details(), chatId ?? ''] as const,
 }
 
+/**
+ * How long a chat's first reload in flight holds back later requests. Past its hold a reload is
+ * presumed stuck and the next request replaces it, so a hung fetch never blocks the chat for good.
+ */
+const CHAT_DETAIL_REFRESH_HOLD_MS = 30 * 1000
+
+interface ChatDetailRefresh {
+  startedAt: number
+  /** Doubles with each stuck reload a chain replaces, so a slow load gets the time it needs. */
+  holdMs: number
+  requestedAgain: boolean
+}
+
+/** Per client, the chats with a reload in flight. */
+const chatDetailRefreshes = new WeakMap<QueryClient, Map<string, ChatDetailRefresh>>()
+
+/**
+ * Invalidates a chat's detail so a mounted transcript reloads, coalescing a burst of
+ * requests (a replayed or reconnected stream re-announces every resource it touched)
+ * into one reload in flight plus one trailing reload. The trailing reload starts after
+ * the last request, so the final read reflects every change requested meanwhile; a read
+ * already in flight may predate a request and is never trusted to include it. A reload
+ * in flight past its hold is cancelled and replaced, and the replacement holds twice as
+ * long, so a hung read is always replaced while a slow one is eventually left to finish.
+ */
+export function refreshMothershipChatDetail(queryClient: QueryClient, chatId: string): void {
+  const refreshes = chatDetailRefreshes.get(queryClient) ?? new Map<string, ChatDetailRefresh>()
+  chatDetailRefreshes.set(queryClient, refreshes)
+  const inFlight = refreshes.get(chatId)
+  if (inFlight && Date.now() - inFlight.startedAt < inFlight.holdMs) {
+    inFlight.requestedAgain = true
+    return
+  }
+  const refresh: ChatDetailRefresh = {
+    startedAt: Date.now(),
+    holdMs: inFlight ? inFlight.holdMs * 2 : CHAT_DETAIL_REFRESH_HOLD_MS,
+    requestedAgain: false,
+  }
+  refreshes.set(chatId, refresh)
+  const queryKey = mothershipChatKeys.detail(chatId)
+  // A query with no data yet joins its fetch in flight instead of replacing it, so a stuck
+  // one is cancelled first.
+  const reload = inFlight
+    ? queryClient
+        .cancelQueries({ queryKey, exact: true })
+        .then(() => queryClient.invalidateQueries({ queryKey }))
+    : queryClient.invalidateQueries({ queryKey })
+  void reload.finally(() => {
+    if (refreshes.get(chatId) !== refresh) return
+    refreshes.delete(chatId)
+    if (refresh.requestedAgain) refreshMothershipChatDetail(queryClient, chatId)
+  })
+}
+
 /** Shared by the `useMothershipChats` hook and the workspace sidebar prefetch. */
 export const MOTHERSHIP_CHAT_LIST_STALE_TIME = 60 * 1000
 export const MOTHERSHIP_CHAT_HISTORY_STALE_TIME = 30 * 1000

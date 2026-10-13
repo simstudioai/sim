@@ -653,6 +653,38 @@ export function resolvePreviousOwnedCount(
   return Math.max(lastSyncDocCount ?? 0, ownedDocCount)
 }
 
+/** Live documents the connector owns: what the connector list shows as its document count. */
+export async function countLiveConnectorDocuments(connectorId: string): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(document)
+    .where(
+      and(
+        eq(document.connectorId, connectorId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+  return row?.count ?? 0
+}
+
+/**
+ * Whether a slice keeps the document count the connector holds instead of counting again.
+ *
+ * Once a pass has finished, a slice that leaves the next pass unfinished keeps the count that
+ * finished pass recorded, the same pass `lastSyncAt` still names, so a large connector is not
+ * counted again on every slice of a pass whose count is replaced when it finishes. Unfinished
+ * slices never advance `lastSyncAt`, so until a pass finishes every slice is counted and a first
+ * pass shows its progress.
+ */
+export function keepsRecordedDocCount(
+  passComplete: boolean,
+  connector: { lastSyncAt: Date | null; lastSyncDocCount: number | null } | null
+): boolean {
+  return !passComplete && connector?.lastSyncAt != null && connector.lastSyncDocCount != null
+}
+
 /**
  * Fraction of a connector's owned documents that a single reconciliation pass
  * may remove before the pass is held.

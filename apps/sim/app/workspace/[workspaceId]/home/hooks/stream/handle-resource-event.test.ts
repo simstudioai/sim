@@ -1,3 +1,5 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
@@ -26,7 +28,10 @@ vi.mock('@/hooks/queries/utils/workflow-cache', () => ({
 
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { handleResourceEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/handle-resource-event'
-import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
+import {
+  createStreamLoopContext,
+  type StreamLoopContext,
+} from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import {
   makeStreamLoopDeps,
   ref,
@@ -193,6 +198,226 @@ describe('live resource effects', () => {
           created,
         ])
       })
+    }
+  )
+})
+
+describe('recovered resource events', () => {
+  const detailKey = mothershipChatKeys.detail('chat-1')
+  const tables = ['tbl-1', 'tbl-2', 'tbl-3'].map(
+    (id): MothershipResource => ({ type: 'table', id, title: id })
+  )
+
+  function replayed(resource: MothershipResource, seq: number): ResourceEvent {
+    return {
+      ...removeEvent('file', resource.id),
+      seq,
+      payload: { op: 'upsert', replay: true, resource },
+    } as ResourceEvent
+  }
+
+  /** A mounted chat whose every read returns the resources stored when the read began. */
+  function mountedChat(queryClient: QueryClient, { cached = true, hangFirstRead = false } = {}) {
+    const server = { stored: [] as MothershipResource[] }
+    const reads = vi.fn(
+      async (): Promise<MothershipChatHistory> => ({
+        id: 'chat-1',
+        title: null,
+        messages: [],
+        activeStreamId: 'stream-1',
+        resources: [...server.stored],
+      })
+    )
+    if (hangFirstRead) reads.mockImplementationOnce(() => new Promise(() => {}))
+    if (cached) {
+      queryClient.setQueryData(detailKey, {
+        id: 'chat-1',
+        title: null,
+        messages: [],
+        activeStreamId: 'stream-1',
+        resources: [],
+      } satisfies MothershipChatHistory)
+    }
+    const unsubscribe = new QueryObserver(queryClient, {
+      queryKey: detailKey,
+      queryFn: reads,
+      staleTime: Number.POSITIVE_INFINITY,
+    }).subscribe(() => {})
+    return { server, reads, unsubscribe }
+  }
+
+  async function settledResources(queryClient: QueryClient) {
+    await vi.waitFor(() => expect(queryClient.isFetching({ queryKey: detailKey })).toBe(0))
+    return queryClient.getQueryData<MothershipChatHistory>(detailKey)?.resources
+  }
+
+  it('reloads the transcript once for a whole batch replay, after its terminal flush', async () => {
+    const queryClient = new QueryClient()
+    const { server, reads, unsubscribe } = mountedChat(queryClient)
+    const ctx = createStreamLoopContext(
+      makeStreamLoopDeps({
+        queryClient,
+        chatIdRef: ref<string | undefined>('chat-1'),
+        options: { deferFlushes: true },
+      })
+    )
+    server.stored = tables
+
+    tables.forEach((table, index) => handleResourceEvent(ctx, replayed(table, index + 1)))
+    expect(reads).not.toHaveBeenCalled()
+    ctx.ops.forceFlush()
+
+    expect(await settledResources(queryClient)).toEqual(tables)
+    expect(reads).toHaveBeenCalledOnce()
+    unsubscribe()
+  })
+
+  it('coalesces a reconnected tail burst into one read plus one trailing read that sees the last change', async () => {
+    const queryClient = new QueryClient()
+    const { server, reads, unsubscribe } = mountedChat(queryClient)
+    const deps = makeStreamLoopDeps({ queryClient, chatIdRef: ref<string | undefined>('chat-1') })
+    const ctx = createStreamLoopContext(deps)
+    const firstReadReleased = createDeferred<void>()
+    reads.mockImplementationOnce(async () => {
+      const resources = [...server.stored]
+      await firstReadReleased.promise
+      return { id: 'chat-1', title: null, messages: [], activeStreamId: 'stream-1', resources }
+    })
+
+    server.stored = tables.slice(0, 1)
+    handleResourceEvent(ctx, replayed(tables[0], 1))
+    server.stored = tables
+    handleResourceEvent(ctx, replayed(tables[1], 2))
+    handleResourceEvent(ctx, replayed(tables[2], 3))
+    firstReadReleased.resolve()
+
+    await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(2))
+    expect(await settledResources(queryClient)).toEqual(tables)
+    expect(reads).toHaveBeenCalledTimes(2)
+    unsubscribe()
+  })
+
+  it.each([
+    { name: 'a loaded transcript', cached: true },
+    { name: 'a transcript still on its first load', cached: false },
+  ])(
+    'stops holding reloads of $name behind one that never settles once 30 seconds pass',
+    async ({ cached }) => {
+      const queryClient = new QueryClient()
+      const { server, reads, unsubscribe } = mountedChat(queryClient, {
+        cached,
+        hangFirstRead: true,
+      })
+      const ctx = createStreamLoopContext(
+        makeStreamLoopDeps({ queryClient, chatIdRef: ref<string | undefined>('chat-1') })
+      )
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        handleResourceEvent(ctx, replayed(tables[0], 1))
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledOnce())
+        handleResourceEvent(ctx, replayed(tables[1], 2))
+        expect(reads).toHaveBeenCalledOnce()
+
+        server.stored = tables
+        vi.setSystemTime(Date.now() + 30_000)
+        handleResourceEvent(ctx, replayed(tables[2], 3))
+
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(2))
+        expect(await settledResources(queryClient)).toEqual(tables)
+        expect(reads).toHaveBeenCalledTimes(2)
+      } finally {
+        vi.useRealTimers()
+        unsubscribe()
+      }
+    }
+  )
+
+  it.each([
+    { name: 'a loaded transcript', cached: true },
+    { name: 'a transcript still on its first load', cached: false },
+  ])(
+    'doubles the hold after replacing a stuck read of $name, so a slow replacement finishes and is read again',
+    async ({ cached }) => {
+      const queryClient = new QueryClient()
+      const { server, reads, unsubscribe } = mountedChat(queryClient, {
+        cached,
+        hangFirstRead: true,
+      })
+      const slowReadReleased = createDeferred<void>()
+      reads.mockImplementationOnce(async () => {
+        const resources = [...server.stored]
+        await slowReadReleased.promise
+        return { id: 'chat-1', title: null, messages: [], activeStreamId: 'stream-1', resources }
+      })
+      const ctx = createStreamLoopContext(
+        makeStreamLoopDeps({ queryClient, chatIdRef: ref<string | undefined>('chat-1') })
+      )
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        handleResourceEvent(ctx, replayed(tables[0], 1))
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledOnce())
+
+        vi.setSystemTime(Date.now() + 30_000)
+        handleResourceEvent(ctx, replayed(tables[1], 2))
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(2))
+
+        server.stored = tables
+        vi.setSystemTime(Date.now() + 30_000)
+        handleResourceEvent(ctx, replayed(tables[2], 3))
+        await flushMacrotask()
+        expect(reads).toHaveBeenCalledTimes(2)
+
+        slowReadReleased.resolve()
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(3))
+        expect(await settledResources(queryClient)).toEqual(tables)
+        expect(reads).toHaveBeenCalledTimes(3)
+      } finally {
+        vi.useRealTimers()
+        unsubscribe()
+      }
+    }
+  )
+
+  it.each([
+    { name: 'a loaded transcript', cached: true },
+    { name: 'a transcript still on its first load', cached: false },
+  ])(
+    'still replaces a second stuck read of $name once its doubled hold passes',
+    async ({ cached }) => {
+      const queryClient = new QueryClient()
+      const { server, reads, unsubscribe } = mountedChat(queryClient, {
+        cached,
+        hangFirstRead: true,
+      })
+      reads.mockImplementationOnce(() => new Promise(() => {}))
+      const ctx = createStreamLoopContext(
+        makeStreamLoopDeps({ queryClient, chatIdRef: ref<string | undefined>('chat-1') })
+      )
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        handleResourceEvent(ctx, replayed(tables[0], 1))
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledOnce())
+
+        vi.setSystemTime(Date.now() + 30_000)
+        handleResourceEvent(ctx, replayed(tables[1], 2))
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(2))
+
+        vi.setSystemTime(Date.now() + 30_000)
+        handleResourceEvent(ctx, replayed(tables[1], 3))
+        await flushMacrotask()
+        expect(reads).toHaveBeenCalledTimes(2)
+
+        server.stored = tables
+        vi.setSystemTime(Date.now() + 30_000)
+        handleResourceEvent(ctx, replayed(tables[2], 4))
+
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(3))
+        expect(await settledResources(queryClient)).toEqual(tables)
+        expect(reads).toHaveBeenCalledTimes(3)
+      } finally {
+        vi.useRealTimers()
+        unsubscribe()
+      }
     }
   )
 })

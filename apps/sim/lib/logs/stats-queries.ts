@@ -2,6 +2,7 @@ import { dbReplica } from '@sim/db'
 import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { eq, type SQL, sql } from 'drizzle-orm'
 import { handledErrorSpanCondition } from '@/lib/logs/handled-errors'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 
 /** Oldest and newest run start in the filtered set, or nulls when it is empty. */
 export interface LogStatsBounds {
@@ -58,6 +59,12 @@ export async function readLogStatsBounds(where: SQL | undefined): Promise<LogSta
  * of a comparison against a typed column, so Postgres has nothing to infer the
  * type from and resolves no overload without it.
  *
+ * Groups by the log's own `workflow_id`, then joins `workflow` once per group
+ * for its name, in the same statement. A name is a function of the id, so this
+ * yields the same groups as grouping by both without carrying name text through
+ * the aggregate. The subquery's LEFT join to `workflow` serves only the filters
+ * that reference it; Postgres removes it when nothing does.
+ *
  * A run whose workflow has been deleted still counts — it collapses into a
  * single `'deleted'` series rather than disappearing, so the workspace totals
  * stay reconcilable against the log list.
@@ -68,14 +75,13 @@ export async function readLogStatsSegments(
   segmentMs: number,
   options: ReadLogStatsSegmentsOptions = {}
 ): Promise<LogStatsSegmentRow[]> {
-  return dbReplica
+  const grouped = dbReplica
     .select({
       handledErrorRuns: (options.countHandledErrors
         ? sql<number>`COUNT(*) FILTER (WHERE ${handledErrorSpanCondition()})`
         : sql<number>`0`
       ).as('handled_error_runs'),
-      workflowId: sql<string>`COALESCE(${workflowExecutionLogs.workflowId}, 'deleted')`,
-      workflowName: sql<string>`COALESCE(${workflow.name}, 'Deleted Workflow')`,
+      workflowId: workflowExecutionLogs.workflowId,
       segmentIndex:
         sql<number>`FLOOR(EXTRACT(EPOCH FROM (${workflowExecutionLogs.startedAt} - ${startTimeIso}::timestamp)) * 1000 / ${segmentMs})`.as(
           'segment_index'
@@ -93,9 +99,19 @@ export async function readLogStatsSegments(
     .from(workflowExecutionLogs)
     .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
     .where(where)
-    .groupBy(
-      sql`COALESCE(${workflowExecutionLogs.workflowId}, 'deleted')`,
-      sql`COALESCE(${workflow.name}, 'Deleted Workflow')`,
-      sql`segment_index`
-    )
+    .groupBy(workflowExecutionLogs.workflowId, sql`segment_index`)
+    .as('grouped')
+
+  return dbReplica
+    .select({
+      handledErrorRuns: grouped.handledErrorRuns,
+      workflowId: sql<string>`COALESCE(${grouped.workflowId}, 'deleted')`,
+      workflowName: sql<string>`COALESCE(${workflow.name}, ${DELETED_WORKFLOW_LABEL})`,
+      segmentIndex: grouped.segmentIndex,
+      totalExecutions: grouped.totalExecutions,
+      successfulExecutions: grouped.successfulExecutions,
+      avgDurationMs: grouped.avgDurationMs,
+    })
+    .from(grouped)
+    .leftJoin(workflow, eq(grouped.workflowId, workflow.id))
 }

@@ -1,0 +1,1585 @@
+---
+title: Fivetran
+description: Manage Fivetran connections, syncs, and transformations
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="fivetran"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Fivetran](https://www.fivetran.com/) is a managed data movement platform that replicates data from SaaS apps, databases, and logs into warehouses and lakehouses such as Databricks, Snowflake, and BigQuery.
+
+With the Fivetran block, you can:
+
+- **Manage connections**: List, read, create, update, pause, resume, and delete connections, look up the setup fields a connector type takes (such as Okta), and generate Connect Card links so source owners can authorize a connection themselves.
+- **Run and repair syncs**: Start a sync on demand, re-sync a whole connection or specific tables, run setup tests, reload the schema, and change which schemas and tables a connection syncs and how it handles new ones.
+- **Monitor pipelines**: Read sync history with per-stage data volumes, active warnings, schema configs, and each connection's setup, sync, and update state.
+- **Work with destinations and transformations**: Create and inspect groups and destinations such as Databricks, run destination setup tests, and list, run, or cancel transformations.
+- **Review the account**: Read account details, list users and service accounts, and look up the connector types you can create.
+- **React to events**: Start workflows when syncs start or end, connections succeed, fail, or change, tables are re-synced, or transformations start, succeed, or fail.
+
+To connect, click your username in Fivetran, then **API Key** > **Generate API key**. In the block, choose **Add API key** under **Fivetran Account** and paste the key and secret. Sim checks them against your Fivetran account, stores them encrypted as a reusable workspace credential, and fills the Connection, Group, and Destination dropdowns from that account. The key acts with your Fivetran permissions.
+
+Triggers take the API key and secret directly, register a webhook in Fivetran when you deploy the workflow (for the whole account or one group), and verify every delivery against a signing secret Sim generates for that webhook. The webhook is removed when you delete the trigger and redeploy.
+
+In Sim, the Fivetran block lets your agents triage failed syncs as they happen, keep security log pipelines into your SIEM from going stale, run dbt transformations after loads finish, and report on pipeline health and account access.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Fivetran into the workflow. List, create, update, pause, resume, and delete connections, trigger syncs and historical re-syncs, read sync history, warnings, and schema configs, enable or disable schemas and tables, run setup tests, generate Connect Card links, look up connector setup fields, create and inspect groups and destinations, run and cancel transformations, review users, and react to sync, connection, and transformation webhooks.
+
+
+
+## Actions
+
+### Fivetran List Connections
+
+List Fivetran connections with their sync state, schedule, and last success or failure, optionally filtered by group or schema name.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | No | Only return connections in this group |
+| `schema` | string | No | Only return the connection with this exact schema name |
+| `cursor` | string | No | Paging cursor from the nextCursor of a previous page |
+| `limit` | number | No | Number of records per page, from 1 to 1000 \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connections` | array | Connections |
+|   ↳ `id` | string | Connection ID |
+|   ↳ `groupId` | string | Destination group ID |
+|   ↳ `service` | string | Connector type, e.g. okta |
+|   ↳ `serviceVersion` | number | Connector type version |
+|   ↳ `schema` | string | Connection name, also the destination schema name |
+|   ↳ `paused` | boolean | Whether the connection is paused |
+|   ↳ `pauseAfterTrial` | boolean | Whether the connection pauses when the free trial ends |
+|   ↳ `connectedBy` | string | ID of the user who created the connection |
+|   ↳ `createdAt` | string | When the connection was created |
+|   ↳ `succeededAt` | string | Last successful sync time |
+|   ↳ `failedAt` | string | Last failed sync time |
+|   ↳ `syncFrequency` | number | Sync frequency in minutes |
+|   ↳ `scheduleType` | string | Scheduling mode \(auto or manual\) |
+|   ↳ `dailySyncTime` | string | Daily sync start time \(HH:MM\) for 24-hour frequency |
+|   ↳ `dataDelaySensitivity` | string | Data delay notification level \(LOW, NORMAL, HIGH, CUSTOM, SYNC_FREQUENCY\) |
+|   ↳ `dataDelayThreshold` | number | Custom data delay threshold in minutes |
+|   ↳ `networkingMethod` | string | Networking method, e.g. Directly or SshTunnel |
+|   ↳ `privateLinkId` | string | Private link ID |
+|   ↳ `proxyAgentId` | string | Proxy agent ID |
+|   ↳ `hybridDeploymentAgentId` | string | Hybrid deployment agent ID |
+|   ↳ `dataChecks` | boolean | Whether automated data validation is enabled |
+|   ↳ `destinationSchemaNames` | string | Destination schema naming \(FIVETRAN_NAMING or SOURCE_NAMING\) |
+|   ↳ `status` | object | Current connection state |
+|     ↳ `setupState` | string | Setup state \(incomplete, connected, broken\) |
+|     ↳ `syncState` | string | Sync state \(scheduled, syncing, paused, rescheduled\) |
+|     ↳ `updateState` | string | Data update state \(on_schedule, delayed\) |
+|     ↳ `isHistoricalSync` | boolean | Whether a historical re-sync is pending or running |
+|     ↳ `schemaStatus` | string | Schema status |
+|     ↳ `rescheduledFor` | string | Next sync attempt when the sync is rescheduled |
+|     ↳ `tasks` | array | Tasks that need action |
+|       ↳ `code` | string | Machine-readable condition code |
+|       ↳ `message` | string | Human-readable label |
+|       ↳ `details` | string | Additional context |
+|     ↳ `warnings` | array | Active warnings |
+|       ↳ `code` | string | Machine-readable condition code |
+|       ↳ `message` | string | Human-readable label |
+|       ↳ `details` | string | Additional context |
+|   ↳ `schedule` | object | Sync schedule configuration |
+|     ↳ `scheduleType` | string | Schedule type \(TIME_OF_DAY, INTERVAL, CRON, MANUAL\) |
+|     ↳ `interval` | number | Interval in minutes |
+|     ↳ `cron` | string | Cron expression |
+|     ↳ `daysOfWeek` | array | Days the connection can sync |
+|     ↳ `timeOfDay` | string | Time of day \(HH:MM\) |
+|   ↳ `setupTests` | array | Setup test results |
+|     ↳ `title` | string | Setup test step name |
+|     ↳ `status` | string | Result \(PASSED, SKIPPED, WARNING, FAILED, JOB_FAILED\) |
+|     ↳ `message` | string | Result message |
+|     ↳ `details` | json | Additional diagnostic details |
+|   ↳ `config` | json | Connector-specific setup configuration |
+| `nextCursor` | string | Cursor for the next page; null on the last page |
+
+### Fivetran Get Connection
+
+Get a Fivetran connection, including its setup, sync, and update state, open tasks and warnings, and schedule.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connection` | object | The connection |
+|   ↳ `id` | string | Connection ID |
+|   ↳ `groupId` | string | Destination group ID |
+|   ↳ `service` | string | Connector type, e.g. okta |
+|   ↳ `serviceVersion` | number | Connector type version |
+|   ↳ `schema` | string | Connection name, also the destination schema name |
+|   ↳ `paused` | boolean | Whether the connection is paused |
+|   ↳ `pauseAfterTrial` | boolean | Whether the connection pauses when the free trial ends |
+|   ↳ `connectedBy` | string | ID of the user who created the connection |
+|   ↳ `createdAt` | string | When the connection was created |
+|   ↳ `succeededAt` | string | Last successful sync time |
+|   ↳ `failedAt` | string | Last failed sync time |
+|   ↳ `syncFrequency` | number | Sync frequency in minutes |
+|   ↳ `scheduleType` | string | Scheduling mode \(auto or manual\) |
+|   ↳ `dailySyncTime` | string | Daily sync start time \(HH:MM\) for 24-hour frequency |
+|   ↳ `dataDelaySensitivity` | string | Data delay notification level \(LOW, NORMAL, HIGH, CUSTOM, SYNC_FREQUENCY\) |
+|   ↳ `dataDelayThreshold` | number | Custom data delay threshold in minutes |
+|   ↳ `networkingMethod` | string | Networking method, e.g. Directly or SshTunnel |
+|   ↳ `privateLinkId` | string | Private link ID |
+|   ↳ `proxyAgentId` | string | Proxy agent ID |
+|   ↳ `hybridDeploymentAgentId` | string | Hybrid deployment agent ID |
+|   ↳ `dataChecks` | boolean | Whether automated data validation is enabled |
+|   ↳ `destinationSchemaNames` | string | Destination schema naming \(FIVETRAN_NAMING or SOURCE_NAMING\) |
+|   ↳ `status` | object | Current connection state |
+|     ↳ `setupState` | string | Setup state \(incomplete, connected, broken\) |
+|     ↳ `syncState` | string | Sync state \(scheduled, syncing, paused, rescheduled\) |
+|     ↳ `updateState` | string | Data update state \(on_schedule, delayed\) |
+|     ↳ `isHistoricalSync` | boolean | Whether a historical re-sync is pending or running |
+|     ↳ `schemaStatus` | string | Schema status |
+|     ↳ `rescheduledFor` | string | Next sync attempt when the sync is rescheduled |
+|     ↳ `tasks` | array | Tasks that need action |
+|       ↳ `code` | string | Machine-readable condition code |
+|       ↳ `message` | string | Human-readable label |
+|       ↳ `details` | string | Additional context |
+|     ↳ `warnings` | array | Active warnings |
+|       ↳ `code` | string | Machine-readable condition code |
+|       ↳ `message` | string | Human-readable label |
+|       ↳ `details` | string | Additional context |
+|   ↳ `schedule` | object | Sync schedule configuration |
+|     ↳ `scheduleType` | string | Schedule type \(TIME_OF_DAY, INTERVAL, CRON, MANUAL\) |
+|     ↳ `interval` | number | Interval in minutes |
+|     ↳ `cron` | string | Cron expression |
+|     ↳ `daysOfWeek` | array | Days the connection can sync |
+|     ↳ `timeOfDay` | string | Time of day \(HH:MM\) |
+|   ↳ `setupTests` | array | Setup test results |
+|     ↳ `title` | string | Setup test step name |
+|     ↳ `status` | string | Result \(PASSED, SKIPPED, WARNING, FAILED, JOB_FAILED\) |
+|     ↳ `message` | string | Result message |
+|     ↳ `details` | json | Additional diagnostic details |
+|   ↳ `config` | json | Connector-specific setup configuration |
+
+### Fivetran Create Connection
+
+Create a Fivetran connection in a group. The config object holds the connector-specific settings and the destination naming: schema for most connectors, schema_prefix for databases, or schema and table for file connectors.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | ID of the destination group to create the connection in |
+| `service` | string | Yes | Connector type ID, e.g. okta or google_sheets \(see List Connector Types\) |
+| `config` | json | Yes | Connector-specific setup configuration, including the destination name: schema \(most connectors\), schema_prefix \(databases\), or schema and table \(file connectors\), e.g. \{"schema": "okta", "domain": "acme", "api_token": "..."\} |
+| `auth` | json | No | Connector-specific authorization settings, for connectors that take them |
+| `paused` | boolean | No | Create the connection paused |
+| `syncFrequency` | number | No | Sync frequency in minutes \(1, 5, 15, 30, 60, 120, 180, 360, 480, 720, or 1440\) |
+| `scheduleType` | string | No | auto lets Fivetran schedule syncs; manual runs syncs only on request |
+| `dailySyncTime` | string | No | Daily sync start time \(HH:MM\) when the sync frequency is 1440 |
+| `dataDelaySensitivity` | string | No | Data delay notification level: LOW, NORMAL, HIGH, CUSTOM, or SYNC_FREQUENCY |
+| `dataDelayThreshold` | number | No | Custom data delay threshold in minutes, used with CUSTOM sensitivity |
+| `destinationSchemaNames` | string | No | Destination schema naming: FIVETRAN_NAMING or SOURCE_NAMING |
+| `pauseAfterTrial` | boolean | No | Pause the connection when its free trial ends |
+| `runSetupTests` | boolean | No | Run the setup tests after creating the connection |
+| `trustCertificates` | boolean | No | Automatically trust the source certificate during setup tests \(default false\) |
+| `trustFingerprints` | boolean | No | Automatically trust the SSH fingerprint during setup tests \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connection` | object | The created connection, with setup test results when they ran |
+|   ↳ `id` | string | Connection ID |
+|   ↳ `groupId` | string | Destination group ID |
+|   ↳ `service` | string | Connector type, e.g. okta |
+|   ↳ `serviceVersion` | number | Connector type version |
+|   ↳ `schema` | string | Connection name, also the destination schema name |
+|   ↳ `paused` | boolean | Whether the connection is paused |
+|   ↳ `pauseAfterTrial` | boolean | Whether the connection pauses when the free trial ends |
+|   ↳ `connectedBy` | string | ID of the user who created the connection |
+|   ↳ `createdAt` | string | When the connection was created |
+|   ↳ `succeededAt` | string | Last successful sync time |
+|   ↳ `failedAt` | string | Last failed sync time |
+|   ↳ `syncFrequency` | number | Sync frequency in minutes |
+|   ↳ `scheduleType` | string | Scheduling mode \(auto or manual\) |
+|   ↳ `dailySyncTime` | string | Daily sync start time \(HH:MM\) for 24-hour frequency |
+|   ↳ `dataDelaySensitivity` | string | Data delay notification level \(LOW, NORMAL, HIGH, CUSTOM, SYNC_FREQUENCY\) |
+|   ↳ `dataDelayThreshold` | number | Custom data delay threshold in minutes |
+|   ↳ `networkingMethod` | string | Networking method, e.g. Directly or SshTunnel |
+|   ↳ `privateLinkId` | string | Private link ID |
+|   ↳ `proxyAgentId` | string | Proxy agent ID |
+|   ↳ `hybridDeploymentAgentId` | string | Hybrid deployment agent ID |
+|   ↳ `dataChecks` | boolean | Whether automated data validation is enabled |
+|   ↳ `destinationSchemaNames` | string | Destination schema naming \(FIVETRAN_NAMING or SOURCE_NAMING\) |
+|   ↳ `status` | object | Current connection state |
+|     ↳ `setupState` | string | Setup state \(incomplete, connected, broken\) |
+|     ↳ `syncState` | string | Sync state \(scheduled, syncing, paused, rescheduled\) |
+|     ↳ `updateState` | string | Data update state \(on_schedule, delayed\) |
+|     ↳ `isHistoricalSync` | boolean | Whether a historical re-sync is pending or running |
+|     ↳ `schemaStatus` | string | Schema status |
+|     ↳ `rescheduledFor` | string | Next sync attempt when the sync is rescheduled |
+|     ↳ `tasks` | array | Tasks that need action |
+|       ↳ `code` | string | Machine-readable condition code |
+|       ↳ `message` | string | Human-readable label |
+|       ↳ `details` | string | Additional context |
+|     ↳ `warnings` | array | Active warnings |
+|       ↳ `code` | string | Machine-readable condition code |
+|       ↳ `message` | string | Human-readable label |
+|       ↳ `details` | string | Additional context |
+|   ↳ `schedule` | object | Sync schedule configuration |
+|     ↳ `scheduleType` | string | Schedule type \(TIME_OF_DAY, INTERVAL, CRON, MANUAL\) |
+|     ↳ `interval` | number | Interval in minutes |
+|     ↳ `cron` | string | Cron expression |
+|     ↳ `daysOfWeek` | array | Days the connection can sync |
+|     ↳ `timeOfDay` | string | Time of day \(HH:MM\) |
+|   ↳ `setupTests` | array | Setup test results |
+|     ↳ `title` | string | Setup test step name |
+|     ↳ `status` | string | Result \(PASSED, SKIPPED, WARNING, FAILED, JOB_FAILED\) |
+|     ↳ `message` | string | Result message |
+|     ↳ `details` | json | Additional diagnostic details |
+|   ↳ `config` | json | Connector-specific setup configuration |
+
+### Fivetran Update Connection
+
+Update a Fivetran connection: pause or resume it, change its sync frequency or schedule, or update its configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+| `paused` | boolean | No | true pauses the connection, false resumes it |
+| `syncFrequency` | number | No | Sync frequency in minutes \(1, 5, 15, 30, 60, 120, 180, 360, 480, 720, or 1440\) |
+| `scheduleType` | string | No | auto lets Fivetran schedule syncs; manual runs syncs only on request |
+| `dailySyncTime` | string | No | Daily sync start time \(HH:MM\) when the sync frequency is 1440 |
+| `dataDelaySensitivity` | string | No | Data delay notification level: LOW, NORMAL, HIGH, CUSTOM, or SYNC_FREQUENCY |
+| `dataDelayThreshold` | number | No | Custom data delay threshold in minutes, used with CUSTOM sensitivity |
+| `pauseAfterTrial` | boolean | No | Pause the connection when its free trial ends |
+| `isHistoricalSync` | boolean | No | true triggers a re-sync of all historical data |
+| `config` | json | No | Connector-specific configuration fields to change |
+| `auth` | json | No | Connector-specific authorization settings to change |
+| `runSetupTests` | boolean | No | Run the setup tests after the update |
+| `trustCertificates` | boolean | No | Automatically trust the source certificate during setup tests \(default false\) |
+| `trustFingerprints` | boolean | No | Automatically trust the SSH fingerprint during setup tests \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connection` | object | The updated connection |
+|   ↳ `id` | string | Connection ID |
+|   ↳ `groupId` | string | Destination group ID |
+|   ↳ `service` | string | Connector type, e.g. okta |
+|   ↳ `serviceVersion` | number | Connector type version |
+|   ↳ `schema` | string | Connection name, also the destination schema name |
+|   ↳ `paused` | boolean | Whether the connection is paused |
+|   ↳ `pauseAfterTrial` | boolean | Whether the connection pauses when the free trial ends |
+|   ↳ `connectedBy` | string | ID of the user who created the connection |
+|   ↳ `createdAt` | string | When the connection was created |
+|   ↳ `succeededAt` | string | Last successful sync time |
+|   ↳ `failedAt` | string | Last failed sync time |
+|   ↳ `syncFrequency` | number | Sync frequency in minutes |
+|   ↳ `scheduleType` | string | Scheduling mode \(auto or manual\) |
+|   ↳ `dailySyncTime` | string | Daily sync start time \(HH:MM\) for 24-hour frequency |
+|   ↳ `dataDelaySensitivity` | string | Data delay notification level \(LOW, NORMAL, HIGH, CUSTOM, SYNC_FREQUENCY\) |
+|   ↳ `dataDelayThreshold` | number | Custom data delay threshold in minutes |
+|   ↳ `networkingMethod` | string | Networking method, e.g. Directly or SshTunnel |
+|   ↳ `privateLinkId` | string | Private link ID |
+|   ↳ `proxyAgentId` | string | Proxy agent ID |
+|   ↳ `hybridDeploymentAgentId` | string | Hybrid deployment agent ID |
+|   ↳ `dataChecks` | boolean | Whether automated data validation is enabled |
+|   ↳ `destinationSchemaNames` | string | Destination schema naming \(FIVETRAN_NAMING or SOURCE_NAMING\) |
+|   ↳ `status` | object | Current connection state |
+|     ↳ `setupState` | string | Setup state \(incomplete, connected, broken\) |
+|     ↳ `syncState` | string | Sync state \(scheduled, syncing, paused, rescheduled\) |
+|     ↳ `updateState` | string | Data update state \(on_schedule, delayed\) |
+|     ↳ `isHistoricalSync` | boolean | Whether a historical re-sync is pending or running |
+|     ↳ `schemaStatus` | string | Schema status |
+|     ↳ `rescheduledFor` | string | Next sync attempt when the sync is rescheduled |
+|     ↳ `tasks` | array | Tasks that need action |
+|       ↳ `code` | string | Machine-readable condition code |
+|       ↳ `message` | string | Human-readable label |
+|       ↳ `details` | string | Additional context |
+|     ↳ `warnings` | array | Active warnings |
+|       ↳ `code` | string | Machine-readable condition code |
+|       ↳ `message` | string | Human-readable label |
+|       ↳ `details` | string | Additional context |
+|   ↳ `schedule` | object | Sync schedule configuration |
+|     ↳ `scheduleType` | string | Schedule type \(TIME_OF_DAY, INTERVAL, CRON, MANUAL\) |
+|     ↳ `interval` | number | Interval in minutes |
+|     ↳ `cron` | string | Cron expression |
+|     ↳ `daysOfWeek` | array | Days the connection can sync |
+|     ↳ `timeOfDay` | string | Time of day \(HH:MM\) |
+|   ↳ `setupTests` | array | Setup test results |
+|     ↳ `title` | string | Setup test step name |
+|     ↳ `status` | string | Result \(PASSED, SKIPPED, WARNING, FAILED, JOB_FAILED\) |
+|     ↳ `message` | string | Result message |
+|     ↳ `details` | json | Additional diagnostic details |
+|   ↳ `config` | json | Connector-specific setup configuration |
+
+### Fivetran Delete Connection
+
+Delete a Fivetran connection. This cannot be undone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | string | Fivetran response code, e.g. Success |
+| `message` | string | Fivetran response message |
+
+### Fivetran Sync Connection
+
+Start an incremental sync of a Fivetran connection now, without changing its schedule.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+| `force` | boolean | No | Stop a sync that is already running and start again. By default a running sync is left alone. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Sync start result \(STARTED, PAUSED, INCOMPLETE, ALREADY_RUNNING, NOT_STARTED\) |
+| `message` | string | Fivetran response message |
+
+### Fivetran Re-sync Connection
+
+Run a full historical re-sync of a Fivetran connection, or only of the tables listed in scope. Fivetran returns 409 if a running sync cannot finish first.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+| `scope` | json | No | Tables to re-sync, as a map of schema name to table names, e.g. \{"public": \["users", "orders"\]\}. Omit to re-sync every table. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | string | Fivetran response code, e.g. Success |
+| `message` | string | Fivetran response message |
+
+### Fivetran Re-sync Tables
+
+Run a historical re-sync of specific tables in a Fivetran connection without changing its schedule.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+| `tables` | json | Yes | Tables to re-sync, as a map of schema name to table names, e.g. \{"okta": \["system_log", "user"\]\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | string | Fivetran response code, e.g. Success |
+| `message` | string | Fivetran response message |
+
+### Fivetran Run Connection Setup Tests
+
+Run the setup tests of a Fivetran connection without changing its configuration, and return each test result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+| `trustCertificates` | boolean | No | Automatically trust the source certificate during setup tests \(default false\) |
+| `trustFingerprints` | boolean | No | Automatically trust the SSH fingerprint during setup tests \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connection` | object | The connection with its setup test results in setupTests |
+|   ↳ `id` | string | Connection ID |
+|   ↳ `groupId` | string | Destination group ID |
+|   ↳ `service` | string | Connector type, e.g. okta |
+|   ↳ `serviceVersion` | number | Connector type version |
+|   ↳ `schema` | string | Connection name, also the destination schema name |
+|   ↳ `paused` | boolean | Whether the connection is paused |
+|   ↳ `pauseAfterTrial` | boolean | Whether the connection pauses when the free trial ends |
+|   ↳ `connectedBy` | string | ID of the user who created the connection |
+|   ↳ `createdAt` | string | When the connection was created |
+|   ↳ `succeededAt` | string | Last successful sync time |
+|   ↳ `failedAt` | string | Last failed sync time |
+|   ↳ `syncFrequency` | number | Sync frequency in minutes |
+|   ↳ `scheduleType` | string | Scheduling mode \(auto or manual\) |
+|   ↳ `dailySyncTime` | string | Daily sync start time \(HH:MM\) for 24-hour frequency |
+|   ↳ `dataDelaySensitivity` | string | Data delay notification level \(LOW, NORMAL, HIGH, CUSTOM, SYNC_FREQUENCY\) |
+|   ↳ `dataDelayThreshold` | number | Custom data delay threshold in minutes |
+|   ↳ `networkingMethod` | string | Networking method, e.g. Directly or SshTunnel |
+|   ↳ `privateLinkId` | string | Private link ID |
+|   ↳ `proxyAgentId` | string | Proxy agent ID |
+|   ↳ `hybridDeploymentAgentId` | string | Hybrid deployment agent ID |
+|   ↳ `dataChecks` | boolean | Whether automated data validation is enabled |
+|   ↳ `destinationSchemaNames` | string | Destination schema naming \(FIVETRAN_NAMING or SOURCE_NAMING\) |
+|   ↳ `status` | object | Current connection state |
+|     ↳ `setupState` | string | Setup state \(incomplete, connected, broken\) |
+|     ↳ `syncState` | string | Sync state \(scheduled, syncing, paused, rescheduled\) |
+|     ↳ `updateState` | string | Data update state \(on_schedule, delayed\) |
+|     ↳ `isHistoricalSync` | boolean | Whether a historical re-sync is pending or running |
+|     ↳ `schemaStatus` | string | Schema status |
+|     ↳ `rescheduledFor` | string | Next sync attempt when the sync is rescheduled |
+|     ↳ `tasks` | array | Tasks that need action |
+|       ↳ `code` | string | Machine-readable condition code |
+|       ↳ `message` | string | Human-readable label |
+|       ↳ `details` | string | Additional context |
+|     ↳ `warnings` | array | Active warnings |
+|       ↳ `code` | string | Machine-readable condition code |
+|       ↳ `message` | string | Human-readable label |
+|       ↳ `details` | string | Additional context |
+|   ↳ `schedule` | object | Sync schedule configuration |
+|     ↳ `scheduleType` | string | Schedule type \(TIME_OF_DAY, INTERVAL, CRON, MANUAL\) |
+|     ↳ `interval` | number | Interval in minutes |
+|     ↳ `cron` | string | Cron expression |
+|     ↳ `daysOfWeek` | array | Days the connection can sync |
+|     ↳ `timeOfDay` | string | Time of day \(HH:MM\) |
+|   ↳ `setupTests` | array | Setup test results |
+|     ↳ `title` | string | Setup test step name |
+|     ↳ `status` | string | Result \(PASSED, SKIPPED, WARNING, FAILED, JOB_FAILED\) |
+|     ↳ `message` | string | Result message |
+|     ↳ `details` | json | Additional diagnostic details |
+|   ↳ `config` | json | Connector-specific setup configuration |
+
+### Fivetran Get Sync History
+
+List the recent syncs of a Fivetran connection with their outcome, failure reason, and data volume per stage. The time window is at most 7 days and defaults to the last hour.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+| `startTime` | string | No | Start of the time window, ISO 8601 \(e.g. 2026-01-01T00:00:00Z\) |
+| `endTime` | string | No | End of the time window, ISO 8601 \(e.g. 2026-01-01T01:00:00Z\) |
+| `cursor` | string | No | Paging cursor from the nextCursor of a previous page |
+| `limit` | number | No | Number of records per page, from 1 to 1000 \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `syncs` | array | Syncs in the time window |
+|   ↳ `syncId` | string | Sync ID |
+|   ↳ `status` | string | Outcome \(COMPLETED, FAILURE, CANCELED, INCOMPLETE, RESCHEDULED, PAUSED\) |
+|   ↳ `start` | string | When the sync started |
+|   ↳ `end` | string | When the sync finished |
+|   ↳ `reason` | string | Failure reason |
+|   ↳ `extractVolumeMb` | number | Data extracted from the source, in MB |
+|   ↳ `processVolumeMb` | number | Data processed, in MB |
+|   ↳ `loadVolumeMb` | number | Data loaded into the destination, in MB |
+| `nextCursor` | string | Cursor for the next page; null on the last page |
+
+### Fivetran Get Connection Warnings
+
+List the active warnings on a Fivetran connection, grouped by destination table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `warningGroups` | array | Warnings grouped by destination table |
+|   ↳ `schema` | string | Destination schema; null when the warning is not table-specific |
+|   ↳ `table` | string | Destination table; null when the warning is not table-specific |
+|   ↳ `warnings` | array | Warnings on the table |
+|     ↳ `code` | string | Warning code |
+|     ↳ `message` | string | Warning label |
+|     ↳ `errorMessage` | string | Additional error details |
+|     ↳ `createdAt` | string | When the warning was raised |
+
+### Fivetran Get Connection Schema Config
+
+Get the schemas, tables, and columns a Fivetran connection syncs, and whether each is enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schemas` | json | Schemas keyed by source schema name, each with name_in_destination, enabled, and tables keyed by table name \(name_in_destination, enabled, sync_mode, columns\) |
+| `enableNewByDefault` | boolean | Whether new schemas, tables, and columns are enabled by default |
+| `schemaChangeHandling` | string | Schema change handling \(ALLOW_ALL, ALLOW_COLUMNS, BLOCK_ALL\) |
+| `rowFilteringSupported` | boolean | Whether row filtering is available for the connection |
+
+### Fivetran Reload Connection Schema
+
+Reload the schema config of a Fivetran connection from its source to pick up new schemas, tables, and columns. Large sources can take a long time.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+| `excludeMode` | string | No | PRESERVE \(default\) keeps the enabled state of every schema and table; EXCLUDE sets schemas and tables as disabled when the config is reloaded |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schemas` | json | Schemas keyed by source schema name, each with name_in_destination, enabled, and tables keyed by table name \(name_in_destination, enabled, sync_mode, columns\) |
+| `enableNewByDefault` | boolean | Whether new schemas, tables, and columns are enabled by default |
+| `schemaChangeHandling` | string | Schema change handling \(ALLOW_ALL, ALLOW_COLUMNS, BLOCK_ALL\) |
+| `rowFilteringSupported` | boolean | Whether row filtering is available for the connection |
+
+### Fivetran Update Connection Table
+
+Enable or disable syncing of one table in a Fivetran connection, and optionally change its sync mode.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+| `schemaName` | string | Yes | Schema name as stored in the connection schema config \(case-sensitive\) |
+| `tableName` | string | Yes | Table name as stored in the connection schema config \(case-sensitive\) |
+| `enabled` | boolean | Yes | Whether the table syncs to the destination |
+| `syncMode` | string | No | Sync mode: SOFT_DELETE, HISTORY, or LIVE \(only for connectors that support switching\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schemas` | json | Schemas keyed by source schema name, each with name_in_destination, enabled, and tables keyed by table name \(name_in_destination, enabled, sync_mode, columns\) |
+| `enableNewByDefault` | boolean | Whether new schemas, tables, and columns are enabled by default |
+| `schemaChangeHandling` | string | Schema change handling \(ALLOW_ALL, ALLOW_COLUMNS, BLOCK_ALL\) |
+| `rowFilteringSupported` | boolean | Whether row filtering is available for the connection |
+
+### Fivetran Create Connect Card
+
+Generate a Connect Card link that lets someone authorize and finish setting up a Fivetran connection in a Fivetran-hosted form.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+| `redirectUri` | string | Yes | HTTPS URL to send the user to after they finish setup |
+| `hideSetupGuide` | boolean | No | Hide the embedded setup guide |
+| `allFields` | boolean | No | Show fields that are hidden by default |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connectionId` | string | Connection ID |
+| `uri` | string | Connect Card URL to send the user to; it embeds a short-lived token |
+| `token` | string | Short-lived Connect Card token |
+| `redirectUri` | string | Where the user is sent after setup |
+
+### Fivetran List Groups
+
+List the groups in the Fivetran account. Each group pairs with one destination, so the group ID is also the destination ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Paging cursor from the nextCursor of a previous page |
+| `limit` | number | No | Number of records per page, from 1 to 1000 \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groups` | array | Groups in the account |
+|   ↳ `id` | string | Group ID |
+|   ↳ `name` | string | Group name |
+|   ↳ `createdAt` | string | When the group was created |
+| `nextCursor` | string | Cursor for the next page; null on the last page |
+
+### Fivetran Get Group
+
+Get a Fivetran group by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | ID of the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `group` | object | The group |
+|   ↳ `id` | string | Group ID |
+|   ↳ `name` | string | Group name |
+|   ↳ `createdAt` | string | When the group was created |
+
+### Fivetran List Destinations
+
+List the destinations in the Fivetran account, such as Databricks or Snowflake, with their region and setup status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Paging cursor from the nextCursor of a previous page |
+| `limit` | number | No | Number of records per page, from 1 to 1000 \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `destinations` | array | Destinations |
+|   ↳ `id` | string | Destination ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `service` | string | Destination type, e.g. databricks |
+|   ↳ `region` | string | Data processing region |
+|   ↳ `timeZoneOffset` | string | UTC offset used for sync scheduling |
+|   ↳ `setupStatus` | string | Setup status \(INCOMPLETE, CONNECTED, BROKEN\) |
+|   ↳ `daylightSavingTimeEnabled` | boolean | Whether the offset shifts with daylight saving time |
+|   ↳ `networkingMethod` | string | Networking method |
+|   ↳ `privateLinkId` | string | Private link ID |
+|   ↳ `hybridDeploymentAgentId` | string | Hybrid deployment agent ID |
+|   ↳ `proxyAgentId` | string | Proxy agent ID |
+|   ↳ `setupTests` | array | Setup test results |
+|     ↳ `title` | string | Setup test step name |
+|     ↳ `status` | string | Result \(PASSED, SKIPPED, WARNING, FAILED, JOB_FAILED\) |
+|     ↳ `message` | string | Result message |
+|     ↳ `details` | json | Additional diagnostic details |
+| `nextCursor` | string | Cursor for the next page; null on the last page |
+
+### Fivetran Get Destination
+
+Get a Fivetran destination with its region, time zone, and setup status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `destinationId` | string | Yes | ID of the destination \(the same as its group ID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `destination` | object | The destination |
+|   ↳ `id` | string | Destination ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `service` | string | Destination type, e.g. databricks |
+|   ↳ `region` | string | Data processing region |
+|   ↳ `timeZoneOffset` | string | UTC offset used for sync scheduling |
+|   ↳ `setupStatus` | string | Setup status \(INCOMPLETE, CONNECTED, BROKEN\) |
+|   ↳ `daylightSavingTimeEnabled` | boolean | Whether the offset shifts with daylight saving time |
+|   ↳ `networkingMethod` | string | Networking method |
+|   ↳ `privateLinkId` | string | Private link ID |
+|   ↳ `hybridDeploymentAgentId` | string | Hybrid deployment agent ID |
+|   ↳ `proxyAgentId` | string | Proxy agent ID |
+|   ↳ `setupTests` | array | Setup test results |
+|     ↳ `title` | string | Setup test step name |
+|     ↳ `status` | string | Result \(PASSED, SKIPPED, WARNING, FAILED, JOB_FAILED\) |
+|     ↳ `message` | string | Result message |
+|     ↳ `details` | json | Additional diagnostic details |
+
+### Fivetran Run Destination Setup Tests
+
+Run the setup tests of a Fivetran destination, such as a Databricks workspace, and return each test result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `destinationId` | string | Yes | ID of the destination \(the same as its group ID\) |
+| `trustCertificates` | boolean | No | Automatically trust the source certificate during setup tests \(default false\) |
+| `trustFingerprints` | boolean | No | Automatically trust the SSH fingerprint during setup tests \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `destination` | object | The destination with its setup test results in setupTests |
+|   ↳ `id` | string | Destination ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `service` | string | Destination type, e.g. databricks |
+|   ↳ `region` | string | Data processing region |
+|   ↳ `timeZoneOffset` | string | UTC offset used for sync scheduling |
+|   ↳ `setupStatus` | string | Setup status \(INCOMPLETE, CONNECTED, BROKEN\) |
+|   ↳ `daylightSavingTimeEnabled` | boolean | Whether the offset shifts with daylight saving time |
+|   ↳ `networkingMethod` | string | Networking method |
+|   ↳ `privateLinkId` | string | Private link ID |
+|   ↳ `hybridDeploymentAgentId` | string | Hybrid deployment agent ID |
+|   ↳ `proxyAgentId` | string | Proxy agent ID |
+|   ↳ `setupTests` | array | Setup test results |
+|     ↳ `title` | string | Setup test step name |
+|     ↳ `status` | string | Result \(PASSED, SKIPPED, WARNING, FAILED, JOB_FAILED\) |
+|     ↳ `message` | string | Result message |
+|     ↳ `details` | json | Additional diagnostic details |
+
+### Fivetran List Transformations
+
+List Fivetran transformations (dbt Core and Quickstart) with their status, schedule, and last run times.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | No | Only return transformations in this group |
+| `projectId` | string | No | Only return transformations in this dbt project |
+| `transformationType` | string | No | Only return this type: DBT_CORE or QUICKSTART |
+| `cursor` | string | No | Paging cursor from the nextCursor of a previous page |
+| `limit` | number | No | Number of records per page, from 1 to 1000 \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transformations` | array | Transformations |
+|   ↳ `id` | string | Transformation ID |
+|   ↳ `type` | string | Type \(DBT_CORE, QUICKSTART\) |
+|   ↳ `status` | string | Status \(NEW, SCHEDULING, RUNNING, TERMINATING, SUCCEEDED, FAILED, BLOCKED, CANCELED, PARTIALLY_SUCCEEDED\) |
+|   ↳ `paused` | boolean | Whether the transformation is paused |
+|   ↳ `createdAt` | string | When it was created |
+|   ↳ `createdById` | string | ID of the creating user or key |
+|   ↳ `lastStartedAt` | string | Last run start time |
+|   ↳ `lastEndedAt` | string | Last run end time |
+|   ↳ `outputModelNames` | array | Output model names |
+|   ↳ `schedule` | object | Transformation schedule |
+|     ↳ `scheduleType` | string | Schedule type \(INTEGRATED, TIME_OF_DAY, INTERVAL, CRON\) |
+|     ↳ `interval` | number | Interval in minutes |
+|     ↳ `cron` | array | Cron expressions |
+|     ↳ `daysOfWeek` | array | Days of the week |
+|     ↳ `timeOfDay` | string | Time of day \(HH:MM\) |
+|     ↳ `connectionIds` | array | Connections an integrated schedule depends on |
+|     ↳ `transformationIds` | array | Transformations used for integrated scheduling |
+|     ↳ `smartSyncing` | boolean | Whether Smart Syncing is enabled |
+| `nextCursor` | string | Cursor for the next page; null on the last page |
+
+### Fivetran Get Transformation
+
+Get a Fivetran transformation with its status, schedule, and output models.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transformationId` | string | Yes | ID of the transformation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transformation` | object | The transformation |
+|   ↳ `id` | string | Transformation ID |
+|   ↳ `type` | string | Type \(DBT_CORE, QUICKSTART\) |
+|   ↳ `status` | string | Status \(NEW, SCHEDULING, RUNNING, TERMINATING, SUCCEEDED, FAILED, BLOCKED, CANCELED, PARTIALLY_SUCCEEDED\) |
+|   ↳ `paused` | boolean | Whether the transformation is paused |
+|   ↳ `createdAt` | string | When it was created |
+|   ↳ `createdById` | string | ID of the creating user or key |
+|   ↳ `lastStartedAt` | string | Last run start time |
+|   ↳ `lastEndedAt` | string | Last run end time |
+|   ↳ `outputModelNames` | array | Output model names |
+|   ↳ `schedule` | object | Transformation schedule |
+|     ↳ `scheduleType` | string | Schedule type \(INTEGRATED, TIME_OF_DAY, INTERVAL, CRON\) |
+|     ↳ `interval` | number | Interval in minutes |
+|     ↳ `cron` | array | Cron expressions |
+|     ↳ `daysOfWeek` | array | Days of the week |
+|     ↳ `timeOfDay` | string | Time of day \(HH:MM\) |
+|     ↳ `connectionIds` | array | Connections an integrated schedule depends on |
+|     ↳ `transformationIds` | array | Transformations used for integrated scheduling |
+|     ↳ `smartSyncing` | boolean | Whether Smart Syncing is enabled |
+
+### Fivetran Run Transformation
+
+Start a run of a Fivetran transformation now.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transformationId` | string | Yes | ID of the transformation |
+| `fullRefresh` | boolean | No | Rebuild incremental models from scratch \(dbt --full-refresh\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | string | Fivetran response code, e.g. Success |
+| `message` | string | Fivetran response message |
+
+### Fivetran Cancel Transformation
+
+Cancel a running Fivetran transformation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transformationId` | string | Yes | ID of the transformation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | string | Fivetran response code, e.g. Success |
+| `message` | string | Fivetran response message |
+
+### Fivetran Get Account Info
+
+Get the Fivetran account and the user or system key that the API key belongs to.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accountId` | string | Fivetran account ID |
+| `accountName` | string | Account name |
+| `userId` | string | User ID, returned when a user API key is used |
+| `systemKeyId` | string | System key ID, returned when a system key is used |
+
+### Fivetran List Users
+
+List the users and service accounts in the Fivetran account with their role, status, and last login, for access reviews.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `active` | boolean | No | true returns only enabled users, false only suspended ones; omit for both |
+| `userType` | string | No | Only return this type: REGULAR_USER or SERVICE_ACCOUNT |
+| `hasApiKey` | boolean | No | Only return users with \(true\) or without \(false\) an API key |
+| `cursor` | string | No | Paging cursor from the nextCursor of a previous page |
+| `limit` | number | No | Number of records per page, from 1 to 1000 \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Users |
+|   ↳ `id` | string | User ID |
+|   ↳ `email` | string | Email address |
+|   ↳ `givenName` | string | First name |
+|   ↳ `familyName` | string | Last name |
+|   ↳ `role` | string | Account role |
+|   ↳ `active` | boolean | Whether the user can log in |
+|   ↳ `verified` | boolean | Whether the email address is verified |
+|   ↳ `invited` | boolean | Whether the user was invited |
+|   ↳ `userType` | string | REGULAR_USER or SERVICE_ACCOUNT |
+|   ↳ `hasApiKey` | boolean | Whether the user has an API key, including expired keys |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `loggedInAt` | string | Last login time |
+|   ↳ `createdAt` | string | When the user was created |
+| `nextCursor` | string | Cursor for the next page; null on the last page |
+
+### Fivetran List Connector Types
+
+List the source connector types available in Fivetran, with the service ID to use when creating a connection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Paging cursor from the nextCursor of a previous page |
+| `limit` | number | No | Number of records per page, from 1 to 1000 \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connectorTypes` | array | Connector types |
+|   ↳ `id` | string | Service ID used when creating a connection |
+|   ↳ `name` | string | Display name |
+|   ↳ `type` | string | Category, e.g. Security or Database |
+|   ↳ `description` | string | What the connector does |
+|   ↳ `connectorClass` | string | Connector class \(standard or lite\) |
+|   ↳ `serviceStatus` | string | Availability \(general_availability, beta, private_preview, sunset, development\) |
+|   ↳ `iconUrl` | string | Icon URL |
+|   ↳ `linkToDocs` | string | Documentation URL |
+|   ↳ `linkToErd` | string | ERD URL |
+|   ↳ `supportsSchemaReload` | boolean | Whether schema reload is supported |
+|   ↳ `supportedFeatures` | array | Supported feature IDs, e.g. RE_SYNC or HISTORY |
+| `nextCursor` | string | Cursor for the next page; null on the last page |
+
+### Fivetran Get Connector Type
+
+Get the configuration and authorization fields a Fivetran connector type takes, to build the config for Create Connection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `service` | string | Yes | Connector type ID, e.g. okta \(see List Connector Types\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connectorType` | object | The connector type |
+|   ↳ `id` | string | Service ID used when creating a connection |
+|   ↳ `name` | string | Display name |
+|   ↳ `type` | string | Category, e.g. Security or Database |
+|   ↳ `description` | string | What the connector does |
+|   ↳ `connectorClass` | string | Connector class \(standard or lite\) |
+|   ↳ `serviceStatus` | string | Availability \(general_availability, beta, private_preview, sunset, development\) |
+|   ↳ `iconUrl` | string | Icon URL |
+|   ↳ `linkToDocs` | string | Documentation URL |
+|   ↳ `linkToErd` | string | ERD URL |
+|   ↳ `supportsSchemaReload` | boolean | Whether schema reload is supported |
+|   ↳ `supportedFeatures` | array | Supported feature IDs, e.g. RE_SYNC or HISTORY |
+| `config` | json | JSON Schema of the configuration fields the connector takes in config |
+| `auth` | json | JSON Schema of the authorization fields the connector takes in auth, if any |
+
+### Fivetran Update Schema Config
+
+Update how a Fivetran connection handles new schemas, tables, and columns, and enable or disable schemas and tables in one call.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+| `schemaChangeHandling` | string | No | How new source objects are handled: ALLOW_ALL \(sync new schemas, tables, and columns\), ALLOW_COLUMNS \(only new columns\), or BLOCK_ALL |
+| `schemas` | json | No | Schemas to change, keyed by schema name, e.g. \{"public": \{"enabled": true, "tables": \{"orders": \{"enabled": false\}\}\}\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schemas` | json | Schemas keyed by source schema name, each with name_in_destination, enabled, and tables keyed by table name \(name_in_destination, enabled, sync_mode, columns\) |
+| `enableNewByDefault` | boolean | Whether new schemas, tables, and columns are enabled by default |
+| `schemaChangeHandling` | string | Schema change handling \(ALLOW_ALL, ALLOW_COLUMNS, BLOCK_ALL\) |
+| `rowFilteringSupported` | boolean | Whether row filtering is available for the connection |
+
+### Fivetran Update Connection Schema
+
+Enable or disable syncing of one schema in a Fivetran connection, optionally changing several of its tables at once.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `connectionId` | string | Yes | ID of the connection |
+| `schemaName` | string | Yes | Schema name as stored in the connection schema config \(case-sensitive\) |
+| `enabled` | boolean | Yes | Whether the schema syncs to the destination |
+| `tables` | json | No | Tables to change in this schema, keyed by table name, e.g. \{"orders": \{"enabled": false\}\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schemas` | json | Schemas keyed by source schema name, each with name_in_destination, enabled, and tables keyed by table name \(name_in_destination, enabled, sync_mode, columns\) |
+| `enableNewByDefault` | boolean | Whether new schemas, tables, and columns are enabled by default |
+| `schemaChangeHandling` | string | Schema change handling \(ALLOW_ALL, ALLOW_COLUMNS, BLOCK_ALL\) |
+| `rowFilteringSupported` | boolean | Whether row filtering is available for the connection |
+
+### Fivetran Create Group
+
+Create a Fivetran group. Each group holds one destination, so create the group first, then its destination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name of the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `group` | object | The created group |
+|   ↳ `id` | string | Group ID |
+|   ↳ `name` | string | Group name |
+|   ↳ `createdAt` | string | When the group was created |
+
+### Fivetran Create Destination
+
+Create the destination for a Fivetran group, such as a Databricks workspace. The config object holds the destination-specific connection settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | ID of the group the destination belongs to \(each group has one destination\) |
+| `service` | string | Yes | Destination type, e.g. databricks, snowflake, or big_query |
+| `timeZoneOffset` | string | Yes | UTC offset used for sync scheduling, from -11 to +12, e.g. -5 or 0 |
+| `region` | string | No | Data processing region, e.g. AWS_US_EAST_1 or GCP_US_EAST4 |
+| `config` | json | No | Destination-specific settings, e.g. for Databricks \{"server_host_name": "...", "http_path": "...", "catalog": "...", "auth_type": "PERSONAL_ACCESS_TOKEN", "personal_access_token": "..."\} |
+| `daylightSavingTimeEnabled` | boolean | No | Shift the UTC offset with daylight saving time \(US only\) |
+| `runSetupTests` | boolean | No | Run the setup tests after creating the destination |
+| `trustCertificates` | boolean | No | Automatically trust the source certificate during setup tests \(default false\) |
+| `trustFingerprints` | boolean | No | Automatically trust the SSH fingerprint during setup tests \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `destination` | object | The created destination, with setup test results when they ran |
+|   ↳ `id` | string | Destination ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `service` | string | Destination type, e.g. databricks |
+|   ↳ `region` | string | Data processing region |
+|   ↳ `timeZoneOffset` | string | UTC offset used for sync scheduling |
+|   ↳ `setupStatus` | string | Setup status \(INCOMPLETE, CONNECTED, BROKEN\) |
+|   ↳ `daylightSavingTimeEnabled` | boolean | Whether the offset shifts with daylight saving time |
+|   ↳ `networkingMethod` | string | Networking method |
+|   ↳ `privateLinkId` | string | Private link ID |
+|   ↳ `hybridDeploymentAgentId` | string | Hybrid deployment agent ID |
+|   ↳ `proxyAgentId` | string | Proxy agent ID |
+|   ↳ `setupTests` | array | Setup test results |
+|     ↳ `title` | string | Setup test step name |
+|     ↳ `status` | string | Result \(PASSED, SKIPPED, WARNING, FAILED, JOB_FAILED\) |
+|     ↳ `message` | string | Result message |
+|     ↳ `details` | json | Additional diagnostic details |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Fivetran All Events
+
+Trigger workflow on any Fivetran sync, connection, or transformation event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | json | Event-specific payload; its fields depend on the event |
+
+
+---
+
+### Fivetran Connection Created
+
+Trigger workflow when a connection is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
+|   ↳ `id` | string | Connection ID |
+
+
+---
+
+### Fivetran Connection Deleted
+
+Trigger workflow when a connection is deleted
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
+|   ↳ `id` | string | Connection ID |
+
+
+---
+
+### Fivetran Connection Edited
+
+Trigger workflow when connection credentials, sync frequency, or other settings change
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
+|   ↳ `id` | string | Connection ID |
+|   ↳ `editType` | string | What was edited, e.g. CREDENTIALS |
+|   ↳ `oldProperties` | json | Connector-specific properties before the edit, with secrets masked |
+
+
+---
+
+### Fivetran Connection Failed
+
+Trigger workflow when Fivetran fails to connect to a source
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
+|   ↳ `id` | string | Connection ID |
+|   ↳ `testName` | string | Name of the setup test |
+|   ↳ `message` | string | Test result message |
+
+
+---
+
+### Fivetran Connection Paused
+
+Trigger workflow when a connection is paused, by a user or automatically
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
+|   ↳ `id` | string | Connection ID |
+|   ↳ `reason` | string | Why the connection was paused automatically |
+
+
+---
+
+### Fivetran Connection Re-sync Triggered
+
+Trigger workflow when a historical re-sync of a connection is triggered
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
+|   ↳ `id` | string | Connection ID |
+
+
+---
+
+### Fivetran Connection Resumed
+
+Trigger workflow when a connection is resumed
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
+|   ↳ `id` | string | Connection ID |
+
+
+---
+
+### Fivetran Connection Succeeded
+
+Trigger workflow when Fivetran connects to a source successfully
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
+|   ↳ `id` | string | Connection ID |
+|   ↳ `testName` | string | Name of the setup test |
+|   ↳ `message` | string | Test result message |
+
+
+---
+
+### Fivetran Manual Sync Triggered
+
+Trigger workflow when someone triggers a manual sync of a connection
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
+|   ↳ `id` | string | Connection ID |
+
+
+---
+
+### Fivetran Sync Ended
+
+Trigger workflow when a connection sync finishes, succeeds, fails, or is rescheduled
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `status` | string | Sync status \(SUCCESSFUL, FAILURE, FAILURE_WITH_TASK, RESCHEDULED\) |
+|   ↳ `sync_type` | string | HISTORICAL or INCREMENTAL |
+|   ↳ `load_volume_b` | number | Bytes loaded into the destination, on successful syncs that report it |
+|   ↳ `reason` | string | Why the sync failed or was rescheduled |
+|   ↳ `taskType` | string | Error type behind a FAILURE_WITH_TASK or RESCHEDULED status, e.g. reconnect |
+|   ↳ `rescheduledAt` | string | When a rescheduled sync resumes |
+|   ↳ `isRoutine` | boolean | Whether a reschedule is routine rather than error-driven |
+
+
+---
+
+### Fivetran Sync Started
+
+Trigger workflow when a connection starts syncing
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `sync_type` | string | HISTORICAL or INCREMENTAL |
+
+
+---
+
+### Fivetran Table Re-sync Triggered
+
+Trigger workflow when a historical re-sync of a table is triggered
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
+|   ↳ `id` | string | Connection ID |
+|   ↳ `schema` | string | Schema name |
+|   ↳ `table` | string | Table name |
+
+
+---
+
+### Fivetran Transformation Failed
+
+Trigger workflow when a transformation run fails
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Transformation job ID |
+|   ↳ `name` | string | Transformation job name |
+|   ↳ `startTime` | string | When the run started |
+|   ↳ `transformationType` | string | Job type \(DBT_CORE, QUICKSTART, DBT_CLOUD, COALESCE\) |
+|   ↳ `schedule` | json | Job schedule \(type and entries\) |
+|   ↳ `endTime` | string | When the run ended |
+|   ↳ `result` | json | Run result with stepResults \(step, success, start and end times, commandResult\) |
+
+
+---
+
+### Fivetran Transformation Started
+
+Trigger workflow when a transformation run starts
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Transformation job ID |
+|   ↳ `name` | string | Transformation job name |
+|   ↳ `startTime` | string | When the run started |
+|   ↳ `transformationType` | string | Job type \(DBT_CORE, QUICKSTART, DBT_CLOUD, COALESCE\) |
+|   ↳ `schedule` | json | Job schedule \(type and entries\) |
+
+
+---
+
+### Fivetran Transformation Succeeded
+
+Trigger workflow when a transformation run succeeds
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Transformation job ID |
+|   ↳ `name` | string | Transformation job name |
+|   ↳ `startTime` | string | When the run started |
+|   ↳ `transformationType` | string | Job type \(DBT_CORE, QUICKSTART, DBT_CLOUD, COALESCE\) |
+|   ↳ `schedule` | json | Job schedule \(type and entries\) |
+|   ↳ `endTime` | string | When the run ended |
+|   ↳ `result` | json | Run result with stepResults \(step, success, start and end times, commandResult\) |
+

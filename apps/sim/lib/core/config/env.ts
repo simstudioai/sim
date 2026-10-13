@@ -333,6 +333,7 @@ export const env = createEnv({
     // Infrastructure & Deployment
     NEXT_RUNTIME:                          z.string().optional(),                  // Next.js runtime environment
     DOCKER_BUILD:                          z.boolean().optional(),                 // Flag indicating Docker build environment
+    NEXT_BUILD_SKIP_TYPE_CHECK:            z.boolean().optional(),                 // Skips `next build`'s TypeScript pass where another CI job type-checks
 
     // Background Jobs & Scheduling
     TRIGGER_PROJECT_ID:                    z.string().optional(),                  // Trigger.dev project ID

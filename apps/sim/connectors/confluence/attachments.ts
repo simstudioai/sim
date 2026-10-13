@@ -378,6 +378,7 @@ export async function listConfluenceAttachments(
 ): Promise<ExternalDocumentList> {
   const state = decodeCursor(input.cursor, input.syncContext?.totalDocsFetched)
   const documents: ExternalDocument[] = []
+  let skippedUnreadableParent = false
   if (state.parents.length === 0 && !state.parentsDone) {
     const parentContext = { ...input.syncContext, totalDocsFetched: state.parentsListed }
     const page = await input.listParents(state.parentCursor, parentContext)
@@ -413,15 +414,30 @@ export async function listConfluenceAttachments(
         })
       }
       if (state.serverFailureStreak >= MAX_CONSECUTIVE_SERVER_FAILURES) throw listing.error
-      state.failures ??= { count: 0, samples: [] }
-      state.failures.count += 1
-      if (state.failures.samples.length < MAX_LISTING_FAILURE_SAMPLES) {
-        state.failures.samples.push({
-          scope: parent.id,
-          operation: 'confluence.attachments.list',
+      if (listing.reason === 'attachment_access_denied') {
+        /**
+         * The parent was listed a moment ago, so a 403 or 404 on its attachments is that one
+         * item's restriction, not a scope the source failed to list: skipping it leaves the pass
+         * complete. Its unlisted attachments are not evidence of deletion, so the page still
+         * marks the listing unsafe and reconciliation keeps them.
+         */
+        logger.warn('Skipping a Confluence parent whose attachments are not readable', {
+          parentId: parent.id,
+          parentType: parent.type,
           status: listing.status,
-          reasons: [listing.reason],
         })
+        skippedUnreadableParent = true
+      } else {
+        state.failures ??= { count: 0, samples: [] }
+        state.failures.count += 1
+        if (state.failures.samples.length < MAX_LISTING_FAILURE_SAMPLES) {
+          state.failures.samples.push({
+            scope: parent.id,
+            operation: 'confluence.attachments.list',
+            status: listing.status,
+            reasons: [listing.reason],
+          })
+        }
       }
       state.parents.shift()
       state.attachmentCursor = undefined
@@ -453,7 +469,8 @@ export async function listConfluenceAttachments(
     state.attachmentCursor = nextCursor
     if (!nextCursor) state.parents.shift()
   }
-  if (state.failures && input.syncContext) input.syncContext.reconciliationUnsafe = true
+  const reconciliationUnsafe = Boolean(state.failures) || skippedUnreadableParent
+  if (reconciliationUnsafe && input.syncContext) input.syncContext.reconciliationUnsafe = true
   const hasMore = state.parents.length > 0 || !state.parentsDone
   const nextCursor = hasMore ? CURSOR_PREFIX + JSON.stringify(state) : undefined
   if (nextCursor && Buffer.byteLength(nextCursor, 'utf8') > MAX_CURSOR_BYTES) {
@@ -463,7 +480,8 @@ export async function listConfluenceAttachments(
     documents,
     hasMore,
     nextCursor,
-    ...(state.failures ? { listingFailures: state.failures, reconciliationSafe: false } : {}),
+    ...(state.failures ? { listingFailures: state.failures } : {}),
+    ...(reconciliationUnsafe ? { reconciliationSafe: false } : {}),
   }
 }
 

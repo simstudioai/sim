@@ -151,6 +151,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/findymail.mdx',
   'integrations/firecrawl.mdx',
   'integrations/fireflies.mdx',
+  'integrations/fivetran.mdx',
   'integrations/flint.mdx',
   'integrations/gamma.mdx',
   'integrations/github.mdx',

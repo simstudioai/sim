@@ -9,6 +9,7 @@ import {
   inlineChatImageKey,
   inlineChatImageReferences,
 } from '@/lib/mothership/chat/inline-image-key'
+import { detoastedMessageContent, textMessageContent } from '@/lib/mothership/chat/text-transcript'
 import { SIM_AGENT_API_URL } from '@/lib/mothership/constants'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
@@ -119,8 +120,12 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
       // Scan every message row for the chat (no deleted_at filter): this is a
       // deletion path collecting blob keys, so attachments on any row count.
       cleanupDb
-        .select({ content: copilotMessages.content, chatId: copilotMessages.chatId })
+        .select({
+          content: textMessageContent(['role', 'requestId', 'content', 'fileAttachments']),
+          chatId: copilotMessages.chatId,
+        })
         .from(copilotMessages)
+        .crossJoinLateral(detoastedMessageContent)
         .where(inArray(copilotMessages.chatId, chunk)),
     ])
 
@@ -184,7 +189,7 @@ async function organizationAttachmentsStillReferenced(files: FileRef[]): Promise
     for (const chunk of chunkArray(keys, CHAT_FILE_COLLECT_CHUNK_SIZE)) {
       const wanted = new Set(chunk)
       const rows = await cleanupDb
-        .select({ content: copilotMessages.content })
+        .select({ fileAttachments: sql<unknown>`${copilotMessages.content} -> 'fileAttachments'` })
         .from(copilotMessages)
         .innerJoin(copilotChats, eq(copilotChats.id, copilotMessages.chatId))
         .where(
@@ -198,10 +203,9 @@ async function organizationAttachmentsStillReferenced(files: FileRef[]): Promise
             )
           )
         )
-      for (const { content } of rows) {
-        const attachments = isRecordLike(content) ? content.fileAttachments : undefined
-        if (!Array.isArray(attachments)) continue
-        for (const attachment of attachments) {
+      for (const { fileAttachments } of rows) {
+        if (!Array.isArray(fileAttachments)) continue
+        for (const attachment of fileAttachments) {
           if (
             isRecordLike(attachment) &&
             typeof attachment.key === 'string' &&

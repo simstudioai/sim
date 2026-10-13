@@ -44,6 +44,7 @@ import { lockUniqueColumns, lockUniqueValues } from '@/lib/table/rows/unique-loc
 import { getTableById } from '@/lib/table/service'
 import { getOrCreateTableSnapshot } from '@/lib/table/snapshot-cache'
 import type { ColumnDefinition, JsonValue, RowData, TableDefinition } from '@/lib/table/types'
+import { checkBatchUniqueConstraintsDb } from '@/lib/table/validation'
 
 const url = readTestDatabaseUrl()
 if (process.env.DATABASE_URL !== url) {
@@ -87,7 +88,7 @@ async function createTable(columns: ColumnDefinition[]): Promise<TableDefinition
 
 async function seedRows(
   tableId: string,
-  rows: Array<{ id: string; data: RowData; orderKey: string | null }>
+  rows: Array<{ id: string; data: RowData; orderKey: string | null; position?: number }>
 ) {
   await db.insert(userTableRows).values(rows.map((row) => ({ ...row, tableId, workspaceId })))
 }
@@ -481,6 +482,33 @@ describe('table row writes against real PostgreSQL', () => {
       expect(await storedCount(table.id, { email: 'dup@example.test' })).toBe(1)
     })
 
+    it('rejects the second of two concurrent batches over the value-lock cap that share a value', async () => {
+      const table = await createTable(uniqueColumns)
+      const batch = (prefix: string) => () =>
+        batchInsertRows(
+          {
+            tableId: table.id,
+            workspaceId,
+            rows: [
+              ...Array.from({ length: 100 }, (_, i) => ({ email: `${prefix}-${i}@example.test` })),
+              { email: 'shared@example.test' },
+            ],
+            secretProvenance: undefined,
+            capabilityGovernedUserId: null,
+          },
+          table,
+          'unique-race'
+        )
+
+      const results = await raceUnderHeldDefinitionRow(table.id, [batch('left'), batch('right')], {
+        onDefinitionRow: 1,
+        onValueLock: 1,
+      })
+
+      expect(fulfilled(results)).toBe(1)
+      expect(await storedCount(table.id, { email: 'shared@example.test' })).toBe(1)
+    })
+
     it('rejects an import batch racing a single insert of the same value', async () => {
       const table = await createTable(uniqueColumns)
 
@@ -698,6 +726,162 @@ describe('table row writes against real PostgreSQL', () => {
         expect(await storedCount(table.id, { meta: { x: 1 } })).toBe(1)
       })
     })
+  })
+
+  describe('batch unique check across many values', () => {
+    /** Seeds `cells` at positions 0.., which the conflict messages report one-based. */
+    const seedAt = (tableId: string, cells: RowData[]) =>
+      seedRows(
+        tableId,
+        cells.map((data, position) => ({
+          id: `${tableId}-${position}`,
+          data,
+          orderKey: `a${position}`,
+          position,
+        }))
+      )
+
+    /**
+     * Index and sequential scans this backend has counted on `user_table_rows`, by relation. The
+     * counters are the backend's unflushed statistics, which can still hold scans from earlier
+     * transactions on the same pooled connection, so callers diff two readings.
+     */
+    async function rowScans(trx: DbTransaction): Promise<Map<string, number>> {
+      const scans = await trx.execute<{ relname: string; scans: number }>(sql`
+        SELECT c.relname, pg_stat_get_xact_numscans(c.oid)::int AS scans
+        FROM pg_class c
+        WHERE c.oid = 'user_table_rows'::regclass
+          OR c.oid IN (SELECT indexrelid FROM pg_index WHERE indrelid = 'user_table_rows'::regclass)`)
+      return new Map(scans.map((row) => [row.relname, row.scans]))
+    }
+
+    /** Runs the check in a transaction and returns its result with the scans the check alone ran. */
+    const checkWithScans = (table: TableDefinition, rows: RowData[]) =>
+      db.transaction(async (trx) => {
+        // A parallel worker's scans are not counted in the leader's transaction statistics.
+        await trx.execute(sql`SET LOCAL max_parallel_workers_per_gather = 0`)
+        const before = await rowScans(trx)
+        const result = await checkBatchUniqueConstraintsDb(table.id, rows, table.schema, trx)
+        const scans: Record<string, number> = {}
+        for (const [relname, count] of await rowScans(trx)) {
+          const ran = count - (before.get(relname) ?? 0)
+          if (ran > 0) scans[relname] = ran
+        }
+        return { result, scans }
+      })
+
+    it('reports stored and in-batch conflicts across every probe group', async () => {
+      const table = await createTable([
+        { id: 'email', name: 'email', type: 'string', unique: true },
+        { id: 'meta', name: 'meta', type: 'json', unique: true },
+      ])
+      await seedAt(table.id, [
+        { email: 'first@example.test' },
+        { email: 'middle@example.test' },
+        { email: 'last@example.test' },
+        { meta: { a: 1, b: 2 } },
+        { meta: [1, 2] },
+      ])
+      const rows: RowData[] = Array.from({ length: 260 }, (_, i) => ({
+        email: `new-${i}@example.test`,
+      }))
+      rows[0] = { email: 'new-0@example.test', meta: { b: 2, a: 1 } }
+      rows[1] = { email: 'new-1@example.test', meta: { a: 1 } }
+      rows[2] = { email: 'new-2@example.test', meta: [2, 1] }
+      rows[3] = { email: 'first@example.test', meta: [1, 2] }
+      rows[7] = { email: null }
+      rows[8] = {}
+      rows[130] = { email: 'middle@example.test' }
+      rows[200] = { email: 'new-5@example.test' }
+      rows[259] = { email: 'last@example.test' }
+
+      expect((await checkWithScans(table, rows)).result).toEqual({
+        valid: false,
+        errors: [
+          {
+            row: 0,
+            errors: [
+              'Column "meta" must be unique. Value "[object Object]" already exists in row 4',
+            ],
+          },
+          {
+            row: 3,
+            errors: [
+              'Column "email" must be unique. Value "first@example.test" already exists in row 1',
+              'Column "meta" must be unique. Value "1,2" already exists in row 5',
+            ],
+          },
+          {
+            row: 130,
+            errors: [
+              'Column "email" must be unique. Value "middle@example.test" already exists in row 2',
+            ],
+          },
+          {
+            row: 200,
+            errors: [
+              'Column "email" must be unique. Value "new-5@example.test" duplicates row 6 in batch',
+            ],
+          },
+          {
+            row: 259,
+            errors: [
+              'Column "email" must be unique. Value "last@example.test" already exists in row 3',
+            ],
+          },
+        ],
+      })
+    })
+
+    it('matches an expiration by instant in one pass over the table', async () => {
+      const table = await createTable([
+        { id: 'expires', name: 'expires', type: 'ttl', unique: true },
+      ])
+      await seedAt(table.id, [{ expires: '2024-01-31T00:00:00-00:00' }])
+      const rows: RowData[] = Array.from({ length: 30 }, (_, i) => ({
+        expires: `2025-01-${String(i + 1).padStart(2, '0')}T00:00:00-00:00`,
+      }))
+      rows[27] = { expires: '2024-01-31T01:00:00+01:00' }
+      rows[28] = { expires: null }
+
+      const { result, scans } = await checkWithScans(table, rows)
+
+      expect(result).toEqual({
+        valid: false,
+        errors: [
+          {
+            row: 27,
+            errors: [
+              'Column "expires" must be unique. Value "2024-01-31T01:00:00+01:00" already exists in row 1',
+            ],
+          },
+        ],
+      })
+      expect(Object.values(scans).reduce((sum, count) => sum + count, 0)).toBe(1)
+    })
+
+    it('probes the containment index once per value on a large table', async () => {
+      const table = await createTable([
+        { id: 'email', name: 'email', type: 'string', unique: true },
+      ])
+      await control`INSERT INTO user_table_rows (id, table_id, workspace_id, data, position, order_key)
+        SELECT ${table.id}::text || '-' || i, ${table.id}, ${workspaceId},
+          jsonb_build_object('email', 'stored-' || i || '@example.test'), i, 'a' || i
+        FROM generate_series(0, 39999) AS i`
+      try {
+        await control`ANALYZE user_table_rows`
+        const rows: RowData[] = Array.from({ length: 260 }, (_, i) => ({
+          email: i % 10 === 0 ? `stored-${i * 100}@example.test` : `new-${i}@example.test`,
+        }))
+
+        const { result, scans } = await checkWithScans(table, rows)
+
+        expect(result.errors).toHaveLength(26)
+        expect(scans).toEqual({ user_table_rows_tenant_data_gin_idx: 260 })
+      } finally {
+        await control`DELETE FROM user_table_rows WHERE table_id = ${table.id}`
+      }
+    }, 60_000)
   })
 
   describe('writers validate against the live schema, not their snapshot', () => {

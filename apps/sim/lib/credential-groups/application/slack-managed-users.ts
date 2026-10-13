@@ -171,6 +171,7 @@ export const completeSlackCredentialGroupConfiguration: OperationUseCase<
       attempt.appRevision !== pending.appRevision ||
       attempt.searchApproval?.approved !== pending.searchApproval?.approved ||
       attempt.searchApproval?.updatedAt !== pending.searchApproval?.updatedAt ||
+      attempt.installationsRevision !== pending.installationsRevision ||
       attempt.clientId !== pending.clientId ||
       attempt.redirectUri !== pending.redirectUri ||
       credentialGroupScopePolicyVersion(attempt.requiredScopes) !==
