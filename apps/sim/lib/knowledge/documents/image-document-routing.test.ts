@@ -43,7 +43,7 @@ import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-inpu
 
 const IMAGE_URL = 'https://example.com/schedule.png'
 const IMAGE_BYTES = Buffer.from('png bytes')
-const USAGE = { model: 'gemini-3.8-flash', cost: 0.004, inputTokens: 1200, outputTokens: 300 }
+const onVisionUsage = vi.fn()
 
 function process(policy: ImageExtractionPolicy | undefined, mimeType = 'image/png') {
   return runWithKnowledgeModelInputProvenance(
@@ -53,6 +53,7 @@ function process(policy: ImageExtractionPolicy | undefined, mimeType = 'image/pn
         userId: 'user-1',
         imageExtraction: policy,
         processingDeadlineAt: Date.now() + 600_000,
+        onVisionUsage,
         ocrCheckpoint: { knowledgeBaseId: 'kb-1', documentId: 'doc-1', indexingPassId: 'pass-1' },
       }),
     { opaqueInputSafe: true }
@@ -68,7 +69,6 @@ describe('image document routing', () => {
     mockExtractImageText.mockResolvedValue({
       decorative: false,
       renderedText: 'Region: EMEA. Quarter: Q1. Launch date: March 3.',
-      usage: USAGE,
     })
   })
 
@@ -80,25 +80,23 @@ describe('image document routing', () => {
         source: IMAGE_BYTES,
         filename: 'Schedule',
         checkpoint: { knowledgeBaseId: 'kb-1', documentId: 'doc-1', indexingPassId: 'pass-1' },
+        onUsage: onVisionUsage,
       })
     )
     expect(mockExecuteMistralParse).not.toHaveBeenCalled()
     expect(processed.chunks.map((chunk) => chunk.text).join(' ')).toContain('Region: EMEA')
-    expect(processed.metadata).toMatchObject({
-      processingMethod: 'vision-extract',
-      visionUsage: USAGE,
-    })
+    expect(processed.metadata).toMatchObject({ processingMethod: 'vision-extract' })
   })
 
   it('completes a decorative image with no chunks instead of failing it as unreadable', async () => {
-    mockExtractImageText.mockResolvedValue({ decorative: true, renderedText: '', usage: USAGE })
+    mockExtractImageText.mockResolvedValue({ decorative: true, renderedText: '' })
     const processed = await process('semantic')
     expect(processed.chunks).toEqual([])
-    expect(processed.metadata).toMatchObject({ chunkCount: 0, visionUsage: USAGE })
+    expect(processed.metadata).toMatchObject({ chunkCount: 0 })
   })
 
   it('fails an informative image whose extraction came back empty', async () => {
-    mockExtractImageText.mockResolvedValue({ decorative: false, renderedText: '', usage: USAGE })
+    mockExtractImageText.mockResolvedValue({ decorative: false, renderedText: '' })
     await expect(process('semantic')).rejects.toMatchObject({ code: 'no_extractable_text' })
   })
 

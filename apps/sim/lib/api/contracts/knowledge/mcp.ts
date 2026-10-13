@@ -18,7 +18,7 @@ export const organizationKnowledgeMcpContract = defineRouteContract({
 
 export const liveSearchMcpSchema = searchWorkspaceInputSchema.strict()
 /** Documents one read_document call may read; each counts as one read against the rate limit. */
-const MAX_MCP_READ_DOCUMENTS = 5
+const MAX_MCP_READ_DOCUMENTS = 10
 
 export const readLiveDocumentMcpSchema = readDocumentInputSchema
   .extend({

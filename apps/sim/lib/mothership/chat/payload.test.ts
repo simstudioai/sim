@@ -797,18 +797,15 @@ describe('desktop request capabilities', () => {
     'rechecks the server rollout for a forged computer capability (enabled=%s)',
     async (enabled) => {
       mockComputerUseAvailable.mockResolvedValueOnce(enabled)
-      const payload = await buildCopilotRequestPayload(
-        {
-          message: 'Use Notes',
-          workspaceId: 'workspace',
-          userId: 'user',
-          userMessageId: 'message',
-          mode: 'agent',
-          model: 'gpt-6-astra',
-          computerUse: true,
-        },
-        { selectedModel: 'gpt-6-astra' }
-      )
+      const payload = await buildCopilotRequestPayload({
+        message: 'Use Notes',
+        workspaceId: 'workspace',
+        userId: 'user',
+        userMessageId: 'message',
+        mode: 'agent',
+        model: 'gpt-6-astra',
+        computerUse: true,
+      })
       expect(payload.desktop?.computerUse ?? false).toBe(enabled)
       expect(mockComputerUseAvailable).toHaveBeenCalledWith()
     }
@@ -908,17 +905,14 @@ it.each([{ organizationId: 'org-1' }, { workspaceId: 'ws-1' }])(
     for (const enabled of [true, false, true]) {
       mockSearchIntegrationToolsEnabled.mockResolvedValue(enabled)
       for (const mode of ['assistant', 'agent', 'plan']) {
-        const payload = await buildCopilotRequestPayload(
-          {
-            message: 'Find a person',
-            userId: 'person',
-            userMessageId: 'message',
-            mode,
-            model: '',
-            ...scope,
-          },
-          { selectedModel: '' }
-        )
+        const payload = await buildCopilotRequestPayload({
+          message: 'Find a person',
+          userId: 'person',
+          userMessageId: 'message',
+          mode,
+          model: '',
+          ...scope,
+        })
         expect(payload.integrationCatalog).toEqual(
           mode === 'assistant' && !enabled ? undefined : { mcpServerIds: [] }
         )

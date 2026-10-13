@@ -6,7 +6,16 @@ import {
   decryptCredentialGroupProviderConfiguration,
   encryptCredentialGroupProviderConfiguration,
 } from '@/lib/credential-groups/provider-configuration'
-import type { DbOrTx } from '@/lib/db/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+
+/**
+ * Serializes an organization's Slack member setup with its Search bot installs, so each sees the
+ * other's committed app and workspace. Taken before any Slack app or workspace lock.
+ */
+export async function lockOrganizationSlackApp(tx: DbTransaction, organizationId: string) {
+  await acquireAdvisoryXactLock(tx, 'slack_org_app', `slack-org-app:${organizationId}`)
+}
 
 /** Called with canonical, authorized organization scope by the app setup use case. */
 export async function loadOrganizationSlackMemberApps(

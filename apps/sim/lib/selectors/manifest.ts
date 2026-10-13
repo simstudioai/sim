@@ -189,6 +189,16 @@ export const selectorManifest = {
     listMode: 'paginated',
     detail: true,
   }),
+  'fivetran.groups': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'fivetran.connections': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
   'gmail.labels': providerSelector(['impersonateUserEmail']),
   'github.installationRepositories': {
     ...providerSelector([], { listMode: 'paginated', detail: true, unknownDetail: true }),

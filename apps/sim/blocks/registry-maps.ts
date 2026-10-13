@@ -92,6 +92,7 @@ import {
   FirefliesV2Block,
   FirefliesV2BlockMeta,
 } from '@/blocks/blocks/fireflies'
+import { FivetranBlock, FivetranBlockMeta } from '@/blocks/blocks/fivetran'
 import { FlintBlock, FlintBlockMeta } from '@/blocks/blocks/flint'
 import { FunctionBlock } from '@/blocks/blocks/function'
 import { GammaBlock, GammaBlockMeta } from '@/blocks/blocks/gamma'
@@ -491,6 +492,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,
   fireflies_v2: FirefliesV2Block,
+  fivetran: FivetranBlock,
   flint: FlintBlock,
   function: FunctionBlock,
   gamma: GammaBlock,
@@ -848,6 +850,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   firecrawl: FirecrawlBlockMeta,
   fireflies: FirefliesBlockMeta,
   fireflies_v2: FirefliesV2BlockMeta,
+  fivetran: FivetranBlockMeta,
   flint: FlintBlockMeta,
   gamma: GammaBlockMeta,
   github: GitHubBlockMeta,

@@ -8,7 +8,10 @@ import { useQueryStates } from 'nuqs'
 import type { WorkflowTestRecord } from '@/lib/api/contracts/workflow-tests'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { ownerCell } from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
-import { ResourceNoResults } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import {
+  ResourceNoResults,
+  TestsEmptyState,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import type {
   SearchConfig,
   SortConfig,
@@ -154,6 +157,8 @@ export function Tests({ workspaceId }: TestsProps) {
               <p className='text-[var(--text-error)] text-small'>{query.error.message}</p>
               <Chip onClick={() => query.refetch()}>Retry</Chip>
             </div>
+          ) : query.data?.length === 0 ? (
+            <TestsEmptyState />
           ) : debouncedSearch.trim() && query.data?.length ? (
             <ResourceNoResults
               search={debouncedSearch}

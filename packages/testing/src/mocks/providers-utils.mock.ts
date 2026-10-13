@@ -126,7 +126,7 @@ export const providersUtilsMockFns = {
   mockSupportsThinking: vi.fn((_model: string): boolean => false),
   mockSupportsPromptCaching: vi.fn((_model: string): boolean => false),
   mockIsDeepResearchModel: vi.fn((_model: string): boolean => false),
-  mockIsGemini3Model: vi.fn((_model: string): boolean => false),
+  mockIsGemini3OrLaterModel: vi.fn((_model: string): boolean => false),
   mockPrepareToolExecution: vi.fn(
     (
       _tool: unknown,
@@ -202,7 +202,7 @@ export const providersUtilsMock = {
   supportsThinking: providersUtilsMockFns.mockSupportsThinking,
   supportsPromptCaching: providersUtilsMockFns.mockSupportsPromptCaching,
   isDeepResearchModel: providersUtilsMockFns.mockIsDeepResearchModel,
-  isGemini3Model: providersUtilsMockFns.mockIsGemini3Model,
+  isGemini3OrLaterModel: providersUtilsMockFns.mockIsGemini3OrLaterModel,
   prepareToolExecution: providersUtilsMockFns.mockPrepareToolExecution,
   checkForForcedToolUsageOpenAI: providersUtilsMockFns.mockCheckForForcedToolUsageOpenAI,
 }

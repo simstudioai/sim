@@ -78,9 +78,11 @@ it.each(cases)(
     const work = createDeferred<typeof result>()
     mocks.execute.mockReturnValueOnce(work.promise)
     let response: Response | undefined
-    const request = handler(createMockRequest('POST', body), {
-      params: Promise.resolve({ id: 'org', benchmarkId: 'benchmark' }),
-    }).then((value) => {
+    const request = Promise.resolve(
+      handler(createMockRequest('POST', body), {
+        params: Promise.resolve({ id: 'org', benchmarkId: 'benchmark' }),
+      })
+    ).then((value) => {
       response = value
       return value
     })

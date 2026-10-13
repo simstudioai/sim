@@ -12,6 +12,7 @@ import {
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
 import { v2RateLimits } from '@/lib/api/server/routes/v2-json-route'
 import { afterResponse } from '@/lib/core/utils/after-response'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { organizationSearchChatOperation } from '@/lib/knowledge/application/chat-operations'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
@@ -31,6 +32,8 @@ import { v2CaughtOrchestrationError } from '@/app/api/v2/lib/response'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('KnowledgeMcp')
+/** Provider reads one read_document call runs at once, however many documents it names. */
+const READ_DOCUMENT_CONCURRENCY = 5
 
 /** The message a caller may see for an expected failure; undefined for an internal error. */
 async function callerErrorMessage(error: unknown): Promise<string | undefined> {
@@ -201,8 +204,10 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
             })
           if (documentId) return projectResult(projectReadResult(await read(documentId)), registry)
           /** One unreadable document leaves the others; each failure is reported in its place. */
-          const documents = await Promise.all(
-            batch.map(async (id) => {
+          const documents = await mapWithConcurrency(
+            batch,
+            READ_DOCUMENT_CONCURRENCY,
+            async (id) => {
               try {
                 return projectReadResult(await read(id))
               } catch (error) {
@@ -218,7 +223,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
                   error: message ?? 'Unable to read this document. Please try again.',
                 }
               }
-            })
+            }
           )
           return projectResult({ documents }, registry)
         },

@@ -1,6 +1,6 @@
 {
-  "id": "1891a6d1-2a91-4acf-8740-c32defcc6a16",
-  "prevId": "cf96e3a2-f72d-44a6-8399-e8aafb6d936e",
+  "id": "cf96e3a2-f72d-44a6-8399-e8aafb6d936e",
+  "prevId": "646a9b97-9a65-4b58-bd83-46d98102661e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -22638,7 +22638,9 @@
           "isUnique": false,
           "concurrently": false,
           "method": "gin",
-          "with": {}
+          "with": {
+            "fastupdate": "off"
+          }
         },
         "user_table_rows_workspace_table_idx": {
           "name": "user_table_rows_workspace_table_idx",
@@ -24955,8 +24957,8 @@
           "method": "btree",
           "with": {}
         },
-        "workflow_execution_logs_workspace_activity_idx": {
-          "name": "workflow_execution_logs_workspace_activity_idx",
+        "workflow_execution_logs_workspace_activity_level_idx": {
+          "name": "workflow_execution_logs_workspace_activity_level_idx",
           "columns": [
             {
               "expression": "workspace_id",
@@ -24990,6 +24992,12 @@
             },
             {
               "expression": "trigger",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "level",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -30458,10 +30466,6 @@
         "mothership_benchmark_runs_score_check": {
           "name": "mothership_benchmark_runs_score_check",
           "value": "\"mothership_benchmark_runs\".\"total\" > 0 AND \"mothership_benchmark_runs\".\"correct\" >= 0 AND \"mothership_benchmark_runs\".\"correct\" <= \"mothership_benchmark_runs\".\"total\""
-        },
-        "mothership_benchmark_runs_version_check": {
-          "name": "mothership_benchmark_runs_version_check",
-          "value": "\"mothership_benchmark_runs\".\"version\" > 0"
         },
         "mothership_benchmark_runs_automatic_score_check": {
           "name": "mothership_benchmark_runs_automatic_score_check",

@@ -1,3 +1,4 @@
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { setEnv } from '@sim/testing/mocks/env.mock'
 import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
@@ -130,7 +131,7 @@ describe('outbound receiver lifecycle', () => {
         return process
       })
       const control = request()
-      const reply = Promise.withResolvers<{ id: string; result: { body: string } }>()
+      const reply = createDeferred<{ id: string; result: { body: string } }>()
       let polls = 0
       mocks.fetch.mockImplementation(async (url: string, init: RequestInit) => {
         if (url.endsWith('/poll')) {

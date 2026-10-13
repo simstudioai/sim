@@ -25,6 +25,12 @@ const ENABLED_PREFERENCES = {
   autoDownloadUpdates: true,
   browserEnabled: true,
   terminalEnabled: true,
+  trayEnabled: true,
+  browserTheme: 'app',
+  browserDefaultZoom: 100,
+  browserDownloadDirectory: '/synthetic/downloads',
+  terminalTheme: 'app',
+  terminalDefaultZoom: 100,
 } as const
 
 function installBridge(value: unknown): void {

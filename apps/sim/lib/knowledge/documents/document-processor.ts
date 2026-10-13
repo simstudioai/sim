@@ -236,6 +236,8 @@ export type SourceFileAccess = Pick<
   processingDeadlineAt?: number
   /** The document's source policy for images; absent keeps the OCR path. */
   imageExtraction?: ImageExtractionPolicy
+  /** Receives what the vision model billed, even when processing then fails. */
+  onVisionUsage?: (usage: VisionExtractionUsage) => void
 }
 
 type ProcessingMethod = 'file-parser' | 'mistral-ocr' | 'vision-extract'
@@ -262,7 +264,6 @@ export async function processDocument(
     characterCount: number
     processingMethod: ProcessingMethod
     cloudUrl?: string
-    visionUsage?: VisionExtractionUsage
   }
 }> {
   logger.info('Processing document', { mimeType })
@@ -277,6 +278,7 @@ export async function processDocument(
           checkpoint: access.ocrCheckpoint,
           deadlineAt: access.processingDeadlineAt,
           signal: access.signal,
+          onUsage: access.onVisionUsage,
         })
       : undefined
     if (image?.decorative) {
@@ -291,7 +293,6 @@ export async function processDocument(
           tokenCount: 0,
           characterCount: 0,
           processingMethod: 'vision-extract',
-          visionUsage: image.usage,
         },
       }
     }
@@ -413,7 +414,6 @@ export async function processDocument(
         characterCount,
         processingMethod,
         cloudUrl,
-        visionUsage: image?.usage,
       },
     }
   } catch (error) {

@@ -106,9 +106,6 @@
     "TS2554": 1,
     "TS2571": 2
   },
-  "apps/sim/app/api/copilot/confirm/route.test.ts": {
-    "TS2554": 31
-  },
   "apps/sim/app/api/copilot/feedback/route.test.ts": {
     "TS2554": 1
   },
@@ -135,9 +132,6 @@
   },
   "apps/sim/app/api/desktop/auth/handoff/route.test.ts": {
     "TS2554": 5
-  },
-  "apps/sim/app/api/desktop/tool/authorize/route.test.ts": {
-    "TS2554": 20
   },
   "apps/sim/app/api/desktop/tool/file/route.test.ts": {
     "TS2322": 1,
@@ -240,9 +234,6 @@
   },
   "apps/sim/app/api/mothership/chats/read/route.test.ts": {
     "TS2554": 3
-  },
-  "apps/sim/app/api/mothership/chats/route.test.ts": {
-    "TS2554": 1
   },
   "apps/sim/app/api/mothership/events/route.test.ts": {
     "TS2554": 10
@@ -1320,9 +1311,6 @@
   },
   "apps/sim/lib/data-drains/destinations/webhook.test.ts": {
     "TS2741": 7
-  },
-  "apps/sim/lib/desktop/index.test.ts": {
-    "TS2740": 5
   },
   "apps/sim/lib/desktop/preferences-loading.test.ts": {
     "TS2550": 1,

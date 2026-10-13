@@ -22,6 +22,7 @@ import {
 } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
+import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { inter } from '@/app/_styles/fonts/inter/inter'
@@ -939,6 +940,7 @@ export function MothershipChat({
           onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
         >
           <div className={styles.footerInner}>
+            <ComputerUseActivity />
             <QueuedMessages
               messageQueue={messageQueue}
               editingQueuedId={editingQueuedId}

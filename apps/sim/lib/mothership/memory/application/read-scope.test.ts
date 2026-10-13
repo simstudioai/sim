@@ -85,6 +85,8 @@ describe('private memory scope', () => {
     async (field) => {
       queueChat()
       const trusted = principal()
+      if (trusted.kind !== 'organization_delegated' || trusted.serviceId !== 'copilot')
+        throw new Error('Expected copilot principal')
       const caller = {
         ...trusted,
         ...(field === 'user' ? { subjectUserId: 'other' } : {}),

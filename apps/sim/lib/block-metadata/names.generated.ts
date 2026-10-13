@@ -87,6 +87,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   findymail: 'Findymail',
   firecrawl: 'Firecrawl',
   fireflies_v2: 'Fireflies',
+  fivetran: 'Fivetran',
   flint: 'Flint',
   function: 'Function',
   gamma: 'Gamma',

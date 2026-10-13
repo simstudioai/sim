@@ -52,7 +52,7 @@ const targets = {
   resolve: mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace,
   environment: mothershipEnvironmentContextMockFns.mockPrepareCopilotEnvironmentContext,
 }
-targets.environment.mockResolvedValue(undefined)
+targets.environment.mockResolvedValue({ resolvedSecretTraceRegistry: undefined })
 
 const toolExecutorLogger = getMockLogger('ToolExecutor')
 

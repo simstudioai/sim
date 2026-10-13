@@ -11,6 +11,10 @@ vi.mock('@/lib/knowledge/model-input-provenance', () => ({
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import { VISION_CHECKPOINT_CLEANUP_EVENT } from '@/lib/knowledge/documents/checkpoint-events'
 import {
+  readFramedCheckpoint,
+  writeFramedCheckpoint,
+} from '@/lib/knowledge/documents/processing-checkpoint-store'
+import {
   cleanupVisionCheckpoint,
   createVisionCheckpoint,
 } from '@/lib/knowledge/documents/vision-checkpoints'
@@ -20,7 +24,13 @@ const source = Buffer.from('image bytes')
 const result = {
   decorative: false,
   renderedText: 'Region: EMEA. Quarter: Q1.',
-  usage: { model: 'gemini-3.8-flash', cost: 0.004, inputTokens: 1200, outputTokens: 300 },
+  usage: {
+    chargeId: 'charge-1',
+    model: 'gemini-3.8-flash',
+    cost: 0.004,
+    inputTokens: 1200,
+    outputTokens: 300,
+  },
 }
 
 interface CleanupRow {
@@ -91,6 +101,29 @@ describe('vision extraction checkpoints', () => {
     await checkpoint().save(result)
     expect([...rows.values()][0]).toMatchObject({ payload: { key: expect.any(String) } })
     expect(await checkpoint().load()).toEqual(result)
+  })
+
+  it('gives a checkpoint written before charge ids one stable charge, so its replays dedupe', async () => {
+    await checkpoint().save(result)
+    const [key] = [...objects.keys()]
+    const stored = await readFramedCheckpoint(key, { maxBodyBytes: 4 * 1024 * 1024 })
+    if (!stored) throw new Error('Expected the saved checkpoint')
+    const { chargeId: _chargeId, ...legacyUsage } = result.usage
+    await writeFramedCheckpoint(
+      key,
+      stored.header,
+      Buffer.from(JSON.stringify({ ...result, usage: legacyUsage })),
+      {
+        cleanupEventType: VISION_CHECKPOINT_CLEANUP_EVENT,
+        cleanupIdPrefix: 'knowledge-vision-cleanup',
+        fileName: 'vision-checkpoint.json',
+      }
+    )
+
+    const first = await checkpoint().load()
+    expect(first).toMatchObject({ renderedText: result.renderedText, usage: legacyUsage })
+    expect(first?.usage.chargeId).toEqual(expect.any(String))
+    expect((await checkpoint().load())?.usage.chargeId).toBe(first?.usage.chargeId)
   })
 
   it.each([

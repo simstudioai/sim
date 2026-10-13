@@ -44,10 +44,10 @@ it.each(['pending', 'failed'] as const)(
         <FeatureFlagsProvider
           flags={{
             dashboards: false,
-            'table-row-ttl': false,
+            'workflow-tests': false,
+            changelog: false,
             'mothership-model-selector': false,
             'mothership-plan-mode': false,
-            'mothership-desktop-background-executor': false,
             'mothership-computer-use': true,
           }}
         >
@@ -85,10 +85,10 @@ it.each(['active', 'completed'] as const)(
         <FeatureFlagsProvider
           flags={{
             dashboards: false,
-            'table-row-ttl': false,
+            'workflow-tests': false,
+            changelog: false,
             'mothership-model-selector': false,
             'mothership-plan-mode': false,
-            'mothership-desktop-background-executor': false,
             'mothership-computer-use': false,
           }}
         >

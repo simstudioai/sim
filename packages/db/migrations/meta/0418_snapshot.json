@@ -1,6 +1,6 @@
 {
-  "id": "cf96e3a2-f72d-44a6-8399-e8aafb6d936e",
-  "prevId": "646a9b97-9a65-4b58-bd83-46d98102661e",
+  "id": "646a9b97-9a65-4b58-bd83-46d98102661e",
+  "prevId": "53807721-83e0-4aae-b672-34d6528d1f30",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -22638,7 +22638,9 @@
           "isUnique": false,
           "concurrently": false,
           "method": "gin",
-          "with": {}
+          "with": {
+            "fastupdate": "off"
+          }
         },
         "user_table_rows_workspace_table_idx": {
           "name": "user_table_rows_workspace_table_idx",
@@ -24955,8 +24957,8 @@
           "method": "btree",
           "with": {}
         },
-        "workflow_execution_logs_workspace_activity_idx": {
-          "name": "workflow_execution_logs_workspace_activity_idx",
+        "workflow_execution_logs_workspace_activity_level_idx": {
+          "name": "workflow_execution_logs_workspace_activity_level_idx",
           "columns": [
             {
               "expression": "workspace_id",
@@ -24990,6 +24992,12 @@
             },
             {
               "expression": "trigger",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "level",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -30151,12 +30159,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "run_as_user_id": {
-          "name": "run_as_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "source_workspace_id": {
           "name": "source_workspace_id",
           "type": "text",
@@ -30225,6 +30227,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "run_as_user_id": {
+          "name": "run_as_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -30292,15 +30300,6 @@
           "tableFrom": "mothership_benchmarks",
           "tableTo": "user",
           "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "mothership_benchmarks_run_as_user_id_user_id_fk": {
-          "name": "mothership_benchmarks_run_as_user_id_user_id_fk",
-          "tableFrom": "mothership_benchmarks",
-          "tableTo": "user",
-          "columnsFrom": ["run_as_user_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"

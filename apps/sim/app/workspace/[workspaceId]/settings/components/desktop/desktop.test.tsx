@@ -62,10 +62,10 @@ async function render(device: { deviceId: string } | null) {
       <FeatureFlagsProvider
         flags={{
           dashboards: false,
-          'table-row-ttl': false,
+          'workflow-tests': false,
+          changelog: false,
           'mothership-model-selector': false,
           'mothership-plan-mode': false,
-          'mothership-desktop-background-executor': false,
           'mothership-computer-use': false,
         }}
       >

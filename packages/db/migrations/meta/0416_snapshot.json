@@ -1,6 +1,6 @@
 {
-  "id": "53807721-83e0-4aae-b672-34d6528d1f30",
-  "prevId": "8b40e391-0e6c-48f0-9680-ba7ab8f8d1c0",
+  "id": "8b40e391-0e6c-48f0-9680-ba7ab8f8d1c0",
+  "prevId": "d5705ade-24a2-4417-8359-756f509c70ec",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -22638,7 +22638,9 @@
           "isUnique": false,
           "concurrently": false,
           "method": "gin",
-          "with": {}
+          "with": {
+            "fastupdate": "off"
+          }
         },
         "user_table_rows_workspace_table_idx": {
           "name": "user_table_rows_workspace_table_idx",
@@ -24955,8 +24957,8 @@
           "method": "btree",
           "with": {}
         },
-        "workflow_execution_logs_workspace_activity_idx": {
-          "name": "workflow_execution_logs_workspace_activity_idx",
+        "workflow_execution_logs_workspace_activity_level_idx": {
+          "name": "workflow_execution_logs_workspace_activity_level_idx",
           "columns": [
             {
               "expression": "workspace_id",
@@ -24990,6 +24992,12 @@
             },
             {
               "expression": "trigger",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "level",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -30219,12 +30227,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "run_as_user_id": {
-          "name": "run_as_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {

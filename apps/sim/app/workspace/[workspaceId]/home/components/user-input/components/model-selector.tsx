@@ -59,7 +59,7 @@ export function ModelSelector({ plan = false }: { plan?: boolean }) {
 
   return (
     <div className='flex items-center gap-[inherit]'>
-      {modelSelection && (
+      {advanced && modelSelection && (
         <>
           {modelSelection.model !== 'claude-opus-5-5' && (
             <FastModeToggle

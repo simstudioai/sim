@@ -6414,6 +6414,8 @@ export type GetSelectorBody = {
     | 'confluence.spacesById'
     | 'confluence.pages'
     | 'google.tasks.lists'
+    | 'fivetran.groups'
+    | 'fivetran.connections'
     | 'gmail.labels'
     | 'google.calendar'
     | 'google.drive'
@@ -9312,6 +9314,8 @@ export type ListSelectorBody = {
     | 'confluence.spacesById'
     | 'confluence.pages'
     | 'google.tasks.lists'
+    | 'fivetran.groups'
+    | 'fivetran.connections'
     | 'gmail.labels'
     | 'google.calendar'
     | 'google.drive'
@@ -17573,6 +17577,8 @@ export const V2_OPERATIONS = {
           'confluence.spacesById',
           'confluence.pages',
           'google.tasks.lists',
+          'fivetran.groups',
+          'fivetran.connections',
           'gmail.labels',
           'google.calendar',
           'google.drive',
@@ -19765,6 +19771,8 @@ export const V2_OPERATIONS = {
           'confluence.spacesById',
           'confluence.pages',
           'google.tasks.lists',
+          'fivetran.groups',
+          'fivetran.connections',
           'gmail.labels',
           'google.calendar',
           'google.drive',

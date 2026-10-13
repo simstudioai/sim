@@ -181,7 +181,12 @@ describe('native computer model projection', () => {
       editable: index === 99,
     }))
     const result = computerToolResultForModel(sequence(state))
-    if (!('observation' in result) || !result.observation) throw new Error('Missing observation')
+    if (
+      !('observation' in result) ||
+      !result.observation ||
+      !('accessibilityTree' in result.observation)
+    )
+      throw new Error('Missing projected observation')
     const tree = result.observation.accessibilityTree
     const ids = new Set(tree.split('\n').map((row) => row.split(' ')[0]))
     expect(ids.has('deep-99')).toBe(true)

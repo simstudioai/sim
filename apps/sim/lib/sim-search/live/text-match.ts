@@ -57,15 +57,27 @@ const STOPWORDS = new Set([
  * two means an any-term query would match the same pages as the all-terms one.
  */
 export function significantTerms(query: string): string[] {
+  return distinctTerms(query, (term) => term.toLowerCase())
+}
+
+function distinctTerms(query: string, keyOf: (term: string) => string): string[] {
   const seen = new Set<string>()
   return queryTerms(query)
     .filter((term) => {
-      const key = term.toLowerCase()
-      if (STOPWORDS.has(key) || seen.has(key)) return false
+      const key = keyOf(term)
+      if (STOPWORDS.has(term.toLowerCase()) || seen.has(key)) return false
       seen.add(key)
       return true
     })
     .slice(0, MAX_ANY_TERMS)
+}
+
+/** One key for a word and its regular plural (`token`/`tokens`, `process`/`processes`). */
+function singularKey(term: string): string {
+  const key = term.toLowerCase()
+  if (key.length > 4 && key.endsWith('ies')) return `${key.slice(0, -3)}y`
+  const stem = /[^su]s$/.test(key) ? key.slice(0, -1) : key
+  return /(?:s|x|z|ch|sh)e$/.test(stem) ? stem.slice(0, -1) : stem
 }
 
 /** Escapes a value for a quoted JQL or CQL string, treating Lucene operators as literal text. */
@@ -73,11 +85,12 @@ const escapeSearchPhrase = (value: string) =>
   JSON.stringify(value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&'))
 
 /**
- * The `text ~` clause for a plain query in Jira JQL. `any` ORs every pair of terms, so a match
- * contains at least two of them somewhere in the issue, or either term of a two-term query.
+ * The `text ~` clause for a plain query in Jira JQL. `any` ORs every pair of the query's longest
+ * terms, so a match contains at least two of them somewhere in the issue, or either term of a
+ * two-term query. Jira stems text search, so a word and its plural share one term.
  */
 export function jiraTextClause(text: string, match: TextMatch = 'all'): string {
-  const terms = match === 'any' ? significantTerms(text) : []
+  const terms = match === 'any' ? distinctTerms(text, singularKey) : []
   if (terms.length < 2) return `text ~ ${escapeSearchPhrase(text)}`
   const clause = (term: string) => `text ~ ${escapeSearchPhrase(term)}`
   const groups =
