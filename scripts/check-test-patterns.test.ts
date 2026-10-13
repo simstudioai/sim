@@ -161,6 +161,80 @@ describe('real-wait', () => {
       ['sleep() #1'],
     ],
     [
+      'a sleep after the test restores real timers',
+      [
+        HELPERS,
+        "it('t', async () => {",
+        '  vi.useFakeTimers()',
+        '  vi.useRealTimers()',
+        '  await sleep(10)',
+        '})',
+      ],
+      ['sleep() #1'],
+    ],
+    [
+      'a sleep in a nested suite that restores real timers',
+      [
+        HELPERS,
+        "describe('outer', () => {",
+        '  beforeEach(() => { vi.useFakeTimers() })',
+        "  describe('inner', () => {",
+        '    beforeEach(() => { vi.useRealTimers() })',
+        "    it('t', async () => { await sleep(10) })",
+        '  })',
+        '})',
+      ],
+      ['sleep() #1'],
+    ],
+    [
+      'a sleep in a beforeAll beside a beforeEach that installs fake timers',
+      [
+        HELPERS,
+        'beforeEach(() => { vi.useFakeTimers() })',
+        'beforeAll(async () => { await sleep(10) })',
+      ],
+      ['sleep() #1'],
+    ],
+    [
+      'a sleep in a beforeEach declared before the one that installs fake timers',
+      [
+        HELPERS,
+        'beforeEach(async () => { await sleep(10) })',
+        'beforeEach(() => { vi.useFakeTimers() })',
+      ],
+      ['sleep() #1'],
+    ],
+    [
+      'fake timers with a config the AST cannot read',
+      [
+        HELPERS,
+        'beforeEach(() => { vi.useFakeTimers(config) })',
+        "it('t', async () => { await sleep(10) })",
+      ],
+      ['sleep() #1'],
+    ],
+    [
+      'fake timers with a spread config',
+      [
+        HELPERS,
+        "it('t', async () => {",
+        '  vi.useFakeTimers({ ...config })',
+        '  await sleep(10)',
+        '})',
+      ],
+      ['sleep() #1'],
+    ],
+    [
+      'namespace imports',
+      [
+        "import * as helpers from '@sim/utils/helpers'",
+        "import * as timers from 'node:timers/promises'",
+        'await helpers.sleep(10)',
+        'await timers.setTimeout(10)',
+      ],
+      ['sleep() #1', 'timers/promises setTimeout() #1'],
+    ],
+    [
       'every occurrence, numbered per kind',
       [HELPERS, 'await sleep(10)', 'await new Promise((r) => setTimeout(r, 5))', 'await sleep(20)'],
       ['sleep() #1', 'setTimeout promise #1', 'sleep() #2'],
@@ -218,6 +292,25 @@ describe('real-wait', () => {
     [
       'a sleep after the install in the hook that installs fake timers',
       [HELPERS, 'beforeAll(async () => {', '  vi.useFakeTimers()', '  await sleep(100)', '})'],
+    ],
+    [
+      'a sleep after real timers are restored and fake ones installed again',
+      [
+        HELPERS,
+        "it('t', async () => {",
+        '  vi.useRealTimers()',
+        '  vi.useFakeTimers()',
+        '  await sleep(10)',
+        '})',
+      ],
+    ],
+    [
+      'a sleep in an afterEach beside a beforeEach that installs fake timers',
+      [
+        HELPERS,
+        'beforeEach(() => { vi.useFakeTimers() })',
+        'afterEach(async () => { await sleep(10) })',
+      ],
     ],
   ])('ignores %s', (_name, lines) => {
     expect(waits(lines.join('\n'))).toEqual([])

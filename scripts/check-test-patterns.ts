@@ -27,8 +27,7 @@
  *
  * Existing exceptions are recorded in `scripts/test-patterns-baseline.json`. A new violation fails;
  * so does a baseline entry that no longer occurs, so the baseline only ever shrinks. Regenerate it
- * after removing violations with `bun run scripts/check-test-patterns.ts --update`. A newly added rule
- * gets its one-time baseline with `--update --init-rule <rule>`.
+ * after removing violations with `bun run scripts/check-test-patterns.ts --update`.
  *
  * Run: `bun run check:test-patterns`
  */
@@ -250,19 +249,26 @@ function isNonZeroDelay(delay: Node | undefined): boolean {
   return !(delay === undefined || (delay.type === 'NumericLiteral' && delay.value === 0))
 }
 
-/** Whether a `vi.useFakeTimers(config)` call fakes `setTimeout` on a clock that only moves when told. */
+/**
+ * Whether a `vi.useFakeTimers(config)` call provably fakes `setTimeout` on a clock that only moves
+ * when told: no config, or a literal one whose `toFake`/`toNotFake` keep `setTimeout` faked and
+ * that does not set `shouldAdvanceTime`. A config the AST cannot read is not proof.
+ */
 function fakesSetTimeout(call: Node): boolean {
-  const config = (call.arguments as Node[])[0]
-  if (config?.type !== 'ObjectExpression') return true
+  const args = call.arguments as Node[]
+  if (args.length === 0) return true
+  const config = args[0]
+  if (args.length > 1 || config.type !== 'ObjectExpression') return false
   for (const property of config.properties as Node[]) {
-    if (property.type !== 'ObjectProperty') continue
+    if (property.type !== 'ObjectProperty' || property.computed) return false
     const key = property.key as { name?: string; value?: string }
     const name = key.name ?? key.value
     const value = property.value as Node
-    if (name === 'shouldAdvanceTime' && value.type === 'BooleanLiteral' && value.value) {
+    if (name === 'shouldAdvanceTime' && !(value.type === 'BooleanLiteral' && !value.value)) {
       return false
     }
-    if ((name === 'toFake' || name === 'toNotFake') && value.type === 'ArrayExpression') {
+    if (name === 'toFake' || name === 'toNotFake') {
+      if (value.type !== 'ArrayExpression') return false
       const listed = (value.elements as Node[]).some(
         (element) => element?.type === 'StringLiteral' && element.value === 'setTimeout'
       )
@@ -321,91 +327,149 @@ function isTimedPromise(node: Node): boolean {
   return timed
 }
 
+const WAIT_EXPORTS: Record<string, string[]> = {
+  '@sim/utils/helpers': ['sleep', 'interruptibleSleep'],
+  'node:timers/promises': ['setTimeout'],
+  'timers/promises': ['setTimeout'],
+}
+
+type HookKind = 'beforeAll' | 'beforeEach' | 'afterEach' | 'afterAll'
+const HOOK_KINDS = new Set<string>(['beforeAll', 'beforeEach', 'afterEach', 'afterAll'])
+
+/** A call and where it runs: its nearest function, and the innermost hook callback around it. */
+interface Site {
+  node: Node
+  fn: [number, number]
+  hook?: { kind: HookKind; range: [number, number]; suite: [number, number] }
+}
+
+function within(position: number, range: [number, number]): boolean {
+  return range[0] <= position && position < range[1]
+}
+
+function siteOf(node: Node, ancestors: Node[], programRange: [number, number]): Site {
+  const fnIndex = nearestFunctionIndex(ancestors, ancestors.length)
+  const site: Site = { node, fn: fnIndex === -1 ? programRange : nodeRange(ancestors[fnIndex]) }
+  for (let index = ancestors.length - 1; index > 0; index--) {
+    const fn = ancestors[index]
+    const call = ancestors[index - 1]
+    if (!FUNCTION_TYPES.has(fn.type) || call.type !== 'CallExpression') continue
+    const callee = call.callee as Node
+    const kind = callee.type === 'Identifier' ? (callee.name as string) : ''
+    if (!HOOK_KINDS.has(kind) || (call.arguments as Node[])[0] !== fn) continue
+    const owner = nearestFunctionIndex(ancestors, index - 1)
+    site.hook = {
+      kind: kind as HookKind,
+      range: nodeRange(fn),
+      suite: owner === -1 ? programRange : nodeRange(ancestors[owner]),
+    }
+    break
+  }
+  return site
+}
+
+/**
+ * Whether a `vi.useFakeTimers()`/`vi.useRealTimers()` call at `timer` is in effect at `target`.
+ * Inside its own function it applies to what follows it. From a `beforeAll` it also applies to the
+ * rest of its suite except `beforeAll` hooks declared before it; from a `beforeEach`, to the
+ * suite's tests, `afterEach` hooks, and `beforeEach` hooks declared after it or in nested suites.
+ */
+function inEffect(timer: Site, target: Site): boolean {
+  const position = target.node.start as number
+  if (within(position, timer.fn)) return position > (timer.node.start as number)
+  const hook = timer.hook
+  if (!hook || hook.range[0] !== timer.fn[0] || !within(position, hook.suite)) return false
+  if (hook.kind !== 'beforeAll' && hook.kind !== 'beforeEach') return false
+  const other = target.hook
+  if (!other) return true
+  const earlierSibling = other.suite[0] === hook.suite[0] && other.range[0] < hook.range[0]
+  if (hook.kind === 'beforeAll') return !(other.kind === 'beforeAll' && earlierSibling)
+  if (other.kind === 'beforeAll' || other.kind === 'afterAll') return false
+  return !(other.kind === 'beforeEach' && earlierSibling)
+}
+
 /**
  * `real-wait` violations in one unit test file: a call that waits on the wall clock — `sleep` or
- * `interruptibleSleep` from `@sim/utils/helpers`, `setTimeout` from `node:timers/promises`, or a
- * promise resolved by `setTimeout` — with a non-zero delay and no `vi.useFakeTimers()` in scope.
+ * `interruptibleSleep` from `@sim/utils/helpers`, `setTimeout` from `node:timers/promises` (named
+ * or through a namespace import), or a promise resolved by `setTimeout` — with a non-zero delay
+ * and no fake clock in effect.
  *
  * Vitest's fake clock fakes each of these whenever it fakes `setTimeout`, and then the wait costs
- * no wall-clock time. Fake timers are in scope when the call sits inside a function (or
- * the module) that installed them in an earlier statement, or inside a `describe` (or the module)
- * whose `beforeEach`/`beforeAll` installs them, except before the install in that hook's own body. A file that mocks `@sim/utils/helpers` gets the
- * mock's `sleep`, so its imports are not real waits. Each occurrence is its own numbered entry, so
- * the baseline caps the count per file.
+ * no wall-clock time. A wait is exempt when a `vi.useFakeTimers()` that provably fakes
+ * `setTimeout` is in effect there (see `inEffect`) and no `vi.useRealTimers()` in effect there runs
+ * after it. A file that mocks `@sim/utils/helpers` gets the mock's `sleep`, so its imports are not
+ * real waits. Each occurrence is its own numbered entry, so the baseline caps the count per file.
  */
 export function findRealWaitViolations(
   file: string,
   program: ReturnType<typeof parseSource>
 ): Violation[] {
   if (file.endsWith('.integration.ts') || file.endsWith('.live.test.ts')) return []
-  const waitImports = new Map<string, string>()
   let helpersMocked = false
   walk(program, (node) => {
     if (mockedId(node) === '@sim/utils/helpers') helpersMocked = true
   })
+  const waitImports = new Map<string, string>()
+  const namespaces = new Map<string, string[]>()
   for (const statement of program.body as Node[]) {
     if (statement.type !== 'ImportDeclaration') continue
     const source = (statement.source as { value: string }).value
-    const exported =
-      source === '@sim/utils/helpers' && !helpersMocked
-        ? ['sleep', 'interruptibleSleep']
-        : source === 'node:timers/promises' || source === 'timers/promises'
-          ? ['setTimeout']
-          : []
+    const exported = source === '@sim/utils/helpers' && helpersMocked ? [] : WAIT_EXPORTS[source]
+    if (!exported?.length) continue
     for (const specifier of statement.specifiers as Node[]) {
+      const local = (specifier.local as { name: string }).name
+      if (specifier.type === 'ImportNamespaceSpecifier') namespaces.set(local, exported)
       if (specifier.type !== 'ImportSpecifier') continue
       const imported = specifier.imported as { name?: string; value?: string }
       const name = imported.name ?? imported.value ?? ''
-      if (!exported.includes(name)) continue
-      const label = name === 'setTimeout' ? 'timers/promises setTimeout()' : `${name}()`
-      waitImports.set((specifier.local as { name: string }).name, label)
+      if (exported.includes(name)) waitImports.set(local, waitLabel(name))
     }
   }
 
+  function importedWait(node: Node): string | undefined {
+    if (node.type !== 'CallExpression' || !isNonZeroDelay((node.arguments as Node[])[0])) {
+      return undefined
+    }
+    const callee = node.callee as Node
+    if (callee.type === 'Identifier') return waitImports.get(callee.name as string)
+    const object = callee.object as Node | undefined
+    const property = callee.property as Node | undefined
+    if (
+      callee.type !== 'MemberExpression' ||
+      callee.computed ||
+      object?.type !== 'Identifier' ||
+      property?.type !== 'Identifier'
+    ) {
+      return undefined
+    }
+    const exported = namespaces.get(object.name as string)
+    const name = property.name as string
+    return exported?.includes(name) ? waitLabel(name) : undefined
+  }
   const programRange: [number, number] = [program.start ?? 0, program.end ?? 0]
-  // `real` is the stretch of the scope that runs before the clock is installed.
-  const fakeClocks: Array<{ scope: [number, number]; real: [number, number] }> = []
-  const waits: Array<{ node: Node; label: string }> = []
+  const fakeClocks: Site[] = []
+  const realClocks: Site[] = []
+  const waits: Array<{ site: Site; label: string }> = []
   walkWithAncestors(program, (node, ancestors) => {
-    if (isViCall(node, 'useFakeTimers') && fakesSetTimeout(node)) {
-      const fnIndex = nearestFunctionIndex(ancestors, ancestors.length)
-      const fn = ancestors[fnIndex]
-      const hook = ancestors[fnIndex - 1]
-      const hookName =
-        hook?.type === 'CallExpression' && (hook.callee as Node).type === 'Identifier'
-          ? (hook.callee as { name: string }).name
-          : undefined
-      if (
-        fn &&
-        (hookName === 'beforeEach' || hookName === 'beforeAll') &&
-        (hook.arguments as Node[])[0] === fn
-      ) {
-        const owner = ancestors[nearestFunctionIndex(ancestors, fnIndex - 1)]
-        fakeClocks.push({
-          scope: owner ? nodeRange(owner) : programRange,
-          real: [fn.start as number, node.start as number],
-        })
-      } else {
-        const scope = fn ? nodeRange(fn) : programRange
-        fakeClocks.push({ scope, real: [scope[0], node.start as number] })
-      }
+    if (isViCall(node, 'useFakeTimers')) {
+      if (fakesSetTimeout(node)) fakeClocks.push(siteOf(node, ancestors, programRange))
       return
     }
-    if (node.type === 'CallExpression' && (node.callee as Node).type === 'Identifier') {
-      const label = waitImports.get((node.callee as { name: string }).name)
-      if (label && isNonZeroDelay((node.arguments as Node[])[0])) waits.push({ node, label })
+    if (isViCall(node, 'useRealTimers')) {
+      realClocks.push(siteOf(node, ancestors, programRange))
       return
     }
-    if (isTimedPromise(node)) waits.push({ node, label: 'setTimeout promise' })
+    const label = isTimedPromise(node) ? 'setTimeout promise' : importedWait(node)
+    if (label) waits.push({ site: siteOf(node, ancestors, programRange), label })
   })
 
   const counts = new Map<string, number>()
   const violations: Violation[] = []
-  for (const { node, label } of waits) {
-    const start = node.start as number
+  for (const { site, label } of waits) {
     const faked = fakeClocks.some(
-      ({ scope, real }) =>
-        scope[0] <= start && start < scope[1] && !(real[0] <= start && start < real[1])
+      (fake) =>
+        inEffect(fake, site) &&
+        !realClocks.some((real) => inEffect(real, site) && inEffect(fake, real))
     )
     if (faked) continue
     const count = (counts.get(label) ?? 0) + 1
@@ -413,6 +477,10 @@ export function findRealWaitViolations(
     violations.push({ file, rule: 'real-wait', detail: `${label} #${count}` })
   }
   return violations
+}
+
+function waitLabel(name: string): string {
+  return name === 'setTimeout' ? 'timers/promises setTimeout()' : `${name}()`
 }
 
 function mockedId(node: Node): string | undefined {
@@ -616,25 +684,6 @@ function readBaseline(current: string[]): string[] {
   process.exit(1)
 }
 
-/**
- * `--update --init-rule <rule>` admits every current violation of a rule that has no baseline
- * entry yet: the one-time baseline for a newly introduced rule. Refuses an unknown rule or one the
- * baseline already tracks, so it can never top up an existing rule.
- */
-function readNewRuleEntries(current: string[], baseline: Set<string>): string[] {
-  const flag = process.argv.indexOf('--init-rule')
-  if (flag === -1) return []
-  const rule = process.argv[flag + 1]
-  const tracked = [...baseline].some((entry) => entry.startsWith(`${rule}\t`))
-  if (!rule || !Object.keys(FIX).includes(rule) || tracked) {
-    console.error(
-      `✗ --init-rule ${rule ?? ''}: ${tracked ? 'the baseline already tracks this rule' : 'unknown rule'}.`
-    )
-    process.exit(1)
-  }
-  return current.filter((entry) => entry.startsWith(`${rule}\t`))
-}
-
 /** How to fix each rule, printed once per rule with new violations. */
 const FIX: Record<string, string> = {
   'global-remock': 'drive the global mock through its knobs instead of re-mocking it',
@@ -686,9 +735,6 @@ function main(): void {
   const current = [...new Set(violations.map(key))].sort()
 
   const baseline = new Set<string>(readBaseline(current))
-  if (process.argv.includes('--update')) {
-    for (const entry of readNewRuleEntries(current, baseline)) baseline.add(entry)
-  }
   const added = current.filter((entry) => !baseline.has(entry))
 
   if (process.argv.includes('--update')) {
