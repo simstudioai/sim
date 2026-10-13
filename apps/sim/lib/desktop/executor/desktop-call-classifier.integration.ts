@@ -14,6 +14,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -105,7 +106,7 @@ describe('desktop call classification in SQL and TypeScript', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Classifier parity fixture',
       ownerId: userId,
@@ -154,7 +155,7 @@ describe('desktop call classification in SQL and TypeScript', () => {
   afterAll(async () => {
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
     await db.delete(desktopDevices).where(eq(desktopDevices.id, deviceId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 

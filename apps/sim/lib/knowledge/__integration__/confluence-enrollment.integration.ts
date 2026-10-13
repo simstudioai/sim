@@ -15,6 +15,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -99,7 +100,7 @@ describe('Confluence mirrored-identity self-enrollment', () => {
       CONFLUENCE_CLIENT_SECRET: previousClient.secret,
     })
     for (const fixture of [ids, foreign]) {
-      await db.delete(workspace).where(eq(workspace.id, fixture.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, fixture.workspaceId))
       await db.delete(user).where(eq(user.id, fixture.aliceId))
       await db.delete(user).where(eq(user.id, fixture.bobId))
     }

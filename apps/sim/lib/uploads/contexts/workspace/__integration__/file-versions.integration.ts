@@ -14,6 +14,7 @@ import {
   workspaceFiles,
   workspaceFileVersion,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sha256Hex } from '@sim/security/hash'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
@@ -78,7 +79,7 @@ describe('workspace file version history in PostgreSQL', () => {
 
   afterAll(async () => {
     for (const ids of fixtures) {
-      await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
       await db.delete(organization).where(eq(organization.id, ids.organizationId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }

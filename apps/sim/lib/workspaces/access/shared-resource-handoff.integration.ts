@@ -12,6 +12,7 @@ import {
   organization,
   permissionGroup,
   permissions,
+  project,
   ssoProvider,
   user,
   userStats,
@@ -25,6 +26,7 @@ import {
   workspaceFileVersion,
 } from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -57,7 +59,7 @@ async function seedResources(archived: boolean, joined = true) {
       updatedAt: new Date(),
     }))
   )
-  await db.insert(workspace).values({
+  const [fixtureWorkspace] = await insertWorkspaceFixture(db, {
     id: workspaceId,
     name: 'Lifecycle fixture',
     ownerId,
@@ -175,6 +177,7 @@ async function seedResources(archived: boolean, joined = true) {
     deletedAt: archivedAt,
   })
   return {
+    projectId: fixtureWorkspace.projectId,
     ownerId,
     departingId,
     workspaceId,
@@ -256,7 +259,7 @@ async function assertRetained(fixture: Awaited<ReturnType<typeof seedResources>>
 }
 
 afterAll(async () => {
-  if (workspaceIds.length) await db.delete(workspace).where(inArray(workspace.id, workspaceIds))
+  if (workspaceIds.length) await deleteWorkspaceFixture(db, inArray(workspace.id, workspaceIds))
   if (organizationIds.length)
     await db.delete(organization).where(inArray(organization.id, organizationIds))
   if (userIds.length) await db.delete(user).where(inArray(user.id, userIds))
@@ -346,14 +349,17 @@ describe('shared resource retention across workspace departure and account erasu
         role: 'owner',
         createdAt: new Date(),
       })
-      await db
-        .update(workspace)
-        .set({
-          organizationId,
-          workspaceMode: 'organization',
-          billedAccountUserId: fixture.departingId,
-        })
-        .where(eq(workspace.id, fixture.workspaceId))
+      await db.transaction(async (tx) => {
+        await tx.update(project).set({ organizationId }).where(eq(project.id, fixture.projectId))
+        await tx
+          .update(workspace)
+          .set({
+            organizationId,
+            workspaceMode: 'organization',
+            billedAccountUserId: fixture.departingId,
+          })
+          .where(eq(workspace.id, fixture.workspaceId))
+      })
       await db.insert(permissionGroup).values({
         id: groupId,
         organizationId,
@@ -442,6 +448,10 @@ describe('shared resource retention across workspace departure and account erasu
     async (scope, first) => {
       const fixture = await seedResources(false, false)
       if (scope === 'private') {
+        await db
+          .update(project)
+          .set({ ownerId: fixture.departingId })
+          .where(eq(project.id, fixture.projectId))
         await db.delete(permissions).where(eq(permissions.entityId, fixture.workspaceId))
         await db
           .update(workspace)
@@ -611,7 +621,7 @@ describe('shared resource retention across workspace departure and account erasu
       const resourceId = generateId()
       if (scope === 'workspace') {
         workspaceIds.push(scopeId)
-        await db.insert(workspace).values({
+        await insertWorkspaceFixture(db, {
           id: scopeId,
           name: 'New scope',
           ownerId: fixture.ownerId,
@@ -910,6 +920,11 @@ describe('shared resource retention across workspace departure and account erasu
       organizationId,
       isSearchIndex: true,
     })
+    expect((await getAccountDeletionPlan(fixture.departingId)).blockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ message: expect.stringContaining('active organization owner') }),
+      ])
+    )
     await expect(deleteUserAccount(fixture.departingId)).rejects.toThrow(
       'active organization owner'
     )
@@ -951,8 +966,131 @@ describe('shared resource retention across workspace departure and account erasu
         )
     ).toHaveLength(1)
     await db.delete(permissions).where(eq(permissions.userId, fixture.departingId))
+    expect((await getAccountDeletionPlan(fixture.departingId)).blockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ message: expect.stringContaining('active billing account') }),
+      ])
+    )
     await expect(deleteUserAccount(fixture.departingId)).rejects.toThrow('active billing account')
     expect(await db.select().from(user).where(eq(user.id, fixture.departingId))).toHaveLength(1)
+  })
+
+  it.each(['owner', 'admin'] as const)(
+    'previews the %s billing replacement without changing shared resources',
+    async (replacement) => {
+      const fixture = await seedResources(false, false)
+      await db.insert(userStats).values([
+        { id: generateId(), userId: fixture.ownerId },
+        { id: generateId(), userId: fixture.departingId },
+      ])
+      await db
+        .update(workspace)
+        .set({
+          billedAccountUserId: fixture.departingId,
+          ...(replacement === 'admin' ? { ownerId: fixture.departingId } : {}),
+        })
+        .where(eq(workspace.id, fixture.workspaceId))
+      const before = await db.select().from(workspace).where(eq(workspace.id, fixture.workspaceId))
+      expect((await getAccountDeletionPlan(fixture.departingId)).blockers).toEqual([])
+      expect(
+        await db.select().from(workspace).where(eq(workspace.id, fixture.workspaceId))
+      ).toEqual(before)
+      expect(
+        await db
+          .select({ userId: knowledgeBase.userId })
+          .from(knowledgeBase)
+          .where(eq(knowledgeBase.id, fixture.kbId))
+      ).toEqual([{ userId: fixture.departingId }])
+      await deleteUserAccount(fixture.departingId)
+      await assertRetained(fixture)
+    }
+  )
+
+  it.each(['admin', 'member'] as const)(
+    'uses inherited organization access for the workspace successor (%s)',
+    async (role) => {
+      const fixture = await seedResources(false, false)
+      const organizationId = generateId()
+      organizationIds.push(organizationId)
+      await db
+        .insert(organization)
+        .values({ id: organizationId, name: 'Inherited scope', slug: organizationId })
+      await db.transaction(async (tx) => {
+        await tx.update(project).set({ organizationId }).where(eq(project.id, fixture.projectId))
+        await tx
+          .update(workspace)
+          .set({ organizationId })
+          .where(eq(workspace.id, fixture.workspaceId))
+      })
+      await db.delete(permissions).where(eq(permissions.entityId, fixture.workspaceId))
+      await db.insert(member).values({
+        id: generateId(),
+        organizationId,
+        userId: fixture.ownerId,
+        role,
+        createdAt: new Date(),
+      })
+      const plan = await getAccountDeletionPlan(fixture.departingId)
+      if (role === 'member') {
+        expect(plan.blockers).toEqual([
+          expect.objectContaining({ message: expect.stringContaining('active billing account') }),
+        ])
+      } else {
+        expect(plan.blockers).toEqual([])
+        await deleteUserAccount(fixture.departingId)
+        await assertRetained(fixture)
+      }
+    }
+  )
+
+  it('rechecks successor access after a clean preview while waiting for workspace locks', async () => {
+    const fixture = await seedResources(false, false)
+    expect((await getAccountDeletionPlan(fixture.departingId)).blockers).toEqual([])
+    const ready = createDeferred<number>()
+    const release = createDeferred<void>()
+    const changing = db.transaction(async (tx) => {
+      await tx.select().from(workspace).where(eq(workspace.id, fixture.workspaceId)).for('update')
+      const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      ready.resolve(connection.pid)
+      await release.promise
+      await tx.delete(permissions).where(eq(permissions.entityId, fixture.workspaceId))
+    })
+    const pid = await ready.promise
+    const deleting = Promise.allSettled([deleteUserAccount(fixture.departingId)])
+    try {
+      await expect
+        .poll(
+          async () =>
+            (
+              await db.execute(
+                sql`SELECT pid FROM pg_stat_activity WHERE ${pid} = ANY(pg_blocking_pids(pid))`
+              )
+            ).length,
+          { timeout: 5000 }
+        )
+        .toBeGreaterThan(0)
+    } finally {
+      release.resolve()
+      await changing
+    }
+    expect(await deleting).toMatchObject([
+      {
+        status: 'rejected',
+        reason: {
+          name: 'AccountDeletionBlockedError',
+          message: expect.stringContaining('active billing account'),
+        },
+      },
+    ])
+    expect(
+      await db.select({ id: user.id }).from(user).where(eq(user.id, fixture.departingId))
+    ).toEqual([{ id: fixture.departingId }])
+    expect(
+      await db
+        .select({ userId: knowledgeBase.userId })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.id, fixture.kbId))
+    ).toEqual([{ userId: fixture.departingId }])
   })
 
   it('rolls back handoff and access revocation together when the transaction fails', async () => {
@@ -1168,10 +1306,13 @@ describe('shared resource retention across workspace departure and account erasu
         slug: organizationId,
         createdAt: new Date(),
       })
-      await db
-        .update(workspace)
-        .set({ organizationId })
-        .where(eq(workspace.id, fixture.workspaceId))
+      await db.transaction(async (tx) => {
+        await tx.update(project).set({ organizationId }).where(eq(project.id, fixture.projectId))
+        await tx
+          .update(workspace)
+          .set({ organizationId })
+          .where(eq(workspace.id, fixture.workspaceId))
+      })
       await db.insert(member).values({
         id: generateId(),
         organizationId,

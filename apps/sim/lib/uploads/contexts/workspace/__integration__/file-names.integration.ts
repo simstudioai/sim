@@ -15,6 +15,7 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -63,7 +64,7 @@ describe('workspace file names in PostgreSQL', () => {
   afterAll(async () => {
     vi.restoreAllMocks()
     for (const ids of fixtures) {
-      await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
       await db.delete(organization).where(eq(organization.id, ids.organizationId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }

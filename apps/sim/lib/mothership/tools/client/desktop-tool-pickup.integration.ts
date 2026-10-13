@@ -6,6 +6,7 @@
  * persisted and dispatched by the production stream handlers, the desktop claims it through the
  * authorize route and reports through the confirm route.
  */
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -141,7 +142,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Desktop pickup fixture',
       ownerId: userId,
@@ -173,7 +174,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
 
   afterAll(async () => {
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 

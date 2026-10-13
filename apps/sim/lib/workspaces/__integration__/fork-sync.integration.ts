@@ -10,7 +10,6 @@ import {
   outboxEvent,
   permissions,
   project,
-  projectWorkspace,
   user,
   userTableDefinitions,
   workflow,
@@ -23,6 +22,7 @@ import {
   workspaceOperationReceipt,
   workspaceSandbox,
 } from '@sim/db/schema'
+import { insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -30,8 +30,6 @@ import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-i
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import * as workflowMcpSync from '@/lib/mcp/workflow-mcp-sync'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
-import { getProjectMembershipPhase } from '@/lib/projects/environment-source'
-import { createProjectRecord } from '@/lib/projects/membership'
 import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
 import {
@@ -148,24 +146,12 @@ describe('authorized fork and sync against PostgreSQL', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.transaction(async (tx) => {
-      const phase = await getProjectMembershipPhase(tx)
-      const projectId = await createProjectRecord(tx, {
-        name: 'Fork source fixture',
-        ownerId: userId,
-        organizationId: null,
-      })
-      await tx.insert(workspace).values({
-        id: sourceWorkspaceId,
-        projectId: phase === 'column' ? projectId : null,
-        name: 'Fork source fixture',
-        ownerId: userId,
-        billedAccountUserId: userId,
-        allowPersonalApiKeys: true,
-      })
-      if (phase === 'connector') {
-        await tx.insert(projectWorkspace).values({ projectId, workspaceId: sourceWorkspaceId })
-      }
+    await insertWorkspaceFixture(db, {
+      id: sourceWorkspaceId,
+      name: 'Fork source fixture',
+      ownerId: userId,
+      billedAccountUserId: userId,
+      allowPersonalApiKeys: true,
     })
     await db.insert(permissions).values({
       id: generateId(),
@@ -199,10 +185,13 @@ describe('authorized fork and sync against PostgreSQL', () => {
     })
   })
   afterAll(async () => {
-    for (const id of createdWorkspaceIds) await db.delete(workspace).where(eq(workspace.id, id))
-    await db.delete(workspace).where(eq(workspace.id, sourceWorkspaceId))
-    await db.delete(project).where(eq(project.ownerId, userId))
-    await db.delete(user).where(eq(user.id, userId))
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(workspace)
+        .where(inArray(workspace.id, [sourceWorkspaceId, ...createdWorkspaceIds]))
+      await tx.delete(project).where(eq(project.ownerId, userId))
+      await tx.delete(user).where(eq(user.id, userId))
+    })
     await db.$client.end()
   })
 
@@ -1225,9 +1214,11 @@ describe('authorized fork and sync against PostgreSQL', () => {
     const childWorkspaceId = generateId()
     const sourceWorkspaceId = generateId()
     createdWorkspaceIds.push(sourceWorkspaceId, childWorkspaceId)
-    await db.insert(workspace).values(
-      [sourceWorkspaceId, childWorkspaceId].map((id) => ({
+    await insertWorkspaceFixture(
+      db,
+      [childWorkspaceId, sourceWorkspaceId].map((id) => ({
         id,
+        forkedFromWorkspaceId: id === childWorkspaceId ? sourceWorkspaceId : null,
         name: 'Knowledge copy fixture',
         ownerId: userId,
         billedAccountUserId: userId,

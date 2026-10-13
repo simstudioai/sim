@@ -16,7 +16,10 @@ import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
-import { reassignWorkflowOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/utils'
+import {
+  findWorkspaceBillingReplacement,
+  reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
+} from '@/lib/workspaces/utils'
 
 /** Private chat attachments keep their user's lifecycle even when stored under a workspace key. */
 const SHARED_FILE_CONTEXTS = ['workspace', 'knowledge-base', 'execution', 'chat']
@@ -42,20 +45,18 @@ export async function listSharedResourceWorkspaceIdsForUser(executor: DbOrTx, us
 }
 
 /** Holds a real successor and their current grant through the handoff transaction. */
-async function holdWorkspaceSuccessor(
-  tx: DbTransaction,
+async function hasWorkspaceSuccessor(
+  tx: DbOrTx,
   row: { id: string; organizationId: string | null; billedAccountUserId: string },
-  departingUserId: string
+  departingUserId: string,
+  hold: boolean
 ): Promise<boolean> {
   const successor = row.billedAccountUserId
   if (!successor || successor === departingUserId) return false
-  const [account] = await tx
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.id, successor))
-    .for('key share')
+  const accountQuery = tx.select({ id: user.id }).from(user).where(eq(user.id, successor))
+  const [account] = await (hold ? accountQuery.for('key share') : accountQuery)
   if (!account) return false
-  const [grant] = await tx
+  const grantQuery = tx
     .select({ id: permissions.id })
     .from(permissions)
     .where(
@@ -65,10 +66,10 @@ async function holdWorkspaceSuccessor(
         eq(permissions.userId, successor)
       )
     )
-    .for('share')
+  const [grant] = await (hold ? grantQuery.for('share') : grantQuery)
   if (grant) return true
   if (!row.organizationId) return false
-  const [membership] = await tx
+  const membershipQuery = tx
     .select({ id: member.id })
     .from(member)
     .where(
@@ -78,8 +79,49 @@ async function holdWorkspaceSuccessor(
         inArray(member.role, ORG_ADMIN_ROLES)
       )
     )
-    .for('share')
+  const [membership] = await (hold ? membershipQuery.for('share') : membershipQuery)
   return Boolean(membership)
+}
+
+/** Read-only feasibility check, including the billing replacement applied before resource handoff. */
+export async function listUnresolvedSharedResourceWorkspaces(
+  executor: DbOrTx,
+  departingUserId: string,
+  doomedWorkspaceIds: string[]
+): Promise<string[]> {
+  const doomed = new Set(doomedWorkspaceIds)
+  const ids = (await listSharedResourceWorkspaceIdsForUser(executor, departingUserId)).filter(
+    (id) => !doomed.has(id)
+  )
+  if (!ids.length) return []
+  const rows = await executor
+    .select({
+      id: workspace.id,
+      ownerId: workspace.ownerId,
+      organizationId: workspace.organizationId,
+      billedAccountUserId: workspace.billedAccountUserId,
+    })
+    .from(workspace)
+    .where(inArray(workspace.id, ids))
+  const unresolved: string[] = []
+  for (const row of rows) {
+    const successor =
+      row.billedAccountUserId === departingUserId
+        ? await findWorkspaceBillingReplacement(executor, row, departingUserId)
+        : row.billedAccountUserId
+    if (
+      !successor ||
+      !(await hasWorkspaceSuccessor(
+        executor,
+        { ...row, billedAccountUserId: successor },
+        departingUserId,
+        false
+      ))
+    ) {
+      unresolved.push(row.id)
+    }
+  }
+  return unresolved
 }
 
 /**
@@ -115,7 +157,7 @@ export async function reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx
   for (const row of rows) {
     if (
       (owned.has(row.id) || row.ownerId === departingUserId) &&
-      !(await holdWorkspaceSuccessor(tx, row, departingUserId))
+      !(await hasWorkspaceSuccessor(tx, row, departingUserId, true))
     )
       unresolved.push(row.id)
   }

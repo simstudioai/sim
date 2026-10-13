@@ -13,6 +13,7 @@ import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
 import { getKnowledgeBaseContract } from '@/lib/api/contracts/knowledge'
 import { getTableContract } from '@/lib/api/contracts/tables'
+import { getAccountDeletionPlanContract } from '@/lib/api/contracts/user'
 import { v2ListFileVersionsContract } from '@/lib/api/contracts/v2/file-versions'
 import { readWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
 
@@ -35,6 +36,7 @@ const ownerKey = `sk-sim-fixture-${generateId()}`
 const ownerId = generateId()
 const departingId = generateId()
 const workspaceId = generateId()
+const projectId = generateId()
 const cookies = new Map<string, string>()
 const checks: { name: string; status: string; durationMs: number; error?: string }[] = []
 const requests: { method: string; path: string; status: number }[] = []
@@ -123,8 +125,10 @@ try {
     cookies.set(userId, encodeURIComponent(`${token}.${await makeSignature(token, authSecret)}`))
   }
   await sql`INSERT INTO api_key (id, user_id, name, key, key_hash, type) VALUES (${generateId()}, ${ownerId}, 'Lifecycle fixture', ${ownerKey}, ${sha256Hex(ownerKey)}, 'personal')`
-  await sql`INSERT INTO workspace (id, name, owner_id, billed_account_user_id)
-    VALUES (${workspaceId}, 'Lifecycle HTTP fixture', ${ownerId}, ${ownerId})`
+  await sql`INSERT INTO project (id, name, owner_id)
+    VALUES (${projectId}, 'Lifecycle HTTP fixture', ${ownerId})`
+  await sql`INSERT INTO workspace (id, name, owner_id, billed_account_user_id, project_id)
+    VALUES (${workspaceId}, 'Lifecycle HTTP fixture', ${ownerId}, ${ownerId}, ${projectId})`
   for (const userId of [ownerId, departingId]) {
     await sql`INSERT INTO permissions (id, user_id, entity_type, entity_id, permission_type)
       VALUES (${generateId()}, ${userId}, 'workspace', ${workspaceId}, 'admin')`
@@ -379,6 +383,42 @@ try {
     }
   )
   await check(
+    'Deletion preview reports stranded shared resources and clears after access is restored',
+    async () => {
+      await sql`UPDATE knowledge_base SET user_id = ${departingId} WHERE id = ${kbId}`
+      const [grant] =
+        await sql`DELETE FROM permissions WHERE entity_id = ${workspaceId} AND user_id = ${ownerId} RETURNING id`
+      try {
+        const preview = getAccountDeletionPlanContract.response.schema.parse(
+          await request(departingId, '/api/users/me/deletion')
+        )
+        assert(
+          preview.plan.blockers.some((blocker) =>
+            blocker.message.includes('active billing account')
+          )
+        )
+        await request(
+          departingId,
+          '/api/users/me/deletion',
+          'POST',
+          { confirmEmail: `${departingId}@example.test` },
+          409
+        )
+        assert.equal(
+          (await sql`SELECT user_id FROM knowledge_base WHERE id = ${kbId}`)[0].user_id,
+          departingId
+        )
+        assert.equal((await sql`SELECT id FROM "user" WHERE id = ${departingId}`).length, 1)
+      } finally {
+        await sql`INSERT INTO permissions (id, user_id, entity_type, entity_id, permission_type) VALUES (${grant.id}, ${ownerId}, 'workspace', ${workspaceId}, 'admin')`
+      }
+      const restored = getAccountDeletionPlanContract.response.schema.parse(
+        await request(departingId, '/api/users/me/deletion')
+      )
+      assert.deepEqual(restored.plan.blockers, [])
+    }
+  )
+  await check(
     'An in-flight account reference refuses erasure atomically with HTTP 409',
     async () => {
       await sql.begin(async (tx) => {
@@ -485,7 +525,10 @@ try {
     process.exitCode = 1
   } finally {
     try {
-      await sql`DELETE FROM workspace WHERE id = ${workspaceId}`
+      await sql.begin(async (tx) => {
+        await tx`DELETE FROM workspace WHERE id = ${workspaceId}`
+        await tx`DELETE FROM project WHERE id = ${projectId}`
+      })
       await sql`DELETE FROM "user" WHERE id IN (${ownerId}, ${departingId})`
     } finally {
       await sql.end()
@@ -505,7 +548,9 @@ try {
             startedAt,
             finishedAt: new Date().toISOString(),
             sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
-            trackedDiffSha256: sha256Hex(execFileSync('git', ['diff', 'HEAD'])),
+            trackedDiffSha256: sha256Hex(
+              execFileSync('git', ['diff', 'HEAD'], { maxBuffer: 64 * 1024 * 1024 })
+            ),
             untrackedHashes,
             checks,
             requests,

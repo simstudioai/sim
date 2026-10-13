@@ -9,6 +9,7 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -103,7 +104,8 @@ describe('Recently Deleted listing against PostgreSQL', () => {
         updatedAt: now,
       }))
     )
-    await db.insert(workspace).values(
+    await insertWorkspaceFixture(
+      db,
       [workspaceId, otherWorkspaceId].map((id) => ({
         id,
         name: 'Recently deleted fixture',
@@ -216,7 +218,7 @@ describe('Recently Deleted listing against PostgreSQL', () => {
   })
 
   afterAll(async () => {
-    await db.delete(workspace).where(inArray(workspace.id, [workspaceId, otherWorkspaceId]))
+    await deleteWorkspaceFixture(db, inArray(workspace.id, [workspaceId, otherWorkspaceId]))
     await db.delete(user).where(inArray(user.id, [aliceId, bobId]))
     await db.$client.end()
   })

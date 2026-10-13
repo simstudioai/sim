@@ -45,6 +45,7 @@ import {
   isSoleOwnerOfPaidOrganization,
 } from '@/lib/billing/organizations/membership'
 import {
+  findOrganizationSharedResourceSuccessor,
   listSharedResourceOrganizationIdsForUser,
   reassignOrganizationSharedResourcesTx,
 } from '@/lib/billing/organizations/resource-handoff'
@@ -63,6 +64,7 @@ import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import {
   listSharedResourceWorkspaceIdsForUser,
+  listUnresolvedSharedResourceWorkspaces,
   reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx,
 } from '@/lib/workspaces/resource-handoff'
 import {
@@ -416,6 +418,28 @@ export async function getAccountDeletionPlan(userId: string): Promise<AccountDel
       plan.workspacesToDelete.map((row) => row.id)
     ))
   )
+  const unresolved = await listUnresolvedSharedResourceWorkspaces(
+    db,
+    userId,
+    plan.workspacesToDelete.map((row) => row.id)
+  )
+  if (unresolved.length) {
+    plan.blockers.push({
+      code: 'shared_workspace',
+      message:
+        'Shared resources still reference your account. Ask a workspace admin to assign an active billing account before deleting your account.',
+    })
+  }
+  for (const organizationId of await listSharedResourceOrganizationIdsForUser(db, userId)) {
+    if (!(await findOrganizationSharedResourceSuccessor(db, organizationId, userId))) {
+      plan.blockers.push({
+        code: 'organization_member',
+        message:
+          'Shared organization resources need an active organization owner before this account can leave or be deleted.',
+      })
+      break
+    }
+  }
   return plan
 }
 

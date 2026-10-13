@@ -25,6 +25,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -278,7 +279,7 @@ describe('indexed source content through real application access', () => {
       CONFLUENCE_CLIENT_ID: previousConfluenceClient.id,
       CONFLUENCE_CLIENT_SECRET: previousConfluenceClient.secret,
     })
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, aliceId))
     await db.delete(user).where(eq(user.id, bobId))
     await rm(fixtures.storageRoot, { recursive: true, force: true })
