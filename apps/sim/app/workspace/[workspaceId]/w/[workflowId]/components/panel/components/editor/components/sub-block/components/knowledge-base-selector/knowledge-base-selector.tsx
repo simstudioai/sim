@@ -4,9 +4,9 @@ import { useCallback, useMemo } from 'react'
 import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import { PackageSearchIcon } from '@/components/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -36,8 +36,7 @@ export function KnowledgeBaseSelector({
   previewValue,
 }: KnowledgeBaseSelectorProps) {
   const activeSearchTarget = useActiveSearchTarget()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
 
   const {
     knowledgeBases,

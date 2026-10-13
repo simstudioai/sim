@@ -16,7 +16,6 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, ChevronRight, Pencil, Server, Wrench, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
 import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
@@ -50,6 +49,7 @@ import {
   getAgentToolUsageControlMode,
   resolveAgentToolUsageControl,
 } from '@/lib/workflows/tool-input/usage-control'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { McpServerFormModal } from '@/app/workspace/[workspaceId]/settings/components/mcp/components/mcp-server-form-modal/mcp-server-form-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -380,9 +380,7 @@ export const ToolInput = memo(function ToolInput({
   disabled = false,
   allowExpandInPreview,
 }: ToolInputProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
-  const workflowId = params.workflowId as string
+  const { workspaceId, workflowId } = useWorkflowScope()
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)

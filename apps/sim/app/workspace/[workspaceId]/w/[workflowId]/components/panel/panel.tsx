@@ -25,7 +25,6 @@ import { BubbleChatDelay, Download, Lock, Plus, Unlock, X } from '@sim/emcn/icon
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { VariableIcon } from '@/components/icons'
@@ -46,10 +45,12 @@ import {
 import { captureEvent } from '@/lib/posthog/client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components/conversation-list-item'
+import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { getWorkflowCopilotUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
 import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -133,10 +134,8 @@ function copilotDraftKey(
  * @returns Panel on the right side of the workflow
  */
 export const Panel = memo(function Panel() {
-  const router = useRouter()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
-  const routeWorkflowId = params.workflowId as string | undefined
+  const router = useResourceRouter()
+  const { workspaceId, workflowId: scopedWorkflowId } = useWorkflowScope()
 
   const posthog = usePostHog()
   const { chatEnabled } = useDeploymentShape()
@@ -320,7 +319,7 @@ export const Panel = memo(function Panel() {
     activeWorkflowId ?? undefined
   )
 
-  const copilotDraftWorkflowId = activeWorkflowId ?? routeWorkflowId
+  const copilotDraftWorkflowId = activeWorkflowId ?? scopedWorkflowId ?? undefined
   const copilotDraftScopeKey = copilotDraftKey(workspaceId, copilotDraftWorkflowId, copilotChatId)
 
   const { data: copilotChatList = EMPTY_COPILOT_CHATS } = useCopilotChats(

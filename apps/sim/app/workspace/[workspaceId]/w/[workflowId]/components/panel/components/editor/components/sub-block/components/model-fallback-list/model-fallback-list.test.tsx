@@ -3,7 +3,6 @@
  */
 
 import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
-import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -25,8 +24,6 @@ const { subBlockValues, mockSetValue } = vi.hoisted(() => ({
   },
   mockSetValue: vi.fn(),
 }))
-
-vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('@sim/emcn', () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
@@ -130,9 +127,8 @@ vi.mock('@/lib/workflows/blocks/fallback-models', async (importOriginal) => {
   }
 })
 
+import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { ModelFallbackList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/model-fallback-list/model-fallback-list'
-
-nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -145,7 +141,14 @@ afterEach(() => {
 
 function render(extra: Partial<React.ComponentProps<typeof ModelFallbackList>> = {}) {
   return renderToStaticMarkup(
-    <ModelFallbackList blockId='block-1' subBlockId='fallbackModels' disabled={false} {...extra} />
+    <WorkflowScopeProvider workspaceId='workspace-1' workflowId='workflow-1'>
+      <ModelFallbackList
+        blockId='block-1'
+        subBlockId='fallbackModels'
+        disabled={false}
+        {...extra}
+      />
+    </WorkflowScopeProvider>
   )
 }
 
