@@ -455,10 +455,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
               }
               if (!socketInstance.active || socketInstance.connected) return
 
-              /* Withholding `cb` would hold the open transport until the realtime
-                 server's 45 s connect timeout, and the Manager resets its backoff on
-                 every transport open, so it cannot pace this retry. End the attempt
-                 and reconnect on our own backoff, never before `Retry-After`. */
+              // Withholding `cb` would park the transport until the server's 45 s connect
+              // timeout, and the Manager resets its backoff on every open, so pace it here.
               tokenRetryAttemptsRef.current += 1
               const retryAfterMs =
                 error instanceof SocketTokenUnavailableError ? error.retryAfterMs : null
