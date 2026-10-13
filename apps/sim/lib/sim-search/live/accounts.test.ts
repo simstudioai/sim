@@ -130,6 +130,78 @@ describe('live account discovery boundaries', () => {
     })
     expect(mocks.resolve).not.toHaveBeenCalled()
   })
+  describe('two connections to one external account', () => {
+    const jira = (id: string, type: 'oauth' | 'managed_oauth') => ({
+      id,
+      providerId: 'jira',
+      displayName: id,
+      type,
+    })
+    function connections(rows: { id: string; accountId: string | null }[]) {
+      mockListOrganizationSearchApprovals.mockResolvedValue(
+        new Map([
+          ['jira', true],
+          ['confluence', true],
+        ])
+      )
+      queueTableRows(schemaMock.credential, []) // Coda discovery
+      queueTableRows(
+        schemaMock.credential,
+        rows.map(({ id, accountId }) => ({
+          id,
+          scope: 'read:jira-work',
+          grantedScopes: null,
+          revokedAt: null,
+          externalAccountId: accountId,
+        }))
+      )
+    }
+
+    it('searches the account once, through the personal connection', async () => {
+      mocks.personal.mockResolvedValue([jira('workflow', 'managed_oauth'), jira('search', 'oauth')])
+      connections([
+        { id: 'workflow', accountId: 'atlassian-user' },
+        { id: 'search', accountId: 'atlassian-user' },
+      ])
+      expect((await listLiveAccounts(owner, 'reader')).map((row) => row.id)).toEqual(['search'])
+    })
+
+    it('keeps connections to different external accounts', async () => {
+      mocks.personal.mockResolvedValue([jira('first', 'oauth'), jira('second', 'oauth')])
+      connections([
+        { id: 'first', accountId: 'atlassian-user' },
+        { id: 'second', accountId: 'another-user' },
+      ])
+      expect((await listLiveAccounts(owner, 'reader')).map((row) => row.id)).toEqual([
+        'first',
+        'second',
+      ])
+    })
+
+    it('keeps Jira and Confluence for one Atlassian account', async () => {
+      mocks.personal.mockResolvedValue([
+        jira('jira', 'oauth'),
+        { id: 'wiki', providerId: 'confluence', displayName: 'wiki', type: 'oauth' },
+      ])
+      connections([
+        { id: 'jira', accountId: 'atlassian-user' },
+        { id: 'wiki', accountId: 'atlassian-user' },
+      ])
+      expect((await listLiveAccounts(owner, 'reader')).map((row) => row.id)).toEqual([
+        'jira',
+        'wiki',
+      ])
+    })
+
+    it('keeps connections whose external account is unknown', async () => {
+      mocks.personal.mockResolvedValue([jira('first', 'oauth'), jira('second', 'oauth')])
+      connections([
+        { id: 'first', accountId: null },
+        { id: 'second', accountId: null },
+      ])
+      expect(await listLiveAccounts(owner, 'reader')).toHaveLength(2)
+    })
+  })
   it('does not resolve another account even when the caller knows its ID', async () => {
     metadata()
     await expect(resolveLiveAccount(owner, 'reader', 'someone-else')).rejects.toMatchObject({

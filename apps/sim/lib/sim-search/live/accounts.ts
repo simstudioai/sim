@@ -134,6 +134,7 @@ export async function listLiveAccounts(
       grantedScopes: credential.grantedScopes,
       scope: account.scope,
       revokedAt: credential.revokedAt,
+      externalAccountId: account.accountId,
     })
     .from(credential)
     .leftJoin(account, eq(account.id, credential.accountId))
@@ -144,21 +145,31 @@ export async function listLiveAccounts(
       )
     )
   const byId = new Map(rows.map((row) => [row.id, row]))
+  /**
+   * Two connections signed in as one provider account return the same items, so the account is
+   * searched once, through the personal connection when there is one.
+   */
+  const searched = new Set<string>()
   return [
     ...mcp,
     ...admin,
-    ...visible
+    ...[...visible]
+      .sort((left, right) => Number(left.type !== 'oauth') - Number(right.type !== 'oauth'))
       .filter((candidate) => !mcp.some((managed) => managed.provider === candidate.provider))
       .flatMap((candidate) => {
         const row = byId.get(candidate.id)
-        return row && !row.revokedAt
-          ? [
-              {
-                ...candidate,
-                scopes: row.grantedScopes ?? row.scope?.split(/[ ,]+/).filter(Boolean) ?? [],
-              },
-            ]
-          : []
+        if (!row || row.revokedAt) return []
+        if (row.externalAccountId) {
+          const external = JSON.stringify([candidate.provider, row.externalAccountId])
+          if (searched.has(external)) return []
+          searched.add(external)
+        }
+        return [
+          {
+            ...candidate,
+            scopes: row.grantedScopes ?? row.scope?.split(/[ ,]+/).filter(Boolean) ?? [],
+          },
+        ]
       }),
   ]
 }
