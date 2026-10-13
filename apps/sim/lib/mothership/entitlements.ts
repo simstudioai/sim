@@ -1,8 +1,11 @@
 import type { Principal } from '@sim/auth/principal'
 import { readChangelogAvailability } from '@/lib/changelog/application/availability'
+import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { readDashboardAvailability } from '@/lib/dashboards/application/availability'
+import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { ENTITLEMENTS, type Entitlement } from '@/lib/mothership/generated/protocol'
 import { readWorkflowTestAvailability } from '@/lib/workflow-tests/application/availability'
+import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 
 /** The owner of one chat turn: exactly one of a workspace or an organization. */
 export interface EntitlementOwner {
@@ -22,9 +25,10 @@ interface OrganizationOwner {
 }
 
 /**
- * Each entitlement declares the chat scopes it exists in. A scope it does not
- * declare is never granted, so a workspace-only capability cannot leak into an
- * organization chat that has no workspace to run it against.
+ * Each entitlement declares the chat scopes it exists in; a scope it does not declare is never
+ * granted. An organization chat in Build or Plan works in the organization's workspaces, so a
+ * workspace capability exists there whenever the organization has it rolled out. The operation
+ * behind it still checks the workspace it runs against.
  */
 interface EntitlementEvaluator {
   workspace?: (owner: WorkspaceOwner) => Promise<boolean>
@@ -49,14 +53,17 @@ const EVALUATORS: Record<Entitlement, EntitlementEvaluator> = {
   [ENTITLEMENTS.dashboards]: {
     workspace: ({ principal, workspaceId }) =>
       readDashboardAvailability.execute({ principal, input: { workspaceId } }),
+    organization: ({ organizationId }) => isDashboardsEnabled(organizationId),
   },
   [ENTITLEMENTS.tests]: {
     workspace: ({ principal, workspaceId }) =>
       readWorkflowTestAvailability.execute({ principal, input: { workspaceId } }),
+    organization: ({ organizationId }) => isWorkflowTestsEnabled(organizationId),
   },
   [ENTITLEMENTS.changelog]: {
     workspace: ({ principal, workspaceId }) =>
       readChangelogAvailability.execute({ principal, input: { workspaceId } }),
+    organization: ({ organizationId }) => isChangelogEnabled(organizationId),
   },
 }
 
