@@ -741,9 +741,6 @@ describe('table row writes against real PostgreSQL', () => {
         }))
       )
 
-    const checkInTransaction = (table: TableDefinition, rows: RowData[]) =>
-      db.transaction((trx) => checkBatchUniqueConstraintsDb(table.id, rows, table.schema, trx))
-
     /**
      * Index and sequential scans this transaction ran on `user_table_rows`, by relation, read from
      * the transaction's own statistics so concurrent suites cannot skew them.
@@ -759,7 +756,6 @@ describe('table row writes against real PostgreSQL', () => {
       )
     }
 
-    /** Runs the check in a transaction and returns its result with the scans it ran. */
     const checkWithScans = (table: TableDefinition, rows: RowData[]) =>
       db.transaction(async (trx) => {
         // A parallel worker's scans are not counted in the leader's transaction statistics.
@@ -793,7 +789,7 @@ describe('table row writes against real PostgreSQL', () => {
       rows[200] = { email: 'new-5@example.test' }
       rows[259] = { email: 'last@example.test' }
 
-      expect(await checkInTransaction(table, rows)).toEqual({
+      expect((await checkWithScans(table, rows)).result).toEqual({
         valid: false,
         errors: [
           {
