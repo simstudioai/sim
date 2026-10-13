@@ -271,15 +271,19 @@ export const removeSlackSearchInstallation = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.removeSlackInstallation,
   resolveContext: ({ input }: { input: RemoveInput }) => resolveKnowledgeOrganizationContext(input),
   async execute({ input, context }) {
-    const [removed] = await db
-      .delete(slackSearchInstallation)
-      .where(
-        and(
-          eq(slackSearchInstallation.id, input.installationId),
-          eq(slackSearchInstallation.organizationId, context.organizationId)
+    const removed = await db.transaction(async (tx) => {
+      await lockOrganizationSlackApp(tx, context.organizationId)
+      const [row] = await tx
+        .delete(slackSearchInstallation)
+        .where(
+          and(
+            eq(slackSearchInstallation.id, input.installationId),
+            eq(slackSearchInstallation.organizationId, context.organizationId)
+          )
         )
-      )
-      .returning({ id: slackSearchInstallation.id })
+        .returning({ id: slackSearchInstallation.id })
+      return row
+    })
     if (!removed) throw new OrchestrationError('not_found', 'Slack Search installation not found')
     return removed
   },

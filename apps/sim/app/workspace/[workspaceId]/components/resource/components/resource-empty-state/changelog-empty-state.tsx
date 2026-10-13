@@ -24,10 +24,8 @@ interface Release {
 
 const LATEST: Release = { top: 10, notes: [118, 92] }
 
-const EARLIER: readonly Release[] = [
-  { top: 70, notes: [104, 126, 80] },
-  { top: 142, notes: [96, 112] },
-] as const
+/** Every release ends inside the 148px viewBox; the fade carries the timeline past it. */
+const EARLIER: readonly Release[] = [{ top: 70, notes: [104, 126, 80] }] as const
 
 const SPINE_X = 24
 const NOTE_PITCH = 12

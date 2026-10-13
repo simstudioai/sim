@@ -44,9 +44,12 @@ import { SLACK_SEARCH_USER_SCOPES } from '@/lib/credential-groups/slack-managed-
 import { slackCredentialGroupProviderAdapter } from '@/lib/credential-groups/slack-provider'
 import { createOrganizationAccountsGroup } from '@/lib/credential-groups/workspace-accounts'
 import { encryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { approveSearchIntegration } from '@/lib/knowledge/application/search-integrations'
-import { listSlackSearchInstallations } from '@/lib/knowledge/application/slack-search/installations'
+import {
+  listSlackSearchInstallations,
+  removeSlackSearchInstallation,
+} from '@/lib/knowledge/application/slack-search/installations'
 import { revokeSlackSearchAccess } from '@/lib/knowledge/application/slack-search/lifecycle'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
@@ -181,8 +184,9 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
       createdBy: ids.owner,
       encryptedServiceAccountKey: secret,
     })
+    const installationId = generateId()
     await executor.insert(slackSearchInstallation).values({
-      id: generateId(),
+      id: installationId,
       organizationId: ids.organization,
       credentialId: botId,
       appId,
@@ -193,6 +197,7 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
       credentialVersion: generateId(),
       revision: generateId(),
     })
+    return installationId
   }
 
   async function accountsGroup() {
@@ -201,6 +206,40 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
       .from(credentialGroup)
       .where(eq(credentialGroup.organizationId, ids.organization))
     return group
+  }
+
+  /** Holds the Slack organization lock until `contend` is observed waiting on it, then releases. */
+  async function whileOrganizationSlackAppLocked<T>(
+    contend: () => Promise<T>,
+    holdWith: (tx: DbTransaction) => Promise<unknown> = async () => undefined
+  ): Promise<T> {
+    const locked = createDeferred<number>()
+    const release = createDeferred<void>()
+    const holder = db.transaction(async (tx) => {
+      await lockOrganizationSlackApp(tx, ids.organization)
+      await holdWith(tx)
+      const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      locked.resolve(connection.pid)
+      await release.promise
+    })
+    const holderPid = await locked.promise
+    const contender = contend()
+    contender.catch(() => undefined)
+    try {
+      await vi.waitFor(
+        async () => {
+          const [waiting] = await db.execute<{ pid: number }>(
+            sql`SELECT pid FROM pg_stat_activity WHERE ${holderPid} = ANY(pg_blocking_pids(pid))`
+          )
+          expect(waiting).toBeDefined()
+        },
+        { timeout: 5_000 }
+      )
+    } finally {
+      release.resolve()
+      await holder
+    }
+    return contender
   }
 
   function provideSlackConsent(teamId: string) {
@@ -345,34 +384,50 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
     const pending = new URL((await startSetup(groupId)).authorizationUrl)
     const before = await accountsGroup()
     provideSlackConsent(MEMBER_TEAM)
-    const locked = createDeferred<number>()
-    const release = createDeferred<void>()
-    const install = db.transaction(async (tx) => {
-      await lockOrganizationSlackApp(tx, ids.organization)
-      await installBot(CUSTOM_APP_ID, OTHER_TEAM, tx)
-      const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
-      locked.resolve(connection.pid)
-      await release.promise
-    })
-    const installPid = await locked.promise
-    const completion = completeSetup(pending.searchParams.get('state') ?? '')
-    completion.catch(() => undefined)
-    try {
-      await vi.waitFor(
-        async () => {
-          const [waiting] = await db.execute<{ pid: number }>(
-            sql`SELECT pid FROM pg_stat_activity WHERE ${installPid} = ANY(pg_blocking_pids(pid))`
-          )
-          expect(waiting).toBeDefined()
-        },
-        { timeout: 5_000 }
+    await expect(
+      whileOrganizationSlackAppLocked(
+        () => completeSetup(pending.searchParams.get('state') ?? ''),
+        (tx) => installBot(CUSTOM_APP_ID, OTHER_TEAM, tx)
       )
-    } finally {
-      release.resolve()
-      await install
-    }
-    await expect(completion).rejects.toThrow('installations changed during authorization')
+    ).rejects.toThrow('installations changed during authorization')
     expect(await accountsGroup()).toEqual(before)
+  })
+
+  it('waits on the Slack organization lock before removing a Search bot', async () => {
+    await approveSlack()
+    const installationId = await installBot(SHARED_APP_ID, MEMBER_TEAM)
+    await expect(
+      whileOrganizationSlackAppLocked(() =>
+        removeSlackSearchInstallation.execute({
+          principal: principal(),
+          input: { organizationId: ids.organization, installationId },
+        })
+      )
+    ).resolves.toEqual({ id: installationId })
+  })
+
+  it('explains a conflict when a custom app row holds the shared app ID', async () => {
+    const groupId = (await approveSlack()).memberAccounts?.groupId
+    if (!groupId) throw new Error('Approval did not provision organization accounts')
+    const secret = (await encryptSecret('fixture-custom')).encrypted
+    await db.insert(slackApp).values({
+      id: SHARED_APP_ID,
+      kind: 'custom',
+      organizationId: ids.organization,
+      clientId: 'fixture-custom-client',
+      encryptedClientSecret: secret,
+      encryptedSigningSecret: secret,
+      revision: generateId(),
+    })
+    const pending = new URL((await startSetup(groupId)).authorizationUrl)
+    const before = await accountsGroup()
+    provideSlackConsent(MEMBER_TEAM)
+    await expect(completeSetup(pending.searchParams.get('state') ?? '')).rejects.toThrow(
+      'belongs to another installation owner'
+    )
+    expect(await accountsGroup()).toEqual(before)
+    const [row] = await db.select().from(slackApp).where(eq(slackApp.id, SHARED_APP_ID))
+    expect(row).toMatchObject({ kind: 'custom', organizationId: ids.organization })
   })
 
   it('reports a custom-app member setup and keeps it off the shared-app path', async () => {

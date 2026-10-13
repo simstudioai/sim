@@ -16,6 +16,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -496,7 +497,8 @@ export function getSlackManagedUsersRedirectUri(): string {
 
 /**
  * Names an organization's Search installation set. Installing, rebinding, enabling, disabling,
- * and removing a bot each rotate or drop a row's revision.
+ * and removing a bot each rotate or drop a row's revision. Writes that can add a bot all hold the
+ * Slack organization lock, so a match under that lock means none landed during authorization.
  */
 async function organizationInstallationsRevision(executor: DbOrTx, organizationId: string) {
   const rows = await executor
@@ -899,6 +901,12 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
         )
         .limit(1)
         .for('update')
+      /** A custom row holding the shared app's ID belongs to another owner; never adopt it. */
+      if (sharedApp && app?.kind !== 'shared')
+        throw new OrchestrationError(
+          'conflict',
+          'This Slack app belongs to another installation owner'
+        )
       if (app?.kind === 'shared')
         await requireSlackSearchAppAvailable(app.id, params.attempt.organizationId)
       const resolved = app ? await resolveSlackAppCredentials(app) : null
