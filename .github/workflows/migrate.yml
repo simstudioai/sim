@@ -18,6 +18,12 @@ on:
         required: false
       STAGING_MIGRATION_DATABASE_URL:
         required: false
+      TRIGGER_ACCESS_TOKEN:
+        required: false
+      TRIGGER_PROJECT_ID:
+        required: false
+      ECR_APP:
+        required: false
       AWS_ROLE_TO_ASSUME:
         required: false
       STAGING_AWS_ROLE_TO_ASSUME:
@@ -28,6 +34,10 @@ on:
         required: false
   workflow_dispatch:
     inputs:
+      verify_only:
+        description: Verify readiness without applying any migrations
+        type: boolean
+        default: false
       environment:
         description: Target environment
         required: true
@@ -53,6 +63,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Setup workspace
         uses: ./.github/actions/setup
@@ -76,16 +87,14 @@ jobs:
           role-to-assume: ${{ inputs.environment == 'production' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ inputs.environment == 'production' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
 
-      # Acknowledge #8830 only after authority-aware readers/writers deploy and all incompatible
-      # servers and relevant old Trigger.dev runs drain. The runner commits the column-authority
-      # switch before backfill, validation, and connector retirement; retries never revert it.
-      # The preflight independently checks ECS retirement; it does not inspect worker runs.
-      - name: Require completed authority-aware rollout before Project cutover
+      - name: Verify compatible app and membership workers before Project cutover
         if: steps.project-contract.outputs.required == 'true'
         env:
           ENVIRONMENT: ${{ inputs.environment }}
-          EXPECTED_IMAGE_DIGEST: ${{ inputs.environment == 'production' && vars.PROJECT_COLUMN_ENFORCEMENT_READY_IMAGE_DIGEST_PRODUCTION || inputs.environment == 'staging' && vars.PROJECT_COLUMN_ENFORCEMENT_READY_IMAGE_DIGEST_STAGING || '' }}
-        run: python3 .github/scripts/check-project-rollout.py --environment "$ENVIRONMENT" --region "$AWS_REGION" --expected-image-digest "$EXPECTED_IMAGE_DIGEST"
+          ECR_APP: ${{ secrets.ECR_APP }}
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+        run: python3 .github/scripts/check-project-rollout.py --environment "$ENVIRONMENT" --region "$AWS_REGION" --app-repository "$ECR_APP"
 
       # The expression maps the explicit environment input to exactly one repo
       # secret, so the job never holds another environment's database URL. An
@@ -94,6 +103,7 @@ jobs:
       # by migrate.ts; when the secret is unset it resolves to empty and the
       # script falls back to DATABASE_URL.
       - name: Apply database schema changes
+        if: inputs.verify_only != true
         working-directory: ./packages/db
         env:
           DATABASE_URL: ${{ inputs.environment == 'production' && secrets.DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_DATABASE_URL || inputs.environment == 'dev' && secrets.DEV_DATABASE_URL || '' }}

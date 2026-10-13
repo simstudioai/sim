@@ -1,114 +1,154 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { delimiter, join, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const digest = `sha256:${'a'.repeat(64)}`
-const otherDigest = `sha256:${'b'.repeat(64)}`
-const execution = (id: string, time: number, revision: string, status = 'Succeeded') => ({
-  pipelineExecutionId: id,
-  startTime: new Date(time * 1000).toISOString(),
-  status,
-  sourceRevisions: [{ actionName: 'ECR_Source', revisionId: revision }],
-})
-const current = execution('current', 2, digest)
-const older = execution('older', 1, otherDigest)
-const pending = execution('pending', 3, otherDigest, 'InProgress')
+/** Exercises the complete preflight with deterministic AWS and Trigger responses. */
+const harness = `
+import importlib.util, json, os, sys, urllib.parse
+spec = importlib.util.spec_from_file_location('rollout', sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+f = json.load(sys.stdin)
+digest = 'sha256:' + 'a' * 64
+commit = 'a' * 40
+old_commit = 'b' * 40
+current = {'pipelineExecutionId': 'current', 'startTime': 2, 'status': 'Succeeded',
+           'sourceRevisions': [{'actionName': 'ECR_Source', 'revisionId': digest}]}
+pending = {**current, 'pipelineExecutionId': 'newer', 'startTime': 3, 'status': 'InProgress'}
+aws_reads = 0
+worker_reads = 0
+queries = []
+def aws(region, *args):
+    global aws_reads
+    action = args[1]
+    if action == 'list-pipeline-executions':
+        aws_reads += 1
+        history = [current, {**current, 'pipelineExecutionId': 'older', 'startTime': 1}]
+        if f.get('pending') or (f.get('appRace') and aws_reads > 3): history.append(pending)
+        return {'pipelineExecutionSummaries': history}
+    if action == 'describe-images':
+        return {'imageDetails': [{'imageDigest': digest, 'imageTags': f.get('imageTags', [commit])}]}
+    if action == 'get-deployment-group':
+        return {'deploymentGroupInfo': {'ecsServices': [{'clusterName': 'cluster', 'serviceName': 'service'}]}}
+    if action == 'describe-services':
+        return {'services': [{'desiredCount': 1, 'runningCount': 1, 'pendingCount': 0}]}
+    if action == 'list-tasks':
+        return {'taskArns': ['app'] if args[-1] == 'RUNNING' else (['old'] if f.get('stoppingTask') else [])}
+    if action == 'describe-tasks':
+        tasks = [{'lastStatus': 'RUNNING', 'desiredStatus': 'RUNNING', 'containers': [{'name': 'app', 'imageDigest': digest}]}]
+        if f.get('stoppingTask'): tasks.append({'lastStatus': 'STOPPING', 'desiredStatus': 'STOPPED', 'containers': []})
+        return {'tasks': tasks}
+    raise AssertionError(args)
+def deployment(version, sha):
+    return {'id': 'dp_' + version, 'version': version, 'status': 'DEPLOYED',
+            'git': {'source': 'github_actions', 'remoteUrl': 'https://github.com/simstudioai/sim', 'commitSha': sha}}
+def api(path, token, body=None):
+    global worker_reads
+    if path.endswith('/jwt'):
+        assert path == '/api/v1/projects/proj_fixture/staging/jwt'
+        assert body['claims']['scopes'] == ['read:runs', 'read:deployments']
+        return {'token': 'temporary-read-token', 'environmentId': 'staging-env'}
+    if path == '/api/v1/deployments/current':
+        worker_reads += 1
+        d = deployment('20261012.20', old_commit if f.get('oldPromoted') else commit)
+        if f.get('workerRace') and worker_reads > 1: d['id'] = 'changed'
+        if f.get('wrongRepo'): d['git']['remoteUrl'] = 'https://github.com/other/repo'
+        return d
+    if path.startswith('/api/v1/runs?'):
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(path).query)
+        queries.append(query)
+        assert query['filter[taskIdentifier]'] == ['process-outbox']
+        assert query['filter[createdAt][from]'] == ['1970-01-01T00:00:00Z']
+        assert 'FROZEN' in query['filter[status]'][0] and 'REATTEMPTING' in query['filter[status]'][0]
+        if f.get('badPagination'): return {'data': []}
+        if f.get('secondPage') and 'page[after]' not in query:
+            return {'data': [], 'pagination': {'next': 'second'}}
+        runs = [] if not f.get('runStatus') else [{'id': 'run_fixture', 'taskIdentifier': 'process-outbox',
+                   'env': {'id': 'production-env' if f.get('wrongEnv') else 'staging-env'}}]
+        return {'data': runs, 'pagination': {}}
+    if path == '/api/v3/runs/run_fixture':
+        return {'id': 'run_fixture', 'taskIdentifier': 'process-outbox', 'status': f['runStatus'],
+                'version': None if f.get('unbound') else ('20261009.1' if f.get('oldRun') else '20261012.20')}
+    if path.startswith('/api/v1/deployments?'):
+        return {'data': [deployment('20261009.1', old_commit)], 'pagination': {}}
+    raise AssertionError(path)
+m.aws = aws
+m.trigger_api = api
+m.compatible_commit = lambda sha: sha == commit
+os.environ['TRIGGER_ACCESS_TOKEN'] = 'fixture-token'
+os.environ['TRIGGER_PROJECT_ID'] = 'proj_fixture'
+try:
+    m.verify('staging', 'us-east-1', 'app-repository')
+    if f.get('secondPage'): assert len(queries) == 2
+except RuntimeError as error:
+    print(str(error), file=sys.stderr)
+    sys.exit(1)
+`
 
-const cases = [
-  {
-    name: 'accepts the latest completed acknowledged release in unordered history',
-    histories: [
-      [older, current],
-      [older, current],
-    ],
-    allowed: true,
-  },
-  {
-    name: 'rejects a stale acknowledgement after a different release succeeds',
-    histories: [[execution('different', 3, otherDigest), current]],
-    allowed: false,
-  },
-  {
-    name: 'rejects a newer pending release even when an older success appears first',
-    histories: [[current, pending]],
-    allowed: false,
-  },
-  {
-    name: 'rejects a newer deployment discovered in the final unordered history',
-    histories: [[current], [current, pending]],
-    allowed: false,
-  },
-] as const
+interface Fixture {
+  pending?: boolean
+  appRace?: boolean
+  workerRace?: boolean
+  stoppingTask?: boolean
+  oldPromoted?: boolean
+  wrongRepo?: boolean
+  wrongEnv?: boolean
+  badPagination?: boolean
+  secondPage?: boolean
+  runStatus?: string
+  unbound?: boolean
+  oldRun?: boolean
+  imageTags?: string[]
+}
 
-/** Exercises the preflight CLI against deployment histories without contacting an AWS account. */
-describe('Project column rollout release acknowledgement', () => {
-  it.each(cases)('$name', async ({ histories, allowed }) => {
-    const directory = await mkdtemp(join(tmpdir(), 'project-rollout-'))
-    try {
-      const fixture = join(directory, 'history.json')
-      await writeFile(fixture, JSON.stringify({ histories, digest }))
-      await writeFile(
-        join(directory, 'aws'),
-        `#!/usr/bin/env python3
-import json, os, pathlib, sys
-fixture = pathlib.Path(os.environ['PROJECT_ROLLOUT_FIXTURE'])
-data = json.loads(fixture.read_text())
-args = sys.argv
-if 'list-pipeline-executions' in args:
-    counter = fixture.with_suffix('.count')
-    index = int(counter.read_text()) if counter.exists() else 0
-    counter.write_text(str(index + 1))
-    result = {'pipelineExecutionSummaries': data['histories'][min(index, len(data['histories']) - 1)]}
-elif 'get-deployment-group' in args:
-    result = {'deploymentGroupInfo': {'ecsServices': [{'clusterName': 'fixture', 'serviceName': 'fixture'}]}}
-elif 'describe-services' in args:
-    result = {'services': [{'desiredCount': 1, 'runningCount': 1, 'pendingCount': 0}]}
-elif 'list-tasks' in args:
-    result = {'taskArns': ['fixture-task'] if args[args.index('--desired-status') + 1] == 'RUNNING' else []}
-elif 'describe-tasks' in args:
-    result = {'tasks': [{'lastStatus': 'RUNNING', 'desiredStatus': 'RUNNING', 'containers': [{'name': 'app', 'imageDigest': data['digest']}]}]}
-else:
-    raise SystemExit('Unexpected AWS command')
-print(json.dumps(result))
-`,
-        { mode: 0o700 }
-      )
-      const result = spawnSync(
-        'python3',
-        [
-          resolve('.github/scripts/check-project-rollout.py'),
-          '--environment',
-          'staging',
-          '--region',
-          'fixture-region',
-          '--expected-image-digest',
-          digest,
-        ],
-        {
-          encoding: 'utf8',
-          timeout: 10_000,
-          env: {
-            ...process.env,
-            PATH: `${directory}${delimiter}${process.env.PATH}`,
-            PROJECT_ROLLOUT_FIXTURE: fixture,
-          },
-        }
-      )
-      if (allowed) {
-        expect(result.status, result.stderr).toBe(0)
-        expect(JSON.parse(result.stdout)).toMatchObject({
-          ecsRetired: true,
-          pipelineExecutionId: 'current',
-          operatorAcknowledgedColumnWritersAndWorkers: true,
-        })
-      } else {
-        expect(result.status, result.stdout).toBe(1)
-        expect(result.stderr).toContain('Project column rollout preflight refused:')
-      }
-    } finally {
-      await rm(directory, { recursive: true, force: true })
+function verify(fixture: Fixture) {
+  return spawnSync(
+    'python3',
+    ['-c', harness, resolve('.github/scripts/check-project-rollout.py')],
+    {
+      encoding: 'utf8',
+      input: JSON.stringify(fixture),
+      timeout: 10_000,
     }
+  )
+}
+
+describe('automatic Project rollout verification', () => {
+  it.each<Fixture>([{}, { runStatus: 'EXECUTING' }, { runStatus: 'COMPLETED', oldRun: true }])(
+    'accepts a compatible deployment and ignores terminal stale list entries: %j',
+    (fixture) => {
+      const result = verify(fixture)
+      expect(result.status, result.stderr).toBe(0)
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        environment: 'staging',
+        ecsRetired: true,
+        pipelineExecutionId: 'current',
+        workers: { tasks: ['process-outbox'], version: '20261012.20' },
+      })
+      expect(result.stdout).not.toContain('operatorAcknowledged')
+    }
+  )
+
+  it.each<[Fixture, string]>([
+    [{ pending: true }, 'Latest app deployment has not succeeded'],
+    [{ imageTags: ['staging'] }, 'unambiguous compatible commit'],
+    [{ imageTags: ['b'.repeat(40)] }, 'unambiguous compatible commit'],
+    [{ stoppingTask: true }, 'Old, stopping, or pending ECS tasks remain'],
+    [{ appRace: true }, 'latest app pipeline has not completed'],
+    [{ workerRace: true }, 'Promoted worker changed'],
+    [{ oldPromoted: true }, 'lacks #8830'],
+    [{ wrongRepo: true }, 'Git repository'],
+    [{ badPagination: true }, 'Incomplete Trigger pagination'],
+    [{ runStatus: 'EXECUTING', wrongEnv: true }, 'Cannot establish environment'],
+    [{ runStatus: 'PENDING_VERSION', unbound: true }, 'no bound version'],
+    [{ runStatus: 'UNKNOWN' }, 'Unknown worker status'],
+    [{ runStatus: 'QUEUED', oldRun: true, secondPage: true }, 'incompatible membership run'],
+    [{ runStatus: 'REATTEMPTING', oldRun: true }, 'incompatible membership run'],
+    [{ runStatus: 'FROZEN', oldRun: true }, 'incompatible membership run'],
+    [{ runStatus: 'DELAYED', oldRun: true }, 'incompatible membership run'],
+  ])('fails closed for %j', (fixture, message) => {
+    const result = verify(fixture)
+    expect(result.status, result.stdout).toBe(1)
+    expect(result.stderr).toContain(message)
   })
 })
