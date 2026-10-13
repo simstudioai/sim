@@ -167,6 +167,7 @@ The suite's wall time is bound by the single Vite server thread that serves ever
 3. Mock heavy graphs a test does not need and the setup does not already mock: `@/blocks`,
    `@/triggers/registry`, `@/tools/generated/*`.
 4. No real timers: `vi.useFakeTimers()`, `flushMicrotasks()`, or `flushMacrotask()`.
+   `check:test-patterns` (`real-wait`) fails on a new wall-clock wait in a unit test.
 5. Absolute imports only.
 
 ### Running
