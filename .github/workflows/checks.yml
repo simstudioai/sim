@@ -890,14 +890,19 @@ jobs:
           AWS_REGION: 'us-west-2'
           ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
+          # This build is on the e2e-mobile critical path; its ~30 s TypeScript pass repeats what
+          # lint's type-check and the `build` job's own `next build` (generated route types too)
+          # already enforce.
+          NEXT_BUILD_SKIP_TYPE_CHECK: 'true'
         run: bunx turbo run build --filter=@sim/app
 
       # Everything `next start` reads; node_modules and the source tree come from e2e-mobile's own
-      # checkout and setup, at the same workspace path and lockfile.
+      # checkout and setup, at the same workspace path and lockfile. Source maps are over half the
+      # build and only serve stack traces and devtools, which the suite never reads.
       - name: Package the build for e2e-mobile
         run: >-
           tar -I 'zstd -T0' -cf "$RUNNER_TEMP/next-build.tar.zst" -C apps/sim
-          --exclude .next/cache --exclude .next/trace .next
+          --exclude .next/cache --exclude .next/trace --exclude '*.map' .next
 
       # Already zstd-compressed, so stored without zip compression. `overwrite` lets a re-run of
       # this job replace the earlier attempt's build; three days covers re-running a failed shard
