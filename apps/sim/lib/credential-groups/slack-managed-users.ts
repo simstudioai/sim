@@ -16,6 +16,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -496,7 +497,8 @@ export function getSlackManagedUsersRedirectUri(): string {
 
 /**
  * Names an organization's Search installation set. Installing, rebinding, enabling, disabling,
- * and removing a bot each rotate or drop a row's revision.
+ * and removing a bot each rotate or drop a row's revision. Writes that can add a bot all hold the
+ * Slack organization lock, so a match under that lock means none landed during authorization.
  */
 async function organizationInstallationsRevision(executor: DbOrTx, organizationId: string) {
   const rows = await executor
@@ -565,6 +567,16 @@ async function resolveSharedSlackMemberApp(
   if (!app)
     throw new SlackManagedUsersError(
       'Set up this organization’s Slack app first.',
+      'invalid_response'
+    )
+  const [appRow] = await db
+    .select({ kind: slackApp.kind, organizationId: slackApp.organizationId })
+    .from(slackApp)
+    .where(eq(slackApp.id, app.id))
+    .limit(1)
+  if (appRow && (appRow.kind !== 'shared' || appRow.organizationId !== null))
+    throw new SlackManagedUsersError(
+      'This Slack app belongs to another installation owner.',
       'invalid_response'
     )
   if (installation)
@@ -899,6 +911,12 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
         )
         .limit(1)
         .for('update')
+      /** Start refuses a custom row holding the shared app's ID; this covers one added since. */
+      if (sharedApp && app?.kind !== 'shared')
+        throw new OrchestrationError(
+          'conflict',
+          'This Slack app belongs to another installation owner'
+        )
       if (app?.kind === 'shared')
         await requireSlackSearchAppAvailable(app.id, params.attempt.organizationId)
       const resolved = app ? await resolveSlackAppCredentials(app) : null

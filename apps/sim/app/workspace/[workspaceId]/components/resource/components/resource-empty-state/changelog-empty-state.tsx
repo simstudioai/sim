@@ -24,10 +24,8 @@ interface Release {
 
 const LATEST: Release = { top: 10, notes: [118, 92] }
 
-const EARLIER: readonly Release[] = [
-  { top: 70, notes: [104, 126, 80] },
-  { top: 142, notes: [96, 112] },
-] as const
+/** Ends inside the 148px viewBox; the fade carries the timeline past it. */
+const EARLIER: Release = { top: 70, notes: [104, 126, 80] }
 
 const SPINE_X = 24
 const NOTE_PITCH = 12
@@ -86,15 +84,11 @@ function ChangelogGraphic() {
       <rect x='92' y={LATEST.top + 6.5} width='34' height='4' rx='2' fill={INK.detail} />
       <ReleaseNotes release={LATEST} />
 
-      {EARLIER.map((release) => (
-        <g key={release.top}>
-          <circle cx={SPINE_X} cy={release.top + 8} r='4' fill={INK.title} />
-          <rect x='42' y={release.top + 2} width='40' height='13' rx='6.5' fill={INK.detail} />
-          <rect x='50' y={release.top + 6.5} width='24' height='4' rx='2' fill={INK.title} />
-          <rect x='92' y={release.top + 6.5} width='34' height='4' rx='2' fill={INK.detail} />
-          <ReleaseNotes release={release} />
-        </g>
-      ))}
+      <circle cx={SPINE_X} cy={EARLIER.top + 8} r='4' fill={INK.title} />
+      <rect x='42' y={EARLIER.top + 2} width='40' height='13' rx='6.5' fill={INK.detail} />
+      <rect x='50' y={EARLIER.top + 6.5} width='24' height='4' rx='2' fill={INK.title} />
+      <rect x='92' y={EARLIER.top + 6.5} width='34' height='4' rx='2' fill={INK.detail} />
+      <ReleaseNotes release={EARLIER} />
     </svg>
   )
 }
