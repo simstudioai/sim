@@ -109,34 +109,44 @@ export const mothershipChatKeys = {
   detail: (chatId: string | undefined) => [...mothershipChatKeys.details(), chatId ?? ''] as const,
 }
 
-/** Per client, the chats with a reload in flight, and whether another was requested meanwhile. */
-const chatDetailRefreshes = new WeakMap<QueryClient, Map<string, boolean>>()
+/**
+ * How long a chat's reload in flight holds back later requests. Past it a hung fetch no longer
+ * blocks the chat: the next request starts its own reload, which replaces the stuck one.
+ */
+const CHAT_DETAIL_REFRESH_HOLD_MS = 30 * 1000
+
+interface ChatDetailRefresh {
+  startedAt: number
+  requestedAgain: boolean
+}
+
+/** Per client, the chats with a reload in flight. */
+const chatDetailRefreshes = new WeakMap<QueryClient, Map<string, ChatDetailRefresh>>()
 
 /**
  * Invalidates a chat's detail so a mounted transcript reloads, coalescing a burst of
  * requests (a replayed or reconnected stream re-announces every resource it touched)
  * into one reload in flight plus one trailing reload. The trailing reload starts after
  * the last request, so the final read reflects every change requested meanwhile; a read
- * already in flight may predate a request and is never trusted to include it.
+ * already in flight may predate a request and is never trusted to include it. A reload
+ * in flight longer than {@link CHAT_DETAIL_REFRESH_HOLD_MS} stops holding requests back.
  */
 export function refreshMothershipChatDetail(queryClient: QueryClient, chatId: string): void {
-  let refreshes = chatDetailRefreshes.get(queryClient)
-  if (!refreshes) {
-    refreshes = new Map()
-    chatDetailRefreshes.set(queryClient, refreshes)
-  }
-  if (refreshes.has(chatId)) {
-    refreshes.set(chatId, true)
+  const refreshes = chatDetailRefreshes.get(queryClient) ?? new Map<string, ChatDetailRefresh>()
+  chatDetailRefreshes.set(queryClient, refreshes)
+  const inFlight = refreshes.get(chatId)
+  if (inFlight && Date.now() - inFlight.startedAt < CHAT_DETAIL_REFRESH_HOLD_MS) {
+    inFlight.requestedAgain = true
     return
   }
-  const inFlight = refreshes
-  inFlight.set(chatId, false)
+  const refresh: ChatDetailRefresh = { startedAt: Date.now(), requestedAgain: false }
+  refreshes.set(chatId, refresh)
   void queryClient
     .invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
     .finally(() => {
-      const requestedAgain = inFlight.get(chatId) === true
-      inFlight.delete(chatId)
-      if (requestedAgain) refreshMothershipChatDetail(queryClient, chatId)
+      if (refreshes.get(chatId) !== refresh) return
+      refreshes.delete(chatId)
+      if (refresh.requestedAgain) refreshMothershipChatDetail(queryClient, chatId)
     })
 }
 

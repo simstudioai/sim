@@ -292,6 +292,32 @@ describe('recovered resource events', () => {
     expect(reads).toHaveBeenCalledTimes(2)
     unsubscribe()
   })
+
+  it('stops holding reloads behind one that never settles once 30 seconds pass', async () => {
+    const queryClient = new QueryClient()
+    const { server, reads, unsubscribe } = mountedChat(queryClient)
+    const ctx = createStreamLoopContext(
+      makeStreamLoopDeps({ queryClient, chatIdRef: ref<string | undefined>('chat-1') })
+    )
+    reads.mockImplementationOnce(() => new Promise<MothershipChatHistory>(() => {}))
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      handleResourceEvent(ctx, replayed(tables[0], 1))
+      await vi.waitFor(() => expect(reads).toHaveBeenCalledOnce())
+      handleResourceEvent(ctx, replayed(tables[1], 2))
+      expect(reads).toHaveBeenCalledOnce()
+
+      server.stored = tables
+      vi.setSystemTime(Date.now() + 30_000)
+      handleResourceEvent(ctx, replayed(tables[2], 3))
+
+      expect(await settledResources(queryClient)).toEqual(tables)
+      expect(reads).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+      unsubscribe()
+    }
+  })
 })
 
 describe('handleResourceEvent saved-view pins', () => {

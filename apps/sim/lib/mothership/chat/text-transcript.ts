@@ -1,4 +1,5 @@
 import { copilotMessages } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import { type SQL, sql } from 'drizzle-orm'
 
 /**
@@ -39,9 +40,9 @@ export function quoteChatTranscript(messages: unknown[]): string {
       const m = message as { role?: unknown; content?: unknown; contentBlocks?: unknown }
       const role = m.role || 'user'
       let text = ''
-      if (Array.isArray(m.contentBlocks) && m.contentBlocks.length > 0) {
+      if (Array.isArray(m.contentBlocks)) {
         text = m.contentBlocks
-          .filter((block) => block?.type === 'text')
+          .filter((block) => isRecordLike(block) && block.type === 'text')
           .map((block) => String(block.content || ''))
           .join('')
           .trim()
