@@ -1,7 +1,7 @@
 /**
- * The keyword leg of a search with no signed-in reader behind it, against real PostgreSQL: ranking
- * every base in one statement answers what ranking each base (or all of them) in the old two-step
- * pass did, tie groups compared as sets, and admits nothing the reader may not see.
+ * The keyword leg of a search with no signed-in reader behind it, against real PostgreSQL: it
+ * answers what ranking each base (or all of them) in the two-step pass does, tie groups compared
+ * as sets, and admits nothing the reader may not see.
  *
  * Every chunk's vector points away from the query vector, so the vector leg of a hybrid search
  * finds nothing under its distance threshold and the fused list is the keyword ranking alone.
@@ -34,7 +34,7 @@ const queryVector = {
 } as const
 const AWAY_FROM_QUERY = [-1, ...Array<number>(DIMENSIONS - 1).fill(0)]
 
-/** More bases than the old pass ranked in one statement, so it took its per-base branch. */
+/** More bases than the pass ranks in one statement, so it takes its per-base branch. */
 const EXTRA_BASE_COUNT = 5
 const DOCUMENTS_PER_BASE = 3
 const CHUNKS_PER_DOCUMENT = 2
@@ -78,11 +78,8 @@ interface RankedKeywordRow {
   keywordRank: number
 }
 
-/**
- * The unauthenticated keyword ranking as it stood before it moved into one statement: the oracle
- * each case is compared against.
- */
-async function rankBeforeSingleStatement(input: {
+/** The two-step unauthenticated keyword ranking: the oracle each case is compared against. */
+async function rankTwoStep(input: {
   knowledgeBaseIds: string[]
   topK: number
   query: string
@@ -152,7 +149,7 @@ function expectSameRanking(actual: string[], reference: RankedKeywordRow[], topK
   expect(cursor).toBe(actual.length)
 }
 
-describe('unauthenticated keyword ranking in one statement', () => {
+describe('unauthenticated keyword ranking', () => {
   const ids = createKnowledgeAclFixtureIds()
   const extraBaseIds = Array.from({ length: EXTRA_BASE_COUNT }, () => generateId())
   const unsearchedBaseId = generateId()
@@ -351,7 +348,7 @@ describe('unauthenticated keyword ranking in one statement', () => {
       queryVector,
     })
     expect(retrieval).toEqual({ status: 'complete', timedOutLegs: [] })
-    const reference = await rankBeforeSingleStatement({
+    const reference = await rankTwoStep({
       knowledgeBaseIds: input.knowledgeBaseIds,
       topK: hybridLegTopK(input.topK),
       query: QUERY,
@@ -370,8 +367,8 @@ describe('unauthenticated keyword ranking in one statement', () => {
   }
 
   describe.each([
-    { label: 'every base (old per-base branch)', baseCount: allBaseIds.length },
-    { label: 'two bases (old single-statement branch)', baseCount: 2 },
+    { label: 'every base (per-base branch)', baseCount: allBaseIds.length },
+    { label: 'two bases (single-statement branch)', baseCount: 2 },
   ])('$label', ({ baseCount }) => {
     const knowledgeBaseIds = allBaseIds.slice(0, baseCount)
 
