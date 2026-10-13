@@ -546,7 +546,7 @@ test.describe('desktop tools against a live Sim', () => {
     expect(await callState(chatId)).toMatch(/^completed/)
   })
 
-  test('a long import whose window crashed settles as outcome unknown about one lease later', async () => {
+  test('a long import whose window crashed settles as outcome unknown about one lease later @lease-lapse', async () => {
     test.setTimeout(420_000)
     const user = await db.seedUser(['Crashing import chat'])
     const { callId } = await slowImport(user, 'Crashing import chat', '[crash-import]')
