@@ -26,7 +26,6 @@
  *   artifact when the job fails.
  * - `--counts <file>` reads the counts from such a `counts.json` instead of running the compiler.
  * - `--update` rewrites the baseline, refusing to raise any count.
- * - `--update --init` creates a missing baseline from the current counts.
  *
  * Shrink the baseline after a fix, from a failed CI run's artifact (no local compile):
  *   gh run download <run-id> -n test-types -D <dir>
@@ -233,19 +232,7 @@ function main(): void {
 
   const baselinePath = path.relative(ROOT, BASELINE)
   if (!existsSync(BASELINE)) {
-    if (update && process.argv.includes('--init')) {
-      writeFileSync(BASELINE, `${JSON.stringify(current, null, 2)}\n`)
-      console.log(
-        `Created ${baselinePath}: ${total(current)} errors in ${Object.keys(current).length} files`
-      )
-      return
-    }
-    fail([
-      `✗ ${baselinePath} is missing. Restore it from git; create a new one only with --update --init.`,
-      '  Without a local compile: take counts.json from the failed `test-types` CI job',
-      '  (gh run download <run-id> -n test-types -D <dir>), then',
-      '  bun run scripts/check-test-types.ts --counts <dir>/counts.json --update --init',
-    ])
+    fail([`✗ ${baselinePath} is missing. Restore it from git.`])
   }
   const baseline = parseCounts(readFileSync(BASELINE, 'utf8'), baselinePath)
   const { regressed, shrunk } = compareCounts(current, baseline)
