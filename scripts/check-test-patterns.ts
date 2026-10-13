@@ -327,25 +327,29 @@ function isTimedPromise(node: Node): boolean {
   return timed
 }
 
-const WAIT_EXPORTS: Readonly<Record<string, readonly string[]>> = {
+const WAIT_EXPORTS = {
   '@sim/utils/helpers': ['sleep', 'interruptibleSleep'],
   'node:timers/promises': ['setTimeout'],
   'timers/promises': ['setTimeout'],
-}
+} as const
+const WAIT_EXPORTS_BY_SOURCE: Readonly<Record<string, readonly string[] | undefined>> = WAIT_EXPORTS
 
-type HookKind = 'beforeAll' | 'beforeEach' | 'afterEach' | 'afterAll'
-const HOOK_KINDS = new Set<string>(['beforeAll', 'beforeEach', 'afterEach', 'afterAll'])
+const HOOK_KINDS = ['beforeAll', 'beforeEach', 'afterEach', 'afterAll'] as const
+type HookKind = (typeof HOOK_KINDS)[number]
+const HOOK_KIND_NAMES: readonly string[] = HOOK_KINDS
 
 /**
- * A call and where it runs: its nearest function (the module when `inModule`), and the innermost
- * hook callback around it. `coversFunctions` marks a module-scope timer call that applies to every
- * function body: a restore, or an install no executing module-scope statement precedes.
+ * A call and where it runs: its nearest function (the module when `inModule`), the module-scope
+ * helper it sits in (a function declaration or a variable bound to a function), and the innermost
+ * hook callback around it. For a module-scope `vi.useFakeTimers()`, `calledBefore` names the
+ * functions module-scope code calls before it.
  */
 interface Site {
   node: Node
   fn: [number, number]
   inModule: boolean
-  coversFunctions?: boolean
+  helper?: string
+  calledBefore?: Set<string>
   hook?: { kind: HookKind; range: [number, number]; suite: [number, number] }
 }
 
@@ -359,6 +363,7 @@ function siteOf(node: Node, ancestors: Node[], programRange: [number, number]): 
     node,
     fn: fnIndex === -1 ? programRange : nodeRange(ancestors[fnIndex]),
     inModule: fnIndex === -1,
+    helper: helperName(ancestors),
   }
   for (let index = ancestors.length - 1; index > 0; index--) {
     const fn = ancestors[index]
@@ -366,7 +371,7 @@ function siteOf(node: Node, ancestors: Node[], programRange: [number, number]): 
     if (!FUNCTION_TYPES.has(fn.type) || call.type !== 'CallExpression') continue
     const callee = call.callee as Node
     const kind = callee.type === 'Identifier' ? (callee.name as string) : ''
-    if (!HOOK_KINDS.has(kind) || (call.arguments as Node[])[0] !== fn) continue
+    if (!HOOK_KIND_NAMES.includes(kind) || (call.arguments as Node[])[0] !== fn) continue
     const owner = nearestFunctionIndex(ancestors, index - 1)
     site.hook = {
       kind: kind as HookKind,
@@ -378,69 +383,61 @@ function siteOf(node: Node, ancestors: Node[], programRange: [number, number]): 
   return site
 }
 
-const LOAD_SAFE_VI_CALLS = ['mock', 'doMock', 'hoisted']
-const TYPE_ONLY_STATEMENTS = new Set([
-  'TSTypeAliasDeclaration',
-  'TSInterfaceDeclaration',
-  'TSDeclareFunction',
-])
-
-/** Whether evaluating `node` runs code: a call, `new`, `await` or tagged template outside a function. */
-function runsCode(node: unknown): boolean {
-  if (!node || typeof node !== 'object') return false
-  if (Array.isArray(node)) return node.some(runsCode)
-  const current = node as Node
-  if (FUNCTION_TYPES.has(current.type)) return false
-  if (LOAD_SAFE_VI_CALLS.some((method) => isViCall(current, method))) return false
-  if (
-    ['CallExpression', 'NewExpression', 'AwaitExpression', 'TaggedTemplateExpression'].includes(
-      current.type
-    )
-  ) {
-    return true
+/** The module-scope function declaration, or variable bound to a function, that `ancestors` sit in. */
+function helperName(ancestors: Node[]): string | undefined {
+  let index = 1
+  while (ancestors[index]?.type.startsWith('Export')) index++
+  const statement = ancestors[index]
+  const inner = ancestors[index + 1]
+  if (statement?.type === 'FunctionDeclaration') {
+    return (statement.id as Node | null)?.name as string | undefined
   }
-  return Object.entries(current).some(
-    ([key, value]) => !['loc', 'start', 'end', 'extra'].includes(key) && runsCode(value)
-  )
+  if (
+    statement?.type === 'VariableDeclaration' &&
+    inner?.type === 'VariableDeclarator' &&
+    (inner.id as Node).type === 'Identifier' &&
+    ancestors[index + 2] === inner.init &&
+    FUNCTION_TYPES.has((inner.init as Node).type)
+  ) {
+    return (inner.id as Node).name as string
+  }
+  return undefined
 }
 
-/**
- * Whether a module-scope statement runs code when the module loads. Imports, function and class
- * declarations, type-only statements, `vi.mock`/`vi.doMock`/`vi.hoisted`, and variables whose
- * initializers call nothing do not.
- */
-function executesAtLoad(statement: Node): boolean {
-  const declaration =
-    (statement.type === 'ExportNamedDeclaration' ||
-      statement.type === 'ExportDefaultDeclaration') &&
-    statement.declaration
-      ? (statement.declaration as Node)
-      : statement
-  if (
-    declaration.type === 'ImportDeclaration' ||
-    declaration.type === 'FunctionDeclaration' ||
-    declaration.type === 'ClassDeclaration' ||
-    TYPE_ONLY_STATEMENTS.has(declaration.type)
-  ) {
-    return false
+/** Names of the functions `node` calls directly by identifier when it runs, outside nested functions. */
+function directCalls(node: unknown, names: Set<string>): Set<string> {
+  if (!node || typeof node !== 'object') return names
+  if (Array.isArray(node)) {
+    for (const child of node) directCalls(child, names)
+    return names
   }
-  if (declaration.type === 'VariableDeclaration') {
-    return (declaration.declarations as Node[]).some((declarator) => runsCode(declarator.init))
+  const current = node as Node
+  if (FUNCTION_TYPES.has(current.type)) return names
+  if (current.type === 'CallExpression' && (current.callee as Node).type === 'Identifier') {
+    names.add((current.callee as Node).name as string)
   }
-  if (declaration.type === 'ExpressionStatement') return runsCode(declaration.expression)
-  return true
+  for (const [key, value] of Object.entries(current)) {
+    if (key !== 'loc' && key !== 'start' && key !== 'end' && key !== 'extra') {
+      directCalls(value, names)
+    }
+  }
+  return names
 }
 
 /**
  * Whether a `vi.useFakeTimers()`/`vi.useRealTimers()` call at `timer` is in effect at `target`.
- * Inside its own function it applies to what follows it; at module scope, also to every function
- * body when `coversFunctions`. From a `beforeAll` it also applies to the
+ * Inside its own function it applies to what follows it. At module scope it also applies to every
+ * function body, since functions run after the module loads, except an install skips helpers that
+ * module-scope code calls before it (directly only: a helper reached through another call is
+ * missed). From a `beforeAll` it also applies to the
  * rest of its suite except `beforeAll` hooks declared before it; from a `beforeEach`, to the
  * suite's tests, `afterEach` hooks, and `beforeEach` hooks declared after it or in nested suites.
  */
 function inEffect(timer: Site, target: Site): boolean {
   const position = target.node.start as number
-  if (timer.coversFunctions && !target.inModule) return true
+  if (timer.inModule && !target.inModule) {
+    return !(target.helper && timer.calledBefore?.has(target.helper))
+  }
   if (within(position, timer.fn)) return position > (timer.node.start as number)
   const hook = timer.hook
   if (!hook || hook.range[0] !== timer.fn[0] || !within(position, hook.suite)) return false
@@ -479,7 +476,8 @@ export function findRealWaitViolations(
   for (const statement of program.body as Node[]) {
     if (statement.type !== 'ImportDeclaration') continue
     const source = (statement.source as { value: string }).value
-    const exported = source === '@sim/utils/helpers' && helpersMocked ? [] : WAIT_EXPORTS[source]
+    const exported =
+      source === '@sim/utils/helpers' && helpersMocked ? [] : WAIT_EXPORTS_BY_SOURCE[source]
     if (!exported?.length) continue
     for (const specifier of statement.specifiers as Node[]) {
       const local = (specifier.local as { name: string }).name
@@ -512,24 +510,25 @@ export function findRealWaitViolations(
     return exported?.includes(name) ? waitLabel(name) : undefined
   }
   const programRange: [number, number] = [program.start ?? 0, program.end ?? 0]
-  const firstExecuting = (program.body as Node[]).find(executesAtLoad)
-  const quietUntil = firstExecuting ? (firstExecuting.end as number) : Number.POSITIVE_INFINITY
-  // A module-scope restore always reaches function bodies; an install only when nothing ran first.
-  const timerSite = (node: Node, ancestors: Node[], restore: boolean): Site => {
-    const site = siteOf(node, ancestors, programRange)
-    site.coversFunctions = site.inModule && (restore || (node.start as number) < quietUntil)
-    return site
-  }
   const fakeClocks: Site[] = []
   const realClocks: Site[] = []
   const waits: Array<{ site: Site; label: string }> = []
   walkWithAncestors(program, (node, ancestors) => {
     if (isViCall(node, 'useFakeTimers')) {
-      if (fakesSetTimeout(node)) fakeClocks.push(timerSite(node, ancestors, false))
+      if (fakesSetTimeout(node)) {
+        const site = siteOf(node, ancestors, programRange)
+        if (site.inModule) {
+          const before = (program.body as Node[]).filter(
+            (statement) => (statement.end as number) <= (node.start as number)
+          )
+          site.calledBefore = directCalls(before, new Set())
+        }
+        fakeClocks.push(site)
+      }
       return
     }
     if (isViCall(node, 'useRealTimers')) {
-      realClocks.push(timerSite(node, ancestors, true))
+      realClocks.push(siteOf(node, ancestors, programRange))
       return
     }
     const label = isTimedPromise(node) ? 'setTimeout promise' : importedWait(node)

@@ -260,6 +260,16 @@ describe('real-wait', () => {
       ['sleep() #1'],
     ],
     [
+      'an arrow helper called at module scope before a module-scope install',
+      [
+        HELPERS,
+        'const settle = async () => { await sleep(10) }',
+        'await settle()',
+        'vi.useFakeTimers()',
+      ],
+      ['sleep() #1'],
+    ],
+    [
       'every occurrence, numbered per kind',
       [HELPERS, 'await sleep(10)', 'await new Promise((r) => setTimeout(r, 5))', 'await sleep(20)'],
       ['sleep() #1', 'setTimeout promise #1', 'sleep() #2'],
@@ -347,7 +357,11 @@ describe('real-wait', () => {
         'type Options = { delay: number }',
         'async function settle() { await sleep(DELAY_MS) }',
         'const settleLater = async () => { await settle() }',
+        'const run = vi.fn()',
+        'const fixture = createFixture()',
         'vi.useFakeTimers()',
+        'await settle()',
+        "it('t', async () => { await settle() })",
       ],
     ],
   ])('ignores %s', (_name, lines) => {
