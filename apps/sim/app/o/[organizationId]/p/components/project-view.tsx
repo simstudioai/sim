@@ -10,6 +10,7 @@ import { ProjectSettings } from '@/app/o/[organizationId]/p/components/project-s
 import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { PROJECT_SECTIONS, type ProjectSection } from '@/app/o/[organizationId]/p/routes'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { ChangelogEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 
 interface ProjectViewProps {
   project: Project
@@ -102,7 +103,11 @@ function SectionBody({ project, section, onBrowse }: SectionBodyProps) {
         </div>
       )
     case 'changelog':
-      return <EmptySection>No releases yet.</EmptySection>
+      return (
+        <div className='flex h-full min-h-0 flex-col'>
+          <ChangelogEmptyState />
+        </div>
+      )
     case 'issues':
       return <EmptySection>No issues yet.</EmptySection>
     case 'environments':
@@ -110,7 +115,7 @@ function SectionBody({ project, section, onBrowse }: SectionBodyProps) {
   }
 }
 
-/** Changelog and Issues until their entities exist. */
+/** Issues until its entity exists. */
 function EmptySection({ children }: { children: string }) {
   return <p className='px-6 py-16 text-center text-[var(--text-muted)] text-small'>{children}</p>
 }
