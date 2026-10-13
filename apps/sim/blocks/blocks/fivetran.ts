@@ -47,6 +47,25 @@ const PAGINATED_OPS = [
 
 const TRANSFORMATION_ID_OPS = ['get_transformation', 'run_transformation', 'cancel_transformation']
 
+/**
+ * Pause and resume reuse the update tool, so every other update setting is cleared: a value
+ * left in a field from another operation must never be sent along with the paused state.
+ */
+const PAUSE_ONLY_UPDATE = {
+  config: undefined,
+  auth: undefined,
+  syncFrequency: undefined,
+  scheduleType: undefined,
+  dailySyncTime: undefined,
+  dataDelaySensitivity: undefined,
+  dataDelayThreshold: undefined,
+  pauseAfterTrial: undefined,
+  isHistoricalSync: undefined,
+  runSetupTests: undefined,
+  trustCertificates: undefined,
+  trustFingerprints: undefined,
+}
+
 const OPTIONAL_BOOLEAN_OPTIONS = [
   { label: 'Not set', id: '' },
   { label: 'Yes', id: 'true' },
@@ -832,8 +851,12 @@ export const FivetranBlock: BlockConfig = {
         const result: Record<string, unknown> = {}
         const isConnectionSettings = CONNECTION_SETTINGS_OPS.includes(params.operation)
 
-        if (params.operation === 'pause_connection') return { paused: true }
-        if (params.operation === 'resume_connection') return { paused: false }
+        if (params.operation === 'pause_connection' || params.operation === 'resume_connection') {
+          return {
+            ...PAUSE_ONLY_UPDATE,
+            paused: params.operation === 'pause_connection',
+          }
+        }
 
         if (isConnectionSettings) {
           result.syncFrequency = toOptionalNumber(params.syncFrequency)

@@ -18,6 +18,7 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { buildFallbackDeliveryFingerprint } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Fivetran')
 
@@ -107,10 +108,16 @@ function isValidFivetranSignature(secret: string, signature: string, rawBody: st
   return safeCompare(hmacSha256Hex(rawBody, secret), signature.trim().toLowerCase())
 }
 
+const SIGNATURE_HEADER = 'x-fivetran-signature-256'
+/** Fivetran's documented test deliveries describe this dummy connection. */
+const FIVETRAN_TEST_CONNECTION_ID = '_connection_1'
+
 /**
- * While a webhook is registered but not yet activated, the only request Fivetran sends is the
- * reachability test that activation runs. Its shape is undocumented, so it is acknowledged
- * without verification and never executes the workflow.
+ * Set from webhook creation until activation is recorded. Fivetran tests the URL when the
+ * webhook is activated, and that test's shape is undocumented, so during this window an
+ * unsigned request or a delivery for Fivetran's test connection is acknowledged without
+ * running. Signed events for real connections still run, so none are lost in the gap
+ * between Fivetran accepting activation and Sim recording it.
  */
 function isAwaitingActivation(providerConfig: Record<string, unknown>): boolean {
   return providerConfig.subscriptionActivationPending === true
@@ -118,7 +125,8 @@ function isAwaitingActivation(providerConfig: Record<string, unknown>): boolean 
 
 export const fivetranHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext): NextResponse | null {
-    if (isAwaitingActivation(providerConfig)) return null
+    const signature = request.headers.get(SIGNATURE_HEADER)
+    if (!signature && isAwaitingActivation(providerConfig)) return null
 
     const secret = readString(providerConfig, 'webhookSecret')
     if (!secret) {
@@ -129,7 +137,6 @@ export const fivetranHandler: WebhookProviderHandler = {
       )
     }
 
-    const signature = request.headers.get('x-fivetran-signature-256')
     if (!signature) {
       logger.warn(`[${requestId}] Fivetran webhook missing X-Fivetran-Signature-256 header`)
       return new NextResponse('Unauthorized - Missing Fivetran signature', { status: 401 })
@@ -146,17 +153,22 @@ export const fivetranHandler: WebhookProviderHandler = {
   async matchEvent({
     webhook,
     body,
+    request,
     requestId,
     providerConfig,
   }: EventMatchContext): Promise<boolean> {
-    if (isAwaitingActivation(providerConfig)) {
+    const payload = toRecord(body)
+    if (
+      isAwaitingActivation(providerConfig) &&
+      (!request.headers.get(SIGNATURE_HEADER) ||
+        payload.connector_id === FIVETRAN_TEST_CONNECTION_ID)
+    ) {
       logger.info(`[${requestId}] Acknowledged Fivetran activation test without running`, {
         webhookId: webhook.id,
       })
       return false
     }
 
-    const payload = toRecord(body)
     const event = toStringOrNull(payload.event) ?? ''
     const triggerId = readString(providerConfig, 'triggerId')
     if (triggerId) {
@@ -182,17 +194,13 @@ export const fivetranHandler: WebhookProviderHandler = {
   },
 
   /**
-   * Fivetran sends no delivery ID. `created` is when the event was generated, carried unchanged
-   * on every retry, so together with the event type and subject it identifies one event.
+   * Fivetran sends no delivery ID, and events of one type can share a connection, sync, and
+   * timestamp (for example two table re-syncs), so the key hashes the whole event. A retry
+   * resends the same event, so its key is stable.
    */
   extractIdempotencyId(body: unknown): string | null {
-    const payload = toRecord(body)
-    const event = toStringOrNull(payload.event)
-    const created = toStringOrNull(payload.created)
-    if (!event || !created) return null
-    const subject =
-      toStringOrNull(payload.connector_id) ?? toStringOrNull(toRecord(payload.data).id) ?? ''
-    return `fivetran:${event}:${subject}:${toStringOrNull(payload.sync_id) ?? ''}:${created}`
+    const event = toStringOrNull(toRecord(body).event)
+    return event ? `fivetran:${event}:${buildFallbackDeliveryFingerprint(body)}` : null
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
