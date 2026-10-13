@@ -21,7 +21,6 @@ import {
 } from '@/lib/mothership/tools/server/base-tool'
 import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { parseTestFileReference } from '@/lib/workflow-tests/paths'
 import {
   admitCreateWorkspaceFile,
   createWorkspaceFile,
@@ -31,6 +30,7 @@ import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
+import { parseOwnedFileReference } from '@/lib/workspace-files/owned-files'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import {
   compileDoc,
@@ -351,11 +351,9 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
-          if (parseTestFileReference(target.fileName) !== null) {
-            return {
-              success: false,
-              message: `Create a test with the tests tool (action create), then write its cases into ${target.fileName}`,
-            }
+          const owned = parseOwnedFileReference(target.fileName)
+          if (owned) {
+            return { success: false, message: owned.kind.createHint(target.fileName) }
           }
           const { folderSegments, leafName } = splitWorkspaceFilePath(target.fileName)
           const fileName = leafName

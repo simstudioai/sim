@@ -213,7 +213,10 @@ export function Composer({
       placeholder={placeholder}
       aria-label='Ask Sim'
       onSubmit={submit}
-      className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
+      className={cn(
+        'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
+        isInitialView && 'min-h-[56px] max-md:min-h-0'
+      )}
     />
   )
 

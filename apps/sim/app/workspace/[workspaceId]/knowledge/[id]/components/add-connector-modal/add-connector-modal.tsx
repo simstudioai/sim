@@ -73,7 +73,7 @@ import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/u
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
-import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
 import { useSourceAccounts } from '@/hooks/queries/source-accounts'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
@@ -82,6 +82,17 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useConnectorSetupStore } from '@/stores/connector-setup/store'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
+
+/** The settings a new connector's form starts from; a Search source adds its own defaults. */
+function startingSourceConfig(
+  meta: Pick<ConnectorMeta, 'defaultSourceConfig' | 'searchDefaultSourceConfig'> | null | undefined,
+  isSearchIndex: boolean | undefined
+): Record<string, string> {
+  return {
+    ...meta?.defaultSourceConfig,
+    ...(isSearchIndex ? meta?.searchDefaultSourceConfig : undefined),
+  }
+}
 
 interface AddConnectorModalProps {
   scope?: ResourceScope
@@ -327,9 +338,10 @@ export function AddConnectorModal({
   } = useConnectorConfigFields({
     connectorConfig,
     accessMode: access.accessMode,
-    initialSourceConfig: isSearchIndex
-      ? { ...connectorConfig?.searchDefaultSourceConfig, ...draft?.sourceConfig }
-      : draft?.sourceConfig,
+    initialSourceConfig: {
+      ...startingSourceConfig(connectorConfig, isSearchIndex),
+      ...draft?.sourceConfig,
+    },
     initialCanonicalModes: draft?.canonicalModes,
     initialSelectionLabels: draft?.selectionLabels,
   })
@@ -475,9 +487,7 @@ export function AddConnectorModal({
     if (setupDraftKey) useConnectorSetupStore.getState().clearDraft(setupDraftKey)
     gitlabPermissions.reset()
     setSelectedType(type)
-    setSourceConfig(
-      isSearchIndex ? { ...CONNECTOR_META_REGISTRY[type]?.searchDefaultSourceConfig } : {}
-    )
+    setSourceConfig(startingSourceConfig(CONNECTOR_META_REGISTRY[type], isSearchIndex))
     setSelectedCredentialId(null)
     setContentCredentialId(null)
     setAccess({

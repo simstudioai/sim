@@ -92,13 +92,14 @@ describe('embedded CLI output ownership', () => {
     const transport = async () => {
       throw new Error('a parse error must not reach the API')
     }
-    const [guessed, dashedId, noArguments] = await Promise.all([
+    const [guessed, dashedId, noArguments, noOptions] = await Promise.all([
       runEmbeddedCli(['tables', 'rows', 'batch-delete', 'tbl_1', '--row-ids', 'row_1', '--yes'], {
         ...identity,
         transport,
       }),
       runEmbeddedCli(['audit-logs', 'get', '-X9abc'], { ...identity, transport }),
       runEmbeddedCli(['logs', 'list', '-X9abc'], { ...identity, transport }),
+      runEmbeddedCli(['workspaces', 'get', 'ws_1', '--verbose'], { ...identity, transport }),
     ])
     expect(guessed.exitCode).toBe(1)
     expect(guessed.stderr).toContain("unknown option '--row-ids'")
@@ -111,5 +112,9 @@ describe('embedded CLI output ownership', () => {
     expect(noArguments.exitCode).toBe(1)
     expect(noArguments.stderr).toContain('Options for sim logs list:')
     expect(noArguments.stderr).not.toContain('Example:')
+    // An empty list reads as truncated output rather than as an answer.
+    expect(noOptions.exitCode).toBe(1)
+    expect(noOptions.stderr).toContain('sim workspaces get takes no options.')
+    expect(noOptions.stderr).not.toContain('Options for')
   })
 })

@@ -1,6 +1,6 @@
 import { TEST_NAME_PATTERN } from '@/lib/api/contracts/mothership-tests'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
+import { decodeVfsPathSegments } from '@/lib/vfs/path'
 
 /** Test files live flat in this namespace as `tests/<name>.test.js`. */
 const TEST_FILE_PREFIX = 'tests/'

@@ -11,6 +11,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -38,6 +39,7 @@ import {
   listMemorySpaces,
   selectMemorySpace,
 } from '@/lib/mothership/memory/application/spaces'
+import { transferWorkspaceProjects } from '@/lib/projects/membership'
 
 const inheritedBenchmarkEnabled = vi.hoisted(() => {
   const previous = process.env.MOTHERSHIP_BENCHMARK_ENABLED
@@ -119,7 +121,8 @@ beforeAll(async () => {
     { id: generateId(), organizationId: ids.org, userId: ids.other, role: 'admin' },
     { id: generateId(), organizationId: ids.org, userId: ids.regular, role: 'admin' },
   ])
-  await db.insert(workspace).values(
+  await insertWorkspaceFixture(
+    db,
     [ids.workspace, ids.secondWorkspace].map((id) => ({
       id,
       name: 'KG fixture workspace',
@@ -139,8 +142,10 @@ beforeAll(async () => {
   )
 })
 afterAll(async () => {
-  if (inheritedBenchmarkEnabled === undefined) process.env.MOTHERSHIP_BENCHMARK_ENABLED = undefined
+  if (inheritedBenchmarkEnabled === undefined)
+    Reflect.deleteProperty(process.env, 'MOTHERSHIP_BENCHMARK_ENABLED')
   else process.env.MOTHERSHIP_BENCHMARK_ENABLED = inheritedBenchmarkEnabled
+  await deleteWorkspaceFixture(db, inArray(workspace.id, [ids.workspace, ids.secondWorkspace]))
   await db.delete(organization).where(inArray(organization.id, [ids.org, ids.secondOrg]))
   await db.delete(user).where(inArray(user.id, [ids.owner, ids.other, ids.outsider, ids.regular]))
 })
@@ -391,6 +396,7 @@ describe('private KG selection through authorized application boundaries', () =>
         .update(copilotChats)
         .set({ memorySpaceId: null })
         .where(eq(copilotChats.workspaceId, ids.workspace))
+      await transferWorkspaceProjects(tx, [ids.workspace], ids.secondOrg)
       await tx
         .update(workspace)
         .set({ organizationId: ids.secondOrg })
@@ -422,10 +428,13 @@ describe('private KG selection through authorized application boundaries', () =>
       release.resolve()
       await move
       await outcome
-      await db
-        .update(workspace)
-        .set({ organizationId: ids.org })
-        .where(eq(workspace.id, ids.workspace))
+      await db.transaction(async (tx) => {
+        await transferWorkspaceProjects(tx, [ids.workspace], ids.org)
+        await tx
+          .update(workspace)
+          .set({ organizationId: ids.org })
+          .where(eq(workspace.id, ids.workspace))
+      })
     }
   })
 
@@ -466,6 +475,7 @@ describe('private KG selection through authorized application boundaries', () =>
           .update(copilotChats)
           .set({ memorySpaceId: null })
           .where(eq(copilotChats.workspaceId, ids.workspace))
+        await transferWorkspaceProjects(tx, [ids.workspace], ids.secondOrg)
         await tx
           .update(workspace)
           .set({ organizationId: ids.secondOrg })
@@ -482,10 +492,13 @@ describe('private KG selection through authorized application boundaries', () =>
     } finally {
       release.resolve()
       await outcome
-      await db
-        .update(workspace)
-        .set({ organizationId: ids.org })
-        .where(eq(workspace.id, ids.workspace))
+      await db.transaction(async (tx) => {
+        await transferWorkspaceProjects(tx, [ids.workspace], ids.org)
+        await tx
+          .update(workspace)
+          .set({ organizationId: ids.org })
+          .where(eq(workspace.id, ids.workspace))
+      })
     }
   })
 

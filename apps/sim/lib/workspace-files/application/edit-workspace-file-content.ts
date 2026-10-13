@@ -100,7 +100,7 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
 
     try {
       const file = await getWorkspaceFileWithCurrentVersion(context.workspaceId, context.fileId, {
-        includeTestFiles: true,
+        includeOwnedFiles: true,
       })
       if (!file) throw new OrchestrationError('not_found', 'File not found')
       if (!file.contentUpdatedAt) {

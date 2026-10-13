@@ -78,7 +78,7 @@ describe('readWorkspaceFileContentByKey', () => {
 
     expect(mocks.getFile).toHaveBeenCalledWith(file.workspaceId, file.id, {
       throwOnError: true,
-      includeTestFiles: true,
+      includeOwnedFiles: true,
     })
     expect(mocks.fetchContent).toHaveBeenCalledWith(file, {
       maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
@@ -110,7 +110,7 @@ describe('readWorkspaceFileContentByKey', () => {
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
     expect(mocks.getFile).toHaveBeenCalledWith(file.workspaceId, file.id, {
       throwOnError: true,
-      includeTestFiles: true,
+      includeOwnedFiles: true,
     })
     expect(mocks.fetchContent).not.toHaveBeenCalled()
   })

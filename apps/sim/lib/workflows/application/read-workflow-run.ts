@@ -4,7 +4,7 @@ import {
   FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE,
   FunctionalOutputsUnavailableError,
 } from '@/lib/logs/execution/functional-outputs'
-import { logProjectionSubjectUserId } from '@/lib/logs/log-projection'
+import { logProjectionSubjectUserId } from '@/lib/logs/projection'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowRunApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'

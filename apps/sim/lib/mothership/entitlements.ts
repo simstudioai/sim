@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { readChangelogAvailability } from '@/lib/changelog/application/availability'
 import { readDashboardAvailability } from '@/lib/dashboards/application/availability'
 import { ENTITLEMENTS, type Entitlement } from '@/lib/mothership/generated/protocol'
 import { readWorkflowTestAvailability } from '@/lib/workflow-tests/application/availability'
@@ -52,6 +53,10 @@ const EVALUATORS: Record<Entitlement, EntitlementEvaluator> = {
   [ENTITLEMENTS.tests]: {
     workspace: ({ principal, workspaceId }) =>
       readWorkflowTestAvailability.execute({ principal, input: { workspaceId } }),
+  },
+  [ENTITLEMENTS.changelog]: {
+    workspace: ({ principal, workspaceId }) =>
+      readChangelogAvailability.execute({ principal, input: { workspaceId } }),
   },
 }
 

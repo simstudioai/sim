@@ -217,7 +217,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
+      return NextResponse.json(
+        { ...(result.code ? { code: result.code } : {}), error: result.error },
+        { status: result.status }
+      )
     }
 
     return NextResponse.json(result.token, { status: 200 })

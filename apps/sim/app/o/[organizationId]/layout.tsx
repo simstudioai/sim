@@ -6,6 +6,7 @@ import { SettingsNavigationProvider } from '@/components/settings/settings-navig
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { canUseBenchmarks } from '@/lib/benchmarks/config'
+import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
@@ -20,7 +21,10 @@ import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
-import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
+import {
+  WorkspaceChrome,
+  WorkspaceViewport,
+} from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 
@@ -68,6 +72,7 @@ export default async function OrganizationLayout({
     benchmarkEnabled,
     computerUseEnabled,
     workflowTestsEnabled,
+    changelogEnabled,
   ] = await Promise.all([
     prefetchOrganizationSidebar(
       queryClient,
@@ -83,6 +88,7 @@ export default async function OrganizationLayout({
     }),
     isComputerUseAvailable(),
     isWorkflowTestsEnabled(organizationId),
+    isChangelogEnabled(organizationId),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
@@ -92,6 +98,7 @@ export default async function OrganizationLayout({
         flags={{
           dashboards: dashboardsEnabled,
           'workflow-tests': workflowTestsEnabled,
+          changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': benchmarkEnabled,
@@ -100,7 +107,7 @@ export default async function OrganizationLayout({
       >
         <OrganizationProvider context={context}>
           <GlobalCommandsProvider>
-            <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
+            <WorkspaceViewport className='workspace-root'>
               <ImpersonationBanner />
               <SessionExpired />
               <SettingsNavigationProvider>
@@ -111,7 +118,7 @@ export default async function OrganizationLayout({
                   {children}
                 </WorkspaceChrome>
               </SettingsNavigationProvider>
-            </div>
+            </WorkspaceViewport>
           </GlobalCommandsProvider>
         </OrganizationProvider>
       </FeatureFlagsProvider>

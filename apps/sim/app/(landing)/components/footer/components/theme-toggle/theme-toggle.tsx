@@ -1,9 +1,10 @@
 'use client'
 
-import { useId, useSyncExternalStore } from 'react'
+import { useId } from 'react'
 import { cn } from '@sim/emcn'
 import { Moon, Sun } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
+import { useHydrated } from '@/hooks/use-hydrated'
 
 /**
  * The two themes on offer, in reading order. `system` is deliberately absent:
@@ -31,21 +32,6 @@ const SEGMENT_TONE: Record<ThemeOption, string> = {
   light:
     'bg-[var(--surface-active)] text-[var(--text-primary)] dark:bg-transparent dark:text-[var(--text-muted)] dark:hover-hover:text-[var(--text-primary)]',
   dark: 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)] dark:bg-[var(--surface-active)] dark:text-[var(--text-primary)]',
-}
-
-const subscribeToNothing = () => () => {}
-
-/**
- * `true` once hydrated, `false` in server HTML and during hydration - the
- * store-backed form React reconciles without a mismatch, unlike an effect that
- * flips state after mount.
- */
-function useHydrated(): boolean {
-  return useSyncExternalStore(
-    subscribeToNothing,
-    () => true,
-    () => false
-  )
 }
 
 /**

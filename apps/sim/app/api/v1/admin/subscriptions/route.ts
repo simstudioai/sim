@@ -21,8 +21,8 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminInternalErrorResponse,
   adminValidationErrorResponse,
-  internalErrorResponse,
   listResponse,
 } from '@/app/api/v1/admin/responses'
 import {
@@ -78,7 +78,7 @@ export const GET = withRouteHandler(
       return listResponse(data, pagination)
     } catch (error) {
       logger.error('Admin API: Failed to list subscriptions', { error })
-      return internalErrorResponse('Failed to list subscriptions')
+      return adminInternalErrorResponse('Failed to list subscriptions')
     }
   })
 )

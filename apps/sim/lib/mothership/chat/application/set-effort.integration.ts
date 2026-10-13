@@ -1,6 +1,7 @@
 /** Exercises a chat's explicit effort choice against real PostgreSQL rows. */
 import { db } from '@sim/db'
 import { copilotChats, permissions, settings, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
@@ -58,7 +59,7 @@ beforeAll(async () => {
     userId: ownerId,
     superUserModeEnabled: true,
   })
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: workspaceId,
     name: 'Chat effort fixture',
     ownerId,
@@ -81,7 +82,7 @@ afterAll(async () => {
   else process.env.MOTHERSHIP_BENCHMARK_ENABLED = benchmarkFlag
   await db.delete(copilotChats).where(eq(copilotChats.workspaceId, workspaceId))
   await db.delete(settings).where(eq(settings.userId, ownerId))
-  await db.delete(workspace).where(eq(workspace.id, workspaceId))
+  await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(user).where(inArray(user.id, [ownerId, outsiderId]))
   await db.$client.end()
 })

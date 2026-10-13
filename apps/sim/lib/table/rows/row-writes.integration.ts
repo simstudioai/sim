@@ -24,14 +24,17 @@ vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 import { deleteColumn, updateColumnConstraints } from '@/lib/table/columns/service'
 import { getMaxRowSizeBytes } from '@/lib/table/constants'
 import { bulkInsertImportBatch, importAppendRows, importReplaceRows } from '@/lib/table/import-data'
+import { selectExportRowPage } from '@/lib/table/jobs/service'
 import type { DbTransaction } from '@/lib/table/planner'
 import { readCurrentRowsVersion } from '@/lib/table/row-changes'
+import { decodeCursor } from '@/lib/table/rows/cursor'
 import { lockLiveTableSchema } from '@/lib/table/rows/live-schema'
 import {
   batchInsertRows,
   batchUpdateRows,
   deleteRowsByFilter,
   insertRow,
+  queryRows,
   replaceTableRows,
   updateRow,
   updateRowsByFilter,
@@ -205,8 +208,11 @@ describe('table row writes against real PostgreSQL', () => {
   beforeAll(async () => {
     await control`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
       VALUES (${userId}, 'Row write fixture', ${`${userId}@example.test`}, true, now(), now())`
-    await control`INSERT INTO workspace (id, name, owner_id, billed_account_user_id)
-      VALUES (${workspaceId}, 'Row write fixtures', ${userId}, ${userId})`
+    await control.begin(async (tx) => {
+      await tx`INSERT INTO project (id, name, owner_id) VALUES (${workspaceId}, 'Fixture project', ${userId})`
+      await tx`INSERT INTO workspace (id, project_id, name, owner_id, billed_account_user_id)
+        VALUES (${workspaceId}, ${workspaceId}, 'Row write fixtures', ${userId}, ${userId})`
+    })
   })
 
   beforeEach(() => {
@@ -214,7 +220,10 @@ describe('table row writes against real PostgreSQL', () => {
   })
 
   afterAll(async () => {
-    await control`DELETE FROM workspace WHERE id = ${workspaceId}`
+    await control.begin(async (tx) => {
+      await tx`DELETE FROM workspace WHERE id = ${workspaceId}`
+      await tx`DELETE FROM project WHERE id = ${workspaceId}`
+    })
     await control`DELETE FROM "user" WHERE id = ${userId}`
     await control.end()
   })
@@ -1935,6 +1944,253 @@ describe('table row writes against real PostgreSQL', () => {
       expect(snapshot.version).toBe(before + 1)
       expect(snapshot.key).toContain(`/v${before + 1}-`)
       expect(stored.get(snapshot.key)).toContain('during')
+    })
+  })
+
+  describe('keyset paging across the unkeyed tail', () => {
+    /**
+     * `order_key` is nullable and sorts LAST, so a seek past a keyed anchor has to reach the keyed
+     * rows after it and then every unkeyed row, and a compound cursor has to resume inside that
+     * unkeyed tail. Both page walkers must return each row exactly once, in the table's order.
+     */
+    it('pages keyed rows and then the unkeyed tail exactly once, in order', async () => {
+      const table = await createTable(textColumns('name'))
+      const id = (suffix: string) => `${table.id}-${suffix}`
+      await seedRows(table.id, [
+        { id: id('k0'), data: { name: 'k0' }, orderKey: 'a3' },
+        { id: id('u2'), data: { name: 'u2' }, orderKey: null },
+        { id: id('k1'), data: { name: 'k1' }, orderKey: 'a1' },
+        { id: id('k2'), data: { name: 'k2' }, orderKey: 'a2' },
+        { id: id('u0'), data: { name: 'u0' }, orderKey: null },
+        { id: id('k3'), data: { name: 'k3' }, orderKey: 'a2' },
+        { id: id('k4'), data: { name: 'k4' }, orderKey: 'a0' },
+        { id: id('u1'), data: { name: 'u1' }, orderKey: null },
+      ])
+      const expected = ['k4', 'k1', 'k2', 'k3', 'k0', 'u0', 'u1', 'u2'].map(id)
+
+      for (const limit of [1, 2, 3]) {
+        const paged: string[] = []
+        let cursor: ReturnType<typeof decodeCursor> | undefined
+        do {
+          const page = await queryRows(
+            table,
+            { ...cursor, limit, includeTotal: false, withExecutions: false },
+            'keyset-paging'
+          )
+          paged.push(...page.rows.map((row) => row.id))
+          cursor = page.nextCursor ? decodeCursor(page.nextCursor) : undefined
+        } while (cursor)
+        expect(paged).toEqual(expected)
+
+        const exported: string[] = []
+        let after: { orderKey: string | null; id: string } | null = null
+        while (true) {
+          const page = await selectExportRowPage(table, after, limit)
+          exported.push(...page.map((row) => row.id))
+          const last = page.at(-1)
+          if (!last || page.length < limit) break
+          after = { orderKey: last.orderKey, id: last.id }
+        }
+        expect(exported).toEqual(expected)
+      }
+    })
+  })
+
+  describe('bounded row reads', () => {
+    /**
+     * A custom sort is read once as ids and its rows fetched by id in byte-sized batches, so the
+     * page must still be the view's order — ties broken by `order_key` then `id`, NULL and missing
+     * cells last — across every batch boundary and from a mid-view offset. A 120-row limit drains
+     * in at least two batches (the first is capped at 51 rows); an unbounded drain from the offset
+     * outgrows its first id pass (205 ids) and has to read the order again from where it stopped.
+     */
+    it('drains a custom sort across batches in the order of the whole view', async () => {
+      const table = await createTable([
+        { id: 'score', name: 'score', type: 'number' },
+        ...textColumns('name'),
+      ])
+      const fixtures = Array.from({ length: 260 }, (_, index) => {
+        const data: RowData = { name: `n${index}` }
+        if (index % 9 === 0) data.score = null
+        else if (index % 4 !== 0) data.score = index % 5
+        return {
+          id: `${table.id}-${String(index).padStart(3, '0')}`,
+          data,
+          orderKey: index % 7 === 0 ? null : `a${index % 3}`,
+        }
+      })
+      await seedRows(table.id, fixtures)
+      const score = (row: (typeof fixtures)[number]) =>
+        typeof row.data.score === 'number' ? row.data.score : null
+      const expected = [...fixtures]
+        .sort((left, right) => {
+          const [l, r] = [score(left), score(right)]
+          if (l !== r) return l === null ? 1 : r === null ? -1 : r - l
+          if (left.orderKey !== right.orderKey) {
+            if (left.orderKey === null) return 1
+            if (right.orderKey === null) return -1
+            return left.orderKey < right.orderKey ? -1 : 1
+          }
+          return left.id < right.id ? -1 : 1
+        })
+        .map((row) => row.id)
+
+      for (const offset of [0, 37]) {
+        const page = await queryRows(
+          table,
+          {
+            sort: { score: 'desc' },
+            limit: 120,
+            offset,
+            includeTotal: false,
+            withExecutions: false,
+          },
+          'sorted-drain'
+        )
+        expect(page.rows.map((row) => row.id)).toEqual(expected.slice(offset, offset + 120))
+        expect(page.nextCursor).not.toBeNull()
+      }
+
+      const rest = await queryRows(
+        table,
+        { sort: { score: 'desc' }, offset: 37, includeTotal: false, withExecutions: false },
+        'sorted-drain'
+      )
+      expect(rest.rows.map((row) => row.id)).toEqual(expected.slice(37))
+      expect(rest.nextCursor).toBeNull()
+    })
+
+    /**
+     * The selection is applied in SQL; the response must still keep exactly the selected keys a
+     * row wrote, JSON nulls included, in the caller's order rather than JSONB's key order.
+     */
+    it('narrows row data to the selected columns exactly as returned without a selection', async () => {
+      const table = await createTable(textColumns('b', 'c', 'other'))
+      const nested = { a: 'ü "q"', z: [1, { k: null }] }
+      await seedRows(table.id, [
+        { id: `${table.id}-0`, data: { b: null, c: nested, other: 'x' }, orderKey: 'a0' },
+        { id: `${table.id}-1`, data: { other: 'only' }, orderKey: 'a1' },
+      ])
+
+      const page = await queryRows(
+        table,
+        {
+          columnIds: new Set(['c', 'b', 'missing']),
+          includeTotal: false,
+          withExecutions: false,
+        },
+        'projection'
+      )
+
+      expect(page.rows.map((row) => JSON.stringify(row.data))).toEqual([
+        JSON.stringify({ c: nested, b: null }),
+        JSON.stringify({}),
+      ])
+    })
+
+    /**
+     * A cursor past keyed rows reads through the keyed/unkeyed `UNION ALL` seek, so both branches
+     * must project alike: every page — keyed rows, then the NULL-`order_key` tail — keeps exactly
+     * the selected keys.
+     */
+    it('projects every page read through a keyset cursor, keyed rows and unkeyed tail alike', async () => {
+      const table = await createTable(textColumns('b', 'c', 'other'))
+      const id = (suffix: string) => `${table.id}-${suffix}`
+      await seedRows(table.id, [
+        { id: id('k0'), data: { b: 'k0', c: [0], other: 'x' }, orderKey: 'a0' },
+        { id: id('k1'), data: { c: { k: 1 }, other: 'x' }, orderKey: 'a1' },
+        { id: id('k2'), data: { b: null, other: 'x' }, orderKey: 'a2' },
+        { id: id('u0'), data: { b: 'u0', c: 'u', other: 'x' }, orderKey: null },
+        { id: id('u1'), data: { other: 'only' }, orderKey: null },
+      ])
+      const expected = [
+        [id('k0'), { c: [0], b: 'k0' }],
+        [id('k1'), { c: { k: 1 } }],
+        [id('k2'), { b: null }],
+        [id('u0'), { c: 'u', b: 'u0' }],
+        [id('u1'), {}],
+      ].map(([rowId, data]) => [rowId, JSON.stringify(data)])
+
+      for (const limit of [1, 2]) {
+        const paged: string[][] = []
+        let cursor: ReturnType<typeof decodeCursor> | undefined
+        do {
+          const page = await queryRows(
+            table,
+            {
+              ...cursor,
+              limit,
+              columnIds: new Set(['c', 'b']),
+              includeTotal: false,
+              withExecutions: false,
+            },
+            'projected-keyset-paging'
+          )
+          paged.push(...page.rows.map((row) => [row.id, JSON.stringify(row.data)]))
+          cursor = page.nextCursor ? decodeCursor(page.nextCursor) : undefined
+        } while (cursor)
+        expect(paged).toEqual(expected)
+      }
+    })
+
+    /**
+     * A sorted drain reads its order as ids and then fetches those rows in separate statements. A
+     * writer that commits between the two must not leak into the page: a deleted row still counts
+     * as the witness that more rows follow, and a re-scored row keeps the value it was ordered by.
+     * Under READ COMMITTED the page lost its witness (a null cursor with rows left) and returned
+     * rows out of order.
+     */
+    it('drains a custom sort in one snapshot while a writer commits between its statements', async () => {
+      const table = await createTable([{ id: 'score', name: 'score', type: 'number' }])
+      const id = (suffix: string) => `${table.id}-${suffix}`
+      await seedRows(
+        table.id,
+        ['a', 'b', 'c', 'd'].map((suffix, index) => ({
+          id: id(suffix),
+          data: { score: 40 - index * 10 },
+          orderKey: `a${index}`,
+        }))
+      )
+
+      const transaction = db.transaction.bind(db)
+      const spy = vi.spyOn(db, 'transaction').mockImplementation((callback, config) =>
+        transaction((tx) => {
+          const select = tx.select.bind(tx)
+          let selects = 0
+          tx.select = ((...args: Parameters<typeof select>) => {
+            const builder = select(...args)
+            if (++selects !== 1) return builder
+            const from = builder.from.bind(builder)
+            builder.from = ((source: Parameters<typeof from>[0]) => {
+              const query = from(source)
+              const execute = query.execute.bind(query)
+              query.execute = (async (...executeArgs: Parameters<typeof execute>) => {
+                const result = await execute(...executeArgs)
+                await control`DELETE FROM user_table_rows WHERE id = ${id('c')}`
+                await control`UPDATE user_table_rows SET data = '{"score": 0}'::jsonb WHERE id = ${id('a')}`
+                return result
+              }) as typeof execute
+              return query
+            }) as typeof from
+            return builder
+          }) as typeof select
+          return callback(tx)
+        }, config)
+      )
+      try {
+        const page = await queryRows(
+          table,
+          { sort: { score: 'desc' }, limit: 2, includeTotal: false, withExecutions: false },
+          'sorted-snapshot'
+        )
+        expect(page.rows.map((row) => [row.id, row.data.score])).toEqual([
+          [id('a'), 40],
+          [id('b'), 30],
+        ])
+        expect(page.nextCursor).not.toBeNull()
+      } finally {
+        spy.mockRestore()
+      }
     })
   })
 })

@@ -43,7 +43,7 @@ import { fetchKnowledgeBase, fetchKnowledgeBases } from '@/hooks/queries/kb/know
 import {
   fetchOAuthCredentialDetail,
   fetchOAuthCredentials,
-} from '@/hooks/queries/oauth/oauth-credentials'
+} from '@/hooks/queries/oauth/credentials'
 import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
 import { selectorQueryRoots } from '@/hooks/queries/utils/selector-keys'
 import type { WorkflowFolder } from '@/stores/folders/types'

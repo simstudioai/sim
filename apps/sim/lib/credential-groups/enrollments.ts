@@ -1348,20 +1348,6 @@ async function completeResolvedCredentialGroupEnrollment(
   })
 }
 
-/** Resolves the private, server-only context bound to a public enrollment link and option. */
-export async function getCredentialGroupOAuthContext(
-  token: string,
-  optionId: string
-): Promise<CredentialGroupOAuthContext | null> {
-  const row = await resolvePublicEnrollmentRowByIdentity({
-    invitationTokenHash: hashInvitationToken(token),
-  })
-  if (!row) return null
-  const option = row.options.find((candidate) => candidate.id === optionId)
-  if (!option || option.status !== 'active') return null
-  return credentialGroupOAuthContextFromRow(row, option)
-}
-
 export async function getAuthorizedCredentialGroupOAuthContext(
   identity: PublicCredentialGroupEnrollmentIdentity,
   optionId: string

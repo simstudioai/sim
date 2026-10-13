@@ -13,6 +13,7 @@ import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { assertOwnedFileAccess } from '@/lib/workspace-files/application/workspace-file-context'
+import { OWNED_FILE_CONTEXTS, ownedFileKind } from '@/lib/workspace-files/owned-files'
 
 export interface ReadWorkspaceFileByKeyInput {
   key: string
@@ -34,7 +35,7 @@ async function loadCurrentWorkspaceFileByKey(
 ): Promise<WorkspaceFileRecord> {
   const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
     throwOnError: true,
-    includeTestFiles: true,
+    includeOwnedFiles: true,
   })
   if (!file || file.key !== input.key) throw new OrchestrationError('not_found', 'File not found')
   return file
@@ -55,8 +56,8 @@ async function executeReadWorkspaceFileContentByKey({
   }
 }
 
-/** Workspace files and test files share the `workspace/` key prefix; the row says which. */
-const KEY_READABLE_CONTEXTS = new Set(['workspace', 'test'])
+/** Workspace files and owned files share the `workspace/` key prefix; the row says which. */
+const KEY_READABLE_CONTEXTS = new Set<string>(['workspace', ...OWNED_FILE_CONTEXTS])
 
 async function resolveWorkspaceFileByKeyContext({
   principal,
@@ -75,7 +76,7 @@ async function resolveWorkspaceFileByKeyContext({
   }
   const canonical = await loadActiveWorkspaceFileContext(
     metadata.id,
-    metadata.context === 'test' ? { includeTestFiles: true } : undefined
+    ownedFileKind(metadata.context) ? { includeOwnedFiles: true } : undefined
   )
   if (!canonical || canonical.workspaceId !== metadata.workspaceId) {
     throw new OrchestrationError('not_found', 'File not found')

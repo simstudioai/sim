@@ -83,7 +83,7 @@ export interface ModelCapabilities {
      * provider withholds thinking text entirely, e.g. the newest Claude
      * models default to omitted thinking display). Anthropic-family models
      * must set this explicitly since visibility varies per model generation —
-     * `bun run agent-stream-docs:check` enforces it. Other families fall back
+     * `bun run check:agent-stream-docs` enforces it. Other families fall back
      * to the per-provider defaults in {@link getThinkingStreamVisibility}.
      */
     streamed?: ThinkingStreamVisibility

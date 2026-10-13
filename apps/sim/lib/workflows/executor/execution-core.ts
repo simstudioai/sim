@@ -14,6 +14,8 @@ import type { Edge } from '@xyflow/react'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { type EffectivePiiRedaction, resolveEffectivePiiRedaction } from '@/lib/billing/retention'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
+import { UserFailure } from '@/lib/core/errors/user-failure'
 import {
   getExecutionDeadlineAt,
   getTimeoutErrorMessage,
@@ -874,9 +876,7 @@ async function executeWorkflowCoreImpl(
       const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
 
       if (!startBlock) {
-        const errorMsg = 'No start block found. Add a start block to this workflow.'
-        logger.error(`[${requestId}] ${errorMsg}`)
-        throw new Error(errorMsg)
+        throw new UserFailure('No start block found. Add a start block to this workflow.')
       }
 
       resolvedTriggerBlockId = startBlock.blockId
@@ -1346,15 +1346,16 @@ async function executeWorkflowCoreImpl(
 
     return result
   } catch (error: unknown) {
-    const errorCause = describeErrorCause(error)
-    logger.error(
-      `[${requestId}] Execution failed:`,
-      projectResolvedSecretDiagnosticError(
-        error,
-        resolvedSecretTraceRegistry,
-        errorCause ? { cause: errorCause } : undefined
-      )
-    )
+    logFailureOnce(logger, `[${requestId}] Execution failed:`, error, {
+      metadata: () => {
+        const errorCause = describeErrorCause(error)
+        return projectResolvedSecretDiagnosticError(error, resolvedSecretTraceRegistry, {
+          workflowId,
+          ...(errorCause ? { cause: errorCause } : {}),
+        })
+      },
+      executionId,
+    })
 
     await waitForLifecycleCallbacks()
 

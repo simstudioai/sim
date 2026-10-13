@@ -298,6 +298,8 @@ export const env = createEnv({
     AZURE_ANTHROPIC_API_VERSION:           z.string().min(1).optional(),           // Azure Anthropic API version (e.g. 2023-06-01)
     KB_OPENAI_MODEL_NAME:                  z.string().optional(),                  // Azure deployment name serving the configured KB embedding model (used only when AZURE_OPENAI_* credentials are set).
     KB_EMBEDDING_MODEL:                    z.string().optional(),                  // Embedding model used for all new knowledge bases. Must be one of the supported model ids, or `ollama/<model>` for a model on OLLAMA_URL; defaults to text-embedding-3-small.
+    KB_IMAGE_EXTRACTION_MODEL:             z.string().optional(),                  // Vision model that extracts text from knowledge-base images on sources using semantic image extraction (Confluence). Must be a Gemini 3 model in the catalog; anything else falls back to gemini-3.8-flash.
+    KB_IMAGE_EXTRACTIONS_PER_SYNC:         z.number().optional(),                  // New or changed images a connector sync may send for vision extraction; the rest wait for the next sync. Defaults to 500.
     EMBEDDING_OUTPUT_DIMS:                 z.coerce.number().int().positive().optional(), // Vector width new knowledge bases are stored at. One of 384, 768, 1024, 1536, 3072, and the configured KB_EMBEDDING_MODEL must emit it; anything else falls back to 1536.
     WAND_OPENAI_MODEL_NAME:                z.string().optional(),                  // Wand generation OpenAI model name (works with both regular OpenAI and Azure OpenAI)
     OCR_AZURE_ENDPOINT:                    z.string().url().optional(),            // Azure Mistral OCR service endpoint
@@ -466,6 +468,7 @@ export const env = createEnv({
     KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE: z.number().positive().optional().default(600),
     KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE:   z.number().positive().optional().default(600000),
     KB_CONFIG_OCR_REQUESTS_PER_MINUTE:       z.number().positive().optional().default(60),
+    KB_CONFIG_VISION_REQUESTS_PER_MINUTE:    z.number().positive().optional().default(300),
     /** Mistral operating budgets, shared across indexing workers and interactive OCR. */
     KB_CONFIG_MISTRAL_OCR_PAGES_PER_MINUTE:  z.number().positive().optional().default(1000),
     KB_CONFIG_MISTRAL_OCR_PAGES_PER_REQUEST: z.number().int().positive().max(1000).optional().default(30),
@@ -593,6 +596,7 @@ export const env = createEnv({
     PROJECT_API_ENABLED:                   z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
     MSHIP_COMPUTER_USE: z.boolean().optional(),
     WORKFLOW_TESTS:                        z.boolean().optional(),                 // Fallback for the `workflow-tests` feature flag off AppConfig
+    CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
     SANDBOXES_ENABLED:                     z.boolean().optional(),                 // Enable custom sandboxes on self-hosted (bypasses hosted requirements)

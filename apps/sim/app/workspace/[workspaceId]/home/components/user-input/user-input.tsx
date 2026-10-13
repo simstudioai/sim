@@ -44,6 +44,8 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
+import { useHydrated } from '@/hooks/use-hydrated'
+import { isMobileViewport } from '@/hooks/use-is-mobile'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
@@ -103,9 +105,11 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { userId, onContextAdd, onContextRemove } = useChatSurface()
+  // Server HTML cannot see the stored draft; hydration renders without it and the mount restore applies it.
+  const canReadStoredDraft = useHydrated()
   const [initialValue] = useState(() => {
     if (defaultValue) return defaultValue
-    if (!draftScopeKey) return ''
+    if (!canReadStoredDraft || !draftScopeKey) return ''
     const text = useMothershipDraftsStore.getState().drafts[draftScopeKey]?.text
     return typeof text === 'string' ? text : ''
   })
@@ -199,14 +203,17 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     }
     if (restoredContexts) editor.setContexts(restoredContexts)
     if (restoredFiles) files.restoreAttachedFiles(restoredFiles)
-    if (caretText !== null) {
+    // Text typed before hydration wins over the saved draft, caret included.
+    const typedBeforeHydration = initialValue === '' && editor.getValue() !== ''
+    if (caretText !== null && !typedBeforeHydration) {
+      if (initialValue === '') editor.setValue(caretText, { seed: true })
       const textarea = textareaRef.current
       if (textarea) {
-        textarea.focus()
+        if (!isMobileViewport()) textarea.focus()
         textarea.setSelectionRange(caretText.length, caretText.length)
       }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
+  }, []) // intentional mount-only restore
 
   const isFirstSaveRef = useRef(true)
   const draftSaveTimerRef = useRef<number | null>(null)
@@ -591,10 +598,14 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
       <PromptEditor
         editor={editor}
+        aria-label='Message'
         placeholder='Ask Sim to '
         onSubmit={handleEnterSubmit}
         onArrowUpOnEmpty={handleArrowUpOnEmpty}
-        className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
+        className={cn(
+          'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
+          isInitialView && 'min-h-[56px] max-md:min-h-0'
+        )}
       />
 
       <InputToolbar

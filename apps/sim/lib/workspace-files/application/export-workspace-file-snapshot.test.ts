@@ -109,7 +109,7 @@ describe('exportWorkspaceFileSnapshot', () => {
     expect(mocks.getFile).toHaveBeenCalledWith(WORKSPACE_ID, 'image-1', {
       throwOnError: true,
       includeChatUploads: true,
-      includeTestFiles: true,
+      includeOwnedFiles: true,
     })
     expect(mocks.resolvePermission).toHaveBeenCalledTimes(3)
     expect(mocks.audit).toHaveBeenCalledOnce()

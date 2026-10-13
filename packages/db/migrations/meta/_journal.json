@@ -2826,50 +2826,113 @@
     {
       "idx": 404,
       "version": "7",
-      "when": 1791499299485,
-      "tag": "0404_mothership_memory_spaces",
+      "when": 1791573858975,
+      "tag": "0404_changelog",
       "breakpoints": true
     },
     {
       "idx": 405,
       "version": "7",
-      "when": 1791499299486,
-      "tag": "0405_mothership_benchmarks",
+      "when": 1791594144264,
+      "tag": "0405_oauth_refresh_revoked",
       "breakpoints": true
     },
     {
       "idx": 406,
       "version": "7",
-      "when": 1791499299487,
-      "tag": "0406_mothership_benchmark_runs",
+      "when": 1791594144265,
+      "tag": "0406_workspace_project_column",
       "breakpoints": true
     },
     {
       "idx": 407,
       "version": "7",
-      "when": 1791499299488,
-      "tag": "0407_benchmark_run_as_user",
+      "when": 1791671263222,
+      "tag": "0407_workspace_files_display_name_index",
       "breakpoints": true
     },
     {
       "idx": 408,
       "version": "7",
-      "when": 1791499299489,
-      "tag": "0408_benchmark_automatic_score",
+      "when": 1791785549802,
+      "tag": "0408_index_alignment",
       "breakpoints": true
     },
     {
       "idx": 409,
       "version": "7",
-      "when": 1791499299490,
-      "tag": "0409_benchmark_target_fk",
+      "when": 1791829981759,
+      "tag": "0409_drop_retired_storage",
       "breakpoints": true
     },
     {
       "idx": 410,
       "version": "7",
-      "when": 1791568274074,
-      "tag": "0410_benchmark_run_version",
+      "when": 1791839835067,
+      "tag": "0410_gin_fastupdate_fk_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 411,
+      "version": "7",
+      "when": 1791839835068,
+      "tag": "0411_project_membership_enforcement",
+      "breakpoints": true
+    },
+    {
+      "idx": 412,
+      "version": "7",
+      "when": 1791857610719,
+      "tag": "0412_connector_image_removal_pending",
+      "breakpoints": true
+    },
+    {
+      "idx": 413,
+      "version": "7",
+      "when": 1791857610720,
+      "tag": "0413_mothership_memory_spaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 414,
+      "version": "7",
+      "when": 1791857610721,
+      "tag": "0414_mothership_benchmarks",
+      "breakpoints": true
+    },
+    {
+      "idx": 415,
+      "version": "7",
+      "when": 1791857610722,
+      "tag": "0415_mothership_benchmark_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 416,
+      "version": "7",
+      "when": 1791857610723,
+      "tag": "0416_benchmark_run_as_user",
+      "breakpoints": true
+    },
+    {
+      "idx": 417,
+      "version": "7",
+      "when": 1791857610724,
+      "tag": "0417_benchmark_automatic_score",
+      "breakpoints": true
+    },
+    {
+      "idx": 418,
+      "version": "7",
+      "when": 1791857610725,
+      "tag": "0418_benchmark_target_fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 419,
+      "version": "7",
+      "when": 1791857610726,
+      "tag": "0419_benchmark_run_version",
       "breakpoints": true
     }
   ]

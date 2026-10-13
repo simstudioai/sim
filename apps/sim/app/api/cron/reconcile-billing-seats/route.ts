@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { toError } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { reconcileTeamSeatDrift } from '@/lib/billing/organizations/seat-drift'
@@ -16,6 +18,22 @@ const BILLING_SYNC_EVENT_TYPES = [
   OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
   OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
 ]
+
+/**
+ * Dead letters newer than two hourly runs log at ERROR, so one missed run cannot hide one; older
+ * ones repeat at WARN until requeued or resolved through the admin outbox API.
+ */
+const NEW_DEAD_LETTER_WINDOW_MS = 2 * 60 * 60 * 1000
+
+function describeDeadLetter(event: Awaited<ReturnType<typeof findDeadLetteredEvents>>[number]) {
+  return {
+    id: event.id,
+    eventType: event.eventType,
+    subscriptionId: toStringOrNull(toRecord(event.payload).subscriptionId),
+    deadLetteredAt: event.processedAt?.toISOString() ?? null,
+    lastError: event.lastError,
+  }
+}
 
 /**
  * Periodic billing-seat reconciliation. Self-heals Team organizations whose
@@ -38,18 +56,28 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const drift = await reconcileTeamSeatDrift()
 
     const deadLettered = await findDeadLetteredEvents(BILLING_SYNC_EVENT_TYPES)
-    if (deadLettered.length > 0) {
+    const newSince = Date.now() - NEW_DEAD_LETTER_WINDOW_MS
+    const isNew = (event: (typeof deadLettered)[number]) =>
+      event.processedAt !== null && event.processedAt.getTime() >= newSince
+    const newlyDeadLettered = deadLettered.filter(isNew)
+    const previouslyReported = deadLettered.filter((event) => !isNew(event))
+    if (newlyDeadLettered.length > 0) {
       logger.error(
         'Dead-lettered billing sync events require manual remediation — a billing state change (seat charge or cancellation) never reached Stripe',
         {
           requestId,
-          count: deadLettered.length,
-          events: deadLettered.map((event) => ({
-            id: event.id,
-            eventType: event.eventType,
-            subscriptionId: (event.payload as { subscriptionId?: string } | null)?.subscriptionId,
-            lastError: event.lastError,
-          })),
+          count: newlyDeadLettered.length,
+          events: newlyDeadLettered.map(describeDeadLetter),
+        }
+      )
+    }
+    if (previouslyReported.length > 0) {
+      logger.warn(
+        'Previously reported billing sync dead letters are still unresolved — requeue or resolve them through the admin outbox API',
+        {
+          requestId,
+          count: previouslyReported.length,
+          events: previouslyReported.map(describeDeadLetter),
         }
       )
     }

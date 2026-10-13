@@ -230,6 +230,5 @@ export function useRegisterGlobalCommands(commands: GlobalCommand[] | (() => Glo
     }))
     const unregister = ctx.register(wrappedCommands)
     return unregister
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 }

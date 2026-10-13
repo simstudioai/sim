@@ -14,7 +14,7 @@ const { mockCheckChatAccess } = vi.hoisted(() => ({
   mockCheckChatAccess: vi.fn(),
 }))
 
-const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
+const mockCreateCodedErrorResponse = workflowsApiUtilsMockFns.mockCreateCodedErrorResponse
 const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
 const mockRecordAudit = auditMockFns.mockRecordAudit
 
@@ -50,7 +50,7 @@ describe('Chat Password Reveal API Route', () => {
       user: { id: 'user-id', name: 'Test User', email: 'user@example.com' },
     })
 
-    mockCreateErrorResponse.mockImplementation((message, status = 500) => {
+    mockCreateCodedErrorResponse.mockImplementation((message, status = 500) => {
       return new Response(JSON.stringify({ error: message }), {
         status,
         headers: { 'Content-Type': 'application/json' },

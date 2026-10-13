@@ -1,6 +1,7 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { mothershipBenchmarks, permissions } from '@sim/db/schema'
+import { insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { withUtcTimestamps } from '@sim/db/timestamps'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
@@ -194,6 +195,7 @@ describe('private benchmark persistence and attempt fencing', () => {
       'mothership_memory_spaces',
       'organization',
       'member',
+      'project',
       'workspace',
       'permissions',
       'permission_group',
@@ -212,7 +214,24 @@ describe('private benchmark persistence and attempt fencing', () => {
     await connection`INSERT INTO settings (id, user_id, super_user_mode_enabled) VALUES ('owner', 'owner', true), ('peer', 'peer', true)`
     await connection`INSERT INTO organization (id, name, slug) VALUES ('org', 'Org', 'org'), ('foreign-org', 'Foreign', 'foreign')`
     await connection`INSERT INTO member (id, organization_id, user_id, role) VALUES ('owner-member', 'org', 'owner', 'member'), ('peer-member', 'org', 'peer', 'member'), ('target-member', 'org', 'target', 'member')`
-    await connection`INSERT INTO workspace (id, name, owner_id, billed_account_user_id, organization_id, workspace_mode) VALUES ('workspace', 'Source', 'owner', 'owner', 'org', 'organization'), ('foreign-workspace', 'Foreign', 'owner', 'owner', 'foreign-org', 'organization')`
+    await insertWorkspaceFixture(db, [
+      {
+        id: 'workspace',
+        name: 'Source',
+        ownerId: 'owner',
+        billedAccountUserId: 'owner',
+        organizationId: 'org',
+        workspaceMode: 'organization',
+      },
+      {
+        id: 'foreign-workspace',
+        name: 'Foreign',
+        ownerId: 'owner',
+        billedAccountUserId: 'owner',
+        organizationId: 'foreign-org',
+        workspaceMode: 'organization',
+      },
+    ])
   })
 
   beforeEach(async () => {

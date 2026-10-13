@@ -15,7 +15,7 @@ import { MENU_STYLES } from '#menu-styles'
 import { Check, ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
-import { chipIconSlotClass } from '../chip/chip-chrome'
+import { chipIconSlotClass } from '../chip/chrome'
 import {
   DropdownMenu,
   DropdownMenuContent,

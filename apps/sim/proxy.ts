@@ -234,26 +234,16 @@ function handleRootPathRedirects(
 ): NextResponse | null {
   const url = request.nextUrl
 
-  if (url.pathname !== '/') {
+  if (url.pathname !== '/' || url.searchParams.has('home')) {
     return null
   }
 
-  if (!isHosted && !isDev) {
-    // Self-hosted production: Always redirect based on session.
-    if (hasActiveSession) {
-      return NextResponse.redirect(new URL(APP_ENTRY_PATH, request.url))
-    }
-    return NextResponse.redirect(new URL('/login', request.url))
+  if (hasActiveSession) {
+    return NextResponse.redirect(new URL(APP_ENTRY_PATH, request.url))
   }
 
-  // For root path, redirect authenticated users into the app
-  // Unless they have a 'home' query parameter (e.g., ?home)
-  // This allows intentional navigation to the homepage from anywhere in the app
-  if (hasActiveSession) {
-    const isBrowsingHome = url.searchParams.has('home')
-    if (!isBrowsingHome) {
-      return NextResponse.redirect(new URL(APP_ENTRY_PATH, request.url))
-    }
+  if (!isHosted && !isDev) {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   return null
@@ -310,7 +300,8 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   // Block suspicious requests, but exempt machine-to-machine endpoints that may
   // legitimately omit User-Agent headers (webhooks and MCP protocol discovery/calls).
   if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpDiscoveryEndpoint) {
-    logger.warn('Blocked suspicious request', {
+    // Scanner traffic (empty or tool user agents probing /admin.php etc.); the 403 is the response.
+    logger.debug('Blocked suspicious request', {
       userAgent,
       ip: getClientIp(request),
       url: request.url,

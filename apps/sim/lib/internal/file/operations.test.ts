@@ -444,7 +444,7 @@ describe('file manage folder wiring', () => {
 
       expect(response.status).toBe(200)
       expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'a-self', {
-        includeTestFiles: true,
+        includeOwnedFiles: true,
       })
     })
 
@@ -483,7 +483,7 @@ describe('file manage folder wiring', () => {
       )
 
       expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'a-self', {
-        includeTestFiles: true,
+        includeOwnedFiles: true,
       })
     })
   })
@@ -578,7 +578,7 @@ describe('file manage folder wiring', () => {
     expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
       'workspace-1',
       'notes-in-reports',
-      { includeTestFiles: true }
+      { includeOwnedFiles: true }
     )
   })
 

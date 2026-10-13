@@ -56,9 +56,9 @@ import { createPortal } from 'react-dom'
 import { MENU_STYLES } from '#menu-styles'
 import { Check, ChevronLeft, ChevronRight, Search } from '../../icons'
 import { cn } from '../../lib/cn'
-import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
+import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chrome'
 import { InsideModalContext } from '../modal/modal'
-import { TOOLTIP_MAX_WIDTH_PX, TOOLTIP_SURFACE_CLASS } from '../tooltip/tooltip-styles'
+import { TOOLTIP_MAX_WIDTH_PX, TOOLTIP_SURFACE_CLASS } from '../tooltip/styles'
 
 type PopoverSize = 'sm' | 'md'
 type PopoverColorScheme = 'default' | 'inverted'
@@ -610,7 +610,7 @@ const PopoverContent = React.forwardRef<
         {...restProps}
         data-native-surface-overlay=''
         className={cn(
-          'z-[var(--z-popover)] flex flex-col outline-hidden',
+          'z-[var(--z-popover)] flex flex-col outline-hidden max-md:max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-1rem))]! max-md:max-w-[calc(100vw-1rem)]!',
           showArrow ? 'overflow-visible' : 'overflow-auto',
           STYLES.content,
           STYLES.colorScheme[colorScheme].content,

@@ -40,6 +40,43 @@ describe('public log cursor', () => {
 })
 
 /**
+ * The v1 route answers a cursor `decodePublicLogCursor` refuses with its own 400
+ * and renders anything thrown later as a 500, so every cursor the decoder admits
+ * has to page. Date-form cursors, which earlier releases minted or accepted, are
+ * paged in `public-queries.integration.ts`: their keyset casts through the real
+ * column type.
+ */
+describe('v1 cursor admission', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.workflowExecutionLogs, [])
+  })
+
+  const decode = (startedAt: string) =>
+    decodePublicLogCursor(encodePublicLogCursor({ startedAt, id: 'log-1', order: 'desc' }), 'desc')
+
+  it('pages from a precise cursor', async () => {
+    const cursor = decode('2024-01-01T00:00:00.123456Z')
+    expect(cursor).not.toBeNull()
+
+    await expect(
+      listPublicWorkflowLogs({
+        filters: { workspaceId: 'workspace-1', cursor: cursor ?? undefined },
+        limit: 50,
+        includeExecutionData: false,
+      })
+    ).resolves.toEqual({ data: [], nextCursor: null })
+  })
+
+  it.each([
+    ['an impossible calendar day', '2024-02-30T00:00:00.000000Z'],
+    ['a year Postgres cannot read back', '0000-01-01T00:00:00Z'],
+  ])('refuses a cursor naming %s at the decoder', (_case, startedAt) => {
+    expect(decode(startedAt)).toBeNull()
+  })
+})
+
+/**
  * The folder scope is resolved by the adapter, so this query sees only ids. A
  * scope that resolved to nothing has to be expressed as a predicate that matches
  * nothing: `or(undefined, undefined)` is `undefined`, which silently drops the
@@ -139,12 +176,14 @@ describe('unioned public log page', () => {
     expect(dbChainMockFns.from).toHaveBeenCalledTimes(1)
   })
 
-  it('merges the two branches into the requested order', async () => {
+  /** Both branches order on the raw column, so a millisecond they share is split by its microseconds, not by id. */
+  it('merges the two branches into the requested order at the precision they were read', async () => {
+    const sharedMillisecond = new Date('2026-08-06T00:00:01.000Z')
     queueTableRows(schemaMock.workflowExecutionLogs, [
-      { id: 'w-1', startedAt: new Date('2026-08-06T00:00:02Z') },
+      { id: 'w-1', startedAt: sharedMillisecond, startedAtCursor: '2026-08-06T00:00:01.000001Z' },
     ])
     queueTableRows(schemaMock.jobExecutionLogs, [
-      { id: 'j-1', startedAt: new Date('2026-08-06T00:00:01Z') },
+      { id: 'j-1', startedAt: sharedMillisecond, startedAtCursor: '2026-08-06T00:00:01.000002Z' },
     ])
 
     const { data } = await listPublicWorkflowLogs({
@@ -154,7 +193,7 @@ describe('unioned public log page', () => {
       includeJobRuns: true,
     })
 
-    expect(data.map((row) => row.id)).toEqual(['j-1', 'w-1'])
+    expect(data.map((row) => row.id)).toEqual(['w-1', 'j-1'])
   })
 
   /**
@@ -163,10 +202,10 @@ describe('unioned public log page', () => {
    */
   it('mints its cursor from the last row of the merged page, whichever table it came from', async () => {
     queueTableRows(schemaMock.workflowExecutionLogs, [
-      { id: 'w-1', startedAt: new Date('2026-08-06T00:00:03Z') },
+      { id: 'w-1', startedAtCursor: '2026-08-06T00:00:03.000000Z' },
     ])
     queueTableRows(schemaMock.jobExecutionLogs, [
-      { id: 'j-1', startedAt: new Date('2026-08-06T00:00:02Z') },
+      { id: 'j-1', startedAtCursor: '2026-08-06T00:00:02.000000Z' },
     ])
 
     const { nextCursor } = await listPublicWorkflowLogs({
@@ -177,7 +216,7 @@ describe('unioned public log page', () => {
     })
 
     expect(decodePublicLogCursor(nextCursor as string, 'desc')).toEqual({
-      startedAt: '2026-08-06T00:00:03.000Z',
+      startedAt: '2026-08-06T00:00:03.000000Z',
       id: 'w-1',
       order: 'desc',
     })

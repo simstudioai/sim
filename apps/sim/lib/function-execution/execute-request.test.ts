@@ -172,7 +172,10 @@ vi.mock('@/lib/function-execution/sandbox-mounts', () => ({
 import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
-import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import {
+  isLargeValueRef,
+  LARGE_VALUE_THRESHOLD_BYTES,
+} from '@/lib/execution/payloads/large-value-ref'
 import * as fileMaterialization from '@/lib/execution/payloads/materialization.server'
 import { executeFunctionRequest } from '@/lib/function-execution/execute-request'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -820,11 +823,13 @@ describe('Function execution request', () => {
 
   describe('Basic Function Execution', () => {
     it('compacts large array result fields to manifests when execution context is durable', async () => {
+      // Compaction cost scales with element count, so a few wide rows cross the threshold cheaply.
+      const rowCount = 64
       mockExecuteInIsolatedVM.mockResolvedValueOnce({
         result: {
-          rows: Array.from({ length: 120_000 }, (_, index) => ({
+          rows: Array.from({ length: rowCount }, (_, index) => ({
             key: `SIM-${index}`,
-            payload: 'x'.repeat(100),
+            payload: 'x'.repeat(LARGE_VALUE_THRESHOLD_BYTES / rowCount),
           })),
         },
         stdout: '',
@@ -846,7 +851,7 @@ describe('Function execution request', () => {
       expect(data.output.result.rows).toMatchObject({
         __simLargeArrayManifest: true,
         kind: 'array',
-        totalCount: 120_000,
+        totalCount: rowCount,
       })
     })
 

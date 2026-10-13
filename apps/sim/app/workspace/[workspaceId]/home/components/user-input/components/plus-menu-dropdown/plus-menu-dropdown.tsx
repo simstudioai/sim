@@ -80,11 +80,12 @@ function candidateKey({ type, item }: MentionCandidate): string {
 const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
 
 /**
- * Families an organization chat's workspace submenus leave out: the mention-only
- * ones, plus Browser and Terminal, which belong to this desktop rather than to a
- * workspace and so sit once after the workspaces.
+ * Families an organization chat's workspace submenus leave out: the composer's
+ * exclusions, the mention-only ones, plus Browser and Terminal, which belong to
+ * this desktop rather than to a workspace and so sit once after the workspaces.
  */
 const WORKSPACE_SUBMENU_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
+  ...COMPOSER_EXCLUDED_TYPES,
   ...MENTION_ONLY_RESOURCE_TYPES,
   'browser',
   'terminal',

@@ -12,7 +12,9 @@ The [editorial and media standard](./editorial-standard.md) defines story select
 
 A public update needs one clear benefit, verified availability, a useful next step, and at least one reviewed feature image or video in the article. The cover alone is not enough. A reader should understand what they can now do and see evidence of that capability. A smaller improvement can join a related edition; it does not need its own announcement because a technical version shipped.
 
-Review candidates weekly and publish when a story meets that bar. Skip an edition if there is nothing meaningful to announce. Use a separate entry for a substantial launch. Aim for one lead story and a short selection of related improvements or fixes, rather than reproducing every commit. The GitHub release link carries the complete technical history.
+Review candidates twice a week and publish when a story meets that bar. Skip an edition if there is nothing meaningful to announce. Use a separate entry for a substantial launch. Aim for one lead story and a short selection of related improvements or fixes, rather than reproducing every commit. The GitHub release link carries the complete technical history.
+
+Release versions identify the software release, not a sequence of changelog posts. Gaps are expected when a release has no meaningful user-facing story. Keep the original version numbers and use dates and titles to browse the updates; do not add filler posts to make the versions consecutive.
 
 Always make consequential breaking changes, migrations, deprecations, and changes requiring action easy to find, including the affected version, availability, and next step. For a change with no useful product screen, a clearly labeled, accurate explanatory diagram can serve as the image. Do not delay an urgent notice to produce a polished video.
 
@@ -50,7 +52,7 @@ Choose a few relevant links instead of repeating every destination in a separate
 
 ## Search and answer-engine visibility
 
-Keep each summary independently useful: name Sim and the feature, explain the new capability, and state material availability limits in the article. Put setup steps and demonstration explanations in server-rendered text alongside the media. Do not leave important facts only inside a screenshot or video.
+Keep each summary independently useful: name Sim and the feature, explain the new capability, and state material availability limits in the article. Write a short announcement of what changed and why it is useful, with a contextual setup link. Keep capture notes and review evidence in the production brief, out of public prose and media descriptions. Do not leave important facts only inside a screenshot or video.
 
 The index and archive use real links, semantic lists, and CollectionPage/ItemList data matching the visible entries. Articles keep their own canonical URLs, BlogPosting data, authorship metadata, original publication dates, and substantive correction dates. Public articles appear in the sitemap and RSS; previews stay noindex and drafts stay out of public routes. Preserve these properties when changing the layout. If the archive eventually needs pagination, use server-rendered pages with real next/previous links and a self-canonical URL for each page; do not make older entries accessible only through a JavaScript button.
 
@@ -61,11 +63,11 @@ After deployment, verify a representative article and the archive with Search Co
 ## Artifact delivery
 
 - Record one complete action and its visible result with sample data in a dedicated demo workspace. Verify the feature and permissions in that environment first. Use the product's normal theme and typography. Keep the cursor and text readable; crop around the relevant controls while preserving enough context to understand the action.
-- Export an H.264 MP4 at a readable resolution, usually 1280×720 or 1920×1080. Keep it about 20–45 seconds and optimize it for web playback with `+faststart`. Prefer a focused demonstration with native playback controls over a decorative loop. Check the final crop on a 390px-wide screen.
-- Take screenshots and the poster from the reviewed product capture. Choose a frame that shows the announced result, with a legible 16:9 crop for the story card. A separate 1200×630 share image can use the same frame with enough safe area for cropping. Keep the headline and benefit in the page's HTML rather than baking them into the image. Compress local JPEG, WebP, or PNG assets and retain actual screenshot dimensions in MDX.
+- Export an H.264 MP4 at a readable resolution, usually 1280×720 or 1920×1080. Keep it about 20–45 seconds and optimize it for web playback with `+faststart`. The article shows the reviewed poster; playback starts only after opening the shared lightbox, which provides pause, seeking, and zoom controls. Spoken recordings include captions and an unmute control. Check the preview and expanded recording on a 390px-wide screen.
+- Take screenshots and the poster from the reviewed product capture. Choose a frame that shows the announced result. Preserve the capture's aspect ratio and provide its actual width and height in MDX for both screenshots and videos. A separate 1200×630 share image can use the same frame with enough safe area for cropping. Keep the headline and benefit in the page's HTML rather than baking them into the image. Compress local JPEG, WebP, or PNG assets.
 - Use immutable, versioned media filenames, such as `compare-workflow-deployments-v1.mp4`. Upload recordings and spoken captions under `changelog/` in the existing public Academy asset store: `https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com`. Put the returned public URLs in the entry. The app CSP and content audit explicitly allow this origin for recordings and captions. Small optimized walkthroughs under 1 MiB can live in `public/changelog/` and deploy atomically with their entry. Use the CDN for larger recordings. The component does not upload or proxy videos.
 - Serve MP4s as `video/mp4` and spoken captions as `text/vtt`. The existing CDN supports HTTP Range requests, cross-origin playback, and caching. Use a new filename for every revision and verify those response headers on the uploaded asset. Do not overwrite an existing recording URL.
-- In the deployment preview, check playback, seeking, captions, poster loading, and mobile readability. A silent recording uses the component's muted default. Spoken recordings need a WebVTT file.
+- In the deployment preview, check opening and closing the lightbox, playback, pause, seeking, zoom, captions, poster loading, and mobile readability. Recordings start muted; spoken recordings need a WebVTT file and expose an unmute control.
 - Generate social and email drafts from the reviewed product story: capability, practical benefit, and one link to the canonical entry. Use the same claims and restrictions everywhere. Keep distribution manual until the format and review process are established.
 
 AI can prepare storyboards, copy, captions, and clearly labeled conceptual diagrams. Screenshots and feature recordings must come from the real product. Do not generate fictional controls, results, performance numbers, or before-and-after evidence. Label a walkthrough assembled from still captures as a step-by-step walkthrough; do not describe it as a continuous recording. Keep its UI frames unmodified and record the assembly method in the production brief.
@@ -101,11 +103,13 @@ release:
 <ChangelogVideo
   src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/changelog/demo-v1.mp4"
   poster="/changelog/your-update-poster.jpg"
+  width="1280"
+  height="720"
   caption="Describe the action and result shown in the demo."
   captionsSrc="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/changelog/demo-v1.vtt"
 />
 
-Explain where to find the feature and give one concrete example.
+Explain the behavior that changed and link to the relevant guide. Add selected release changes only when they have verified source and release evidence.
 
 ### Improvements
 
@@ -124,7 +128,7 @@ Explain where to find the feature and give one concrete example.
 4. Use `<ChangelogImage src="/changelog/example.png" alt="Describe the view" width="1200" height="800" />` for a screenshot, supplying its actual dimensions as literal attributes to reserve space during loading. The MDX compiler strips JavaScript expressions such as `width={1200}`. Describe what it actually shows; do not use an older screenshot as proof of a new control.
 5. Use `###` for sections inside an entry: the article owns the H1 and its details section owns an accessible H2.
 6. Keep `draft: true` until the text, availability, media, and links are reviewed. Drafts are excluded from the public page, direct entry routes, archive, sitemap, and RSS. Use the development preview to review them without changing publication status.
-7. Publish by removing the draft flag or setting it to false, then deploy the site. Keep the slug and original publication date stable. Add `updated` only for a substantive correction.
+7. Publish by removing the draft flag or setting it to false, then deploy the site. Keep the slug and original publication date stable. Add `updated` only for a substantive correction or expansion, not a formatting edit.
 
 Before merging, run `bun run check:library-content --slug changelog/<slug>` from the repository root. The shared content audit checks frontmatter, authors, folder slugs, reserved routes, images, MDX syntax, internal links, changelog media attributes, and the existence of local recordings and caption files. Published entries also require body media and descriptive cover alt text; future publication dates, correction dates before publication, and duplicate RSS identities fail the audit. `bun run check:audits` runs it in CI. It cannot determine whether an image proves a feature or confirm Cloud rollout, codec quality, or CDN availability; the feature owner and editor verify those in the brief and preview.
 
@@ -133,8 +137,8 @@ For a migrated historical release, use its original publication timestamp and Gi
 ## Maintenance
 
 - The [Sim workflow maintenance guide](./maintenance-workflow.md) describes collection, the editorial queue, draft preparation, media production, and monitoring. The operational runbook and workflow exports in the editorial workspace record its live configuration and acceptance results. Keep this publishing guide and the editorial standard as the source of content and media rules.
-- The release editor reviews candidates weekly and checks published links and hosted media monthly. Refresh destinations when docs move and verify deep anchors manually; the audit catches missing canonical source pages during every PR.
-- Keep the original slug, publication date, and RSS identity stable. Use `updated` only for a substantive correction. A future date does not schedule publication; leave the entry in draft until the intended deployment.
+- The release editor reviews candidates twice a week and checks published links and hosted media monthly. Refresh destinations when docs move and verify deep anchors manually; the audit catches missing canonical source pages during every PR.
+- Keep the original slug, publication date, and RSS identity stable. Use `updated` only for a substantive correction or expansion, not a formatting edit. A future date does not schedule publication; leave the entry in draft until the intended deployment.
 - If availability changes after publication, update the existing entry with its current status and a clear next step. Preserve its URL rather than deleting it or reverting it to a draft. If a slug must change, add a redirect before moving it.
 - Keep historical media versioned. Record the capture date, environment, demonstrated steps, and final asset URLs in the brief. Never overwrite an existing recording. Recheck playback, seeking, captions, and mobile readability after any replacement.
 - RSS includes the 50 latest published entries, the homepage shows 12, and the archive retains the published history. Those collections load metadata and optimized covers; full articles and recordings load on their detail pages.

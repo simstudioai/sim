@@ -6,11 +6,9 @@ import { Readable, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { Command } from 'commander'
 import { writeStdout } from '#sim-cli/output/io'
-import { clientFrom } from '../../context'
 import { embedStore } from '../../embed-context'
-import { V2_OPERATIONS } from '../../generated/v2-api'
-import { isRequestTimeout, RAISE_TIMEOUT_HINT, resolvePath, SimApiError } from '../../http/client'
-import { callsOperations } from '../../runtime/called-operations'
+import { isRequestTimeout, RAISE_TIMEOUT_HINT, SimApiError } from '../../http/client'
+import { apiCommand, type Connection } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 
 function writeFailure(path: WriteStream['path'], error: unknown): SimApiError {
@@ -283,16 +281,16 @@ interface DownloadOutputOptions {
   force?: boolean
 }
 
-type DownloadOperation = (typeof V2_OPERATIONS)['downloadFile' | 'downloadFileVersion']
+type DownloadOperation = 'downloadFile' | 'downloadFileVersion'
 
 /**
  * Streams a binary v2 download to stdout or atomically to `--output-file`. Shared by every
  * command that downloads file bytes, so each gets the same terminal guard and overwrite rules.
  */
-async function downloadToOutput(
-  command: Command,
-  operation: DownloadOperation,
-  pathParams: Record<string, string>,
+async function downloadToOutput<Operation extends DownloadOperation>(
+  connectDownload: () => Connection<Operation>,
+  operation: Operation,
+  params: Record<string, string>,
   options: DownloadOutputOptions
 ): Promise<void> {
   const target = options.outputFile
@@ -301,10 +299,10 @@ async function downloadToOutput(
     throw new SimApiError('--force requires --output-file <path>', 0)
   }
 
-  const { client, profile } = clientFrom(command)
+  const { client, profile } = connectDownload()
   const workspaceId = client.requireWorkspace()
-  const response = await client.requestRaw(resolvePath(operation.path, pathParams), {
-    method: operation.method,
+  const response = await client.requestRaw(operation, {
+    params,
     query: { workspaceId },
   })
   if (!response.body) {
@@ -330,36 +328,35 @@ async function downloadToOutput(
 
   const savedTarget = await saveToFile(response.body, target, Boolean(options.force))
   printProtocolResult(profile.output, {
-    id: pathParams.fileId,
+    id: params.fileId,
     path: savedTarget,
     status: 'saved',
   })
 }
 
 export function attachFileGet(files: Command): void {
-  files
-    .command('get')
+  const [get, connectGet] = apiCommand(files, 'get', ['downloadFile'])
+  get
     .argument('<fileId>', 'File whose content to read')
     .allowExcessArguments(false)
     .description('Download a file’s content to stdout or a local file')
     .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
     .option('--force', 'Overwrite --output-file if it already exists')
-    .action((fileId: string, options: DownloadOutputOptions, command: Command) =>
-      downloadToOutput(command, V2_OPERATIONS.downloadFile, { fileId }, options)
+    .action((fileId: string, options: DownloadOutputOptions) =>
+      downloadToOutput(connectGet, 'downloadFile', { fileId }, options)
     )
 }
 
 export function attachFileVersionDownload(versions: Command): void {
-  const download = versions
-    .command('download')
+  const [download, connectDownload] = apiCommand(versions, 'download', ['downloadFileVersion'])
+  download
     .argument('<fileId>', 'File identifier.')
     .argument('<version>', 'Version number.')
     .allowExcessArguments(false)
     .description('Download the content of one version of a file')
     .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
     .option('--force', 'Overwrite --output-file if it already exists')
-    .action((fileId: string, version: string, options: DownloadOutputOptions, command: Command) =>
-      downloadToOutput(command, V2_OPERATIONS.downloadFileVersion, { fileId, version }, options)
+    .action((fileId: string, version: string, options: DownloadOutputOptions) =>
+      downloadToOutput(connectDownload, 'downloadFileVersion', { fileId, version }, options)
     )
-  callsOperations(download, ['downloadFileVersion'])
 }

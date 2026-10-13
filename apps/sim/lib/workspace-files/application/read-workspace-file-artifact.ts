@@ -28,7 +28,7 @@ export const readWorkspaceFileArtifact = defineAuthorizedWorkspaceFileUseCase({
   }) =>
     resolveReferencedWorkspaceFileContext(principal, input, {
       includeChatUploads: true,
-      includeTestFiles: true,
+      includeOwnedFiles: true,
     }),
   async execute({ input, context, principal }) {
     const file = context.file

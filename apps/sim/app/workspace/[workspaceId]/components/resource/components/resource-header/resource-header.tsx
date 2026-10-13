@@ -42,6 +42,7 @@ import { createPortal } from 'react-dom'
 import { HEADER_ACTION_CLUSTER, TITLE_BAR_LANE_PT } from '@/components/page-header-bar'
 import { orderHeaderActions, SettingsActionChip } from '@/components/settings/settings-header'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
+import { isMobileViewport } from '@/hooks/use-is-mobile'
 
 export interface DropdownOption {
   label: string
@@ -174,15 +175,28 @@ export const ResourceHeader = memo(function ResourceHeader({
         TITLE_BAR_LANE_PT
       )}
     >
-      <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
-        <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
+      <div className='flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2 md:flex-nowrap md:gap-3'>
+        <div
+          className={cn(
+            'flex min-w-0 flex-1 items-center gap-2 overflow-hidden max-md:min-w-min',
+            hasBreadcrumbs && 'max-md:min-w-full'
+          )}
+        >
           {hasBreadcrumbs ? (
             breadcrumbs.map((crumb, i) => {
-              const segmentClassName = getBreadcrumbSegmentClassName(
-                i,
-                breadcrumbs.length,
-                currentResourceIndex,
-                terminalBreadcrumbIndex
+              const hideAncestorOnMobile =
+                (breadcrumbs[0].icon ?? Icon) != null &&
+                i > 0 &&
+                i < breadcrumbs.length - 1 &&
+                i !== currentResourceIndex
+              const segmentClassName = cn(
+                getBreadcrumbSegmentClassName(
+                  i,
+                  breadcrumbs.length,
+                  currentResourceIndex,
+                  terminalBreadcrumbIndex
+                ),
+                hideAncestorOnMobile && 'hidden md:inline-flex'
               )
               const LocationIcon = i === 0 ? (crumb.icon ?? Icon) : undefined
               /**
@@ -211,7 +225,12 @@ export const ResourceHeader = memo(function ResourceHeader({
               return (
                 <Fragment key={`${crumb.label}-${i}`}>
                   {i > 0 && (
-                    <span className='mx-0.5 shrink-0 select-none text-[var(--text-icon)] text-sm'>
+                    <span
+                      className={cn(
+                        'mx-0.5 shrink-0 select-none text-[var(--text-icon)] text-sm',
+                        hideAncestorOnMobile && 'hidden md:inline'
+                      )}
+                    >
                       /
                     </span>
                   )}
@@ -258,10 +277,10 @@ export const ResourceHeader = memo(function ResourceHeader({
           )}
         </div>
         {(aside || (actions && actions.length > 0)) && (
-          <div className={cn(HEADER_ACTION_CLUSTER, 'shrink-0')}>
+          <div className={cn(HEADER_ACTION_CLUSTER, 'ml-auto max-w-full shrink-0')}>
             {aside}
             {orderHeaderActions(actions).map(({ action }) => (
-              <SettingsActionChip key={action.id ?? action.text} action={action} />
+              <SettingsActionChip key={action.id ?? action.text} action={action} mobileIconOnly />
             ))}
           </div>
         )}
@@ -513,37 +532,45 @@ function BreadcrumbLocationPopover({
       <LocationFocusVeil visible={open} boundaryRef={veilBoundaryRef} />
       <Popover size='md' open={open} onOpenChange={setOpen}>
         <PopoverAnchor asChild>
-          <button
+          <Chip
             type='button'
+            mobileIconOnly
             aria-label={rootBreadcrumb?.label ?? 'Path'}
-            onClick={() => navigateAndClose(rootBreadcrumb?.onClick)}
+            aria-expanded={open}
+            aria-haspopup='dialog'
+            onClick={() => {
+              if (isMobileViewport()) {
+                openPopover()
+                return
+              }
+              navigateAndClose(rootBreadcrumb?.onClick)
+            }}
             onFocus={openPopover}
             onBlur={scheduleClose}
-            onMouseEnter={openPopover}
-            onMouseLeave={scheduleClose}
+            onPointerEnter={(event) => {
+              if (event.pointerType === 'mouse') openPopover()
+            }}
+            onPointerLeave={(event) => {
+              if (event.pointerType === 'mouse') scheduleClose()
+            }}
             onDragOver={drag?.onDragOver}
             onDragLeave={drag?.onDragLeave}
             onDrop={drag?.onDrop}
             className={cn(
-              chipVariants(),
-              'max-w-none gap-1.5 px-2 transition-colors',
+              'max-w-none',
               open && 'relative z-[var(--z-popover)]',
               className,
               drag?.isActive && chipDropTargetSurfaceClass
             )}
+            leftAdornment={
+              <span className='relative inline-grid size-[16px] shrink-0 place-items-center'>
+                <Icon className='col-start-1 row-start-1 size-[16px] text-[var(--text-icon)] opacity-100 blur-none transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
+                <ArrowUpLeft className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-none group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-none motion-reduce:transition-none' />
+              </span>
+            }
           >
-            <span className='relative inline-grid size-[16px] shrink-0 place-items-center'>
-              <Icon className='col-start-1 row-start-1 size-[16px] text-[var(--text-icon)] opacity-100 blur-none transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
-              <ArrowUpLeft className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-none group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-none motion-reduce:transition-none' />
-            </span>
-            {rootBreadcrumb?.label && (
-              <OverflowText
-                label={rootBreadcrumb.label}
-                className='flex-1 text-[var(--text-body)] text-sm'
-                tooltipEnabled={false}
-              />
-            )}
-          </button>
+            {rootBreadcrumb?.label}
+          </Chip>
         </PopoverAnchor>
         <PopoverContent
           side='bottom'
@@ -554,8 +581,12 @@ function BreadcrumbLocationPopover({
           maxHeight={420}
           border
           className={POPOVER_ANIMATION_CLASSES}
-          onMouseEnter={openPopover}
-          onMouseLeave={scheduleClose}
+          onPointerEnter={(event) => {
+            if (event.pointerType === 'mouse') openPopover()
+          }}
+          onPointerLeave={(event) => {
+            if (event.pointerType === 'mouse') scheduleClose()
+          }}
         >
           <PopoverSection>
             <span className='inline-flex items-center gap-1'>

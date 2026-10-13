@@ -24,6 +24,7 @@ import {
   PROVENANCE_MAX_SERIALIZED_BYTES,
 } from '@/lib/execution/provenance-limits'
 import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import { OWNED_FILE_CONTEXTS } from '@/lib/workspace-files/owned-files'
 import {
   isResolvedSecretProvenanceAbsence,
   type ResolvedSecretTraceProvenanceV1,
@@ -438,7 +439,12 @@ async function markWorkspaceFileSecretProvenanceTrackedInTx(
         eq(workspaceFiles.id, fileId),
         gte(workspaceFiles.contentUpdatedAt, contentUpdatedAt),
         lt(workspaceFiles.contentUpdatedAt, nextContentMillisecond),
-        inArray(workspaceFiles.context, ['workspace', 'mothership', 'execution', 'test']),
+        inArray(workspaceFiles.context, [
+          'workspace',
+          'mothership',
+          'execution',
+          ...OWNED_FILE_CONTEXTS,
+        ]),
         or(
           isNull(workspaceFiles.secretProvenanceVersion),
           eq(workspaceFiles.secretProvenanceVersion, 1)

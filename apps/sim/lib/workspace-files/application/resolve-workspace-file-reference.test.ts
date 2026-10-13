@@ -60,7 +60,7 @@ describe('workspace file reference application service', () => {
       'uploads/source.txt',
       {
         includeChatUploads: true,
-        includeTestFiles: true,
+        includeOwnedFiles: true,
         chatId: 'current-chat',
       }
     )
@@ -76,7 +76,7 @@ describe('workspace file reference application service', () => {
     })
 
     expect(mocks.resolveStoredReference).toHaveBeenCalledWith('workspace-1', 'uploads/photo.png', {
-      includeTestFiles: true,
+      includeOwnedFiles: true,
     })
   })
 

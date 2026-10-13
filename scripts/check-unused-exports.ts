@@ -3,11 +3,11 @@
  * Runs knip once for the whole dead-code audit: zero tolerance for unreachable files and
  * dependency drift, and a shrink-only ratchet for unused exports.
  *
- * `knip.jsonc` scopes plain `knip` (`check:dead-code`) to files, dependencies, unlisted, and
- * unresolved, because thousands of pre-existing unused exports would otherwise drown the report.
- * That left exports unguarded: an agent could export a helper nothing imports, or keep a dead
- * export alive after deleting its last caller, and nothing objected. This script adds knip's
- * `exports`, `types`, and `duplicates` issues on top of the same pass:
+ * `knip.jsonc` scopes plain `knip` to files, dependencies, unlisted, and unresolved, because
+ * thousands of pre-existing unused exports would otherwise drown the report. That left exports
+ * unguarded: an agent could export a helper nothing imports, or keep a dead export alive after
+ * deleting its last caller, and nothing objected. This script adds knip's `exports`, `types`,
+ * and `duplicates` issues on top of the same pass:
  *
  * - Every other issue knip reports must be empty: `files`, `unlisted`, `unresolved`, and every
  *   dependency type the `dependencies` include expands to (`devDependencies`,
@@ -23,8 +23,7 @@
  * files entries. An export whose only consumer knip cannot see (a path-based `import()`, or a
  * helper an audit names as the replacement) carries a `@public` TSDoc tag saying why.
  *
- * Knip is slow, so `run-audits.ts` runs this script and skips `check:dead-code`, which stays
- * available as the human-readable report.
+ * Knip is slow, so this is the only audit that runs it; `check:audits` runs this script.
  *
  * Run: `bun run check:unused-exports`
  */
@@ -116,7 +115,7 @@ if (strict.length) {
   console.error(
     '\nDelete unreachable files, declare or remove dependencies, and fix unresolved imports. ' +
       'If knip cannot see a real entry point, add it to knip.jsonc with a comment saying why. ' +
-      'Details: bun run check:dead-code'
+      'Details: bun run node_modules/knip/bin/knip.js'
   )
 }
 

@@ -7,6 +7,7 @@ import {
   userTableRows,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
 import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
@@ -54,7 +55,7 @@ describe('table mutation audit history in PostgreSQL', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Table audit fixture',
       ownerId: userId,
@@ -85,7 +86,7 @@ describe('table mutation audit history in PostgreSQL', () => {
 
   afterEach(async () => {
     await db.delete(auditLog).where(eq(auditLog.workspaceId, workspaceId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 

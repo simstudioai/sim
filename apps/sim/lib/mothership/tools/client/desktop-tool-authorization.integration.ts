@@ -25,6 +25,7 @@ vi.mock('@/lib/auth', () => authMock)
 
 import { db } from '@sim/db'
 import { copilotAsyncToolCalls, copilotChats, copilotRuns, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -203,7 +204,7 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Desktop authorization fixture',
       ownerId: userId,
@@ -224,7 +225,7 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
 
   afterAll(async () => {
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 

@@ -4,6 +4,7 @@ import { AuditAction } from '@sim/audit'
 import { db } from '@sim/db'
 import { auditLog, organization, user, workspace } from '@sim/db/schema'
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { flushMacrotask } from '@sim/testing/helpers/async'
 import { redisConfigMock, redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { generateShortId } from '@sim/utils/id'
@@ -101,7 +102,7 @@ beforeAll(async () => {
     createdAt: new Date(),
     updatedAt: new Date(),
   })
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: fixtureWorkspaceId,
     name: 'Receipt test workspace',
     ownerId: fixtureUserId,
@@ -143,7 +144,7 @@ afterAll(async () => {
     }
     if (historyKeys.size > 0) await redis.del(...historyKeys)
     await db.delete(auditLog).where(eq(auditLog.workspaceId, fixtureWorkspaceId))
-    await db.delete(workspace).where(eq(workspace.id, fixtureWorkspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, fixtureWorkspaceId))
     await db.delete(user).where(eq(user.id, fixtureUserId))
   } finally {
     restoreAuditObservation?.()

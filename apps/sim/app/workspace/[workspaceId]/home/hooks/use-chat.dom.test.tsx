@@ -4946,7 +4946,9 @@ describe('useChat remount send recovery', () => {
    * saves the turn. A transcript read in that gap is the server's in-flight copy;
    * the tab must read again rather than keep it (live ids, the finished stream
    * still listed as running) until something else happens to refetch. That holds
-   * when the save is slow, and when a follow-up is queued but not yet sent.
+   * when the save is slow, and when a follow-up is queued but not yet sent. While
+   * it waits it polls only the stream status, so however slow the save, the
+   * transcript is read twice: the in-flight copy and the saved one.
    */
   it.each([
     { label: 'right after the first read', unsavedReads: 1, heldFollowUp: false },
@@ -4969,13 +4971,22 @@ describe('useChat remount send recovery', () => {
         let streamId: string | undefined
         let completed = false
         let detailReads = 0
+        /** Reads of either kind the server answers before the save lands. */
+        let readsBeforeSave = unsavedReads
+        const isSaved = () => readsBeforeSave-- <= 0
         mockRequestJson.mockImplementation((contract: AnyApiRouteContract) => {
+          if (contract.path === '/api/mothership/chats/[chatId]/stream-status') {
+            return Promise.resolve({
+              success: true,
+              activeStreamId: completed && !isSaved() ? (streamId ?? null) : null,
+            })
+          }
           if (contract.path !== '/api/mothership/chats/[chatId]') {
             return Promise.resolve({ chats: [] })
           }
           if (!completed) return Promise.resolve({ chat: history })
           detailReads++
-          if (detailReads <= unsavedReads && streamId) {
+          if (!isSaved() && streamId) {
             return Promise.resolve({
               chat: {
                 ...history,
@@ -5051,7 +5062,7 @@ describe('useChat remount send recovery', () => {
           queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
             ?.activeStreamId
         ).toBeNull()
-        expect(detailReads).toBe(unsavedReads + 1)
+        expect(detailReads).toBe(2)
         expect(getResult().isSending).toBe(false)
       } finally {
         vi.useRealTimers()

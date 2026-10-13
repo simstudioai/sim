@@ -3327,7 +3327,8 @@ export function CredentialDisplay(props: Parameters<typeof CredentialDisplayCont
     (item) =>
       item.type === 'link' ||
       item.type === 'service_account' ||
-      item.type === 'sim_key' ||
+      // A masked key has nothing to copy, so only a revealed one needs its workspace.
+      (item.type === 'sim_key' && item.value !== undefined) ||
       (item.type === 'secret_input' && (!item.scope || item.scope === 'workspace'))
   )
   const targets = new Set(targeted.map((item) => item.workspaceId).filter(Boolean))

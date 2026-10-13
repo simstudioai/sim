@@ -99,7 +99,7 @@ export function ColumnConfigSidebar(props: ColumnConfigSidebarProps) {
       role='dialog'
       aria-label='Configure column'
       className={cn(
-        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out',
+        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out motion-reduce:transition-none md:w-[400px]',
         open ? 'translate-x-0 shadow-overlay' : 'translate-x-full'
       )}
     >
@@ -261,14 +261,14 @@ function ColumnConfigBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px] max-md:pointer-coarse:py-0.5'>
         <h2 className='text-[var(--text-primary)] text-small'>Configure column</h2>
         <Button
           variant='ghost'
           size='sm'
           onClick={onClose}
           iconPadding='sm'
-          className='size-7'
+          className='size-7 max-md:pointer-coarse:size-11'
           aria-label='Close'
         >
           <X className='size-[14px]' />
@@ -385,14 +385,24 @@ function ColumnConfigBody({
       </div>
 
       <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>
-        <Button variant='default' size='sm' onClick={onClose}>
+        <Button
+          variant='default'
+          size='sm'
+          onClick={onClose}
+          className='max-md:pointer-coarse:min-h-11 max-md:pointer-coarse:min-w-11'
+        >
           {readOnly ? 'Close' : 'Cancel'}
         </Button>
         {readOnly ? (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <span className='inline-flex'>
-                <Button variant='primary' size='sm' disabled>
+                <Button
+                  variant='primary'
+                  size='sm'
+                  disabled
+                  className='max-md:pointer-coarse:min-h-11 max-md:pointer-coarse:min-w-11'
+                >
                   Save
                 </Button>
               </span>
@@ -400,7 +410,13 @@ function ColumnConfigBody({
             {readOnlyReason && <Tooltip.Content>{readOnlyReason}</Tooltip.Content>}
           </Tooltip.Root>
         ) : (
-          <Button variant='primary' size='sm' onClick={handleSave} disabled={saveDisabled}>
+          <Button
+            variant='primary'
+            size='sm'
+            onClick={handleSave}
+            disabled={saveDisabled}
+            className='max-md:pointer-coarse:min-h-11 max-md:pointer-coarse:min-w-11'
+          >
             {saveDisabled ? 'Saving…' : 'Save'}
           </Button>
         )}

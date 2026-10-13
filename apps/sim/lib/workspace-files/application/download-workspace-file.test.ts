@@ -126,7 +126,7 @@ describe('workspace file downloads', () => {
     mocks.provenance.mockResolvedValue(provenance)
     const observe = vi.fn(async () => {})
     const result = await observeWorkspaceFileDelivery(observe, () => downloadStream('file-2'))
-    expect(observe).toHaveBeenCalledWith(provenance)
+    expect(observe).toHaveBeenCalledWith(provenance, file.id)
     expect(result.secretProvenance).toBeUndefined()
   })
   it('does not return content if the private delivery observer refuses', async () => {

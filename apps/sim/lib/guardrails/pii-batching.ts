@@ -1,6 +1,6 @@
 /**
  * Per-request bounds shared by both Presidio hops: the app→route HTTP call
- * (`mask-client`) and the route→service call (`validate_pii`). Keeping a single
+ * (`mask-client`) and the route→service call (`validate-pii`). Keeping a single
  * source of truth ensures every request stays far under the 10MB Next body limit
  * and small enough for one short spaCy NER pass per Presidio request.
  */

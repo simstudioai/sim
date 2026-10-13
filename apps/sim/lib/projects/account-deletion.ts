@@ -1,34 +1,27 @@
 import { db } from '@sim/db'
-import { member, permissions, project, projectWorkspace, workspace } from '@sim/db/schema'
+import { member, permissions, project, workspace } from '@sim/db/schema'
 import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import {
-  lockProjectBackfillWrites,
-  lockProjects,
-  ProjectConflictError,
-} from '@/lib/projects/membership'
+import { ProjectConflictError } from '@/lib/projects/errors'
+import { lockProjectBackfillWrites, lockProjects } from '@/lib/projects/membership'
 
 /** Two indexed lookups; an `OR` around a membership subquery would scan every Project. */
 async function loadRelatedProjects(executor: DbOrTx, userId: string, doomedWorkspaceIds: string[]) {
   const doomedMemberships = doomedWorkspaceIds.length
     ? await executor
-        .select({ projectId: projectWorkspace.projectId })
-        .from(projectWorkspace)
-        .where(inArray(projectWorkspace.workspaceId, doomedWorkspaceIds))
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(inArray(workspace.id, doomedWorkspaceIds))
     : []
+  const projectIds = doomedMemberships.flatMap((row) => (row.projectId ? [row.projectId] : []))
   return executor
     .select()
     .from(project)
     .where(
       or(
         eq(project.ownerId, userId),
-        doomedMemberships.length
-          ? inArray(
-              project.id,
-              doomedMemberships.map((row) => row.projectId)
-            )
-          : undefined
+        projectIds.length ? inArray(project.id, projectIds) : undefined
       )
     )
     .orderBy(asc(project.id))
@@ -108,16 +101,16 @@ async function loadProjectEnvironments(executor: DbOrTx, projectIds: string[]) {
   const rows = projectIds.length
     ? await executor
         .select({
-          projectId: projectWorkspace.projectId,
+          projectId: workspace.projectId,
           id: workspace.id,
           archivedAt: workspace.archivedAt,
         })
-        .from(projectWorkspace)
-        .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
-        .where(inArray(projectWorkspace.projectId, projectIds))
+        .from(workspace)
+        .where(inArray(workspace.projectId, projectIds))
     : []
   const byProject = new Map<string, ProjectEnvironment[]>()
   for (const { projectId, ...environment } of rows) {
+    if (!projectId) continue
     const environments = byProject.get(projectId)
     if (environments) environments.push(environment)
     else byProject.set(projectId, [environment])
@@ -182,12 +175,13 @@ export async function getProjectAccountDeletionBlockers(
   return blockers
 }
 
-/** Account teardown may erase a wholly private Project, but never strand a surviving one. */
+/** Transfers surviving Projects and returns private Projects to delete after their workspaces. */
 export async function prepareProjectsForAccountDeletion(
   tx: DbTransaction,
   userId: string,
-  doomedWorkspaceIds: string[]
-): Promise<void> {
+  doomedWorkspaceIds: string[],
+  additionalWorkspaceIds: string[] = []
+): Promise<string[]> {
   const ownedEnvironments = await tx
     .select({ id: workspace.id })
     .from(workspace)
@@ -212,7 +206,24 @@ export async function prepareProjectsForAccountDeletion(
     tx,
     records.map((record) => record.id)
   )
+  /** Acquire every workspace before successor grants; member removal uses the same order. */
+  const workspaceIds = [
+    ...new Set([
+      ...doomedWorkspaceIds,
+      ...additionalWorkspaceIds,
+      ...[...environments.values()].flatMap((rows) => rows.map((row) => row.id)),
+    ]),
+  ]
+  if (workspaceIds.length) {
+    await tx
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(inArray(workspace.id, workspaceIds))
+      .orderBy(asc(workspace.id))
+      .for('update')
+  }
   const doomed = new Set(doomedWorkspaceIds)
+  const projectsToDelete: string[] = []
   const now = new Date()
   for (const record of records) {
     const decision = await planProjectDeletion(
@@ -225,8 +236,7 @@ export async function prepareProjectsForAccountDeletion(
     )
     if ('blocker' in decision) throw new ProjectConflictError(decision.blocker)
     if ('remove' in decision) {
-      await tx.delete(projectWorkspace).where(eq(projectWorkspace.projectId, record.id))
-      await tx.delete(project).where(eq(project.id, record.id))
+      projectsToDelete.push(record.id)
       continue
     }
     if (!decision.archive && !decision.ownerId) continue
@@ -239,4 +249,5 @@ export async function prepareProjectsForAccountDeletion(
       })
       .where(eq(project.id, record.id))
   }
+  return projectsToDelete
 }

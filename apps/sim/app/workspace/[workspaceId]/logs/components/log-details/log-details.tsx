@@ -345,7 +345,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = 0
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable nuqs setter; reset tab when switching logs
+    // stable nuqs setter; reset tab when switching logs
   }, [log.id])
 
   const isLikelyExecution = !!log.executionId && log.trigger !== 'mothership'

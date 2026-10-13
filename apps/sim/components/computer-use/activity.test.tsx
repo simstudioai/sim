@@ -31,7 +31,6 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
-  vi.unstubAllGlobals()
 })
 
 it.each(['pending', 'failed'] as const)(

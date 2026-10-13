@@ -6,7 +6,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { retryWorkspaceMoveFollowUpJob, WorkspaceMoveError } from '@/lib/workspaces/admin-move'
 import { getAdminAuditActor } from '@/app/api/v1/admin/dashboard/actor'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
-import { badRequestResponse, internalErrorResponse } from '@/app/api/v1/admin/responses'
+import { adminBadRequestResponse, adminInternalErrorResponse } from '@/app/api/v1/admin/responses'
 
 interface RouteParams {
   id: string
@@ -34,8 +34,8 @@ export const POST = withRouteHandler(
         }),
       })
     } catch (error) {
-      if (error instanceof WorkspaceMoveError) return badRequestResponse(error.message)
-      return internalErrorResponse(
+      if (error instanceof WorkspaceMoveError) return adminBadRequestResponse(error.message)
+      return adminInternalErrorResponse(
         getErrorMessage(error, 'Could not retry the workspace-move follow-up job')
       )
     }

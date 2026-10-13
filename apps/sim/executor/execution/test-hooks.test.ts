@@ -79,6 +79,10 @@ function run(
       workspaceId: 'ws',
       executionId: 'exec-1',
       principal: PRINCIPAL,
+      executorDelegationOrigin: {
+        workflowId: 'wf',
+        currentWorkflow: { workflowId: 'wf', mode: 'draft' },
+      },
       testHooks: channel.hooks,
       ...(abortSignal ? { abortSignal } : {}),
     },

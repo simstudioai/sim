@@ -6,8 +6,10 @@ import {
   desc,
   eq,
   gt,
+  gte,
   ilike,
   lt,
+  lte,
   or,
   type SQL,
   type SQLWrapper,
@@ -33,7 +35,7 @@ export type ListSortOrder = (typeof LIST_SORT_ORDERS)[number]
  * Case-insensitive substring predicate for a v2 `search` term, or `undefined`
  * when the caller did not search (which drops out of an `and(...)`).
  */
-export function searchFilter(column: Column, term: string | undefined): SQL | undefined {
+export function searchFilter(column: Column | SQL, term: string | undefined): SQL | undefined {
   if (term === undefined) return undefined
   return ilike(column, `%${escapeLikePattern(term)}%`)
 }
@@ -62,10 +64,24 @@ export interface KeysetKey<Row> {
   encode: (row: Row) => CursorKey
   /** The cursor value as bindable SQL, or `null` when this key cannot hold it. */
   bind: (value: CursorKey) => SQL | null
+  /**
+   * Whether a cursor leading with this key also states its inclusive bound — see
+   * {@link keysetAfter}. Set only on a key an index serves in order.
+   */
+  boundsScan?: boolean
+  /**
+   * A direction this key keeps whatever order the caller requested — a tiebreaker that
+   * stays A→Z under a descending primary sort. Absent means the requested order.
+   */
+  direction?: ListSortOrder
+}
+
+function keyDirection<Row>(key: KeysetKey<Row>, order: ListSortOrder): ListSortOrder {
+  return key.direction ?? order
 }
 
 /** A text key — names, titles, ids. */
-export function textKey<Row>(column: Column, read: (row: Row) => string): KeysetKey<Row> {
+export function textKey<Row>(column: SQLWrapper, read: (row: Row) => string): KeysetKey<Row> {
   return {
     expr: column,
     encode: read,
@@ -128,9 +144,9 @@ export function decimalKey<Row>(column: SQLWrapper, read: (row: Row) => string):
  * can express, so the `id` tiebreaker is what actually separates rows inside a
  * millisecond.
  *
- * `date_trunc` rules out an index-ordered scan, but none of the timestamp
- * columns sorted here are indexed, so it costs nothing today. Adding an index
- * to serve one of these sorts means indexing this same expression.
+ * `date_trunc` rules out an index-ordered scan on the column. A list whose
+ * sort an index on the raw column should serve uses {@link preciseTimestampKey}
+ * instead, which orders on the column itself.
  *
  * The column serializes the `Date` (drizzle's own timestamp encoder) and also
  * supplies the cast. A bare placeholder arrives as `unknown` and `date_trunc` is
@@ -154,6 +170,71 @@ export function timestampKey<Row>(column: Column, read: (row: Row) => Date): Key
   }
 }
 
+/**
+ * The text spelling a {@link preciseTimestampKey} cursor carries: ISO 8601 in
+ * UTC with all six fractional digits Postgres stores.
+ */
+const PRECISE_TIMESTAMP_CURSOR_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/
+
+/**
+ * What a timestamp cursor value is: a {@link preciseTimestampKey} position, a
+ * date for the millisecond {@link timestampKey}, or neither.
+ *
+ * The one place a timestamp cursor is classified, so a codec that validates a
+ * caller's token and the keyset that later binds it cannot disagree — a token
+ * the codec admits but the key refuses would surface as a 500 on a surface that
+ * renders its own errors.
+ *
+ * A value spelled in the precise form is precise or invalid, never a date: it
+ * must name a real instant, because the pattern admits `2026-02-30`, which a
+ * `Date` silently rolls into March and Postgres refuses outright. Anything else a
+ * `Date` parses is a date. Both classes stay within years 1 to 9999, the range
+ * whose ISO spelling Postgres reads back.
+ */
+export function classifyTimestampCursor(value: CursorKey): 'precise' | 'date' | 'invalid' {
+  if (typeof value !== 'string') return 'invalid'
+  const date = new Date(value)
+  const year = date.getUTCFullYear()
+  if (Number.isNaN(date.getTime()) || year < 1 || year > 9999) return 'invalid'
+  if (!PRECISE_TIMESTAMP_CURSOR_PATTERN.test(value)) return 'date'
+  return date.toISOString().slice(0, 23) === value.slice(0, 23) ? 'precise' : 'invalid'
+}
+
+/**
+ * A `timestamp` column rendered as a {@link preciseTimestampKey} cursor value.
+ *
+ * Select it next to the column so each row carries its own full-precision
+ * position. Only for a `timestamp` (without time zone) column, which holds UTC
+ * wall-clock time: `to_char` renders a `timestamptz` in the session time zone,
+ * which the trailing `Z` would misstate.
+ */
+export function preciseTimestampText(column: Column | SQL): SQL<string> {
+  return sql<string>`to_char(${column}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
+}
+
+/**
+ * A `timestamp` key ordered and compared on the raw column at full microsecond
+ * precision, so an index on the column serves the sort.
+ *
+ * {@link timestampKey} truncates to milliseconds because its cursor value comes
+ * from a JS `Date`; this key instead reads the row's {@link preciseTimestampText}
+ * value, so the cursor names the exact stored instant and the raw ordering needs
+ * no truncation. `timestamp` input ignores the trailing `Z`. It binds only a
+ * value {@link classifyTimestampCursor} calls precise.
+ */
+export function preciseTimestampKey<Row>(
+  column: SQLWrapper,
+  read: (row: Row) => string
+): KeysetKey<Row> {
+  return {
+    expr: column,
+    encode: read,
+    boundsScan: true,
+    bind: (value) =>
+      classifyTimestampCursor(value) === 'precise' ? sql`cast(${value} as timestamp)` : null,
+  }
+}
+
 export function sortDirection(order: ListSortOrder): typeof asc {
   return order === 'asc' ? asc : desc
 }
@@ -166,6 +247,11 @@ export function sortDirection(order: ListSortOrder): typeof asc {
 export function listOrderBy(keys: readonly SQLWrapper[], order: ListSortOrder): SQL[] {
   const direction = sortDirection(order)
   return keys.map((key) => direction(key))
+}
+
+/** `ORDER BY` for a keyset, each key in its own {@link KeysetKey.direction} or the requested one. */
+export function keysetOrderBy<Row>(keys: readonly KeysetKey<Row>[], order: ListSortOrder): SQL[] {
+  return keys.map((key) => sortDirection(keyDirection(key, order))(key.expr))
 }
 
 /** The `expr` of each keyset key, for `ORDER BY`. */
@@ -230,8 +316,14 @@ export function keysetPage<Row>(
 
 /**
  * The `WHERE` half of the keyset: strictly after `values` in the requested
- * direction, expanded lexicographically so ties on a leading key fall through
- * to the next one.
+ * direction (or a key's own {@link KeysetKey.direction}), expanded
+ * lexicographically so ties on a leading key fall through to the next one.
+ *
+ * When the leading key {@link KeysetKey.boundsScan | bounds the scan}, the
+ * cursor also carries that key's inclusive bound, which the expansion already
+ * implies. Postgres cannot derive a range from an `OR`, so without it an index
+ * on the leading key starts every page at the top of the list and filters its
+ * way down to the cursor.
  *
  * Returns `null` when the cursor does not fit this sort — wrong number of keys,
  * or a value the key cannot hold. Callers render that as a 400 rather than
@@ -251,9 +343,15 @@ export function keysetAfter<Row>(
     bound.push(value)
   }
 
-  const beyond = order === 'asc' ? gt : lt
   const clauses = keys.map((key, i) =>
-    and(...keys.slice(0, i).map((prior, j) => eq(prior.expr, bound[j])), beyond(key.expr, bound[i]))
+    and(
+      ...keys.slice(0, i).map((prior, j) => eq(prior.expr, bound[j])),
+      (keyDirection(key, order) === 'asc' ? gt : lt)(key.expr, bound[i])
+    )
   )
-  return or(...clauses) ?? null
+  const after = or(...clauses)
+  if (!after) return null
+  if (keys.length === 1 || !keys[0].boundsScan) return after
+  const atOrBeyond = keyDirection(keys[0], order) === 'asc' ? gte : lte
+  return and(atOrBeyond(keys[0].expr, bound[0]), after) ?? null
 }

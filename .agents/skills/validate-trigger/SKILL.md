@@ -87,7 +87,7 @@ If a payload schema is unknown, validation must explicitly recommend:
 - [ ] Trigger selectors use the shared `selectors.execute` transport, with no client provider
       module, browser token request, or selector-only provider route
 
-### Trigger ↔ Provider Alignment (CRITICAL)
+### Trigger ↔ Provider Alignment
 - [ ] Every trigger ID referenced in `matchEvent` logic exists in `{service}TriggerOptions`
 - [ ] Event matching logic in the provider correctly maps trigger IDs to service event types
 - [ ] Event matching logic in `is{Service}EventMatch` (if exists) correctly identifies events per the API docs
@@ -110,7 +110,7 @@ If a payload schema is unknown, validation must explicitly recommend:
 - [ ] When `triggerId` is specific, only matching events pass
 - [ ] Event matching logic uses dynamic `await import()` for trigger utils (avoids circular deps)
 
-### formatInput (CRITICAL)
+### formatInput
 - [ ] Every key in the `formatInput` return matches a key in the trigger `outputs` schema
 - [ ] Every key in the trigger `outputs` schema is populated by `formatInput`
 - [ ] No extra undeclared keys that users can't discover in the UI

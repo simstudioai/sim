@@ -2720,7 +2720,6 @@ export function useWorkflowExecution() {
         releaseReconnectOwnership()
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWorkflowId, hasHydrated, reconnectAttemptNonce])
 
   return {

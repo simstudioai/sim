@@ -43,7 +43,7 @@ async function executeReadWorkspaceFileContent({
     includeDeleted: input.includeDeleted,
     throwOnError: true,
     includeChatUploads: true,
-    includeTestFiles: true,
+    includeOwnedFiles: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
   const content = await fetchWorkspaceFileBuffer(file, {

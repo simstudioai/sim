@@ -26,7 +26,6 @@ describe('search projection upgrade in PostgreSQL', () => {
       'document',
       'embedding',
       'embedding_search',
-      'embedding_keyword_tin',
       'knowledge_projection_dirty',
     ]) {
       await admin.unsafe(

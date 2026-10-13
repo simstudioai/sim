@@ -4488,6 +4488,74 @@ type DeployWorkflowResponseRef3 = {
 }
 
 type DeployWorkflowResponseRef4 = {
+  sources: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  sinks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  orphanBlocks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  emptyOutgoingPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    handle: string
+    label: string
+  }>
+  invalidBranchPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    sourceHandle: string
+    reason: string
+  }>
+  invalidConnectionTargets: Array<{
+    sourceBlockId: string
+    sourceBlockName: string | null
+    sourceHandle: string | null
+    targetBlockId: string
+    reason: string
+  }>
+  fieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    missingRequiredFields: Array<string>
+    inactiveModeValues: Array<{
+      canonicalId: string
+      activeMemberId: string | null
+      inactiveMemberId: string
+      kind: 'credential' | 'resource' | 'other'
+    }>
+  }>
+  unresolvedReferences: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    value: string | Array<string>
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    reason: string
+  }>
+  tableFieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    tableName: string
+  }>
+  notes: Array<string>
+}
+
+type DeployWorkflowResponseRef5 = {
   id: string
   isDeployed: boolean
   deployedAt: string | null
@@ -4495,10 +4563,11 @@ type DeployWorkflowResponseRef4 = {
   activeDeployment: DeployWorkflowResponseRef0 | null
   latestDeploymentAttempt: DeployWorkflowResponseRef1 | null
   version?: number
+  lint: DeployWorkflowResponseRef4 | null
 }
 
 export type DeployWorkflowResponse = {
-  data: DeployWorkflowResponseRef4
+  data: DeployWorkflowResponseRef5
 }
 
 /** `POST /api/v2/workflow-mcp-servers/[serverId]/tools` */

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import nodemailer from 'nodemailer'
 import { env, envBoolean, envNumber } from '@/lib/core/config/env'
 import { getSmtpEhloName } from '@/lib/messaging/email/ehlo'
-import { sendViaNodemailer } from '@/lib/messaging/email/providers/_nodemailer'
+import { sendViaNodemailer } from '@/lib/messaging/email/providers/send-via-nodemailer'
 import type { MailProvider } from '@/lib/messaging/email/types'
 
 const logger = createLogger('SmtpMailProvider')

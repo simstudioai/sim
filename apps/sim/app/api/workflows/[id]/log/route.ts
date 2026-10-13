@@ -15,7 +15,7 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { createCodedErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -35,7 +35,10 @@ export const POST = withRouteHandler(
         logger.warn(
           `[${requestId}] Workflow access validation failed: ${accessValidation.error.message}`
         )
-        return createErrorResponse(accessValidation.error.message, accessValidation.error.status)
+        return createCodedErrorResponse(
+          accessValidation.error.message,
+          accessValidation.error.status
+        )
       }
 
       const parsed = await parseRequest(workflowLogContract, request, context)
@@ -46,7 +49,7 @@ export const POST = withRouteHandler(
       if (result) {
         if (!executionId) {
           logger.warn(`[${requestId}] Missing executionId for result logging`)
-          return createErrorResponse('executionId is required when logging results', 400)
+          return createCodedErrorResponse('executionId is required when logging results', 400)
         }
 
         const [existingLog] = await db
@@ -61,14 +64,14 @@ export const POST = withRouteHandler(
 
         if (!existingLog) {
           logger.warn(`[${requestId}] No persisted start found for execution ${executionId}`)
-          return createErrorResponse('Execution not found', 404)
+          return createCodedErrorResponse('Execution not found', 404)
         }
 
         if (existingLog.workflowId !== id) {
           logger.warn(
             `[${requestId}] executionId ${executionId} belongs to workflow ${existingLog.workflowId}, not ${id}`
           )
-          return createErrorResponse('Execution not found', 404)
+          return createCodedErrorResponse('Execution not found', 404)
         }
 
         const storedBillingAttributionValue =
@@ -82,7 +85,7 @@ export const POST = withRouteHandler(
           logger.error(
             `[${requestId}] Existing execution ${executionId} is missing immutable billing attribution`
           )
-          return createErrorResponse('Execution billing attribution is unavailable', 500)
+          return createCodedErrorResponse('Execution billing attribution is unavailable', 500)
         }
 
         let billingAttribution: BillingAttributionSnapshot
@@ -93,7 +96,7 @@ export const POST = withRouteHandler(
             `[${requestId}] Existing execution ${executionId} has invalid immutable billing attribution`,
             { error }
           )
-          return createErrorResponse('Execution billing attribution is unavailable', 500)
+          return createCodedErrorResponse('Execution billing attribution is unavailable', 500)
         }
 
         if (
@@ -103,7 +106,7 @@ export const POST = withRouteHandler(
           logger.error(
             `[${requestId}] Existing execution ${executionId} has inconsistent workspace attribution`
           )
-          return createErrorResponse('Execution billing attribution is unavailable', 500)
+          return createCodedErrorResponse('Execution billing attribution is unavailable', 500)
         }
 
         const actorUserId = accessValidation.auth?.userId
@@ -111,7 +114,7 @@ export const POST = withRouteHandler(
           logger.warn(
             `[${requestId}] Authenticated actor does not match execution ${executionId} attribution`
           )
-          return createErrorResponse('Execution is not authorized for this caller', 403)
+          return createCodedErrorResponse('Execution is not authorized for this caller', 403)
         }
 
         logger.info(`[${requestId}] Persisting execution result for workflow: ${id}`, {
@@ -193,7 +196,7 @@ export const POST = withRouteHandler(
 
       if (!logs || !Array.isArray(logs) || logs.length === 0) {
         logger.warn(`[${requestId}] No logs provided for workflow: ${id}`)
-        return createErrorResponse('No logs provided', 400)
+        return createCodedErrorResponse('No logs provided', 400)
       }
 
       logger.info(`[${requestId}] Persisting ${logs.length} logs for workflow: ${id}`, {
@@ -203,7 +206,7 @@ export const POST = withRouteHandler(
       return createSuccessResponse({ message: 'Logs persisted successfully' })
     } catch (error: any) {
       logger.error(`[${requestId}] Error persisting logs for workflow: ${id}`, error)
-      return createErrorResponse(error.message || 'Failed to persist logs', 500)
+      return createCodedErrorResponse(error.message || 'Failed to persist logs', 500)
     }
   }
 )

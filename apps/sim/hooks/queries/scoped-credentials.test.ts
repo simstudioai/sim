@@ -11,7 +11,7 @@ vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/hooks/queries/utils/fetch-workspace-credentials', () => ({
   fetchWorkspaceCredentialList: mocks.workspaceList,
 }))
-vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
+vi.mock('@/hooks/queries/oauth/credentials', () => ({
   oauthCredentialKeys: { lists: () => ['oauth-credentials', 'list'] },
 }))
 vi.mock('@/hooks/queries/utils/selector-keys', () => ({ invalidateSelectorQueries: vi.fn() }))

@@ -3,7 +3,7 @@ import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getEffectiveCurrentPeriodCost } from '@/lib/billing/core/usage'
 import { RateLimiter } from '@/lib/core/rate-limiter'
-import type { LogFieldProjection } from '@/lib/logs/log-projection'
+import type { LogFieldProjection } from '@/lib/logs/projection'
 
 export interface UserLimits {
   workflowExecutionRateLimit: {

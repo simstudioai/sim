@@ -95,6 +95,7 @@ import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import { MONDAY_OAUTH_TOKEN_URL, resolveMondayAccessTokenExpiresAt } from '@/lib/oauth/monday'
 import type { QuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
 import { QUICKBOOKS_TOKEN_URL } from '@/lib/oauth/quickbooks-constants'
+import { isCredentialRevocationError } from '@/lib/oauth/refresh-error-codes'
 import {
   SALESFORCE_ADDITIONAL_PROVIDER_IDS,
   SALESFORCE_LOGIN_HOSTS,
@@ -2420,6 +2421,13 @@ function oauthResponseRecord(value: unknown): Record<string, unknown> | undefine
 
 const OAUTH_RESPONSE_OMITTED = '[token endpoint response omitted]'
 
+/** A revoked grant is its owner's to reconnect, not a fault of ours, so it logs at WARN. */
+function logRefreshRejection(errorCode: string | undefined, providerId: string) {
+  return isCredentialRevocationError(errorCode, providerId)
+    ? logger.warn.bind(logger)
+    : logger.error.bind(logger)
+}
+
 async function refreshInstagramLongLivedToken(
   config: ProviderAuthConfig,
   longLivedToken: string,
@@ -2444,7 +2452,7 @@ async function refreshInstagramLongLivedToken(
   if (!response.ok) {
     const exactSecrets = [longLivedToken, config.clientSecret ?? '']
     const errorCode = safeOAuthErrorCode(responseData, exactSecrets)
-    logger.error('Instagram long-lived token refresh failed:', {
+    logRefreshRejection(errorCode, providerId)('Instagram long-lived token refresh failed:', {
       status: response.status,
       error: OAUTH_RESPONSE_OMITTED,
       errorCode,
@@ -2518,7 +2526,7 @@ export async function refreshOAuthToken(
     if (!response.ok) {
       const errorCode = safeOAuthErrorCode(responseData, exactSecrets)
 
-      logger.error('Token refresh failed:', {
+      logRefreshRejection(errorCode, providerId)('Token refresh failed:', {
         status: response.status,
         error: OAUTH_RESPONSE_OMITTED,
         errorCode,
@@ -2546,7 +2554,7 @@ export async function refreshOAuthToken(
       (provider === 'github-repositories' && typeof data.error === 'string')
     ) {
       const errorCode = safeOAuthErrorCode(data, exactSecrets)
-      logger.error('Token refresh failed:', {
+      logRefreshRejection(errorCode, providerId)('Token refresh failed:', {
         status: response.status,
         error: OAUTH_RESPONSE_OMITTED,
         errorCode,

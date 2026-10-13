@@ -31,6 +31,7 @@ import {
   REPO_DIR,
   raceAbort,
   scrubGitSecrets,
+  toolResultError,
 } from '@/executor/handlers/pi/cloud/shared'
 import type { PiBackendRun, PiCloudReviewRunParams } from '@/executor/handlers/pi/core/backend'
 import { buildPiPrompt } from '@/executor/handlers/pi/core/context'
@@ -186,9 +187,7 @@ async function submitReview(
   )
 
   if (!result.success) {
-    throw new Error(
-      `Failed to submit review for PR #${params.pullNumber}: ${result.error ?? 'unknown error'}`
-    )
+    throw toolResultError(`Failed to submit review for PR #${params.pullNumber}`, result)
   }
 
   const output: unknown = result.output

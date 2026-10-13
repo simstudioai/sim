@@ -17,7 +17,7 @@ import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import {
-  createErrorResponse,
+  createFileErrorResponse,
   createFileResponse,
   FileNotFoundError,
   getContentType,
@@ -163,9 +163,11 @@ export const GET = withRouteHandler(
     } catch (error) {
       logger.error('Error serving public shared file:', error)
       if (error instanceof FileNotFoundError) {
-        return createErrorResponse(error)
+        return createFileErrorResponse(error)
       }
-      return createErrorResponse(error instanceof Error ? error : new Error('Failed to serve file'))
+      return createFileErrorResponse(
+        error instanceof Error ? error : new Error('Failed to serve file')
+      )
     }
   }
 )

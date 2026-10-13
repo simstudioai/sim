@@ -515,7 +515,8 @@ const NO_WORKSPACE_FALLBACK =
   'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
 
 export interface BuiltRequest {
-  path: string
+  /** The values filling the operation's `[param]` path segments, encoded when routed. */
+  params: Record<string, string>
   query: Record<string, QueryValue>
   body: Record<string, unknown> | undefined
   /** Contract-declared request headers, absent when the operation declares none. */
@@ -561,7 +562,7 @@ export async function buildRequest(
   const commandSpec: CommandSpec = CLI_CONTRACT[operation] ?? {}
   const spec: OperationSpec = V2_OPERATIONS[operation]
 
-  let path = spec.path
+  const params: Record<string, string> = {}
   let positionalIndex = 0
   for (const param of spec.pathParams) {
     const pathFlag = commandSpec.pathFlags?.[param]
@@ -585,8 +586,7 @@ export async function buildRequest(
         0
       )
     }
-    // Ids are opaque; an unencoded `/` or `?` would silently retarget the request.
-    path = path.replace(`[${param}]`, encodeURIComponent(value))
+    params[param] = value
   }
 
   const query: Record<string, QueryValue> = {}
@@ -760,7 +760,7 @@ export async function buildRequest(
         throw new SimApiError(`--${variant.name} must be a JSON ${variant.kind}`, 0)
       }
       return boundedRequest({
-        path,
+        params,
         query,
         body: { ...body, [variant.property]: parsed },
         ...headerSlot,
@@ -774,7 +774,7 @@ export async function buildRequest(
       throw new SimApiError('--body must be a JSON object', 0)
     }
     return boundedRequest({
-      path,
+      params,
       query,
       body: { ...body, ...(parsed as Record<string, unknown>) },
       ...headerSlot,
@@ -782,7 +782,7 @@ export async function buildRequest(
   }
 
   return boundedRequest({
-    path,
+    params,
     query,
     /**
      * A declared JSON body is still an object when all of its fields are optional.

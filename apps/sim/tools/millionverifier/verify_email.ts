@@ -15,6 +15,13 @@ const STATUS_MAP: Record<string, string> = {
   unverified: 'unverified',
 }
 
+/**
+ * MillionVerifier charges only for ok, invalid, and disposable results; risky
+ * results (catch-all, unknown) are free —
+ * https://help.millionverifier.com/email-verification/email-verification-results.
+ */
+const BILLED_STATUSES = new Set(['valid', 'invalid', 'disposable'])
+
 export const verifyEmailTool: ToolConfig<
   MillionVerifierVerifyEmailParams,
   MillionVerifierVerifyEmailResponse
@@ -24,10 +31,9 @@ export const verifyEmailTool: ToolConfig<
   description: 'Verify the deliverability of an email address. Uses one verification credit.',
   version: '1.0.0',
 
-  hosting: millionverifierHosting<MillionVerifierVerifyEmailParams>(() => {
-    // Each verification consumes one MillionVerifier credit.
-    return 1
-  }),
+  hosting: millionverifierHosting<MillionVerifierVerifyEmailParams>((_params, output) =>
+    BILLED_STATUSES.has(String(output.status)) ? 1 : 0
+  ),
 
   params: {
     email: {

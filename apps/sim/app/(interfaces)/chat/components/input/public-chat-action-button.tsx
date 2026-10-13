@@ -12,6 +12,12 @@ interface PublicChatActionButtonProps
 
 /** Public chat's circular composer action, retaining its primary and quiet palettes. */
 export const PublicChatActionButton = forwardRef<HTMLButtonElement, PublicChatActionButtonProps>(
-  (props, ref) => <Button {...props} ref={ref} className='size-[28px] rounded-full p-0' />
+  (props, ref) => (
+    <Button
+      {...props}
+      ref={ref}
+      className='size-[44px] rounded-full bg-clip-content p-2 md:size-[28px] md:p-0'
+    />
+  )
 )
 PublicChatActionButton.displayName = 'PublicChatActionButton'

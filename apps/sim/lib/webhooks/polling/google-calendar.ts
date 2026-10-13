@@ -5,12 +5,16 @@ import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
   type PollingProviderHandler,
+  type PollOutcome,
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
+  PollAdmissionRefusedError,
   resolveOAuthCredential,
+  skipAdmissionRefusedPoll,
+  throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -94,7 +98,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
   provider: 'google-calendar',
   label: 'Google Calendar',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
 
@@ -170,6 +174,9 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError) {
+        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+      }
       logger.error(`[${requestId}] Error processing Google Calendar webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
@@ -329,6 +336,7 @@ async function processEvents(
           )
 
           if (!result.success) {
+            throwIfAdmissionRefused(result)
             logger.error(
               `[${requestId}] Failed to process webhook for event ${event.id}:`,
               result.statusCode,
@@ -346,6 +354,7 @@ async function processEvents(
       )
       processedCount++
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(`[${requestId}] Error processing event ${event.id}:`, errorMessage)
       failedCount++

@@ -1,6 +1,6 @@
 'use client'
 
-import { SimWordmark } from '@sim/emcn'
+import { OverflowText, SimWordmark } from '@sim/emcn'
 import Image from 'next/image'
 import Link from 'next/link'
 import { GithubIcon } from '@/components/icons'
@@ -27,10 +27,10 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
   return (
     <nav
       aria-label='Chat navigation'
-      className='flex w-full items-center justify-between px-4 pt-3 pb-[21px] sm:px-8 sm:pt-[8.5px] md:px-[44px] md:pt-4'
+      className='flex w-full shrink-0 items-center justify-between gap-3 px-4 pt-3 pb-[21px] sm:px-8 sm:pt-[8.5px] md:px-[44px] md:pt-4'
     >
-      <div className='flex items-center gap-[34px]'>
-        <div className='flex items-center gap-3'>
+      <div className='min-w-0 flex-1'>
+        <div className='flex min-w-0 items-center gap-3'>
           {customImage && (
             <Image
               src={customImage}
@@ -38,22 +38,24 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
               width={24}
               height={24}
               unoptimized
-              className='size-6 rounded-md object-cover'
+              className='size-6 shrink-0 rounded-md object-cover'
             />
           )}
-          <h2 className='text-[var(--text-primary)] text-lg'>
-            {chatConfig?.customizations?.headerText || chatConfig?.title || 'Chat'}
+          <h2 className='min-w-0 text-[var(--text-primary)] text-lg'>
+            <OverflowText
+              label={chatConfig?.customizations?.headerText || chatConfig?.title || 'Chat'}
+            />
           </h2>
         </div>
       </div>
 
       {!brand.logoUrl && (
-        <div className='flex items-center gap-4'>
+        <div className='flex shrink-0 items-center gap-4'>
           <a
             href='https://github.com/simstudioai/sim'
             target='_blank'
             rel='noopener noreferrer'
-            className='flex items-center gap-2 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-primary)]'
+            className='hidden items-center gap-2 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-primary)] md:flex'
             aria-label={`GitHub repository - ${starCount} stars`}
           >
             <GithubIcon className='size-[16px]' aria-hidden='true' />

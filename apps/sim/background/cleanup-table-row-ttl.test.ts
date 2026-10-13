@@ -1,5 +1,6 @@
 import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { tableConstantsMock, tableConstantsMockFns } from '@sim/testing/mocks/table-constants.mock'
 import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
 import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-trigger.mock'
@@ -13,10 +14,7 @@ vi.unmock('drizzle-orm')
 const mockDeleteExecute = vi.fn()
 
 vi.mock('@/lib/table/events', () => tableEventsMock)
-vi.mock('@/lib/table/constants', () => ({
-  getDeleteSnapshotBatchSize: () => 500,
-  TABLE_LIMITS: { DELETE_SNAPSHOT_BATCH_MAX_BYTES: 32 * 1024 * 1024 },
-}))
+vi.mock('@/lib/table/constants', () => tableConstantsMock)
 vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 
@@ -55,6 +53,7 @@ function returnedRows(count: number, start = 1, createdAt = '2026-01-01T00:00:00
 
 describe('table row TTL cleanup', () => {
   beforeEach(() => {
+    tableConstantsMockFns.mockGetDeleteSnapshotBatchSize.mockReturnValue(500)
     mockListExecute.mockResolvedValue([{ id: table.id, workspaceId: table.workspaceId }])
     mockWithLockedTable.mockImplementation(
       async (

@@ -33,11 +33,11 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillPayerOverageThreshold: vi.fn(),
 }))
 vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
-vi.mock('@/lib/guardrails/validate_hallucination', () => ({
+vi.mock('@/lib/guardrails/validate-hallucination', () => ({
   validateHallucination: mocks.validateHallucination,
 }))
-vi.mock('@/lib/guardrails/validate_json', () => ({ validateJson: mocks.validateJson }))
-vi.mock('@/lib/guardrails/validate_regex', () => ({ validateRegex: mocks.validateRegex }))
+vi.mock('@/lib/guardrails/validate-json', () => ({ validateJson: mocks.validateJson }))
+vi.mock('@/lib/guardrails/validate-regex', () => ({ validateRegex: mocks.validateRegex }))
 vi.mock('@/lib/guardrails/validation-client', () => ({
   validatePIIViaHttp: mocks.validatePIIViaHttp,
 }))

@@ -21,7 +21,7 @@
 import { useCopyToClipboard } from '../../hooks/use-copy-to-clipboard'
 import { Button, Check, Duplicate } from '../../index'
 import { cn } from '../../lib/cn'
-import { chipFieldSurfaceClass, chipFieldTextClass } from '../chip/chip-chrome'
+import { chipFieldSurfaceClass, chipFieldTextClass } from '../chip/chrome'
 
 const REDACTED_DOTS = '••••••••••••••••••••••••••••••••'
 

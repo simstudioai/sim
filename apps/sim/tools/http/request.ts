@@ -96,6 +96,8 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     },
   },
 
+  timeoutParamIsDeadline: true,
+
   request: {
     allowSameOrigin: true,
     url: (params: RequestParams) => {

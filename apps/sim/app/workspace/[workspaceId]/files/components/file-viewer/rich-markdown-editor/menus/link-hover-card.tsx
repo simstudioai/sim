@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom'
-import { useCopyToClipboard } from '@sim/emcn'
+import { cn, MENU_STYLES, useCopyToClipboard } from '@sim/emcn'
 import { Check, Duplicate, Pencil, Unlink } from '@sim/emcn/icons'
 import { getMarkRange } from '@tiptap/core'
 import { type Editor, useEditorState } from '@tiptap/react'
@@ -187,7 +187,11 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) dismiss()
       }}
-      className='z-[var(--z-popover)] flex items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-xs transition-opacity duration-150 ease-out'
+      className={cn(
+        MENU_STYLES.surface,
+        MENU_STYLES.padding,
+        'z-[var(--z-popover)] flex items-center gap-0.5 transition-opacity duration-150 ease-out'
+      )}
     >
       {isEditing ? (
         <>

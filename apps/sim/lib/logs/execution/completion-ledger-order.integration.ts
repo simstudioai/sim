@@ -11,6 +11,7 @@ import {
   workflowExecutionSnapshots,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
@@ -84,7 +85,7 @@ beforeAll(async () => {
     createdAt: now,
     updatedAt: now,
   })
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: ids.workspace,
     name: 'Ledger Order',
     ownerId: ids.owner,
@@ -107,7 +108,7 @@ afterAll(async () => {
   await db
     .delete(workflowExecutionSnapshots)
     .where(eq(workflowExecutionSnapshots.workflowId, ids.workflow))
-  await db.delete(workspace).where(eq(workspace.id, ids.workspace))
+  await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspace))
   await db.delete(user).where(eq(user.id, ids.owner))
 })
 

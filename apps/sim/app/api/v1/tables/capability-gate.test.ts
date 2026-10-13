@@ -13,20 +13,20 @@
  * row and the governing group config are mocked.
  */
 import { createRouteContext } from '@sim/testing/helpers/http'
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
 import {
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
 } from '@sim/testing/mocks/permission-group-scope.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { rateLimiterMock } from '@sim/testing/mocks/rate-limiter.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
 import { tableWireMock } from '@sim/testing/mocks/table-wire.mock'
 import {
   v1PersonalKeyCredential,
   v1RateLimitContextModuleMock,
-  v1RateLimiterModuleMock,
-  v1SubscriptionModuleMock,
   v1WorkspaceKeyCredential,
 } from '@sim/testing/mocks/v1-route.mock'
 import {
@@ -55,8 +55,8 @@ vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScop
 vi.mock('@/app/api/v1/auth', () => ({ authenticateV1Request: mockAuthenticateV1Request }))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
-vi.mock('@/lib/billing/core/subscription', () => v1SubscriptionModuleMock)
-vi.mock('@/lib/core/rate-limiter', () => v1RateLimiterModuleMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
 vi.mock('@/lib/table', () => tableMock)
 vi.mock('@/lib/table/orchestration', () => ({ performDeleteTable: vi.fn() }))

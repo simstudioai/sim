@@ -1,12 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockMaskPIIBatch } = vi.hoisted(() => ({
-  mockMaskPIIBatch: vi.fn(),
-}))
-
-vi.mock('@/lib/guardrails/mask-client', () => ({
-  maskPIIBatchViaHttp: mockMaskPIIBatch,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
 import {
   PiiRedactionError,
@@ -15,12 +11,30 @@ import {
   redactPIIFromExecution,
 } from '@/lib/logs/execution/pii-redaction'
 
-describe('redactPIIFromExecution', () => {
-  beforeEach(() => {
-    // Default: echo each input uppercased so we can assert substitution by position.
-    mockMaskPIIBatch.mockImplementation(async (texts: string[]) => texts.map((t) => `MASKED(${t})`))
-  })
+afterAll(resetUrlsMock)
 
+/** The mask-batch route, stubbed at `fetch`: echoes each string as `MASKED(<text>)`. */
+let maskRoute: ReturnType<typeof vi.fn>
+
+/** Every string sent to the route, in request order. */
+function sentTexts(): string[] {
+  return maskRoute.mock.calls.flatMap(([, init]) => JSON.parse(init.body).texts as string[])
+}
+
+beforeEach(() => {
+  authInternalMockFns.mockGenerateInternalToken.mockResolvedValue('tok')
+  urlsMockFns.mockGetInternalApiBaseUrl.mockReturnValue('http://app.internal:3000')
+  maskRoute = vi.fn(async (_url: string, init: { body: string }) => {
+    const { texts } = JSON.parse(init.body) as { texts: string[] }
+    return Response.json({ masked: texts.map((t) => `MASKED(${t})`) })
+  })
+  vi.stubGlobal('fetch', maskRoute)
+})
+
+/** A response the route gives for input Presidio rejected: not retried. */
+const rejected = () => new Response('rejected', { status: 422 })
+
+describe('redactPIIFromExecution', () => {
   it('collects and masks string leaves recursively, preserving structure', async () => {
     const payload = {
       traceSpans: [
@@ -46,18 +60,14 @@ describe('redactPIIFromExecution', () => {
     expect(span.children[0].output.nested).toBe('MASKED(deep)')
     expect((result.finalOutput as any).answer).toBe('MASKED(world)')
     expect(result.workflowInput).toBe('MASKED(start)')
-    expect(mockMaskPIIBatch).toHaveBeenCalledTimes(1)
-    expect(mockMaskPIIBatch.mock.calls[0][0]).toEqual([
-      'a@b.com',
-      'hello',
-      'deep',
-      'world',
-      'start',
-    ])
+    expect(maskRoute).toHaveBeenCalledTimes(1)
+    expect(sentTexts()).toEqual(['a@b.com', 'hello', 'deep', 'world', 'start'])
   })
 
   it('scrubs all eligible strings when masking throws (no leak)', async () => {
-    mockMaskPIIBatch.mockRejectedValueOnce(new Error('presidio down'))
+    urlsMockFns.mockGetInternalApiBaseUrl.mockImplementationOnce(() => {
+      throw new Error('no internal base url')
+    })
     const payload = {
       traceSpans: [{ output: { text: 'secret@x.com' } }],
       finalOutput: 'another secret',
@@ -69,6 +79,18 @@ describe('redactPIIFromExecution', () => {
     expect(result.finalOutput).toBe(REDACTION_FAILED_MARKER)
   })
 
+  it('scrubs only the strings of a request chunk that failed, masking the rest', async () => {
+    // 2000 strings per request: the first chunk is rejected, the second is masked.
+    const items = Array.from({ length: 2001 }, (_, i) => `item ${i}`)
+    maskRoute.mockResolvedValueOnce(rejected())
+
+    const result = await redactPIIFromExecution({ finalOutput: items }, { entityTypes: [] })
+
+    const output = result.finalOutput as string[]
+    expect(output.slice(0, 2000).every((value) => value === REDACTION_FAILED_MARKER)).toBe(true)
+    expect(output[2000]).toBe('MASKED(item 2000)')
+  })
+
   it('masks large strings too (never left unredacted)', async () => {
     const big = 'x'.repeat(200 * 1024)
     const payload = { finalOutput: { big, small: 'pii' } }
@@ -77,7 +99,7 @@ describe('redactPIIFromExecution', () => {
 
     expect((result.finalOutput as any).big).toBe(`MASKED(${big})`)
     expect((result.finalOutput as any).small).toBe('MASKED(pii)')
-    expect(mockMaskPIIBatch.mock.calls[0][0]).toEqual([big, 'pii'])
+    expect(sentTexts()).toEqual([big, 'pii'])
   })
 
   it('masks span error/errorMessage and top-level error, trigger, executionState, environment', async () => {
@@ -108,29 +130,21 @@ describe('redactPIIFromExecution', () => {
 })
 
 describe('redactObjectStrings', () => {
-  beforeEach(() => {
-    mockMaskPIIBatch.mockImplementation(async (texts: string[]) => texts.map((t) => `MASKED(${t})`))
-  })
-
   it('throws PiiRedactionError on masking failure when onFailure is throw', async () => {
-    mockMaskPIIBatch.mockRejectedValueOnce(new Error('presidio down'))
+    maskRoute.mockResolvedValueOnce(rejected())
     await expect(
       redactObjectStrings({ text: 'a@b.com' }, { entityTypes: [], onFailure: 'throw' })
     ).rejects.toBeInstanceOf(PiiRedactionError)
   })
 
   it('scrubs (does not throw) by default on failure', async () => {
-    mockMaskPIIBatch.mockRejectedValueOnce(new Error('presidio down'))
+    maskRoute.mockResolvedValueOnce(rejected())
     const result = await redactObjectStrings({ text: 'a@b.com' }, { entityTypes: [] })
     expect(result).toEqual({ text: REDACTION_FAILED_MARKER })
   })
 })
 
 describe('transformStrings (via redactObjectStrings) leaves large-value refs intact', () => {
-  beforeEach(() => {
-    mockMaskPIIBatch.mockImplementation(async (texts: string[]) => texts.map((t) => `MASKED(${t})`))
-  })
-
   it('does not recurse into / corrupt a large-value ref while masking siblings', async () => {
     const ref = {
       __simLargeValueRef: true,

@@ -44,12 +44,12 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
   listResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import {
@@ -103,7 +103,7 @@ export const GET = withRouteHandler(
       return listResponse(data, pagination)
     } catch (error) {
       logger.error('Admin API: Failed to list organizations', { error })
-      return internalErrorResponse('Failed to list organizations')
+      return adminInternalErrorResponse('Failed to list organizations')
     }
   })
 )
@@ -131,7 +131,7 @@ export const POST = withRouteHandler(
         .limit(1)
 
       if (!ownerData) {
-        return notFoundResponse('Owner user')
+        return adminNotFoundResponse('Owner user')
       }
 
       const [existingMembership] = await db
@@ -141,7 +141,7 @@ export const POST = withRouteHandler(
         .limit(1)
 
       if (existingMembership) {
-        return badRequestResponse(
+        return adminBadRequestResponse(
           'User is already a member of another organization. Users can only belong to one organization at a time.'
         )
       }
@@ -185,17 +185,17 @@ export const POST = withRouteHandler(
       })
     } catch (error) {
       if (error instanceof OrganizationSlugInvalidError) {
-        return badRequestResponse(
+        return adminBadRequestResponse(
           'Organization slug can only contain lowercase letters, numbers, hyphens, and underscores.'
         )
       }
 
       if (error instanceof OrganizationSlugTakenError) {
-        return badRequestResponse('This slug is already taken')
+        return adminBadRequestResponse('This slug is already taken')
       }
 
       logger.error('Admin API: Failed to create organization', { error })
-      return internalErrorResponse('Failed to create organization')
+      return adminInternalErrorResponse('Failed to create organization')
     }
   })
 )

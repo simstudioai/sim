@@ -8,6 +8,7 @@ import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
@@ -52,7 +53,7 @@ describe('desktop imports', () => {
     if (userIds.length) {
       // Audit rows outlive their actor (the foreign key sets null), so they go first.
       await db.delete(auditLog).where(inArray(auditLog.actorId, userIds))
-      await db.delete(workspace).where(inArray(workspace.ownerId, userIds))
+      await deleteWorkspaceFixture(db, inArray(workspace.ownerId, userIds))
       await db.delete(user).where(inArray(user.id, userIds))
     }
     await rm(fixtureStorage.root, { recursive: true, force: true })
@@ -75,7 +76,7 @@ describe('desktop imports', () => {
       updatedAt: now,
     })
     await db.insert(userStats).values({ id: generateId(), userId })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Desktop import fixture',
       ownerId: userId,

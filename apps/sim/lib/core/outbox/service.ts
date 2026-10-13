@@ -390,10 +390,10 @@ export function outboxPayloadHasSourceOperationId(payload: unknown, operationId:
 const DEAD_LETTER_SCAN_LIMIT = 100
 
 /**
- * Return events currently in `dead_letter` for the given event types (capped at
- * `DEAD_LETTER_SCAN_LIMIT`). Used by periodic reconcilers to surface stuck work
- * that exhausted its retries and now needs operator attention — the cap keeps a
- * runaway backlog from materializing unboundedly into memory each run.
+ * Return events currently in `dead_letter` for the given event types, most recently
+ * dead-lettered first so the `DEAD_LETTER_SCAN_LIMIT` cap never hides a new one. Used by periodic
+ * reconcilers to surface stuck work that exhausted its retries and now needs operator attention;
+ * the cap keeps a runaway backlog from materializing unboundedly into memory each run.
  */
 export async function findDeadLetteredEvents(
   eventTypes: string[]
@@ -403,7 +403,51 @@ export async function findDeadLetteredEvents(
     .select()
     .from(outboxEvent)
     .where(and(eq(outboxEvent.status, 'dead_letter'), inArray(outboxEvent.eventType, eventTypes)))
+    .orderBy(sql`${outboxEvent.processedAt} desc nulls last`, desc(outboxEvent.id))
     .limit(DEAD_LETTER_SCAN_LIMIT)
+}
+
+/**
+ * Closes a dead-lettered event an operator has remediated by hand (or decided needs nothing):
+ * it moves to `completed` and never runs again. `last_error` keeps who resolved it, why, and as
+ * much of the failure it had as fits after them (callers bound the resolution so some always
+ * does), so the row stays an auditable record. Only a `dead_letter` row of one of `eventTypes`
+ * matches; anything else returns null untouched.
+ */
+export async function resolveDeadLetteredOutboxEvent(
+  eventId: string,
+  eventTypes: string[],
+  resolution: { reason: string; resolvedBy: string }
+): Promise<{ id: string; eventType: string; lastError: string | null } | null> {
+  const note = `Resolved by ${resolution.resolvedBy}: ${resolution.reason}`
+  const [resolved] = await db
+    .update(outboxEvent)
+    .set({
+      status: 'completed',
+      lastError: sql`left(${note} || coalesce(' | last failure: ' || ${outboxEvent.lastError}, ''), ${MAX_PERSISTED_ERROR_LENGTH})`,
+      processedAt: new Date(),
+      lockedAt: null,
+    })
+    .where(
+      and(
+        eq(outboxEvent.id, eventId),
+        eq(outboxEvent.status, 'dead_letter'),
+        inArray(outboxEvent.eventType, eventTypes)
+      )
+    )
+    .returning({
+      id: outboxEvent.id,
+      eventType: outboxEvent.eventType,
+      lastError: outboxEvent.lastError,
+    })
+  if (!resolved) return null
+  logger.info('Resolved dead-lettered outbox event', {
+    eventId: resolved.id,
+    eventType: resolved.eventType,
+    resolvedBy: resolution.resolvedBy,
+    reason: resolution.reason,
+  })
+  return resolved
 }
 
 /** The event's current payload, read fresh rather than from the copy its handler was claimed with. */

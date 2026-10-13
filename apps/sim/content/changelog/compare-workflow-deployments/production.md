@@ -1,6 +1,6 @@
 # Deployment comparison: production record
 
-Status: prepared for publication review. Only `index.mdx` is rendered publicly.
+Status: published; October 9 media refresh prepared for review. Only `index.mdx` is rendered publicly.
 
 ## Evidence
 
@@ -11,21 +11,17 @@ Status: prepared for publication review. Only `index.mdx` is rendered publicly.
 
 ## Media provenance
 
-A dedicated local workspace contains a synthetic support-ticket workflow with two deployments. The second changes the agent prompt and adds a Slack step. No model or Slack call was executed for this capture.
+Refreshed on October 9, 2026 (October 10 UTC), using the running local app at commit `36f91a76e2`, including the current embedded comparison presentation from #8862. A dedicated disposable workspace contains a synthetic support-ticket workflow with two deployment snapshots. The second changes the agent prompt and adds a Slack step. No model or Slack call was executed.
 
-The media comes from the running product, captured through the browser. The video is a silent, edited walkthrough assembled from three unmodified UI captures with reading pauses; it is not a continuous screen recording. No generated controls or results are used.
+Open deployment history, choose Compare from v2's menu, and inspect v1 against v2. The reviewed image shows the real comparison dialog, including the changed prompt, added Slack step, and connection. It is a direct browser capture cropped to the dialog, 1200 × 605 pixels; no controls or results were generated or altered.
 
-1. Open deployment history.
-2. Open the version menu and choose Compare.
-3. Inspect the changed prompt, added Slack step, and connection.
-
-Assets: `/changelog/compare-workflow-deployments-v1.mp4` and `/changelog/compare-workflow-deployments-v1.jpg`. The poster is the final comparison view. The short MP4 is served locally with the site; larger future recordings should use the approved media CDN. Keep filenames immutable.
+Current asset: `/changelog/compare-workflow-deployments-v2.jpg`. A still is more useful for inspecting this before/after state than the previous slideshow. It opens in the shared image lightbox and supplies the share image. The earlier v1 JPEG and MP4 remain available at their immutable URLs for existing links, but the article no longer embeds the video.
 
 ## Review notes
 
-The screenshot replaces the older deployment-history reference. The comparison is read-only and shows actual before/after fields. Copy covers both two-version comparison and draft-versus-live review; the media demonstrates the two-version path. The draft remains unchanged after opening and closing Compare.
+The refreshed screenshot replaces the edited video walkthrough. The comparison is read-only and shows actual before/after fields. Copy covers both two-version comparison and draft-versus-live review; the media demonstrates the two-version path. The draft remains unchanged after opening and closing Compare.
 
-The entry keeps the historical release timestamp and RSS identity. Playback, mobile layout, asset responses, and content validation belong in the publication PR's validation record. Assign the release editor and feature reviewer in that PR; verify the public URL before distributing.
+The entry keeps the historical release timestamp and RSS identity. Lightbox zoom, mobile layout, asset responses, and content validation belong in the publication PR's validation record. Assign the release editor and feature reviewer in that PR; verify the public URL before distributing.
 
 ## Announcement drafts
 
@@ -40,3 +36,9 @@ Email body:
 > Open deployment history and choose Compare to review two workflow versions. You can also review a draft against the live workflow before redeploying. See the product walkthrough and setup guide: https://www.sim.ai/changelog/compare-workflow-deployments
 
 These are drafts, not sent announcements.
+
+## Editorial revision
+
+Revised October 12, 2026, to clarify supported behavior and include selected changes from the same technical release where useful. Every public sentence describes a capability, a meaningful change, or necessary access information. Original dates, release references, RSS identities, and reviewed media are preserved. The `updated` timestamp records the substantive revision. Browser and CI evidence belongs in the revision PR.
+
+Additional v0.9.10 coverage: [file diff rendering, #8543](https://github.com/simstudioai/sim/pull/8543) and [remembered resource-panel widths, #8531](https://github.com/simstudioai/sim/pull/8531). The technical release includes both; source and current documentation were reviewed.
