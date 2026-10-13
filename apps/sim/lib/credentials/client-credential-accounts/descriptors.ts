@@ -115,6 +115,7 @@ export const SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID = 'salesforce-service-accoun
 export const ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zoho-desk-service-account' as const
 export const RAMP_SERVICE_ACCOUNT_PROVIDER_ID = 'ramp-service-account' as const
 export const VANTA_SERVICE_ACCOUNT_PROVIDER_ID = 'vanta-service-account' as const
+export const FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID = 'fivetran-service-account' as const
 export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' as const
 export const ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-epm-service-account' as const
 export const ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-fusion-service-account' as const
@@ -137,6 +138,7 @@ export type ClientCredentialAccountProviderId =
   | typeof NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof RAMP_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof VANTA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
 
@@ -436,6 +438,27 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/vanta',
+  },
+  [FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Fivetran',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'API key',
+        placeholder: 'Paste the API key',
+        secret: true,
+        hint: 'In Fivetran, click your username, then API Key > Generate API key. The key acts with your Fivetran permissions.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'API secret',
+        placeholder: 'Paste the API secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/fivetran',
   },
   [ZOOM_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,

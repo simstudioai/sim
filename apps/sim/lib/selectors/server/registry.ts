@@ -10,6 +10,7 @@ import { clickupSelectorAttachments } from '@/lib/selectors/server/providers/cli
 import { cloudWatchSelectorAttachments } from '@/lib/selectors/server/providers/cloudwatch'
 import { codaSelectorAttachments } from '@/lib/selectors/server/providers/coda'
 import { confluenceSelectorAttachments } from '@/lib/selectors/server/providers/confluence'
+import { fivetranSelectorAttachments } from '@/lib/selectors/server/providers/fivetran'
 import { githubSelectorAttachments } from '@/lib/selectors/server/providers/github'
 import { googleSelectorAttachments } from '@/lib/selectors/server/providers/google'
 import { harmonicSelectorAttachments } from '@/lib/selectors/server/providers/harmonic'
@@ -50,6 +51,7 @@ export const serverSelectorRegistry = {
   ...cloudWatchSelectorAttachments,
   ...codaSelectorAttachments,
   ...confluenceSelectorAttachments,
+  ...fivetranSelectorAttachments,
   ...googleSelectorAttachments,
   ...githubSelectorAttachments,
   ...harmonicSelectorAttachments,
