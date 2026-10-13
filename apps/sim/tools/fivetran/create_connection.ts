@@ -1,10 +1,10 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   CONNECTION_PROPERTIES,
   type FivetranConnectionResponse,
   type FivetranCreateConnectionParams,
 } from '@/tools/fivetran/types'
 import {
-  compactBody,
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_ERROR_EXTRACTOR,
@@ -125,7 +125,7 @@ export const fivetranCreateConnectionTool: ToolConfig<
       if (!config) {
         throw new Error('Provide the connection config, including its destination schema name.')
       }
-      return compactBody({
+      return filterUndefined({
         group_id: params.groupId?.trim(),
         service: params.service?.trim(),
         config,

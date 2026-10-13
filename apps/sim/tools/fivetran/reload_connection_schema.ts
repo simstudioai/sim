@@ -1,10 +1,10 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   type FivetranReloadConnectionSchemaParams,
   type FivetranSchemaConfigResponse,
   SCHEMA_CONFIG_OUTPUTS,
 } from '@/tools/fivetran/types'
 import {
-  compactBody,
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_CONNECTION_ID_PARAM,
@@ -47,7 +47,7 @@ export const fivetranReloadConnectionSchemaTool: ToolConfig<
       fivetranUrl(`/connections/${fivetranId(params.connectionId, 'connectionId')}/schemas/reload`),
     method: 'POST',
     headers: (params) => fivetranHeaders(params),
-    body: (params) => compactBody({ exclude_mode: trimmed(params.excludeMode) }),
+    body: (params) => filterUndefined({ exclude_mode: trimmed(params.excludeMode) }),
   },
 
   transformResponse: async (response: Response) => {

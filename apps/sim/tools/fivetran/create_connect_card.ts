@@ -1,11 +1,10 @@
 import { toStringOrNull } from '@sim/utils/coerce'
-import { toRecord } from '@sim/utils/object'
+import { filterUndefined, toRecord } from '@sim/utils/object'
 import type {
   FivetranCreateConnectCardParams,
   FivetranCreateConnectCardResponse,
 } from '@/tools/fivetran/types'
 import {
-  compactBody,
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_CONNECTION_ID_PARAM,
@@ -59,7 +58,7 @@ export const fivetranCreateConnectCardTool: ToolConfig<
     method: 'POST',
     headers: (params) => fivetranHeaders(params),
     body: (params) => ({
-      connect_card_config: compactBody({
+      connect_card_config: filterUndefined({
         redirect_uri: params.redirectUri?.trim(),
         hide_setup_guide: optionalBoolean(params.hideSetupGuide),
         all_fields: optionalBoolean(params.allFields),

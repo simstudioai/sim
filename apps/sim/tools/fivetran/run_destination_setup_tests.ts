@@ -1,10 +1,10 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   DESTINATION_PROPERTIES,
   type FivetranDestinationResponse,
   type FivetranRunDestinationSetupTestsParams,
 } from '@/tools/fivetran/types'
 import {
-  compactBody,
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_DESTINATION_ID_PARAM,
@@ -43,7 +43,7 @@ export const fivetranRunDestinationSetupTestsTool: ToolConfig<
     method: 'POST',
     headers: (params) => fivetranHeaders(params),
     body: (params) =>
-      compactBody({
+      filterUndefined({
         trust_certificates: optionalBoolean(params.trustCertificates),
         trust_fingerprints: optionalBoolean(params.trustFingerprints),
       }),

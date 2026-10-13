@@ -1,10 +1,10 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   CONNECTION_PROPERTIES,
   type FivetranConnectionResponse,
   type FivetranUpdateConnectionParams,
 } from '@/tools/fivetran/types'
 import {
-  compactBody,
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_CONNECTION_ID_PARAM,
@@ -125,7 +125,7 @@ export const fivetranUpdateConnectionTool: ToolConfig<
     method: 'PATCH',
     headers: (params) => fivetranHeaders(params),
     body: (params) => {
-      const body = compactBody({
+      const body = filterUndefined({
         config: parseJsonObject(params.config, 'config'),
         auth: parseJsonObject(params.auth, 'auth'),
         paused: optionalBoolean(params.paused),

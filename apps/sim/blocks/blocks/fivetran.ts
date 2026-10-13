@@ -20,7 +20,7 @@ const CONNECTION_ID_OPS = [
   'update_connection_schema',
   'update_schema_config',
   'create_connect_card',
-]
+] as const
 
 const GROUP_ID_OPS = [
   'list_connections',
@@ -28,13 +28,13 @@ const GROUP_ID_OPS = [
   'create_destination',
   'get_group',
   'list_transformations',
-]
+] as const
 
-const GROUP_ID_REQUIRED_OPS = ['create_connection', 'create_destination', 'get_group']
+const GROUP_ID_REQUIRED_OPS = ['create_connection', 'create_destination', 'get_group'] as const
 
-const DESTINATION_ID_OPS = ['get_destination', 'run_destination_setup_tests']
+const DESTINATION_ID_OPS = ['get_destination', 'run_destination_setup_tests'] as const
 
-const CONNECTION_SETTINGS_OPS = ['create_connection', 'update_connection']
+const CONNECTION_SETTINGS_OPS = ['create_connection', 'update_connection'] as const
 
 const SETUP_TEST_OPS = [
   'create_connection',
@@ -42,7 +42,7 @@ const SETUP_TEST_OPS = [
   'create_destination',
   'run_connection_setup_tests',
   'run_destination_setup_tests',
-]
+] as const
 
 const PAGINATED_OPS = [
   'list_connections',
@@ -52,11 +52,15 @@ const PAGINATED_OPS = [
   'list_users',
   'list_connector_types',
   'get_sync_history',
-]
+] as const
 
-const TRANSFORMATION_ID_OPS = ['get_transformation', 'run_transformation', 'cancel_transformation']
+const TRANSFORMATION_ID_OPS = [
+  'get_transformation',
+  'run_transformation',
+  'cancel_transformation',
+] as const
 
-const SCHEMA_NAME_OPS = ['update_connection_table', 'update_connection_schema']
+const SCHEMA_NAME_OPS = ['update_connection_table', 'update_connection_schema'] as const
 
 /** Fivetran's data processing regions for a new destination. */
 const REGION_OPTIONS = [
@@ -104,7 +108,7 @@ const REGION_OPTIONS = [
   { label: 'AZURE_WESTUS3', id: 'AZURE_WESTUS3' },
   { label: 'AZURE_SWITZERLANDNORTH', id: 'AZURE_SWITZERLANDNORTH' },
   { label: 'AZURE_KOREACENTRAL', id: 'AZURE_KOREACENTRAL' },
-]
+] as const
 
 const TIME_ZONE_OFFSET_OPTIONS = Array.from({ length: 24 }, (_, index) => {
   const offset = index - 11
@@ -129,13 +133,13 @@ const PAUSE_ONLY_UPDATE = {
   runSetupTests: undefined,
   trustCertificates: undefined,
   trustFingerprints: undefined,
-}
+} as const
 
 const OPTIONAL_BOOLEAN_OPTIONS = [
   { label: 'Not set', id: '' },
   { label: 'Yes', id: 'true' },
   { label: 'No', id: 'false' },
-]
+] as const
 
 const SYNC_FREQUENCY_OPTIONS = [
   { label: 'Not set', id: '' },
@@ -150,7 +154,7 @@ const SYNC_FREQUENCY_OPTIONS = [
   { label: 'Every 8 hours', id: '480' },
   { label: 'Every 12 hours', id: '720' },
   { label: 'Every 24 hours', id: '1440' },
-]
+] as const
 
 const TIMESTAMP_WAND = {
   enabled: true,
@@ -459,8 +463,8 @@ export const FivetranBlock: BlockConfig = {
       placeholder: 'Select connection',
       dependsOn: ['credential'],
       mode: 'basic',
-      condition: { field: 'operation', value: CONNECTION_ID_OPS },
-      required: { field: 'operation', value: CONNECTION_ID_OPS },
+      condition: { field: 'operation', value: [...CONNECTION_ID_OPS] },
+      required: { field: 'operation', value: [...CONNECTION_ID_OPS] },
     },
     {
       id: 'manualConnectionId',
@@ -469,8 +473,8 @@ export const FivetranBlock: BlockConfig = {
       canonicalParamId: 'connectionId',
       placeholder: 'Enter the connection ID',
       mode: 'advanced',
-      condition: { field: 'operation', value: CONNECTION_ID_OPS },
-      required: { field: 'operation', value: CONNECTION_ID_OPS },
+      condition: { field: 'operation', value: [...CONNECTION_ID_OPS] },
+      required: { field: 'operation', value: [...CONNECTION_ID_OPS] },
     },
     {
       id: 'groupSelector',
@@ -482,8 +486,8 @@ export const FivetranBlock: BlockConfig = {
       placeholder: 'Select group',
       dependsOn: ['credential'],
       mode: 'basic',
-      condition: { field: 'operation', value: GROUP_ID_OPS },
-      required: { field: 'operation', value: GROUP_ID_REQUIRED_OPS },
+      condition: { field: 'operation', value: [...GROUP_ID_OPS] },
+      required: { field: 'operation', value: [...GROUP_ID_REQUIRED_OPS] },
     },
     {
       id: 'manualGroupId',
@@ -492,8 +496,8 @@ export const FivetranBlock: BlockConfig = {
       canonicalParamId: 'groupId',
       placeholder: 'Enter the group ID',
       mode: 'advanced',
-      condition: { field: 'operation', value: GROUP_ID_OPS },
-      required: { field: 'operation', value: GROUP_ID_REQUIRED_OPS },
+      condition: { field: 'operation', value: [...GROUP_ID_OPS] },
+      required: { field: 'operation', value: [...GROUP_ID_REQUIRED_OPS] },
     },
     {
       id: 'destinationSelector',
@@ -505,8 +509,8 @@ export const FivetranBlock: BlockConfig = {
       placeholder: 'Select destination',
       dependsOn: ['credential'],
       mode: 'basic',
-      condition: { field: 'operation', value: DESTINATION_ID_OPS },
-      required: { field: 'operation', value: DESTINATION_ID_OPS },
+      condition: { field: 'operation', value: [...DESTINATION_ID_OPS] },
+      required: { field: 'operation', value: [...DESTINATION_ID_OPS] },
     },
     {
       id: 'manualDestinationId',
@@ -515,16 +519,16 @@ export const FivetranBlock: BlockConfig = {
       canonicalParamId: 'destinationId',
       placeholder: 'Enter the destination ID (same as its group ID)',
       mode: 'advanced',
-      condition: { field: 'operation', value: DESTINATION_ID_OPS },
-      required: { field: 'operation', value: DESTINATION_ID_OPS },
+      condition: { field: 'operation', value: [...DESTINATION_ID_OPS] },
+      required: { field: 'operation', value: [...DESTINATION_ID_OPS] },
     },
     {
       id: 'transformationId',
       title: 'Transformation ID',
       type: 'short-input',
       placeholder: 'Enter the transformation ID',
-      condition: { field: 'operation', value: TRANSFORMATION_ID_OPS },
-      required: { field: 'operation', value: TRANSFORMATION_ID_OPS },
+      condition: { field: 'operation', value: [...TRANSFORMATION_ID_OPS] },
+      required: { field: 'operation', value: [...TRANSFORMATION_ID_OPS] },
     },
     {
       id: 'schema',
@@ -586,7 +590,7 @@ export const FivetranBlock: BlockConfig = {
       id: 'region',
       title: 'Processing Region',
       type: 'dropdown',
-      options: REGION_OPTIONS,
+      options: [...REGION_OPTIONS],
       value: () => '',
       condition: { field: 'operation', value: 'create_destination' },
       mode: 'advanced',
@@ -631,7 +635,7 @@ export const FivetranBlock: BlockConfig = {
       type: 'code',
       language: 'json',
       placeholder: '{"schema": "okta", "domain": "acme", "api_token": "..."}',
-      condition: { field: 'operation', value: CONNECTION_SETTINGS_OPS },
+      condition: { field: 'operation', value: [...CONNECTION_SETTINGS_OPS] },
       required: { field: 'operation', value: 'create_connection' },
       wandConfig: {
         enabled: true,
@@ -646,16 +650,16 @@ export const FivetranBlock: BlockConfig = {
       type: 'code',
       language: 'json',
       placeholder: '{"client_access": {"client_id": "...", "client_secret": "..."}}',
-      condition: { field: 'operation', value: CONNECTION_SETTINGS_OPS },
+      condition: { field: 'operation', value: [...CONNECTION_SETTINGS_OPS] },
       mode: 'advanced',
     },
     {
       id: 'syncFrequency',
       title: 'Sync Frequency',
       type: 'dropdown',
-      options: SYNC_FREQUENCY_OPTIONS,
+      options: [...SYNC_FREQUENCY_OPTIONS],
       value: () => '',
-      condition: { field: 'operation', value: CONNECTION_SETTINGS_OPS },
+      condition: { field: 'operation', value: [...CONNECTION_SETTINGS_OPS] },
     },
     {
       id: 'scheduleType',
@@ -667,7 +671,7 @@ export const FivetranBlock: BlockConfig = {
         { label: 'Manual', id: 'manual' },
       ],
       value: () => '',
-      condition: { field: 'operation', value: CONNECTION_SETTINGS_OPS },
+      condition: { field: 'operation', value: [...CONNECTION_SETTINGS_OPS] },
       mode: 'advanced',
     },
     {
@@ -675,16 +679,16 @@ export const FivetranBlock: BlockConfig = {
       title: 'Daily Sync Time',
       type: 'short-input',
       placeholder: 'HH:MM, used with a 24-hour frequency',
-      condition: { field: 'operation', value: CONNECTION_SETTINGS_OPS },
+      condition: { field: 'operation', value: [...CONNECTION_SETTINGS_OPS] },
       mode: 'advanced',
     },
     {
       id: 'paused',
       title: 'Paused',
       type: 'dropdown',
-      options: OPTIONAL_BOOLEAN_OPTIONS,
+      options: [...OPTIONAL_BOOLEAN_OPTIONS],
       value: () => '',
-      condition: { field: 'operation', value: CONNECTION_SETTINGS_OPS },
+      condition: { field: 'operation', value: [...CONNECTION_SETTINGS_OPS] },
       mode: 'advanced',
     },
     {
@@ -713,7 +717,7 @@ export const FivetranBlock: BlockConfig = {
         { label: 'Sync frequency', id: 'SYNC_FREQUENCY' },
       ],
       value: () => '',
-      condition: { field: 'operation', value: CONNECTION_SETTINGS_OPS },
+      condition: { field: 'operation', value: [...CONNECTION_SETTINGS_OPS] },
       mode: 'advanced',
     },
     {
@@ -721,23 +725,23 @@ export const FivetranBlock: BlockConfig = {
       title: 'Data Delay Threshold',
       type: 'short-input',
       placeholder: 'Minutes, used with Custom sensitivity',
-      condition: { field: 'operation', value: CONNECTION_SETTINGS_OPS },
+      condition: { field: 'operation', value: [...CONNECTION_SETTINGS_OPS] },
       mode: 'advanced',
     },
     {
       id: 'pauseAfterTrial',
       title: 'Pause After Trial',
       type: 'dropdown',
-      options: OPTIONAL_BOOLEAN_OPTIONS,
+      options: [...OPTIONAL_BOOLEAN_OPTIONS],
       value: () => '',
-      condition: { field: 'operation', value: CONNECTION_SETTINGS_OPS },
+      condition: { field: 'operation', value: [...CONNECTION_SETTINGS_OPS] },
       mode: 'advanced',
     },
     {
       id: 'isHistoricalSync',
       title: 'Re-sync Historical Data',
       type: 'dropdown',
-      options: OPTIONAL_BOOLEAN_OPTIONS,
+      options: [...OPTIONAL_BOOLEAN_OPTIONS],
       value: () => '',
       condition: { field: 'operation', value: 'update_connection' },
       mode: 'advanced',
@@ -746,7 +750,7 @@ export const FivetranBlock: BlockConfig = {
       id: 'runSetupTests',
       title: 'Run Setup Tests',
       type: 'dropdown',
-      options: OPTIONAL_BOOLEAN_OPTIONS,
+      options: [...OPTIONAL_BOOLEAN_OPTIONS],
       value: () => '',
       condition: { field: 'operation', value: [...CONNECTION_SETTINGS_OPS, 'create_destination'] },
       mode: 'advanced',
@@ -755,14 +759,14 @@ export const FivetranBlock: BlockConfig = {
       id: 'trustCertificates',
       title: 'Trust Certificates',
       type: 'switch',
-      condition: { field: 'operation', value: SETUP_TEST_OPS },
+      condition: { field: 'operation', value: [...SETUP_TEST_OPS] },
       mode: 'advanced',
     },
     {
       id: 'trustFingerprints',
       title: 'Trust SSH Fingerprints',
       type: 'switch',
-      condition: { field: 'operation', value: SETUP_TEST_OPS },
+      condition: { field: 'operation', value: [...SETUP_TEST_OPS] },
       mode: 'advanced',
     },
     {
@@ -808,8 +812,8 @@ export const FivetranBlock: BlockConfig = {
       title: 'Schema Name',
       type: 'short-input',
       placeholder: 'Schema name as stored in the schema config',
-      condition: { field: 'operation', value: SCHEMA_NAME_OPS },
-      required: { field: 'operation', value: SCHEMA_NAME_OPS },
+      condition: { field: 'operation', value: [...SCHEMA_NAME_OPS] },
+      required: { field: 'operation', value: [...SCHEMA_NAME_OPS] },
     },
     {
       id: 'tableName',
@@ -983,7 +987,7 @@ export const FivetranBlock: BlockConfig = {
       title: 'Page Size',
       type: 'short-input',
       placeholder: '1 to 1000 (defaults to 100)',
-      condition: { field: 'operation', value: PAGINATED_OPS },
+      condition: { field: 'operation', value: [...PAGINATED_OPS] },
       mode: 'advanced',
     },
     {
@@ -991,7 +995,7 @@ export const FivetranBlock: BlockConfig = {
       title: 'Cursor',
       type: 'short-input',
       placeholder: 'nextCursor from the previous page',
-      condition: { field: 'operation', value: PAGINATED_OPS },
+      condition: { field: 'operation', value: [...PAGINATED_OPS] },
       mode: 'advanced',
     },
     ...getTrigger('fivetran_sync_end').subBlocks,
@@ -1056,7 +1060,9 @@ export const FivetranBlock: BlockConfig = {
       },
       params: (params) => {
         const result: Record<string, unknown> = {}
-        const isConnectionSettings = CONNECTION_SETTINGS_OPS.includes(params.operation)
+        const isConnectionSettings = (CONNECTION_SETTINGS_OPS as readonly string[]).includes(
+          params.operation
+        )
 
         if (params.operation === 'pause_connection' || params.operation === 'resume_connection') {
           return {
@@ -1088,7 +1094,7 @@ export const FivetranBlock: BlockConfig = {
         if (params.operation === 'update_connection') {
           result.isHistoricalSync = toOptionalBoolean(params.isHistoricalSync)
         }
-        if (SETUP_TEST_OPS.includes(params.operation)) {
+        if ((SETUP_TEST_OPS as readonly string[]).includes(params.operation)) {
           result.trustCertificates = toOptionalBoolean(params.trustCertificates)
           result.trustFingerprints = toOptionalBoolean(params.trustFingerprints)
         }
@@ -1107,7 +1113,7 @@ export const FivetranBlock: BlockConfig = {
           result.active = toOptionalBoolean(params.active)
           result.hasApiKey = toOptionalBoolean(params.hasApiKey)
         }
-        if (PAGINATED_OPS.includes(params.operation)) {
+        if ((PAGINATED_OPS as readonly string[]).includes(params.operation)) {
           result.limit = toOptionalNumber(params.limit)
         }
         return result
