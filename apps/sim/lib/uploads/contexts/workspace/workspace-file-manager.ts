@@ -551,6 +551,7 @@ export async function uploadWorkspaceFile(
           } else {
             activeFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId, tx)
           }
+          await lockWorkspaceStorageForMutationInTx(tx, workspaceId)
           const inserted = await insertWorkspaceFileMetadataInTx(tx, {
             id: fileId,
             key: uploadResult.key,
@@ -671,6 +672,7 @@ export async function createOwnedWorkspaceFile<T>(params: {
   })
   try {
     const { owner, updatedUsage } = await db.transaction(async (tx) => {
+      await lockWorkspaceStorageForMutationInTx(tx, params.workspaceId)
       const inserted = await insertWorkspaceFileMetadataInTx(tx, {
         id: fileId,
         key: uploadResult.key,
@@ -876,6 +878,7 @@ export async function registerUploadedWorkspaceFile(params: {
     const finalized = await db.transaction(async (tx) => {
       await acquireFolderMutationLock(tx, workspaceId, 'file')
       const activeFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId, tx)
+      await lockWorkspaceStorageForMutationInTx(tx, workspaceId)
       const inserted = await insertWorkspaceFileMetadataInTx(tx, {
         id: fileId,
         key,
