@@ -266,6 +266,14 @@ export function buildSimpleLevelCondition(level: string): SQL | undefined {
   return undefined
 }
 
+/**
+ * Whether {@link buildFilterConditions} emits a predicate on the `workflow`
+ * table for these params, so the query it feeds must join `workflow`.
+ */
+export function filterParamsReferenceWorkflow(params: LogFilterParams): boolean {
+  return !!(params.workflowIds || params.folderIds || params.workflowName || params.folderName)
+}
+
 export interface BuildFilterConditionsOptions {
   /**
    * Whether to use simple level filtering (just matches level string).

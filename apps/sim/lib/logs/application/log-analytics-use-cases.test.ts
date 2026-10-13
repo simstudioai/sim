@@ -135,7 +135,7 @@ describe('getLogStats', () => {
       expect.anything(),
       '2026-08-01T00:00:00.000Z',
       12 * 60 * 60 * 1000,
-      { countHandledErrors: false }
+      { countHandledErrors: false, joinsWorkflow: false }
     )
     expect(stats.timeBounds).toEqual({
       start: '2026-08-01T00:00:00.000Z',

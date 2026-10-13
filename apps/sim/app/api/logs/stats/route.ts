@@ -7,7 +7,7 @@ import { isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildFilterConditions } from '@/lib/logs/filters'
+import { buildFilterConditions, filterParamsReferenceWorkflow } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 import { logQuerySelectsCost } from '@/lib/logs/projection'
 import { buildDashboardStats, resolveLogStatsWindow } from '@/lib/logs/stats'
@@ -98,7 +98,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const rows = await readLogStatsSegments(
         whereCondition,
         window.startTime.toISOString(),
-        window.segmentMs
+        window.segmentMs,
+        { joinsWorkflow: filterParamsReferenceWorkflow(params) }
       )
       const { stats } = buildDashboardStats(rows, window, params.segmentCount)
 

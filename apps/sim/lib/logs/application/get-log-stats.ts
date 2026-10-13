@@ -5,7 +5,11 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { logDelegationAuthorization } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { folderScopeCondition, resolveLogFolderScope } from '@/lib/logs/folder-scope'
-import { buildLogFilters, type LogFilters } from '@/lib/logs/public-filters'
+import {
+  buildLogFilters,
+  type LogFilters,
+  logFiltersReferenceWorkflow,
+} from '@/lib/logs/public-filters'
 import { buildDashboardStats, resolveLogStatsWindow } from '@/lib/logs/stats'
 import { readLogStatsBounds, readLogStatsSegments } from '@/lib/logs/stats-queries'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
@@ -63,7 +67,10 @@ export const getLogStats = defineAuthorizedWorkspaceUseCase({
       where,
       window.startTime.toISOString(),
       window.segmentMs,
-      { countHandledErrors: includeHandledErrors }
+      {
+        countHandledErrors: includeHandledErrors,
+        joinsWorkflow: folderScope !== undefined || logFiltersReferenceWorkflow(input.filters),
+      }
     )
     return buildDashboardStats(rows, window, input.segmentCount, {
       maxWorkflows: MAX_STATS_WORKFLOWS,
