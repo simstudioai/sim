@@ -672,7 +672,9 @@ describe('authorized live retrieval', () => {
         input: {
           ...input,
           query: '',
-          nativeQueries: [{ provider: 'google_drive' as const, query: "fullText contains 'launch'" }],
+          nativeQueries: [
+            { provider: 'google_drive' as const, query: "fullText contains 'launch'" },
+          ],
         },
       })
       expect(mocks.preview).not.toHaveBeenCalled()
