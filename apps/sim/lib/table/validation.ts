@@ -480,7 +480,7 @@ export async function checkUniqueConstraintsDb(
   // The predicate leads with case-sensitive JSONB containment (`data @> {...}`),
   // which can use the GIN index. We still pin `enable_seqscan = off` (tenant-
   // bounded) defensively for the small-table / cold-stats case. With an external
-  // transaction the flag is set on it for the check only (see withSeqscanOffOn)
+  // transaction the settings are set on it for the check only (see withUniqueProbePlan)
   // — opening our own transaction inside the caller's would be the nested pool
   // checkout the migration-hardening work eliminated (self-deadlock under pool
   // exhaustion).
@@ -509,27 +509,37 @@ export async function checkUniqueConstraintsDb(
   if (executor === db) {
     await withSeqscanOff(async (trx) => checkConditions(trx))
   } else {
-    await withSeqscanOffOn(executor, () => checkConditions(executor))
+    await withUniqueProbePlan(executor, () => checkConditions(executor))
   }
 
   return { valid: errors.length === 0, errors }
 }
 
 /**
- * Runs `check` on the caller's open transaction with seq scans penalized, then puts back the
- * transaction's previous setting. Unique checks run inside write transactions, and leaving the
- * flag off for the rest of the transaction slowed the position and INSERT statements that follow. Reading the previous value and setting the new one
- * in one statement keeps it one round trip each way; a caller that set the flag itself keeps it.
+ * Runs `check` on the caller's open transaction with seq scans penalized and parallel plans off,
+ * then puts back the transaction's previous settings. Unique checks run inside write
+ * transactions: a wide probe on a large tenant could otherwise start a parallel Gather there, and
+ * leaving either setting for the rest of the transaction slowed the position and INSERT
+ * statements that follow. Reading the previous values and setting the new ones in one statement
+ * keeps it one round trip each way; a caller that set either itself keeps it.
  */
-async function withSeqscanOffOn(
+async function withUniqueProbePlan(
   executor: UniqueCheckExecutor,
   check: () => Promise<void>
 ): Promise<void> {
-  const [{ previous }] = await executor.execute<{ previous: string }>(sql`
-    SELECT current_setting('enable_seqscan') AS previous, set_config('enable_seqscan', 'off', true)
+  const [previous] = await executor.execute<{ seqscan: string; parallel_workers: string }>(sql`
+    SELECT
+      current_setting('enable_seqscan') AS seqscan,
+      current_setting('max_parallel_workers_per_gather') AS parallel_workers,
+      set_config('enable_seqscan', 'off', true),
+      set_config('max_parallel_workers_per_gather', '0', true)
   `)
   await check()
-  await executor.execute(sql`SELECT set_config('enable_seqscan', ${previous}, true)`)
+  await executor.execute(sql`
+    SELECT
+      set_config('enable_seqscan', ${previous.seqscan}, true),
+      set_config('max_parallel_workers_per_gather', ${previous.parallel_workers}, true)
+  `)
 }
 
 /**
@@ -614,8 +624,8 @@ export async function checkBatchUniqueConstraintsDb(
   // Now check against database for all unique values at once. Tenant-bounded
   // for the same reason as checkUniqueConstraintsDb: the lower(data->>...)
   // predicates are unestimatable and otherwise trigger whole-relation seq
-  // scans. With an external transaction the flag is set on it for the check
-  // only (see withSeqscanOffOn).
+  // scans. With an external transaction the settings are set on it for the check
+  // only (see withUniqueProbePlan).
   const checkColumns = async (ex: UniqueCheckExecutor) => {
     for (const [columnId, { values, column }] of valuesByColumn) {
       if (values.size === 0) continue
@@ -685,7 +695,7 @@ export async function checkBatchUniqueConstraintsDb(
   if (executor === db) {
     await withSeqscanOff(async (trx) => checkColumns(trx))
   } else {
-    await withSeqscanOffOn(executor, () => checkColumns(executor))
+    await withUniqueProbePlan(executor, () => checkColumns(executor))
   }
 
   // Sort errors by row index

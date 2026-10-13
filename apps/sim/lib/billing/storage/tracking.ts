@@ -433,13 +433,14 @@ export async function applyStorageUsageDeltasInTx(
 /**
  * Locks the canonical workspace row before a file mutation that changes its storage ledger.
  *
- * Every transaction that writes `workspace_files` and charges storage takes its locks in one order:
- * the folder advisory lock (only for operations that take one), then this workspace row, then file
- * rows, then the file writes (whose search-index trigger upserts the one-per-workspace
- * `workspace_file_search_dispatch_queue` row), then the payer row. Call this before the first file insert or update: an insert that reaches
- * the queue row first and only then waits on the workspace row deadlocks with a content write
- * that holds the workspace row and waits on the queue row. Re-locking later in the same
- * transaction, as the storage increment does, never waits.
+ * Every transaction that writes a `context = 'workspace'` row of `workspace_files` and charges
+ * storage takes its locks in one order: the folder advisory lock (only for operations that take
+ * one), then this workspace row, then the file rows and their writes (whose search-index trigger
+ * upserts the one-per-workspace `workspace_file_search_dispatch_queue` row), then the payer row.
+ * Call this before the first file insert or update: an insert that reaches the queue row first
+ * and only then waits on the workspace row deadlocks with a content write that holds the
+ * workspace row and waits on the queue row. Re-locking later in the same transaction, as the
+ * storage increment does, never waits.
  */
 export async function lockWorkspaceStorageForMutationInTx(
   tx: DbOrTx,

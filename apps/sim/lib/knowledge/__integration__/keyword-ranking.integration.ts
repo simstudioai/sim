@@ -11,7 +11,7 @@ import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, organization, user, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   createKnowledgeAclFixtureIds,
@@ -307,6 +307,23 @@ describe('unauthenticated keyword ranking in one statement', () => {
 
     await db.insert(document).values([...documents, ...hiddenDocuments])
     await db.insert(embedding).values(chunks)
+
+    // The comparisons below test tie-breaking only if scores tie across bases at several levels.
+    const scores = await db
+      .select({
+        rank: sql<number>`ts_rank_cd(${embedding.contentTsv}, websearch_to_tsquery(${FTS_CONFIG}, ${QUERY}))`,
+        bases: sql<number>`count(DISTINCT ${embedding.knowledgeBaseId})::int`,
+      })
+      .from(embedding)
+      .where(
+        and(
+          inArray(embedding.knowledgeBaseId, allBaseIds),
+          sql`${embedding.contentTsv} @@ websearch_to_tsquery(${FTS_CONFIG}, ${QUERY})`
+        )
+      )
+      .groupBy(sql`1`)
+    expect(scores.length).toBeGreaterThan(2)
+    expect(scores.filter((score) => score.bases > 1).length).toBeGreaterThan(1)
   })
 
   afterAll(async () => {
@@ -351,25 +368,6 @@ describe('unauthenticated keyword ranking in one statement', () => {
     }
     return { actual, reference }
   }
-
-  it('seeds scores tied across bases at several distinct levels', async () => {
-    const scores = await db
-      .select({
-        rank: sql<number>`ts_rank_cd(${embedding.contentTsv}, websearch_to_tsquery(${FTS_CONFIG}, ${QUERY}))`,
-        bases: sql<number>`count(DISTINCT ${embedding.knowledgeBaseId})::int`,
-      })
-      .from(embedding)
-      .where(
-        and(
-          inArray(embedding.knowledgeBaseId, allBaseIds),
-          sql`${embedding.contentTsv} @@ websearch_to_tsquery(${FTS_CONFIG}, ${QUERY})`
-        )
-      )
-      .groupBy(sql`1`)
-      .orderBy(desc(sql`1`))
-    expect(scores.length).toBeGreaterThan(2)
-    expect(scores.filter((score) => score.bases > 1).length).toBeGreaterThan(1)
-  })
 
   describe.each([
     { label: 'every base (old per-base branch)', baseCount: allBaseIds.length },

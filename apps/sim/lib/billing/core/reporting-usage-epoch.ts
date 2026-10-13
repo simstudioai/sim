@@ -63,9 +63,14 @@ export function readyRedisClient(): Redis | null {
   return redis?.status === 'ready' ? redis : null
 }
 
+/**
+ * Throws when a configured Redis is not ready, since its stored prefixes then outlive the bump:
+ * each caller logs that like a failed or timed-out SET. Without Redis there is nothing to discard.
+ */
 async function replaceEpoch(epochKey: string): Promise<void> {
-  const redis = readyRedisClient()
+  const redis = getRedisClient()
   if (!redis) return
+  if (redis.status !== 'ready') throw new Error(`Redis not ready (${redis.status})`)
   await withinDeadline(
     () => redis.set(epochKey, generateShortId(), 'PX', PREFIX_EPOCH_RETAIN_MS),
     Date.now() + SHARED_READ_TIMEOUT_MS
@@ -76,8 +81,8 @@ async function replaceEpoch(epochKey: string): Promise<void> {
  * Discards every stored prefix, for a write that removes ledger rows — a user's deletion, whose
  * rows cascade away. Call it once that write has committed: a refresh that read the old epoch
  * stores its prefix under it, where nothing reads it, and one that reads the new epoch sums after
- * the deletion. Best effort: without a ready Redis there is no prefix to discard, and a failed
- * bump leaves the deleted usage counted until the stored prefixes expire.
+ * the deletion. Best effort: a bump that fails, times out, or finds Redis not ready leaves the
+ * deleted usage counted until the stored prefixes expire, and is logged.
  */
 export async function invalidateReportingUsagePrefixes(): Promise<void> {
   try {
@@ -100,6 +105,7 @@ export function invalidatePayerPrefixesForTopUp(entity: BillingEntity, rowCreate
   if (rowCreatedAt.getTime() >= Date.now() - TOP_UP_INVALIDATES_AFTER_MS) return
   replaceEpoch(payerPrefixEpochKey(entity)).catch((error) => {
     logger.warn('Shared reporting usage payer prefix invalidation failed', {
+      payerType: entity.type,
       error: getErrorMessage(error),
     })
   })
