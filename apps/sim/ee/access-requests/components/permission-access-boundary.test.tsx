@@ -26,6 +26,10 @@ vi.mock('@sim/emcn', () => ({
   ),
 }))
 vi.mock('@sim/emcn/icons', () => emcnIconsMock)
+vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+  useWorkspaceHostContext: () => ({ workspace: { id: 'workspace-1' } }),
+  useOptionalWorkspaceHostContext: () => ({ workspace: { id: 'workspace-1' } }),
+}))
 vi.mock('@/ee/access-control/hooks/permission-groups', () => ({ useUserPermissionConfig: policy }))
 vi.mock('@/hooks/queries/access-requests', () => ({
   useDiscoverAccessRequests: discovery,
@@ -37,7 +41,6 @@ vi.mock('@/ee/access-requests/components/request-access-action', () => ({
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 
 const { refresh } = nextNavigationMockFns.router
-nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 describe('PermissionAccessBoundary', () => {
   let container: HTMLDivElement

@@ -57,9 +57,11 @@ export interface PermissionConfigResult {
 
 export function usePermissionConfig(): PermissionConfigResult {
   const params = useParams()
-  const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
   const blockOverlayVersion = useCustomBlockOverlayVersion()
   const hostContext = useOptionalWorkspaceHostContext()
+  const workspaceId =
+    hostContext?.workspace.id ??
+    (typeof params?.workspaceId === 'string' ? params.workspaceId : undefined)
 
   const {
     data: permissionData,

@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Check, ChevronDown, Server } from '@sim/emcn/icons'
+import { Branch, Check, ChevronDown } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
@@ -29,14 +29,14 @@ export function EnvironmentSwitcher({ project, section, onChange }: EnvironmentS
   const { organization } = useOrganizationContext()
   if (project.environments.length <= 1)
     return (
-      <Chip leftIcon={Server} className='text-[var(--text-muted)]'>
+      <Chip leftIcon={Branch} className='text-[var(--text-muted)]'>
         {project.environment}
       </Chip>
     )
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Chip leftIcon={Server} rightIcon={ChevronDown} aria-label='Switch environment'>
+        <Chip leftIcon={Branch} rightIcon={ChevronDown} aria-label='Switch environment'>
           {project.environment}
         </Chip>
       </DropdownMenuTrigger>

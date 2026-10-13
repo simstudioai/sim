@@ -1,6 +1,7 @@
 'use client'
 
 import type {
+  CSSProperties,
   FocusEventHandler,
   KeyboardEventHandler,
   PointerEventHandler,
@@ -17,6 +18,8 @@ interface ChatPanelLayoutProps {
   panel: ReactNode
   collapsed: boolean
   chatHidden?: boolean
+  /** Px the chat leaves for the panel while the panel overlays it (expanded or settling). */
+  chatReserve?: number
   onToggleChat?: () => void
   label: string
   activityCount?: number
@@ -34,6 +37,7 @@ export function ChatPanelLayout({
   panel,
   collapsed,
   chatHidden = false,
+  chatReserve,
   onToggleChat,
   label,
   activityCount = 0,
@@ -48,25 +52,32 @@ export function ChatPanelLayout({
       : ''
   }`
   const canToggleChat = Boolean(onToggleChat) && !collapsed
+  const overlaid = chatReserve !== undefined
   return (
     <div
       ref={ref}
       className={cn(
         '@container/chat-panel relative flex h-full min-h-0 min-w-0 bg-[var(--bg)]',
         RESOURCE_HEADER_CLASSES.layout,
-        canToggleChat && !chatHidden && '[--resource-header-fixed-reserve:93px]'
+        canToggleChat &&
+          '[--resource-header-fixed-reserve:calc(var(--resource-header-end-inset)_+_2*var(--resource-header-toggle-hit-size)_+_2px)]',
+        collapsed && '[--chat-header-end-reserve:var(--resource-header-fixed-reserve)]'
       )}
     >
       <div
         className={cn(
-          chatHidden ? 'hidden' : 'contents',
+          'contents',
+          overlaid && '[&>*]:mr-[var(--chat-panel-reserve)]',
           !collapsed && '@max-[960px]/chat-panel:hidden'
         )}
+        style={
+          overlaid ? ({ '--chat-panel-reserve': `${chatReserve}px` } as CSSProperties) : undefined
+        }
         inert={chatHidden}
       >
         {children}
       </div>
-      {!collapsed && !chatHidden && (
+      {!collapsed && !overlaid && (
         <div className='relative z-20 @max-[960px]/chat-panel:hidden w-0 flex-none'>
           <div
             className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--selection)]'
@@ -81,55 +92,51 @@ export function ChatPanelLayout({
         </div>
       )}
       {panel}
-      {!chatHidden && (
-        <div
-          className={cn(
-            'z-30 max-md:w-[var(--resource-header-toggle-hit-size)] max-md:justify-center',
-            RESOURCE_HEADER_CLASSES.overlay,
-            canToggleChat
-              ? RESOURCE_HEADER_CLASSES.adjacentEndPosition
-              : RESOURCE_HEADER_CLASSES.endPosition
-          )}
+      <div
+        className={cn(
+          'z-30 max-md:w-[var(--resource-header-toggle-hit-size)] max-md:justify-center',
+          RESOURCE_HEADER_CLASSES.overlay,
+          RESOURCE_HEADER_CLASSES.endPosition
+        )}
+      >
+        <Button
+          variant='ghost'
+          size={null}
+          type='button'
+          onClick={onToggle}
+          className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
         >
-          <Button
-            variant='ghost'
-            size={null}
-            type='button'
-            onClick={onToggle}
-            className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
-          >
-            <span className={cn('sr-only', !collapsed && '@max-[960px]/chat-panel:hidden')}>
-              {toggleLabel}
-            </span>
+          <span className={cn('sr-only', !collapsed && '@max-[960px]/chat-panel:hidden')}>
+            {toggleLabel}
+          </span>
+          {!collapsed && (
+            <span className='sr-only @max-[960px]/chat-panel:block hidden'>Back to chat</span>
+          )}
+          <span className='relative'>
             {!collapsed && (
-              <span className='sr-only @max-[960px]/chat-panel:block hidden'>Back to chat</span>
+              <ArrowLeft className='@max-[960px]/chat-panel:block hidden size-[16px] text-[var(--text-icon)]' />
             )}
-            <span className='relative'>
-              {!collapsed && (
-                <ArrowLeft className='@max-[960px]/chat-panel:block hidden size-[16px] text-[var(--text-icon)]' />
+            <PanelLeft
+              className={cn(
+                '-scale-x-100 size-[16px] text-[var(--text-icon)]',
+                !collapsed && '@max-[960px]/chat-panel:hidden'
               )}
-              <PanelLeft
-                className={cn(
-                  '-scale-x-100 size-[16px] text-[var(--text-icon)]',
-                  !collapsed && '@max-[960px]/chat-panel:hidden'
-                )}
+            />
+            {collapsed && activityCount > 0 && (
+              <span
+                aria-hidden='true'
+                className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-blue)]'
               />
-              {collapsed && activityCount > 0 && (
-                <span
-                  aria-hidden='true'
-                  className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-blue)]'
-                />
-              )}
-            </span>
-          </Button>
-        </div>
-      )}
+            )}
+          </span>
+        </Button>
+      </div>
       {canToggleChat && (
         <div
           className={cn(
             'z-30',
             RESOURCE_HEADER_CLASSES.overlay,
-            RESOURCE_HEADER_CLASSES.endPosition
+            RESOURCE_HEADER_CLASSES.adjacentEndPosition
           )}
         >
           <Tooltip.Root>
@@ -168,7 +175,10 @@ interface ChatPanelContentProps {
   onInteraction?: () => void
 }
 
-/** The width element measured by the shared divider and native resource surfaces. */
+/**
+ * The width element measured by the shared divider and native resource surfaces. Its content keeps
+ * the open width, so opening and closing slide it under the clipped edge instead of reflowing it.
+ */
 export function ChatPanelContent({
   children,
   ref,
@@ -187,6 +197,7 @@ export function ChatPanelContent({
         '@max-[960px]/chat-panel:absolute relative @max-[960px]/chat-panel:inset-0 z-10 flex h-full @max-[960px]/chat-panel:w-full! @max-[960px]/chat-panel:min-w-0! flex-col overflow-hidden border-[var(--border)] @max-[960px]/chat-panel:border-l-0 bg-[var(--bg)] @max-[960px]/chat-panel:transition-none transition-[width,min-width,border-width] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none',
         collapsed ? '@max-[960px]/chat-panel:hidden w-0 min-w-0 border-l-0' : 'w-1/2 border-l',
         '[--workspace-content-title-bar-inset:0px]',
+        '@max-[960px]/chat-panel:[&>*]:min-w-0 [&>*]:min-w-[var(--chat-panel-width,50cqw)]',
         className
       )}
     >

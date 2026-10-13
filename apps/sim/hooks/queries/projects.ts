@@ -3,6 +3,7 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   archiveProjectContract,
+  createProjectContract,
   getWorkspaceProjectContract,
   listProjectsContract,
   renameProjectContract,
@@ -73,6 +74,25 @@ export function useWorkspaceProject(workspaceId: string) {
     },
     staleTime: PROJECT_DETAIL_STALE_TIME,
     enabled: Boolean(workspaceId),
+  })
+}
+
+/** Creates a project with its first environment, `main`. */
+export function useCreateProject() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { organizationId: string; name: string }) =>
+      requestJson(createProjectContract, {
+        body: {
+          organizationId: vars.organizationId,
+          name: vars.name,
+          initialEnvironment: { name: 'main' },
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+    },
   })
 }
 

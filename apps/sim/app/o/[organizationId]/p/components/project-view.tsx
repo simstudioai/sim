@@ -1,7 +1,6 @@
 'use client'
 
-import { Chip, ChipLink, cn } from '@sim/emcn'
-import { Settings } from '@sim/emcn/icons'
+import { ChipLink, cn } from '@sim/emcn'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { EnvironmentSwitcher } from '@/app/o/[organizationId]/p/components/environment-switcher'
 import { EnvironmentsTab } from '@/app/o/[organizationId]/p/components/environments'
@@ -35,19 +34,7 @@ export function ProjectView({
       <header className='flex shrink-0 flex-col gap-3 px-6 pt-5'>
         <div className='flex items-start gap-3'>
           <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-            <div className='flex items-center gap-1.5'>
-              <h1 className='text-[20px] text-[var(--text-primary)] leading-tight'>
-                {project.name}
-              </h1>
-
-              {onSectionChange && (
-                <Chip
-                  leftIcon={Settings}
-                  aria-label='Project settings'
-                  onClick={() => onSectionChange('settings')}
-                />
-              )}
-            </div>
+            <h1 className='text-[20px] text-[var(--text-primary)] leading-tight'>{project.name}</h1>
           </div>
           <div className='flex shrink-0 items-center gap-1'>
             <EnvironmentSwitcher
@@ -59,7 +46,7 @@ export function ProjectView({
         </div>
         <nav
           aria-label='Project sections'
-          className='flex items-center gap-6 overflow-x-auto border-[var(--border)] border-b'
+          className='scrollbar-none flex items-center gap-5 overflow-x-auto border-[var(--border)] border-b'
         >
           {PROJECT_SECTIONS.map((item) =>
             onSectionChange ? (

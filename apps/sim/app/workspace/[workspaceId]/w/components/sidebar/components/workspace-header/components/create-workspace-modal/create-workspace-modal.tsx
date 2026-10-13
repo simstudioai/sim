@@ -11,24 +11,26 @@ import {
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 
-const TITLE = 'Create workspace'
-
 interface CreateWorkspaceModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: (name: string) => Promise<void>
   isCreating: boolean
+  /** What the modal creates; organization Home creates projects. */
+  resource?: 'workspace' | 'project'
 }
 
 /**
- * Modal for naming a new workspace before creation.
+ * Modal for naming a new workspace or project before creation.
  */
 export function CreateWorkspaceModal({
   open,
   onOpenChange,
   onConfirm,
   isCreating,
+  resource = 'workspace',
 }: CreateWorkspaceModalProps) {
+  const title = `Create ${resource}`
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -47,7 +49,7 @@ export function CreateWorkspaceModal({
     try {
       await onConfirm(trimmed)
     } catch (err) {
-      setError(getErrorMessage(err, 'Failed to create workspace'))
+      setError(getErrorMessage(err, `Failed to create ${resource}`))
     }
   }
 
@@ -57,15 +59,15 @@ export function CreateWorkspaceModal({
   }
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={TITLE}>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>{TITLE}</ChipModalHeader>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title}>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>{title}</ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='input'
           title='Name'
           value={name}
           onChange={handleNameChange}
-          placeholder='Workspace name'
+          placeholder={resource === 'project' ? 'Project name' : 'Workspace name'}
           maxLength={100}
           autoComplete='off'
           disabled={isCreating}

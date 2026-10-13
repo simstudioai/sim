@@ -659,12 +659,12 @@ export function ResourceTabs({
             })}
         // A bare fragment is always truthy, so the empty case has to be `null` or
         // the strip renders an empty trailing cluster.
+        startActions={navigation?.control}
         endActions={
-          actions || previewToggle || navigation?.control ? (
+          actions || previewToggle ? (
             <>
               {actions}
               {previewToggle}
-              {navigation?.control}
             </>
           ) : null
         }

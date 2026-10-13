@@ -27,10 +27,10 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 
 const EXCLUDED: readonly MothershipResourceType[] = [
-  'dashboard',
   'sources',
   'search',
   'folder',
+  'filefolder',
   'task',
   'integration',
   'generic',

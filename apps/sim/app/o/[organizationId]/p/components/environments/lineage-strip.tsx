@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipTag, toast } from '@sim/emcn'
-import { Plus, Server, TriangleAlert } from '@sim/emcn/icons'
+import { Branch, Plus, TriangleAlert } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { parseAsString, useQueryStates } from 'nuqs'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -40,17 +40,26 @@ function EnvironmentCard({
   onDisconnect,
   onManageTeammates,
 }: EnvironmentCardProps) {
+  const [renaming, setRenaming] = useState(false)
   return (
     <article className='flex w-[250px] shrink-0 flex-col gap-2 rounded-lg border border-[var(--border)] px-4 py-3'>
       <div className='flex flex-wrap items-center gap-2'>
-        <Server className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-        <EnvironmentName workspaceId={column.id} name={column.name} canRename={canRename} />
+        <Branch className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+        <EnvironmentName
+          workspaceId={column.id}
+          name={column.name}
+          renaming={renaming}
+          onRenamingChange={setRenaming}
+        />
         {current ? <ChipTag variant='gray'>Current</ChipTag> : null}
-        {onManageTeammates || (canManage && parent) ? (
+        {canRename || onManageTeammates || (canManage && parent) ? (
           <RowActionsMenu
             label={`${column.label} actions`}
             triggerClassName='ml-auto'
             actions={[
+              ...(canRename
+                ? [{ label: 'Rename', focusesEditor: true, onSelect: () => setRenaming(true) }]
+                : []),
               ...(onManageTeammates
                 ? [{ label: 'Manage teammates', onSelect: onManageTeammates }]
                 : []),

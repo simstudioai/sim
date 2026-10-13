@@ -8,6 +8,10 @@ import type { BooleanPermissionGroupConfigKey } from '@/lib/permission-groups/fe
 import { FilesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/files-empty-state'
 import { KnowledgeEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/knowledge-empty-state'
 import { TablesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/tables-empty-state'
+import {
+  useOptionalWorkspaceHostContext,
+  useWorkspaceHostContext,
+} from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { RequestAccessAction } from '@/ee/access-requests/components/request-access-action'
 import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
@@ -16,7 +20,9 @@ import { workspaceFeatureDiscoveryQuery } from '@/hooks/queries/utils/access-req
 /** Safe feature metadata shared by navigation and access-required pages. */
 export function useWorkspaceAccessRequestFeatures() {
   const params = useParams()
-  const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : ''
+  const hostWorkspaceId = useOptionalWorkspaceHostContext()?.workspace.id
+  const workspaceId =
+    hostWorkspaceId ?? (typeof params?.workspaceId === 'string' ? params.workspaceId : '')
   return useDiscoverAccessRequests(
     workspaceFeatureDiscoveryQuery(workspaceId),
     Boolean(workspaceId)
@@ -30,9 +36,8 @@ interface PermissionAccessBoundaryProps {
 
 /** Omit children on a server-denied page to keep protected content behind a fresh server check. */
 export function PermissionAccessBoundary({ configKey, children }: PermissionAccessBoundaryProps) {
-  const params = useParams()
   const router = useRouter()
-  const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : ''
+  const workspaceId = useWorkspaceHostContext().workspace.id
   const policy = useUserPermissionConfig(workspaceId)
   const discovery = useWorkspaceAccessRequestFeatures()
   const blocked = policy.data?.config?.[configKey] === true

@@ -11,6 +11,24 @@ import type { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type { useChatResourcePanel } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
 import { useTerminalTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-terminal-tab-resources'
 
+/** Matches the panel's width transition in `ChatPanelContent`. */
+const PANEL_TRANSITION_MS = 200
+
+/**
+ * While expanded, the panel overlays the chat instead of displacing it, so neither side reflows
+ * mid-animation. `reserve` keeps the chat at the width it has when the overlay settles.
+ */
+interface PanelOverlay {
+  mode: 'expanded' | 'settling'
+  reserve: number
+}
+
+function measurePanelWidth(layout: HTMLElement | null): number {
+  const panelElement = layout?.querySelector<HTMLElement>('[data-mothership-panel]')
+  if (!panelElement) throw new Error('Resource panel is not mounted')
+  return panelElement.offsetWidth
+}
+
 const MothershipView = lazy(() =>
   import('@/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view').then(
     (m) => ({ default: m.MothershipView })
@@ -39,11 +57,20 @@ export function ChatResourcePanel({
   children,
   onSummarize,
 }: ChatResourcePanelProps) {
-  const [chatHidden, setChatHidden] = useState(false)
-  const isChatHidden = Boolean(navigation) && chatHidden && !panel.isResourceCollapsed
+  const [overlay, setOverlay] = useState<PanelOverlay | null>(null)
+  const settle = (reserve: number) => setOverlay({ mode: 'settling', reserve })
   useEffect(() => {
-    if (chat.isSending) setChatHidden(false)
+    if (chat.isSending)
+      setOverlay((current) =>
+        current?.mode === 'expanded' ? { mode: 'settling', reserve: current.reserve } : current
+      )
   }, [chat.isSending])
+  useEffect(() => {
+    if (overlay?.mode !== 'settling') return
+    const timer = setTimeout(() => setOverlay(null), PANEL_TRANSITION_MS)
+    return () => clearTimeout(timer)
+  }, [overlay])
+  const isChatHidden = overlay?.mode === 'expanded'
   useBrowserTabResources(panel.desktopTabResourceOptions)
   useTerminalTabResources(panel.desktopTabResourceOptions)
   const {
@@ -83,13 +110,28 @@ export function ChatResourcePanel({
       ref={panel.resourceLayoutRef}
       collapsed={isResourceCollapsed}
       chatHidden={isChatHidden}
-      onToggleChat={navigation ? () => setChatHidden((hidden) => !hidden) : undefined}
+      chatReserve={overlay?.reserve}
+      onToggleChat={
+        navigation
+          ? () => {
+              if (overlay?.mode === 'expanded') settle(overlay.reserve)
+              else
+                setOverlay({
+                  mode: 'expanded',
+                  reserve: measurePanelWidth(panel.resourceLayoutRef.current),
+                })
+            }
+          : undefined
+      }
       label='resource view'
       activityCount={resourceActivityIds.size}
       onToggle={() => {
-        setChatHidden(false)
-        if (isResourceCollapsed) expandResource()
-        else collapseResource()
+        if (isResourceCollapsed) {
+          expandResource()
+          return
+        }
+        if (overlay) settle(0)
+        collapseResource()
       }}
       onResize={handleResourceResizePointerDown}
       onResizeKeyDown={handleResourceResizeKeyDown}
@@ -122,7 +164,8 @@ export function ChatResourcePanel({
               onUserInteraction={handleResourceInteraction}
               className={cn(
                 skipResourceTransition && 'transition-none!',
-                isChatHidden && 'w-full! min-w-0! flex-1 border-l-0!'
+                overlay && 'absolute! inset-y-0 right-0',
+                isChatHidden && 'w-full! min-w-0! border-l-0!'
               )}
             />
           </Suspense>

@@ -17,6 +17,7 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import {
+  Branch,
   Building,
   Check,
   ChevronDown,
@@ -24,7 +25,6 @@ import {
   PanelLeft,
   Plus,
   Search,
-  Server,
   SquarePen,
 } from '@sim/emcn/icons'
 import { useParams, usePathname, useRouter } from 'next/navigation'
@@ -291,7 +291,7 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
   const environmentChip = (
     <Chip
       fullWidth
-      leftIcon={Server}
+      leftIcon={Branch}
       rightIcon={isCollapsed ? undefined : ChevronDown}
       aria-label='Switch environment'
       className={SIDEBAR_RAIL_CHIP_CLASS}
@@ -420,7 +420,7 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
                               onSelect={() => handleSwitchEnvironment(environment.workspaceId)}
                               aria-current={isCurrent ? 'true' : undefined}
                             >
-                              <Server />
+                              <Branch />
                               {environment.label}
                               {isCurrent && <Check className='ml-auto size-[14px]' />}
                             </DropdownMenuItem>

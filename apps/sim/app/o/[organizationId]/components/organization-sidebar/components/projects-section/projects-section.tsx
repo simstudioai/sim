@@ -1,9 +1,15 @@
 'use client'
 
-import { cn } from '@sim/emcn'
+import { useState } from 'react'
+import { Button, cn, Tooltip } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import {
+  CreateProjectModal,
+  useProjectCreationPolicy,
+} from '@/app/o/[organizationId]/components/create-project-modal/create-project-modal'
 import { ProjectRow } from '@/app/o/[organizationId]/components/organization-sidebar/components/projects-section/project-row'
 import {
   type ProjectDragProps,
@@ -13,6 +19,7 @@ import { projectPaneParsers } from '@/app/o/[organizationId]/home/components/pro
 import { type Project, useProjects } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { SIDEBAR_ITEM_GAP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface ProjectsSectionProps {
   organizationId: string
@@ -24,22 +31,59 @@ interface ProjectsSectionProps {
 export function ProjectsSection({ organizationId, isCollapsed, pathname }: ProjectsSectionProps) {
   const { roots } = useProjects(organizationId)
   const { projects, dragProps, isAnyDragActive } = useProjectOrder(roots)
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const { canCreate, disabledReason } = useProjectCreationPolicy(organizationId)
+
+  const openCreate = () => {
+    if (!canCreate) return
+    useSettingsDirtyStore.getState().requestLeave(() => setIsCreateOpen(true))
+  }
+
   return (
-    <SidebarSection title='Projects' railCollapsed={isCollapsed} className='shrink-0'>
-      <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-        {projects.map((project) => (
-          <ProjectTree
-            key={project.id}
-            organizationId={organizationId}
-            project={project}
-            pathname={pathname}
-            railCollapsed={isCollapsed}
-            drag={dragProps(project)}
-            isAnyDragActive={isAnyDragActive}
-          />
-        ))}
-      </div>
-    </SidebarSection>
+    <>
+      <SidebarSection
+        title='Projects'
+        railCollapsed={isCollapsed}
+        className='shrink-0'
+        action={
+          !isCollapsed && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='quiet'
+                  size='icon'
+                  aria-label='New project'
+                  disabled={!canCreate}
+                  onClick={openCreate}
+                >
+                  <Plus className='size-[16px]' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content>{disabledReason ?? 'New project'}</Tooltip.Content>
+            </Tooltip.Root>
+          )
+        }
+      >
+        <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+          {projects.map((project) => (
+            <ProjectTree
+              key={project.id}
+              organizationId={organizationId}
+              project={project}
+              pathname={pathname}
+              railCollapsed={isCollapsed}
+              drag={dragProps(project)}
+              isAnyDragActive={isAnyDragActive}
+            />
+          ))}
+        </div>
+      </SidebarSection>
+      <CreateProjectModal
+        organizationId={organizationId}
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+      />
+    </>
   )
 }
 
