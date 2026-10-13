@@ -91,11 +91,8 @@ export const revokeSlackSearchAccess: OperationUseCase<
       if (app.app.kind === 'custom' && app.app.organizationId !== installation.organizationId)
         throw new Error('Slack installation ownership is inconsistent')
       const staleInstallation = installation.updatedAt > occurredAt
-      if (uninstall && staleInstallation) {
-        /** A reinstall keeps its bot, but shared-app grants issued before the uninstall are gone. */
-        if (sharedApp) await revokeMemberGrants(tx)
-        return
-      }
+      /** A reinstall keeps its bot, but shared-app grants issued before the uninstall are gone. */
+      if (uninstall && staleInstallation && !sharedApp) return
       const revokeBot =
         !staleInstallation &&
         (uninstall ||
@@ -110,10 +107,14 @@ export const revokeSlackSearchAccess: OperationUseCase<
         if (revokeBot) await revokeCredentials
         else {
           const revokedCredentials = await revokeCredentials.returning({
+            organizationId: credential.organizationId,
             providerSubjectId: credential.providerSubjectId,
           })
-          revokedMemberIds = revokedCredentials.flatMap(({ providerSubjectId }) =>
-            providerSubjectId ? [providerSubjectId] : []
+          /** Only this installation's members have turns on its bot. */
+          revokedMemberIds = revokedCredentials.flatMap(({ organizationId, providerSubjectId }) =>
+            providerSubjectId && organizationId === installation.organizationId
+              ? [providerSubjectId]
+              : []
           )
         }
       }

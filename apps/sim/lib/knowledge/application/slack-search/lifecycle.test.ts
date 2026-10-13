@@ -39,7 +39,9 @@ beforeEach(() => {
 })
 describe('Slack access revocation', () => {
   it('cancels only affected members without rotating the shared installation revision', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([{ providerSubjectId: 'U1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { organizationId: 'org', providerSubjectId: 'U1' },
+    ])
     await revokeSlackSearchAccess.execute({
       principal,
       input: { ...input, event: { type: 'tokens_revoked', tokens: { oauth: ['U1', 'U2'] } } },
@@ -223,6 +225,33 @@ describe('Slack access revocation', () => {
       expect.objectContaining({ left: credential.organizationId })
     )
   })
+  it('cancels stale-uninstall turns only for members revoked in the installation organization', async () => {
+    queueReinstalledBot()
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { organizationId: 'org', providerSubjectId: 'U1' },
+      { organizationId: 'other-org', providerSubjectId: 'U2' },
+    ])
+    await revokeSlackSearchAccess.execute({ principal, input })
+    expect(dbChainMockFns.update.mock.calls.map(([table]) => table)).toEqual([
+      credential,
+      slackSearchTurn,
+    ])
+    expect(dbChainMockFns.where).toHaveBeenLastCalledWith({
+      type: 'and',
+      conditions: [
+        { type: 'eq', left: slackSearchTurn.installationId, right: 'i1' },
+        { type: 'inArray', column: slackSearchTurn.status, values: ['pending', 'running'] },
+        {
+          type: 'inArray',
+          column: expect.objectContaining({
+            strings: ['', " #>> '{message,userId}'"],
+            values: [slackSearchTurn.payload],
+          }),
+          values: ['U1'],
+        },
+      ],
+    })
+  })
   it('ignores a stale custom-app uninstall before any writes', async () => {
     m.app.mockResolvedValue({
       app: { id: 'A1', kind: 'custom', revision: 'r1', organizationId: 'org' },
@@ -245,7 +274,9 @@ describe('Slack access revocation', () => {
           updatedAt: new Date(input.event_time * 1000 + 1000),
         },
       ])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ providerSubjectId: 'U1' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        { organizationId: 'org', providerSubjectId: 'U1' },
+      ])
       await revokeSlackSearchAccess.execute({
         principal,
         input: { ...input, event: { type: 'tokens_revoked', tokens } },
