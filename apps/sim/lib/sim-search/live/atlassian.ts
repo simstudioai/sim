@@ -181,8 +181,14 @@ export async function searchAtlassian(
         )
         return {
           documents: array(data.issues)
-            .map((row) => issue(row, cloudId, origin))
-            .filter((document) => !relevant || relevant(`${document.title}\n${document.content}`)),
+            .filter((row) => {
+              const fields = object(row.fields)
+              return (
+                !relevant ||
+                relevant(`${string(fields.summary)}\n${textContent(fields.description)}`)
+              )
+            })
+            .map((row) => issue(row, cloudId, origin)),
           excluded: false,
           next: string(data.nextPageToken) || undefined,
         }

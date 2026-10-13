@@ -214,6 +214,21 @@ describe('Jira any-term search', () => {
     expect(page.documents.map((document) => document.id)).toEqual(['ENG-1'])
   })
 
+  it('counts only the summary and description, not the added status line', async () => {
+    const api = client({
+      '/ex/jira/cloud/rest/api/3/search/jql': {
+        issues: [{ key: 'ENG-3', fields: { summary: 'Release update', status: { name: 'Open' } } }],
+      },
+    })
+    const page = await searchAtlassian(api, 'jira', {
+      query: 'release status update owner timeline',
+      limit: 25,
+      scopes: [],
+      textMatch: 'any',
+    })
+    expect(page.documents).toEqual([])
+  })
+
   it('keeps every issue an all-terms search returns', async () => {
     const page = await searchAtlassian(client(issues), 'jira', query)
     expect(page.documents.map((document) => document.id)).toEqual(['ENG-1', 'ENG-2'])
