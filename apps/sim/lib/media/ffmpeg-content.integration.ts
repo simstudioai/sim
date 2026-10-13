@@ -10,12 +10,15 @@ import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { observeContentDelivery } from '@/lib/core/application/content-delivery'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import type { FfmpegOperation, MediaFile } from '@/lib/media/ffmpeg'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import { ffmpegServerTool } from '@/lib/mothership/tools/server/media/ffmpeg'
 import * as workspaceReader from '@/lib/uploads/contexts/workspace'
 import {
@@ -28,6 +31,7 @@ import {
   getBoundWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -145,6 +149,30 @@ describe('media input version lineage', () => {
       expect(result.success).toBe(false)
       expect(result.message).not.toContain(SECRET)
       expect(result.message).not.toContain(storage.root)
+      await expect(
+        observeContentDelivery(
+          createRegistryContentGate({
+            registry: new ResolvedSecretTraceRegistry([], {
+              userId: ids.aliceId,
+              workspaceId: ids.workspaceId,
+            }),
+            actorUserId: ids.aliceId,
+            workspaceId: ids.workspaceId,
+          }),
+          () =>
+            readWorkspaceFileContent.execute({
+              principal: createCopilotChatPrincipal(
+                { userId: ids.aliceId, workspaceId: ids.workspaceId },
+                WORKSPACE_FILES_DELEGATION_AUDIENCE
+              ),
+              input: { fileId: file.id },
+            })
+        )
+      ).rejects.toThrow(
+        classification === 'known'
+          ? 'File content could not be read'
+          : 'File cannot be sent to a model because its secret provenance is unavailable'
+      )
       await expect(
         readWorkspaceFileContent.execute({
           principal: { kind: 'session', userId: ids.aliceId, sessionId: generateId() },

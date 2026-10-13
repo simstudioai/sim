@@ -37,8 +37,13 @@ the workflow executor see byte-identical results.
     does not undo the write: audit and effects run, then the operation answers with the refusal.
     Settled tool results use the same deferral, but do not claim that a mutation was saved.
   - A source is `{ kind, id, provenance, view }`. `view` is `'complete'` (text whose every entry
-    may appear), `{ derived: value }` (only entries occurring in `value`), or `'opaque'` (bytes no
-    redaction reaches: binary, base64, archives, images, public links).
+    may appear), `{ derived: value }` (only entries occurring in `value`), `'opaque'` (bytes no
+    redaction reaches: binary, base64, archives, images, public links), or `'excerpt'` (text already
+    cut before admission, where a secret fragment cannot be redacted). Both gates withhold an
+    excerpt with known secret entries; raw opaque bytes may still enter the workbench with history.
+  - `redactBeforeCutting` projects complete text before selecting a line window. The session gate
+    creates the existing redactor from the operation's bounded evidence only when a cut needs it;
+    ordinary byte reads do not decrypt a second time or reload history.
 - Gates, installed by the surface: the **registry gate** (Chat tools, CLI, mounts) imports entries
   into the registry egress projects with; the **session gate** (run_code sandbox proxy) records
   them into the workbench history. Neither admits `unknown`, with one exception: the CLI's direct

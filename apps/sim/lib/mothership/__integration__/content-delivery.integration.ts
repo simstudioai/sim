@@ -68,7 +68,11 @@ vi.mock('@/lib/internal/tool-operations/registry.server', async (importOriginal)
 })
 
 import { db } from '@sim/db'
-import { copilotChats, userTableRowSecretProvenance } from '@sim/db/schema'
+import {
+  copilotChats,
+  userTableRowSecretProvenance,
+  workspaceFileSearchRevision,
+} from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { eq, sql } from 'drizzle-orm'
 import contentRoutes from '@/lib/api/server/routes/copilot-content-routes.json'
@@ -87,6 +91,7 @@ import {
 import {
   CANARY,
   type ContentFixture,
+  callV2,
   ORIGIN,
   removeContentFixture,
   seedContentFixture,
@@ -96,6 +101,8 @@ import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
 import { proxySandboxResourceRequest } from '@/lib/mothership/tools/sandbox-resource-transport'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { indexWorkspaceFileForSearch } from '@/lib/workspace-files/search/indexing'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -767,6 +774,176 @@ describe('content reaching Chat is admitted per item', () => {
     })
   })
 
+  describe.each(['cli', 'sandbox'] as const)('%s text excerpts', (surface) => {
+    const read = (route: string) => (surface === 'cli' ? cli('GET', route) : sandbox('GET', route))
+
+    it('preserves indexed match locations without releasing a clipped secret prefix', async () => {
+      const query = `preview-cut-${generateId()}`
+      const provenance: WorkspaceFileSecretProvenance = {
+        status: 'exact',
+        entries: [
+          {
+            encryptedValue: (await encryptSecret(CANARY.secret)).encrypted,
+            sourceUserId: fixture.ids.aliceId,
+            sourceWorkspaceId: ws(),
+            name: 'FIXTURE_TOKEN',
+          },
+        ],
+      }
+      const sources = [
+        {
+          name: 'protected',
+          content: `${`${query} `.padEnd(500, '.')}${CANARY.secret} after the token`,
+          provenance,
+        },
+        {
+          name: 'clean',
+          content: `${query} clean preview`,
+          provenance: { status: 'exact', entries: [] } as const,
+        },
+        {
+          name: 'unrecorded',
+          content: `${query} ordinary uploaded preview`,
+          provenance: { status: 'unrecorded' } as const,
+        },
+      ]
+      const fileIds: string[] = []
+      for (const source of sources) {
+        const file = await uploadWorkspaceFile(
+          ws(),
+          fixture.ids.aliceId,
+          Buffer.from(source.content),
+          `${source.name}-${generateId()}.txt`,
+          'text/plain',
+          { secretProvenance: source.provenance, notifyWorkspaceChange: false }
+        )
+        fileIds.push(file.id)
+        const sourceContentUpdatedAt = file.contentUpdatedAt ?? new Date()
+        const dispatchedAt = new Date()
+        await db
+          .insert(workspaceFileSearchRevision)
+          .values({
+            fileId: file.id,
+            workspaceId: ws(),
+            sourceContentUpdatedAt,
+            status: 'pending',
+            dispatchedAt,
+          })
+          .onConflictDoUpdate({
+            target: workspaceFileSearchRevision.fileId,
+            set: { status: 'pending', dispatchedAt, sourceContentUpdatedAt, buildId: null },
+          })
+        await indexWorkspaceFileForSearch(
+          {
+            workspaceId: ws(),
+            fileId: file.id,
+            sourceContentUpdatedAt: sourceContentUpdatedAt.toISOString(),
+            dispatchToken: dispatchedAt.toISOString(),
+          },
+          new AbortController().signal
+        )
+      }
+      const route = `/api/v2/files/search?workspaceId=${ws()}&query=${encodeURIComponent(query)}&maxResults=3`
+      const userRead = await callV2(fixture, 'GET', route)
+      expect(userRead.status).toBe(200)
+      const userResults: Array<{ fileId: string; text: string }> = (await userRead.json()).data
+        .results
+      const protectedPreview = userResults.find((result) => result.fileId === fileIds[0])?.text
+      expect(protectedPreview).toContain(CANARY.secret.slice(0, 12))
+      expect(protectedPreview).not.toContain(CANARY.secret)
+
+      const result = await read(route)
+      expect(result.status).toBe(200)
+      const data: {
+        results: Array<{ fileId: string; lineNumber: number; text: string }>
+        count: number
+        truncated: boolean
+      } = JSON.parse(result.body).data
+      expect(data.count).toBe(3)
+      expect(data.truncated).toBe(false)
+      expect(new Set(data.results.map((entry) => entry.fileId))).toEqual(new Set(fileIds))
+      expect(data.results.find((entry) => entry.fileId === fileIds[0])).toMatchObject({
+        lineNumber: 1,
+        text: expect.stringMatching(/preview withheld/i),
+      })
+      expect(data.results.find((entry) => entry.fileId === fileIds[1])?.text).toBe(
+        sources[1].content
+      )
+      expect(data.results.find((entry) => entry.fileId === fileIds[2])?.text).toBe(
+        sources[2].content
+      )
+      expect(result.body).not.toContain(CANARY.secret.slice(0, 12))
+    })
+
+    it('keeps a one-line read within the file owner’s extraction budget', async () => {
+      const file = await uploadWorkspaceFile(
+        ws(),
+        fixture.ids.aliceId,
+        Buffer.from(`small selected line\n${CANARY.secret}\n${'.'.repeat(17 * 1024 * 1024)}`),
+        `large-line-window-${generateId()}.txt`,
+        'text/plain',
+        {
+          secretProvenance: {
+            status: 'exact',
+            entries: [
+              {
+                encryptedValue: (await encryptSecret(CANARY.secret)).encrypted,
+                sourceUserId: fixture.ids.aliceId,
+                sourceWorkspaceId: ws(),
+                name: 'FIXTURE_TOKEN',
+              },
+            ],
+          },
+          notifyWorkspaceChange: false,
+        }
+      )
+      const result = await read(
+        `/api/v2/files/${file.id}/text?workspaceId=${ws()}&offset=1&limit=1`
+      )
+      expect(result.status).toBe(200)
+      expect(JSON.parse(result.body).data.text).toBe('small selected line')
+      expect(result.body).not.toContain(CANARY.secret)
+    })
+
+    it('redacts a multiline secret before selecting a text line window', async () => {
+      const secret = 'RANGE_TOKEN_FIRST_LINE_64C1\nRANGE_TOKEN_SECOND_LINE_97B2'
+      const file = await uploadWorkspaceFile(
+        ws(),
+        fixture.ids.aliceId,
+        Buffer.from(`header\n${secret}\nfooter`),
+        `line-window-${generateId()}.txt`,
+        'text/plain',
+        {
+          secretProvenance: {
+            status: 'exact',
+            entries: [
+              {
+                encryptedValue: (await encryptSecret(secret)).encrypted,
+                sourceUserId: fixture.ids.aliceId,
+                sourceWorkspaceId: ws(),
+                name: 'RANGE_TOKEN',
+              },
+            ],
+          },
+          notifyWorkspaceChange: false,
+        }
+      )
+      const result = await read(
+        `/api/v2/files/${file.id}/text?workspaceId=${ws()}&offset=2&limit=1`
+      )
+      expect(result.status).toBe(200)
+      expect(JSON.parse(result.body).data.text).toBe('{{RANGE_TOKEN}}')
+      expect(result.body).not.toContain('RANGE_TOKEN_FIRST_LINE_64C1')
+      expect(result.body).not.toContain('RANGE_TOKEN_SECOND_LINE_97B2')
+      if ('sessionKey' in result) {
+        expect(await workbenchHistory(result.sessionKey)).toMatchObject({
+          status: 'exact',
+          entries: [expect.objectContaining({ name: 'RANGE_TOKEN' })],
+        })
+      }
+    })
+  })
+
   describe('run_code sandbox proxy', () => {
     it('refuses an unknown file read without tainting the workbench (O1)', async () => {
       const read = await sandbox(
@@ -796,6 +973,11 @@ describe('content reaching Chat is admitted per item', () => {
       )
       expect(zip.status).toBe(200)
       expect(zip.body).toContain(CANARY.clean)
+      expect(zip.body).toContain(CANARY.secret)
+      expect(await workbenchHistory(zip.sessionKey)).toMatchObject({
+        status: 'exact',
+        entries: [expect.objectContaining({ name: 'FIXTURE_TOKEN' })],
+      })
       expect(zip.body).not.toContain(CANARY.unknown)
       expect(zip.body).toContain('sim-download-report.json')
       expect(zip.body).toContain(fixture.files.unknown)

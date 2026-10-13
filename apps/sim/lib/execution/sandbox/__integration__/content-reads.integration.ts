@@ -1,10 +1,10 @@
 import { execFile } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { db } from '@sim/db'
-import { auditLog, organization, user, workspace } from '@sim/db/schema'
+import { auditLog, organization, user, workspace, workspaceFiles } from '@sim/db/schema'
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { generateId } from '@sim/utils/id'
@@ -29,6 +29,7 @@ import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-deleg
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { executeFunctionExecute } from '@/lib/mothership/tools/handlers/function-execute'
 import { compileDoc } from '@/lib/mothership/tools/server/files/doc-compile'
+import { compileDocForWrite } from '@/lib/mothership/tools/server/files/workspace-file'
 import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
@@ -178,6 +179,111 @@ describe('Chat admits the file revision used by a sandbox', () => {
     expect(projected.value).not.toContain(secret)
     expect(projected.value).toContain('{{BROKER_TOKEN}}')
   }, 60_000)
+
+  it('admits broker inputs during legacy document-write validation before returning compiler errors', async () => {
+    const principal = createCopilotChatFilePrincipal({
+      userId: ids.aliceId,
+      workspaceId: ids.workspaceId,
+      chatId,
+    })
+    const validate = (source: string, trace: ResolvedSecretTraceRegistry) =>
+      observeContentDelivery(
+        createRegistryContentGate({
+          registry: trace,
+          workspaceId: ids.workspaceId,
+          actorUserId: ids.aliceId,
+        }),
+        () =>
+          compileDocForWrite({
+            source,
+            fileName: 'write-validation.pdf',
+            workspaceId: ids.workspaceId,
+            principal,
+            ownerKey: `user:${ids.aliceId}`,
+            fallbackMime: 'application/pdf',
+          })
+      )
+
+    await updateWorkspaceFileContent(
+      ids.workspaceId,
+      fileId,
+      ids.aliceId,
+      Buffer.from('unverified input'),
+      undefined,
+      {
+        version: { source: 'api', authorUserId: ids.aliceId },
+        secretProvenancePolicy: { mode: 'replace', provenance: { status: 'unknown' } },
+      }
+    )
+    const refused = await validate(
+      `const id = ${JSON.stringify(fileId)}; await getFileBase64(id); pdf.addPage();`,
+      registry()
+    )
+    expect.soft(refused).toMatchObject({ ok: false })
+    if (!refused.ok) expect(refused.message).toMatch(/provenance|read safely/i)
+
+    await updateWorkspaceFileContent(
+      ids.workspaceId,
+      fileId,
+      ids.aliceId,
+      Buffer.from(secret),
+      undefined,
+      {
+        version: { source: 'api', authorUserId: ids.aliceId },
+        secretProvenancePolicy: {
+          mode: 'replace',
+          provenance: {
+            status: 'exact',
+            entries: [
+              {
+                name: 'BROKER_TOKEN',
+                sourceUserId: ids.aliceId,
+                sourceWorkspaceId: ids.workspaceId,
+                encryptedValue: (await encryptSecret(secret)).encrypted,
+              },
+            ],
+          },
+        },
+      }
+    )
+    const trace = registry()
+    const failed = await validate(
+      `const id = ${JSON.stringify(fileId)}; const uri = await getFileBase64(id); throw new Error(Buffer.from(uri.split(',')[1], 'base64').toString());`,
+      trace
+    )
+    expect(failed.ok).toBe(false)
+    if (failed.ok) throw new Error('Expected the document source to fail')
+    expect(failed.message).toContain(secret)
+    const projected = projectResolvedSecretModelContent(failed.message, trace)
+    if (!projected.safe) throw new Error('Expected a safely projected compiler error')
+    expect(projected.value).not.toContain(secret)
+    expect(projected.value).toContain('{{BROKER_TOKEN}}')
+  }, 60_000)
+
+  it('keeps successful legacy dynamic-input documents readable after their first compile', async () => {
+    const references = Array.from({ length: 501 }, (_, index) => ({
+      id: `wf_${generateId()}`,
+      key: `workspace/${ids.workspaceId}/cache-reference-${generateId()}.txt`,
+      originalName: `reference-${index}.txt`,
+      userId: ids.aliceId,
+      workspaceId: ids.workspaceId,
+      context: 'workspace',
+      contentType: 'text/plain',
+      sizeBytes: 6,
+    }))
+    await db.insert(workspaceFiles).values(references)
+    await mkdir(join(storage.root, 'workspace', ids.workspaceId), { recursive: true })
+    for (const reference of references) {
+      await writeFile(join(storage.root, reference.key), 'public')
+    }
+    const source = `const ids = ${JSON.stringify(references.map((file) => file.id))}; for (const id of ids) await getFileBase64(id); pdf.addPage().drawText('compiled all references');`
+    const first = await compile(source, registry())
+    expect(first.buffer.subarray(0, 4).toString()).toBe('%PDF')
+    expect(first.contributingFiles).toHaveLength(references.length)
+    const second = await compile(source, registry())
+    expect(second.buffer.subarray(0, 4).toString()).toBe('%PDF')
+    expect(second.contributingFiles).toHaveLength(references.length)
+  }, 120_000)
 
   it('does not run code with a stale local file after refusing its requested replacement', async () => {
     await updateWorkspaceFileContent(

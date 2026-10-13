@@ -76,7 +76,7 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         principal,
         context.workspaceId,
         found.sources.map((source) => source.identity),
-        'opaque'
+        'excerpt'
       )
       if (!classified) return found
       return {

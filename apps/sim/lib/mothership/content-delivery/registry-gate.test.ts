@@ -221,7 +221,12 @@ describe('createRegistryContentGate', () => {
     const text = `config\n${key}\nend`
     const window = await observeContentDelivery(gate, async () => {
       expect(await gate.admit([item('key-file', exact(key))])).toEqual([true])
-      return sliceFileTextLines(redactBeforeCutting(undefined, text, 'workspace-file'), 2, 1, false)
+      return sliceFileTextLines(
+        await redactBeforeCutting(undefined, text, 'workspace-file'),
+        2,
+        1,
+        false
+      )
     })
     for (const line of key.split('\n')) expect(window.text).not.toContain(line)
   })

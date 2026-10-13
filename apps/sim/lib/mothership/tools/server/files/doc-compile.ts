@@ -219,6 +219,14 @@ async function resolveReferencedImages(
       `More than ${MAX_REFERENCED_INPUTS} referenced input files; maximum is ${MAX_REFERENCED_INPUTS}. Reference fewer files.`
     )
   }
+  return resolveReferencedFileIds(workspaceId, principal, ids)
+}
+
+async function resolveReferencedFileIds(
+  workspaceId: string,
+  principal: Principal,
+  ids: ReadonlySet<string>
+): Promise<ReferencedImageResolution> {
   if (ids.size === 0) {
     return { images: [], referenceCount: 0 }
   }
@@ -700,8 +708,7 @@ async function compileDocInLegacySandbox(
   const cached = compiledDocCache.get(cacheKey)
   let cacheReadable = true
   if (cached && args.filePrincipal && mustClassifyContent(args.filePrincipal)) {
-    const { images } = await resolveReferencedImages(
-      args.source,
+    const { images } = await resolveReferencedFileIds(
       args.workspaceId,
       args.filePrincipal,
       new Set(cached.contributingFiles?.map((file) => file.fileId))

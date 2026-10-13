@@ -79,6 +79,7 @@ import type { VisionExtractionUsage } from '@/lib/knowledge/documents/vision-che
 import {
   assertKnowledgeOpaqueModelInputSafe,
   getKnowledgeOpaqueModelInputRegistry,
+  projectKnowledgeModelInput,
 } from '@/lib/knowledge/model-input-provenance'
 import { getFileExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import {
@@ -305,7 +306,7 @@ export async function processDocument(
       ? { content: image.renderedText, processingMethod: 'vision-extract' }
       : await parseDocument(fileUrl, filename, mimeType, access, workspaceId)
     access.signal?.throwIfAborted()
-    const { content, processingMethod, cloudUrl } = parseResult
+    const { content: parsedContent, processingMethod, cloudUrl } = parseResult
     if (parseResult.metadata?.detectedType || parseResult.metadata?.warning) {
       logger.info('Parser reported a warning for the document', {
         filename,
@@ -320,13 +321,15 @@ export async function processDocument(
      * document that reports success while holding nothing. Failing here keeps it
      * visible with a reason instead.
      */
-    if (parseResult.metadata?.degraded || !content.trim()) {
+    if (parseResult.metadata?.degraded || !parsedContent.trim()) {
       throw new PermanentDocumentProcessingError(
         'no_extractable_text',
         unreadableDocumentMessage(filename)
       )
     }
 
+    // Chunkers transform text; source and parser budgets already bound this materialized input.
+    const content = projectKnowledgeModelInput(parsedContent, Number.POSITIVE_INFINITY)
     let chunks: Chunk[]
     const metadata: FileParseMetadata = parseResult.metadata ?? {}
 
@@ -398,7 +401,7 @@ export async function processDocument(
     }
 
     access.signal?.throwIfAborted()
-    const characterCount = content.length
+    const characterCount = parsedContent.length
     const tokenCount = chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0)
 
     logger.info(`Document processed: ${chunks.length} chunks, ${tokenCount} tokens`)

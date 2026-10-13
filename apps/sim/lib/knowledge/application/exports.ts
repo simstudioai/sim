@@ -14,7 +14,7 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { KNOWLEDGE_BUNDLE_VERSION } from '@/lib/knowledge/constants'
 import { toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import {
-  classifyKnowledgeChunks,
+  classifyKnowledgeChunkContent,
   classifyKnowledgeDocumentMetadata,
   loadKnowledgeDocumentDurableSecretProvenance,
 } from '@/lib/knowledge/secret-provenance'
@@ -151,7 +151,7 @@ export const exportKnowledgeBase = defineAuthorizedKnowledgeUseCase({
           classify
             ? (page) =>
                 inExportContext(async () => {
-                  const provenance = await classifyKnowledgeChunks(
+                  const provenance = await classifyKnowledgeChunkContent(
                     page.map((chunk) => ({ ...chunk, documentId }))
                   )
                   const sources = page.map((chunk) => ({

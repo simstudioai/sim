@@ -175,7 +175,9 @@ export async function extractWorkspaceFileRecordText(
   const truncated = metadata.truncated === true
   const ranged = input.offset !== undefined || input.limit !== undefined
   const { text, lineRange } = sliceFileTextLines(
-    ranged ? redactBeforeCutting(principal, parsed.content, 'workspace-file') : parsed.content,
+    ranged
+      ? await redactBeforeCutting(principal, parsed.content, 'workspace-file')
+      : parsed.content,
     input.offset,
     input.limit,
     truncated

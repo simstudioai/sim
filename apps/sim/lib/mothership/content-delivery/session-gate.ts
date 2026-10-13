@@ -1,5 +1,6 @@
 import type { ContentDeliveryGate } from '@/lib/core/application/content-delivery'
 import {
+  createDurableSecretProvenanceRegistry,
   type DurableSecretProvenance,
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
   mergeDurableSecretProvenance,
@@ -7,6 +8,7 @@ import {
 import { reportDurableSecretProvenanceUnrecordedBatch } from '@/lib/execution/durable-secret-provenance-telemetry'
 import { recordExistingSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { reportContentRefusal } from '@/lib/mothership/content-delivery/telemetry'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 /** The workbench's history could not be widened, so nothing may enter the machine. */
 export class WorkbenchProvenanceUnavailableError extends Error {
@@ -28,6 +30,27 @@ export function createSessionContentGate(scope: {
   actorUserId: string
 }): ContentDeliveryGate {
   return {
+    async project(text, provenance) {
+      if (!provenance || provenance.status === 'unrecorded') return text
+      try {
+        const registry = await createDurableSecretProvenanceRegistry(provenance, {
+          userId: scope.actorUserId,
+          workspaceId: scope.workspaceId,
+        })
+        if (!registry) return text
+        /** File extraction already bounds this scalar; final egress limits the selected output. */
+        const projection = projectResolvedSecretModelContent(
+          text,
+          registry.forkForPropagatedEntries(),
+          Number.POSITIVE_INFINITY
+        )
+        return projection.safe && typeof projection.value === 'string'
+          ? projection.value
+          : undefined
+      } catch {
+        return undefined
+      }
+    },
     async admit(sources) {
       const verdicts: boolean[] = []
       const admitted: DurableSecretProvenance[] = []
@@ -36,6 +59,14 @@ export function createSessionContentGate(scope: {
         const { provenance } = source
         if (provenance.status === 'unknown') {
           verdicts.push(reportContentRefusal(source, 'unknown', scope.workspaceId))
+          continue
+        }
+        if (
+          provenance.status === 'exact' &&
+          provenance.entries.length > 0 &&
+          source.view === 'excerpt'
+        ) {
+          verdicts.push(reportContentRefusal(source, 'opaque', scope.workspaceId))
           continue
         }
         if (provenance.status === 'unrecorded') {

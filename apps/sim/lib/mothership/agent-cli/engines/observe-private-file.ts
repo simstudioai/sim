@@ -80,7 +80,7 @@ export async function observePrivateFile(
     const ranged = options.offset !== undefined || options.limit !== undefined
     const { text, lineRange } = sliceFileTextLines(
       ranged
-        ? redactBeforeCutting(
+        ? await redactBeforeCutting(
             undefined,
             parsed.content,
             file.source === 'knowledge' ? 'knowledge-document' : 'workspace-file'

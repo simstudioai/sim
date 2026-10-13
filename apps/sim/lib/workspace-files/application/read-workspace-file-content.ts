@@ -49,14 +49,15 @@ async function executeReadWorkspaceFileContent({
     includeOwnedFiles: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
-  const secretProvenance = input.includeSecretProvenance
-    ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
-        fileId: file.id,
-        key: file.key,
-        context: file.storageContext ?? 'workspace',
-        contentUpdatedAt: file.contentUpdatedAt ?? undefined,
-      })
-    : undefined
+  const secretProvenance =
+    input.includeSecretProvenance || isCopilotPrincipal(principal)
+      ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
+          fileId: file.id,
+          key: file.key,
+          context: file.storageContext ?? 'workspace',
+          contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+        })
+      : undefined
   await requireAdmittedWorkspaceFile(
     principal,
     context.workspaceId,
@@ -82,7 +83,7 @@ async function executeReadWorkspaceFileContent({
   return {
     file,
     content,
-    ...(secretProvenance ? { secretProvenance } : {}),
+    ...(input.includeSecretProvenance && secretProvenance ? { secretProvenance } : {}),
   }
 }
 

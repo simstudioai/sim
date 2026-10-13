@@ -556,19 +556,40 @@ export async function classifyKnowledgeDocumentMetadata(
   return result
 }
 
+interface KnowledgeChunkContentSnapshot {
+  id: string
+  documentId: string
+  content: string
+}
+
+/** Classifies chunk bytes against their current stored identity and content binding. */
+export async function classifyKnowledgeChunkContent(
+  chunks: readonly KnowledgeChunkContentSnapshot[]
+): Promise<Map<string, DurableSecretProvenance>> {
+  const ids = [...new Set(chunks.map((chunk) => chunk.id))]
+  const rows = ids.length
+    ? await selectKnowledgeEmbeddingProvenanceRows(inArray(embedding.id, ids))
+    : []
+  const rowById = new Map(rows.map((row) => [row.id, row]))
+  return new Map(
+    chunks.map((chunk): [string, DurableSecretProvenance] => {
+      const row = rowById.get(chunk.id)
+      return [
+        chunk.id,
+        !row || row.documentId !== chunk.documentId || row.content !== chunk.content
+          ? { status: 'unknown' }
+          : readBoundKnowledgeEmbeddingSecretProvenance(row),
+      ]
+    })
+  )
+}
+
 /**
- * Classifies each chunk a result returns: its own content's binding, merged with the metadata of
- * the document whose tags the chunk carries. A chunk whose row moved since it was read (other
- * document, other content) reads as unknown. Chunk rows and document metadata are batched;
- * tracked inline document sources are loaded individually to verify their bindings.
+ * Classifies a result's chunk bytes and the document metadata it displays. Both are bound to
+ * the returned snapshots; tracked inline originals are loaded individually for metadata bindings.
  */
 export async function classifyKnowledgeChunks(
-  chunks: readonly {
-    id: string
-    documentId: string
-    content: string
-    snapshot?: KnowledgeDocumentSnapshot
-  }[]
+  chunks: readonly (KnowledgeChunkContentSnapshot & { snapshot?: KnowledgeDocumentSnapshot })[]
 ): Promise<Map<string, DurableSecretProvenance>> {
   const snapshots = new Map<string, KnowledgeDocumentSnapshot[]>()
   for (const chunk of chunks) {
@@ -578,29 +599,21 @@ export async function classifyKnowledgeChunks(
       else snapshots.set(chunk.documentId, [chunk.snapshot])
     }
   }
-  const ids = [...new Set(chunks.map((chunk) => chunk.id))]
-  const [rows, documents] = await Promise.all([
-    ids.length ? selectKnowledgeEmbeddingProvenanceRows(inArray(embedding.id, ids)) : [],
+  const [contents, documents] = await Promise.all([
+    classifyKnowledgeChunkContent(chunks),
     classifyKnowledgeDocumentMetadata(
       chunks.map((chunk) => chunk.documentId),
       snapshots
     ),
   ])
-  const rowById = new Map(rows.map((row) => [row.id, row]))
   return new Map(
-    chunks.map((chunk): [string, DurableSecretProvenance] => {
-      const row = rowById.get(chunk.id)
-      if (!row || row.documentId !== chunk.documentId || row.content !== chunk.content) {
-        return [chunk.id, { status: 'unknown' }]
-      }
-      return [
-        chunk.id,
-        mergeDurableSecretProvenance(
-          readBoundKnowledgeEmbeddingSecretProvenance(row),
-          documents.get(chunk.documentId) ?? { status: 'unknown' }
-        ),
-      ]
-    })
+    chunks.map((chunk): [string, DurableSecretProvenance] => [
+      chunk.id,
+      mergeDurableSecretProvenance(
+        contents.get(chunk.id) ?? { status: 'unknown' },
+        documents.get(chunk.documentId) ?? { status: 'unknown' }
+      ),
+    ])
   )
 }
 

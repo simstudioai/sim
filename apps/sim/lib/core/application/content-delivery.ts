@@ -23,9 +23,10 @@ export type ContentSourceKind =
 /**
  * How an item's content leaves the use case. `complete` is text in which any of its secrets may
  * appear; `derived` is text built from part of it, so only secrets occurring in `value` count;
- * `opaque` is bytes no text redaction reaches — binary, base64, archives, images, public links.
+ * `opaque` is bytes no text redaction reaches — binary, base64, archives, images, public links;
+ * `excerpt` is text already cut before admission, so a secret fragment cannot be redacted.
  */
-export type ContentView = 'complete' | 'opaque' | { derived: unknown }
+export type ContentView = 'complete' | 'opaque' | 'excerpt' | { derived: unknown }
 
 /** One stored item or tool result whose content a use case is about to return. */
 export interface ContentSource {
@@ -43,10 +44,13 @@ export interface ContentSource {
 export interface ContentDeliveryGate {
   admit(sources: readonly ContentSource[]): Promise<readonly boolean[]>
   /**
-   * The text as this surface's egress will show it, or `undefined` when it cannot be shown. A gate
-   * whose surface redacts (Chat's registry) implements it; see {@link redactBeforeCutting}.
+   * Redacts text before cutting, or returns `undefined` when it cannot be shown. The current
+   * operation's bounded evidence lets a surface create a redactor only when a cut needs one.
    */
-  project?(text: string): string | undefined
+  project?(
+    text: string,
+    provenance?: ContentProvenance
+  ): string | undefined | Promise<string | undefined>
 }
 
 /**
@@ -149,17 +153,17 @@ export function observeContentDelivery<T>(gate: ContentDeliveryGate, execute: ()
 /**
  * Text a use case is about to cut (a line window, a clip), redacted first by the surface's gate.
  * Egress redacts whole secrets only, so a cut through one would leave a fragment it cannot
- * recognize. Other callers, and surfaces that do not redact, get the text unchanged.
+ * recognize. Other callers and explicit outside-model reads get the text unchanged.
  */
-export function redactBeforeCutting(
+export async function redactBeforeCutting(
   principal: Principal | undefined,
   text: string,
   kind: ContentSourceKind
-): string {
+): Promise<string> {
   if (principal && !isCopilotPrincipal(principal)) return text
   const project = gates.getStore()?.project
   if (!project) return text
-  const projected = project(text)
+  const projected = await project(text, ledgers.getStore()?.admitted[0])
   if (projected === undefined) throw new ContentRefusedError(kind)
   return projected
 }

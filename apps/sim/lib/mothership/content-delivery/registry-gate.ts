@@ -56,7 +56,7 @@ export function createRegistryContentGate(scope: RegistryContentGateScope): Cont
       return true
     }
     if (provenance.entries.length === 0) return true
-    if (source.view === 'opaque') return refuse(source, 'opaque')
+    if (source.view === 'opaque' || source.view === 'excerpt') return refuse(source, 'opaque')
     const registry = scope.registry
     if (!registry) return refuse(source, 'registry')
     /** A derived view that shows nothing needs no entry; `undefined` would mean the whole item. */
@@ -72,9 +72,11 @@ export function createRegistryContentGate(scope: RegistryContentGateScope): Cont
     project(text) {
       /** Without a registry no admitted item holds a secret, so there is nothing to redact. */
       if (!scope.registry) return text
+      /** File extraction already bounds this scalar; final egress limits the selected output. */
       const projection = projectResolvedSecretModelContent(
         text,
-        scope.registry.forkForPropagatedEntries()
+        scope.registry.forkForPropagatedEntries(),
+        Number.POSITIVE_INFINITY
       )
       return projection.safe && typeof projection.value === 'string' ? projection.value : undefined
     },

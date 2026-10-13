@@ -273,6 +273,66 @@ describe('knowledge content delivery', () => {
     }
   })
 
+  it('streams chunk pages without reloading the tracked inline original for each page', async () => {
+    const content = 'inline original content '.repeat(4096)
+    const doc = await seedDocument({ content, provenance: { status: 'exact', entries: [] } })
+    await db.insert(embedding).values(
+      Array.from({ length: 100 }, (_, index) => {
+        const text = `public exported chunk ${index + 1}`
+        return {
+          id: generateId(),
+          documentId: doc.id,
+          knowledgeBaseId: ids.knowledgeBaseId,
+          chunkIndex: index + 1,
+          ...embeddingVectorValues(1536, [1, ...Array<number>(1535).fill(0)]),
+          chunkHash: sha256Hex(text),
+          content: text,
+          contentLength: text.length,
+          tokenCount: 4,
+          startOffset: 0,
+          endOffset: text.length,
+          tag1: 'public',
+        }
+      })
+    )
+    const bundle = await inChat(() =>
+      exportKnowledgeBase.execute({
+        principal,
+        input: { knowledgeBaseId: ids.knowledgeBaseId, vectors: true },
+      })
+    )
+    const originalBytes = Buffer.byteLength(
+      `data:text/plain;base64,${Buffer.from(content).toString('base64')}`
+    )
+    let loadedOriginalBytes = 0
+    const execute = PostgresJsPreparedQuery.prototype.execute
+    const measure = vi
+      .spyOn(PostgresJsPreparedQuery.prototype, 'execute')
+      .mockImplementation(async function (this: typeof PostgresJsPreparedQuery.prototype, values) {
+        const rows = await execute.call(this, values)
+        if (Array.isArray(rows)) {
+          for (const row of rows) {
+            if (!isRecordLike(row)) continue
+            const value = row.fileUrl
+            if (typeof value === 'string' && value.startsWith('data:'))
+              loadedOriginalBytes += Buffer.byteLength(value)
+          }
+        }
+        return rows
+      })
+    try {
+      const exported: string[] = []
+      for await (const chunk of bundle.chunks(doc.id)) exported.push(chunk.content)
+      expect(exported).toHaveLength(101)
+      expect(exported[0]).toBe(content)
+      expect(exported.at(-1)).toBe('public exported chunk 100')
+      expect(loadedOriginalBytes).toBeGreaterThan(0)
+      expect(loadedOriginalBytes).toBeLessThanOrEqual(originalBytes)
+    } finally {
+      measure.mockRestore()
+    }
+  })
+
   it('keeps stored search totals and continuation while withholding only unsafe documents', async () => {
     await seedDocument({ name: 'page-a.txt' })
     await seedDocument({ name: 'page-b.txt', provenance: { status: 'unknown' } })
