@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Chip, ChipInput, ChipModalTabs } from '@sim/emcn'
+import { Chip, ChipInput, ChipModalTabs, cn } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
@@ -403,7 +403,9 @@ export function RecentlyDeleted() {
           <SettingsEmptyState>No deleted items</SettingsEmptyState>
         )
       ) : (
-        <div className={RESOURCE_LIST_STACK}>
+        <div
+          className={cn(RESOURCE_LIST_STACK, isPlaceholderData && 'opacity-50 transition-opacity')}
+        >
           {filtered.map((resource) => {
             const isRestoring = restoringIds.has(resource.id)
             const isRestored = restoredItems.has(resource.id)
