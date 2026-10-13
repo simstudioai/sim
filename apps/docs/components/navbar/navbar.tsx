@@ -11,10 +11,10 @@ import { cn } from '@/lib/utils'
 
 /**
  * Sections that own a tab, in reading order: the main docs, then the three
- * reference surfaces, then Academy. `Documentation` matches by exclusion, so
+ * reference surfaces. `Documentation` matches by exclusion, so
  * every section listed here is one it must not claim.
  */
-const SECTION_TABS = ['api-reference', 'academy', 'cli', 'mcp'] as const
+const SECTION_TABS = ['api-reference', 'cli', 'mcp'] as const
 
 /**
  * Whether a pathname is inside a section, matched on its first path segment.
@@ -49,12 +49,6 @@ const NAV_TABS = [
     label: 'MCP',
     href: '/mcp/overview',
     match: (p: string) => isInSection(p, 'mcp'),
-    external: false,
-  },
-  {
-    label: 'Academy',
-    href: '/academy',
-    match: (p: string) => isInSection(p, 'academy'),
     external: false,
   },
 ] as const

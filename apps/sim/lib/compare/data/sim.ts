@@ -1260,14 +1260,14 @@ export const simProfile: CompetitorProfile = {
       },
       academy: {
         value:
-          'Yes: Sim Academy is a dedicated structured-learning section of the docs site, separate from reference documentation and the API reference',
-        shortValue: 'Sim Academy: dedicated structured-learning docs section',
+          'No: Sim provides product documentation and API reference guides without a dedicated academy or certification program',
+        shortValue: 'Product docs and API reference; no dedicated academy',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/academy',
-            label: 'Sim Docs: Academy',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/introduction',
+            label: 'Sim Documentation',
+            asOf: '2026-10-13',
           },
         ],
       },

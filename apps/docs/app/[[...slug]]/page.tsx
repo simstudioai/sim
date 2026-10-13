@@ -122,25 +122,14 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   }
   const isOpenAPI = '_openapi' in data && data._openapi != null
   const isApiReference = slug?.some((s) => s === 'api-reference') ?? false
-  // Academy lessons are video-first: drop the "On this page" TOC and go full
-  // width so the lesson hero/video gets the room (chapters live in-page instead).
-  const isAcademy = slug?.[0] === 'academy'
   const isCli = slug?.[0] === 'cli'
   const isMcp = slug?.[0] === 'mcp'
 
   const rawNeighbours = findNeighbour(source.pageTree, page.url)
-  // Academy, API Reference, CLI, and MCP are self-contained sections; keep prev/next
+  // API Reference, CLI, and MCP are self-contained sections; keep prev/next
   // inside the section instead of spilling into the main documentation tree.
   // Match both the section's pages (`/<slug>/...`) and its index (`/<slug>`).
-  const sectionSlug = isApiReference
-    ? 'api-reference'
-    : isAcademy
-      ? 'academy'
-      : isCli
-        ? 'cli'
-        : isMcp
-          ? 'mcp'
-          : null
+  const sectionSlug = isApiReference ? 'api-reference' : isCli ? 'cli' : isMcp ? 'mcp' : null
   const inSection = (url?: string) =>
     url != null && (url.includes(`/${sectionSlug}/`) || url.endsWith(`/${sectionSlug}`))
   const neighbours = sectionSlug
@@ -254,18 +243,16 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
         role='main'
         tabIndex={-1}
         toc={data.toc.filter(isContentHeading)}
-        full={data.full || isAcademy}
+        full={data.full}
         breadcrumb={{
           enabled: false,
         }}
         tableOfContent={{
           style: 'clerk',
-          enabled: !isAcademy,
           single: false,
         }}
         tableOfContentPopover={{
           style: 'clerk',
-          enabled: !isAcademy,
         }}
         footer={{
           enabled: true,
