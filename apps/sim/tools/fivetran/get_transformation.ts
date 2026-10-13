@@ -1,6 +1,7 @@
-import type {
-  FivetranGetTransformationResponse,
-  FivetranTransformationParams,
+import {
+  type FivetranGetTransformationResponse,
+  type FivetranTransformationParams,
+  TRANSFORMATION_PROPERTIES,
 } from '@/tools/fivetran/types'
 import {
   envelopeData,
@@ -12,7 +13,6 @@ import {
   fivetranId,
   fivetranUrl,
   mapTransformation,
-  TRANSFORMATION_PROPERTIES,
 } from '@/tools/fivetran/utils'
 import type { ToolConfig } from '@/tools/types'
 

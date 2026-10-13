@@ -17,12 +17,20 @@ const CONNECTION_ID_OPS = [
   'get_connection_schema_config',
   'reload_connection_schema',
   'update_connection_table',
+  'update_connection_schema',
+  'update_schema_config',
   'create_connect_card',
 ]
 
-const GROUP_ID_OPS = ['list_connections', 'create_connection', 'get_group', 'list_transformations']
+const GROUP_ID_OPS = [
+  'list_connections',
+  'create_connection',
+  'create_destination',
+  'get_group',
+  'list_transformations',
+]
 
-const GROUP_ID_REQUIRED_OPS = ['create_connection', 'get_group']
+const GROUP_ID_REQUIRED_OPS = ['create_connection', 'create_destination', 'get_group']
 
 const DESTINATION_ID_OPS = ['get_destination', 'run_destination_setup_tests']
 
@@ -31,6 +39,7 @@ const CONNECTION_SETTINGS_OPS = ['create_connection', 'update_connection']
 const SETUP_TEST_OPS = [
   'create_connection',
   'update_connection',
+  'create_destination',
   'run_connection_setup_tests',
   'run_destination_setup_tests',
 ]
@@ -46,6 +55,62 @@ const PAGINATED_OPS = [
 ]
 
 const TRANSFORMATION_ID_OPS = ['get_transformation', 'run_transformation', 'cancel_transformation']
+
+const SCHEMA_NAME_OPS = ['update_connection_table', 'update_connection_schema']
+
+/** Fivetran's data processing regions for a new destination. */
+const REGION_OPTIONS = [
+  { label: 'Account default', id: '' },
+  { label: 'GCP_US_EAST4', id: 'GCP_US_EAST4' },
+  { label: 'GCP_US_WEST1', id: 'GCP_US_WEST1' },
+  { label: 'GCP_US_CENTRAL1', id: 'GCP_US_CENTRAL1' },
+  { label: 'GCP_EUROPE_WEST3', id: 'GCP_EUROPE_WEST3' },
+  { label: 'GCP_AUSTRALIA_SOUTHEAST1', id: 'GCP_AUSTRALIA_SOUTHEAST1' },
+  { label: 'GCP_NORTHAMERICA_NORTHEAST1', id: 'GCP_NORTHAMERICA_NORTHEAST1' },
+  { label: 'GCP_EUROPE_WEST2', id: 'GCP_EUROPE_WEST2' },
+  { label: 'GCP_ASIA_SOUTHEAST1', id: 'GCP_ASIA_SOUTHEAST1' },
+  { label: 'GCP_ASIA_SOUTHEAST2', id: 'GCP_ASIA_SOUTHEAST2' },
+  { label: 'GCP_ASIA_SOUTH1', id: 'GCP_ASIA_SOUTH1' },
+  { label: 'GCP_ASIA_NORTHEAST1', id: 'GCP_ASIA_NORTHEAST1' },
+  { label: 'GCP_ASIA_NORTHEAST3', id: 'GCP_ASIA_NORTHEAST3' },
+  { label: 'GCP_ME_CENTRAL2', id: 'GCP_ME_CENTRAL2' },
+  { label: 'AWS_US_EAST_1', id: 'AWS_US_EAST_1' },
+  { label: 'AWS_US_EAST_2', id: 'AWS_US_EAST_2' },
+  { label: 'AWS_US_WEST_2', id: 'AWS_US_WEST_2' },
+  { label: 'AWS_AP_NORTHEAST_1', id: 'AWS_AP_NORTHEAST_1' },
+  { label: 'AWS_AP_NORTHEAST_2', id: 'AWS_AP_NORTHEAST_2' },
+  { label: 'AWS_AP_SOUTHEAST_1', id: 'AWS_AP_SOUTHEAST_1' },
+  { label: 'AWS_AP_SOUTHEAST_2', id: 'AWS_AP_SOUTHEAST_2' },
+  { label: 'AWS_EU_CENTRAL_1', id: 'AWS_EU_CENTRAL_1' },
+  { label: 'AWS_EU_NORTH_1', id: 'AWS_EU_NORTH_1' },
+  { label: 'AWS_EU_WEST_1', id: 'AWS_EU_WEST_1' },
+  { label: 'AWS_EU_WEST_2', id: 'AWS_EU_WEST_2' },
+  { label: 'AWS_EU_WEST_3', id: 'AWS_EU_WEST_3' },
+  { label: 'AWS_AP_SOUTH_1', id: 'AWS_AP_SOUTH_1' },
+  { label: 'AWS_CA_CENTRAL_1', id: 'AWS_CA_CENTRAL_1' },
+  { label: 'AWS_US_GOV_WEST_1', id: 'AWS_US_GOV_WEST_1' },
+  { label: 'AZURE_EASTUS2', id: 'AZURE_EASTUS2' },
+  { label: 'AZURE_AUSTRALIAEAST', id: 'AZURE_AUSTRALIAEAST' },
+  { label: 'AZURE_UKSOUTH', id: 'AZURE_UKSOUTH' },
+  { label: 'AZURE_WESTEUROPE', id: 'AZURE_WESTEUROPE' },
+  { label: 'AZURE_CENTRALUS', id: 'AZURE_CENTRALUS' },
+  { label: 'AZURE_CANADACENTRAL', id: 'AZURE_CANADACENTRAL' },
+  { label: 'AZURE_UAENORTH', id: 'AZURE_UAENORTH' },
+  { label: 'AZURE_SOUTHEASTASIA', id: 'AZURE_SOUTHEASTASIA' },
+  { label: 'AZURE_EASTUS', id: 'AZURE_EASTUS' },
+  { label: 'AZURE_JAPANEAST', id: 'AZURE_JAPANEAST' },
+  { label: 'AZURE_CENTRALINDIA', id: 'AZURE_CENTRALINDIA' },
+  { label: 'AZURE_GERMANYWESTCENTRAL', id: 'AZURE_GERMANYWESTCENTRAL' },
+  { label: 'AZURE_WESTUS3', id: 'AZURE_WESTUS3' },
+  { label: 'AZURE_SWITZERLANDNORTH', id: 'AZURE_SWITZERLANDNORTH' },
+  { label: 'AZURE_KOREACENTRAL', id: 'AZURE_KOREACENTRAL' },
+]
+
+const TIME_ZONE_OFFSET_OPTIONS = Array.from({ length: 24 }, (_, index) => {
+  const offset = index - 11
+  const id = offset > 0 ? `+${offset}` : String(offset)
+  return { label: `UTC${offset === 0 ? '' : id}`, id }
+})
 
 /**
  * Pause and resume reuse the update tool, so every other update setting is cleared: a value
@@ -108,7 +173,7 @@ function toOptionalBoolean(value: unknown): boolean | undefined {
 }
 
 function toOptionalNumber(value: unknown): number | undefined {
-  if (value === undefined || value === null || value === '') return undefined
+  if (value === undefined || value === null || String(value).trim() === '') return undefined
   return Number(value)
 }
 
@@ -117,7 +182,7 @@ export const FivetranBlock: BlockConfig = {
   name: 'Fivetran',
   description: 'Manage Fivetran connections, syncs, and transformations',
   longDescription:
-    'Integrate Fivetran into the workflow. List, create, update, pause, resume, and delete connections, trigger syncs and historical re-syncs, read sync history, warnings, and schema configs, enable or disable tables, run setup tests, generate Connect Card links, inspect groups and destinations, run and cancel transformations, review users, and react to sync, connection, and transformation webhooks.',
+    'Integrate Fivetran into the workflow. List, create, update, pause, resume, and delete connections, trigger syncs and historical re-syncs, read sync history, warnings, and schema configs, enable or disable schemas and tables, run setup tests, generate Connect Card links, look up connector setup fields, create and inspect groups and destinations, run and cancel transformations, review users, and react to sync, connection, and transformation webhooks.',
   docsLink: 'https://docs.sim.ai/integrations/fivetran',
   category: 'tools',
   integrationType: IntegrationType.Databases,
@@ -274,6 +339,27 @@ export const FivetranBlock: BlockConfig = {
         get_account_info: ['Read account details'],
         list_users: ['List account users'],
         list_connector_types: ['List connector types'],
+        get_connector_type: [
+          { text: 'Read setup fields of connector type', field: 'service', core: true },
+        ],
+        update_schema_config: [
+          {
+            text: 'Update schema config of connection',
+            field: ['connectionSelector', 'manualConnectionId'],
+            core: true,
+          },
+          { text: ', handling new objects as', field: 'schemaChangeHandling' },
+        ],
+        update_connection_schema: [
+          { text: 'Set sync of schema', field: 'schemaName', core: true },
+          { text: 'of connection', field: ['connectionSelector', 'manualConnectionId'] },
+          { text: 'to', field: 'schemaEnabled' },
+        ],
+        create_group: [{ text: 'Create group', field: 'groupName', core: true }],
+        create_destination: [
+          { text: 'Create', field: 'destinationService', core: true },
+          { text: 'destination in group', field: ['groupSelector', 'manualGroupId'], core: true },
+        ],
       },
     },
   },
@@ -322,11 +408,15 @@ export const FivetranBlock: BlockConfig = {
         { label: 'Get Schema Config', id: 'get_connection_schema_config' },
         { label: 'Reload Schema', id: 'reload_connection_schema' },
         { label: 'Update Table Sync', id: 'update_connection_table' },
+        { label: 'Update Schema Sync', id: 'update_connection_schema' },
+        { label: 'Update Schema Config', id: 'update_schema_config' },
         { label: 'Create Connect Card', id: 'create_connect_card' },
         { label: 'List Groups', id: 'list_groups' },
         { label: 'Get Group', id: 'get_group' },
+        { label: 'Create Group', id: 'create_group' },
         { label: 'List Destinations', id: 'list_destinations' },
         { label: 'Get Destination', id: 'get_destination' },
+        { label: 'Create Destination', id: 'create_destination' },
         { label: 'Run Destination Setup Tests', id: 'run_destination_setup_tests' },
         { label: 'List Transformations', id: 'list_transformations' },
         { label: 'Get Transformation', id: 'get_transformation' },
@@ -335,6 +425,7 @@ export const FivetranBlock: BlockConfig = {
         { label: 'Get Account Info', id: 'get_account_info' },
         { label: 'List Users', id: 'list_users' },
         { label: 'List Connector Types', id: 'list_connector_types' },
+        { label: 'Get Connector Type', id: 'get_connector_type' },
       ],
       value: () => 'list_connections',
     },
@@ -448,8 +539,91 @@ export const FivetranBlock: BlockConfig = {
       title: 'Connector Type',
       type: 'short-input',
       placeholder: 'e.g. okta, google_sheets, postgres',
-      condition: { field: 'operation', value: 'create_connection' },
-      required: { field: 'operation', value: 'create_connection' },
+      condition: { field: 'operation', value: ['create_connection', 'get_connector_type'] },
+      required: { field: 'operation', value: ['create_connection', 'get_connector_type'] },
+    },
+    {
+      id: 'groupName',
+      title: 'Group Name',
+      type: 'short-input',
+      placeholder: 'Enter the group name',
+      condition: { field: 'operation', value: 'create_group' },
+      required: { field: 'operation', value: 'create_group' },
+    },
+    {
+      id: 'destinationService',
+      title: 'Destination Type',
+      type: 'short-input',
+      placeholder: 'e.g. databricks, snowflake, big_query',
+      condition: { field: 'operation', value: 'create_destination' },
+      required: { field: 'operation', value: 'create_destination' },
+    },
+    {
+      id: 'timeZoneOffset',
+      title: 'Time Zone',
+      type: 'dropdown',
+      options: TIME_ZONE_OFFSET_OPTIONS,
+      value: () => '0',
+      condition: { field: 'operation', value: 'create_destination' },
+      required: { field: 'operation', value: 'create_destination' },
+    },
+    {
+      id: 'destinationConfig',
+      title: 'Destination Configuration',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '{"server_host_name": "...", "http_path": "...", "catalog": "...", "auth_type": "PERSONAL_ACCESS_TOKEN", "personal_access_token": "..."}',
+      condition: { field: 'operation', value: 'create_destination' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Fivetran destination config JSON object from the user description, with the destination-specific connection fields (for Databricks: server_host_name, http_path, catalog, auth_type, and personal_access_token or oauth2_client_id and oauth2_secret). Return ONLY the JSON object.',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'region',
+      title: 'Processing Region',
+      type: 'dropdown',
+      options: REGION_OPTIONS,
+      value: () => '',
+      condition: { field: 'operation', value: 'create_destination' },
+      mode: 'advanced',
+    },
+    {
+      id: 'daylightSavingTimeEnabled',
+      title: 'Daylight Saving Time',
+      type: 'switch',
+      condition: { field: 'operation', value: 'create_destination' },
+      mode: 'advanced',
+    },
+    {
+      id: 'schemaChangeHandling',
+      title: 'New Schema Handling',
+      type: 'dropdown',
+      options: [
+        { label: 'Not set', id: '' },
+        { label: 'Allow all new schemas, tables, and columns', id: 'ALLOW_ALL' },
+        { label: 'Allow new columns only', id: 'ALLOW_COLUMNS' },
+        { label: 'Block all new objects', id: 'BLOCK_ALL' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'update_schema_config' },
+    },
+    {
+      id: 'schemasConfig',
+      title: 'Schemas',
+      type: 'code',
+      language: 'json',
+      placeholder: '{"public": {"enabled": true, "tables": {"orders": {"enabled": false}}}}',
+      condition: { field: 'operation', value: 'update_schema_config' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Fivetran schema config JSON object keyed by schema name, where each schema has "enabled" and optionally "tables" keyed by table name with "enabled". Return ONLY the JSON object.',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'config',
@@ -574,7 +748,7 @@ export const FivetranBlock: BlockConfig = {
       type: 'dropdown',
       options: OPTIONAL_BOOLEAN_OPTIONS,
       value: () => '',
-      condition: { field: 'operation', value: CONNECTION_SETTINGS_OPS },
+      condition: { field: 'operation', value: [...CONNECTION_SETTINGS_OPS, 'create_destination'] },
       mode: 'advanced',
     },
     {
@@ -634,8 +808,8 @@ export const FivetranBlock: BlockConfig = {
       title: 'Schema Name',
       type: 'short-input',
       placeholder: 'Schema name as stored in the schema config',
-      condition: { field: 'operation', value: 'update_connection_table' },
-      required: { field: 'operation', value: 'update_connection_table' },
+      condition: { field: 'operation', value: SCHEMA_NAME_OPS },
+      required: { field: 'operation', value: SCHEMA_NAME_OPS },
     },
     {
       id: 'tableName',
@@ -644,6 +818,34 @@ export const FivetranBlock: BlockConfig = {
       placeholder: 'Table name as stored in the schema config',
       condition: { field: 'operation', value: 'update_connection_table' },
       required: { field: 'operation', value: 'update_connection_table' },
+    },
+    {
+      id: 'schemaEnabled',
+      title: 'Sync Schema',
+      canvasNoun: 'enabled or disabled',
+      type: 'dropdown',
+      options: [
+        { label: 'Enabled', id: 'true' },
+        { label: 'Disabled', id: 'false' },
+      ],
+      value: () => 'true',
+      condition: { field: 'operation', value: 'update_connection_schema' },
+      required: { field: 'operation', value: 'update_connection_schema' },
+    },
+    {
+      id: 'schemaTables',
+      title: 'Tables',
+      type: 'code',
+      language: 'json',
+      placeholder: '{"orders": {"enabled": false}}',
+      condition: { field: 'operation', value: 'update_connection_schema' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Fivetran table config JSON object keyed by table name, where each table has "enabled" (true or false). Return ONLY the JSON object.',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'tableEnabled',
@@ -839,6 +1041,11 @@ export const FivetranBlock: BlockConfig = {
       'fivetran_get_account_info',
       'fivetran_list_users',
       'fivetran_list_connector_types',
+      'fivetran_get_connector_type',
+      'fivetran_update_schema_config',
+      'fivetran_update_connection_schema',
+      'fivetran_create_group',
+      'fivetran_create_destination',
     ],
     config: {
       tool: (params) => {
@@ -862,10 +1069,21 @@ export const FivetranBlock: BlockConfig = {
           result.syncFrequency = toOptionalNumber(params.syncFrequency)
           result.paused = toOptionalBoolean(params.paused)
           result.pauseAfterTrial = toOptionalBoolean(params.pauseAfterTrial)
+          result.dataDelayThreshold = toOptionalNumber(params.dataDelayThreshold)
+        }
+        if (isConnectionSettings || params.operation === 'create_destination') {
           result.runSetupTests = toOptionalBoolean(params.runSetupTests)
         }
-        if (isConnectionSettings) {
-          result.dataDelayThreshold = toOptionalNumber(params.dataDelayThreshold)
+        if (params.operation === 'create_destination') {
+          result.service = params.destinationService
+          result.config = params.destinationConfig
+          result.daylightSavingTimeEnabled = toOptionalBoolean(params.daylightSavingTimeEnabled)
+        }
+        if (params.operation === 'create_group') result.name = params.groupName
+        if (params.operation === 'update_schema_config') result.schemas = params.schemasConfig
+        if (params.operation === 'update_connection_schema') {
+          result.enabled = toOptionalBoolean(params.schemaEnabled)
+          result.tables = params.schemaTables
         }
         if (params.operation === 'update_connection') {
           result.isHistoricalSync = toOptionalBoolean(params.isHistoricalSync)
@@ -930,6 +1148,19 @@ export const FivetranBlock: BlockConfig = {
     schemaName: { type: 'string', description: 'Schema name in the schema config' },
     tableName: { type: 'string', description: 'Table name in the schema config' },
     tableEnabled: { type: 'boolean', description: 'Whether the table syncs' },
+    schemaEnabled: { type: 'boolean', description: 'Whether the schema syncs' },
+    schemaTables: { type: 'json', description: 'Tables to change in the schema' },
+    schemaChangeHandling: { type: 'string', description: 'How new source objects are handled' },
+    schemasConfig: { type: 'json', description: 'Schemas to change, keyed by schema name' },
+    groupName: { type: 'string', description: 'Name of the new group' },
+    destinationService: { type: 'string', description: 'Destination type for a new destination' },
+    destinationConfig: { type: 'json', description: 'Destination-specific settings' },
+    timeZoneOffset: { type: 'string', description: 'UTC offset for sync scheduling' },
+    region: { type: 'string', description: 'Data processing region' },
+    daylightSavingTimeEnabled: {
+      type: 'boolean',
+      description: 'Shift the UTC offset with daylight saving time',
+    },
     syncMode: { type: 'string', description: 'Table sync mode' },
     startTime: { type: 'string', description: 'Sync history window start (ISO 8601)' },
     endTime: { type: 'string', description: 'Sync history window end (ISO 8601)' },
@@ -1019,6 +1250,19 @@ export const FivetranBlock: BlockConfig = {
       type: 'json',
       description:
         'Users [{id, email, givenName, familyName, role, active, userType, hasApiKey, loggedInAt}]',
+    },
+    connectorType: {
+      type: 'json',
+      description:
+        'Connector type (id, name, type, description, serviceStatus, linkToDocs, supportedFeatures)',
+    },
+    config: {
+      type: 'json',
+      description: 'JSON Schema of the configuration fields a connector type takes',
+    },
+    auth: {
+      type: 'json',
+      description: 'JSON Schema of the authorization fields a connector type takes',
     },
     connectorTypes: {
       type: 'json',

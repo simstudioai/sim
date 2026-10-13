@@ -1,6 +1,7 @@
-import type {
-  FivetranSchemaConfigResponse,
-  FivetranUpdateConnectionTableParams,
+import {
+  type FivetranSchemaConfigResponse,
+  type FivetranUpdateConnectionTableParams,
+  SCHEMA_CONFIG_OUTPUTS,
 } from '@/tools/fivetran/types'
 import {
   compactBody,
@@ -14,7 +15,6 @@ import {
   fivetranUrl,
   mapSchemaConfig,
   optionalBoolean,
-  SCHEMA_CONFIG_OUTPUTS,
   trimmed,
 } from '@/tools/fivetran/utils'
 import type { ToolConfig } from '@/tools/types'

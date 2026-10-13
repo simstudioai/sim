@@ -1,4 +1,8 @@
-import type { FivetranGetGroupResponse, FivetranGroupParams } from '@/tools/fivetran/types'
+import {
+  type FivetranGetGroupResponse,
+  type FivetranGroupParams,
+  GROUP_PROPERTIES,
+} from '@/tools/fivetran/types'
 import {
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
@@ -7,7 +11,6 @@ import {
   fivetranHeaders,
   fivetranId,
   fivetranUrl,
-  GROUP_PROPERTIES,
   mapGroup,
 } from '@/tools/fivetran/utils'
 import type { ToolConfig } from '@/tools/types'

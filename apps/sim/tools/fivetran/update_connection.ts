@@ -1,9 +1,9 @@
-import type {
-  FivetranConnectionResponse,
-  FivetranUpdateConnectionParams,
-} from '@/tools/fivetran/types'
 import {
   CONNECTION_PROPERTIES,
+  type FivetranConnectionResponse,
+  type FivetranUpdateConnectionParams,
+} from '@/tools/fivetran/types'
+import {
   compactBody,
   envelopeData,
   FIVETRAN_AUTH_PARAMS,

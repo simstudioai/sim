@@ -1,6 +1,7 @@
-import type {
-  FivetranMessageResponse,
-  FivetranRunTransformationParams,
+import {
+  type FivetranMessageResponse,
+  type FivetranRunTransformationParams,
+  MESSAGE_OUTPUTS,
 } from '@/tools/fivetran/types'
 import {
   compactBody,
@@ -11,7 +12,6 @@ import {
   fivetranHeaders,
   fivetranId,
   fivetranUrl,
-  MESSAGE_OUTPUTS,
   optionalBoolean,
   transformMessageResponse,
 } from '@/tools/fivetran/utils'

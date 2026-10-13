@@ -1,8 +1,9 @@
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { toRecord } from '@sim/utils/object'
-import type {
-  FivetranGetSyncHistoryParams,
-  FivetranGetSyncHistoryResponse,
+import {
+  type FivetranGetSyncHistoryParams,
+  type FivetranGetSyncHistoryResponse,
+  NEXT_CURSOR_OUTPUT,
 } from '@/tools/fivetran/types'
 import {
   envelopePage,
@@ -15,7 +16,6 @@ import {
   fivetranId,
   fivetranPaginationQuery,
   fivetranUrl,
-  NEXT_CURSOR_OUTPUT,
   trimmed,
 } from '@/tools/fivetran/utils'
 import type { ToolConfig } from '@/tools/types'

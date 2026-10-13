@@ -1,6 +1,9 @@
-import type { FivetranDestinationParams, FivetranDestinationResponse } from '@/tools/fivetran/types'
 import {
   DESTINATION_PROPERTIES,
+  type FivetranDestinationParams,
+  type FivetranDestinationResponse,
+} from '@/tools/fivetran/types'
+import {
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_DESTINATION_ID_PARAM,

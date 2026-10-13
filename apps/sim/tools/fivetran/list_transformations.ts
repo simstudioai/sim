@@ -1,6 +1,8 @@
-import type {
-  FivetranListTransformationsParams,
-  FivetranListTransformationsResponse,
+import {
+  type FivetranListTransformationsParams,
+  type FivetranListTransformationsResponse,
+  NEXT_CURSOR_OUTPUT,
+  TRANSFORMATION_PROPERTIES,
 } from '@/tools/fivetran/types'
 import {
   envelopePage,
@@ -12,8 +14,6 @@ import {
   fivetranPaginationQuery,
   fivetranUrl,
   mapTransformation,
-  NEXT_CURSOR_OUTPUT,
-  TRANSFORMATION_PROPERTIES,
   trimmed,
 } from '@/tools/fivetran/utils'
 import type { ToolConfig } from '@/tools/types'

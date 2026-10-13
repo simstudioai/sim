@@ -1,6 +1,7 @@
-import type {
-  FivetranMessageResponse,
-  FivetranResyncConnectionParams,
+import {
+  type FivetranMessageResponse,
+  type FivetranResyncConnectionParams,
+  MESSAGE_OUTPUTS,
 } from '@/tools/fivetran/types'
 import {
   compactBody,
@@ -11,7 +12,6 @@ import {
   fivetranHeaders,
   fivetranId,
   fivetranUrl,
-  MESSAGE_OUTPUTS,
   parseSchemaTableMap,
   transformMessageResponse,
 } from '@/tools/fivetran/utils'

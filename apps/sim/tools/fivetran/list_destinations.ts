@@ -1,9 +1,10 @@
-import type {
-  FivetranListDestinationsParams,
-  FivetranListDestinationsResponse,
-} from '@/tools/fivetran/types'
 import {
   DESTINATION_PROPERTIES,
+  type FivetranListDestinationsParams,
+  type FivetranListDestinationsResponse,
+  NEXT_CURSOR_OUTPUT,
+} from '@/tools/fivetran/types'
+import {
   envelopePage,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_ERROR_EXTRACTOR,
@@ -13,7 +14,6 @@ import {
   fivetranPaginationQuery,
   fivetranUrl,
   mapDestination,
-  NEXT_CURSOR_OUTPUT,
 } from '@/tools/fivetran/utils'
 import type { ToolConfig } from '@/tools/types'
 

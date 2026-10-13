@@ -9065,7 +9065,7 @@
       "slug": "fivetran",
       "name": "Fivetran",
       "description": "Manage Fivetran connections, syncs, and transformations",
-      "longDescription": "Integrate Fivetran into the workflow. List, create, update, pause, resume, and delete connections, trigger syncs and historical re-syncs, read sync history, warnings, and schema configs, enable or disable tables, run setup tests, generate Connect Card links, inspect groups and destinations, run and cancel transformations, review users, and react to sync, connection, and transformation webhooks.",
+      "longDescription": "Integrate Fivetran into the workflow. List, create, update, pause, resume, and delete connections, trigger syncs and historical re-syncs, read sync history, warnings, and schema configs, enable or disable schemas and tables, run setup tests, generate Connect Card links, look up connector setup fields, create and inspect groups and destinations, run and cancel transformations, review users, and react to sync, connection, and transformation webhooks.",
       "bgColor": "#FFFFFF",
       "iconName": "FivetranIcon",
       "docsUrl": "https://docs.sim.ai/integrations/fivetran",
@@ -9135,6 +9135,14 @@
           "description": "Enable or disable syncing of one table in a Fivetran connection, and optionally change its sync mode."
         },
         {
+          "name": "Update Schema Sync",
+          "description": "Enable or disable syncing of one schema in a Fivetran connection, optionally changing several of its tables at once."
+        },
+        {
+          "name": "Update Schema Config",
+          "description": "Update how a Fivetran connection handles new schemas, tables, and columns, and enable or disable schemas and tables in one call."
+        },
+        {
           "name": "Create Connect Card",
           "description": "Generate a Connect Card link that lets someone authorize and finish setting up a Fivetran connection in a Fivetran-hosted form."
         },
@@ -9147,12 +9155,20 @@
           "description": "Get a Fivetran group by ID."
         },
         {
+          "name": "Create Group",
+          "description": "Create a Fivetran group. Each group holds one destination, so create the group first, then its destination."
+        },
+        {
           "name": "List Destinations",
           "description": "List the destinations in the Fivetran account, such as Databricks or Snowflake, with their region and setup status."
         },
         {
           "name": "Get Destination",
           "description": "Get a Fivetran destination with its region, time zone, and setup status."
+        },
+        {
+          "name": "Create Destination",
+          "description": "Create the destination for a Fivetran group, such as a Databricks workspace. The config object holds the destination-specific connection settings."
         },
         {
           "name": "Run Destination Setup Tests",
@@ -9185,9 +9201,13 @@
         {
           "name": "List Connector Types",
           "description": "List the source connector types available in Fivetran, with the service ID to use when creating a connection."
+        },
+        {
+          "name": "Get Connector Type",
+          "description": "Get the configuration and authorization fields a Fivetran connector type takes, to build the config for Create Connection."
         }
       ],
-      "operationCount": 29,
+      "operationCount": 34,
       "triggers": [
         {
           "id": "fivetran_sync_end",
