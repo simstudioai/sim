@@ -1,8 +1,8 @@
 import type { LiveSearchProvider } from '@/lib/api/contracts/mothership-assistant-tools'
 import { parseCodaResourceUri } from '@/lib/sim-search/live/coda-uri'
-import { escapeDriveLiteral } from '@/lib/sim-search/live/google'
 import { array, object, string } from '@/lib/sim-search/live/http'
 import { collectNativePages } from '@/lib/sim-search/live/pages'
+import { driveTextClause, escapeDriveLiteral } from '@/lib/sim-search/live/text-match'
 import type { NativeClient, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
 
 /** Provider restrictions improve recall; the independent verifier remains authoritative. */
@@ -51,9 +51,7 @@ export async function searchWithinPolicy(
               provider,
               query:
                 input.native?.query ??
-                (input.query
-                  ? `fullText contains '${escapeDriveLiteral(input.query)}'`
-                  : 'trashed = false'),
+                (input.query ? driveTextClause(input.query, input.textMatch) : 'trashed = false'),
               ...input.native,
               project: id,
             },
@@ -109,7 +107,7 @@ export async function searchWithinPolicy(
     }
     const text =
       input.native?.query ??
-      (input.query ? `fullText contains '${escapeDriveLiteral(input.query)}'` : 'trashed = false')
+      (input.query ? driveTextClause(input.query, input.textMatch) : 'trashed = false')
     const result = await search(
       withQuery(
         `(${text}) and (${[...folders].map((id) => `'${escapeDriveLiteral(id)}' in parents`).join(' or ')})`

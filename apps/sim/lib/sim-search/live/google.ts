@@ -14,6 +14,7 @@ import { array, NativeSearchError, object, segment, string } from '@/lib/sim-sea
 import { interleaveByRank } from '@/lib/sim-search/live/pages'
 import { permitsResources } from '@/lib/sim-search/live/policy'
 import { providerText } from '@/lib/sim-search/live/text'
+import { driveTextClause } from '@/lib/sim-search/live/text-match'
 import type {
   NativeClient,
   NativeDocument,
@@ -24,8 +25,6 @@ import type {
 
 const DRIVE_FIELDS =
   'id,name,mimeType,webViewLink,description,modifiedTime,owners(displayName,emailAddress)'
-export const escapeDriveLiteral = (value: string) =>
-  value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 
 function driveDocument(row: Record<string, unknown>): NativeDocument {
   return {
@@ -48,8 +47,7 @@ export async function searchDrive(
 ): Promise<NativePage> {
   const text = nativeText(input)
   const query =
-    input.native?.query ||
-    (text ? `fullText contains '${escapeDriveLiteral(text)}'` : 'trashed = false')
+    input.native?.query || (text ? driveTextClause(text, input.textMatch) : 'trashed = false')
   const dates = nativeDateBounds(input)
   const data = object(
     await client.json('/drive/v3/files', {
@@ -81,8 +79,23 @@ export async function searchDrive(
     nextCursor: string(data.nextPageToken) || undefined,
     partial: data.incompleteSearch === true,
     message:
-      'Drive searches file names and full text, including Docs, Sheets and Slides. Previews are file metadata; read a result for its content.',
+      'Drive searches file names and full text, including Docs, Sheets and Slides. The top Docs and Slides results preview their text; other previews are file metadata, so read a result for its content.',
   }
+}
+
+/** Docs and Slides export as plain text in one request; other kinds need a download and parse. */
+const PREVIEW_EXPORT_KINDS = new Set([
+  'application/vnd.google-apps.document',
+  'application/vnd.google-apps.presentation',
+])
+
+/** Plain text of a Doc or Slides file for a search preview; Drive search returns only metadata. */
+export async function previewDrive(
+  client: NativeClient,
+  document: NativeDocument
+): Promise<string | undefined> {
+  if (!PREVIEW_EXPORT_KINDS.has(document.kind ?? '')) return undefined
+  return client.text(`/drive/v3/files/${segment(document.id)}/export`, { mimeType: 'text/plain' })
 }
 
 export async function readDrive(
