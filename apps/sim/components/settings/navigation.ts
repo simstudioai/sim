@@ -887,6 +887,7 @@ export const ORGANIZATION_SETTINGS_GROUPS = [
   { key: 'organization', title: 'Organization' },
   { key: 'governance', title: 'Governance' },
   { key: 'sim-search', title: 'Sim Search' },
+  { key: 'platform', title: 'Platform' },
 ] as const
 
 type OrganizationSettingsGroup = (typeof ORGANIZATION_SETTINGS_GROUPS)[number]['key']
