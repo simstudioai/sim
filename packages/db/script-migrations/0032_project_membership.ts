@@ -10,7 +10,10 @@ import {
   verifyProjectBackfill,
 } from '@sim/db/maintenance/project-backfill'
 import { enforceProjectMembership } from '@sim/db/maintenance/project-enforcement'
-import { countPendingProjectArchiveRepairs } from '@sim/db/maintenance/project-repairs'
+import {
+  archiveProjectRepairWorkflows,
+  countPendingProjectArchiveRepairs,
+} from '@sim/db/maintenance/project-repairs'
 import { switchProjectMembershipAuthority } from '@sim/db/maintenance/project-rollout'
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
@@ -60,8 +63,8 @@ export const projectMembershipMigration: ScriptMigration = {
         throw new Error('Reviewed Project migration requires its database URL')
       const databaseId = reviewUrl ? projectBackfillDatabaseId(reviewUrl) : 'migration-runner'
       const reviews = reviewPath ? await readProjectGroupingReviews(reviewPath, databaseId) : []
-      const manifest = await discoverProjectBackfill(sql, databaseId, reviews)
-      if (manifest.conflicts.length || manifest.repairs.length) {
+      let manifest = await discoverProjectBackfill(sql, databaseId, reviews)
+      if (manifest.conflicts.length) {
         logger.error('Project preparation requires operator remediation', {
           conflicts: manifest.conflicts.slice(0, 50),
           conflictCount: manifest.conflicts.length,
@@ -70,6 +73,32 @@ export const projectMembershipMigration: ScriptMigration = {
         throw new ProjectBackfillConflict(
           'Resolve Project conflicts and archive/provider repairs with backfill-projects.ts plan/repair before retrying'
         )
+      }
+      if (manifest.repairs.length) {
+        for (const repair of manifest.repairs) {
+          for (let attempt = 0; ; attempt++) {
+            await assertSession()
+            try {
+              await archiveProjectRepairWorkflows(sql, repair)
+              break
+            } catch (error) {
+              if (!retryable(error) || attempt >= 2) throw error
+              await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 250, maxMs: 1000 }))
+            }
+          }
+        }
+        logger.info('Archived workflows in archived workspaces', {
+          workspaces: manifest.repairs.length,
+          workflows: manifest.repairs.reduce(
+            (count, repair) => count + repair.workflowIds.length,
+            0
+          ),
+        })
+        manifest = await discoverProjectBackfill(sql, databaseId, reviews)
+        if (manifest.conflicts.length || manifest.repairs.length)
+          throw new ProjectBackfillConflict(
+            'Project state changed during archive repair; rediscover'
+          )
       }
       const pending = manifest.families
         .map((family) => ({ family, attempts: 0 }))

@@ -557,7 +557,14 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
       throw new ProjectBackfillConflict('Archive repair is required before assignment')
     const evidenceRequests = families.flatMap((family) => {
       const projectIds = [
-        ...new Set(family.members.map((row) => effectiveProjectId(byId.get(row.id)!))),
+        ...new Set(
+          family.members.map((row) => {
+            const current = byId.get(row.id)
+            if (!current)
+              throw new ProjectBackfillConflict('Reviewed workspace disappeared; rediscover')
+            return effectiveProjectId(current)
+          })
+        ),
       ].filter((id): id is string => id !== null)
       if (projectIds.length > 1) throw new ProjectBackfillConflict('Family now spans Projects')
       return projectIds.length

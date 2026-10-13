@@ -12,6 +12,7 @@ import {
   verifyProjectBackfill,
 } from '@sim/db/maintenance/project-backfill'
 import { enforceProjectMembership } from '@sim/db/maintenance/project-enforcement'
+import { archiveProjectRepairWorkflows } from '@sim/db/maintenance/project-repairs'
 import journal from '@sim/db/migrations/meta/_journal.json'
 import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
@@ -63,6 +64,32 @@ async function database(run: (sql: Sql, url: string) => Promise<void>) {
     await admin.unsafe(`DROP DATABASE "${name}" WITH (FORCE)`)
     await admin.end()
   }
+}
+
+/** Lifecycle-shaped tables for automatic workflow archive repair regression coverage. */
+async function archiveRepairFixture(sql: Sql) {
+  await sql.unsafe(`
+    ALTER TABLE workflow ADD COLUMN updated_at timestamp, ADD COLUMN is_deployed boolean DEFAULT true,
+      ADD COLUMN is_public_api boolean DEFAULT true;
+    CREATE TABLE workflow_schedule (workflow_id text, archived_at timestamp, updated_at timestamp,
+      status text, next_run_at timestamp, last_queued_at timestamp);
+    CREATE TABLE webhook (id text, workflow_id text, provider text, provider_config json,
+      archived_at timestamp, updated_at timestamp, is_active boolean);
+    CREATE TABLE chat (workflow_id text, archived_at timestamp, updated_at timestamp, is_active boolean);
+    CREATE TABLE workflow_mcp_tool (workflow_id text, archived_at timestamp, updated_at timestamp);
+    CREATE TABLE workflow_deployment_version (workflow_id text, is_active boolean);
+    CREATE TABLE workflow_deployment_operation (workflow_id text, status text, completed_at timestamp, updated_at timestamp);
+    CREATE TABLE webhook_path_claim (workflow_id text);
+    INSERT INTO workspace (id,name,owner_id,archived_at) VALUES ('old','Old','owner','2026-01-02'), ('live','Live','owner',NULL);
+    INSERT INTO workflow (id,workspace_id,archived_at) VALUES ('repair','old',NULL), ('preserved','old','2026-01-01'), ('untouched','live',NULL);
+    INSERT INTO workflow_schedule VALUES ('repair',NULL,NULL,'active',now(),now()), ('untouched',NULL,NULL,'active',now(),now());
+    INSERT INTO webhook VALUES ('hook','repair','generic','{}',NULL,NULL,true);
+    INSERT INTO chat VALUES ('repair',NULL,NULL,true);
+    INSERT INTO workflow_mcp_tool VALUES ('repair',NULL,NULL);
+    INSERT INTO workflow_deployment_version VALUES ('repair',true);
+    INSERT INTO workflow_deployment_operation VALUES ('repair','activating',NULL,NULL), ('repair','completed',NULL,NULL);
+    INSERT INTO webhook_path_claim VALUES ('repair');
+  `)
 }
 
 async function applyMigration(sql: Sql, source: string) {
@@ -134,6 +161,115 @@ async function seed(sql: Sql) {
 const constraintFailure = (error: unknown) => getPostgresErrorCode(error) === '23503'
 
 describe('Project expand/backfill/contract against PostgreSQL', () => {
+  it('automatically archives workflows and their dependent records before membership enforcement', async () => {
+    await database(async (sql, url) => {
+      await archiveRepairFixture(sql)
+      const [repair] = (await discoverProjectBackfill(sql, 'fixture')).repairs
+      await runRegisteredProjectMigration(url)
+      expect(await sql`SELECT id,archived_at::text FROM workflow ORDER BY id`).toEqual([
+        { id: 'preserved', archived_at: '2026-01-01 00:00:00' },
+        { id: 'repair', archived_at: '2026-01-02 00:00:00' },
+        { id: 'untouched', archived_at: null },
+      ])
+      expect(await sql`SELECT is_deployed,is_public_api FROM workflow WHERE id='repair'`).toEqual([
+        { is_deployed: false, is_public_api: false },
+      ])
+      expect(
+        await sql`SELECT status,next_run_at,last_queued_at,archived_at::text FROM workflow_schedule WHERE workflow_id='repair'`
+      ).toEqual([
+        {
+          status: 'disabled',
+          next_run_at: null,
+          last_queued_at: null,
+          archived_at: '2026-01-02 00:00:00',
+        },
+      ])
+      expect(
+        await sql`SELECT status,archived_at FROM workflow_schedule WHERE workflow_id='untouched'`
+      ).toEqual([{ status: 'active', archived_at: null }])
+      expect(await sql`SELECT is_active,archived_at::text FROM webhook`).toEqual([
+        { is_active: false, archived_at: '2026-01-02 00:00:00' },
+      ])
+      expect(await sql`SELECT is_active,archived_at::text FROM chat`).toEqual([
+        { is_active: false, archived_at: '2026-01-02 00:00:00' },
+      ])
+      expect(await sql`SELECT archived_at::text FROM workflow_mcp_tool`).toEqual([
+        { archived_at: '2026-01-02 00:00:00' },
+      ])
+      expect(await sql`SELECT is_active FROM workflow_deployment_version`).toEqual([
+        { is_active: false },
+      ])
+      expect(await sql`SELECT status FROM workflow_deployment_operation ORDER BY status`).toEqual([
+        { status: 'completed' },
+        { status: 'superseded' },
+      ])
+      expect(await sql`SELECT * FROM webhook_path_claim`).toHaveLength(0)
+      const before = await sql`SELECT * FROM workflow ORDER BY id`
+      await archiveProjectRepairWorkflows(sql, repair)
+      expect(await sql`SELECT * FROM workflow ORDER BY id`).toEqual(before)
+      expect(await sql`SELECT name FROM script_migrations`).toEqual([
+        { name: '0032_project_membership' },
+      ])
+      expect(Object.values(await verifyProjectBackfill(sql)).every((count) => count === 0)).toBe(
+        true
+      )
+    })
+  })
+
+  it.each(['provider', 'previous-subscription'] as const)(
+    'preserves the provider cleanup guard for %s webhooks',
+    async (kind) => {
+      await database(async (sql, url) => {
+        await archiveRepairFixture(sql)
+        if (kind === 'provider') await sql`UPDATE webhook SET provider = 'github'`
+        else
+          await sql`UPDATE webhook SET provider_config = '{"previousSubscription":{"provider":"github"}}'::json`
+        await expect(runRegisteredProjectMigration(url)).rejects.toThrow(
+          'external provider cleanup'
+        )
+        expect(await sql`SELECT archived_at,is_deployed FROM workflow WHERE id='repair'`).toEqual([
+          { archived_at: null, is_deployed: true },
+        ])
+        expect(await sql`SELECT status FROM workflow_schedule WHERE workflow_id='repair'`).toEqual([
+          { status: 'active' },
+        ])
+        expect(await sql`SELECT * FROM script_migrations`).toHaveLength(0)
+      })
+    }
+  )
+
+  it.each(['restored', 'moved', 'new-workflow', 'database-failure'] as const)(
+    'rolls back automatic archive repair after %s',
+    async (change) => {
+      await database(async (sql) => {
+        await archiveRepairFixture(sql)
+        const [repair] = (await discoverProjectBackfill(sql, 'fixture')).repairs
+        if (change === 'restored') await sql`UPDATE workspace SET archived_at=NULL WHERE id='old'`
+        if (change === 'moved') await sql`UPDATE workflow SET workspace_id='live' WHERE id='repair'`
+        if (change === 'new-workflow')
+          await sql`INSERT INTO workflow (id,workspace_id) VALUES ('new','old')`
+        if (change === 'database-failure')
+          await sql.unsafe(`CREATE FUNCTION reject_archive() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture archive failure'; END $$;
+        CREATE TRIGGER reject_archive BEFORE UPDATE ON workflow FOR EACH ROW EXECUTE FUNCTION reject_archive();`)
+        await expect(archiveProjectRepairWorkflows(sql, repair)).rejects.toThrow()
+        expect(await sql`SELECT archived_at FROM workflow WHERE id='repair'`).toEqual([
+          { archived_at: null },
+        ])
+        expect(await sql`SELECT status FROM workflow_schedule WHERE workflow_id='repair'`).toEqual([
+          { status: 'active' },
+        ])
+        expect(await sql`SELECT * FROM webhook_path_claim`).toHaveLength(1)
+        if (change === 'database-failure') {
+          await sql.unsafe('DROP TRIGGER reject_archive ON workflow')
+          await archiveProjectRepairWorkflows(sql, repair)
+          expect(await sql`SELECT archived_at::text FROM workflow WHERE id='repair'`).toEqual([
+            { archived_at: '2026-01-02 00:00:00' },
+          ])
+        }
+      })
+    }
+  )
+
   it('repairs fully assigned stale Project archive and scope without restoring environments or workflows', async () => {
     await database(async (sql, url) => {
       await sql`INSERT INTO project (id,name,owner_id,archived_at) VALUES
@@ -527,33 +663,22 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   })
 
-  it.each(['archive', 'ownership'] as const)(
-    'stops the registered migration for unresolved %s before installing enforcement',
-    async (scenario) => {
-      await database(async (sql, url) => {
-        await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('root','Root','owner')`
-        if (scenario === 'archive') {
-          await sql`UPDATE workspace SET archived_at = now()`
-          await sql`INSERT INTO workflow VALUES ('flow','root',NULL)`
-        } else {
-          await sql`INSERT INTO "user" VALUES ('other')`
-          await sql`INSERT INTO workspace (id,name,owner_id,forked_from_workspace_id) VALUES ('child','Child','other','root')`
-        }
-        await expect(runRegisteredProjectMigration(url)).rejects.toThrow(
-          'Resolve Project conflicts'
-        )
-        expect(await sql`SELECT id FROM project`).toHaveLength(0)
-        expect(await sql`SELECT name FROM script_migrations`).toHaveLength(0)
-        expect(await sql`SELECT to_regclass('project_workspace')::text AS connector`).toEqual([
-          { connector: 'project_workspace' },
-        ])
-        if (scenario === 'archive') await sql`UPDATE workflow SET archived_at = now()`
-        else await sql`UPDATE workspace SET owner_id = 'owner' WHERE id = 'child'`
-        await runRegisteredProjectMigration(url)
-        expect(await sql`SELECT id FROM project`).toHaveLength(1)
-      })
-    }
-  )
+  it('stops the registered migration for unresolved ownership before installing enforcement', async () => {
+    await database(async (sql, url) => {
+      await sql`INSERT INTO workspace (id,name,owner_id) VALUES ('root','Root','owner')`
+      await sql`INSERT INTO "user" VALUES ('other')`
+      await sql`INSERT INTO workspace (id,name,owner_id,forked_from_workspace_id) VALUES ('child','Child','other','root')`
+      await expect(runRegisteredProjectMigration(url)).rejects.toThrow('Resolve Project conflicts')
+      expect(await sql`SELECT id FROM project`).toHaveLength(0)
+      expect(await sql`SELECT name FROM script_migrations`).toHaveLength(0)
+      expect(await sql`SELECT to_regclass('project_workspace')::text AS connector`).toEqual([
+        { connector: 'project_workspace' },
+      ])
+      await sql`UPDATE workspace SET owner_id = 'owner' WHERE id = 'child'`
+      await runRegisteredProjectMigration(url)
+      expect(await sql`SELECT id FROM project`).toHaveLength(1)
+    })
+  })
 
   it('enforces public membership across a shadow search path and restores the caller path', async () => {
     await database(async (sql, url) => {
