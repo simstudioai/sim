@@ -301,5 +301,6 @@ export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
       ...(provenance ? { secretProvenance: provenance } : {}),
     }
   },
-  afterSuccess: ({ result }) => reportWorkspaceFileDelivery(result.secretProvenance),
+  afterSuccess: ({ result }) =>
+    reportWorkspaceFileDelivery(result.secretProvenance, result.file.id),
 })

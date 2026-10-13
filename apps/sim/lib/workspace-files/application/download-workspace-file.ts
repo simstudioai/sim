@@ -119,7 +119,7 @@ async function executeDownloadWorkspaceFileStream({
           contentUpdatedAt: file.contentUpdatedAt ?? undefined,
         })
       : undefined
-  await reportWorkspaceFileDelivery(secretProvenance)
+  await reportWorkspaceFileDelivery(secretProvenance, file.id)
   const result = await streamWorkspaceFileRecord(
     file,
     principal,
@@ -137,7 +137,7 @@ async function executeDownloadWorkspaceFileStream({
   const deliveredProvenance = secretProvenance
     ? mergeWorkspaceFileSecretProvenance(secretProvenance, currentProvenance)
     : currentProvenance
-  await reportWorkspaceFileDelivery(deliveredProvenance)
+  await reportWorkspaceFileDelivery(deliveredProvenance, file.id)
   return {
     ...result,
     ...(input.includeSecretProvenance ? { secretProvenance: deliveredProvenance } : {}),

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { validateFileWorkspaceBindingMigration } from '@sim/db/script-migrations/0034_validate_file_workspace_binding'
+import { validateFileWorkspaceBindingMigration } from '@sim/db/script-migrations/0035_validate_file_workspace_binding'
 import { runScriptMigrations } from '@sim/db/script-migrations/index'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred } from '@sim/testing/helpers/deferred'
@@ -10,12 +10,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const databaseUrl = readTestDatabaseUrl()
 const migration = readFileSync(
-  new URL('./migrations/0408_file_entity_ownership.sql', import.meta.url),
+  new URL('./migrations/0413_file_entity_ownership.sql', import.meta.url),
   'utf8'
 )
 
 const workspaceBindingMigration = readFileSync(
-  new URL('./migrations/0414_file_workspace_binding.sql', import.meta.url),
+  new URL('./migrations/0419_file_workspace_binding.sql', import.meta.url),
   'utf8'
 )
 
@@ -247,7 +247,7 @@ describe('file entity ownership migration in PostgreSQL', () => {
     await runScriptMigrations(sql, [validateFileWorkspaceBindingMigration])
     await runScriptMigrations(sql, [validateFileWorkspaceBindingMigration])
     expect(await sql`SELECT name FROM script_migrations`).toEqual([
-      { name: '0034_validate_file_workspace_binding' },
+      { name: '0035_validate_file_workspace_binding' },
     ])
     expect(
       await sql`SELECT convalidated FROM pg_constraint

@@ -361,5 +361,6 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
       receipt: createFileReadReceipt(context.owner, [source, ...dependencies]),
     }
   },
-  afterSuccess: ({ result }) => reportWorkspaceFileDelivery(result.secretProvenance),
+  afterSuccess: ({ result }) =>
+    reportWorkspaceFileDelivery(result.secretProvenance, result.file.id),
 })

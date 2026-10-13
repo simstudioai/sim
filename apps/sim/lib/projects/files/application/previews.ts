@@ -99,7 +99,8 @@ const readInlineFile = defineAuthorizedProjectFileUseCase({
       secretProvenance: evidence.get(file.id),
     }
   },
-  afterSuccess: ({ result }) => reportWorkspaceFileDelivery(result.secretProvenance),
+  afterSuccess: ({ result, context }) =>
+    reportWorkspaceFileDelivery(result.secretProvenance, context.file?.id),
 })
 
 /** HEAD resolves the canonical image without fetching its bytes. */
@@ -141,5 +142,6 @@ export const readProjectFileCsvPreview = defineAuthorizedProjectFileUseCase({
     const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [file])
     return { success: true as const, ...prepared.slice, secretProvenance: evidence.get(file.id) }
   },
-  afterSuccess: ({ result }) => reportWorkspaceFileDelivery(result.secretProvenance),
+  afterSuccess: ({ result, context }) =>
+    reportWorkspaceFileDelivery(result.secretProvenance, context.file?.id),
 })

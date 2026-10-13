@@ -32,6 +32,7 @@ import {
   isSoleOwnerOfPaidOrganization,
 } from '@/lib/billing/organizations/membership'
 import {
+  findOrganizationSharedResourceSuccessor,
   listSharedResourceOrganizationIdsForUser,
   reassignOrganizationSharedResourcesTx,
 } from '@/lib/billing/organizations/resource-handoff'
@@ -50,6 +51,7 @@ import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import {
   listSharedResourceWorkspaceIdsForUser,
+  listUnresolvedSharedResourceWorkspaces,
   reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx,
 } from '@/lib/workspaces/resource-handoff'
 import {
@@ -112,15 +114,18 @@ const WORKSPACE_COLUMNS = {
  * account's workflows, knowledge bases and files inside them would cascade away
  * with it.
  */
-async function loadRelatedWorkspaces(userId: string): Promise<WorkspaceRow[]> {
+async function loadRelatedWorkspaces(
+  userId: string,
+  executor: DbOrTx = db
+): Promise<WorkspaceRow[]> {
   const [anchored, joined] = await Promise.all([
-    db
+    executor
       .select(WORKSPACE_COLUMNS)
       .from(workspaceTable)
       .where(
         or(eq(workspaceTable.ownerId, userId), eq(workspaceTable.billedAccountUserId, userId))
       ),
-    db
+    executor
       .select(WORKSPACE_COLUMNS)
       .from(permissions)
       .innerJoin(workspaceTable, eq(workspaceTable.id, permissions.entityId))
@@ -400,6 +405,28 @@ export async function getAccountDeletionPlan(userId: string): Promise<AccountDel
       plan.workspacesToDelete.map((row) => row.id)
     ))
   )
+  const unresolved = await listUnresolvedSharedResourceWorkspaces(
+    db,
+    userId,
+    plan.workspacesToDelete.map((row) => row.id)
+  )
+  if (unresolved.length) {
+    plan.blockers.push({
+      code: 'shared_workspace',
+      message:
+        'Shared resources still reference your account. Ask a workspace admin to assign an active billing account before deleting your account.',
+    })
+  }
+  for (const organizationId of await listSharedResourceOrganizationIdsForUser(db, userId)) {
+    if (!(await findOrganizationSharedResourceSuccessor(db, organizationId, userId))) {
+      plan.blockers.push({
+        code: 'organization_member',
+        message:
+          'Shared organization resources need an active organization owner before this account can leave or be deleted.',
+      })
+      break
+    }
+  }
   return plan
 }
 
@@ -750,8 +777,60 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   let cancelledMarkers: CancelledCellMarker[] = []
 
   await db.transaction(async (tx) => {
-    /** Blocks new user FK references through retention discovery, run cancellation, and deletion. */
-    await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update')
+    /** Organization and Project gates precede workspace rows, which precede user FK barriers. */
+    const sharedOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
+    for (const organizationId of sharedOrganizationIds) {
+      await acquireOrganizationMutationLock(tx, organizationId)
+    }
+    const workspaceIds = new Set([
+      ...doomedWorkspaceIds,
+      ...(await loadRelatedWorkspaces(userId, tx)).map((row) => row.id),
+      ...(await listSharedResourceWorkspaceIdsForUser(tx, userId)),
+    ])
+    const projectIdsToDelete = await prepareProjectsForAccountDeletion(
+      tx,
+      userId,
+      doomedWorkspaceIds,
+      [...workspaceIds]
+    )
+    /**
+     * An admitted insert may hold the user FK lock while waiting for a workspace above.
+     * Never wait in that cycle: refuse erasure atomically so the writer can finish. Keep
+     * the barrier through retention discovery, run cancellation, and deletion once acquired.
+     */
+    try {
+      await tx
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.id, userId))
+        .for('update', { noWait: true })
+    } catch (error) {
+      if (getPostgresErrorCode(error) !== '55P03') throw error
+      throw new AccountDeletionBlockedError([
+        {
+          code: 'shared_workspace',
+          message: 'Your account is in use by another operation. Nothing was changed — try again.',
+        },
+      ])
+    }
+    /** Discovery preceded the barrier: refuse new scopes instead of acquiring locks out of order. */
+    const currentWorkspaceIds = [
+      ...(await loadRelatedWorkspaces(userId, tx)).map((row) => row.id),
+      ...(await listSharedResourceWorkspaceIdsForUser(tx, userId)),
+    ]
+    const currentOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
+    if (
+      currentWorkspaceIds.some((id) => !workspaceIds.has(id)) ||
+      currentOrganizationIds.some((id) => !sharedOrganizationIds.includes(id))
+    ) {
+      throw new AccountDeletionBlockedError([
+        {
+          code: 'shared_workspace',
+          message:
+            'Shared resources changed while your account was being deleted. Nothing was changed — try again.',
+        },
+      ])
+    }
     const executionBlockers = await sharedExecutionDeletionBlockers(
       tx,
       userId,
@@ -759,11 +838,6 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       true
     )
     if (executionBlockers.length) throw new AccountDeletionBlockedError(executionBlockers)
-    const projectIdsToDelete = await prepareProjectsForAccountDeletion(
-      tx,
-      userId,
-      doomedWorkspaceIds
-    )
     if (doomedWorkspaceIds.length > 0) {
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
@@ -826,9 +900,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       ])
     }
 
-    const sharedOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
     for (const organizationId of sharedOrganizationIds) {
-      await acquireOrganizationMutationLock(tx, organizationId)
       await reassignOrganizationSharedResourcesTx(tx, organizationId, userId)
     }
 

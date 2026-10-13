@@ -20,10 +20,19 @@ import {
   lockProjectsForResourceDepartureTx,
 } from '@/lib/projects/resource-handoff'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
-import { reassignWorkflowOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/utils'
+import {
+  findWorkspaceBillingReplacement,
+  reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
+} from '@/lib/workspaces/utils'
 
 /** Private chat attachments keep their user's lifecycle even when stored under a workspace key. */
-const SHARED_FILE_CONTEXTS = ['workspace', 'knowledge-base', 'execution', 'chat', 'workspace-logos']
+const SHARED_FILE_CONTEXTS = [
+  'workspace',
+  'knowledge-base',
+  'execution',
+  'chat',
+  'workspace-logos',
+] as const
 
 /** Finds surviving containers from ownership references, including departures predating handoff. */
 export async function listSharedResourceWorkspaceIdsForUser(executor: DbOrTx, userId: string) {
@@ -46,22 +55,20 @@ export async function listSharedResourceWorkspaceIdsForUser(executor: DbOrTx, us
 }
 
 /** Holds a real successor and their current grant through the handoff transaction. */
-async function holdWorkspaceSuccessor(
-  tx: DbTransaction,
+async function hasWorkspaceSuccessor(
+  tx: DbOrTx,
   row: { id: string; ownerId: string; organizationId: string | null; billedAccountUserId: string },
   departingUserId: string,
-  transferOwnership: boolean
+  hold: boolean,
+  transferOwnership = false
 ): Promise<boolean> {
   const successor = row.billedAccountUserId
   if (!successor || successor === departingUserId) return false
-  const [account] = await tx
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.id, successor))
-    .for('key share')
+  const accountQuery = tx.select({ id: user.id }).from(user).where(eq(user.id, successor))
+  const [account] = await (hold ? accountQuery.for('key share') : accountQuery)
   if (!account) return false
   if (transferOwnership && row.ownerId === departingUserId) return true
-  const [grant] = await tx
+  const grantQuery = tx
     .select({ id: permissions.id })
     .from(permissions)
     .where(
@@ -71,10 +78,10 @@ async function holdWorkspaceSuccessor(
         eq(permissions.userId, successor)
       )
     )
-    .for('share')
+  const [grant] = await (hold ? grantQuery.for('share') : grantQuery)
   if (grant) return true
   if (!row.organizationId) return false
-  const [membership] = await tx
+  const membershipQuery = tx
     .select({ id: member.id })
     .from(member)
     .where(
@@ -84,8 +91,49 @@ async function holdWorkspaceSuccessor(
         inArray(member.role, ORG_ADMIN_ROLES)
       )
     )
-    .for('share')
+  const [membership] = await (hold ? membershipQuery.for('share') : membershipQuery)
   return Boolean(membership)
+}
+
+/** Read-only feasibility check, including the billing replacement applied before resource handoff. */
+export async function listUnresolvedSharedResourceWorkspaces(
+  executor: DbOrTx,
+  departingUserId: string,
+  doomedWorkspaceIds: string[]
+): Promise<string[]> {
+  const doomed = new Set(doomedWorkspaceIds)
+  const ids = (await listSharedResourceWorkspaceIdsForUser(executor, departingUserId)).filter(
+    (id) => !doomed.has(id)
+  )
+  if (!ids.length) return []
+  const rows = await executor
+    .select({
+      id: workspace.id,
+      ownerId: workspace.ownerId,
+      organizationId: workspace.organizationId,
+      billedAccountUserId: workspace.billedAccountUserId,
+    })
+    .from(workspace)
+    .where(inArray(workspace.id, ids))
+  const unresolved: string[] = []
+  for (const row of rows) {
+    const successor =
+      row.billedAccountUserId === departingUserId
+        ? await findWorkspaceBillingReplacement(executor, row, departingUserId)
+        : row.billedAccountUserId
+    if (
+      !successor ||
+      !(await hasWorkspaceSuccessor(
+        executor,
+        { ...row, billedAccountUserId: successor },
+        departingUserId,
+        false
+      ))
+    ) {
+      unresolved.push(row.id)
+    }
+  }
+  return unresolved
 }
 
 /**
@@ -102,7 +150,6 @@ export async function reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx
   tx: DbTransaction
   workspaceIds: string[]
   departingUserId: string
-  /** The caller will grant the billed successor admin access through workspace ownership transfer. */
   transferOwnership?: boolean
 }): Promise<{ unresolved: string[] }> {
   const ids = [...new Set(workspaceIds)].sort()
@@ -125,7 +172,7 @@ export async function reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx
   for (const row of rows) {
     if (
       (owned.has(row.id) || row.ownerId === departingUserId) &&
-      !(await holdWorkspaceSuccessor(tx, row, departingUserId, transferOwnership))
+      !(await hasWorkspaceSuccessor(tx, row, departingUserId, true, transferOwnership))
     )
       unresolved.push(row.id)
   }

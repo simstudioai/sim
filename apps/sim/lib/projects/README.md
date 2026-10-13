@@ -35,6 +35,37 @@ Project, lineage, edge, and workspace locks protect these business operations. P
 owns referential-integrity concurrency through the native constraints; no custom Project
 integrity triggers or artificial Project row touches are required.
 
+## Storage and consistency
+
+Each workspace belongs to exactly one Project through the required `workspace.project_id`
+foreign key. One Project can contain many workspaces, including disconnected roots; there
+is no membership connector table. Referenced Projects cannot be deleted while their
+workspaces remain. `project.updated_at` is Project-record metadata, not a workspace
+activity counter or a concurrency version.
+
+Native composite foreign keys enforce two structural invariants:
+
+- Workspace and Project organizations agree, including personal (`NULL`) scope. Both
+  tables have a stored generated `organization_scope_key`: `personal` for NULL and
+  `organization:` followed by the organization ID otherwise. Writers cannot supply this
+  key independently. A unique Project `(id, organization_scope_key)` constraint supports
+  the workspace `(project_id, organization_scope_key)` foreign key.
+- A connected fork and its parent share a Project. A unique workspace `(id, project_id)`
+  constraint supports `(forked_from_workspace_id, project_id)` referencing that pair.
+  The parent-ID foreign key uses `ON DELETE SET NULL`, clearing only the parent pointer.
+  The composite foreign key uses `NO ACTION`; Project membership never cascades automatically.
+
+Both composite foreign keys are `DEFERRABLE INITIALLY DEFERRED`, allowing atomic
+organization transfers and subtree moves before validation. Drizzle records the columns,
+indexes, and relationships; the shared schema finalizer sets deferred timing after a fresh
+schema push because Drizzle does not represent that timing.
+
+Application transactions own creation with the first workspace, nonempty Projects,
+archive lifecycle, workflow admission/restoration, and subtree disconnection. Their
+Project, lineage, edge, and workspace locks protect these business operations. PostgreSQL
+owns referential-integrity concurrency through the native constraints; no custom Project
+integrity triggers or artificial Project row touches are required.
+
 ## Choose the creation flow
 
 | Caller | Flow | Result |

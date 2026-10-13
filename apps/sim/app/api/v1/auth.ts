@@ -74,7 +74,7 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
       }
     }
 
-    await updateApiKeyLastUsed(result.keyId)
+    updateApiKeyLastUsed(result.keyId)
 
     return {
       authenticated: true,

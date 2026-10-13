@@ -2,7 +2,7 @@ import { vi } from 'vitest'
 
 /**
  * The real `fileOperations.list` operation from `@/lib/workspace-files/application/operations`,
- * which all three list use cases share.
+ * which every list use case shares.
  */
 const FILES_LIST_OPERATION = {
   id: 'files.list',
@@ -42,6 +42,8 @@ export const workspaceFilesListMockFns = {
   mockQueryWorkspaceFilePageAuthorize: vi.fn(),
   mockListWorkspaceFilesInFolderScope: vi.fn(),
   mockListWorkspaceFilesInFolderScopeAuthorize: vi.fn(),
+  mockFindActiveWorkspaceFilesByReference: vi.fn(),
+  mockFindActiveWorkspaceFilesByReferenceAuthorize: vi.fn(),
 }
 
 const fns = workspaceFilesListMockFns
@@ -73,5 +75,11 @@ export const workspaceFilesListMock = {
     delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
     authorize: fns.mockListWorkspaceFilesInFolderScopeAuthorize,
     execute: fns.mockListWorkspaceFilesInFolderScope,
+  },
+  findActiveWorkspaceFilesByReference: {
+    operation: FILES_LIST_OPERATION,
+    delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+    authorize: fns.mockFindActiveWorkspaceFilesByReferenceAuthorize,
+    execute: fns.mockFindActiveWorkspaceFilesByReference,
   },
 }

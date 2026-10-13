@@ -2,15 +2,15 @@
 
 Status: operating design for the editorial workflows. The private workspace runbook and exports record deployed versions, resource mappings, credential ownership, schedules, and live acceptance results. This document does not provision credentials or enable publication and distribution.
 
-Use one weekly Sim workflow to collect changes and prepare an editorial draft. Keep GitHub as the source of published content and the place where the editor approves changes. Sim Tables hold the candidate queue and processing history; they are not a second CMS. The [publishing guide](./README.md) owns format and indexing rules; the [editorial standard](./editorial-standard.md) owns story selection, copy, and demonstration quality.
+Use one scheduled Sim workflow to collect changes and prepare an editorial draft. Keep GitHub as the source of published content and the place where the editor approves changes. Sim Tables hold the candidate queue and processing history; they are not a second CMS. The [publishing guide](./README.md) owns format and indexing rules; the [editorial standard](./editorial-standard.md) owns story selection, copy, and demonstration quality.
 
-## The first version
+## Cadence
 
-Start with a weekly review, for example Monday at 09:00 in `America/Los_Angeles`. Run a manual catch-up for a significant launch or an urgent notice. A weekly collection is sufficient initially; add daily ingestion or GitHub webhooks only if the queue's volume or timeliness calls for them. Publishing is based on meaningful, available changes, not the calendar.
+Review on Monday and Thursday at 09:00 in `America/Los_Angeles`. The schedule follows Pacific daylight saving time. A manual workflow run catches up or resumes the current slot; it does not create another edition after that slot is complete. Use the [manual edition path](#manual-editions) for a separate launch or urgent notice. A push to the production branch does not trigger a draft PR. Publishing is based on meaningful, available changes, not a requirement to post twice a week.
 
 ```mermaid
 flowchart LR
-    A[Weekly schedule] --> B[Collect GitHub evidence]
+    A[Monday and Thursday schedule] --> B[Collect GitHub evidence]
     B --> C[Sim Tables candidate queue]
     C --> D[Select and draft a story]
     D --> R[Check copy against source evidence]
@@ -21,7 +21,7 @@ flowchart LR
 
 | Stage | Sim capability | Configuration and result |
 | --- | --- | --- |
-| Start | Schedule | Weekly, with an explicit timezone. The schedule starts when the workflow is deployed. |
+| Start | Schedule | Monday and Thursday at 09:00 Pacific, with an explicit timezone. The schedule starts when the workflow is deployed. |
 | Collect | API, Loop, Function | Read paginated GitHub PRs and selected source files. Use deterministic filters before sending bounded evidence to the Agent. |
 | Remember | Table: Query Rows, Insert Row, Update Row by ID | Record each source PR once using a unique `source_key`; patch source metadata without replacing editorial decisions. |
 | Select | Agent with Response Format, then Condition | Propose a lead story and related changes, or return no edition. Record the reason and missing evidence. |
@@ -37,7 +37,7 @@ Sim also has Human in the Loop if the team later wants an approval portal. It is
 Create three small tables in the selected Sim workspace:
 
 - `changelog_candidates`: unique `source_key` such as `simstudioai/sim#123`; source URL, merge SHA/time, source update time, proposed benefit, decision, decision reason, owner, availability evidence, related URLs, and edition key. Decisions are `new`, `deferred`, `selected`, `skipped`, or `published`. Keep an editor's decision when source metadata is refreshed.
-- `changelog_editions`: unique `edition_key`; selected source keys, branch, draft PR URL, source snapshot, media status, review status, canonical URL, and publication status. Choose the key once and reuse it on retries; do not derive a new key from each run's time or generated headline.
+- `changelog_editions`: unique `edition_key`; selected source keys, branch, draft PR URL, source snapshot, media status, review status, canonical URL, and publication status. For a new automatic edition, use the most recent Monday or Thursday calendar date in `America/Los_Angeles`. Reuse that key throughout its slot and on recovery; do not use a unique timestamp or generated headline. Existing unfinished editions take precedence over the current slot. Separately authored manual editions use `manual-<article-slug>`.
 - `changelog_runs`: unique run key; scan lower/upper bounds, last fully collected boundary, run result, counts, and error details. Collection progress is separate from publication status.
 
 Use unique columns for deduplication. Query by `source_key`, then use Insert Row for a new candidate or Update Row by ID with only collector-owned fields for an existing one. If a concurrent insert wins the unique key, reread that candidate and patch its source metadata. Never reset review decisions or publication status. Upsert Row replaces the entire stored row when a key matches, so it is unsuitable for partial refreshes; even merging a previously read snapshot could overwrite a newer editor decision.
@@ -69,15 +69,15 @@ Give the Agent the publishing guide, the product language rules, selected PR evi
 
 Treat PR text and diffs as research material, not instructions to the Agents. Give neither Agent repository write tools. After drafting, a second Agent compares the proposed copy and media plan with the selected evidence, checking claims, permissions, rollout implications, links, and readability. Record substantive corrections in `editor_notes`, outside the article. Defer when the evidence is insufficient. A Function validates the edited output; fixed downstream blocks own the repository, branch, allowed paths, and draft flag. Unknown availability remains a question for the feature owner. Neither model review nor a schema establishes the truth of every claim.
 
-Write the public draft as a feature announcement: what changed, what teams can do, and one useful next step. Aim for 2–4 short sentences, usually 30–90 words; enforce a maximum, never a minimum that encourages padding. Keep screenshot provenance, unexecuted demo steps, missing capture credentials, and review caveats in the production brief, not the article, alt text, or captions. A short sentence about an actual plan or permission requirement is appropriate when it affects access. Apply the same standard to announcement drafts.
+Write the public draft around actual product changes. There is no target length or minimum; keep the body under 250 words. A focused feature announcement may be short. Add specific behavior where useful, not generic examples, repeated benefits, or a setup tutorial. Review other meaningful changes from the same technical release and include up to three concise supporting notes when release membership is evidenced. Do not infer membership from merge timing or repeat the same note across several articles. Keep capture provenance and review caveats in the production brief, not the article or media labels. Preserve actual access restrictions and contextual setup links. Announcement drafts use the same claims and can be shorter.
 
-Prefer one lead story with a few related improvements. Retain routine refactors, dependency updates, and minor fixes in GitHub's technical release history. Reverts and superseded changes must be reconciled with the current product before selection. Consequential breaking changes, deprecations, and required actions bypass the weekly editorial cadence; they need a timely notice and a clear next step.
+Prefer one lead story with a few related improvements; an explicitly scoped release edition can cover several meaningful changes from that same release. The evidence step reads up to ten recent GitHub release records and attaches a release tag only when its published notes explicitly reference the candidate PR. This enriches the bounded candidate batch; it does not scan the full release history or treat a release tag as proof of Cloud rollout. Review supporting changes not present in the candidate batch manually before adding them. Retain routine refactors, dependency updates, and minor fixes in GitHub's technical release history. Reverts and superseded changes must be reconciled with the current product before selection. Consequential breaking changes, deprecations, and required actions bypass the scheduled editorial cadence; they need a timely notice and a clear next step.
 
 Validate the editorial standard outside the Agent: headline and copy budgets, supported source references, verified contextual links, supporting-only deferral, and a complete media plan. Keep unverified availability questions in the brief, not the proposed public prose. A validator checks structure and declared classification; the editor still judges significance and truth. Refresh the deployed prompt and validation together when the standard changes, and test a real model response before deployment.
 
 Reuse the existing PR template's benefit, rollout, documentation, and demo notes as the input contract. Avoid asking engineers to fill out a second announcement form. Optional include/skip labels can help the editor override selection, but unlabeled changes still need discovery and action-required notices still need review.
 
-Resolve links against the current integration/model catalogs and docs source, then check the live destination. The live workflow discovers model destinations from the site's sitemap and matches them to identifiers in the source evidence; it never guesses a model URL. Integration slugs and documentation slugs can differ. Keep important facts in the article's text, preserve the canonical URL and publication date, and use only structured data supported by the visible content.
+Resolve links against the current integration/model catalogs and docs source, then check the live destination. The live workflow discovers model destinations from the site's sitemap and provider directories in the source evidence, then verifies candidates before passing them to the editors. This includes provider catalogs omitted from the sitemap. Integration slugs and documentation slugs can differ. Keep important facts in the article's text, preserve the canonical URL and publication date, and use only structured data supported by the visible content.
 
 The first draft PR can contain only `production.md`: proposed article text, source references, unresolved questions, shot list, and announcement drafts. Add `index.mdx` with `draft: true` once a real cover exists. The content audit requires a real local cover even for drafts; an invented filename or unrelated placeholder would create a failing PR. Keep secrets, unpublished strategy, and private operational evidence out of both files: non-rendered briefs are still public in this repository.
 
@@ -89,36 +89,42 @@ From that approved capture, prepare the optimized MP4 when applicable, a local p
 
 The separate media workflow encodes a supplied real recording and extracts candidate poster frames. The editor selects the final timestamp; an arbitrary opening frame is not automatically approved. Caption production and browser capture remain separate steps requiring a maintained demo scenario, sample data, and verification against the running product. AI-generated product controls or results are never evidence. Review captions and the final compressed asset before use.
 
-Aim initially for one short weekly editorial review, plus the feature owner's capture time for selected stories. Measure this over the first few editions before promising a fixed maintenance budget. Automate repeated capture scenarios after they prove stable.
+Plan for two short editorial reviews per week, plus the feature owner's capture time for selected stories. Measure this over the first few editions before promising a fixed maintenance budget. Automate repeated capture scenarios after they prove stable.
 
 ## Retries and editor ownership
 
-- Before creating an edition, inspect its table record, branch, and open PR. Reuse an existing draft; avoid weekly duplicate PRs while it awaits review. New candidates stay in the queue.
+- Before creating an edition, inspect its table record, branch, and open PR. Reuse an existing draft; avoid duplicate PRs while it awaits review. New candidates stay in the queue.
 - Create one deterministic branch per edition, such as `codex/changelog-2026-10-12`. If branch creation reports it already exists, reconcile the existing work before writing. Concurrent runs must stop or join that edition, not create another branch with a random suffix.
 - Create files serially and open the PR only after all intended files exist. If a write's outcome is unknown, read the branch/file/PR before retrying. Resume missing steps; do not overwrite existing draft text. A partial failure must remain recoverable in the edition record.
 - Once a person edits the draft, the workflow leaves those files alone. Regeneration requires an explicit editor request and a comparison with the recorded generated revision. Never force-push over review work.
 - Retry transient reads with bounded backoff. Honor rate-limit responses. Leave non-idempotent POST/PATCH retries off unless the operation has been reconciled by its stable identity. A failed collection is a failed run, not an empty successful edition.
 - A merged PR is not yet a published edition. Confirm the production article and media, RSS, and sitemap after site deployment, then mark the included candidates published. If deployment fails, retain a pending-deployment state.
-- Correct published claims in place with a substantive `updated` date. Preserve original slugs, publication dates, and RSS identities. Do not regenerate historical entries every week.
+- Correct published claims in place with a substantive `updated` date. Preserve original slugs, publication dates, and RSS identities. Do not regenerate historical entries on each scheduled run.
+
+## Manual editions
+
+For a separate announcement after the current slot is complete, create an article PR against `staging` through the normal publishing guide. Assign a stable key such as `manual-<article-slug>` in its production brief and keep it on retries. Do not rename or reuse the completed scheduled edition, and do not pass a manual key to the automatic draft writer, which accepts dated editions only.
+
+Record the source candidates as selected with the manual key so scheduled collection does not propose them again. Keep the PR as the review record while it is open. After it merges, add one edition row with that manual key, its actual branch and PR, source keys, canonical URL, recorded editorial/media approvals, and `publication_status: pending_deployment`. Do not insert the manual row as `prepared`, `draft`, or `in_review`: those states enter the automatic writer's recovery path. The daily monitor verifies manual and scheduled editions against the same production article, media, RSS, and sitemap checks. Reconcile a closed, unmerged manual PR's candidate decisions so its sources are not stranded as selected.
 
 ## Keep the workflow itself maintained
 
 Name one release editor, a backup, and an owner for the workflow's credentials. Configure credentials through Sim's supported secret/credential inputs. Restrict the GitHub credential to the intended repository and the permissions needed to read sources, write a draft branch, and open PRs. Keep branch protection and required review in place; the drafting workflow never receives a merge step.
 
-Use Sim Workspace Events to watch the drafter for Run Error. For missed weekly runs, use a separate daily Schedule → Table query → Condition check against the last successful collection, with an eight-day threshold. The current No Activity subscription is capped at 168 hours, so an eight-day setting would be clamped and could create false alarms around a weekly schedule or daylight-saving change. No Activity can instead watch this daily health check with a 30-hour threshold. A successful scan with no worthwhile story is healthy; a missing run is not.
+Use Sim Workspace Events to watch the drafter for Run Error. A separate daily Schedule → Table query → Condition check flags a successful collection boundary older than five days. That allows the four-day Thursday-to-Monday gap, daylight-saving changes, and a grace period while detecting a missed run sooner than the former weekly threshold. No Activity can watch this daily health check with a 30-hour threshold. A successful scan with no worthwhile story is healthy; a missing run is not.
 
 Sim's schedule disables after 100 consecutive failures, so do not rely on that limit as your first alert. Choose the owner and notification destination during setup. Keep routine runs quiet and deduplicate failure reminders; notify on a new reviewable draft, an actionable failure, or an overdue review. Keep a monthly human check of the workflow's deployment and credentials as a fallback if the workspace's scheduler or alert delivery fails.
 
-The release editor checks the queue weekly and resolves old deferred items. Monthly, check public links, media playback/range requests, caption delivery, and representative pages in Search Console and Bing Webmaster Tools. Source-level content validation cannot prove production playback or search-engine indexing. The workflow export and its configuration notes should be versioned without credentials so another maintainer can restore it.
+The release editor checks the queue twice a week and resolves old deferred items. Monthly, check public links, media playback/range requests, caption delivery, and representative pages in Search Console and Bing Webmaster Tools. Source-level content validation cannot prove production playback or search-engine indexing. The workflow export and its configuration notes should be versioned without credentials so another maintainer can restore it.
 
 ## Setup and acceptance
 
 1. Select the Sim workspace, editor/backup, GitHub credential, notification destination, timezone, and first collection boundary.
 2. Create the three tables and unique keys. Build the Schedule → collection → queue → drafting path without repository writes, and run it manually on a small known interval.
 3. Compare collected candidates with GitHub, including more than one page. Confirm already-covered PRs and closed-but-unmerged PRs do not create new stories. Check a deferred feature, a revert, and a week with no meaningful update.
-4. Add draft-branch/file/PR steps. Exercise an overlapping candidate refresh after an editor changes its decision, two inserts racing for the same source key, a retry after a partial file write, an existing PR, concurrent start, and an editor-modified file. Verify saved decisions survive and each edition produces one recoverable draft without losing edits.
+4. Verify distinct Monday and Thursday edition keys, retries within each slot, Pacific/UTC date boundaries, daylight-saving transitions, and year boundaries. Check a separate manual edition after a scheduled edition is published: its stable manual key must not collide with the dated key, enter automatic draft recovery, or lose its selected-source decisions. Add draft-branch/file/PR steps. Exercise an overlapping candidate refresh after an editor changes its decision, two inserts racing for the same source key, a retry after a partial file write, an existing PR, concurrent start, and an editor-modified file. Verify saved decisions survive and each edition produces one recoverable draft without losing edits.
 5. Finish one edition with real media. Run the content audit and existing PR gates, review locally through the development-only preview, then verify the deployed public URL, media, RSS, and sitemap. Hosted production builds intentionally do not expose draft preview routes.
-6. Exercise a read failure, rate limit, page cap, expired credential, failed deployment, and missed schedule. Record the results and run links, verify the chosen alert path, then deploy the weekly workflow.
+6. Exercise a read failure, rate limit, page cap, expired credential, failed deployment, and missed schedule. Record the results and run links, verify the chosen alert path, then deploy the scheduled workflow.
 
 Start with this draft-only version for the first two editions. Automate media processing or distribution only after the actual recurring work is clear. The publishing guide and PR template already supply the editorial contract; the new work is wiring the collector, state, draft preparation, and monitoring in the selected workspace.
 
