@@ -95,10 +95,6 @@ const EMPTY_FOLDER_MAP: Record<string, WorkflowFolder> = {}
 const NO_IDS: string[] = []
 
 const WORKFLOW_ICON = <Workflow className='size-[14px]' />
-const DEPLOYED_DOT = <span aria-hidden className='size-[6px] rounded-full bg-[var(--brand-blue)]' />
-const DRAFT_DOT = (
-  <span aria-hidden className='size-[6px] rounded-full border border-[var(--text-muted)]' />
-)
 
 /** A list row (and the right-clicked row), resolved to the entity it refers to. */
 type WorkflowResourceItem =
@@ -344,9 +340,7 @@ export function WorkflowsList() {
           id: workflow.id,
           cells: {
             name: { icon: WORKFLOW_ICON, label: workflow.name },
-            status: workflow.isDeployed
-              ? { icon: DEPLOYED_DOT, label: 'Deployed' }
-              : { icon: DRAFT_DOT, label: 'Draft' },
+            status: { label: workflow.isDeployed ? 'Deployed' : 'Draft' },
             updated: timeCell(workflow.lastModified),
             location: isSearching
               ? { label: folderLocationLabel(workflow.folderId, folderById, ROOT_LABEL) }

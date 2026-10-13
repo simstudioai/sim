@@ -121,7 +121,6 @@ function ProjectTree({
     <ProjectRow
       project={project}
       href={href}
-      newChatHref={`${routes.home}?project=${encodeURIComponent(project.id)}&pane=project`}
       active={inProject}
       railCollapsed={railCollapsed}
       drag={drag}

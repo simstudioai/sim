@@ -19,7 +19,6 @@ import {
   Pencil,
   Pin,
   PinOff,
-  Plus,
   SquareArrowUpRight,
   Trash,
 } from '@sim/emcn/icons'
@@ -42,7 +41,6 @@ import { useContextMenu } from '@/hooks/use-context-menu'
 interface ProjectRowProps {
   project: Project
   href: string
-  newChatHref: string
   active: boolean
   railCollapsed: boolean
   drag: ProjectDragProps
@@ -51,13 +49,12 @@ interface ProjectRowProps {
 
 /**
  * A project in the organization sidebar with the workspace sidebar's row ergonomics: hover
- * reveals the options menu and a new-chat button, right-click opens the same menu, double-click
+ * reveals the options menu, right-click opens the same menu, double-click
  * or Rename edits the name inline, drag reorders, and the menu pins or deletes the project.
  */
 export function ProjectRow({
   project,
   href,
-  newChatHref,
   active,
   railCollapsed,
   drag,
@@ -192,14 +189,6 @@ export function ProjectRow({
                 ) : undefined
               }
             >
-              <Link
-                href={newChatHref}
-                aria-label={`New chat in ${project.name}`}
-                title={`New chat in ${project.name}`}
-                className='flex size-[18px] shrink-0 items-center justify-center rounded-[4px] hover-hover:bg-[var(--surface-active)]'
-              >
-                <Plus className='size-[12px] text-[var(--text-icon)]' />
-              </Link>
               <SidebarRowAction aria-label='Project options' onClick={openMenuFromButton}>
                 <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
               </SidebarRowAction>

@@ -23,10 +23,10 @@ interface PanelOverlay {
   reserve: number
 }
 
+/** The lazy panel takes no width until its chunk loads, so an unloaded panel reserves nothing. */
 function measurePanelWidth(layout: HTMLElement | null): number {
-  const panelElement = layout?.querySelector<HTMLElement>('[data-mothership-panel]')
-  if (!panelElement) throw new Error('Resource panel is not mounted')
-  return panelElement.offsetWidth
+  if (!layout) throw new Error('Chat panel layout is not mounted')
+  return layout.querySelector<HTMLElement>('[data-mothership-panel]')?.offsetWidth ?? 0
 }
 
 const MothershipView = lazy(() =>
