@@ -73,9 +73,10 @@ describe('text match clauses', () => {
       expect(holdsHalfTheTerms('glean token creator role request')('Glean tokens, creators')).toBe(
         true
       )
-      const holds = holdsHalfTheTerms('database release checklist owner')
-      expect(holds('Database release')).toBe(true)
-      expect(holds('Databases and weekly releases')).toBe(true)
+      expect(
+        holdsHalfTheTerms('database release checklist owner')('Databases and weekly releases')
+      ).toBe(true)
+      expect(holdsHalfTheTerms('databases releases checklist owner')('Database release')).toBe(true)
     })
 
     it('matches a term with punctuation inside it as written', () => {

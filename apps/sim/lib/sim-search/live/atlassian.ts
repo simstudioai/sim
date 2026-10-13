@@ -156,10 +156,8 @@ export async function searchAtlassian(
   const direction = dateSortDirection(input.filters)
   const order = direction ? `${field} ${direction.toUpperCase()}` : undefined
   const text = nativeText(input)
-  /**
-   * Jira's any-term query ORs pairs of terms, which on a large site matches issues sharing two
-   * common words; like a minimum-should-match, an issue must hold at least half the terms.
-   */
+  // Jira's any-term JQL matches issues sharing two common words; like minimum-should-match,
+  // keep only issues holding at least half the terms.
   const relevant = input.textMatch === 'any' && text ? holdsHalfTheTerms(text) : undefined
   const pages = await Promise.all(
     selected.map(async (site) => {
