@@ -377,14 +377,21 @@ describe('buildCopilotRequestPayload', () => {
     }
   )
 
-  it.each([true, false])(
-    'grants an organization Build chat the dashboards entitlement from its rollout: %s',
-    async (enabled) => {
+  it.each([
+    ['dashboards', 'dashboards', true],
+    ['dashboards', 'dashboards', false],
+    ['tests', 'workflow-tests', true],
+    ['tests', 'workflow-tests', false],
+    ['changelog', 'changelog', true],
+    ['changelog', 'changelog', false],
+  ] as const)(
+    'grants an organization Build chat the %s entitlement from the %s rollout: %s',
+    async (entitlement, rolloutFlag, enabled) => {
       featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
-        async (flag) => enabled && flag === 'dashboards'
+        async (flag) => enabled && flag === rolloutFlag
       )
       const payload = await buildCopilotRequestPayload({
-        message: 'Build me a dashboard',
+        message: 'Build it',
         userId: 'actor',
         userMessageId: 'message-1',
         organizationId: 'org-1',
@@ -392,8 +399,8 @@ describe('buildCopilotRequestPayload', () => {
         mode: 'agent',
         model: '',
       })
-      expect(payload.entitlements).toEqual(enabled ? ['dashboards'] : [])
-      expect(featureFlagsMockFns.mockIsFeatureEnabled).toHaveBeenCalledWith('dashboards', {
+      expect(payload.entitlements).toEqual(enabled ? [entitlement] : [])
+      expect(featureFlagsMockFns.mockIsFeatureEnabled).toHaveBeenCalledWith(rolloutFlag, {
         orgId: 'org-1',
       })
     }
