@@ -21,8 +21,9 @@ import {
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { sha256Hex } from '@sim/security/hash'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/core/config/env'
 import { closeRedisConnection } from '@/lib/core/config/redis'
@@ -31,13 +32,21 @@ import {
   completeSlackCredentialGroupConfiguration,
   startSlackCredentialGroupConfiguration,
 } from '@/lib/credential-groups/application/slack-managed-users'
-import { decryptCredentialGroupProviderConfiguration } from '@/lib/credential-groups/provider-configuration'
+import { lockOrganizationSlackApp } from '@/lib/credential-groups/organization-slack-app'
+import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
+import {
+  decryptCredentialGroupProviderConfiguration,
+  emptyCredentialGroupProviderConfiguration,
+  encryptCredentialGroupProviderConfiguration,
+} from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroup } from '@/lib/credential-groups/service'
 import { SLACK_SEARCH_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { slackCredentialGroupProviderAdapter } from '@/lib/credential-groups/slack-provider'
 import { createOrganizationAccountsGroup } from '@/lib/credential-groups/workspace-accounts'
 import { encryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
+import type { DbOrTx } from '@/lib/db/types'
 import { approveSearchIntegration } from '@/lib/knowledge/application/search-integrations'
+import { listSlackSearchInstallations } from '@/lib/knowledge/application/slack-search/installations'
 import { revokeSlackSearchAccess } from '@/lib/knowledge/application/slack-search/lifecycle'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
@@ -48,6 +57,7 @@ vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
 }))
 
 const SHARED_APP_ID = 'ASHAREDFIXTURE'
+const CUSTOM_APP_ID = 'ACUSTOMFIXTURE'
 const MEMBER_TEAM = 'TMEMBERS'
 const OTHER_TEAM = 'TOTHER'
 
@@ -131,10 +141,10 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
       },
     })
 
-  const startSetup = (credentialGroupId: string) =>
+  const startSetup = (credentialGroupId: string, app?: { appId: string; teamId: string }) =>
     startSlackCredentialGroupConfiguration.execute({
       principal: principal(),
-      input: { organizationId: ids.organization, credentialGroupId },
+      input: { organizationId: ids.organization, credentialGroupId, ...app },
     })
 
   const completeSetup = (state: string) =>
@@ -142,6 +152,48 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
       principal: principal(),
       input: { state, code: 'fixture-code' },
     })
+
+  async function installBot(appId: string, teamId: string, executor: DbOrTx = db) {
+    const secret = (await encryptSecret('fixture-bot')).encrypted
+    await executor
+      .insert(slackApp)
+      .values(
+        appId === SHARED_APP_ID
+          ? { id: appId, kind: 'shared', organizationId: null, revision: generateId() }
+          : {
+              id: appId,
+              kind: 'custom',
+              organizationId: ids.organization,
+              clientId: 'fixture-custom-client',
+              encryptedClientSecret: secret,
+              encryptedSigningSecret: secret,
+              revision: generateId(),
+            }
+      )
+      .onConflictDoNothing()
+    const botId = generateId()
+    await executor.insert(credential).values({
+      id: botId,
+      organizationId: ids.organization,
+      type: 'service_account',
+      providerId: 'slack',
+      displayName: 'Fixture Slack bot',
+      createdBy: ids.owner,
+      encryptedServiceAccountKey: secret,
+    })
+    await executor.insert(slackSearchInstallation).values({
+      id: generateId(),
+      organizationId: ids.organization,
+      credentialId: botId,
+      appId,
+      slackAppId: appId,
+      teamId,
+      teamName: 'Fixture team',
+      botUserId: 'UBOT',
+      credentialVersion: generateId(),
+      revision: generateId(),
+    })
+  }
 
   async function accountsGroup() {
     const [group] = await db
@@ -230,6 +282,16 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
       })
     ).resolves.toMatchObject({ authorizationAppId: `slack:${SHARED_APP_ID}:${MEMBER_TEAM}` })
     await expect(approveSlack()).resolves.toMatchObject({ memberAccounts: { changed: false } })
+    await expect(
+      listSlackSearchInstallations.execute({
+        principal: principal(),
+        input: { organizationId: ids.organization },
+      })
+    ).resolves.toMatchObject({
+      sharedAppAvailable: true,
+      memberAppKind: 'shared',
+      installations: [],
+    })
 
     const second = new URL((await startSetup(groupId)).authorizationUrl)
     expect(second.searchParams.get('team')).toBe(MEMBER_TEAM)
@@ -243,32 +305,114 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
   it('refuses shared-app member setup when the organization already has a Search bot', async () => {
     const groupId = (await approveSlack()).memberAccounts?.groupId
     if (!groupId) throw new Error('Approval did not provision organization accounts')
-    await db
-      .insert(slackApp)
-      .values({ id: SHARED_APP_ID, kind: 'shared', organizationId: null, revision: generateId() })
-    const botId = generateId()
-    await db.insert(credential).values({
-      id: botId,
-      organizationId: ids.organization,
-      type: 'service_account',
-      providerId: 'slack',
-      displayName: 'Fixture Slack bot',
-      createdBy: ids.owner,
-      encryptedServiceAccountKey: (await encryptSecret('fixture-bot')).encrypted,
-    })
-    await db.insert(slackSearchInstallation).values({
-      id: generateId(),
-      organizationId: ids.organization,
-      credentialId: botId,
-      appId: SHARED_APP_ID,
-      slackAppId: SHARED_APP_ID,
-      teamId: MEMBER_TEAM,
-      teamName: 'Fixture team',
-      botUserId: 'UBOT',
-      credentialVersion: generateId(),
-      revision: generateId(),
-    })
+    await installBot(SHARED_APP_ID, MEMBER_TEAM)
     await expect(startSetup(groupId)).rejects.toThrow('installed Slack app')
+  })
+
+  it('refuses to finish member setup when a custom bot is installed during authorization', async () => {
+    const groupId = (await approveSlack()).memberAccounts?.groupId
+    if (!groupId) throw new Error('Approval did not provision organization accounts')
+    const pending = new URL((await startSetup(groupId)).authorizationUrl)
+    const before = await accountsGroup()
+    await installBot(CUSTOM_APP_ID, OTHER_TEAM)
+    provideSlackConsent(MEMBER_TEAM)
+    await expect(completeSetup(pending.searchParams.get('state') ?? '')).rejects.toThrow(
+      'installations changed during authorization'
+    )
+    expect(await accountsGroup()).toEqual(before)
+  })
+
+  it('refuses member setup when another bot joins an installed one during authorization', async () => {
+    const groupId = (await approveSlack()).memberAccounts?.groupId
+    if (!groupId) throw new Error('Approval did not provision organization accounts')
+    await installBot(SHARED_APP_ID, MEMBER_TEAM)
+    const pending = new URL(
+      (await startSetup(groupId, { appId: SHARED_APP_ID, teamId: MEMBER_TEAM })).authorizationUrl
+    )
+    expect(pending.searchParams.get('team')).toBe(MEMBER_TEAM)
+    const before = await accountsGroup()
+    await installBot(CUSTOM_APP_ID, OTHER_TEAM)
+    provideSlackConsent(MEMBER_TEAM)
+    await expect(completeSetup(pending.searchParams.get('state') ?? '')).rejects.toThrow(
+      'installations changed during authorization'
+    )
+    expect(await accountsGroup()).toEqual(before)
+  })
+
+  it('waits for an in-flight bot install before finishing member setup', async () => {
+    const groupId = (await approveSlack()).memberAccounts?.groupId
+    if (!groupId) throw new Error('Approval did not provision organization accounts')
+    const pending = new URL((await startSetup(groupId)).authorizationUrl)
+    const before = await accountsGroup()
+    provideSlackConsent(MEMBER_TEAM)
+    const locked = createDeferred<number>()
+    const release = createDeferred<void>()
+    const install = db.transaction(async (tx) => {
+      await lockOrganizationSlackApp(tx, ids.organization)
+      await installBot(CUSTOM_APP_ID, OTHER_TEAM, tx)
+      const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      locked.resolve(connection.pid)
+      await release.promise
+    })
+    const installPid = await locked.promise
+    const completion = completeSetup(pending.searchParams.get('state') ?? '')
+    completion.catch(() => undefined)
+    try {
+      await vi.waitFor(
+        async () => {
+          const [waiting] = await db.execute<{ pid: number }>(
+            sql`SELECT pid FROM pg_stat_activity WHERE ${installPid} = ANY(pg_blocking_pids(pid))`
+          )
+          expect(waiting).toBeDefined()
+        },
+        { timeout: 5_000 }
+      )
+    } finally {
+      release.resolve()
+      await install
+    }
+    await expect(completion).rejects.toThrow('installations changed during authorization')
+    expect(await accountsGroup()).toEqual(before)
+  })
+
+  it('reports a custom-app member setup and keeps it off the shared-app path', async () => {
+    const groupId = (await approveSlack()).memberAccounts?.groupId
+    if (!groupId) throw new Error('Approval did not provision organization accounts')
+    const scopes = [...SLACK_SEARCH_USER_SCOPES]
+    await db
+      .update(credentialGroup)
+      .set({
+        options: [
+          {
+            id: generateId(),
+            provider: 'slack',
+            label: 'Slack',
+            authorizationAppId: `slack:${CUSTOM_APP_ID}:${OTHER_TEAM}`,
+            requiredScopes: scopes,
+            scopeVersion: credentialGroupScopePolicyVersion(scopes),
+            required: false,
+            status: 'active',
+          },
+        ],
+        encryptedProviderConfiguration: await encryptCredentialGroupProviderConfiguration({
+          ...emptyCredentialGroupProviderConfiguration(),
+          slack: {
+            source: 'slack_app',
+            appId: CUSTOM_APP_ID,
+            teamId: OTHER_TEAM,
+            scopes,
+            verifiedAt: new Date().toISOString(),
+          },
+        }),
+      })
+      .where(eq(credentialGroup.id, groupId))
+    await expect(
+      listSlackSearchInstallations.execute({
+        principal: principal(),
+        input: { organizationId: ids.organization },
+      })
+    ).resolves.toMatchObject({ memberAppKind: 'custom', installations: [] })
+    await expect(startSetup(groupId)).rejects.toThrow('Remove the existing Slack setup')
   })
 
   it('revokes shared-app member grants in every organization when a workspace has no bot', async () => {

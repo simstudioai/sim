@@ -36,6 +36,7 @@ import {
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useSlackSearchInstallations } from '@/hooks/queries/slack-search'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
+import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 
 const CHANNEL_NAME = 'slack-managed-users'
 const AUTHORIZATION_TIMEOUT_MS = 10 * 60 * 1000
@@ -69,6 +70,15 @@ export function getSlackManagedUsersFailureNotification(reason?: string): {
   return reason === 'provider_error'
     ? { message: 'Slack authorization canceled', variant: 'warning' }
     : { message: 'Slack app verification failed. Please try again.', variant: 'error' }
+}
+
+/** `optionActive` is undefined until the organization has a Slack sign-in option. */
+function memberAccountsMessage(previousAppSetup: boolean, optionActive: boolean | undefined) {
+  if (previousAppSetup)
+    return 'Remove app setup on the Slack source to clear the previous Slack app first.'
+  if (optionActive === undefined) return 'Verify member permissions in your Slack workspace.'
+  if (!optionActive) return 'Enable Slack in Credential Groups to verify member permissions.'
+  return 'Verify member permissions. Members will need to reconnect if their app or permissions change.'
 }
 
 function isSlackManagedUsersMessage(value: unknown): value is SlackManagedUsersMessage {
@@ -112,6 +122,7 @@ export function SlackManagedUsersModal({
   const noInstalledApp = organizationSetup && apps.isSuccess && availableApps.length === 0
   /** The shared app connects member accounts without a Search bot installation. */
   const sharedAppWithoutBot = noInstalledApp && Boolean(apps.data?.sharedAppAvailable)
+  const previousAppSetup = sharedAppWithoutBot && apps.data?.memberAppKind === 'custom'
   const sharedSetup = sharedAppInstalled || sharedAppWithoutBot
   const searchPolicies = useSearchIntegrations(organizationId ?? '', {
     enabled: open && sharedSetup,
@@ -143,6 +154,7 @@ export function SlackManagedUsersModal({
   )
   const memberOnlyCanAuthorize =
     sharedAppWithoutBot &&
+    !previousAppSetup &&
     !apps.isFetching &&
     memberSetupSettled &&
     (!memberOption || memberOption.status === 'active')
@@ -245,6 +257,7 @@ export function SlackManagedUsersModal({
       void queryClient.invalidateQueries({
         queryKey: organizationAccountsKeys.detail(scope.organizationId),
       })
+      void queryClient.invalidateQueries({ queryKey: slackSearchKeys.list(scope.organizationId) })
     } else {
       void queryClient.invalidateQueries({
         queryKey: credentialGroupKeys.workspace(scope.workspaceId),
@@ -346,9 +359,14 @@ export function SlackManagedUsersModal({
         )
         controller.signal.throwIfAborted()
         if (scope.kind === 'organization')
-          await queryClient.invalidateQueries({
-            queryKey: organizationAccountsKeys.detail(scope.organizationId),
-          })
+          await Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: organizationAccountsKeys.detail(scope.organizationId),
+            }),
+            queryClient.invalidateQueries({
+              queryKey: slackSearchKeys.list(scope.organizationId),
+            }),
+          ])
         else await queryClient.invalidateQueries({ queryKey: credentialGroupKeys.all })
         controller.signal.throwIfAborted()
         toast.success('Slack configured')
@@ -473,9 +491,10 @@ export function SlackManagedUsersModal({
             ) : sharedAppWithoutBot ? (
               <ChipModalField type='custom' title='Member accounts'>
                 <p className='text-[var(--text-secondary)] text-sm'>
-                  {memberOption
-                    ? 'Verify member permissions. Members will need to reconnect if their app or permissions change.'
-                    : 'Verify member permissions in your Slack workspace.'}
+                  {memberAccountsMessage(
+                    previousAppSetup,
+                    memberOption && memberOption.status === 'active'
+                  )}
                 </p>
               </ChipModalField>
             ) : needsApp ? (

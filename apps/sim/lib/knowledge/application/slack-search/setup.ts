@@ -11,6 +11,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   adoptOrganizationSlackMemberApp,
   loadOrganizationSlackMemberApps,
+  lockOrganizationSlackApp,
 } from '@/lib/credential-groups/organization-slack-app'
 import { configureSharedSlackMemberApp } from '@/lib/credential-groups/shared-slack-app'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
@@ -297,6 +298,7 @@ async function saveInstallation(
     })
   )
   await db.transaction(async (tx) => {
+    await lockOrganizationSlackApp(tx, attempt.organizationId)
     /** Serialize app/workspace installs before checking ownership or inserting missing rows. */
     await acquireAdvisoryXactLock(tx, 'slack_search', `slack-search:${identity.teamId}`)
     await acquireAdvisoryXactLock(tx, 'slack_app', `slack-app:${identity.appId}`)

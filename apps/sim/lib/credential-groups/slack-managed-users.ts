@@ -13,12 +13,14 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { lockOrganizationSlackApp } from '@/lib/credential-groups/organization-slack-app'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import {
   decryptCredentialGroupProviderConfiguration,
@@ -79,6 +81,8 @@ interface SlackSearchApprovalSnapshot {
 type StoredSlackManagedUsersAttempt = {
   appRevision?: string
   searchApproval?: SlackSearchApprovalSnapshot
+  /** Organization attempts: the Search installations they were authorized against. */
+  installationsRevision?: string
   version: typeof SLACK_MANAGED_USERS_ATTEMPT_VERSION
   workspaceId?: string
   organizationId?: string
@@ -102,6 +106,7 @@ type StoredSlackManagedUsersAttempt = {
 export interface SlackManagedUsersAttempt {
   appRevision?: string
   searchApproval?: SlackSearchApprovalSnapshot
+  installationsRevision?: string
   workspaceId?: string
   organizationId?: string
   userId: string
@@ -182,6 +187,9 @@ function isStoredAttempt(value: unknown): value is StoredSlackManagedUsersAttemp
     typeof candidate.credentialGroupId === 'string' &&
     typeof candidate.credentialGroupUpdatedAt === 'number' &&
     (candidate.appRevision === undefined || typeof candidate.appRevision === 'string') &&
+    (candidate.installationsRevision === undefined ||
+      (typeof candidate.installationsRevision === 'string' &&
+        candidate.organizationId !== undefined)) &&
     (candidate.organizationId !== undefined
       ? isRecordLike(approval) &&
         typeof approval.approved === 'boolean' &&
@@ -486,6 +494,21 @@ export function getSlackManagedUsersRedirectUri(): string {
   return `${getBaseUrl()}${SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH}`
 }
 
+/**
+ * Names an organization's Search installation set. Installing, rebinding, enabling, disabling,
+ * and removing a bot each rotate or drop a row's revision.
+ */
+async function organizationInstallationsRevision(executor: DbOrTx, organizationId: string) {
+  const rows = await executor
+    .select({ id: slackSearchInstallation.id, revision: slackSearchInstallation.revision })
+    .from(slackSearchInstallation)
+    .where(eq(slackSearchInstallation.organizationId, organizationId))
+    .limit(101)
+  return sha256Hex(
+    JSON.stringify(rows.map(({ id, revision }) => `${id}:${revision}`).sort(compareStrings))
+  )
+}
+
 /** An organization app the Search bot installed; its installation fixes the Slack workspace. */
 async function resolveInstalledOrganizationSlackApp(
   organizationId: string,
@@ -598,6 +621,7 @@ export async function createSlackManagedUsersAttempt(params: {
   let clientSecret = params.clientSecret
   let appRevision: string | undefined
   let searchApproval: SlackSearchApprovalSnapshot | undefined
+  let installationsRevision: string | undefined
   if (scope.kind === 'organization') {
     if (
       params.slackBotCredentialId ||
@@ -609,6 +633,11 @@ export async function createSlackManagedUsersAttempt(params: {
         'Select the organization’s Slack app. Configure its credentials in Slack app setup.',
         'invalid_response'
       )
+    /**
+     * Read before choosing the app: an install committed earlier is visible to that choice, and
+     * one committed later changes this snapshot, which completion re-checks under the lock.
+     */
+    installationsRevision = await organizationInstallationsRevision(db, scope.organizationId)
     const app = params.appId
       ? await resolveInstalledOrganizationSlackApp(
           scope.organizationId,
@@ -700,6 +729,7 @@ export async function createSlackManagedUsersAttempt(params: {
     clientId,
     ...(appRevision ? { appRevision } : {}),
     ...(searchApproval ? { searchApproval } : {}),
+    ...(installationsRevision ? { installationsRevision } : {}),
     ...(sharedApp && scope.kind === 'organization'
       ? { credentialSource: 'environment' as const, organizationId: scope.organizationId }
       : { encryptedClientSecret: (await encryptSecret(clientSecret)).encrypted }),
@@ -778,6 +808,9 @@ async function parseSlackManagedUsersAttempt(
     clientId: parsed.clientId,
     ...(parsed.appRevision ? { appRevision: parsed.appRevision } : {}),
     ...(parsed.searchApproval ? { searchApproval: parsed.searchApproval } : {}),
+    ...(parsed.installationsRevision
+      ? { installationsRevision: parsed.installationsRevision }
+      : {}),
     clientSecret,
     redirectUri: parsed.redirectUri,
     requiredScopes: parsed.requiredScopes,
@@ -844,6 +877,8 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
 
   return db.transaction(async (tx) => {
     if (params.attempt.organizationId) {
+      /** Taken first so waiting on a bot install never holds the approval lock other writes need. */
+      await lockOrganizationSlackApp(tx, params.attempt.organizationId)
       await lockOrganizationSearchApproval(tx, params.attempt.organizationId)
       const sharedApp = getSharedSlackSearchAppConfiguration(params.attempt.expectedAppId)
       if (sharedApp) await ensureSharedSlackAppRow(tx, sharedApp)
@@ -926,6 +961,15 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
       )
         throw new SlackManagedUsersError(
           'Search approval changed during authorization. Start again.',
+          'invalid_state'
+        )
+      if (
+        params.attempt.installationsRevision !== undefined &&
+        (await organizationInstallationsRevision(tx, params.attempt.organizationId)) !==
+          params.attempt.installationsRevision
+      )
+        throw new SlackManagedUsersError(
+          'Slack Search installations changed during authorization. Start again.',
           'invalid_state'
         )
     }
