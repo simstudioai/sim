@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   json: vi.fn(),
   service: vi.fn(),
   destroyPool: vi.fn(),
+  requiresEveryTerm: vi.fn(),
+  preview: vi.fn(),
 }))
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/sim-search/live/service-session', () => ({
@@ -65,6 +67,8 @@ vi.mock('@/lib/sim-search/live/providers', () => ({
   liveSearchGuidance: (providers: string[]) => `Live coverage: ${[...new Set(providers)]}`,
   searchNativeProvider: mocks.search,
   readNativeProvider: mocks.read,
+  requiresEveryTerm: mocks.requiresEveryTerm,
+  previewNativeText: mocks.preview,
 }))
 vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
   projectResolvedSecretModelContent: (value: string) => ({ safe: true, value }),
@@ -136,6 +140,8 @@ describe('authorized live retrieval', () => {
       documents: [{ ...document, id: 'src/a.ts', container: '42', kind: 'code' }],
     })
     mocks.adminVerify.mockResolvedValue(true)
+    mocks.requiresEveryTerm.mockReset().mockReturnValue(false)
+    mocks.preview.mockReset().mockResolvedValue(undefined)
   })
   describe('Zoom continuation integrity', () => {
     const connected = {
@@ -611,6 +617,103 @@ describe('authorized live retrieval', () => {
     expect(result.live?.accounts.map((status) => status.queryIndex)).toEqual([0, 1])
     expect(result.live?.guidance).toBe('Live coverage: slack')
   })
+  describe('result previews', () => {
+    const excerpts = ['a', 'b', 'c', 'd'].map((id) => ({
+      ...document,
+      id,
+      url: `https://docs.google.com/document/d/${id}/edit`,
+      content: `Excerpt ${id}`,
+    }))
+    const contents = (result: Awaited<ReturnType<typeof searchLiveKnowledge.execute>>) =>
+      result.results.map((row) => row.content)
+
+    it('replaces the excerpts of an account’s top results with their full text', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      mocks.preview.mockImplementation(async (_provider, _client, { id }: { id: string }) =>
+        id === 'a' ? undefined : `Full ${id} launch text`
+      )
+      const result = await searchLiveKnowledge.execute({ principal, input })
+      expect(contents(result)).toEqual([
+        'Excerpt a',
+        'Full b launch text',
+        'Full c launch text',
+        'Excerpt d',
+      ])
+      expect(mocks.preview).toHaveBeenCalledTimes(3)
+    })
+
+    it('previews the passage around a match deep inside a long document', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts.slice(0, 1) })
+      mocks.preview.mockResolvedValue(`${'filler '.repeat(30_000)}the launch checklist`)
+      const [row] = (await searchLiveKnowledge.execute({ principal, input })).results
+      expect(row?.content).toContain('launch checklist')
+    })
+
+    it('keeps the provider excerpt when a preview read fails', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts.slice(0, 2) })
+      mocks.preview
+        .mockRejectedValueOnce(new NativeSearchError('rate_limited', 'Slow down'))
+        .mockResolvedValueOnce('Full b launch text')
+      const result = await searchLiveKnowledge.execute({ principal, input })
+      expect(contents(result)).toEqual(['Excerpt a', 'Full b launch text'])
+      expect(result.live?.accounts[0]?.status).toBe('ok')
+    })
+
+    it('keeps the provider excerpt when a preview read misses its deadline', async () => {
+      vi.useFakeTimers()
+      try {
+        mocks.search.mockResolvedValue({ documents: excerpts.slice(0, 1) })
+        mocks.preview.mockReturnValue(new Promise(() => {}))
+        const pending = searchLiveKnowledge.execute({ principal, input })
+        await vi.advanceTimersByTimeAsync(2500)
+        expect(contents(await pending)).toEqual(['Excerpt a'])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not read previews for a native query, whose operators would anchor the passage', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      await searchLiveKnowledge.execute({
+        principal,
+        input: {
+          ...input,
+          query: '',
+          nativeQueries: [
+            { provider: 'google_drive' as const, query: "fullText contains 'launch'" },
+          ],
+        },
+      })
+      expect(mocks.preview).not.toHaveBeenCalled()
+    })
+
+    it('does not read previews for a listing without search terms', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      await searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, query: '', filters: { sortBy: 'newest' } },
+      })
+      expect(mocks.preview).not.toHaveBeenCalled()
+    })
+  })
+
+  it('retries an underfilled search with any term for providers that require every term', async () => {
+    mocks.requiresEveryTerm.mockReturnValue(true)
+    const loose = { ...document, id: 'loose', url: 'https://docs.google.com/document/d/loose/edit' }
+    mocks.search.mockImplementation(async (_provider, _client, search) => ({
+      documents: search.textMatch === 'any' ? [loose, document] : [document],
+    }))
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, query: 'launch checklist' },
+    })
+    expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+      'doc',
+      'loose',
+    ])
+    expect(mocks.search).toHaveBeenCalledTimes(2)
+  })
+
   it('checks the service source before returning member-visible candidates', async () => {
     const verify = vi.fn().mockResolvedValue(false)
     mocks.service.mockResolvedValue({ policy: defaultLiveSearchPolicy(), verify, partial: false })

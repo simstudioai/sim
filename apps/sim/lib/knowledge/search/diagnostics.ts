@@ -53,6 +53,7 @@ export type SearchStage =
   | 'live.session'
   | 'live.search'
   | 'live.verify'
+  | 'live.preview'
   | 'live.read'
 
 /** Fixed, content-free fields. Never pass queries, filters, document identities, SQL, or errors. */
