@@ -35,7 +35,7 @@ import {
   getBaseModelProviders,
   getProvider,
   getProviderFromModel,
-  isGemini3Model,
+  isGemini3OrLaterModel,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   shouldBillModelUsage,
@@ -1540,7 +1540,7 @@ describe('findProviderFromModel', () => {
   })
 })
 
-describe('isGemini3Model', () => {
+describe('isGemini3OrLaterModel', () => {
   it.each([
     'gemini-3.8-flash',
     'VERTEX/gemini-3.8-flash',
@@ -1548,15 +1548,15 @@ describe('isGemini3Model', () => {
     'vertex/publishers/google/models/gemini-3.8-flash',
     'vertex/projects/test-project/locations/global/publishers/google/models/gemini-3.8-flash',
   ])('recognizes the Gemini family in %s', (model) => {
-    expect(isGemini3Model(model)).toBe(true)
+    expect(isGemini3OrLaterModel(model)).toBe(true)
   })
 
   it.each([
     'vertex/gemini-2.5-pro',
     'vertex/custom-gemini-3-deployment',
     'vertex/publishers/another-provider/models/gemini-3.8-flash',
-  ])('does not infer Gemini 3 behavior from %s', (model) => {
-    expect(isGemini3Model(model)).toBe(false)
+  ])('does not infer modern Gemini behavior from %s', (model) => {
+    expect(isGemini3OrLaterModel(model)).toBe(false)
   })
 })
 

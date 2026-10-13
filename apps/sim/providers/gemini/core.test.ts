@@ -118,6 +118,7 @@ describe('Vertex Gemini request compatibility', () => {
   })
 
   it.each([
+    'gemini-4-argon',
     'vertex/gemini-3.8-flash',
     'vertex/gemini-3.7-flash',
     'vertex/gemini-3.6-flash',
