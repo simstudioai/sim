@@ -19,6 +19,7 @@ import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { lockOrganizationSlackApp } from '@/lib/credential-groups/organization-slack-app'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import {
   decryptCredentialGroupProviderConfiguration,
@@ -845,6 +846,7 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
   return db.transaction(async (tx) => {
     if (params.attempt.organizationId) {
       await lockOrganizationSearchApproval(tx, params.attempt.organizationId)
+      await lockOrganizationSlackApp(tx, params.attempt.organizationId)
       const sharedApp = getSharedSlackSearchAppConfiguration(params.attempt.expectedAppId)
       if (sharedApp) await ensureSharedSlackAppRow(tx, sharedApp)
       const [app] = await tx
@@ -926,6 +928,26 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
       )
         throw new SlackManagedUsersError(
           'Search approval changed during authorization. Start again.',
+          'invalid_state'
+        )
+      /** Bot installs share the Slack organization lock, so one added meanwhile is seen here. */
+      const installations = await tx
+        .select({
+          slackAppId: slackSearchInstallation.slackAppId,
+          teamId: slackSearchInstallation.teamId,
+        })
+        .from(slackSearchInstallation)
+        .where(eq(slackSearchInstallation.organizationId, params.attempt.organizationId))
+        .limit(101)
+      if (
+        installations.length > 0 &&
+        !installations.some(
+          (installation) =>
+            installation.slackAppId === grant.appId && installation.teamId === grant.teamId
+        )
+      )
+        throw new SlackManagedUsersError(
+          'A Slack app was installed during authorization. Start again.',
           'invalid_state'
         )
     }
