@@ -250,6 +250,16 @@ describe('real-wait', () => {
       ['sleep() #1'],
     ],
     [
+      'a helper called at module scope before a module-scope install',
+      [
+        HELPERS,
+        'async function settle() { await sleep(10) }',
+        'await settle()',
+        'vi.useFakeTimers()',
+      ],
+      ['sleep() #1'],
+    ],
+    [
       'every occurrence, numbered per kind',
       [HELPERS, 'await sleep(10)', 'await new Promise((r) => setTimeout(r, 5))', 'await sleep(20)'],
       ['sleep() #1', 'setTimeout promise #1', 'sleep() #2'],
@@ -329,7 +339,16 @@ describe('real-wait', () => {
     ],
     [
       'a helper declared before a module-scope install',
-      [HELPERS, 'async function settle() { await sleep(10) }', 'vi.useFakeTimers()'],
+      [
+        HELPERS,
+        "vi.mock('@/lib/example', () => ({}))",
+        'const mocks = vi.hoisted(() => ({ run: vi.fn() }))',
+        'const DELAY_MS = 10',
+        'type Options = { delay: number }',
+        'async function settle() { await sleep(DELAY_MS) }',
+        'const settleLater = async () => { await settle() }',
+        'vi.useFakeTimers()',
+      ],
     ],
   ])('ignores %s', (_name, lines) => {
     expect(waits(lines.join('\n'))).toEqual([])
