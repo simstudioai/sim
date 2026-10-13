@@ -11,6 +11,7 @@ import {
 } from '@sim/emcn'
 import { Download, Trash } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type {
   BenchmarkCase,
   RunBenchmarkComparisonBody,
@@ -41,6 +42,7 @@ import {
   useRunBenchmarkStage,
   useUpdateBenchmark,
 } from '@/hooks/queries/benchmarks'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface BenchmarkDetailProps {
   organizationId: string
@@ -108,6 +110,11 @@ function BenchmarkEditor({
         blank.id !== artifacts.blanks[index]?.id || blank.answer !== artifacts.blanks[index]?.answer
     )
   const dirty = referenceDirty || redactionDirty
+  useSettingsUnsavedGuard({
+    isDirty: dirty,
+    navigationBlocked: saving,
+    onDiscard: () => setEdit(null),
+  })
   const hasPlannerInputs =
     artifacts.taskBrief.trim() &&
     artifacts.referenceSpec.trim() &&
@@ -319,6 +326,7 @@ export function BenchmarkDetail({
   const runStage = useRunBenchmarkStage(organizationId, benchmarkId)
   const deleteBenchmark = useDeleteBenchmark(organizationId, benchmarkId)
   const workspaces = useBenchmarkWorkspaces(organizationId, runAsUserId)
+  const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const benchmark = benchmarkQuery.data?.benchmark
 
@@ -419,7 +427,7 @@ export function BenchmarkDetail({
         </Chip>
         <Chip
           variant={benchmarkView === 'history' ? 'primary' : undefined}
-          onClick={() => setParams({ benchmarkView: 'history' })}
+          onClick={() => requestLeave(() => void setParams({ benchmarkView: 'history' }))}
         >
           Run history
         </Chip>

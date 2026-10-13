@@ -3,6 +3,7 @@ import { ComputerUseSchema } from '@sim/desktop-bridge/computer-use'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { cancelComputerUseTool, executeComputerUseTool } from '@/lib/computer-use/transport'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
@@ -35,12 +36,16 @@ interface Completion {
 interface Execution {
   completion?: Completion
   reporting?: Promise<void>
+  retryTimer?: ReturnType<typeof setTimeout>
+  deliveryAttempts?: number
   release?: () => void
 }
 const executions = new Map<string, Execution>()
 
 function releaseExecution(toolCallId: string, execution: Execution): void {
   if (executions.get(toolCallId) === execution) executions.delete(toolCallId)
+  clearTimeout(execution.retryTimer)
+  execution.retryTimer = undefined
   execution.release?.()
   execution.release = undefined
 }
@@ -49,6 +54,8 @@ async function deliver(toolCallId: string, execution: Execution): Promise<void> 
   if (execution.reporting) return execution.reporting
   const completion = execution.completion
   if (!completion) return
+  clearTimeout(execution.retryTimer)
+  execution.retryTimer = undefined
   execution.reporting = reportClientToolCompletion(
     toolCallId,
     completion.status,
@@ -64,6 +71,15 @@ async function deliver(toolCallId: string, execution: Execution): Promise<void> 
     })
     .finally(() => {
       execution.reporting = undefined
+      if (executions.get(toolCallId) !== execution) return
+      execution.deliveryAttempts = (execution.deliveryAttempts ?? 0) + 1
+      execution.retryTimer = setTimeout(
+        () => {
+          execution.retryTimer = undefined
+          void deliver(toolCallId, execution)
+        },
+        backoffWithJitter(execution.deliveryAttempts, null)
+      )
     })
   return execution.reporting
 }

@@ -10,6 +10,7 @@ import {
   benchmarkUrlOptions,
 } from '@/app/o/[organizationId]/benchmark/search-params'
 import { useBenchmarks } from '@/hooks/queries/benchmarks'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface BenchmarkProps {
   organizationId: string
@@ -22,6 +23,7 @@ export function Benchmark({ organizationId, canPlan, runAsUserId }: BenchmarkPro
     benchmarkParams,
     benchmarkUrlOptions
   )
+  const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
   const benchmarks = useBenchmarks(organizationId, runAsUserId)
   const records = benchmarks.data?.pages.flatMap((page) => page.benchmarks) ?? []
 
@@ -36,12 +38,16 @@ export function Benchmark({ organizationId, canPlan, runAsUserId }: BenchmarkPro
         ) : (
           <div className='flex items-center gap-2'>
             {benchmarkId && (
-              <Chip onClick={() => setParams(emptyBenchmarkSelection)}>All benchmarks</Chip>
+              <Chip onClick={() => requestLeave(() => void setParams(emptyBenchmarkSelection))}>
+                All benchmarks
+              </Chip>
             )}
             <Chip
               variant='primary'
               leftIcon={Plus}
-              onClick={() => setParams({ ...emptyBenchmarkSelection, creating: true })}
+              onClick={() =>
+                requestLeave(() => void setParams({ ...emptyBenchmarkSelection, creating: true }))
+              }
             >
               New benchmark
             </Chip>

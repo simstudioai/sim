@@ -198,7 +198,7 @@ describe('native computer completion during page unload', () => {
         text: 'prefix then interruption',
       }
       const execution = executeComputerToolOnClient(id, input, timestamp)
-      await vi.runAllTimersAsync()
+      await vi.advanceTimersByTimeAsync(15_000)
       await execution
       try {
         window.dispatchEvent(new Event('pagehide'))
@@ -219,7 +219,9 @@ describe('native computer completion during page unload', () => {
         expect(native.cancel).not.toHaveBeenCalled()
       } finally {
         fetch.mockResolvedValue(new Response(null, { status: 200 }))
-        await executeComputerToolOnClient(id, input, timestamp)
+        const redelivery = executeComputerToolOnClient(id, input, timestamp)
+        await vi.advanceTimersByTimeAsync(15_000)
+        await redelivery
       }
       const count = bodies.length
       window.dispatchEvent(new Event('pagehide'))
@@ -238,6 +240,75 @@ describe('native computer completion during page unload', () => {
       expect(native.execute).toHaveBeenCalledOnce()
     }
   )
+
+  it('redelivers a full retained queue after recovery without replaying native actions', async () => {
+    const accepted = new Map<string, string>()
+    let connected = false
+    const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
+      const body = String(init?.body)
+      const result = copilotConfirmBodySchema.parse(JSON.parse(body))
+      if (!connected) return new Response(null, { status: 503 })
+      accepted.set(result.toolCallId, body)
+      return new Response(null, { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetcher)
+    const ids = Array.from({ length: 8 }, nextId)
+    const timestamp = new Date().toISOString()
+    const input = {
+      action: 'type_text',
+      bundleId: 'com.example.Fixture',
+      snapshotId: 'before',
+      elementId: 'editor',
+      text: 'send once',
+    }
+    for (let index = 0; index < ids.length; index++) {
+      if (index % 2 === 0)
+        native.execute.mockResolvedValueOnce({
+          kind: 'action',
+          action: 'type_text',
+          bundleId: input.bundleId,
+          dispatched: true,
+          verified: false,
+        })
+      else native.execute.mockRejectedValueOnce(new Error('Native response lost after dispatch'))
+    }
+    const pending = ids.map((id) => executeComputerToolOnClient(id, input, timestamp))
+    await vi.advanceTimersByTimeAsync(15_000)
+    await Promise.all(pending)
+    const initial = new Map(
+      fetcher.mock.calls.map(([, init]) => {
+        const body = String(init?.body)
+        return [copilotConfirmBodySchema.parse(JSON.parse(body)).toolCallId, body]
+      })
+    )
+    expect(initial.size).toBe(8)
+    expect(accepted.size).toBe(0)
+    expect(fetcher.mock.calls.length).toBeGreaterThanOrEqual(40)
+    try {
+      connected = true
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect([...accepted].sort()).toEqual([...initial].sort())
+      expect(native.execute).toHaveBeenCalledTimes(8)
+      const settledRequests = fetcher.mock.calls.length
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(fetcher.mock.calls.length).toBe(settledRequests)
+      native.execute.mockResolvedValueOnce({ kind: 'apps', apps: [] })
+      const next = nextId()
+      await executeComputerToolOnClient(next, { action: 'list_apps' }, new Date().toISOString())
+      expect(copilotConfirmBodySchema.parse(JSON.parse(accepted.get(next) ?? '{}'))).toMatchObject({
+        toolCallId: next,
+        status: 'success',
+      })
+      expect(native.execute).toHaveBeenCalledTimes(9)
+    } finally {
+      connected = true
+      const cleanup = ids
+        .filter((id) => !accepted.has(id))
+        .map((id) => executeComputerToolOnClient(id, input, timestamp))
+      await vi.advanceTimersByTimeAsync(60_000)
+      await Promise.all(cleanup)
+    }
+  })
 
   it('reports an uncertain action and cancels only while native work is still pending', async () => {
     const nativeResult = createDeferred<ComputerUseResult>()
