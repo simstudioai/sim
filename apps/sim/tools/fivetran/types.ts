@@ -5,7 +5,7 @@ export interface FivetranAuthParams {
   accessToken: string
 }
 
-export interface FivetranPaginationParams {
+interface FivetranPaginationParams {
   cursor?: string
   limit?: number
 }
@@ -16,7 +16,7 @@ export interface FivetranCondition {
   details: string | null
 }
 
-export interface FivetranConnectionStatus {
+interface FivetranConnectionStatus {
   setupState: string | null
   syncState: string | null
   updateState: string | null
@@ -34,7 +34,7 @@ export interface FivetranSetupTest {
   details: Record<string, unknown> | null
 }
 
-export interface FivetranConnectionSchedule {
+interface FivetranConnectionSchedule {
   scheduleType: string | null
   interval: number | null
   cron: string | null
@@ -92,7 +92,7 @@ export interface FivetranDestination {
   setupTests: FivetranSetupTest[]
 }
 
-export interface FivetranTransformationSchedule {
+interface FivetranTransformationSchedule {
   scheduleType: string | null
   interval: number | null
   cron: string[]
@@ -146,7 +146,7 @@ export interface FivetranConnectorType {
   supportedFeatures: string[]
 }
 
-export interface FivetranSyncHistoryEntry {
+interface FivetranSyncHistoryEntry {
   syncId: string
   status: string | null
   start: string | null
@@ -157,14 +157,14 @@ export interface FivetranSyncHistoryEntry {
   loadVolumeMb: number | null
 }
 
-export interface FivetranTableWarning {
+interface FivetranTableWarning {
   code: string | null
   message: string | null
   errorMessage: string | null
   createdAt: string | null
 }
 
-export interface FivetranWarningGroup {
+interface FivetranWarningGroup {
   schema: string | null
   table: string | null
   warnings: FivetranTableWarning[]
@@ -274,7 +274,7 @@ export interface FivetranResyncTablesParams extends FivetranConnectionParams {
   tables: Record<string, string[]> | string
 }
 
-export interface FivetranSetupTestParams extends FivetranAuthParams {
+interface FivetranSetupTestParams extends FivetranAuthParams {
   trustCertificates?: boolean
   trustFingerprints?: boolean
 }

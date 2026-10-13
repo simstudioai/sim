@@ -448,7 +448,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         id: 'clientId',
         label: 'API key',
         placeholder: 'Paste the API key',
-        secret: false,
+        secret: true,
         hint: 'In Fivetran, click your username, then API Key > Generate API key. The key acts with your Fivetran permissions.',
       },
       {

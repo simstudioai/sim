@@ -603,6 +603,35 @@ List the source connector types available in Fivetran, with the service ID to us
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
 
+### Fivetran All Events
+
+Trigger workflow on any Fivetran sync, connection, or transformation event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiSecret` | string | Yes | API Secret |
+| `triggerGroupId` | string | No | Group ID |
+| `triggerConnectionId` | string | No | Connection ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type, e.g. sync_end |
+| `createdAt` | string | When the event was generated \(ISO 8601\) |
+| `connectorType` | string | Connector type of the connection, e.g. okta |
+| `connectorId` | string | Connection ID |
+| `connectorName` | string | Connection name \(its destination schema\) |
+| `syncId` | string | ID of the sync the event belongs to |
+| `destinationGroupId` | string | Group ID of the destination |
+| `data` | json | Event-specific payload; its fields depend on the event |
+
+
+---
+
 ### Fivetran Connection Created
 
 Trigger workflow when a connection is created

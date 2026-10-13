@@ -9263,9 +9263,14 @@
           "id": "fivetran_transformation_failed",
           "name": "Fivetran Transformation Failed",
           "description": "Trigger workflow when a transformation run fails"
+        },
+        {
+          "id": "fivetran_webhook",
+          "name": "Fivetran All Events",
+          "description": "Trigger workflow on any Fivetran sync, connection, or transformation event"
         }
       ],
-      "triggerCount": 15,
+      "triggerCount": 16,
       "authType": "oauth",
       "oauthServiceId": "fivetran",
       "category": "tools",

@@ -7,7 +7,7 @@ import {
 import type { TriggerConfig } from '@/triggers/types'
 
 export const fivetranWebhookTrigger: TriggerConfig = {
-  id: FIVETRAN_ALL_EVENTS_TRIGGER_ID,
+  id: 'fivetran_webhook',
   name: 'Fivetran All Events',
   provider: 'fivetran',
   description: 'Trigger workflow on any Fivetran sync, connection, or transformation event',
