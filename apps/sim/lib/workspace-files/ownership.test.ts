@@ -86,7 +86,7 @@ describe('file ownership isolation', () => {
     (context) => {
       const file = { ...legacyWorkspaceFile, context, workspaceId: null }
       expect(resolveFileOwner(file)).toEqual({ entityType: 'user', entityId: 'uploader-a' })
-      expect(resolveFileOwner({ ...file, userId: null })).toBeNull()
+      expect(resolveFileOwner({ ...file, userId: '' })).toBeNull()
     }
   )
 })

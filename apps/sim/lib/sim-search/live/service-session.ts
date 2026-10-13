@@ -5,7 +5,7 @@ import {
   resolveConnectorAccessToken,
   resolveConnectorTokenUserId,
 } from '@/lib/knowledge/connectors/access-token'
-import { escapeSearchPhrase, scopeAtlassianQuery } from '@/lib/sim-search/live/atlassian'
+import { scopeAtlassianQuery } from '@/lib/sim-search/live/atlassian'
 import type { CodaMcpClient } from '@/lib/sim-search/live/coda-mcp'
 import { createCodaServiceVerifier } from '@/lib/sim-search/live/coda-service'
 import { createGitHubServiceVerifier } from '@/lib/sim-search/live/github-service'
@@ -23,6 +23,7 @@ import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { LIVE_SEARCH_PROVIDER_CATALOG } from '@/lib/sim-search/live/provider-catalog'
 import { loadLiveGitHubSources, loadLiveServiceSource } from '@/lib/sim-search/live/service-sources'
 import { liveSourcePolicy } from '@/lib/sim-search/live/source-policy'
+import { confluenceTextClause } from '@/lib/sim-search/live/text-match'
 import type { NativeClient, NativeDocument, NativeSearchInput } from '@/lib/sim-search/live/types'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 
@@ -141,7 +142,8 @@ export async function createLiveServiceSession(input: {
             : []),
         ].join(' AND ')
         const query =
-          search.native?.query ?? (search.query ? `text ~ ${escapeSearchPhrase(search.query)}` : '')
+          search.native?.query ??
+          (search.query ? confluenceTextClause(search.query, search.textMatch) : '')
         return {
           ...search,
           native: { provider, ...search.native, query: scopeAtlassianQuery(query, scope) },

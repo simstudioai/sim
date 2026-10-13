@@ -1,4 +1,5 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -51,7 +52,7 @@ import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 const { mockExecuteInSandbox } = remoteSandboxMockFns
 
 const WORKSPACE_ID = '550e8400-e29b-41d4-a716-446655440000'
-const FILE_PRINCIPAL = { kind: 'session', userId: 'user-1' } as const
+const FILE_PRINCIPAL = createSessionPrincipal()
 const PDF_MAGIC = Buffer.from('%PDF-1.7\n...binary...')
 const LEGACY_PDF_SOURCE = Buffer.from('pdf.addPage();', 'utf-8')
 const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas\n# generates a PDF', 'utf-8')

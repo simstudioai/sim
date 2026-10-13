@@ -634,15 +634,19 @@ export const workflowExecutionLogs = pgTable(
       table.workspaceId,
       table.startedAt
     ),
-    /** Supports index-only activity summaries and breakdowns. */
-    workspaceActivityIdx: index('workflow_execution_logs_workspace_activity_idx')
+    /**
+     * Supports index-only activity summaries and breakdowns, and the logs dashboard
+     * stats, which also read `level`.
+     */
+    workspaceActivityLevelIdx: index('workflow_execution_logs_workspace_activity_level_idx')
       .on(
         table.workspaceId,
         table.startedAt,
         table.status,
         table.totalDurationMs,
         table.workflowId,
-        table.trigger
+        table.trigger,
+        table.level
       )
       .concurrently(),
     workspaceStartedAtIdDescIdx: index(
@@ -7305,12 +7309,12 @@ export const userTableRows = pgTable(
      * 33k-row match). Leading with `table_id` intersects inside the index, and
      * `jsonb_path_ops` indexes only containment paths: rare-equality probe
      * 326ms → 17ms, and the index is smaller than the one it replaces.
+     * `fastupdate` is off so row writes never stall on a foreground merge of
+     * every other writer's pending entries.
      */
-    dataGinIdx: index('user_table_rows_tenant_data_gin_idx').using(
-      'gin',
-      table.tableId,
-      sql`${table.data} jsonb_path_ops`
-    ),
+    dataGinIdx: index('user_table_rows_tenant_data_gin_idx')
+      .using('gin', table.tableId, sql`${table.data} jsonb_path_ops`)
+      .with({ fastupdate: 'off' }),
     workspaceTableIdx: index('user_table_rows_workspace_table_idx').on(
       table.workspaceId,
       table.tableId

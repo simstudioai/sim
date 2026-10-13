@@ -83,17 +83,19 @@ export const v2ApiKeyAuth = {
 
 export interface V2RateLimitPolicy {
   readonly kind: 'public_api'
+  /** `cost` charges a request that performs several operations, such as a batched read. */
   enforce(
     request: NextRequest,
     auth: V2ApiKeyAuthContext,
-    operation: ApplicationOperation
+    operation: ApplicationOperation,
+    cost?: number
   ): Promise<NextResponse | null>
 }
 
 export const v2RateLimits = {
   publicApi: {
     kind: 'public_api',
-    async enforce(request, auth, operation) {
+    async enforce(request, auth, operation, cost = 1) {
       const plan = (auth.rateLimitSubscription?.plan ?? 'free') as SubscriptionPlan
       const config = getRateLimit(plan, 'api-endpoint')
       const buckets = await Promise.all(
@@ -101,7 +103,8 @@ export const v2RateLimits = {
           try {
             return await rateLimiter.checkRateLimitDirectOrThrow(
               `v2:${operation.id}:${subjectId}`,
-              config
+              config,
+              cost
             )
           } catch (error) {
             throw new V2RouteInfrastructureError('rate_limit', error)

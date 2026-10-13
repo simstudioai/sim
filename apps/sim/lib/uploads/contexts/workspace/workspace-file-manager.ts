@@ -325,12 +325,15 @@ interface WorkspaceFileMetadataInsert {
  * Attempts one active workspace-file insert and reports the row that this call
  * created. Conflict losers receive `undefined` and must inspect the active key
  * in the same transaction before deciding whether the operation is idempotent.
+ * Locks the workspace row first so the insert follows the storage lock order.
  */
 async function insertFileMetadataInTx(
   tx: DbOrTx,
   owner: EditableFileOwner,
   metadata: Omit<WorkspaceFileMetadataInsert, 'workspaceId'>
 ): Promise<WorkspaceFileRow | undefined> {
+  if (owner.entityType === 'workspace')
+    await lockWorkspaceStorageForMutationInTx(tx, owner.entityId)
   const now = new Date()
   const [inserted] = await tx
     .insert(workspaceFiles)

@@ -2,10 +2,10 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import type { Principal } from '@sim/auth/principal'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 
-/** `fileId` names the canonical file the classification belongs to, for attribution only. */
+/** Single-file deliveries name the canonical file for attribution; aggregates have no single file ID. */
 type WorkspaceFileDeliveryObserver = (
   provenance: WorkspaceFileSecretProvenance | undefined,
-  fileId: string
+  fileId?: string
 ) => Promise<void>
 
 const observer = new AsyncLocalStorage<WorkspaceFileDeliveryObserver>()
@@ -25,7 +25,7 @@ export function hasWorkspaceFileDeliveryObserver(): boolean {
  */
 export async function reportWorkspaceFileDelivery(
   provenance: WorkspaceFileSecretProvenance | undefined,
-  fileId: string
+  fileId?: string
 ): Promise<void> {
   await observer.getStore()?.(provenance, fileId)
 }

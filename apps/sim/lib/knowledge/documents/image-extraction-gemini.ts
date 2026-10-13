@@ -9,7 +9,7 @@ import { resolveProviderKey } from '@/lib/embeddings/keys'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import { readBoundedHttpErrorPayload } from '@/lib/knowledge/documents/utils'
 import { getProviderModels } from '@/providers/models'
-import { isGemini3Model } from '@/providers/utils'
+import { isGemini3OrLaterModel } from '@/providers/utils'
 
 const logger = createLogger('GeminiImageExtraction')
 
@@ -22,7 +22,7 @@ export const DEFAULT_IMAGE_EXTRACTION_MODEL = 'gemini-3.8-flash'
 
 /**
  * Transcription needs little reasoning, and Gemini bills thinking as output that
- * also spends the output budget. Every Gemini 3 model accepts `LOW`.
+ * also spends the output budget. Gemini 3 and later models accept `LOW`.
  */
 const THINKING_LEVEL = 'LOW'
 
@@ -72,19 +72,19 @@ export class GeminiImageExtractionError extends Error {
 
 /**
  * The model from `KB_IMAGE_EXTRACTION_MODEL`, or the default when it is unset or
- * not a Gemini 3 model in the catalog: the request uses Gemini 3's JSON-schema
- * output and thinking level, and only catalog models carry the pricing that
+ * not a Gemini 3 or later model in the catalog: the request uses modern Gemini
+ * JSON-schema output and thinking level, and only catalog models carry the pricing that
  * bills each image. Never throws: a bad value must not stop indexing.
  */
 export function resolveImageExtractionModel(): string {
   const configured = env.KB_IMAGE_EXTRACTION_MODEL?.trim()
   if (!configured) return DEFAULT_IMAGE_EXTRACTION_MODEL
   const catalogModel = getProviderModels('google').find(
-    (id) => id.toLowerCase() === configured.toLowerCase() && isGemini3Model(id)
+    (id) => id.toLowerCase() === configured.toLowerCase() && isGemini3OrLaterModel(id)
   )
   if (catalogModel) return catalogModel
   logger.warn(
-    `KB_IMAGE_EXTRACTION_MODEL="${configured}" is not a supported Gemini 3 model, falling back to ${DEFAULT_IMAGE_EXTRACTION_MODEL}`
+    `KB_IMAGE_EXTRACTION_MODEL="${configured}" is not a supported Gemini 3 or later model, falling back to ${DEFAULT_IMAGE_EXTRACTION_MODEL}`
   )
   return DEFAULT_IMAGE_EXTRACTION_MODEL
 }

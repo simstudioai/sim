@@ -57,17 +57,15 @@ export async function listSharedResourceWorkspaceIdsForUser(executor: DbOrTx, us
 /** Holds a real successor and their current grant through the handoff transaction. */
 async function hasWorkspaceSuccessor(
   tx: DbOrTx,
-  row: { id: string; ownerId: string; organizationId: string | null; billedAccountUserId: string },
+  row: { id: string; organizationId: string | null; billedAccountUserId: string },
   departingUserId: string,
-  hold: boolean,
-  transferOwnership = false
+  hold: boolean
 ): Promise<boolean> {
   const successor = row.billedAccountUserId
   if (!successor || successor === departingUserId) return false
   const accountQuery = tx.select({ id: user.id }).from(user).where(eq(user.id, successor))
   const [account] = await (hold ? accountQuery.for('key share') : accountQuery)
   if (!account) return false
-  if (transferOwnership && row.ownerId === departingUserId) return true
   const grantQuery = tx
     .select({ id: permissions.id })
     .from(permissions)
@@ -145,12 +143,10 @@ export async function reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx
   tx,
   workspaceIds,
   departingUserId,
-  transferOwnership = false,
 }: {
   tx: DbTransaction
   workspaceIds: string[]
   departingUserId: string
-  transferOwnership?: boolean
 }): Promise<{ unresolved: string[] }> {
   const ids = [...new Set(workspaceIds)].sort()
   if (!ids.length) return { unresolved: [] }
@@ -172,7 +168,7 @@ export async function reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx
   for (const row of rows) {
     if (
       (owned.has(row.id) || row.ownerId === departingUserId) &&
-      !(await hasWorkspaceSuccessor(tx, row, departingUserId, true, transferOwnership))
+      !(await hasWorkspaceSuccessor(tx, row, departingUserId, true))
     )
       unresolved.push(row.id)
   }

@@ -88,7 +88,8 @@ describe('GET /api/v2/files/uploads/[uploadId]', () => {
 
     expect(v2RouteMocks.operationRate).toHaveBeenCalledWith(
       expect.stringContaining('files.upload.read'),
-      expect.anything()
+      expect.anything(),
+      1
     )
     expect(v2RouteMocks.operationRate).not.toHaveBeenCalledWith(
       expect.stringContaining('files.upload.cancel'),

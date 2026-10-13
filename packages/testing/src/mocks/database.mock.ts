@@ -163,7 +163,7 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
  *
  * - `select().from().where()` → returns a builder with `.limit` / `.orderBy` /
  *   `.returning` / `.groupBy` / `.for` terminals
- * - `select().from().innerJoin()|leftJoin()` → returns the same where-builder
+ * - `select().from().innerJoin()|leftJoin()|crossJoinLateral()` → returns the same where-builder
  * - `insert().values().returning()` / `update().set().where()` / `delete().where()`
  *
  * Results resolve, in priority order:
@@ -239,6 +239,7 @@ const asAlias = chainSpy()
 const forClause = chainSpy()
 const innerJoin = chainSpy()
 const leftJoin = chainSpy()
+const crossJoinLateral = chainSpy()
 const insert = chainSpy()
 const update = chainSpy()
 const set = chainSpy()
@@ -248,7 +249,13 @@ const execute = vi.fn(() => Promise.resolve([] as unknown[]))
 const query = vi.fn(() => Promise.resolve([] as unknown[]))
 const onConflictDoUpdate = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<void>)
-const values = vi.fn(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
+const values = vi.fn<
+  (values: unknown) => {
+    returning: typeof returning
+    onConflictDoUpdate: typeof onConflictDoUpdate
+    onConflictDoNothing: typeof onConflictDoNothing
+  }
+>(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
 const transaction: ReturnType<typeof vi.fn> = vi.fn(
   async (cb: (tx: any) => unknown): Promise<unknown> => cb(dbChainMock.db)
 )
@@ -340,6 +347,8 @@ const joinBuilder = (tables: unknown[], fields: SelectedFields = {}): any => {
   builder.leftJoin = spyOrDefault(leftJoin, (table: unknown) =>
     joinBuilder([...tables, table], fields)
   )
+  // A lateral join reads a SQL expression, not a table, so the chain routes as before it.
+  builder.crossJoinLateral = spyOrDefault(crossJoinLateral, () => joinBuilder(tables, fields))
   return builder
 }
 
@@ -366,6 +375,7 @@ export const dbChainMockFns = {
   returning,
   innerJoin,
   leftJoin,
+  crossJoinLateral,
   groupBy,
   having,
   as: asAlias,

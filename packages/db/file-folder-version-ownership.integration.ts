@@ -9,7 +9,7 @@ import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const databaseUrl = readTestDatabaseUrl()
-const migrations = ['0413_file_entity_ownership.sql', '0414_file_folder_version_ownership.sql'].map(
+const migrations = ['0414_file_entity_ownership.sql', '0415_file_folder_version_ownership.sql'].map(
   (name) => readFileSync(new URL(`./migrations/${name}`, import.meta.url), 'utf8')
 )
 

@@ -19,7 +19,7 @@ import {
   SINGLE_SELECT_OPERATORS,
   SINGLE_SELECT_OPS,
 } from '@/lib/table/column-types'
-import { columnTextForEquality } from '@/lib/table/column-types/comparison-sql'
+import { columnTextForEquality, equalityCast } from '@/lib/table/column-types/comparison-sql'
 import { NAME_PATTERN } from '@/lib/table/constants'
 import { normalizeDateCellValue } from '@/lib/table/dates'
 import { TableQueryValidationError } from '@/lib/table/errors'
@@ -630,10 +630,10 @@ export function fieldPredicate(
       : value
 
   const equalityClause = (operand: JsonValue): SQL => {
-    const definition = column && columnTypeOf(column)
-    if (column && operand !== null && definition?.valueForEquality && definition.jsonbCast) {
+    const cast = column && equalityCast(column)
+    if (column && operand !== null && cast) {
       const cell = columnTextForEquality(sql.raw(`${tableName}.data->>'${field}'`), column)
-      return sql`COALESCE(${cell} = ${operand}::${sql.raw(definition.jsonbCast)}, false)`
+      return sql`COALESCE(${cell} = ${operand}::${sql.raw(cast)}, false)`
     }
     return buildContainmentClause(tableName, field, operand)
   }

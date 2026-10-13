@@ -1,6 +1,6 @@
 {
-  "id": "9df5563b-fff7-4d4c-8774-aec5cbd2ebfe",
-  "prevId": "007d0d81-be3a-443a-a49b-d7c1317b43ec",
+  "id": "007d0d81-be3a-443a-a49b-d7c1317b43ec",
+  "prevId": "2b2df413-017e-4a63-8dc6-58cb5c4188a6",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -22707,7 +22707,9 @@
           "isUnique": false,
           "concurrently": false,
           "method": "gin",
-          "with": {}
+          "with": {
+            "fastupdate": "off"
+          }
         },
         "user_table_rows_workspace_table_idx": {
           "name": "user_table_rows_workspace_table_idx",
@@ -25024,8 +25026,8 @@
           "method": "btree",
           "with": {}
         },
-        "workflow_execution_logs_workspace_activity_idx": {
-          "name": "workflow_execution_logs_workspace_activity_idx",
+        "workflow_execution_logs_workspace_activity_level_idx": {
+          "name": "workflow_execution_logs_workspace_activity_level_idx",
           "columns": [
             {
               "expression": "workspace_id",
@@ -25059,6 +25061,12 @@
             },
             {
               "expression": "trigger",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "level",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -30291,7 +30299,6 @@
       "schema": "public",
       "values": [
         "workspace_file",
-        "project_file",
         "table_import",
         "knowledge_document",
         "profile_picture",

@@ -287,7 +287,7 @@ describe('shared resource retention across workspace departure and account erasu
     }
   )
 
-  it('transfers a departing owner to the billed account without a preexisting grant', async () => {
+  it('refuses a departing owner handoff to a billed account without existing access', async () => {
     const fixture = await seedResources(false)
     await db
       .update(workspace)
@@ -304,8 +304,23 @@ describe('shared resource retention across workspace departure and account erasu
         userId: fixture.departingId,
       })
     )
-    expect(result).toEqual({ revoked: true, ownershipTransferred: true })
-    await assertTransferred(fixture)
+    expect(result).toEqual({
+      revoked: false,
+      reason: 'unresolved-workflows',
+      unresolvedWorkflows: [fixture.workspaceId],
+    })
+    expect(
+      await db
+        .select({ ownerId: workspace.ownerId })
+        .from(workspace)
+        .where(eq(workspace.id, fixture.workspaceId))
+    ).toEqual([{ ownerId: fixture.departingId }])
+    expect(
+      await db
+        .select({ userId: workspaceFiles.userId })
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.id, fixture.fileId))
+    ).toEqual([{ userId: fixture.departingId }])
     expect(
       await db
         .select()
@@ -316,7 +331,18 @@ describe('shared resource retention across workspace departure and account erasu
             eq(permissions.userId, fixture.ownerId)
           )
         )
-    ).toMatchObject([{ permissionType: 'admin' }])
+    ).toHaveLength(0)
+    expect(
+      await db
+        .select()
+        .from(permissions)
+        .where(
+          and(
+            eq(permissions.entityId, fixture.workspaceId),
+            eq(permissions.userId, fixture.departingId)
+          )
+        )
+    ).toHaveLength(1)
   })
 
   it('previews a missing creator-only Project successor grant before deleting an account', async () => {

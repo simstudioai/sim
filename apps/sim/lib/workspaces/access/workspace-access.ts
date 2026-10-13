@@ -157,7 +157,6 @@ export async function revokeWorkspaceAccessTx(
     tx,
     workspaceIds: [params.workspaceId],
     departingUserId: params.userId,
-    transferOwnership: true,
   })
   if (reassignment.unresolved.length > 0) {
     return {

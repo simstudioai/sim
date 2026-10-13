@@ -11,11 +11,11 @@ const migrations = [
   '0313_puzzling_zodiak.sql',
   '0358_workspace_file_content_version_precision.sql',
   '0359_workspace_file_search_chunks.sql',
-  '0413_file_entity_ownership.sql',
-  '0414_file_folder_version_ownership.sql',
-  '0415_file_creator_lifetime.sql',
-  '0417_public_share_entity_ownership.sql',
-  '0418_file_search_owner_scope.sql',
+  '0414_file_entity_ownership.sql',
+  '0415_file_folder_version_ownership.sql',
+  '0416_file_creator_lifetime.sql',
+  '0418_public_share_entity_ownership.sql',
+  '0419_file_search_owner_scope.sql',
 ]
 
 try {
