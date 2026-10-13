@@ -169,6 +169,7 @@ export async function searchAtlassian(
               fields: ['summary', 'description', 'updated', 'creator', 'status'],
               ...(input.native?.cursor && single ? { nextPageToken: input.native.cursor } : {}),
             },
+            signal: input.signal,
           })
         )
         return {
@@ -190,6 +191,7 @@ export async function searchAtlassian(
             expand: 'content.version,content.space',
             ...(input.native?.cursor && single ? { cursor: input.native.cursor } : {}),
           },
+          signal: input.signal,
         })
       )
       const next = string(object(data._links).next)
