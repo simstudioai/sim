@@ -1491,6 +1491,7 @@ export function isDeepResearchModel(model: string): boolean {
   return MODELS_WITH_DEEP_RESEARCH.includes(model.toLowerCase())
 }
 
+/** Accepts bare Gemini IDs, google/ or vertex/ prefixes, and Google publisher resource names. */
 export function isGemini3OrLaterModel(model: string): boolean {
   const normalized = model
     .toLowerCase()
