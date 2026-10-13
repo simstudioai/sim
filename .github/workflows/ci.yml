@@ -114,7 +114,6 @@ jobs:
   migrate:
     permissions:
       contents: read
-      id-token: write
     name: migrate
     needs: [checks]
     # Explicit need results instead of the implicit success(): a skipped job
@@ -134,10 +133,6 @@ jobs:
       STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
       MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
       STAGING_MIGRATION_DATABASE_URL: ${{ secrets.STAGING_MIGRATION_DATABASE_URL }}
-      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-      STAGING_AWS_ROLE_TO_ASSUME: ${{ secrets.STAGING_AWS_ROLE_TO_ASSUME }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      STAGING_AWS_REGION: ${{ secrets.STAGING_AWS_REGION }}
 
   # Same ordering for dev (schema push before the dev image lands in ECR)
   migrate-dev:
