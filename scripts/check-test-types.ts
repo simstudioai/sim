@@ -44,7 +44,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { localBin } from './local-bin'
 
@@ -289,7 +289,7 @@ function readStatus(file: string): CompileStatus {
     ])
   }
   const value: unknown = JSON.parse(readFileSync(file, 'utf8'))
-  const { exitCode, errorCount } = isRecordLike(value) ? value : {}
+  const { exitCode, errorCount } = toRecord(value)
   if (
     typeof exitCode !== 'number' ||
     ![0, 1, 2].includes(exitCode) ||
