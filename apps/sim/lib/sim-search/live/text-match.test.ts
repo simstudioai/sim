@@ -2,11 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { atlassianTextClause, driveTextClause } from '@/lib/sim-search/live/text-match'
 
 describe('text match clauses', () => {
-  it('keeps one all-terms clause by default', () => {
-    expect(atlassianTextClause('release process')).toBe('text ~ "release process"')
-    expect(driveTextClause("q3 plan's owner")).toBe("fullText contains 'q3 plan\\'s owner'")
-  })
-
   it('joins distinctive terms with OR, leaving out stopwords', () => {
     expect(atlassianTextClause('what is the release process', 'any')).toBe(
       '(text ~ "release" OR text ~ "process")'

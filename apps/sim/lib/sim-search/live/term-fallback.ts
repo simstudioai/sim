@@ -1,3 +1,5 @@
+import { dateSortDirection } from '@/lib/sim-search/live/dates'
+import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { joinMessages } from '@/lib/sim-search/live/pages'
 import { significantTerms, termCoverage } from '@/lib/sim-search/live/text-match'
 import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
@@ -7,9 +9,6 @@ import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-se
  * chosen from a wider pool by how many terms each candidate contains.
  */
 const ANY_TERM_CANDIDATES = 25
-
-const exactMatches = (count: number) =>
-  count === 0 ? 'No result contained' : `Only ${count} result${count === 1 ? '' : 's'} contained`
 
 /** One provider item, however many queries returned it. */
 const documentKey = ({ container, kind, id }: NativeDocument) =>
@@ -21,9 +20,11 @@ const documentKey = ({ container, kind, id }: NativeDocument) =>
  * often contains one word the right page lacks, which an all-terms search turns into no result.
  *
  * All-terms matches keep their provider order ahead of the rest; the added matches are ordered by
- * how many terms they contain, then how many their title contains, then provider order. The fallback runs only for a plain query
- * (native queries are the caller's exact syntax) and never replaces a continuable page, so a
- * cursor always continues the query that produced it. A failed fallback leaves the all-terms page.
+ * how many terms their title and preview contain, then how many their title contains, then
+ * provider order. The fallback runs only for a plain relevance-ordered query: native queries are
+ * the caller's exact syntax, and a date-sorted page is reordered by date. It never replaces a
+ * continuable page, so a cursor always continues the query that produced it. A provider refusal
+ * leaves the all-terms page; cancellation and transport failures propagate like the first search.
  */
 export async function searchWithAnyTermFallback(
   search: (input: NativeSearchInput) => Promise<NativePage>,
@@ -33,6 +34,7 @@ export async function searchWithAnyTermFallback(
   const terms = significantTerms(input.query)
   if (
     input.native ||
+    dateSortDirection(input.filters) ||
     terms.length < 2 ||
     strict.nextCursor ||
     strict.hasMore ||
@@ -43,7 +45,10 @@ export async function searchWithAnyTermFallback(
     ...input,
     limit: Math.max(input.limit, ANY_TERM_CANDIDATES),
     textMatch: 'any',
-  }).catch(() => undefined)
+  }).catch((error: unknown) => {
+    if (error instanceof NativeSearchError) return undefined
+    throw error
+  })
   if (!relaxed) return strict
   const seen = new Set(strict.documents.map(documentKey))
   const additions = relaxed.documents
@@ -69,7 +74,7 @@ export async function searchWithAnyTermFallback(
     partial: strict.partial || relaxed.partial,
     message: joinMessages([
       strict.message,
-      `${exactMatches(strict.documents.length)} every search term, so results containing some of the terms follow, ordered by how many they contain.`,
+      'Few results contained every search term, so results containing some of the terms follow, ordered by how many they contain.',
     ]),
   }
 }

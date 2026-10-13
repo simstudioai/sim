@@ -665,6 +665,19 @@ describe('authorized live retrieval', () => {
       }
     })
 
+    it('does not read previews for a native query, whose operators would anchor the passage', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      await searchLiveKnowledge.execute({
+        principal,
+        input: {
+          ...input,
+          query: '',
+          nativeQueries: [{ provider: 'google_drive' as const, query: "fullText contains 'launch'" }],
+        },
+      })
+      expect(mocks.preview).not.toHaveBeenCalled()
+    })
+
     it('does not read previews for a listing without search terms', async () => {
       mocks.search.mockResolvedValue({ documents: excerpts })
       await searchLiveKnowledge.execute({
@@ -690,6 +703,17 @@ describe('authorized live retrieval', () => {
       'loose',
     ])
     expect(mocks.search).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not spend a second search on a Drive source whose verification walks folders', async () => {
+    mocks.requiresEveryTerm.mockReturnValue(true)
+    vi.mocked(livePolicyFor).mockReturnValue({
+      ...defaultLiveSearchPolicy(),
+      fileTypes: ['application/pdf'],
+    })
+    mocks.search.mockResolvedValue({ documents: [] })
+    await searchLiveKnowledge.execute({ principal, input: { ...input, query: 'launch checklist' } })
+    expect(mocks.search).toHaveBeenCalledTimes(1)
   })
 
   it('checks the service source before returning member-visible candidates', async () => {

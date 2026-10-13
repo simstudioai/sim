@@ -2,7 +2,6 @@ import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
-import { sleep } from '@sim/utils/helpers'
 import { compareStrings } from '@sim/utils/string'
 import { z } from 'zod'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
@@ -312,6 +311,8 @@ async function verifyCandidates(session: LiveAccountSession, candidates: LiveCan
 const PREVIEW_READS = 3
 /** A slow preview read keeps the provider's excerpt rather than delaying the search. */
 const PREVIEW_DEADLINE_MS = 2500
+/** Text kept from a preview read; the passage is cut from it, so a long document stays bounded. */
+const PREVIEW_SOURCE_CHARACTERS = 100_000
 
 /**
  * Replaces the excerpt or metadata of an account's top results with their full text, so their
@@ -322,18 +323,19 @@ async function withPreviewText(
   session: LiveAccountSession,
   candidates: LiveCandidate[]
 ): Promise<LiveCandidate[]> {
+  const deadline = AbortSignal.timeout(PREVIEW_DEADLINE_MS)
+  const expired = new Promise<undefined>((resolve) =>
+    deadline.addEventListener('abort', () => resolve(undefined), { once: true })
+  )
   const texts = await Promise.all(
     candidates
       .slice(0, PREVIEW_READS)
       .map((candidate) =>
-        Promise.race([
-          session.previewText(candidate.document).catch(() => undefined),
-          sleep(PREVIEW_DEADLINE_MS).then(() => undefined),
-        ])
+        Promise.race([session.previewText(candidate.document).catch(() => undefined), expired])
       )
   )
   return candidates.map((candidate, index) => {
-    const text = texts[index]?.trim()
+    const text = texts[index]?.trim().slice(0, PREVIEW_SOURCE_CHARACTERS)
     return text ? { ...candidate, document: { ...candidate.document, content: text } } : candidate
   })
 }
@@ -538,10 +540,11 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           matchesLiveFilters(document, documentId, account.provider, queryFilters)
         )
       )
-      const previewQuery = native?.query || input.query
-      const previewed = previewQuery.trim()
-        ? await measureSearchStage('live.preview', () => withPreviewText(session, matching))
-        : matching
+      /** A native query's operators would anchor the passage, so only plain queries preview. */
+      const previewed =
+        !native && input.query.trim()
+          ? await measureSearchStage('live.preview', () => withPreviewText(session, matching))
+          : matching
       const undatedExcluded = permitted.some(({ document }) =>
         lacksFilterDate(document, account.provider, queryFilters)
       )
@@ -611,7 +614,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
             candidate,
             account,
             index + 1,
-            previewQuery,
+            native?.query || input.query,
             input.resultSecretRegistry
           )
           /** A provider's dedupe key names one item across its collections, within its account. */

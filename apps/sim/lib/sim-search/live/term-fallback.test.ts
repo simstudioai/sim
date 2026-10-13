@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { searchWithAnyTermFallback } from '@/lib/sim-search/live/term-fallback'
 import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
 
@@ -44,7 +45,7 @@ describe('searchWithAnyTermFallback', () => {
       'one-term-later',
     ])
     expect(result.nextCursor).toBeUndefined()
-    expect(result.message).toContain('Only 1 result contained every search term')
+    expect(result.message).toContain('Few results contained every search term')
   })
 
   it('finds the best partial match beyond the provider’s loose top results', async () => {
@@ -91,10 +92,21 @@ describe('searchWithAnyTermFallback', () => {
     expect(search).toHaveBeenCalledTimes(1)
   })
 
-  it('returns the all-terms page when the any-term search fails', async () => {
+  it('returns the all-terms page when the provider refuses the any-term search', async () => {
     const strict = page({ id: 'exact' })
-    const search = provider(strict, new Error('rate limited'))
+    const search = provider(strict, new NativeSearchError('rate_limited', 'Slow down'))
     expect(await searchWithAnyTermFallback(search, input)).toBe(strict)
+  })
+
+  it('propagates cancellation during the any-term search instead of returning a page', async () => {
+    const search = provider(page({ id: 'exact' }), new DOMException('Timed out', 'TimeoutError'))
+    await expect(searchWithAnyTermFallback(search, input)).rejects.toThrow('Timed out')
+  })
+
+  it('does not relax a date-sorted search, whose page is reordered by date', async () => {
+    const search = provider(page(), page({ id: 'loose' }))
+    await searchWithAnyTermFallback(search, { ...input, filters: { sortBy: 'newest' } })
+    expect(search).toHaveBeenCalledTimes(1)
   })
 
   it('leaves the page untouched when the any-term search adds nothing new', async () => {
