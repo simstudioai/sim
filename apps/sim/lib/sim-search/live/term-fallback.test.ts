@@ -217,6 +217,63 @@ describe('searchWithAnyTermFallback', () => {
     expect(search).toHaveBeenCalledTimes(1)
   })
 
+  describe('when partial matches must contain half the terms', () => {
+    const long: NativeSearchInput = {
+      query: 'glean token creator role request',
+      limit: 10,
+      scopes: [],
+    }
+    const halfTheTerms = { requireHalfTheTerms: true }
+
+    it('drops a partial match containing fewer than half the terms', async () => {
+      const search = provider(
+        page(),
+        page(
+          { id: 'two-terms', title: 'Role request form' },
+          { id: 'three-terms', title: 'Token creator role' },
+          { id: 'in-description', title: 'Access', content: 'Glean token request for my team' }
+        )
+      )
+      const result = await searchWithAnyTermFallback(search, long, live, halfTheTerms)
+      expect(result.documents.map((document) => document.id)).toEqual([
+        'three-terms',
+        'in-description',
+      ])
+    })
+
+    it('counts a word and its plural as one term, as the provider matches them', async () => {
+      const search = provider(
+        page(),
+        page({ id: 'plurals', title: 'Glean tokens', content: 'Creators file requests' })
+      )
+      const result = await searchWithAnyTermFallback(search, long, live, halfTheTerms)
+      expect(result.documents.map((document) => document.id)).toEqual(['plurals'])
+    })
+
+    it('returns the all-terms page unchanged when no partial match is close enough', async () => {
+      const strict = page({ id: 'exact', title: 'Glean token creator role request' })
+      const search = provider(strict, page({ id: 'loose', title: 'Role request' }))
+      expect(await searchWithAnyTermFallback(search, long, live, halfTheTerms)).toBe(strict)
+    })
+
+    it('keeps a single matching term enough for a two-term query', async () => {
+      const search = provider(page(), page({ id: 'one', title: 'Contractor directory' }))
+      const result = await searchWithAnyTermFallback(
+        search,
+        { query: 'contractor offboarding', limit: 4, scopes: [] },
+        live,
+        halfTheTerms
+      )
+      expect(result.documents.map((document) => document.id)).toEqual(['one'])
+    })
+
+    it('leaves providers without the floor adding loose partial matches', async () => {
+      const search = provider(page(), page({ id: 'two-terms', title: 'Role request form' }))
+      const result = await searchWithAnyTermFallback(search, long, live)
+      expect(result.documents.map((document) => document.id)).toEqual(['two-terms'])
+    })
+  })
+
   it('leaves the page untouched when the any-term search adds nothing new', async () => {
     const strict = page({ id: 'exact' })
     const search = provider(strict, page({ id: 'exact' }))

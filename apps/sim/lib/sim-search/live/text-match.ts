@@ -115,3 +115,19 @@ export function confluenceTextClause(text: string, match: TextMatch = 'all'): st
 export function termCoverage(text: string, terms: readonly string[]): number {
   return terms.filter((term) => findTermMatches(text, [term]).length > 0).length
 }
+
+/**
+ * Whether the text holds at least half the query's distinct terms, a word and its regular plural
+ * counting as one term as a stemmed search matches them.
+ */
+export function containsHalfTheTerms(text: string, query: string): boolean {
+  const terms = distinctTerms(query, singularKey).map(singularKey)
+  const present = terms.filter((term) => findTermMatches(text, wordForms(term)).length > 0)
+  return present.length >= Math.ceil(terms.length / 2)
+}
+
+/** A singular word and its regular plural forms, longest first so a plural is matched whole. */
+function wordForms(singular: string): string[] {
+  const forms = [`${singular}es`, `${singular}s`, singular]
+  return singular.endsWith('y') ? [`${singular.slice(0, -1)}ies`, ...forms] : forms
+}

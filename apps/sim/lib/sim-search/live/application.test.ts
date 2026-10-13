@@ -68,6 +68,7 @@ vi.mock('@/lib/sim-search/live/providers', () => ({
   searchNativeProvider: mocks.search,
   readNativeProvider: mocks.read,
   requiresEveryTerm: mocks.requiresEveryTerm,
+  partialMatchesNeedHalfTheTerms: () => false,
   previewNativeText: mocks.preview,
 }))
 vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({

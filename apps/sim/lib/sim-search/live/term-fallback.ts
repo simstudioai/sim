@@ -3,7 +3,11 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { dateSortDirection } from '@/lib/sim-search/live/dates'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { joinMessages } from '@/lib/sim-search/live/pages'
-import { significantTerms, termCoverage } from '@/lib/sim-search/live/text-match'
+import {
+  containsHalfTheTerms,
+  significantTerms,
+  termCoverage,
+} from '@/lib/sim-search/live/text-match'
 import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
 
 /**
@@ -42,11 +46,15 @@ const documentKey = ({ container, kind, id }: NativeDocument) =>
  * slow OR query is cancelled rather than awaited. Whenever it fails short of the caller's own
  * cancellation (a provider refusal, the budget running out, a transport error), the all-terms page
  * is kept, reported as partial. Cancellation through `signal` propagates like the first search.
+ *
+ * With `requireHalfTheTerms`, a partial match must contain at least half the query's terms in its
+ * title or text, for providers whose OR query matches items sharing only a couple of common words.
  */
 export async function searchWithAnyTermFallback(
   search: (input: NativeSearchInput) => Promise<NativePage>,
   input: NativeSearchInput,
-  signal: AbortSignal
+  signal: AbortSignal,
+  options: { requireHalfTheTerms?: boolean } = {}
 ): Promise<NativePage> {
   const strict = await search(input)
   const terms = significantTerms(input.query)
@@ -93,7 +101,12 @@ export async function searchWithAnyTermFallback(
   }
   const seen = new Set(strict.documents.map(documentKey))
   const additions = relaxed.documents
-    .filter((document) => !seen.has(documentKey(document)))
+    .filter(
+      (document) =>
+        !seen.has(documentKey(document)) &&
+        (!options.requireHalfTheTerms ||
+          containsHalfTheTerms(`${document.title}\n${document.content}`, input.query))
+    )
     .map((document, rank) => ({
       document,
       rank,

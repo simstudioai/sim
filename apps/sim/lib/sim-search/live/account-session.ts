@@ -23,6 +23,7 @@ import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/pol
 import { LIVE_SEARCH_PROVIDER_CATALOG } from '@/lib/sim-search/live/provider-catalog'
 import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 import {
+  partialMatchesNeedHalfTheTerms,
   previewNativeText,
   readNativeProvider,
   requiresEveryTerm,
@@ -206,7 +207,9 @@ export async function openLiveAccountSession(
         )
       }
       return client && requiresEveryTerm(provider)
-        ? searchWithAnyTermFallback(searchOnce, search, signal)
+        ? searchWithAnyTermFallback(searchOnce, search, signal, {
+            requireHalfTheTerms: partialMatchesNeedHalfTheTerms(provider),
+          })
         : searchOnce(search)
     },
     async verify(document) {

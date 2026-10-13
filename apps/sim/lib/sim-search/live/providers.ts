@@ -49,6 +49,11 @@ interface NativeProvider {
   /** Plain queries must contain every word, so an underfilled search retries with any term. */
   requiresEveryTerm?: true
   /**
+   * The any-term retry ranks items sharing just a couple of common words alongside close matches,
+   * so its partial matches must contain at least half the query's terms.
+   */
+  partialMatchesNeedHalfTheTerms?: true
+  /**
    * Full text for a search preview, for providers whose search returns only an excerpt or
    * metadata. At most one request; undefined for kinds without a cheap text form.
    */
@@ -177,6 +182,7 @@ export const LIVE_SEARCH_PROVIDERS = {
         'JQL with only an ORDER BY clause (Jira rejects unbounded queries), and identifying users other than currentUser() by display name or email; use their account ID.',
     },
     requiresEveryTerm: true,
+    partialMatchesNeedHalfTheTerms: true,
     search: (client, input) => searchAtlassian(client, 'jira', input),
     read: (client, reference) => readAtlassian(client, 'jira', reference.id, reference.container),
   },
@@ -317,6 +323,14 @@ export function searchNativeProvider(
 export function requiresEveryTerm(provider: LiveSearchProviderId): boolean {
   const adapter = LIVE_SEARCH_PROVIDERS[provider]
   return 'requiresEveryTerm' in adapter && adapter.requiresEveryTerm === true
+}
+
+/** True when the provider's partial matches must contain at least half the query's terms. */
+export function partialMatchesNeedHalfTheTerms(provider: LiveSearchProviderId): boolean {
+  const adapter = LIVE_SEARCH_PROVIDERS[provider]
+  return (
+    'partialMatchesNeedHalfTheTerms' in adapter && adapter.partialMatchesNeedHalfTheTerms === true
+  )
 }
 
 /**
