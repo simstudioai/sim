@@ -865,19 +865,27 @@ async function exerciseViewport(
             })
             for (const key of ['Home', 'End']) {
               await divider.press(key)
-              const bounds = await resource.boundingBox()
-              assert(bounds)
-              const min = Number.parseFloat((await divider.getAttribute('aria-valuemin')) ?? '')
-              const now = Number.parseFloat((await divider.getAttribute('aria-valuenow')) ?? '')
-              const max = Number.parseFloat((await divider.getAttribute('aria-valuemax')) ?? '')
-              assert(
-                min <= now && now <= max,
-                `The panel width must stay within its accessible range: ${JSON.stringify({ min, now, max, width: bounds.width })}`
-              )
-              assert(
-                Math.abs(now - bounds.width) <= 1,
-                'The resize value must describe the visible panel'
-              )
+              await expect(async () => {
+                const measurement = await divider.evaluate((element) => {
+                  const panel = document.querySelector('[data-mothership-panel]')
+                  if (!panel) throw new Error('Resource panel is unavailable')
+                  return {
+                    width: panel.getBoundingClientRect().width,
+                    min: Number.parseFloat(element.getAttribute('aria-valuemin') ?? ''),
+                    now: Number.parseFloat(element.getAttribute('aria-valuenow') ?? ''),
+                    max: Number.parseFloat(element.getAttribute('aria-valuemax') ?? ''),
+                  }
+                })
+                const { width, min, now, max } = measurement
+                assert(
+                  min <= now && now <= max,
+                  `The panel width must stay within its accessible range: ${JSON.stringify(measurement)}`
+                )
+                assert(
+                  Math.abs(now - width) <= 1,
+                  `The resize value must describe the visible panel: ${JSON.stringify(measurement)}`
+                )
+              }).toPass({ timeout: 20_000 })
               await expectContained(page, composer)
               await expectNoOverflow(page)
             }
