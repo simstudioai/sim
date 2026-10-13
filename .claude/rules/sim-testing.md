@@ -48,8 +48,8 @@ contracts, and demonstrated regressions.
   those checks. Isolate with a unique schema or generated IDs, and clean up in `afterAll`.
 - Integration files run one at a time against one shared database. A new `*.integration.ts` is
   picked up by CI with no workflow change, and the run writes the JSON report configured in
-  `vitest.shared.ts`, which CI uploads. Never add a passing suite to the quarantine list in
-  `apps/sim/vitest.config.ts`.
+  `vitest.shared.ts`, which CI uploads. Never exclude a failing suite from the run in
+  `apps/sim/vitest.config.ts`: fix it or delete it.
 - `bun run test:integration` starts disposable Postgres and Redis containers, provisions the schema,
   and runs both workspaces; pass filenames to narrow the `apps/sim` run.
 
