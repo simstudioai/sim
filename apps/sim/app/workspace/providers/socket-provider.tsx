@@ -26,6 +26,7 @@ import type {
   WorkflowUpdatedBroadcast,
 } from '@sim/realtime-protocol/events'
 import { generateId } from '@sim/utils/id'
+import { randomFloat } from '@sim/utils/random'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
@@ -75,6 +76,9 @@ const AUTH_RETRY_MAX_MS = 30000
  * bucket refills over 60 s, so the default 30 s cap would retry into a 429.
  */
 const SOCKET_TOKEN_RETRY_AFTER_MAX_MS = 5 * 60_000
+
+/** Up to +20% spread above a `Retry-After` floor, matching `backoffWithJitter`'s band. */
+const SOCKET_TOKEN_RETRY_AFTER_JITTER = 0.2
 
 /** A socket-token mint that failed for a retryable reason, with the server's `Retry-After`. */
 class SocketTokenUnavailableError extends Error {
@@ -458,15 +462,22 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
               tokenRetryAttemptsRef.current += 1
               const retryAfterMs =
                 error instanceof SocketTokenUnavailableError ? error.retryAfterMs : null
-              const delayMs = Math.max(
-                backoffWithJitter(tokenRetryAttemptsRef.current, null, {
-                  baseMs: AUTH_RETRY_BASE_MS,
-                  maxMs: AUTH_RETRY_MAX_MS,
-                }),
-                retryAfterMs ?? 0
-              )
+              const backoffMs = backoffWithJitter(tokenRetryAttemptsRef.current, null, {
+                baseMs: AUTH_RETRY_BASE_MS,
+                maxMs: AUTH_RETRY_MAX_MS,
+              })
+              // Spread tabs behind one IP that share the same 429 window.
+              const delayMs =
+                retryAfterMs === null
+                  ? backoffMs
+                  : Math.max(
+                      backoffMs,
+                      retryAfterMs * (1 + SOCKET_TOKEN_RETRY_AFTER_JITTER * randomFloat())
+                    )
               socketInstance.disconnect()
+              setIsConnected(false)
               setIsConnecting(false)
+              setCurrentSocketId(null)
               setIsReconnecting(true)
               logger.warn('Socket token unavailable, reconnecting after delay', {
                 attempt: tokenRetryAttemptsRef.current,
