@@ -197,3 +197,36 @@ describe('Confluence live documents', () => {
     expect(await previewConfluence(page('<p>Rollout steps</p>'), document)).toBe('Rollout steps')
   })
 })
+
+describe('Jira any-term search', () => {
+  const issues = {
+    '/ex/jira/cloud/rest/api/3/search/jql': {
+      issues: [
+        { key: 'ENG-1', fields: { summary: 'Token creator role request' } },
+        { key: 'ENG-2', fields: { summary: 'Role request form' } },
+      ],
+    },
+  }
+  const query = { query: 'glean token creator role request', limit: 25, scopes: [] }
+
+  it('keeps only issues holding at least half the query terms', async () => {
+    const page = await searchAtlassian(client(issues), 'jira', { ...query, textMatch: 'any' })
+    expect(page.documents.map((document) => document.id)).toEqual(['ENG-1'])
+  })
+
+  it('keeps every issue an all-terms search returns', async () => {
+    const page = await searchAtlassian(client(issues), 'jira', query)
+    expect(page.documents.map((document) => document.id)).toEqual(['ENG-1', 'ENG-2'])
+  })
+
+  it('leaves a Confluence any-term search to its relevance ranking', async () => {
+    const api = client({
+      '/ex/confluence/cloud/wiki/rest/api/search': {
+        results: [{ content: { id: '5', type: 'page', title: 'Role request form' } }],
+        _links: {},
+      },
+    })
+    const page = await searchAtlassian(api, 'confluence', { ...query, textMatch: 'any' })
+    expect(page.documents.map((document) => document.id)).toEqual(['5'])
+  })
+})

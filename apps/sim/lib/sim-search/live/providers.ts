@@ -20,7 +20,6 @@ import {
   type LiveSearchProviderId,
 } from '@/lib/sim-search/live/provider-catalog'
 import { readSlack, searchSlack } from '@/lib/sim-search/live/slack'
-import type { AnyTermFallbackOptions } from '@/lib/sim-search/live/term-fallback'
 import type {
   NativeClient,
   NativeDocument,
@@ -47,12 +46,8 @@ interface NativeQueryGuide {
 
 interface NativeProvider {
   guide: NativeQueryGuide
-  /**
-   * Plain queries must contain every word, so an underfilled search retries with any term.
-   * `requireHalfTheTerms` is for a provider whose any-term query ranks items sharing just a couple
-   * of common words alongside close matches.
-   */
-  anyTermRetry?: AnyTermFallbackOptions
+  /** Plain queries must contain every word, so an underfilled search retries with any term. */
+  requiresEveryTerm?: true
   /**
    * Full text for a search preview, for providers whose search returns only an excerpt or
    * metadata. At most one request; undefined for kinds without a cheap text form.
@@ -181,7 +176,7 @@ export const LIVE_SEARCH_PROVIDERS = {
       avoid:
         'JQL with only an ORDER BY clause (Jira rejects unbounded queries), and identifying users other than currentUser() by display name or email; use their account ID.',
     },
-    anyTermRetry: { requireHalfTheTerms: true },
+    requiresEveryTerm: true,
     search: (client, input) => searchAtlassian(client, 'jira', input),
     read: (client, reference) => readAtlassian(client, 'jira', reference.id, reference.container),
   },
@@ -195,7 +190,7 @@ export const LIVE_SEARCH_PROVIDERS = {
       avoid:
         'starting the query with a negative clause (NOT, !=, !~ or NOT IN), which CQL rejects; lead with a positive clause such as type IN (page, blogpost).',
     },
-    anyTermRetry: { requireHalfTheTerms: false },
+    requiresEveryTerm: true,
     previewText: previewConfluence,
     search: (client, input) => searchAtlassian(client, 'confluence', input),
     read: (client, reference) =>
@@ -318,13 +313,10 @@ export function searchNativeProvider(
   return adapter.search(client, input)
 }
 
-/**
- * How the provider retries an underfilled plain search with any term; undefined when its
- * plain-text search does not require every query word.
- */
-export function anyTermRetry(provider: LiveSearchProviderId): AnyTermFallbackOptions | undefined {
+/** True when the provider's plain-text search matches only items containing every query word. */
+export function requiresEveryTerm(provider: LiveSearchProviderId): boolean {
   const adapter = LIVE_SEARCH_PROVIDERS[provider]
-  return 'anyTermRetry' in adapter ? adapter.anyTermRetry : undefined
+  return 'requiresEveryTerm' in adapter && adapter.requiresEveryTerm === true
 }
 
 /**

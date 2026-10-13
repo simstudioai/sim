@@ -9,7 +9,11 @@ import {
 } from '@/lib/sim-search/live/http'
 import { interleaveByRank } from '@/lib/sim-search/live/pages'
 import { providerText } from '@/lib/sim-search/live/text'
-import { confluenceTextClause, jiraTextClause } from '@/lib/sim-search/live/text-match'
+import {
+  confluenceTextClause,
+  holdsHalfTheTerms,
+  jiraTextClause,
+} from '@/lib/sim-search/live/text-match'
 import type {
   NativeClient,
   NativeDocument,
@@ -152,6 +156,11 @@ export async function searchAtlassian(
   const direction = dateSortDirection(input.filters)
   const order = direction ? `${field} ${direction.toUpperCase()}` : undefined
   const text = nativeText(input)
+  /**
+   * Jira's any-term query ORs pairs of terms, which on a large site matches issues sharing two
+   * common words; like a minimum-should-match, an issue must hold at least half the terms.
+   */
+  const relevant = input.textMatch === 'any' && text ? holdsHalfTheTerms(text) : undefined
   const pages = await Promise.all(
     selected.map(async (site) => {
       const cloudId = string(site.id)
@@ -173,7 +182,9 @@ export async function searchAtlassian(
           })
         )
         return {
-          documents: array(data.issues).map((row) => issue(row, cloudId, origin)),
+          documents: array(data.issues)
+            .map((row) => issue(row, cloudId, origin))
+            .filter((document) => !relevant || relevant(`${document.title}\n${document.content}`)),
           excluded: false,
           next: string(data.nextPageToken) || undefined,
         }

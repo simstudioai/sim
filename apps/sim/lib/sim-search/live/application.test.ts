@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
   json: vi.fn(),
   service: vi.fn(),
   destroyPool: vi.fn(),
-  anyTermRetry: vi.fn(),
+  requiresEveryTerm: vi.fn(),
   preview: vi.fn(),
 }))
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
@@ -67,7 +67,7 @@ vi.mock('@/lib/sim-search/live/providers', () => ({
   liveSearchGuidance: (providers: string[]) => `Live coverage: ${[...new Set(providers)]}`,
   searchNativeProvider: mocks.search,
   readNativeProvider: mocks.read,
-  anyTermRetry: mocks.anyTermRetry,
+  requiresEveryTerm: mocks.requiresEveryTerm,
   previewNativeText: mocks.preview,
 }))
 vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
@@ -140,7 +140,7 @@ describe('authorized live retrieval', () => {
       documents: [{ ...document, id: 'src/a.ts', container: '42', kind: 'code' }],
     })
     mocks.adminVerify.mockResolvedValue(true)
-    mocks.anyTermRetry.mockReset().mockReturnValue(undefined)
+    mocks.requiresEveryTerm.mockReset().mockReturnValue(false)
     mocks.preview.mockReset().mockResolvedValue(undefined)
   })
   describe('Zoom continuation integrity', () => {
@@ -698,7 +698,7 @@ describe('authorized live retrieval', () => {
   })
 
   it('retries an underfilled search with any term for providers that require every term', async () => {
-    mocks.anyTermRetry.mockReturnValue({})
+    mocks.requiresEveryTerm.mockReturnValue(true)
     const loose = { ...document, id: 'loose', url: 'https://docs.google.com/document/d/loose/edit' }
     mocks.search.mockImplementation(async (_provider, _client, search) => ({
       documents: search.textMatch === 'any' ? [loose, document] : [document],

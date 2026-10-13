@@ -23,9 +23,9 @@ import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/pol
 import { LIVE_SEARCH_PROVIDER_CATALOG } from '@/lib/sim-search/live/provider-catalog'
 import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 import {
-  anyTermRetry,
   previewNativeText,
   readNativeProvider,
+  requiresEveryTerm,
   searchNativeProvider,
 } from '@/lib/sim-search/live/providers'
 import { searchWithinPolicy } from '@/lib/sim-search/live/scoped-search'
@@ -205,9 +205,8 @@ export async function openLiveAccountSession(
           client ? searchNativeProvider(provider, client, native) : searchMcp(native)
         )
       }
-      const retry = client ? anyTermRetry(provider) : undefined
-      return retry
-        ? searchWithAnyTermFallback(searchOnce, search, signal, retry)
+      return client && requiresEveryTerm(provider)
+        ? searchWithAnyTermFallback(searchOnce, search, signal)
         : searchOnce(search)
     },
     async verify(document) {

@@ -1,4 +1,4 @@
-import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
+import { findTermMatches, queryTerms, textWords } from '@/lib/knowledge/search/snippet'
 
 /**
  * How a plain query's words must match a document. Confluence and Jira text search require every
@@ -117,15 +117,19 @@ export function termCoverage(text: string, terms: readonly string[]): number {
 }
 
 /**
- * Whether the text holds at least half the query's distinct terms. Query and text words are
- * compared by their singular key, so a word and its regular plural count as one term as a stemmed
- * search matches them; a term with punctuation inside it is matched as written.
+ * A test for whether a text holds at least half the query's distinct terms. Query and text words
+ * are compared by their singular key, so a word and its regular plural count as one term as a
+ * stemmed search matches them; a term with punctuation inside it is matched as written.
  */
-export function containsHalfTheTerms(text: string, query: string): boolean {
+export function holdsHalfTheTerms(query: string): (text: string) => boolean {
   const terms = distinctTerms(query, singularKey)
-  const words = new Set(text.match(/[\p{L}\p{N}_]+/gu)?.map(singularKey))
-  const present = terms.filter(
-    (term) => words.has(singularKey(term)) || findTermMatches(text, [term]).length > 0
-  )
-  return present.length >= Math.ceil(terms.length / 2)
+  const keys = terms.map(singularKey)
+  const required = Math.ceil(terms.length / 2)
+  return (text) => {
+    const words = new Set(textWords(text).map(singularKey))
+    const present = terms.filter(
+      (term, index) => words.has(keys[index]) || findTermMatches(text, [term]).length > 0
+    )
+    return present.length >= required
+  }
 }
