@@ -14,6 +14,8 @@ const MAX_CHECKPOINT_BYTES = 4 * 1024 * 1024
 const KEY_PATTERN = /^knowledge-vision-checkpoints\/v1\/[a-f0-9]{64}\.json$/
 
 const visionUsageSchema = z.object({
+  /** Dedupe key for one extraction's charge; a resumed pass replays it, so the charge records once. */
+  chargeId: z.string().min(1),
   model: z.string().min(1),
   cost: z.number().finite().nonnegative(),
   inputTokens: z.number().int().nonnegative(),
@@ -31,6 +33,11 @@ const checkpointBodySchema = z.object({
 
 /** A validated extraction, reduced to what indexing keeps. */
 export type VisionExtractionCheckpoint = z.infer<typeof checkpointBodySchema>
+
+/** Checkpoints written before charges carried an id; their pass never billed, so one is derived. */
+const storedBodySchema = checkpointBodySchema.extend({
+  usage: visionUsageSchema.extend({ chargeId: z.string().min(1).optional() }),
+})
 
 /**
  * Retry cache for one image's vision extraction, never a record: a pass that dies
@@ -71,8 +78,10 @@ export function createVisionCheckpoint(options: {
       })
       if (!stored || stored.header.identity !== identity) return null
       try {
-        const parsed = checkpointBodySchema.safeParse(JSON.parse(stored.body.toString('utf8')))
-        return parsed.success ? parsed.data : null
+        const parsed = storedBodySchema.safeParse(JSON.parse(stored.body.toString('utf8')))
+        if (!parsed.success) return null
+        const { usage } = parsed.data
+        return { ...parsed.data, usage: { ...usage, chargeId: usage.chargeId ?? identity } }
       } catch {
         return null
       }
