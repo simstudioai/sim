@@ -672,12 +672,12 @@ jobs:
           fi
           echo "✅ Schema and migrations are in sync"
 
-  # Type errors in apps/sim's unit tests, ratcheted per file against a committed baseline
-  # (scripts/check-test-types.ts). It type-checks the whole app with its ~3.4k test files: lint's
-  # uncached apps/sim type-check alone takes ~35 s on this runner, so it gets its own job beside
-  # lint rather than a place in check:audits, which also runs on laptops. Gated like `test`. On
-  # failure the per-file counts and compiler output are uploaded: `counts.json` shrinks or
-  # bootstraps the baseline without a local compile (see the script's header).
+  # Type errors in apps/sim's unit tests, ratcheted per file and TS code against a committed
+  # baseline (scripts/check-test-types.ts). It type-checks the whole app with its ~3.4k test files:
+  # lint's uncached apps/sim type-check alone takes ~35 s on this runner, so it gets its own job
+  # beside lint rather than a place in check:audits, which also runs on laptops. Gated like `test`.
+  # On failure the compiler output is uploaded, so a fix can shrink the existing baseline from it
+  # (`--diagnostics <file> --update`) without a local compile; nothing ever raises the baseline.
   test-types:
     name: test-types
     needs: changes
@@ -697,7 +697,7 @@ jobs:
       - name: Ratchet type errors in apps/sim tests
         run: bun run scripts/check-test-types.ts --report "$RUNNER_TEMP/test-types"
 
-      - name: Upload per-file counts and compiler output
+      - name: Upload compiler output and counts
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
