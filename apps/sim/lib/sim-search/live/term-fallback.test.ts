@@ -250,6 +250,34 @@ describe('searchWithAnyTermFallback', () => {
       expect(result.documents.map((document) => document.id)).toEqual(['plurals'])
     })
 
+    it('counts a singular word whose plural adds -es, in either form', async () => {
+      const search = provider(
+        page(),
+        page(
+          { id: 'singular', title: 'Database release' },
+          { id: 'plural', title: 'Databases', content: 'Weekly releases' }
+        )
+      )
+      const result = await searchWithAnyTermFallback(
+        search,
+        { query: 'database release checklist owner', limit: 10, scopes: [] },
+        live,
+        halfTheTerms
+      )
+      expect(result.documents.map((document) => document.id).sort()).toEqual(['plural', 'singular'])
+    })
+
+    it('counts a term with punctuation inside it, such as ci/cd', async () => {
+      const search = provider(page(), page({ id: 'ci', title: 'CI/CD pipeline' }))
+      const result = await searchWithAnyTermFallback(
+        search,
+        { query: 'ci/cd pipeline failure owner', limit: 10, scopes: [] },
+        live,
+        halfTheTerms
+      )
+      expect(result.documents.map((document) => document.id)).toEqual(['ci'])
+    })
+
     it('returns the all-terms page unchanged when no partial match is close enough', async () => {
       const strict = page({ id: 'exact', title: 'Glean token creator role request' })
       const search = provider(strict, page({ id: 'loose', title: 'Role request' }))

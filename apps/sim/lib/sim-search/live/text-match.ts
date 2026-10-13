@@ -117,17 +117,15 @@ export function termCoverage(text: string, terms: readonly string[]): number {
 }
 
 /**
- * Whether the text holds at least half the query's distinct terms, a word and its regular plural
- * counting as one term as a stemmed search matches them.
+ * Whether the text holds at least half the query's distinct terms. Query and text words are
+ * compared by their singular key, so a word and its regular plural count as one term as a stemmed
+ * search matches them; a term with punctuation inside it is matched as written.
  */
 export function containsHalfTheTerms(text: string, query: string): boolean {
-  const terms = distinctTerms(query, singularKey).map(singularKey)
-  const present = terms.filter((term) => findTermMatches(text, wordForms(term)).length > 0)
+  const terms = distinctTerms(query, singularKey)
+  const words = new Set(text.match(/[\p{L}\p{N}_]+/gu)?.map(singularKey))
+  const present = terms.filter(
+    (term) => words.has(singularKey(term)) || findTermMatches(text, [term]).length > 0
+  )
   return present.length >= Math.ceil(terms.length / 2)
-}
-
-/** A singular word and its regular plural forms, longest first so a plural is matched whole. */
-function wordForms(singular: string): string[] {
-  const forms = [`${singular}es`, `${singular}s`, singular]
-  return singular.endsWith('y') ? [`${singular.slice(0, -1)}ies`, ...forms] : forms
 }
