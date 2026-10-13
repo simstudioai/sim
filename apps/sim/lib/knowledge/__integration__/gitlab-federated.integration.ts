@@ -19,6 +19,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
@@ -284,7 +285,7 @@ describe.skipIf(!fixtureFile)('federated self-hosted GitLab Search', () => {
       })(),
       (async () => {
         if (!ids) return
-        await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+        await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
         await db.delete(organization).where(eq(organization.id, ids.organizationId))
         await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId, ...simUserIds]))
       })(),

@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http'
 import { dirname } from 'node:path'
 import { db } from '@sim/db'
 import { account, credential, pendingCredentialDraft, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred, type Deferred } from '@sim/testing/helpers/deferred'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -72,7 +73,7 @@ beforeAll(async () => {
       updatedAt: new Date(),
     }))
   )
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: workspaceId,
     name: 'Shopify fixture',
     ownerId: userIds[0],
@@ -212,7 +213,7 @@ afterEach((context) => {
 
 afterAll(async () => {
   globalThis.fetch = originalFetch
-  await db.delete(workspace).where(eq(workspace.id, workspaceId))
+  await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(user).where(inArray(user.id, userIds))
   if (provider) {
     provider.closeAllConnections()

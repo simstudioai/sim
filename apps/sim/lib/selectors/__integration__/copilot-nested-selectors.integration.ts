@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /** Chat's in-process CLI reaching selectors whose options are owned by another domain. */
 
 import { db } from '@sim/db'
@@ -46,7 +47,7 @@ describe('Copilot selectors backed by another domain', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Selector fixture',
       ownerId: userId,
@@ -100,7 +101,7 @@ describe('Copilot selectors backed by another domain', () => {
     })
   })
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
     await db.$client.end()
   })

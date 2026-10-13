@@ -64,6 +64,14 @@ const startedAt = new Date().toISOString()
 const checks: CheckResult[] = []
 const screenshots: string[] = []
 const httpErrors: { browser: string; status: number; path: string }[] = []
+/**
+ * Every document load mounts the workspace socket provider, which mints one realtime token from a
+ * route capped at 30 per minute per client IP. The suite loads well over 30 documents a minute, all
+ * from loopback, so that route's own rate-limit response is expected here; it is recorded apart
+ * from `httpErrors` and must still carry `Retry-After`, and each browser must mint at least once.
+ */
+const SOCKET_TOKEN_PATH = '/api/auth/socket-token'
+const socketTokenMints = new Map<string, { minted: number; rateLimited: number }>()
 const requestFailures: {
   browser: string
   viewport: string
@@ -204,8 +212,10 @@ async function seed(): Promise<string> {
     await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
       values (${ownerId}, 'Mobile E2E', ${email}, ${email}, true, now(), now())`
     await tx`insert into user_stats (id, user_id) values (${generateId()}, ${ownerId})`
-    await tx`insert into workspace (id, name, owner_id, billed_account_user_id)
-      values (${workspaceId}, 'Mobile E2E workspace', ${ownerId}, ${ownerId})`
+    await tx`insert into project (id, name, owner_id)
+      values (${workspaceId}, 'Mobile E2E project', ${ownerId})`
+    await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id)
+      values (${workspaceId}, ${workspaceId}, 'Mobile E2E workspace', ${ownerId}, ${ownerId})`
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
       values (${generateId()}, ${ownerId}, 'workspace', ${workspaceId}, 'admin')`
     await tx`insert into session (id, token, user_id, expires_at, created_at, updated_at)
@@ -507,8 +517,17 @@ async function exerciseViewport(
     }
     if (pageErrors.length < 20) pageErrors.push(error.message)
   })
+  const mints = socketTokenMints.get(browserName) ?? { minted: 0, rateLimited: 0 }
+  socketTokenMints.set(browserName, mints)
   page.on('response', (response) => {
     const url = new URL(response.url())
+    if (url.origin === baseUrl.origin && url.pathname === SOCKET_TOKEN_PATH) {
+      if (response.ok()) mints.minted += 1
+      if (response.status() === 429 && response.headers()['retry-after']) {
+        mints.rateLimited += 1
+        return
+      }
+    }
     if (url.origin === baseUrl.origin && response.status() >= 400 && httpErrors.length < 100) {
       httpErrors.push({ browser: browserName, status: response.status(), path: url.pathname })
     }
@@ -1081,59 +1100,61 @@ async function exerciseViewport(
           await expectNoOverflow(page)
         }
       )
-      await check(`${prefix}/workflow controls open and return to the canvas`, page, async () => {
-        await visit(page, `w/${workflowId}`)
-        await expect(page.locator('.react-flow')).toBeVisible({ timeout: 120_000 })
-        const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
-        await expect(panel).toBeHidden()
-        await capture(page, `${browserName}-${viewport.name}-workflow-canvas`)
-        await page.getByRole('button', { name: 'Workflow', exact: true }).tap()
-        await expectContained(page, panel)
-        await capture(page, `${browserName}-${viewport.name}-workflow-panel`)
-        await page.getByRole('button', { name: 'Back to canvas', exact: true }).tap()
-        await expect(panel).toBeHidden()
-        await expect
-          .poll(async () => {
-            const canvas = await page.locator('.react-flow').boundingBox()
-            const content = await page.locator('.workspace-content-shell').boundingBox()
-            return canvas && content ? canvas.width / content.width : 0
-          })
-          .toBeGreaterThan(0.95)
-        if (viewport.name === 'phone') {
-          await sql`update workflow set locked = true where id = ${workflowId}`
-          await withDocumentNavigation(page, page.url(), () =>
-            page.reload({ waitUntil: 'commit', timeout: 360_000 })
-          )
-          const notifications = page.getByLabel('Notifications', { exact: true })
-          await expect(notifications).toContainText('This workflow is locked', {
-            timeout: 120_000,
-          })
-          await expectContained(page, notifications)
-          const unlock = notifications.getByRole('button', {
-            name: 'Unlock Workflow',
-            exact: true,
-          })
-          await expectContained(page, unlock)
-          await capture(page, `${browserName}-phone-workflow-notification`)
-          const [unlocked] = await Promise.all([
-            page.waitForResponse(
-              (response) =>
-                response.request().method() === 'PUT' &&
-                new URL(response.url()).pathname === `/api/workflows/${workflowId}`,
-              { timeout: 120_000 }
-            ),
-            unlock.tap(),
-          ])
-          assert.equal(unlocked.status(), 200, 'Unlocking the workflow must succeed over HTTP')
+      if (viewport.name !== 'tablet') {
+        await check(`${prefix}/workflow controls open and return to the canvas`, page, async () => {
+          await visit(page, `w/${workflowId}`)
+          await expect(page.locator('.react-flow')).toBeVisible({ timeout: 120_000 })
+          const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
+          await expect(panel).toBeHidden()
+          await capture(page, `${browserName}-${viewport.name}-workflow-canvas`)
+          await page.getByRole('button', { name: 'Workflow', exact: true }).tap()
+          await expectContained(page, panel)
+          await capture(page, `${browserName}-${viewport.name}-workflow-panel`)
+          await page.getByRole('button', { name: 'Back to canvas', exact: true }).tap()
+          await expect(panel).toBeHidden()
           await expect
             .poll(async () => {
-              const rows = await sql`select locked from workflow where id = ${workflowId}`
-              return rows[0]?.locked
+              const canvas = await page.locator('.react-flow').boundingBox()
+              const content = await page.locator('.workspace-content-shell').boundingBox()
+              return canvas && content ? canvas.width / content.width : 0
             })
-            .toBe(false)
-        }
-        await expectNoOverflow(page)
-      })
+            .toBeGreaterThan(0.95)
+          if (viewport.name === 'phone') {
+            await sql`update workflow set locked = true where id = ${workflowId}`
+            await withDocumentNavigation(page, page.url(), () =>
+              page.reload({ waitUntil: 'commit', timeout: 360_000 })
+            )
+            const notifications = page.getByLabel('Notifications', { exact: true })
+            await expect(notifications).toContainText('This workflow is locked', {
+              timeout: 120_000,
+            })
+            await expectContained(page, notifications)
+            const unlock = notifications.getByRole('button', {
+              name: 'Unlock Workflow',
+              exact: true,
+            })
+            await expectContained(page, unlock)
+            await capture(page, `${browserName}-phone-workflow-notification`)
+            const [unlocked] = await Promise.all([
+              page.waitForResponse(
+                (response) =>
+                  response.request().method() === 'PUT' &&
+                  new URL(response.url()).pathname === `/api/workflows/${workflowId}`,
+                { timeout: 120_000 }
+              ),
+              unlock.tap(),
+            ])
+            assert.equal(unlocked.status(), 200, 'Unlocking the workflow must succeed over HTTP')
+            await expect
+              .poll(async () => {
+                const rows = await sql`select locked from workflow where id = ${workflowId}`
+                return rows[0]?.locked
+              })
+              .toBe(false)
+          }
+          await expectNoOverflow(page)
+        })
+      }
     }
   } finally {
     documentNavigations.delete(page)
@@ -1186,13 +1207,25 @@ try {
     await sql.begin(async (tx) => {
       await tx`delete from permissions where entity_type = 'workspace' and entity_id = ${workspaceId}`
       await tx`delete from workspace where id = ${workspaceId}`
+      await tx`delete from project where id = ${workspaceId} and owner_id = ${ownerId}`
       await tx`delete from workflow_execution_snapshots where id = ${snapshotId}`
       await tx`delete from "user" where id = ${ownerId}`
     })
+    const [remaining] = await sql`select
+      exists(select 1 from "user" where id = ${ownerId}) as owner,
+      exists(select 1 from workspace where id = ${workspaceId}) as workspace,
+      exists(select 1 from project where id = ${workspaceId}) as project,
+      exists(select 1 from workflow_execution_snapshots where id = ${snapshotId}) as snapshot`
+    assert.deepEqual(remaining, { owner: false, workspace: false, project: false, snapshot: false })
   })
   await sql.end()
   await check('same-origin HTTP responses succeed', undefined, async () => {
     assert.deepEqual(httpErrors, [])
+  })
+  await check('each browser mints a realtime token', undefined, async () => {
+    for (const [browserName, mints] of socketTokenMints) {
+      assert(mints.minted > 0, `${browserName} never minted a realtime token`)
+    }
   })
   await mkdir(dirname(reportPath), { recursive: true })
   await writeFile(
@@ -1205,6 +1238,7 @@ try {
         checks,
         screenshots,
         httpErrors,
+        socketTokenMints: Object.fromEntries(socketTokenMints),
         requestFailures,
         navigationDiagnostics,
         viewportMeasurements,

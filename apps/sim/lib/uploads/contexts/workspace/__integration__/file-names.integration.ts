@@ -15,6 +15,7 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -40,8 +41,11 @@ import {
   workspaceFileNameFolderCondition,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
+  findListedWorkspaceFiles,
+  findWorkspaceFileRecord,
   generateWorkspaceFileKey,
   getWorkspaceFileByName,
+  listWorkspaceFiles,
   resolveWorkspaceFileReference,
   trackChatUpload,
   uploadWorkspaceFile,
@@ -60,7 +64,7 @@ describe('workspace file names in PostgreSQL', () => {
   afterAll(async () => {
     vi.restoreAllMocks()
     for (const ids of fixtures) {
-      await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
       await db.delete(organization).where(eq(organization.id, ids.organizationId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }
@@ -280,6 +284,52 @@ describe('workspace file names in PostgreSQL', () => {
     const scan = JSON.stringify(plan[0]['QUERY PLAN'])
     expect(scan).toContain('workspace_files_workspace_display_name_idx')
     expect(scan).not.toContain('workspace_files_workspace_active_keyset_idx')
+  })
+
+  it('picks the same file from candidate rows as from the whole listing', async () => {
+    const fixture = await seedWorkspace()
+    const reports = await createWorkspaceFileFolder({
+      workspaceId: fixture.workspaceId,
+      userId: fixture.aliceId,
+      name: 'Reports',
+    })
+    const archive = await createWorkspaceFileFolder({
+      workspaceId: fixture.workspaceId,
+      userId: fixture.aliceId,
+      name: 'Archive',
+      parentId: reports.id,
+    })
+    const rootDuplicate = await upload(fixture.workspaceId, fixture.aliceId, 'dup.txt', null)
+    await upload(fixture.workspaceId, fixture.aliceId, 'dup.txt', reports.id)
+    const nested = await upload(fixture.workspaceId, fixture.aliceId, 'Q1 Plan.csv', archive.id)
+    const deleted = await upload(fixture.workspaceId, fixture.aliceId, 'gone.txt', null)
+    await db
+      .update(workspaceFiles)
+      .set({ deletedAt: new Date() })
+      .where(eq(workspaceFiles.id, deleted.id))
+    const listing = await listWorkspaceFiles(fixture.workspaceId)
+
+    const references = [
+      'dup.txt',
+      'files/dup.txt',
+      'files/Reports/dup.txt',
+      'Reports/dup.txt',
+      'files/Reports/Archive/Q1%20Plan.csv',
+      'Q1 Plan.csv',
+      nested.id,
+      `files/${nested.id}`,
+      rootDuplicate.id,
+      'gone.txt',
+      'missing.txt',
+    ]
+    const batched = await findListedWorkspaceFiles(fixture.workspaceId, references)
+    for (const reference of references) {
+      const expected = findWorkspaceFileRecord(listing, reference)?.id
+      expect(batched.get(reference)?.id, reference).toBe(expected)
+      const [single] = (await findListedWorkspaceFiles(fixture.workspaceId, [reference])).values()
+      expect(single?.id, reference).toBe(expected)
+    }
+    expect(batched.get('dup.txt')?.id).toBe(rootDuplicate.id)
   })
 
   it('falls back to a short-id suffix after 20 numbered copies, including under concurrency', async () => {

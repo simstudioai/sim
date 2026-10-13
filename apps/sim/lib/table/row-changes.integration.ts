@@ -3,9 +3,11 @@
  * moves it into the definition row without changing what a reader sees, under concurrent appends.
  */
 import { db } from '@sim/db'
-import { userTableDefinitions } from '@sim/db/schema'
+import { userTableDefinitions, workspace } from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
+import { eq } from 'drizzle-orm'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
@@ -63,12 +65,16 @@ describe('table row-change log against real PostgreSQL', () => {
   beforeAll(async () => {
     await control`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
       VALUES (${userId}, 'Row change fixture', ${`${userId}@example.test`}, true, now(), now())`
-    await control`INSERT INTO workspace (id, name, owner_id, billed_account_user_id)
-      VALUES (${workspaceId}, 'Row change fixtures', ${userId}, ${userId})`
+    await insertWorkspaceFixture(db, {
+      id: workspaceId,
+      name: 'Row change fixtures',
+      ownerId: userId,
+      billedAccountUserId: userId,
+    })
   })
 
   afterAll(async () => {
-    await control`DELETE FROM workspace WHERE id = ${workspaceId}`
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await control`DELETE FROM "user" WHERE id = ${userId}`
     await control.end()
   })

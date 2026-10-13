@@ -22,6 +22,7 @@ vi.mock('@/lib/auth', () => authMock)
 
 import { db } from '@sim/db'
 import { copilotAsyncToolCalls, copilotChats, copilotRuns, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
@@ -142,7 +143,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call watched by a web tab', ()
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Desktop executor fixture',
       ownerId: userId,
@@ -177,7 +178,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call watched by a web tab', ()
 
   afterAll(async () => {
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 

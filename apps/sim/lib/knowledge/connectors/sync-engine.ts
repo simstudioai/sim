@@ -402,7 +402,9 @@ export async function completeSuccessfulSync(
   contentPass?: ContentPassOutcome,
   directoryNotice: string | null = null,
   /** A pending ACL rewrite this run began but did not finish: the flag stays and the next run resumes it. */
-  accessRewriteUnfinished = false
+  accessRewriteUnfinished = false,
+  /** The connector as this run locked it: whether a pass has finished, and the count it holds. */
+  lockedConnector: { lastSyncAt: Date | null; lastSyncDocCount: number | null } | null = null
 ): Promise<boolean> {
   const processingDispatchFailed = result.processingDispatch.failed > 0
   const contentNotice =
@@ -434,16 +436,29 @@ export async function completeSuccessfulSync(
    * owned count the next pass's mass-deletion guard starts from, so a tally of this run's
    * adds and deletes would drift; when it cannot be read the previous count stands, which the
    * guard already treats as a floor.
+   *
+   * Once a pass has finished, a slice that leaves the next pass unfinished keeps the count that
+   * finished pass recorded, the same pass `lastSyncAt` still names, so a large connector is not
+   * counted again on every slice of a pass whose count is replaced when it finishes. Unfinished
+   * slices never advance `lastSyncAt`, so until a pass finishes every slice is counted and a
+   * first pass shows its progress.
    */
-  const actualDocCount = await countLiveConnectorDocuments(connectorId).catch((error: unknown) => {
-    const diagnostic = getConnectorFailureDiagnostic(error)
-    if (diagnostic?.category !== 'database') throw error
-    logger.warn('Could not count connector documents; keeping the previous count', {
-      connectorId,
-      diagnostic,
-    })
-    return null
-  })
+  const keepRecordedCount =
+    contentPass !== undefined &&
+    !contentPass.complete &&
+    lockedConnector?.lastSyncAt != null &&
+    lockedConnector.lastSyncDocCount !== null
+  const actualDocCount = keepRecordedCount
+    ? null
+    : await countLiveConnectorDocuments(connectorId).catch((error: unknown) => {
+        const diagnostic = getConnectorFailureDiagnostic(error)
+        if (diagnostic?.category !== 'database') throw error
+        logger.warn('Could not count connector documents; keeping the previous count', {
+          connectorId,
+          diagnostic,
+        })
+        return null
+      })
   try {
     return await db.transaction(async (tx) => {
       const [lockedKnowledgeBase] = await tx
@@ -1420,7 +1435,8 @@ export async function executeSync(
         reconciliationHoldNotice,
         contentPass,
         directoryNotice,
-        accessRewriteUnfinished
+        accessRewriteUnfinished,
+        connector
       )
 
       if (!completionLanded) {

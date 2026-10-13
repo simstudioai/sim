@@ -84,19 +84,29 @@ const change = (deploymentVersionId: string): ChangelogChangeInput => ({
 
 describe('A deployment ships in one release', () => {
   beforeAll(async () => {
-    await control`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
-      VALUES (${userId}, 'Changelog fixture', ${`${userId}@example.test`}, true, now(), now())`
-    await control`INSERT INTO workspace (id, name, owner_id, billed_account_user_id)
-      VALUES (${workspaceId}, 'Changelog fixtures', ${userId}, ${userId})`
-    await control`INSERT INTO workflow (id, user_id, workspace_id, name, last_synced, created_at, updated_at)
-      VALUES (${workflowId}, ${userId}, ${workspaceId}, 'Fixture workflow', now(), now(), now())`
+    await control.begin(async (tx) => {
+      await tx`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
+        VALUES (${userId}, 'Changelog fixture', ${`${userId}@example.test`}, true, now(), now())`
+      await tx`INSERT INTO project (id, name, owner_id)
+        VALUES (${workspaceId}, 'Changelog project', ${userId})`
+      await tx`INSERT INTO workspace (id, project_id, name, owner_id, billed_account_user_id)
+        VALUES (${workspaceId}, ${workspaceId}, 'Changelog fixtures', ${userId}, ${userId})`
+      await tx`INSERT INTO workflow (id, user_id, workspace_id, name, last_synced, created_at, updated_at)
+        VALUES (${workflowId}, ${userId}, ${workspaceId}, 'Fixture workflow', now(), now(), now())`
+    })
   })
 
   afterAll(async () => {
-    await control`DELETE FROM changelog_release WHERE workspace_id = ${workspaceId}`
-    await control`DELETE FROM workspace WHERE id = ${workspaceId}`
-    await control`DELETE FROM "user" WHERE id = ${userId}`
-    await control.end()
+    try {
+      await control.begin(async (tx) => {
+        await tx`DELETE FROM changelog_release WHERE workspace_id = ${workspaceId}`
+        await tx`DELETE FROM workspace WHERE id = ${workspaceId}`
+        await tx`DELETE FROM project WHERE id = ${workspaceId} AND owner_id = ${userId}`
+        await tx`DELETE FROM "user" WHERE id = ${userId}`
+      })
+    } finally {
+      await control.end()
+    }
   })
 
   it('rejects a second release claiming a released deployment', async () => {

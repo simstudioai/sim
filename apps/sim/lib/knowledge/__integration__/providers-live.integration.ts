@@ -18,6 +18,7 @@ import {
   workspaceBYOKKeys,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createLogger, LogLevel } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
@@ -107,7 +108,7 @@ describe.skipIf(!credentialsFile)('real embedding and scanned PDF providers', ()
         .from(workspaceFiles)
         .where(eq(workspaceFiles.workspaceId, ids.workspaceId))
       for (const file of files) await deleteFile({ key: file.key, context: 'knowledge-base' })
-      await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }
     if (fixtureStorage.root) await rm(fixtureStorage.root, { recursive: true, force: true })

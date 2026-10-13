@@ -8,6 +8,37 @@ permissions:
   contents: read
 
 jobs:
+  # Which checks a pull request's changes can affect (.github/scripts/ci-changes.sh). A job is
+  # skipped only when the script prints `false` for its flag; an unset flag, and every push or
+  # dispatch (the deploy chain's checks), runs it. Every gated job needs this one, so its failure
+  # skips them and fails `ci` below.
+  changes:
+    name: changes
+    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      full: ${{ github.event_name != 'pull_request' || steps.classify.outputs.full != 'false' }}
+      test: ${{ github.event_name != 'pull_request' || steps.classify.outputs.test != 'false' }}
+      build: ${{ github.event_name != 'pull_request' || steps.classify.outputs.build != 'false' }}
+      desktop_live: ${{ github.event_name != 'pull_request' || steps.classify.outputs.desktop_live != 'false' }}
+    steps:
+      - name: Checkout code (mirror)
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+        with:
+          fetch-depth: 2
+      - name: Checkout code
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 2
+      - name: Classify the pull request's changes
+        id: classify
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: bash .github/scripts/ci-changes.sh "$BASE" >> "$GITHUB_OUTPUT"
+
   integration:
     # Runs the real-infrastructure test layer: every `*.integration.ts` in packages/db and
     # apps/sim, discovered by glob (`vitest run --mode integration`), against the database each
@@ -19,6 +50,8 @@ jobs:
     # shard runs its files one at a time against its own database. Files run serially, so a shard
     # barely uses more than one core: 4 vCPU is enough.
     name: integration (${{ matrix.provision }}, ${{ matrix.shard }}/4)
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: &runner-4vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
@@ -139,12 +172,14 @@ jobs:
   # The suites exercise HTTP behavior rather than a provisioning path, so they run once, against
   # the production (migrate) path. Each group's app environment lives in http-e2e.sh.
   #
-  # SCIM's hosted suites and the mobile browser matrix use 8 vCPU; the other
-  # self-hosted suites fit on 4.
+  # SCIM's hosted suites use 8 vCPU; the other self-hosted suites fit on 4. The mobile browser
+  # suite runs in e2e-mobile below.
   e2e:
     name: e2e (${{ matrix.group }})
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.runner || 'ubuntu-latest' }}
-    timeout-minutes: ${{ matrix.group == 'mobile' && 40 || 20 }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -157,8 +192,6 @@ jobs:
             runner: blacksmith-4vcpu-ubuntu-2404
           - group: desktop-inbox
             runner: blacksmith-4vcpu-ubuntu-2404
-          - group: mobile
-            runner: blacksmith-8vcpu-ubuntu-2404
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -217,39 +250,92 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Pull requests skip the live desktop suite only when every change is clearly unrelated to the
-  # app it drives (docs, other apps, published content). Anything else, and any failure to work
-  # out the diff, runs it: a pull request that skipped it wrongly would first fail on staging.
-  desktop-changes:
-    name: desktop-changes
-    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 5
-    outputs:
-      changed: ${{ github.event_name != 'pull_request' || steps.diff.outputs.changed != 'false' }}
-    steps:
-      - name: Checkout code (mirror)
-        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
-        with:
-          fetch-depth: 2
-      - name: Checkout code
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
-        with:
-          fetch-depth: 2
-      - name: Diff against the pull request's base
-        id: diff
-        if: github.event_name == 'pull_request'
+  # The mobile browser suite against the production build e2e-build uploads, served by
+  # `next start` (http-e2e.sh), one browser per job: Chromium and WebKit no longer run back to
+  # back, and no route waits on a dev compile. Gated like `e2e`, on a build that already ran.
+  #
+  # 8 vCPU: `next start`, Postgres, the realtime server and one Playwright browser would fit a 4
+  # vCPU runner's 16 GB, but the suite is timing-sensitive, and CPU contention between the browser
+  # and the server is what turns a slow tap into a flake.
+  e2e-mobile:
+    name: e2e (mobile, ${{ matrix.browser }})
+    needs: [changes, e2e-build]
+    if: needs.changes.outputs.full == 'true'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: bash .github/scripts/desktop-live-changes.sh "$BASE" >> "$GITHUB_OUTPUT"
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sim_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
+      BETTER_AUTH_SECRET: http-e2e-ci-secret-at-least-32-characters
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+
+    steps:
+      - *checkout-mirror
+      - *checkout-plain
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+
+      - name: Provision the database through migrations
+        working-directory: packages/db
+        run: bun run db:migrate
+
+      - name: Download the production build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: next-build
+          path: ${{ runner.temp }}
+
+      # A hosted build (NEXT_PUBLIC_APP_URL on sim.ai) prerenders every post; the build production
+      # images use prerenders none. The URL itself is no marker: next.config's redirects name
+      # www.sim.ai in every build.
+      - name: Extract the production build
+        run: |
+          tar -I zstd -xf "$RUNNER_TEMP/next-build.tar.zst" -C apps/sim
+          jq -e '[.routes[].srcRoute] | any(. == "/blog/[slug]" or . == "/library/[slug]") | not' \
+            apps/sim/.next/prerender-manifest.json > /dev/null ||
+            { echo "::error::The build prerendered posts (a hosted build) or has no prerender manifest."; exit 1; }
+
+      - name: Run end-to-end suites
+        working-directory: apps/sim
+        env:
+          MOBILE_E2E_BROWSER: ${{ matrix.browser }}
+        run: bash ../../.github/scripts/http-e2e.sh mobile
+
+      - name: Upload end-to-end reports and server logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: http-e2e-mobile-${{ matrix.browser }}
+          path: ${{ runner.temp }}/e2e/
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Desktop tools in the real Electron app against a local app, on its own runner: the
   # Electron app, the dev app and its realtime server together outgrow the e2e runner.
   desktop-live:
     name: desktop-live
-    needs: desktop-changes
-    if: needs.desktop-changes.outputs.changed == 'true'
+    needs: changes
+    if: needs.changes.outputs.desktop_live == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
     services:
@@ -592,6 +678,8 @@ jobs:
   # task hash, so a shard only ever replays its own result.
   test:
     name: test (${{ matrix.shard }}/2)
+    needs: changes
+    if: needs.changes.outputs.test == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     strategy:
@@ -660,6 +748,8 @@ jobs:
   # not the native Turbopack workers that dominate, so it cannot prevent this.
   build:
     name: build
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
     # Build durations crossed 15 minutes as the app grew (10m02 on Jul 29 AM,
     # 14m44 after the folders/desktop/library merges, then two straight
@@ -712,26 +802,88 @@ jobs:
           TURBO_CACHE_DIR: .turbo
         run: bunx turbo run build --filter=@sim/app
 
+  # The production build e2e-mobile serves with `next start`, built in the public-env mode
+  # production images use: NEXT_PUBLIC_APP_URL is docker/app.Dockerfile's localhost default, so
+  # every route is dynamic and NEXT_PUBLIC_* are read at start. (Images run the standalone
+  # DOCKER_BUILD server; this is the plain `next build` output.) The `build` job above keeps the
+  # hosted value, under which `next build` prerenders every post. Gated like `e2e`; its own Turbo
+  # cache key, so the two builds never evict each other's entries. 16 vCPU for the same reason as
+  # `build`: a cold build peaks at 51 GB.
+  e2e-build:
+    name: build (e2e)
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
+    timeout-minutes: 25
+
+    steps:
+      - *checkout-mirror
+      - *checkout-plain
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          turbo-cache-key: turbo-cache-build-e2e
+
+      - name: Check runner memory headroom
+        run: |
+          TOTAL_GB=$(awk '/MemTotal/ {printf "%d", $2/1048576}' /proc/meminfo)
+          echo "Runner memory: ${TOTAL_GB} GB"
+          if [ "$TOTAL_GB" -lt 40 ]; then
+            echo "::warning::Runner has ${TOTAL_GB} GB. A cold-cache build peaks ~51 GB, so this run may be OOM-killed (reported only as 'the runner has received a shutdown signal'). Warm/partial builds should still fit."
+          fi
+
+      - name: Build application
+        env:
+          NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
+          NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
+          DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
+          STRIPE_SECRET_KEY: 'dummy_key_for_ci_only'
+          STRIPE_WEBHOOK_SECRET: 'dummy_secret_for_ci_only'
+          RESEND_API_KEY: 'dummy_key_for_ci_only'
+          AWS_REGION: 'us-west-2'
+          ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
+          TURBO_CACHE_DIR: .turbo
+        run: bunx turbo run build --filter=@sim/app
+
+      # Everything `next start` reads; node_modules and the source tree come from e2e-mobile's own
+      # checkout and setup, at the same workspace path and lockfile.
+      - name: Package the build for e2e-mobile
+        run: >-
+          tar -I 'zstd -T0' -cf "$RUNNER_TEMP/next-build.tar.zst" -C apps/sim
+          --exclude .next/cache --exclude .next/trace .next
+
+      # Already zstd-compressed, so stored without zip compression. `overwrite` lets a re-run of
+      # this job replace the earlier attempt's build; three days covers re-running a failed shard
+      # after a weekend.
+      - name: Upload the build for e2e-mobile
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: next-build
+          path: ${{ runner.temp }}/next-build.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+          retention-days: 3
+
   # One status for every check above: the single check to require on a branch ruleset, so adding,
-  # sharding or renaming a job never means editing the ruleset. Skipped is a pass (the desktop live
-  # suite skips on pull requests that cannot affect it); a failure or a cancellation is not.
+  # sharding or renaming a job never means editing the ruleset. .github/scripts/ci-gate.sh decides:
+  # a skip passes only for a gated job whose `changes` flag is exactly `false`; any other skip (a
+  # failed or skipped `changes`, a lost output, an ungated job) fails, as does a failure or a
+  # cancellation. A failed checkout fails the gate too.
   # `always()`, not `!cancelled()`: a skipped job satisfies a required check, so a gate that skips
   # on a cancelled run would report a cancelled head commit as passing.
   ci:
     name: ci
-    needs: [integration, e2e, desktop-changes, desktop-live, lint, test, build]
+    needs: [changes, integration, e2e, e2e-mobile, desktop-live, lint, test, build, e2e-build]
     if: ${{ always() }}
     runs-on: *runner-2vcpu
     timeout-minutes: 5
     steps:
+      - *checkout-mirror
+      - *checkout-plain
       - name: Require every check to pass
         env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: |
-          failed="$(jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key): \(.value.result)"' <<< "$RESULTS")"
-          if [ -n "$failed" ]; then
-            echo "::error::Checks did not pass:"
-            echo "$failed"
-            exit 1
-          fi
-          echo "All checks passed."
+          NEEDS: ${{ toJSON(needs) }}
+        run: bash .github/scripts/ci-gate.sh

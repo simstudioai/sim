@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import { db } from '@sim/db'
 import { document, knowledgeBase, organization, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -126,7 +127,7 @@ afterAll(async () => {
   if (reportPath) writeFileSync(reportPath, JSON.stringify(reports, null, 2))
   try {
     for (const fixture of [ids, foreign, manyBases]) {
-      await db.delete(workspace).where(eq(workspace.id, fixture.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, fixture.workspaceId))
       await db.delete(organization).where(eq(organization.id, fixture.organizationId))
       await db.delete(user).where(inArray(user.id, [fixture.aliceId, fixture.bobId]))
     }

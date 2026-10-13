@@ -19,6 +19,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -339,7 +340,7 @@ describe('Google Calendar member indexing and authorization in PostgreSQL', () =
           if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
         })
     } finally {
-      await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
       await db.delete(user).where(
         inArray(
           user.id,

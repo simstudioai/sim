@@ -29,11 +29,8 @@ import {
   loadWorkspaceFileTextForPreview,
   type WorkspaceFilePreviewBase,
 } from '@/lib/mothership/tools/server/files/file-preview'
-import {
-  findWorkspaceFileRecord,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
+import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { findActiveWorkspaceFilesByReference } from '@/lib/workspace-files/application/list-workspace-files'
 
 const logger = createLogger('CopilotFilePreviewAdapter')
 
@@ -115,11 +112,12 @@ async function resolvePreviewTarget(args: {
   }
 
   try {
-    const { files } = await executeCopilotFileUseCase(args.context, listAllWorkspaceFiles, {
-      workspaceId: args.workspaceId,
-      scope: 'active',
-    })
-    const file = findWorkspaceFileRecord(files, args.target.path)
+    const { files } = await executeCopilotFileUseCase(
+      args.context,
+      findActiveWorkspaceFilesByReference,
+      { workspaceId: args.workspaceId, references: [args.target.path] }
+    )
+    const file = files.get(args.target.path)
     if (!file) {
       return args.target
     }
