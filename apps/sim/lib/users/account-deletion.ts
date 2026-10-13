@@ -27,7 +27,7 @@ import type {
   AccountDeletionResource,
 } from '@/lib/api/contracts/user'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
-import { invalidateReportingUsagePrefixes } from '@/lib/billing/core/reporting-usage-cache'
+import { invalidateReportingUsagePrefixes } from '@/lib/billing/core/reporting-usage-epoch'
 import {
   acquireOrganizationMutationLock,
   isSoleOwnerOfPaidOrganization,

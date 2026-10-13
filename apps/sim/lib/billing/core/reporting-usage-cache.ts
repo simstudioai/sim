@@ -1,17 +1,23 @@
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateShortId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import type Redis from 'ioredis'
 import { LRUCache } from 'lru-cache'
 import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 import {
+  PREFIX_CUTOFF_LAG_MS,
+  payerPrefixEpochKey,
+  readyRedisClient,
+  SHARED_KEY_VERSION,
+  SHARED_PREFIX_EPOCH_KEY,
+  SHARED_READ_TIMEOUT_MS,
+} from '@/lib/billing/core/reporting-usage-epoch'
+import {
   type BillingEntity,
   getBillingPeriodUsageCost,
   type UsageQueryPeriod,
 } from '@/lib/billing/core/usage-log'
-import { getRedisClient } from '@/lib/core/config/redis'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import type { DbClient } from '@/lib/db/types'
 
@@ -51,15 +57,6 @@ const SHARED_TTL_JITTER_MS = 5_000
  */
 const MIN_SHARED_TTL_MS = 5_000
 
-/**
- * How long a read waits on a connected Redis before summing the ledger instead, so a socket that
- * has silently stopped answering costs one sum rather than the shared client's long timeouts.
- */
-const SHARED_READ_TIMEOUT_MS = 250
-
-/** Bump when a stored sum's meaning changes; old entries are then ignored. */
-const SHARED_KEY_VERSION = 'v1'
-
 /** A usage window known to be an enterprise reporting window — the only kind this cache serves. */
 type ReportingQueryPeriod = UsageQueryPeriod & { source: 'reporting' }
 
@@ -68,25 +65,19 @@ function sharedReportingUsageKey(key: string): string {
 }
 
 /**
- * How far behind the clock a prefix's cutoff sits. A row's `created_at` is its transaction's
- * start on the database clock, so a row stamped just before the cutoff can still be uncommitted
- * when the prefix is read; this lag puts every such row in the tail, which is summed on every
- * refill, rather than in a prefix that would miss it until its next refresh. It also absorbs
- * skew between this process's clock and the database's.
- */
-const PREFIX_CUTOFF_LAG_MS = 5 * 60_000
-
-/**
  * How long after it was read a prefix is summed again, by one process. Until then a refill sums
  * only the rows since the cutoff, so a payer's year-long scan runs about once per this interval
  * instead of once per {@link REPORTING_USAGE_CACHE_TTL_MS} in every process that misses.
  *
  * The prefix freezes the rows before its cutoff, and the ledger only grows (see
- * {@link REPORTING_USAGE_CACHE_TTL_MS}), so prefix plus tail never exceeds the true sum. What it
- * omits until it is read again is a top-up to a row older than the cutoff — a long-running
- * cumulative charge — and a row whose transaction outlived {@link PREFIX_CUTOFF_LAG_MS}, so this
- * interval is the extra lag those writes see. Deleting a user is the one write that lowers the
- * ledger; it discards every prefix through {@link invalidateReportingUsagePrefixes}.
+ * {@link REPORTING_USAGE_CACHE_TTL_MS}), so prefix plus tail never exceeds the true sum. A
+ * top-up to a row old enough to sit in a prefix — a long-running cumulative charge — discards
+ * the payer's prefixes once it commits (`invalidatePayerPrefixesForTopUp`), so the next read
+ * sums the window again and sees it as soon as it would have without the prefix. What a prefix
+ * still omits until it is read again is a row whose transaction outlived
+ * {@link PREFIX_CUTOFF_LAG_MS}, so this interval is the extra lag that rare write sees. Deleting
+ * a user is the one write that lowers the ledger; it discards every prefix through
+ * `invalidateReportingUsagePrefixes`.
  */
 const PREFIX_REFRESH_AFTER_MS = 3 * 60_000
 
@@ -94,8 +85,7 @@ const PREFIX_REFRESH_AFTER_MS = 3 * 60_000
  * The refresh lease is held for as long as one ledger sum may run, so a second process starts
  * the same sum only once the first has certainly ended, and a holder that died frees it then.
  * Nothing tells a stranded lease from a live one, and nothing needs to: while it is held, every
- * other reader serves the stored prefix or, with none, sums the window exactly as it did before
- * the prefix existed.
+ * other reader serves the stored prefix or, with none, sums the whole window.
  */
 const PREFIX_LEASE_MS = USAGE_LEDGER_STATEMENT_TIMEOUT_MS
 
@@ -106,19 +96,18 @@ const PREFIX_LEASE_MS = USAGE_LEDGER_STATEMENT_TIMEOUT_MS
  */
 const PREFIX_RETAIN_MS = PREFIX_REFRESH_AFTER_MS + PREFIX_LEASE_MS
 
-/**
- * How long a bumped prefix epoch is kept. Every prefix written before the bump has expired well
- * before this, so the epoch reading as absent again afterwards cannot revive one.
- */
-const PREFIX_EPOCH_RETAIN_MS = 60 * 60_000
+/** The global and payer prefix epochs current when a prefix was summed; `''` while unset. */
+interface PrefixEpochs {
+  epoch: string
+  payerEpoch: string
+}
 
 /**
- * The window's usage before `cutoff`, as one process summed it under prefix epoch `epoch`.
- * Stored in Redis as `<epoch>:<cutoff ms>:<cost>`, keyed like the full sum, so it only ever
- * serves that payer's same window.
+ * The window's usage before `cutoff`, as one process summed it under the epochs it read first.
+ * Stored in Redis as `<epoch>:<payer epoch>:<cutoff ms>:<cost>`, keyed like the full sum, so it
+ * only ever serves that payer's same window, and only while both epochs are still current.
  */
-interface LedgerPrefix {
-  epoch: string
+interface LedgerPrefix extends PrefixEpochs {
   cutoff: number
   cost: number
 }
@@ -129,24 +118,6 @@ function sharedPrefixKey(key: string): string {
 
 function sharedPrefixLeaseKey(key: string): string {
   return `usage:reporting:${SHARED_KEY_VERSION}:prefix-lease:${key}`
-}
-
-/**
- * One value for every payer: a prefix is served only while the epoch it was summed under is
- * still current, so replacing the epoch discards every stored prefix at once.
- */
-const SHARED_PREFIX_EPOCH_KEY = `usage:reporting:${SHARED_KEY_VERSION}:prefix-epoch`
-
-/**
- * The shared client, only while its connection is ready. A disconnected client parks commands in
- * its offline queue and replays them on reconnect, which would land a stale sum with a fresh
- * expiry, and `NX` would then keep newer sums out; so while it is not ready, no command is issued
- * at all and the ledger answers instead. Trigger.dev's `init` hook warms the connection, so it is
- * ready by the time a task reads.
- */
-function readyRedisClient(): Redis | null {
-  const redis = getRedisClient()
-  return redis?.status === 'ready' ? redis : null
 }
 
 /** A stored cost, or `undefined` unless it is a non-negative number. */
@@ -226,45 +197,45 @@ async function sumReportingUsageCost(
   if (shared !== undefined) return shared
   const sumStartedAt = Date.now()
   const prefix = await resolveLedgerPrefix(key, entity, period)
-  let cost: number
-  if (prefix) {
-    const [prefixCost, tailCost] = await Promise.all([
-      prefix.cost,
-      getBillingPeriodUsageCost(entity, { ...period, start: new Date(prefix.cutoff) }),
-    ])
-    cost = prefixCost + tailCost
-  } else {
-    cost = await getBillingPeriodUsageCost(entity, period)
-  }
+  const [prefixCost, tailCost] = await Promise.all([
+    prefix?.cost ?? 0,
+    getBillingPeriodUsageCost(
+      entity,
+      prefix ? { ...period, start: new Date(prefix.cutoff) } : period
+    ),
+  ])
+  const cost = prefixCost + tailCost
   writeSharedReportingUsageCost(key, cost, sumStartedAt)
   return cost
 }
 
 interface StoredPrefixState {
-  /** The current prefix epoch, `''` while none has been set. */
-  epoch: string
-  /** The stored prefix, when there is one for this window under the current epoch. */
+  /** The epochs current now, which a prefix summed by this read is stored under. */
+  epochs: PrefixEpochs
+  /** The stored prefix, when there is one for this window under both current epochs. */
   prefix: LedgerPrefix | null
 }
 
 /**
- * The stored prefix and the current epoch in one round trip, or `undefined` when Redis did not
+ * The stored prefix and the current epochs in one round trip, or `undefined` when Redis did not
  * answer in time or failed, which ends the prefix path for this read. A prefix summed under an
- * earlier epoch, or that does not fit this window, is no prefix.
+ * earlier global or payer epoch, or that does not fit this window, is no prefix.
  */
 async function readStoredPrefix(
   redis: Redis,
   key: string,
+  entity: BillingEntity,
   period: ReportingQueryPeriod
 ): Promise<StoredPrefixState | undefined> {
   try {
-    const [stored, epoch] = await withinDeadline(
-      () => redis.mget(sharedPrefixKey(key), SHARED_PREFIX_EPOCH_KEY),
+    const [stored, epoch, payerEpoch] = await withinDeadline(
+      () => redis.mget(sharedPrefixKey(key), SHARED_PREFIX_EPOCH_KEY, payerPrefixEpochKey(entity)),
       Date.now() + SHARED_READ_TIMEOUT_MS
     )
-    const current = epoch ?? ''
-    if (!stored) return { epoch: current, prefix: null }
-    const [storedEpoch, cutoffText = '', costText = '', ...rest] = stored.split(':')
+    const epochs: PrefixEpochs = { epoch: epoch ?? '', payerEpoch: payerEpoch ?? '' }
+    if (!stored) return { epochs, prefix: null }
+    const [storedEpoch, storedPayerEpoch, cutoffText = '', costText = '', ...rest] =
+      stored.split(':')
     const cutoff = Number(cutoffText)
     const cost = parseStoredCost(costText)
     if (
@@ -274,13 +245,11 @@ async function readStoredPrefix(
       cutoff < period.end.getTime() &&
       cost !== undefined
     ) {
-      return {
-        epoch: current,
-        prefix: storedEpoch === current ? { epoch: current, cutoff, cost } : null,
-      }
+      const current = storedEpoch === epochs.epoch && storedPayerEpoch === epochs.payerEpoch
+      return { epochs, prefix: current ? { ...epochs, cutoff, cost } : null }
     }
     logger.warn('Discarding unreadable shared reporting usage prefix', { key })
-    return { epoch: current, prefix: null }
+    return { epochs, prefix: null }
   } catch (error) {
     logger.warn('Shared reporting usage prefix read failed; summing the ledger', {
       error: getErrorMessage(error),
@@ -323,7 +292,7 @@ function writeStoredPrefix(key: string, prefix: LedgerPrefix): void {
     redis
       .set(
         sharedPrefixKey(key),
-        `${prefix.epoch}:${prefix.cutoff}:${prefix.cost}`,
+        `${prefix.epoch}:${prefix.payerEpoch}:${prefix.cutoff}:${prefix.cost}`,
         'PX',
         prefix.cutoff + PREFIX_CUTOFF_LAG_MS + PREFIX_RETAIN_MS - Date.now()
       )
@@ -341,10 +310,10 @@ interface ResolvedPrefix {
 
 /**
  * The window's usage before a recent cutoff, shared across processes, or `undefined` to sum the
- * whole window exactly as before: Redis is not ready or failing, the window does not span the
- * cutoff, or no prefix is stored and another process holds the lease. A fresh stored prefix is
- * served as is. Otherwise the process that takes the lease sums a new prefix alongside its tail,
- * and the rest serve the stored one while it does.
+ * whole window: Redis is not ready or failing, the window does not span the cutoff, or no
+ * prefix is stored and another process holds the lease. A fresh stored prefix is served as is.
+ * Otherwise the process that takes the lease sums a new prefix alongside its tail, and the rest
+ * serve the stored one while it does.
  */
 async function resolveLedgerPrefix(
   key: string,
@@ -361,43 +330,21 @@ async function resolveLedgerPrefix(
   const cutoff = Date.now() - PREFIX_CUTOFF_LAG_MS
   if (cutoff <= period.start.getTime() || cutoff >= period.end.getTime()) return undefined
 
-  const state = await readStoredPrefix(redis, key, period)
+  const state = await readStoredPrefix(redis, key, entity, period)
   if (!state) return undefined
-  const { epoch, prefix: stored } = state
+  const { epochs, prefix: stored } = state
   if (stored && cutoff - stored.cutoff < PREFIX_REFRESH_AFTER_MS) return stored
 
   if (await acquirePrefixLease(redis, key)) {
     const cost = getBillingPeriodUsageCost(entity, { ...period, end: new Date(cutoff) }).then(
       (prefixCost) => {
-        writeStoredPrefix(key, { epoch, cutoff, cost: prefixCost })
+        writeStoredPrefix(key, { ...epochs, cutoff, cost: prefixCost })
         return prefixCost
       }
     )
     return { cutoff, cost }
   }
   return stored ?? undefined
-}
-
-/**
- * Discards every stored prefix, for a write that removes ledger rows — a user's deletion, whose
- * rows cascade away. Call it once that write has committed: a refresh that read the old epoch
- * stores its prefix under it, where nothing reads it, and one that reads the new epoch sums after
- * the deletion. Best effort: without a ready Redis there is no prefix to discard, and a failed
- * bump leaves the deleted usage counted for at most {@link PREFIX_RETAIN_MS}.
- */
-export async function invalidateReportingUsagePrefixes(): Promise<void> {
-  try {
-    const redis = readyRedisClient()
-    if (!redis) return
-    await withinDeadline(
-      () => redis.set(SHARED_PREFIX_EPOCH_KEY, generateShortId(), 'PX', PREFIX_EPOCH_RETAIN_MS),
-      Date.now() + SHARED_READ_TIMEOUT_MS
-    )
-  } catch (error) {
-    logger.warn('Shared reporting usage prefix invalidation failed', {
-      error: getErrorMessage(error),
-    })
-  }
 }
 
 /**
@@ -452,8 +399,8 @@ async function readCachedReportingUsageCost(
  * notification that tolerates the cache's bounded under-count. Enterprise reporting windows are
  * served from the shared cache, within the lag {@link REPORTING_USAGE_CACHE_TTL_MS} and
  * {@link PREFIX_REFRESH_AFTER_MS} describe, since their year-long sum is the expensive one; every
- * other period is summed exactly, as before. A read on a caller's own executor (a transaction or a replica) keeps its own snapshot
- * and is never shared.
+ * other period is summed exactly. A read on a caller's own executor (a transaction or a replica)
+ * keeps its own snapshot and is never shared.
  * Never use it for invoicing, cycle close, an edge-triggered decision, or a read that must see its
  * own write.
  */

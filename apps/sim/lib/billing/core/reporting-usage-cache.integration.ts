@@ -40,11 +40,17 @@ import {
   REPORTING_USAGE_CACHE_TTL_MS,
   readSoftGateUsageCost,
 } from '@/lib/billing/core/reporting-usage-cache'
-import type { BillingEntity, UsageQueryPeriod } from '@/lib/billing/core/usage-log'
+import { invalidateReportingUsagePrefixes } from '@/lib/billing/core/reporting-usage-epoch'
+import {
+  type BillingEntity,
+  type RecordCumulativeUsageParams,
+  recordCumulativeUsage,
+  type UsageQueryPeriod,
+} from '@/lib/billing/core/usage-log'
 
 const schemaName = `reporting_usage_${generateId().replaceAll('-', '')}`
 const connection = postgres(databaseUrl, {
-  max: 2,
+  max: 4,
   prepare: false,
   connection: { search_path: schemaName },
   onnotice: () => undefined,
@@ -82,6 +88,10 @@ function prefixLeaseKey(payer: BillingEntity, period: UsageQueryPeriod): string 
   return `usage:reporting:v1:prefix-lease:${windowKey(payer, period)}`
 }
 
+function payerEpochKey(payer: BillingEntity): string {
+  return `usage:reporting:v1:prefix-epoch:${payer.type}:${payer.id}`
+}
+
 type ReportingUsageCacheModule = typeof import('@/lib/billing/core/reporting-usage-cache')
 
 /** Fresh module instances, so each in-process cache is cold, as in a new process. */
@@ -111,6 +121,36 @@ async function insertUsage(payer: BillingEntity, cost: number, createdAt: Date):
   return id
 }
 
+function cumulativeCharge(
+  payer: BillingEntity,
+  eventKey: string,
+  cost: number
+): RecordCumulativeUsageParams {
+  return {
+    userId: 'actor',
+    workspaceId: 'workspace',
+    billingEntity: payer,
+    billingPeriod: { start: REPORTING.start, end: REPORTING.end },
+    source: 'workspace-chat',
+    model: 'test-model',
+    eventKey,
+    cost,
+  }
+}
+
+/** A cumulative charge whose row was first written at `createdAt`. */
+async function startCumulativeCharge(
+  payer: BillingEntity,
+  cost: number,
+  createdAt: Date
+): Promise<string> {
+  const eventKey = `update-cost:${generateId()}`
+  await recordCumulativeUsage(cumulativeCharge(payer, eventKey, cost))
+  await connection`UPDATE usage_log SET created_at = ${createdAt.toISOString()}
+    WHERE event_key = ${eventKey}`
+  return eventKey
+}
+
 async function exactSum(payer: BillingEntity, period: UsageQueryPeriod): Promise<number> {
   const [row] = await connection<{ cost: string }[]>`SELECT COALESCE(SUM(cost), 0) AS cost
     FROM usage_log WHERE billing_entity_type = ${payer.type} AND billing_entity_id = ${payer.id}
@@ -122,15 +162,23 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
   let redis: Redis
   let payer: BillingEntity
 
+  async function prefixStored(payer: BillingEntity, period: UsageQueryPeriod): Promise<void> {
+    await vi.waitFor(async () => expect(await redis.exists(prefixKey(payer, period))).toBe(1))
+  }
+
   beforeAll(async () => {
     redis = new Redis(redisUrl!, { lazyConnect: true, maxRetriesPerRequest: 0 })
     await redis.connect()
     await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
     await connection.unsafe(`CREATE TABLE usage_log (
-      id text PRIMARY KEY, cost numeric NOT NULL, billing_entity_type text,
+      id text PRIMARY KEY, user_id text, category text, source text, description text,
+      metadata jsonb, cost numeric NOT NULL, event_key text, billing_entity_type text,
       billing_entity_id text, billing_period_start timestamp, billing_period_end timestamp,
-      created_at timestamp NOT NULL
-    )`)
+      workspace_id text, workflow_id text, execution_id text,
+      created_at timestamp NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX usage_log_event_key_unique ON usage_log(event_key)
+    WHERE event_key IS NOT NULL`)
     transaction.mockImplementation((callback) => database.transaction(callback))
   })
 
@@ -153,6 +201,7 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
         prefixKey(payer, period),
         prefixLeaseKey(payer, period),
       ]),
+      payerEpochKey(payer),
       'usage:reporting:v1:prefix-epoch'
     )
   })
@@ -228,7 +277,7 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     expect(await redis.get(sharedKey(payer))).toBe('9.99')
   })
 
-  it('sums the whole window once, and stores nothing, when Redis is absent', async () => {
+  it('sums the whole window in one query when Redis is absent', async () => {
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
     const period = openReportingWindow()
     await insertUsage(payer, 2, new Date(period.start.getTime() + DAY_MS))
@@ -236,7 +285,6 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
 
     await expect(readInNewProcess(payer, period)).resolves.toBe(5)
     expect(summedPeriods).toEqual([period])
-    expect(await redis.exists(sharedKey(payer, period), prefixKey(payer, period))).toBe(0)
   })
 
   it('leases a due refresh to one of the processes missing together', async () => {
@@ -264,7 +312,7 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     const period = openReportingWindow()
     await insertUsage(payer, 2, new Date(period.start.getTime() + DAY_MS))
     await insertUsage(payer, 3, new Date(Date.now() - MINUTE_MS))
-    await redis.set(prefixLeaseKey(payer, period), '1', 'PX', 60_000)
+    await redis.set(prefixLeaseKey(payer, period), '1', 'PX', MINUTE_MS)
     const [cache] = await newProcesses(1)
 
     const startedAt = performance.now()
@@ -308,16 +356,74 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     expect(windowStartSums(period)).toHaveLength(2)
   })
 
-  it('never reads above the ledger once a deleted member’s rows cascade away', async () => {
+  it('never reads above the ledger after ledger rows are deleted and prefixes are invalidated', async () => {
     const period = openReportingWindow()
     await insertUsage(payer, 2, new Date(period.start.getTime() + DAY_MS))
     const departedRow = await insertUsage(payer, 6, new Date(period.start.getTime() + 2 * DAY_MS))
     await insertUsage(payer, 3, new Date(Date.now() - MINUTE_MS))
     await expect(readInNewProcess(payer, period)).resolves.toBe(11)
+    await prefixStored(payer, period)
 
     await connection`DELETE FROM usage_log WHERE id = ${departedRow}`
-    const [deleting] = await newProcesses(1)
-    await deleting.invalidateReportingUsagePrefixes()
+    await invalidateReportingUsagePrefixes()
+    await redis.del(sharedKey(payer, period))
+
+    await expect(readInNewProcess(payer, period)).resolves.toBe(await exactSum(payer, period))
+  })
+
+  it('sees a top-up to a row inside the stored prefix on the next read', async () => {
+    const period = openReportingWindow()
+    await insertUsage(payer, 3, new Date(Date.now() - MINUTE_MS))
+    const eventKey = await startCumulativeCharge(
+      payer,
+      2,
+      new Date(period.start.getTime() + DAY_MS)
+    )
+    await expect(readInNewProcess(payer, period)).resolves.toBe(5)
+    await prefixStored(payer, period)
+
+    await recordCumulativeUsage(cumulativeCharge(payer, eventKey, 6))
+    await vi.waitFor(async () => expect(await redis.exists(payerEpochKey(payer))).toBe(1))
+    await redis.del(sharedKey(payer, period))
+
+    await expect(readInNewProcess(payer, period)).resolves.toBe(9)
+    expect(await exactSum(payer, period)).toBe(9)
+  })
+
+  it('leaves the prefix in place for a top-up to a row still in the tail, and reads it exactly', async () => {
+    const period = openReportingWindow()
+    await insertUsage(payer, 2, new Date(period.start.getTime() + DAY_MS))
+    const eventKey = await startCumulativeCharge(payer, 3, new Date(Date.now() - MINUTE_MS))
+    await expect(readInNewProcess(payer, period)).resolves.toBe(5)
+    await prefixStored(payer, period)
+
+    await recordCumulativeUsage(cumulativeCharge(payer, eventKey, 7))
+    await redis.del(sharedKey(payer, period))
+
+    await expect(readInNewProcess(payer, period)).resolves.toBe(9)
+    expect(await redis.exists(payerEpochKey(payer))).toBe(0)
+    expect(windowStartSums(period)).toHaveLength(1)
+  })
+
+  it('never over-counts a top-up that commits while a prefix refresh sums', async () => {
+    const period = openReportingWindow()
+    await insertUsage(payer, 3, new Date(Date.now() - MINUTE_MS))
+    const eventKey = await startCumulativeCharge(
+      payer,
+      2,
+      new Date(period.start.getTime() + DAY_MS)
+    )
+    const [refreshing] = await newProcesses(1)
+    transaction.mockImplementationOnce(async (callback) => {
+      const result = await database.transaction(callback)
+      await recordCumulativeUsage(cumulativeCharge(payer, eventKey, 6))
+      return result
+    })
+
+    const served = await refreshing.readSoftGateUsageCost(payer, period)
+    expect(served).toBeLessThanOrEqual(await exactSum(payer, period))
+    await prefixStored(payer, period)
+    await vi.waitFor(async () => expect(await redis.exists(payerEpochKey(payer))).toBe(1))
     await redis.del(sharedKey(payer, period))
 
     await expect(readInNewProcess(payer, period)).resolves.toBe(await exactSum(payer, period))
@@ -328,8 +434,8 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     await insertUsage(payer, 2, new Date(period.start.getTime() + DAY_MS))
     await insertUsage(payer, 3, new Date(Date.now() - MINUTE_MS))
     const staleCutoff = Date.now() - 10 * MINUTE_MS
-    await redis.set(prefixKey(payer, period), `:${staleCutoff}:7`, 'PX', 60_000)
-    await redis.set(prefixLeaseKey(payer, period), '1', 'PX', 60_000)
+    await redis.set(prefixKey(payer, period), `::${staleCutoff}:7`, 'PX', MINUTE_MS)
+    await redis.set(prefixLeaseKey(payer, period), '1', 'PX', MINUTE_MS)
 
     await expect(readInNewProcess(payer, period)).resolves.toBe(10)
     expect(windowStartSums(period)).toHaveLength(0)
