@@ -215,7 +215,8 @@ describe('batched document reads', () => {
     mocks.liveRead.mockImplementation(async ({ input }: { input: { documentId: string } }) => {
       inFlight++
       peak = Math.max(peak, inFlight)
-      await Promise.resolve()
+      const laterFinishesFirst = 10 - Number(input.documentId.slice('doc-'.length))
+      for (let tick = 0; tick < laterFinishesFirst; tick++) await Promise.resolve()
       inFlight--
       return readResult(input.documentId)
     })
