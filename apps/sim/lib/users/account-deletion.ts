@@ -789,8 +789,26 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
         .orderBy(asc(workspaceTable.id))
         .for('update')
     }
-    /** Blocks new user FK references through retention discovery, run cancellation, and deletion. */
-    await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update')
+    /**
+     * An admitted insert may hold the user FK lock while waiting for a workspace above.
+     * Never wait in that cycle: refuse erasure atomically so the writer can finish. Keep
+     * the barrier through retention discovery, run cancellation, and deletion once acquired.
+     */
+    try {
+      await tx
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.id, userId))
+        .for('update', { noWait: true })
+    } catch (error) {
+      if (getPostgresErrorCode(error) !== '55P03') throw error
+      throw new AccountDeletionBlockedError([
+        {
+          code: 'shared_workspace',
+          message: 'Your account is in use by another operation. Nothing was changed — try again.',
+        },
+      ])
+    }
     /** Discovery preceded the barrier: refuse new scopes instead of acquiring locks out of order. */
     const currentWorkspaceIds = [
       ...(await loadRelatedWorkspaces(userId, tx)).map((row) => row.id),

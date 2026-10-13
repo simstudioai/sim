@@ -378,6 +378,30 @@ try {
       await readVersionBytes(2, 'survivor writes', implicitFileId)
     }
   )
+  await check(
+    'An in-flight account reference refuses erasure atomically with HTTP 409',
+    async () => {
+      await sql.begin(async (tx) => {
+        await tx`SELECT id FROM "user" WHERE id = ${departingId} FOR KEY SHARE`
+        const response = await request(
+          departingId,
+          '/api/users/me/deletion',
+          'POST',
+          {
+            confirmEmail: `${departingId}@example.test`,
+          },
+          409
+        )
+        assert.match(String(response.error), /in use/)
+        assert.equal((await tx`SELECT id FROM "user" WHERE id = ${departingId}`).length, 1)
+        assert.equal((await tx`SELECT id FROM workspace WHERE id = ${workspaceId}`).length, 1)
+        assert.deepEqual(
+          await tx`SELECT id, author_user_ids FROM workspace_file_version WHERE file_id = ${fileId} ORDER BY version`,
+          versionsBefore
+        )
+      })
+    }
+  )
   await check('Delete departed account through authenticated HTTP', async () => {
     await request(departingId, '/api/users/me/deletion', 'POST', {
       confirmEmail: `${departingId}@example.test`,

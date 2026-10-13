@@ -432,6 +432,134 @@ describe('shared resource retention across workspace departure and account erasu
     }
   )
 
+  it.each([
+    ['shared', 'user'],
+    ['shared', 'workspace'],
+    ['private', 'user'],
+    ['private', 'workspace'],
+  ] as const)(
+    'handles an admitted create in a %s workspace with its %s FK lock acquired first',
+    async (scope, first) => {
+      const fixture = await seedResources(false, false)
+      if (scope === 'private') {
+        await db.delete(permissions).where(eq(permissions.entityId, fixture.workspaceId))
+        await db
+          .update(workspace)
+          .set({ ownerId: fixture.departingId, billedAccountUserId: fixture.departingId })
+          .where(eq(workspace.id, fixture.workspaceId))
+      }
+      const kbId = generateId()
+      const ready = createDeferred<number>()
+      const release = createDeferred<void>()
+      const creating = db.transaction(async (tx) => {
+        /** Pause between FK checks to exercise both orders independently of constraint trigger names. */
+        if (first === 'user') {
+          await tx
+            .select({ id: user.id })
+            .from(user)
+            .where(eq(user.id, fixture.departingId))
+            .for('key share')
+        } else {
+          await tx
+            .select({ id: workspace.id })
+            .from(workspace)
+            .where(eq(workspace.id, fixture.workspaceId))
+            .for('key share')
+        }
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        ready.resolve(connection.pid)
+        await release.promise
+        await tx.insert(knowledgeBase).values({
+          id: kbId,
+          name: 'Admitted knowledge base',
+          userId: fixture.departingId,
+          workspaceId: fixture.workspaceId,
+        })
+      })
+      const creatorPid = await ready.promise
+      let settled = false
+      const deleting = Promise.allSettled([deleteUserAccount(fixture.departingId)]).then(
+        (results) => {
+          settled = true
+          return results
+        }
+      )
+      const created = Promise.allSettled([creating])
+      try {
+        await expect
+          .poll(
+            async () =>
+              settled ||
+              (
+                await db.execute(
+                  sql`SELECT pid FROM pg_stat_activity WHERE ${creatorPid} = ANY(pg_blocking_pids(pid))`
+                )
+              ).length > 0,
+            { timeout: 5000 }
+          )
+          .toBe(true)
+      } finally {
+        release.resolve()
+      }
+      expect((await created).filter((result) => result.status === 'rejected')).toEqual([])
+      const result = await deleting
+      if (first === 'user') {
+        expect(result).toMatchObject([
+          {
+            status: 'rejected',
+            reason: {
+              name: 'AccountDeletionBlockedError',
+              message: expect.stringContaining('in use'),
+            },
+          },
+        ])
+        expect(
+          await db.select({ id: user.id }).from(user).where(eq(user.id, fixture.departingId))
+        ).toEqual([{ id: fixture.departingId }])
+        expect(
+          await db
+            .select({ id: workspace.id })
+            .from(workspace)
+            .where(eq(workspace.id, fixture.workspaceId))
+        ).toEqual([{ id: fixture.workspaceId }])
+        expect(
+          await db
+            .select({ userId: knowledgeBase.userId })
+            .from(knowledgeBase)
+            .where(eq(knowledgeBase.id, kbId))
+        ).toEqual([{ userId: fixture.departingId }])
+        await deleteUserAccount(fixture.departingId)
+      } else {
+        expect(result.filter((entry) => entry.status === 'rejected')).toEqual([])
+      }
+      if (scope === 'shared') {
+        await assertRetained(fixture)
+        expect(
+          await db
+            .select({ userId: knowledgeBase.userId })
+            .from(knowledgeBase)
+            .where(eq(knowledgeBase.id, kbId))
+        ).toEqual([{ userId: fixture.ownerId }])
+      } else {
+        expect(
+          await db
+            .select({ id: workspace.id })
+            .from(workspace)
+            .where(eq(workspace.id, fixture.workspaceId))
+        ).toEqual([])
+        expect(
+          await db
+            .select({ id: knowledgeBase.id })
+            .from(knowledgeBase)
+            .where(eq(knowledgeBase.id, kbId))
+        ).toEqual([])
+        expect(
+          await db.select({ id: user.id }).from(user).where(eq(user.id, fixture.departingId))
+        ).toEqual([])
+      }
+    }
+  )
+
   it('retains a workflow created while account deletion waits for its workspace', async () => {
     const fixture = await seedResources(false, false)
     const workflowId = generateId()
@@ -918,7 +1046,15 @@ describe('shared resource retention across workspace departure and account erasu
       const ready = createDeferred<number>()
       const activate = createDeferred<void>()
       const change = db.transaction(async (tx) => {
-        await tx.select().from(user).where(eq(user.id, fixture.departingId)).for('update')
+        if (kind === 'public server') {
+          await tx
+            .select()
+            .from(workflowMcpServer)
+            .where(eq(workflowMcpServer.id, dependencyId))
+            .for('update')
+        } else {
+          await tx.select().from(apiKey).where(eq(apiKey.id, dependencyId)).for('update')
+        }
         const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
         ready.resolve(connection.pid)
         await activate.promise
