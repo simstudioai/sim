@@ -263,6 +263,15 @@ async function seed(): Promise<string> {
   return encodeURIComponent(`${sessionToken}.${await makeSignature(sessionToken, authSecret)}`)
 }
 
+/**
+ * The rendered workspace content shell. While a streamed page is still arriving, React parks the
+ * next segment's markup, shell included, in a hidden `<div id="S:n">` until it swaps it in, so the
+ * class alone can match a second, hidden copy.
+ */
+function contentShell(page: Page): Locator {
+  return page.locator('.workspace-content-shell').filter({ visible: true })
+}
+
 async function visit(page: Page, route: string) {
   const path = `/workspace/${workspaceId}/${route}`
   const [response] = await Promise.all([
@@ -280,7 +289,7 @@ async function visit(page: Page, route: string) {
     new URL(page.url()).pathname.startsWith(`/workspace/${workspaceId}/`),
     'Session was rejected'
   )
-  await expect(page.locator('.workspace-content-shell')).toBeVisible()
+  await expect(contentShell(page)).toBeVisible()
   await expect(page.getByText('Application error', { exact: false })).toHaveCount(0)
   const contentByRoute: Record<string, Locator> = {
     home: page.getByRole('textbox', { name: 'Message', exact: true }),
@@ -337,7 +346,7 @@ async function expectNoOverflow(page: Page) {
       }
     )
     .toBeLessThanOrEqual(1)
-  const shell = await page.locator('.workspace-content-shell').boundingBox()
+  const shell = await contentShell(page).boundingBox()
   assert(shell && shell.width > 0 && shell.x >= -1, 'The content must have usable horizontal space')
   assert(
     shell.x + shell.width <= (page.viewportSize()?.width ?? 0) + 1,
@@ -717,7 +726,7 @@ async function exerciseViewport(
             timeout: 120_000,
           })
           await expect(sidebar).toBeHidden()
-          await expect(page.locator('.workspace-content-shell')).toBeVisible()
+          await expect(contentShell(page)).toBeVisible()
           await expect(
             page.getByRole('button', { name: `Actions for ${folderName}`, exact: true })
           ).toBeVisible({ timeout: 120_000 })
@@ -1100,61 +1109,59 @@ async function exerciseViewport(
           await expectNoOverflow(page)
         }
       )
-      if (viewport.name !== 'tablet') {
-        await check(`${prefix}/workflow controls open and return to the canvas`, page, async () => {
-          await visit(page, `w/${workflowId}`)
-          await expect(page.locator('.react-flow')).toBeVisible({ timeout: 120_000 })
-          const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
-          await expect(panel).toBeHidden()
-          await capture(page, `${browserName}-${viewport.name}-workflow-canvas`)
-          await page.getByRole('button', { name: 'Workflow', exact: true }).tap()
-          await expectContained(page, panel)
-          await capture(page, `${browserName}-${viewport.name}-workflow-panel`)
-          await page.getByRole('button', { name: 'Back to canvas', exact: true }).tap()
-          await expect(panel).toBeHidden()
+      await check(`${prefix}/workflow controls open and return to the canvas`, page, async () => {
+        await visit(page, `w/${workflowId}`)
+        await expect(page.locator('.react-flow')).toBeVisible({ timeout: 120_000 })
+        const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
+        await expect(panel).toBeHidden()
+        await capture(page, `${browserName}-${viewport.name}-workflow-canvas`)
+        await page.getByRole('button', { name: 'Workflow', exact: true }).tap()
+        await expectContained(page, panel)
+        await capture(page, `${browserName}-${viewport.name}-workflow-panel`)
+        await page.getByRole('button', { name: 'Back to canvas', exact: true }).tap()
+        await expect(panel).toBeHidden()
+        await expect
+          .poll(async () => {
+            const canvas = await page.locator('.react-flow').boundingBox()
+            const content = await contentShell(page).boundingBox()
+            return canvas && content ? canvas.width / content.width : 0
+          })
+          .toBeGreaterThan(0.95)
+        if (viewport.name === 'phone') {
+          await sql`update workflow set locked = true where id = ${workflowId}`
+          await withDocumentNavigation(page, page.url(), () =>
+            page.reload({ waitUntil: 'commit', timeout: 360_000 })
+          )
+          const notifications = page.getByLabel('Notifications', { exact: true })
+          await expect(notifications).toContainText('This workflow is locked', {
+            timeout: 120_000,
+          })
+          await expectContained(page, notifications)
+          const unlock = notifications.getByRole('button', {
+            name: 'Unlock Workflow',
+            exact: true,
+          })
+          await expectContained(page, unlock)
+          await capture(page, `${browserName}-phone-workflow-notification`)
+          const [unlocked] = await Promise.all([
+            page.waitForResponse(
+              (response) =>
+                response.request().method() === 'PUT' &&
+                new URL(response.url()).pathname === `/api/workflows/${workflowId}`,
+              { timeout: 120_000 }
+            ),
+            unlock.tap(),
+          ])
+          assert.equal(unlocked.status(), 200, 'Unlocking the workflow must succeed over HTTP')
           await expect
             .poll(async () => {
-              const canvas = await page.locator('.react-flow').boundingBox()
-              const content = await page.locator('.workspace-content-shell').boundingBox()
-              return canvas && content ? canvas.width / content.width : 0
+              const rows = await sql`select locked from workflow where id = ${workflowId}`
+              return rows[0]?.locked
             })
-            .toBeGreaterThan(0.95)
-          if (viewport.name === 'phone') {
-            await sql`update workflow set locked = true where id = ${workflowId}`
-            await withDocumentNavigation(page, page.url(), () =>
-              page.reload({ waitUntil: 'commit', timeout: 360_000 })
-            )
-            const notifications = page.getByLabel('Notifications', { exact: true })
-            await expect(notifications).toContainText('This workflow is locked', {
-              timeout: 120_000,
-            })
-            await expectContained(page, notifications)
-            const unlock = notifications.getByRole('button', {
-              name: 'Unlock Workflow',
-              exact: true,
-            })
-            await expectContained(page, unlock)
-            await capture(page, `${browserName}-phone-workflow-notification`)
-            const [unlocked] = await Promise.all([
-              page.waitForResponse(
-                (response) =>
-                  response.request().method() === 'PUT' &&
-                  new URL(response.url()).pathname === `/api/workflows/${workflowId}`,
-                { timeout: 120_000 }
-              ),
-              unlock.tap(),
-            ])
-            assert.equal(unlocked.status(), 200, 'Unlocking the workflow must succeed over HTTP')
-            await expect
-              .poll(async () => {
-                const rows = await sql`select locked from workflow where id = ${workflowId}`
-                return rows[0]?.locked
-              })
-              .toBe(false)
-          }
-          await expectNoOverflow(page)
-        })
-      }
+            .toBe(false)
+        }
+        await expectNoOverflow(page)
+      })
     }
   } finally {
     documentNavigations.delete(page)
