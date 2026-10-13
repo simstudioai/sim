@@ -245,3 +245,56 @@ describe('Jira any-term search', () => {
     expect(page.documents.map((document) => document.id)).toEqual(['5'])
   })
 })
+
+describe('Confluence plain search ranking', () => {
+  const search = '/ex/confluence/cloud/wiki/rest/api/search'
+  /** Answers the all-terms query with `exact` and the relevance query with `ranked`. */
+  function confluence(exact: { ids: string[]; more: boolean }, ranked: string[]) {
+    const results = (ids: string[]) =>
+      ids.map((id) => ({ content: { id, type: 'page', title: id } }))
+    const json = vi.fn(async (path: string, options?: { query?: Record<string, string> }) => {
+      if (path === '/oauth/token/accessible-resources') return [SITE]
+      if (path !== search) throw new Error(`Unexpected request: ${path}`)
+      if (options?.query?.cql?.includes('siteSearch ~'))
+        return { results: results(ranked), _links: {} }
+      return {
+        results: results(exact.ids),
+        _links: exact.more ? { next: `${search}?cursor=page-2` } : {},
+      }
+    })
+    return { json, text: vi.fn(), bytes: vi.fn() } satisfies NativeClient
+  }
+  const query = { query: 'merge train service', limit: 2, scopes: [] }
+
+  it('ranks an all-terms match too large for one page with relevance search', async () => {
+    const api = confluence({ ids: ['old-1', 'old-2'], more: true }, ['best', 'next'])
+    const page = await searchAtlassian(api, 'confluence', query)
+    expect(page.documents.map((document) => document.id)).toEqual(['best', 'next'])
+    expect(page.hasMore).toBe(true)
+    expect(page.nextCursor).toBeUndefined()
+  })
+
+  it('keeps an all-terms match that fits on one page', async () => {
+    const api = confluence({ ids: ['exact'], more: false }, ['loose'])
+    const page = await searchAtlassian(api, 'confluence', query)
+    expect(page.documents.map((document) => document.id)).toEqual(['exact'])
+    expect(api.json).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps date order and native queries on the all-terms page', async () => {
+    const dated = confluence({ ids: ['newest', 'older'], more: true }, ['best'])
+    const byDate = await searchAtlassian(dated, 'confluence', {
+      ...query,
+      filters: { sortBy: 'newest' },
+    })
+    expect(byDate.documents.map((document) => document.id)).toEqual(['newest', 'older'])
+    expect(byDate.nextCursor).toBe('page-2')
+    const native = confluence({ ids: ['a', 'b'], more: true }, ['best'])
+    const own = await searchAtlassian(native, 'confluence', {
+      ...query,
+      native: { provider: 'confluence', query: 'text ~ "merge train"' },
+    })
+    expect(own.documents.map((document) => document.id)).toEqual(['a', 'b'])
+    expect(own.nextCursor).toBe('page-2')
+  })
+})

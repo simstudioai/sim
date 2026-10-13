@@ -193,33 +193,46 @@ export async function searchAtlassian(
           next: string(data.nextPageToken) || undefined,
         }
       }
-      const data = object(
-        await client.json(`/ex/confluence/${segment(cloudId)}/wiki/rest/api/search`, {
-          query: {
-            cql: scopeAtlassianQuery(
-              input.native?.query ||
-                `type IN (page, blogpost)${text ? ` AND ${confluenceTextClause(text, input.textMatch)}` : ''}`,
-              scope,
-              order
-            ),
-            limit: String(input.limit),
-            expand: 'content.version,content.space',
-            ...(input.native?.cursor && single ? { cursor: input.native.cursor } : {}),
-          },
-          signal: input.signal,
-        })
+      const searchPages = async (clause: string, cursor?: string) => {
+        const data = object(
+          await client.json(`/ex/confluence/${segment(cloudId)}/wiki/rest/api/search`, {
+            query: {
+              cql: scopeAtlassianQuery(
+                input.native?.query || `type IN (page, blogpost)${clause ? ` AND ${clause}` : ''}`,
+                scope,
+                order
+              ),
+              limit: String(input.limit),
+              expand: 'content.version,content.space',
+              ...(cursor ? { cursor } : {}),
+            },
+            signal: input.signal,
+          })
+        )
+        const next = string(object(data._links).next)
+        const rows = array(data.results)
+        const documents = rows
+          .map((row) => page(row, cloudId, origin))
+          .filter((document) => document !== undefined)
+        return {
+          documents,
+          excluded: documents.length < rows.length,
+          next: next
+            ? (new URL(next, 'https://api.atlassian.com').searchParams.get('cursor') ?? undefined)
+            : undefined,
+          relevanceRanked: false,
+        }
+      }
+      const exact = await searchPages(
+        text ? confluenceTextClause(text, input.textMatch) : '',
+        input.native?.cursor && single ? input.native.cursor : undefined
       )
-      const next = string(object(data._links).next)
-      const rows = array(data.results)
-      const documents = rows
-        .map((row) => page(row, cloudId, origin))
-        .filter((document) => document !== undefined)
+      // An all-terms match larger than a page comes back by raw term matches; rank it by relevance.
+      if (!text || input.native || order || input.textMatch === 'any' || !exact.next) return exact
       return {
-        documents,
-        excluded: documents.length < rows.length,
-        next: next
-          ? (new URL(next, 'https://api.atlassian.com').searchParams.get('cursor') ?? undefined)
-          : undefined,
+        ...(await searchPages(confluenceTextClause(text, 'any'))),
+        next: undefined,
+        relevanceRanked: true,
       }
     })
   )
@@ -228,12 +241,15 @@ export async function searchAtlassian(
   return {
     documents,
     partial: excluded || (!input.native?.project && allSites.length > selected.length),
-    hasMore: pages.some((result) => Boolean(result.next)),
+    hasMore: pages.some((result) => Boolean(result.next) || result.relevanceRanked),
     nextCursor: single ? pages[0]?.next : undefined,
     message:
       'Searches up to four accessible Atlassian sites. For a specific site and pagination, set project to its cloud ID.' +
       (excluded
         ? ' Matches other than pages, blog posts, and spaces (attachments, comments, whiteboards, folders, databases) were excluded because they cannot be read.'
+        : '') +
+      (pages.some((result) => result.relevanceRanked)
+        ? ' More pages contained every word than fit on one page, so this page is ordered by Confluence relevance search; refine the query, or page with a native CQL query.'
         : ''),
   }
 }
