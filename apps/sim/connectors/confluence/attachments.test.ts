@@ -16,8 +16,9 @@ vi.mock('@/lib/knowledge/documents/secure-fetch.server', async (importOriginal) 
 }))
 
 const CONFIG = { domain: 'example.atlassian.net', spaceKey: 'ENG' }
+const IMAGES_ON = { ...CONFIG, imageAttachments: 'semantic' }
 const CONTEXT = { cloudId: 'cloud', spaceId: '1' }
-const INPUT = { accessToken: 'token', cloudId: 'cloud', domain: CONFIG.domain }
+const INPUT = { accessToken: 'token', cloudId: 'cloud', domain: CONFIG.domain, includeImages: true }
 const fetchMock = vi.fn<typeof fetch>()
 
 function file(overrides: Record<string, unknown> = {}) {
@@ -84,7 +85,10 @@ function fixture(attachment = file()) {
   })
 }
 
-async function get(externalId = 'attachment:page:p1:att123', config = CONFIG) {
+async function get(
+  externalId = 'attachment:page:p1:att123',
+  config: Record<string, unknown> = CONFIG
+) {
   return confluenceConnector.getDocument('token', config, externalId, { ...CONTEXT })
 }
 
@@ -401,6 +405,102 @@ describe('Confluence attachment listing', () => {
         listParents: async () => ({ documents: [parent()], hasMore: false }),
       })
     ).rejects.toThrow()
+  })
+})
+
+describe('Confluence image attachments', () => {
+  async function listOne(attachment: Record<string, unknown>) {
+    fetchMock.mockResolvedValue(Response.json({ results: [attachment] }))
+    const result = await listConfluenceAttachments({
+      ...INPUT,
+      listParents: async () => ({ documents: [parent()], hasMore: false }),
+    })
+    return result.documents.slice(1)
+  }
+
+  it.each([
+    { title: 'Quarterly schedule.png', mediaType: 'image/png', mimeType: 'image/png' },
+    { title: 'image-20240101-000000', mediaType: 'image/jpeg', mimeType: 'image/jpeg' },
+    { title: 'Floor plan', mediaType: 'IMAGE/JPG', mimeType: 'image/jpeg' },
+    { title: 'Diagram.webp', mediaType: 'image/webp', mimeType: 'image/webp' },
+    { title: 'Spinner.gif', mediaType: 'image/gif', mimeType: 'image/gif' },
+  ])('lists $title by its media type', async ({ title, mediaType, mimeType }) => {
+    const [image] = await listOne(file({ title, mediaType, fileSize: 40_000 }))
+    expect(image).toMatchObject({ mimeType, contentDeferred: true })
+    expect(image.contentHash).toBe('confluence:attachment-v1:att123:page:p1:2:image-extract-v1')
+  })
+
+  it.each([
+    { title: 'Logo.svg', mediaType: 'image/svg+xml' },
+    { title: 'Photo.heic', mediaType: 'image/heic' },
+    { title: 'Photo.avif', mediaType: 'image/avif' },
+    { title: 'Archive', mediaType: 'application/zip' },
+    { title: 'Unknown', mediaType: undefined },
+  ])('drops $title', async ({ title, mediaType }) => {
+    expect(await listOne(file({ title, mediaType, fileSize: 40_000 }))).toEqual([])
+  })
+
+  it('drops images under the byte floor and keeps one whose size is unreported', async () => {
+    expect(
+      await listOne(file({ title: 'Icon.png', mediaType: 'image/png', fileSize: 900 }))
+    ).toEqual([])
+    const [unsized] = await listOne(
+      file({ title: 'Chart.png', mediaType: 'image/png', fileSize: undefined })
+    )
+    expect(unsized.mimeType).toBe('image/png')
+  })
+
+  it('keeps document hashes unchanged and still lists small documents', async () => {
+    const [pdf] = await listOne(file({ mediaType: 'application/pdf', fileSize: 12 }))
+    expect(pdf.contentHash).toBe('confluence:attachment-v1:att123:page:p1:2')
+  })
+
+  it('hydrates a listed image with its bytes and the same media type', async () => {
+    fixture(file({ title: 'Quarterly schedule', mediaType: 'image/png', fileSize: 40_000 }))
+    secureDownload.mockResolvedValue(new Response('png bytes'))
+    const hydrated = await get('attachment:page:p1:att123', IMAGES_ON)
+    expect(hydrated?.skippedReason).toBeUndefined()
+    expect(hydrated?.sourceFile).toMatchObject({
+      fileName: 'Quarterly schedule',
+      mimeType: 'image/png',
+    })
+  })
+
+  it('lists no images when the connector turns image attachments off, and keeps documents', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        results: [
+          file({ title: 'Quarterly schedule.png', mediaType: 'image/png', fileSize: 40_000 }),
+          file({ id: 'att124', title: 'Guide.pdf', mediaType: 'application/pdf' }),
+        ],
+      })
+    )
+    const result = await listConfluenceAttachments({
+      ...INPUT,
+      includeImages: false,
+      listParents: async () => ({ documents: [parent()], hasMore: false }),
+    })
+    expect(result.documents.slice(1).map((doc) => doc.title)).toEqual(['Guide.pdf'])
+  })
+
+  it('replaces an indexed image once image attachments are turned off', async () => {
+    fixture(file({ title: 'Quarterly schedule', mediaType: 'image/png', fileSize: 40_000 }))
+    const hydrated = await get('attachment:page:p1:att123', { ...CONFIG, imageAttachments: 'off' })
+    expect(hydrated?.skippedReason).toBe('Image attachments are turned off for this connector')
+    expect(hydrated?.skippedExistingDisposition).toBe('replace')
+  })
+
+  it('keeps images off for a connector created before the setting existed', async () => {
+    fixture(file({ title: 'Quarterly schedule', mediaType: 'image/png', fileSize: 40_000 }))
+    const hydrated = await get('attachment:page:p1:att123', CONFIG)
+    expect(hydrated?.skippedReason).toBe('Image attachments are turned off for this connector')
+  })
+
+  it('replaces an attachment that stopped being a supported image', async () => {
+    fixture(file({ title: 'Logo', mediaType: 'image/svg+xml', fileSize: 40_000 }))
+    const hydrated = await get()
+    expect(hydrated?.skippedReason).toContain('supported image')
+    expect(hydrated?.skippedExistingDisposition).toBe('replace')
   })
 })
 

@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import {
+  IMAGE_EXTRACTION_REPRESENTATION_VERSION,
+  isImageExtractionEnabled,
+  SEMANTIC_IMAGE_MIN_BYTES,
+  semanticImageMimeType,
+} from '@/lib/knowledge/documents/image-extraction-policy'
 import { fetchWithRetry, secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
   createRetryableHttpError,
@@ -9,6 +15,7 @@ import {
   readBoundedHttpErrorPayload,
 } from '@/lib/knowledge/documents/utils'
 import { extractCursor } from '@/connectors/confluence/cursor'
+import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { listingFailuresSchema, MAX_LISTING_FAILURE_SAMPLES } from '@/connectors/listing-failures'
 import { isAllSourceItems } from '@/connectors/selection'
 import { ConnectorSourceError } from '@/connectors/source-error'
@@ -39,10 +46,11 @@ const MAX_METADATA_BYTES = 2 * 1024 * 1024
  */
 const MAX_CONSECUTIVE_SERVER_FAILURES = 3
 /**
- * Attachment formats listed for indexing: a deliberate subset of the shared
+ * Document formats listed for indexing: a deliberate subset of the shared
  * `PIPELINE_PARSED_MIME_TYPES`, limited to the headline PDF, Word, Excel and
  * PowerPoint extensions. Macro-enabled, template, legacy binary (`.xls`, `.ppt`)
- * and OpenDocument variants are not listed for Confluence.
+ * and OpenDocument variants are not listed for Confluence. Images are listed by
+ * their reported media type instead, since many carry no filename extension.
  */
 const FILE_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'pptx', 'xlsx'])
 const boundedId = z.string().min(1).max(254)
@@ -74,6 +82,7 @@ const attachmentSchema = z.object({
   blogPostId: boundedId.optional(),
   customContentId: boundedId.optional(),
   fileSize: z.number().int().nonnegative().optional(),
+  mediaType: z.string().max(255).optional(),
   version: z.object({ number: z.number().int().positive(), createdAt: z.string().optional() }),
   webuiLink: z.string().optional(),
   _links: z.object({ webui: z.string().optional() }).optional(),
@@ -223,11 +232,23 @@ function sameParent(left: AttachmentParent, right: AttachmentParent): boolean {
   return left.id === right.id && left.type === right.type
 }
 
+/**
+ * The single format rule for listing and hydration; the two must agree, or a
+ * listed attachment becomes a failed row when it is downloaded.
+ */
 function attachmentMimeType(attachment: Attachment): string | undefined {
   const extension = connectorFileExtension(attachment.title)
-  return extension && FILE_EXTENSIONS.has(extension)
-    ? pipelineParsedMimeType(attachment.title)
-    : undefined
+  if (extension && FILE_EXTENSIONS.has(extension)) return pipelineParsedMimeType(attachment.title)
+  return semanticImageMimeType(attachment.mediaType)
+}
+
+function isImageAttachment(attachment: Attachment): boolean {
+  return attachmentMimeType(attachment)?.startsWith('image/') ?? false
+}
+
+/** Icons and spacers never become documents; an image without a reported size is kept. */
+function isBelowImageFloor(attachment: Attachment): boolean {
+  return attachment.fileSize !== undefined && attachment.fileSize < SEMANTIC_IMAGE_MIN_BYTES
 }
 
 function attachmentToStub(
@@ -253,7 +274,9 @@ function attachmentToStub(
     content: '',
     contentDeferred: true,
     mimeType: attachmentMimeType(attachment) ?? 'application/octet-stream',
-    contentHash: `confluence:attachment-v1:${attachment.id}:${parent.type}:${parent.id}:${attachment.version.number}`,
+    contentHash: `confluence:attachment-v1:${attachment.id}:${parent.type}:${parent.id}:${attachment.version.number}${
+      isImageAttachment(attachment) ? `:${IMAGE_EXTRACTION_REPRESENTATION_VERSION}` : ''
+    }`,
     sourceUrl,
     metadata: {
       contentType: 'attachment',
@@ -344,6 +367,8 @@ async function listParentAttachmentPage(
  */
 export async function listConfluenceAttachments(
   input: AttachmentRequest & {
+    /** False when the connector's "Image attachments" setting is "Don't index". */
+    includeImages: boolean
     cursor?: string
     listParents: (
       cursor: string | undefined,
@@ -405,7 +430,10 @@ export async function listConfluenceAttachments(
     state.serverFailureStreak = 0
     const { page } = listing
     for (const attachment of page.results) {
-      if (attachment.status !== 'current' || !attachmentMimeType(attachment)) continue
+      const mimeType = attachmentMimeType(attachment)
+      if (attachment.status !== 'current' || !mimeType) continue
+      if (mimeType.startsWith('image/') && (!input.includeImages || isBelowImageFloor(attachment)))
+        continue
       if (!sameParent(attachmentParent(attachment), parent)) {
         throw new Error('Confluence returned an attachment belonging to another parent')
       }
@@ -546,7 +574,7 @@ function assertDownloadUrl(value: string): void {
   }
 }
 
-/** Downloads a version-pinned original for the shared PDF/OCR, Word, Excel and PowerPoint parsing pipeline. */
+/** Downloads a version-pinned original for the shared document parsers or the image extractor. */
 export async function getConfluenceAttachment(
   input: AttachmentRequest,
   sourceConfig: Record<string, unknown>,
@@ -560,7 +588,19 @@ export async function getConfluenceAttachment(
   const mimeType = attachmentMimeType(attachment)
   if (!mimeType) {
     return {
-      ...markSkipped(stub, 'Attachment is no longer a PDF, Word, Excel or PowerPoint document'),
+      ...markSkipped(
+        stub,
+        'Attachment is no longer a PDF, Word, Excel, PowerPoint or supported image file'
+      ),
+      skippedExistingDisposition: 'replace',
+    }
+  }
+  if (
+    mimeType.startsWith('image/') &&
+    !isImageExtractionEnabled(confluenceConnectorMeta.imageExtraction, sourceConfig)
+  ) {
+    return {
+      ...markSkipped(stub, 'Image attachments are turned off for this connector'),
       skippedExistingDisposition: 'replace',
     }
   }
