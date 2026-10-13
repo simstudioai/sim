@@ -4,12 +4,16 @@ import {
   discoverProjectBackfill,
   ProjectBackfillBusy,
   ProjectBackfillConflict,
+  projectBackfillBatchSize,
   projectBackfillDatabaseId,
   readProjectGroupingReviews,
   verifyProjectBackfill,
 } from '@sim/db/maintenance/project-backfill'
 import { enforceProjectMembership } from '@sim/db/maintenance/project-enforcement'
-import { countPendingProjectArchiveRepairs } from '@sim/db/maintenance/project-repairs'
+import {
+  archiveProjectRepairWorkflows,
+  countPendingProjectArchiveRepairs,
+} from '@sim/db/maintenance/project-repairs'
 import { switchProjectMembershipAuthority } from '@sim/db/maintenance/project-rollout'
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
@@ -22,7 +26,6 @@ function retryable(error: unknown): boolean {
   const failure = getTransientDatabaseFailure(error)
   return failure === 'capacity' || failure === 'conflict'
 }
-const MAX_DURATION_MS = 20 * 60_000
 
 /** Commits bounded assignments before validation and contraction; retry discovers only remaining work. */
 export const projectMembershipMigration: ScriptMigration = {
@@ -60,8 +63,8 @@ export const projectMembershipMigration: ScriptMigration = {
         throw new Error('Reviewed Project migration requires its database URL')
       const databaseId = reviewUrl ? projectBackfillDatabaseId(reviewUrl) : 'migration-runner'
       const reviews = reviewPath ? await readProjectGroupingReviews(reviewPath, databaseId) : []
-      const manifest = await discoverProjectBackfill(sql, databaseId, reviews)
-      if (manifest.conflicts.length || manifest.repairs.length) {
+      let manifest = await discoverProjectBackfill(sql, databaseId, reviews)
+      if (manifest.conflicts.length) {
         logger.error('Project preparation requires operator remediation', {
           conflicts: manifest.conflicts.slice(0, 50),
           conflictCount: manifest.conflicts.length,
@@ -71,25 +74,53 @@ export const projectMembershipMigration: ScriptMigration = {
           'Resolve Project conflicts and archive/provider repairs with backfill-projects.ts plan/repair before retrying'
         )
       }
-      const pending = manifest.families.map((family) => ({ family, attempts: 0 }))
+      if (manifest.repairs.length) {
+        for (const repair of manifest.repairs) {
+          for (let attempt = 0; ; attempt++) {
+            await assertSession()
+            try {
+              await archiveProjectRepairWorkflows(sql, repair)
+              break
+            } catch (error) {
+              if (!(error instanceof ProjectBackfillBusy || retryable(error)) || attempt >= 2)
+                throw error
+              await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 250, maxMs: 1000 }))
+            }
+          }
+        }
+        logger.info('Archived workflows in archived workspaces', {
+          workspaces: manifest.repairs.length,
+          workflows: manifest.repairs.reduce(
+            (count, repair) => count + repair.workflowIds.length,
+            0
+          ),
+        })
+        manifest = await discoverProjectBackfill(sql, databaseId, reviews)
+        if (manifest.conflicts.length || manifest.repairs.length)
+          throw new ProjectBackfillConflict(
+            'Project state changed during archive repair; rediscover'
+          )
+      }
+      const pending = manifest.families
+        .map((family) => ({ family, attempts: 0 }))
+        .sort((a, b) => {
+          const priority = (family: typeof a.family) =>
+            family.members.length === 1 && projectBackfillBatchSize(family) === 200 ? 0 : 1
+          return priority(a.family) - priority(b.family)
+        })
       const failed: string[] = []
-      const started = performance.now()
-      let batchSize = 50
       let assigned = 0
       let batches = 0
       for (let position = 0; position < pending.length; ) {
-        if (performance.now() - started > MAX_DURATION_MS || batches >= 10_000) {
-          throw new Error(
-            'Project backfill scheduling budget exhausted; rerun to resume committed progress'
-          )
-        }
         await assertSession()
         const items = [pending[position++]]
+        const batchSize = projectBackfillBatchSize(items[0].family)
         if (items[0].family.members.length === 1 && items[0].attempts === 0) {
           while (
             items.length < batchSize &&
             position < pending.length &&
             pending[position].family.members.length === 1 &&
+            projectBackfillBatchSize(pending[position].family) === batchSize &&
             pending[position].attempts === 0
           ) {
             items.push(pending[position++])
@@ -104,7 +135,6 @@ export const projectMembershipMigration: ScriptMigration = {
           )
           assigned += result.assigned
           const elapsedMs = performance.now() - batchStarted
-          if (elapsedMs > 250) batchSize = Math.max(1, Math.floor(batchSize / 2))
           logger.info('Project migration batch committed', {
             ...result,
             assigned,
@@ -131,7 +161,6 @@ export const projectMembershipMigration: ScriptMigration = {
           })
           await sleep(backoffWithJitter(items[0].attempts, null, { baseMs: 250, maxMs: 1000 }))
         }
-        await sleep(100)
       }
       if (failed.length) {
         logger.error('Project families still need retry or reconciliation', {
