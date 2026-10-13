@@ -110,16 +110,16 @@ export const mothershipChatKeys = {
 }
 
 /**
- * How long a chat's reload in flight holds back later requests. Past it a hung fetch no longer
- * blocks the chat: the next request starts its own reload, which replaces the stuck one.
+ * How long a chat's first reload in flight holds back later requests. Past its hold a reload is
+ * presumed stuck and the next request replaces it, so a hung fetch never blocks the chat for good.
  */
 const CHAT_DETAIL_REFRESH_HOLD_MS = 30 * 1000
 
 interface ChatDetailRefresh {
   startedAt: number
+  /** Doubles with each stuck reload a chain replaces, so a slow load gets the time it needs. */
+  holdMs: number
   requestedAgain: boolean
-  /** Whether this reload replaced one past the hold; a chain cancels a slow load at most once. */
-  replaced: boolean
 }
 
 /** Per client, the chats with a reload in flight. */
@@ -131,33 +131,31 @@ const chatDetailRefreshes = new WeakMap<QueryClient, Map<string, ChatDetailRefre
  * into one reload in flight plus one trailing reload. The trailing reload starts after
  * the last request, so the final read reflects every change requested meanwhile; a read
  * already in flight may predate a request and is never trusted to include it. A reload
- * in flight longer than {@link CHAT_DETAIL_REFRESH_HOLD_MS} stops holding requests back.
+ * in flight past its hold is cancelled and replaced, and the replacement holds twice as
+ * long, so a hung read is always replaced while a slow one is eventually left to finish.
  */
 export function refreshMothershipChatDetail(queryClient: QueryClient, chatId: string): void {
   const refreshes = chatDetailRefreshes.get(queryClient) ?? new Map<string, ChatDetailRefresh>()
   chatDetailRefreshes.set(queryClient, refreshes)
   const inFlight = refreshes.get(chatId)
-  if (inFlight && Date.now() - inFlight.startedAt < CHAT_DETAIL_REFRESH_HOLD_MS) {
+  if (inFlight && Date.now() - inFlight.startedAt < inFlight.holdMs) {
     inFlight.requestedAgain = true
     return
   }
-  // A query with no data yet joins its fetch in flight instead of replacing it, so a stuck
-  // one is cancelled first, but only once per chain: a load that is slow rather than hung
-  // would otherwise restart every hold and never finish. Later reloads in the chain join the
-  // read in flight, cached or not, and since it may predate this request, read again after.
   const refresh: ChatDetailRefresh = {
     startedAt: Date.now(),
-    requestedAgain: inFlight?.replaced === true,
-    replaced: inFlight !== undefined,
+    holdMs: inFlight ? inFlight.holdMs * 2 : CHAT_DETAIL_REFRESH_HOLD_MS,
+    requestedAgain: false,
   }
   refreshes.set(chatId, refresh)
   const queryKey = mothershipChatKeys.detail(chatId)
-  const reload =
-    inFlight && !inFlight.replaced
-      ? queryClient
-          .cancelQueries({ queryKey, exact: true })
-          .then(() => queryClient.invalidateQueries({ queryKey }))
-      : queryClient.invalidateQueries({ queryKey }, { cancelRefetch: !inFlight })
+  // A query with no data yet joins its fetch in flight instead of replacing it, so a stuck
+  // one is cancelled first.
+  const reload = inFlight
+    ? queryClient
+        .cancelQueries({ queryKey, exact: true })
+        .then(() => queryClient.invalidateQueries({ queryKey }))
+    : queryClient.invalidateQueries({ queryKey })
   void reload.finally(() => {
     if (refreshes.get(chatId) !== refresh) return
     refreshes.delete(chatId)

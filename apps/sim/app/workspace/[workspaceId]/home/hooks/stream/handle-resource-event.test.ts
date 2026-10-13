@@ -336,7 +336,7 @@ describe('recovered resource events', () => {
     { name: 'a loaded transcript', cached: true },
     { name: 'a transcript still on its first load', cached: false },
   ])(
-    'cancels a stuck read of $name at most once, so a slow replacement finishes and is read again',
+    'doubles the hold after replacing a stuck read of $name, so a slow replacement finishes and is read again',
     async ({ cached }) => {
       const queryClient = new QueryClient()
       const { server, reads, unsubscribe } = mountedChat(queryClient, {
@@ -368,6 +368,49 @@ describe('recovered resource events', () => {
         expect(reads).toHaveBeenCalledTimes(2)
 
         slowReadReleased.resolve()
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(3))
+        expect(await settledResources(queryClient)).toEqual(tables)
+        expect(reads).toHaveBeenCalledTimes(3)
+      } finally {
+        vi.useRealTimers()
+        unsubscribe()
+      }
+    }
+  )
+
+  it.each([
+    { name: 'a loaded transcript', cached: true },
+    { name: 'a transcript still on its first load', cached: false },
+  ])(
+    'still replaces a second stuck read of $name once its doubled hold passes',
+    async ({ cached }) => {
+      const queryClient = new QueryClient()
+      const { server, reads, unsubscribe } = mountedChat(queryClient, {
+        cached,
+        hangFirstRead: true,
+      })
+      reads.mockImplementationOnce(() => new Promise(() => {}))
+      const ctx = createStreamLoopContext(
+        makeStreamLoopDeps({ queryClient, chatIdRef: ref<string | undefined>('chat-1') })
+      )
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        handleResourceEvent(ctx, replayed(tables[0], 1))
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledOnce())
+
+        vi.setSystemTime(Date.now() + 30_000)
+        handleResourceEvent(ctx, replayed(tables[1], 2))
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(2))
+
+        vi.setSystemTime(Date.now() + 30_000)
+        handleResourceEvent(ctx, replayed(tables[1], 3))
+        await flushMacrotask()
+        expect(reads).toHaveBeenCalledTimes(2)
+
+        server.stored = tables
+        vi.setSystemTime(Date.now() + 30_000)
+        handleResourceEvent(ctx, replayed(tables[2], 4))
+
         await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(3))
         expect(await settledResources(queryClient)).toEqual(tables)
         expect(reads).toHaveBeenCalledTimes(3)
