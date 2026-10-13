@@ -1,6 +1,9 @@
-import type { FivetranConnectionParams, FivetranConnectionResponse } from '@/tools/fivetran/types'
 import {
   CONNECTION_PROPERTIES,
+  type FivetranConnectionParams,
+  type FivetranConnectionResponse,
+} from '@/tools/fivetran/types'
+import {
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_CONNECTION_ID_PARAM,

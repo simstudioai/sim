@@ -1,4 +1,8 @@
-import type { FivetranListUsersParams, FivetranListUsersResponse } from '@/tools/fivetran/types'
+import {
+  type FivetranListUsersParams,
+  type FivetranListUsersResponse,
+  NEXT_CURSOR_OUTPUT,
+} from '@/tools/fivetran/types'
 import {
   envelopePage,
   FIVETRAN_AUTH_PARAMS,
@@ -9,7 +13,6 @@ import {
   fivetranPaginationQuery,
   fivetranUrl,
   mapUser,
-  NEXT_CURSOR_OUTPUT,
   optionalBoolean,
   trimmed,
 } from '@/tools/fivetran/utils'

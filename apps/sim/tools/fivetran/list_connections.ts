@@ -1,9 +1,10 @@
-import type {
-  FivetranListConnectionsParams,
-  FivetranListConnectionsResponse,
-} from '@/tools/fivetran/types'
 import {
   CONNECTION_PROPERTIES,
+  type FivetranListConnectionsParams,
+  type FivetranListConnectionsResponse,
+  NEXT_CURSOR_OUTPUT,
+} from '@/tools/fivetran/types'
+import {
   envelopePage,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_ERROR_EXTRACTOR,
@@ -13,7 +14,6 @@ import {
   fivetranPaginationQuery,
   fivetranUrl,
   mapConnection,
-  NEXT_CURSOR_OUTPUT,
   trimmed,
 } from '@/tools/fivetran/utils'
 import type { ToolConfig } from '@/tools/types'

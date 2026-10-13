@@ -1,4 +1,8 @@
-import type { FivetranMessageResponse, FivetranResyncTablesParams } from '@/tools/fivetran/types'
+import {
+  type FivetranMessageResponse,
+  type FivetranResyncTablesParams,
+  MESSAGE_OUTPUTS,
+} from '@/tools/fivetran/types'
 import {
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_CONNECTION_ID_PARAM,
@@ -7,7 +11,6 @@ import {
   fivetranHeaders,
   fivetranId,
   fivetranUrl,
-  MESSAGE_OUTPUTS,
   parseSchemaTableMap,
   transformMessageResponse,
 } from '@/tools/fivetran/utils'

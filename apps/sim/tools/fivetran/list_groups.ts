@@ -1,4 +1,9 @@
-import type { FivetranListGroupsParams, FivetranListGroupsResponse } from '@/tools/fivetran/types'
+import {
+  type FivetranListGroupsParams,
+  type FivetranListGroupsResponse,
+  GROUP_PROPERTIES,
+  NEXT_CURSOR_OUTPUT,
+} from '@/tools/fivetran/types'
 import {
   envelopePage,
   FIVETRAN_AUTH_PARAMS,
@@ -8,9 +13,7 @@ import {
   fivetranHeaders,
   fivetranPaginationQuery,
   fivetranUrl,
-  GROUP_PROPERTIES,
   mapGroup,
-  NEXT_CURSOR_OUTPUT,
 } from '@/tools/fivetran/utils'
 import type { ToolConfig } from '@/tools/types'
 

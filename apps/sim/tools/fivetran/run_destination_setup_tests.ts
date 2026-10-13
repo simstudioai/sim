@@ -1,10 +1,10 @@
-import type {
-  FivetranDestinationResponse,
-  FivetranRunDestinationSetupTestsParams,
+import {
+  DESTINATION_PROPERTIES,
+  type FivetranDestinationResponse,
+  type FivetranRunDestinationSetupTestsParams,
 } from '@/tools/fivetran/types'
 import {
   compactBody,
-  DESTINATION_PROPERTIES,
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_DESTINATION_ID_PARAM,

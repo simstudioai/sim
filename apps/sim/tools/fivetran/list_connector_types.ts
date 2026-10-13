@@ -1,6 +1,8 @@
-import type {
-  FivetranListConnectorTypesParams,
-  FivetranListConnectorTypesResponse,
+import {
+  CONNECTOR_TYPE_PROPERTIES,
+  type FivetranListConnectorTypesParams,
+  type FivetranListConnectorTypesResponse,
+  NEXT_CURSOR_OUTPUT,
 } from '@/tools/fivetran/types'
 import {
   envelopePage,
@@ -12,7 +14,6 @@ import {
   fivetranPaginationQuery,
   fivetranUrl,
   mapConnectorType,
-  NEXT_CURSOR_OUTPUT,
 } from '@/tools/fivetran/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -53,40 +54,7 @@ export const fivetranListConnectorTypesTool: ToolConfig<
       description: 'Connector types',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Service ID used when creating a connection' },
-          name: { type: 'string', description: 'Display name', nullable: true },
-          type: {
-            type: 'string',
-            description: 'Category, e.g. Security or Database',
-            nullable: true,
-          },
-          description: { type: 'string', description: 'What the connector does', nullable: true },
-          connectorClass: {
-            type: 'string',
-            description: 'Connector class (standard or lite)',
-            nullable: true,
-          },
-          serviceStatus: {
-            type: 'string',
-            description:
-              'Availability (general_availability, beta, private_preview, sunset, development)',
-            nullable: true,
-          },
-          iconUrl: { type: 'string', description: 'Icon URL', nullable: true },
-          linkToDocs: { type: 'string', description: 'Documentation URL', nullable: true },
-          linkToErd: { type: 'string', description: 'ERD URL', nullable: true },
-          supportsSchemaReload: {
-            type: 'boolean',
-            description: 'Whether schema reload is supported',
-            nullable: true,
-          },
-          supportedFeatures: {
-            type: 'array',
-            description: 'Supported feature IDs, e.g. RE_SYNC or HISTORY',
-            items: { type: 'string' },
-          },
-        },
+        properties: CONNECTOR_TYPE_PROPERTIES,
       },
     },
     ...NEXT_CURSOR_OUTPUT,

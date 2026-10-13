@@ -182,8 +182,13 @@ export const fivetranHandler: WebhookProviderHandler = {
       }
     }
 
+    // Transformation events describe a dbt job and carry no connection, so the filter skips them.
     const connectionId = readString(providerConfig, 'triggerConnectionId')
-    if (connectionId && payload.connector_id !== connectionId) {
+    if (
+      connectionId &&
+      !event.startsWith('transformation_') &&
+      payload.connector_id !== connectionId
+    ) {
       logger.debug(`[${requestId}] Fivetran event is for another connection. Skipping execution.`, {
         webhookId: webhook.id,
       })

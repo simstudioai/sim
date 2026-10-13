@@ -1,4 +1,8 @@
-import type { FivetranConnectionParams, FivetranSchemaConfigResponse } from '@/tools/fivetran/types'
+import {
+  type FivetranConnectionParams,
+  type FivetranSchemaConfigResponse,
+  SCHEMA_CONFIG_OUTPUTS,
+} from '@/tools/fivetran/types'
 import {
   envelopeData,
   FIVETRAN_AUTH_PARAMS,
@@ -9,7 +13,6 @@ import {
   fivetranId,
   fivetranUrl,
   mapSchemaConfig,
-  SCHEMA_CONFIG_OUTPUTS,
 } from '@/tools/fivetran/utils'
 import type { ToolConfig } from '@/tools/types'
 

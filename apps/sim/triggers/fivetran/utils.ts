@@ -179,8 +179,10 @@ export function buildFivetranSubBlocks(options: {
   triggerId: string
   eventLabel: string
   includeDropdown?: boolean
+  /** Transformation events describe a dbt job, not a connection, so they take no connection filter. */
+  connectionFilter?: boolean
 }): SubBlockConfig[] {
-  const { triggerId, eventLabel, includeDropdown = false } = options
+  const { triggerId, eventLabel, includeDropdown = false, connectionFilter = true } = options
   const condition = { field: 'selectedTriggerId', value: triggerId }
   const blocks: SubBlockConfig[] = []
 
@@ -228,14 +230,18 @@ export function buildFivetranSubBlocks(options: {
       mode: 'trigger',
       condition,
     },
-    {
-      id: 'triggerConnectionId',
-      title: 'Connection ID',
-      type: 'short-input',
-      placeholder: 'Leave empty for every connection',
-      mode: 'trigger',
-      condition,
-    },
+    ...(connectionFilter
+      ? [
+          {
+            id: 'triggerConnectionId',
+            title: 'Connection ID',
+            type: 'short-input' as const,
+            placeholder: 'Leave empty for every connection',
+            mode: 'trigger' as const,
+            condition,
+          },
+        ]
+      : []),
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -318,6 +324,10 @@ const EVENT_DATA_OUTPUTS: Record<FivetranEventData, Record<string, TriggerOutput
     ...ACTOR_OUTPUT,
     editType: { type: 'string', description: 'What was edited, e.g. CREDENTIALS' },
     properties: { type: 'json', description: 'Connector-specific properties, with secrets masked' },
+    oldProperties: {
+      type: 'json',
+      description: 'Connector-specific properties before the edit, with secrets masked',
+    },
   },
   pause: {
     ...ACTOR_OUTPUT,
@@ -359,6 +369,7 @@ export function createFivetranTrigger(
       triggerId: event.triggerId,
       eventLabel: event.label,
       includeDropdown: options.includeDropdown,
+      connectionFilter: !event.event.startsWith('transformation_'),
     }),
     outputs: {
       ...FIVETRAN_EVENT_OUTPUTS,

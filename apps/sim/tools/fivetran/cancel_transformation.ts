@@ -1,4 +1,8 @@
-import type { FivetranMessageResponse, FivetranTransformationParams } from '@/tools/fivetran/types'
+import {
+  type FivetranMessageResponse,
+  type FivetranTransformationParams,
+  MESSAGE_OUTPUTS,
+} from '@/tools/fivetran/types'
 import {
   FIVETRAN_AUTH_PARAMS,
   FIVETRAN_ERROR_EXTRACTOR,
@@ -7,7 +11,6 @@ import {
   fivetranHeaders,
   fivetranId,
   fivetranUrl,
-  MESSAGE_OUTPUTS,
   transformMessageResponse,
 } from '@/tools/fivetran/utils'
 import type { ToolConfig } from '@/tools/types'
