@@ -5,6 +5,7 @@ import {
   billingSubscriptionMock,
   billingSubscriptionMockFns,
 } from '@sim/testing/mocks/billing-subscription.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import {
   integrationsAvailabilityMock,
   integrationsAvailabilityMockFns,
@@ -70,6 +71,7 @@ vi.mock('@/lib/mothership/chat/workspace-inventory', () => ({
     truncated: [],
   })),
 }))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/dashboards/application/availability', () => ({
   readDashboardAvailability: { execute: mockDashboardAvailability },
 }))
@@ -396,19 +398,34 @@ describe('buildCopilotRequestPayload', () => {
     }
   )
 
-  it('never grants the workspace-only dashboards entitlement to an organization chat', async () => {
-    mockDashboardAvailability.mockResolvedValue(true)
-    const payload = await buildCopilotRequestPayload({
-      message: 'Show my dashboard',
-      userId: 'actor',
-      userMessageId: 'message-1',
-      organizationId: 'org-1',
-      principal: { kind: 'session' as const, userId: 'actor' },
-      mode: 'agent',
-      model: '',
-    })
-    expect(payload.entitlements).toEqual([])
-  })
+  it.each([
+    ['dashboards', 'dashboards', true],
+    ['dashboards', 'dashboards', false],
+    ['tests', 'workflow-tests', true],
+    ['tests', 'workflow-tests', false],
+    ['changelog', 'changelog', true],
+    ['changelog', 'changelog', false],
+  ] as const)(
+    'grants an organization Build chat the %s entitlement from the %s rollout: %s',
+    async (entitlement, rolloutFlag, enabled) => {
+      featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+        async (flag) => enabled && flag === rolloutFlag
+      )
+      const payload = await buildCopilotRequestPayload({
+        message: 'Build it',
+        userId: 'actor',
+        userMessageId: 'message-1',
+        organizationId: 'org-1',
+        principal: { kind: 'session' as const, userId: 'actor' },
+        mode: 'agent',
+        model: '',
+      })
+      expect(payload.entitlements).toEqual(enabled ? [entitlement] : [])
+      expect(featureFlagsMockFns.mockIsFeatureEnabled).toHaveBeenCalledWith(rolloutFlag, {
+        orgId: 'org-1',
+      })
+    }
+  )
 
   beforeEach(() => {
     mockTrackChatUpload.mockResolvedValue({ displayName: 'payroll.xlsx' })
