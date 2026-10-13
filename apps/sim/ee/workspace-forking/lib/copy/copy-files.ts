@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import {
   incrementStorageUsageForBillingContextInTx,
+  lockWorkspaceStorageForMutationInTx,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
 import type { DbOrTx } from '@/lib/db/types'
@@ -360,6 +361,7 @@ export async function executeForkFileBlobCopies(
         assertForkCopyActive(control)
         await db.transaction(async (tx) => {
           assertForkCopyActive(control)
+          await lockWorkspaceStorageForMutationInTx(tx, task.workspaceId)
           const [inserted] = await tx
             .insert(workspaceFiles)
             .values({
