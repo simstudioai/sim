@@ -121,7 +121,9 @@ import {
   ConnectorSyncCapacityError,
   classifyListing,
   classifySuspectListing,
+  countLiveConnectorDocuments,
   createSyncRunState,
+  keepsRecordedDocCount,
   loadPageCorpus,
   processDocOps,
   RETRY_WINDOW_DAYS,
@@ -1711,17 +1713,9 @@ async function syncDedicatedMemberContent(input: {
     run.result.listingIncomplete = true
   const contentNotice = pass.holdNotice
   /** Counted before the lease transaction: a scan of the whole connector never holds its row. */
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(document)
-    .where(
-      and(
-        eq(document.connectorId, run.connectorId),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
+  const count = keepsRecordedDocCount(pass.complete, connector)
+    ? null
+    : await countLiveConnectorDocuments(run.connectorId)
   await withMemberLease(run, async (tx) => {
     const now = new Date()
     await tx.insert(knowledgeConnectorSyncLog).values({
@@ -1746,7 +1740,7 @@ async function syncDedicatedMemberContent(input: {
           ? { lastSyncAt: new Date(pass.checkpoint.startedAt) }
           : {}),
         ...(pass.complete ? { listingCheckpoint: null } : {}),
-        lastSyncDocCount: count,
+        ...(count === null ? {} : { lastSyncDocCount: count }),
         lastSyncError: contentNotice,
         updatedAt: now,
       })
