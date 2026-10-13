@@ -235,6 +235,21 @@ describe('real-wait', () => {
       ['sleep() #1', 'timers/promises setTimeout() #1'],
     ],
     [
+      'a module-scope wait before a module-scope install',
+      [HELPERS, 'await sleep(10)', 'vi.useFakeTimers()'],
+      ['sleep() #1'],
+    ],
+    [
+      'a helper wait after module-scope real timers are restored',
+      [
+        HELPERS,
+        'async function settle() { await sleep(10) }',
+        'vi.useFakeTimers()',
+        'vi.useRealTimers()',
+      ],
+      ['sleep() #1'],
+    ],
+    [
       'every occurrence, numbered per kind',
       [HELPERS, 'await sleep(10)', 'await new Promise((r) => setTimeout(r, 5))', 'await sleep(20)'],
       ['sleep() #1', 'setTimeout promise #1', 'sleep() #2'],
@@ -311,6 +326,10 @@ describe('real-wait', () => {
         'beforeEach(() => { vi.useFakeTimers() })',
         'afterEach(async () => { await sleep(10) })',
       ],
+    ],
+    [
+      'a helper declared before a module-scope install',
+      [HELPERS, 'async function settle() { await sleep(10) }', 'vi.useFakeTimers()'],
     ],
   ])('ignores %s', (_name, lines) => {
     expect(waits(lines.join('\n'))).toEqual([])

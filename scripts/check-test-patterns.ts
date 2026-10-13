@@ -336,10 +336,14 @@ const WAIT_EXPORTS: Readonly<Record<string, readonly string[]>> = {
 type HookKind = 'beforeAll' | 'beforeEach' | 'afterEach' | 'afterAll'
 const HOOK_KINDS = new Set<string>(['beforeAll', 'beforeEach', 'afterEach', 'afterAll'])
 
-/** A call and where it runs: its nearest function, and the innermost hook callback around it. */
+/**
+ * A call and where it runs: its nearest function (the module when `inModule`), and the innermost
+ * hook callback around it.
+ */
 interface Site {
   node: Node
   fn: [number, number]
+  inModule: boolean
   hook?: { kind: HookKind; range: [number, number]; suite: [number, number] }
 }
 
@@ -349,7 +353,11 @@ function within(position: number, range: [number, number]): boolean {
 
 function siteOf(node: Node, ancestors: Node[], programRange: [number, number]): Site {
   const fnIndex = nearestFunctionIndex(ancestors, ancestors.length)
-  const site: Site = { node, fn: fnIndex === -1 ? programRange : nodeRange(ancestors[fnIndex]) }
+  const site: Site = {
+    node,
+    fn: fnIndex === -1 ? programRange : nodeRange(ancestors[fnIndex]),
+    inModule: fnIndex === -1,
+  }
   for (let index = ancestors.length - 1; index > 0; index--) {
     const fn = ancestors[index]
     const call = ancestors[index - 1]
@@ -370,12 +378,14 @@ function siteOf(node: Node, ancestors: Node[], programRange: [number, number]): 
 
 /**
  * Whether a `vi.useFakeTimers()`/`vi.useRealTimers()` call at `timer` is in effect at `target`.
- * Inside its own function it applies to what follows it. From a `beforeAll` it also applies to the
+ * Inside its own function it applies to what follows it; at module scope, also to every function
+ * body, since functions run only after the module has loaded. From a `beforeAll` it also applies to the
  * rest of its suite except `beforeAll` hooks declared before it; from a `beforeEach`, to the
  * suite's tests, `afterEach` hooks, and `beforeEach` hooks declared after it or in nested suites.
  */
 function inEffect(timer: Site, target: Site): boolean {
   const position = target.node.start as number
+  if (timer.inModule && !target.inModule) return true
   if (within(position, timer.fn)) return position > (timer.node.start as number)
   const hook = timer.hook
   if (!hook || hook.range[0] !== timer.fn[0] || !within(position, hook.suite)) return false
