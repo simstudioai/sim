@@ -1,0 +1,99 @@
+---
+title: Webz.io
+description: Search news with natural language
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="webz"
+  color="#2E3E56"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Webz.io](https://webz.io/products/news-search-api/) searches recent news by meaning and returns articles with matching passages and source metadata.
+
+With the Webz.io block, you can:
+
+- **Research news**: Find coverage of companies, industries, and events using a natural-language query.
+- **Focus the results**: Filter by publication dates, language, source country, source domain, sentiment, or category.
+- **Build sourced briefings**: Pass article links, publication dates, matching passages, and relevance scores to other blocks.
+
+Create a [Webz.io API key](https://app.webz.io/) with `api_news` access and a positive credit balance. Store it in a Sim environment variable such as `WEBZ_API_KEY`, then reference it as `{{WEBZ_API_KEY}}` in the block's API Key field. Successful searches consume Webz credits; the output includes `credits_used` when the API reports it.
+
+News Search covers the recent 30-day news window. Queries support up to 750 characters and 100 words. In advanced mode, set Maximum Results from 1 to 100; leaving it empty uses Webz's default of 10. The default minimum relevance score is 4; set it to 0 to remove that threshold.
+
+Use full language names such as `english` and source-country codes such as `US`. Source Countries filters where a publication is based, not the location discussed in its articles. Categories accepts a JSON array, for example `["Economy, Business and Finance", "Science and Technology"]`, so commas within category names are preserved. See the [Webz filter reference](https://docs.webz.io/docs/webz/news-search-api-filters) for supported values.
+
+In Sim, the Webz.io block supplies news evidence for research agents, coverage monitoring, and industry briefings.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Search recent news with the Webz.io News Search API. Retrieve relevant articles, matching passages, relevance scores, and source metadata, with filters for publication dates, language, source country, domains, sentiment, and category.
+
+
+
+## Actions
+
+### Webz.io News Search
+
+Search recent news using natural language. Returns relevant articles, matching passages, relevance scores, and source metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Webz.io API key with News API access and available credits |
+| `query` | string | Yes | Natural-language news query, up to 750 characters and 100 words |
+| `k` | number | No | Maximum number of articles to return, from 1 to 100 \(default: 10\) |
+| `publishedAfter` | string | No | Earliest publication date in YYYY-MM-DD format |
+| `publishedBefore` | string | No | Latest publication date in YYYY-MM-DD format |
+| `language` | array | No | Article languages, for example \["english", "spanish"\] |
+| `country` | array | No | Source countries as ISO-2 codes, for example \["US", "GB"\] |
+| `source` | array | No | Limit results to source domains, for example \["reuters.com", "bbc.com"\] |
+| `sentiment` | array | No | Article sentiments: positive, negative, or neutral |
+| `category` | array | No | Article categories, for example \["Politics", "Economy, Business and Finance"\] |
+| `scoreGte` | number | No | Minimum relevance score from 0 to 10 \(default: 4\). Set 0 to disable the threshold. |
+| `scoreLte` | number | No | Maximum relevance score from 0 to 10. Omit for no upper bound. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `query` | string | The search query |
+| `total_results` | number | Number of results returned |
+| `requests_left` | number | Remaining credit balance |
+| `credits_used` | number | Credits consumed by this request |
+| `results` | array | News articles with matching passages and relevance scores |
+|   ↳ `score` | number | Relevance score from 0 to 10 |
+|   ↳ `article` | object | Article identity and content summary |
+|     ↳ `article_id` | string | Unique article ID |
+|     ↳ `url` | string | Article URL |
+|     ↳ `title` | string | Article title |
+|     ↳ `published_at` | string | Publication timestamp |
+|     ↳ `summary` | string | Article summary |
+|     ↳ `main_image` | string | Main image URL |
+|   ↳ `chunk` | object | The article passage that matches the query |
+|     ↳ `chunk_id` | string | Unique chunk ID |
+|     ↳ `chunk_index` | number | Chunk position in the article |
+|     ↳ `text` | string | Matching passage text |
+|   ↳ `metadata` | object | Article enrichment and source information |
+|     ↳ `language` | string | Article language |
+|     ↳ `country` | string | Source country code |
+|     ↳ `category` | array | Article categories |
+|     ↳ `sentiment` | string | Article sentiment |
+|     ↳ `domain` | string | Source domain |
+|     ↳ `site_type` | string | Source site type |
+|     ↳ `topic` | array | Topic tags |
+|     ↳ `person` | array | Mentioned people |
+|     ↳ `organization` | array | Mentioned organizations |
+|     ↳ `location` | array | Mentioned locations |
+|     ↳ `ticker` | array | Stock ticker symbols |
+|     ↳ `source_type` | string | Source classification |
+|     ↳ `political_bias` | string | Source political bias |
+|     ↳ `trust_category` | string | Source trust classification |
+|     ↳ `domain_rank` | number | Source domain rank |
+
+

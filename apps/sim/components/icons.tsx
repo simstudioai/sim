@@ -6053,6 +6053,24 @@ export function ZepIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+interface WebzIconProps extends SVGProps<SVGSVGElement> {}
+
+/** Webz.io's mark, extracted from https://webz.io/wp-content/themes/webz.io/assets/images/logo-blue.svg. */
+export function WebzIcon(props: WebzIconProps) {
+  return (
+    <svg {...props} viewBox='-2 0 36 36' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M27.158 7.78V19.751C27.158 23.198 25.378 24.596 22.897 24.596C20.462 24.596 18.636 23.151 18.636 19.751V7.78H13.532V19.751C13.532 23.151 11.753 24.596 9.318 24.596C6.93 24.596 5.151 23.291 5.057 20.077C4.355 20.59 3.465 20.916 2.528 20.916C1.592 20.916 0.702 20.59 0 20.077C0.094 26.459 3.886 29.3 8.803 29.3C11.987 29.3 14.562 27.996 16.061 25.62H16.154C17.699 27.996 20.228 29.3 23.412 29.3C28.375 29.3 32.215 26.319 32.215 19.751V7.78H27.158ZM5.057 13.23V7.78H0V13.23C0.702 12.718 1.592 12.392 2.528 12.392C3.512 12.392 4.355 12.718 5.057 13.23Z'
+        fill='currentColor'
+      />
+      <path
+        d='M4.916 16.63C4.916 17.935 3.84 19.006 2.528 19.006C1.217 19.006 0.14 17.935 0.14 16.63C0.14 15.326 1.217 14.255 2.528 14.255C3.84 14.255 4.916 15.326 4.916 16.63Z'
+        fill='#FC9F00'
+      />
+    </svg>
+  )
+}
+
 export function WebflowIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

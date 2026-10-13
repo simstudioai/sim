@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-09",
+  "updatedAt": "2026-10-13",
   "integrations": [
     {
       "type": "onepassword",
@@ -28266,6 +28266,29 @@
       "category": "tools",
       "integrationType": "marketing",
       "tags": ["content-management", "seo"]
+    },
+    {
+      "type": "webz",
+      "slug": "webz-io",
+      "name": "Webz.io",
+      "description": "Search news with natural language",
+      "longDescription": "Search recent news with the Webz.io News Search API. Retrieve relevant articles, matching passages, relevance scores, and source metadata, with filters for publication dates, language, source country, domains, sentiment, and category.",
+      "bgColor": "#2E3E56",
+      "iconName": "WebzIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/webz",
+      "operations": [
+        {
+          "name": "Search News",
+          "description": "Search recent news using natural language. Returns relevant articles, matching passages, relevance scores, and source metadata."
+        }
+      ],
+      "operationCount": 1,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["monitoring", "data-analytics", "agentic"]
     },
     {
       "type": "whatsapp",
