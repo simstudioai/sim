@@ -76,7 +76,8 @@ export function createRegistryContentGate(scope: RegistryContentGateScope): Cont
       const projection = projectResolvedSecretModelContent(
         text,
         scope.registry.forkForPropagatedEntries(),
-        Number.POSITIVE_INFINITY
+        Number.POSITIVE_INFINITY,
+        { preserveLineBreaks: true }
       )
       return projection.safe && typeof projection.value === 'string' ? projection.value : undefined
     },

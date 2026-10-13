@@ -10,7 +10,10 @@ import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { observeContentDelivery } from '@/lib/core/application/content-delivery'
+import {
+  observeContentDelivery,
+  observeContentOutsideModel,
+} from '@/lib/core/application/content-delivery'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,
@@ -117,6 +120,38 @@ afterAll(async () => {
 })
 
 describe('media input version lineage', () => {
+  it.each(['known', 'unknown'] as const)(
+    'preserves the storage size-limit error for an admitted %s media source',
+    async (classification) => {
+      const file = await uploadWorkspaceFile(
+        ids.workspaceId,
+        ids.aliceId,
+        Buffer.from(SECRET),
+        `bounded-${generateId()}.bin`,
+        'application/octet-stream',
+        {
+          secretProvenance: classification === 'known' ? known : { status: 'unknown' },
+          notifyWorkspaceChange: false,
+        }
+      )
+      await expect(
+        observeContentOutsideModel(() =>
+          readWorkspaceFileContent.execute({
+            principal: createCopilotChatPrincipal(
+              { userId: ids.aliceId, workspaceId: ids.workspaceId },
+              WORKSPACE_FILES_DELEGATION_AUDIENCE
+            ),
+            input: { fileId: file.id, maxBytes: 8, includeSecretProvenance: true },
+          })
+        )
+      ).rejects.toMatchObject({
+        name: 'PayloadSizeLimitError',
+        maxBytes: 8,
+        observedBytes: Buffer.byteLength(SECRET),
+      })
+    }
+  )
+
   it.each(['known', 'unknown'] as const)(
     'does not expose storage failures for %s input bytes before a read result exists',
     async (classification) => {

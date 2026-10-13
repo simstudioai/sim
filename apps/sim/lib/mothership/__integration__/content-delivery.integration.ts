@@ -8,6 +8,7 @@ import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { rateLimiterMock } from '@sim/testing/mocks/rate-limiter.mock'
 import { generateId } from '@sim/utils/id'
 import JSZip from 'jszip'
@@ -24,6 +25,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
 }))
 /** Admission throughput is not what this suite proves. */
 vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/embeddings', async () => ({
   ...(await import('@/lib/embeddings/client')),
   assertKnowledgeEmbeddingCapacity: async () => {},
@@ -69,14 +71,17 @@ vi.mock('@/lib/internal/tool-operations/registry.server', async (importOriginal)
 
 import { db } from '@sim/db'
 import {
+  changelogRelease,
   copilotChats,
   userTableRowSecretProvenance,
+  workflowTest,
   workspaceFileSearchRevision,
 } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { eq, sql } from 'drizzle-orm'
 import contentRoutes from '@/lib/api/server/routes/copilot-content-routes.json'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
+import { observeContentDelivery } from '@/lib/core/application/content-delivery'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -97,11 +102,19 @@ import {
   seedContentFixture,
   seedKnowledgeConnector,
 } from '@/lib/mothership/__integration__/content-delivery-fixture'
+import { observePrivateFile } from '@/lib/mothership/agent-cli/engines/observe-private-file'
 import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import { proxySandboxResourceRequest } from '@/lib/mothership/tools/sandbox-resource-transport'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  createOwnedWorkspaceFile,
+  uploadWorkspaceFile,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { indexWorkspaceFileForSearch } from '@/lib/workspace-files/search/indexing'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -774,6 +787,70 @@ describe('content reaching Chat is admitted per item', () => {
     })
   })
 
+  it.each(['test', 'changelog'] as const)(
+    'reads an owned %s body using its canonical provenance identity',
+    async (context) => {
+      featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
+      const content = 'owned file source for an authorized read'
+      const ownerId = generateId()
+      const created = await createOwnedWorkspaceFile({
+        context,
+        workspaceId: ws(),
+        userId: fixture.ids.aliceId,
+        content,
+        contentType: 'text/plain',
+        fileName: (fileId) => `${fileId}.txt`,
+        insertOwner: async (tx, bodyFileId) => {
+          if (context === 'test') {
+            await tx.insert(workflowTest).values({
+              id: ownerId,
+              workspaceId: ws(),
+              name: ownerId,
+              title: 'Owned test fixture',
+              bodyFileId,
+              sourceHash: sha256Hex(content),
+            })
+          } else {
+            await tx.insert(changelogRelease).values({
+              id: ownerId,
+              workspaceId: ws(),
+              title: 'Owned release fixture',
+              versionMajor: 1,
+              versionMinor: 0,
+              versionPatch: 0,
+              bumpReason: 'fixture',
+              bodyFileId,
+            })
+          }
+        },
+      })
+      const principal = createCopilotChatPrincipal(
+        { userId: fixture.ids.aliceId, workspaceId: ws() },
+        WORKSPACE_FILES_DELEGATION_AUDIENCE
+      )
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: fixture.ids.aliceId,
+        workspaceId: ws(),
+      })
+      const result = await observeContentDelivery(
+        createRegistryContentGate({
+          registry,
+          actorUserId: fixture.ids.aliceId,
+          workspaceId: ws(),
+        }),
+        () =>
+          readWorkspaceFileContent.execute({
+            principal,
+            input: { fileId: created.fileId, includeSecretProvenance: true },
+          })
+      )
+      expect(result.content.toString()).toBe(content)
+      expect(result.file.vfsNamespace).toBe(context === 'test' ? 'tests' : 'changelog')
+      expect(result.secretProvenance).toEqual({ status: 'exact', entries: [] })
+      featureFlagsMockFns.mockIsFeatureEnabled.mockReset()
+    }
+  )
+
   describe.each(['cli', 'sandbox'] as const)('%s text excerpts', (surface) => {
     const read = (route: string) => (surface === 'cli' ? cli('GET', route) : sandbox('GET', route))
 
@@ -905,43 +982,102 @@ describe('content reaching Chat is admitted per item', () => {
       expect(result.body).not.toContain(CANARY.secret)
     })
 
-    it('redacts a multiline secret before selecting a text line window', async () => {
-      const secret = 'RANGE_TOKEN_FIRST_LINE_64C1\nRANGE_TOKEN_SECOND_LINE_97B2'
-      const file = await uploadWorkspaceFile(
-        ws(),
-        fixture.ids.aliceId,
-        Buffer.from(`header\n${secret}\nfooter`),
-        `line-window-${generateId()}.txt`,
-        'text/plain',
-        {
-          secretProvenance: {
-            status: 'exact',
-            entries: [
-              {
-                encryptedValue: (await encryptSecret(secret)).encrypted,
-                sourceUserId: fixture.ids.aliceId,
-                sourceWorkspaceId: ws(),
-                name: 'RANGE_TOKEN',
-              },
-            ],
-          },
-          notifyWorkspaceChange: false,
-        }
-      )
-      const result = await read(
-        `/api/v2/files/${file.id}/text?workspaceId=${ws()}&offset=2&limit=1`
-      )
-      expect(result.status).toBe(200)
-      expect(JSON.parse(result.body).data.text).toBe('{{RANGE_TOKEN}}')
-      expect(result.body).not.toContain('RANGE_TOKEN_FIRST_LINE_64C1')
-      expect(result.body).not.toContain('RANGE_TOKEN_SECOND_LINE_97B2')
-      if ('sessionKey' in result) {
-        expect(await workbenchHistory(result.sessionKey)).toMatchObject({
-          status: 'exact',
-          entries: [expect.objectContaining({ name: 'RANGE_TOKEN' })],
+    it.each(['\n', '\r\n'])(
+      'preserves original line positions while redacting a multiline secret (%j)',
+      async (eol) => {
+        const secret = `RANGE_TOKEN_FIRST_LINE_64C1${eol}RANGE_TOKEN_SECOND_LINE_97B2`
+        const file = await uploadWorkspaceFile(
+          ws(),
+          fixture.ids.aliceId,
+          Buffer.from(`header${eol}${secret}${eol}footer`),
+          `line-window-${generateId()}.txt`,
+          'text/plain',
+          {
+            secretProvenance: {
+              status: 'exact',
+              entries: [
+                {
+                  encryptedValue: (await encryptSecret(secret)).encrypted,
+                  sourceUserId: fixture.ids.aliceId,
+                  sourceWorkspaceId: ws(),
+                  name: 'RANGE_TOKEN',
+                },
+              ],
+            },
+            notifyWorkspaceChange: false,
+          }
+        )
+        const result = await read(
+          `/api/v2/files/${file.id}/text?workspaceId=${ws()}&offset=2&limit=1`
+        )
+        expect(result.status).toBe(200)
+        expect(JSON.parse(result.body).data.text).toBe('{{RANGE_TOKEN}}')
+        expect(JSON.parse(result.body).data.lineRange).toEqual({
+          offset: 2,
+          lineCount: 1,
+          totalLines: 4,
+          totalLinesExact: true,
         })
+        for (const [offset, expected] of [
+          [3, '{{RANGE_TOKEN}}'],
+          [4, 'footer'],
+        ] as const) {
+          const selected = await read(
+            `/api/v2/files/${file.id}/text?workspaceId=${ws()}&offset=${offset}&limit=1`
+          )
+          expect(selected.status).toBe(200)
+          expect(JSON.parse(selected.body).data).toMatchObject({
+            text: expected,
+            lineRange: { offset, lineCount: 1, totalLines: 4, totalLinesExact: true },
+          })
+        }
+        if (surface === 'cli') {
+          const registry = new ResolvedSecretTraceRegistry([], {
+            userId: fixture.ids.aliceId,
+            workspaceId: ws(),
+          })
+          const privateRead = await observeContentDelivery(
+            createRegistryContentGate({
+              registry,
+              actorUserId: fixture.ids.aliceId,
+              workspaceId: ws(),
+            }),
+            async () => {
+              const original = await readWorkspaceFileContent.execute({
+                principal: createCopilotChatPrincipal(
+                  { userId: fixture.ids.aliceId, workspaceId: ws() },
+                  WORKSPACE_FILES_DELEGATION_AUDIENCE
+                ),
+                input: { fileId: file.id },
+              })
+              return observePrivateFile(
+                {
+                  buffer: original.content,
+                  name: original.file.name,
+                  path: original.file.path,
+                  source: 'upload',
+                },
+                {},
+                { offset: 3, limit: 2 }
+              )
+            }
+          )
+          expect(privateRead.exitCode).toBe(0)
+          expect(JSON.parse(privateRead.stdout)).toMatchObject({
+            text: `{{RANGE_TOKEN}}${eol}footer`,
+            lineRange: { offset: 3, lineCount: 2, totalLines: 4, totalLinesExact: true },
+          })
+        }
+        expect(result.body).not.toContain('RANGE_TOKEN_FIRST_LINE_64C1')
+        expect(result.body).not.toContain('RANGE_TOKEN_SECOND_LINE_97B2')
+        if ('sessionKey' in result) {
+          expect(await workbenchHistory(result.sessionKey)).toMatchObject({
+            status: 'exact',
+            entries: [expect.objectContaining({ name: 'RANGE_TOKEN' })],
+          })
+        }
       }
-    })
+    )
   })
 
   describe('run_code sandbox proxy', () => {

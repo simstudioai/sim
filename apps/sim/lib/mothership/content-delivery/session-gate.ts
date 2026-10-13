@@ -42,7 +42,8 @@ export function createSessionContentGate(scope: {
         const projection = projectResolvedSecretModelContent(
           text,
           registry.forkForPropagatedEntries(),
-          Number.POSITIVE_INFINITY
+          Number.POSITIVE_INFINITY,
+          { preserveLineBreaks: true }
         )
         return projection.safe && typeof projection.value === 'string'
           ? projection.value

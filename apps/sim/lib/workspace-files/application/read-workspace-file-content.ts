@@ -1,6 +1,7 @@
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { isCopilotPrincipal } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   type ActiveWorkspaceFileContext,
   fetchWorkspaceFileBuffer,
@@ -12,7 +13,10 @@ import {
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
+import {
+  requireAdmittedWorkspaceFile,
+  workspaceFileProvenanceIdentity,
+} from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
@@ -51,12 +55,10 @@ async function executeReadWorkspaceFileContent({
   if (!file) throw new OrchestrationError('not_found', 'File not found')
   const secretProvenance =
     input.includeSecretProvenance || isCopilotPrincipal(principal)
-      ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
-          fileId: file.id,
-          key: file.key,
-          context: file.storageContext ?? 'workspace',
-          contentUpdatedAt: file.contentUpdatedAt ?? undefined,
-        })
+      ? await getBoundWorkspaceFileSecretProvenance(
+          context.workspaceId,
+          workspaceFileProvenanceIdentity(file)
+        )
       : undefined
   await requireAdmittedWorkspaceFile(
     principal,
@@ -71,6 +73,7 @@ async function executeReadWorkspaceFileContent({
       maxBytes: input.maxBytes ?? MAX_BUFFERED_TRANSFER_BYTES,
     })
   } catch (error) {
+    if (isPayloadSizeLimitError(error)) throw error
     if (
       isCopilotPrincipal(principal) &&
       (secretProvenance?.status === 'unknown' ||
