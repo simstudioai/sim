@@ -498,15 +498,9 @@ const nextConfig: NextConfig = {
       permanent: true,
     })
 
-    /**
-     * The marketing Academy course/lesson pages were removed; content is
-     * consolidated into the docs site instead. Old course/lesson slugs have
-     * no equivalent path there, so every sub-path collapses to the new
-     * landing page rather than forwarding to a path that may not exist.
-     */
     redirects.push({
       source: '/academy/:path*',
-      destination: 'https://docs.sim.ai/academy',
+      destination: 'https://docs.sim.ai/introduction',
       permanent: true,
     })
 

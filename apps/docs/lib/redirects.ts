@@ -20,6 +20,7 @@ type DocsRedirect = Awaited<ReturnType<NonNullable<NextConfig['redirects']>>>[nu
  * modules would make match order an emergent property of two files.
  */
 const PATH_REDIRECTS: DocsRedirect[] = [
+  { source: '/academy/:path*', destination: '/introduction', permanent: true },
   ...Object.entries(integrationNavigation.redirects).map(([from, to]) => ({
     source: `/integrations/${from}`,
     destination: `/integrations/${to}`,

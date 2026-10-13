@@ -331,6 +331,7 @@ describe('E2B session recovery', () => {
   })
 
   it('searches paused workbenches and all pages before choosing the canonical session', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now())
     let pages = 2
     list.mockReturnValue({
       nextItems,
