@@ -4,6 +4,7 @@
  * completion. Calls are persisted the way the run loop persists a bound run's desktop calls, and
  * Stop runs through the real `requestRunStop`.
  */
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl, presence } = await vi.hoisted(async () => {
@@ -87,7 +88,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       })
       const workspaceId = generateId()
       workspaceIds.set(userId, workspaceId)
-      await db.insert(workspace).values({
+      await insertWorkspaceFixture(db, {
         id: workspaceId,
         name: 'Desktop executor fixture',
         ownerId: userId,
@@ -243,7 +244,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       await db.delete(desktopDevices).where(inArray(desktopDevices.id, deviceIds))
     }
     const workspaces = [...workspaceIds.values()]
-    if (workspaces.length) await db.delete(workspace).where(inArray(workspace.id, workspaces))
+    if (workspaces.length) await deleteWorkspaceFixture(db, inArray(workspace.id, workspaces))
     if (userIds.length) await db.delete(user).where(inArray(user.id, userIds))
   })
 

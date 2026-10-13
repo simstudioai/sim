@@ -229,8 +229,10 @@ async function seed() {
     await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
       values (${ownerId}, 'Stop-after fixture', ${email}, ${email}, true, now(), now())`
     await tx`insert into user_stats (id, user_id) values (${generateId()}, ${ownerId})`
-    await tx`insert into workspace (id, name, owner_id, billed_account_user_id)
-      values (${workspaceId}, 'Stop-after fixture', ${ownerId}, ${ownerId})`
+    await tx`insert into project (id, name, owner_id)
+      values (${workspaceId}, 'Stop-after project', ${ownerId})`
+    await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id)
+      values (${workspaceId}, ${workspaceId}, 'Stop-after fixture', ${ownerId}, ${ownerId})`
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
       values (${generateId()}, ${ownerId}, 'workspace', ${workspaceId}, 'admin')`
     await tx`insert into api_key (id, user_id, name, key, key_hash, type)
@@ -837,6 +839,7 @@ try {
         try {
           await sql.begin(async (tx) => {
             await tx`delete from workspace where id = ${workspaceId}`
+            await tx`delete from project where id = ${workspaceId}`
             await tx`delete from "user" where id = ${ownerId}`
           })
           break

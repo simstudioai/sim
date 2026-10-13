@@ -9,15 +9,13 @@ import {
 } from '@/lib/sim-search/live/http'
 import { interleaveByRank } from '@/lib/sim-search/live/pages'
 import { providerText } from '@/lib/sim-search/live/text'
+import { confluenceTextClause, jiraTextClause } from '@/lib/sim-search/live/text-match'
 import type {
   NativeClient,
   NativeDocument,
   NativePage,
   NativeSearchInput,
 } from '@/lib/sim-search/live/types'
-
-export const escapeSearchPhrase = (value: string) =>
-  JSON.stringify(value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&'))
 
 /** Place trusted scope before ORDER BY while respecting quoted JQL/CQL values. */
 export function scopeAtlassianQuery(query: string, scope?: string, order?: string): string {
@@ -163,7 +161,7 @@ export async function searchAtlassian(
           await client.json(`/ex/jira/${segment(cloudId)}/rest/api/3/search/jql`, {
             body: {
               jql: scopeAtlassianQuery(
-                input.native?.query || (text ? `text ~ ${escapeSearchPhrase(text)}` : ''),
+                input.native?.query || (text ? jiraTextClause(text, input.textMatch) : ''),
                 scope,
                 order
               ),
@@ -184,7 +182,7 @@ export async function searchAtlassian(
           query: {
             cql: scopeAtlassianQuery(
               input.native?.query ||
-                `type IN (page, blogpost)${text ? ` AND text ~ ${escapeSearchPhrase(text)}` : ''}`,
+                `type IN (page, blogpost)${text ? ` AND ${confluenceTextClause(text, input.textMatch)}` : ''}`,
               scope,
               order
             ),
@@ -244,6 +242,23 @@ export async function readAtlassian(
       string(site.url)
     )
   return readConfluence(client, cloudId, string(site.url), id, kind)
+}
+
+/** Page and blog post text for a search preview: one v2 read, reusing the search's site list. */
+export async function previewConfluence(
+  client: NativeClient,
+  document: NativeDocument
+): Promise<string | undefined> {
+  if (document.kind !== 'page' && document.kind !== 'blogpost') return undefined
+  const page = await readAtlassian(
+    client,
+    'confluence',
+    document.id,
+    document.container,
+    document.kind
+  )
+  /** A body without text reads as its title, which says less than the search excerpt. */
+  return page.content === page.title ? undefined : page.content
 }
 
 /**

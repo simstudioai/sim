@@ -51,6 +51,14 @@ jobs:
           provider: ${{ vars.CI_PROVIDER }}
           node-version: ''
 
+      - name: Validate Project migration database prerequisites
+        if: inputs.environment != 'dev'
+        working-directory: ./packages/db
+        env:
+          DATABASE_URL: ${{ inputs.environment == 'production' && secrets.DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_DATABASE_URL || '' }}
+          MIGRATION_DATABASE_URL: ${{ inputs.environment == 'production' && secrets.MIGRATION_DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_MIGRATION_DATABASE_URL || '' }}
+        run: bun --no-env-file scripts/project-contract-required.ts
+
       # The expression maps the explicit environment input to exactly one repo
       # secret, so the job never holds another environment's database URL. An
       # unknown environment resolves to empty and the guard below fails the job.

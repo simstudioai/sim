@@ -11,6 +11,8 @@ export const DOCUMENT_PROCESSING_FAILURE_CODES = [
   'unsupported_file_type',
   'invalid_file',
   'document_complexity_limit',
+  'image_extraction_unavailable',
+  'image_extraction_invalid',
   'transient_processing_failure',
 ] as const
 

@@ -1,6 +1,6 @@
 # Nebius Token Factory: production record
 
-Status: editorial, feature, and media review completed October 12, 2026. PR #8924 is merged to staging; hosted deployment verification remains pending. Only `index.mdx` is rendered on the website.
+Status: editorial, feature, and media review completed October 12, 2026. PR #8924 and its production-record follow-up are merged to staging; hosted article, media, links, discovery, and lightbox verification passed. Production publication remains subject to the publication monitor. Only `index.mdx` is rendered on the website.
 
 ## Story and evidence
 
@@ -47,3 +47,7 @@ Email body:
 > Nebius Token Factory is available in Sim's Agent block. Choose from open models including DeepSeek, Kimi, and Qwen, and use them with your existing prompts and connected tools. Bring your own Nebius API key to get started: https://www.sim.ai/changelog/nebius-models-for-agents
 
 These are drafts. Distribute only after the production article and media are verified.
+
+## Editorial revision
+
+Revised October 12, 2026, to clarify supported behavior and include selected changes from the same technical release where useful. Every public sentence describes a capability, a meaningful change, or necessary access information. Original dates, release references, RSS identities, and reviewed media are preserved. The `updated` timestamp records the substantive revision. Browser and CI evidence belongs in the revision PR.

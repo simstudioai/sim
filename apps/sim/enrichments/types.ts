@@ -63,7 +63,7 @@ export type EnrichmentProviderFailureProjection =
  * (which the table UI imports for metadata) never pulls in server-only tool
  * code. Providers are attempted in declared order (a fallback cascade); the
  * cascade runner (`run.ts`, server-only) calls the tool and the first provider
- * to return a non-empty result fills the cell.
+ * to return a non-empty, verified result fills the cell.
  */
 export interface EnrichmentProvider {
   /** Stable id for logs, e.g. `'hunter'`, `'pdl'`. */
@@ -87,6 +87,16 @@ export interface EnrichmentProvider {
    * An empty/`null` result falls through to the next provider.
    */
   mapOutput: (output: Record<string, unknown>) => Record<string, unknown> | null
+  /**
+   * Whether a hit is confirmed deliverable/accurate by the provider (e.g. a
+   * mailbox-verified email). When it returns `false`, the hit is held as a
+   * fallback and the cascade keeps looking for a confirmed one; the first held
+   * hit fills the cell only if no later provider confirms. Omit for providers
+   * whose every hit is already confirmed. `false` marks a provider that never
+   * confirms its hits: it runs only while nothing is held, since another
+   * unconfirmed hit could not replace the held one.
+   */
+  isVerified?: ((output: Record<string, unknown>) => boolean) | false
 }
 
 /**

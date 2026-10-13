@@ -25,8 +25,10 @@ import type {
   WorkflowRevertedBroadcast,
   WorkflowUpdatedBroadcast,
 } from '@sim/realtime-protocol/events'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { backoffWithJitter } from '@sim/utils/retry'
+import { randomFloat } from '@sim/utils/random'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import type { Socket } from 'socket.io-client'
@@ -69,6 +71,25 @@ const CONNECT_FAILURES_BEFORE_REPORT = 3
 const MAX_AUTH_RETRY_ATTEMPTS = 5
 const AUTH_RETRY_BASE_MS = 1000
 const AUTH_RETRY_MAX_MS = 30000
+
+/**
+ * Upper bound on an honored socket-token `Retry-After`. The token route's
+ * buckets refill over 60 s, so the default 30 s cap would retry into a 429.
+ */
+const SOCKET_TOKEN_RETRY_AFTER_MAX_MS = 5 * 60_000
+
+/** Up to +20% spread above a `Retry-After` floor, matching `backoffWithJitter`'s band. */
+const SOCKET_TOKEN_RETRY_AFTER_JITTER = 0.2
+
+/** A socket-token mint that failed for a retryable reason, with the server's `Retry-After`. */
+class SocketTokenUnavailableError extends Error {
+  readonly retryAfterMs: number | null
+
+  constructor(retryAfterMs: number | null) {
+    super('Failed to generate socket token')
+    this.retryAfterMs = retryAfterMs
+  }
+}
 
 function getTabSessionId(): string {
   if (typeof window === 'undefined') return ''
@@ -185,6 +206,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const joinRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const authRetryAttemptsRef = useRef(0)
   const authRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tokenRetryAttemptsRef = useRef(0)
   const sessionRejectedRef = useRef(false)
   const connectFailureCountRef = useRef(0)
   const connectFailureReportedRef = useRef(false)
@@ -367,7 +389,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       if (res.status === 401) {
         throw new Error('Authentication required')
       }
-      throw new Error('Failed to generate socket token')
+      throw new SocketTokenUnavailableError(
+        parseRetryAfter(res.headers.get('retry-after'), SOCKET_TOKEN_RETRY_AFTER_MAX_MS)
+      )
     }
     const body = await res.json().catch(() => ({}))
     const token = body?.token
@@ -407,33 +431,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           timestamp: new Date().toISOString(),
         })
 
-        const socketInstance = io(socketUrl, {
-          transports: ['websocket', 'polling'],
-          withCredentials: true,
-          reconnectionAttempts: Number.POSITIVE_INFINITY,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 30000,
-          timeout: 10000,
-          auth: async (cb) => {
-            // Reset per attempt so the flag describes THIS handshake only —
-            // otherwise one early 401 would still be set when a later, unrelated
-            // denial exhausts the retry budget.
-            sessionRejectedRef.current = false
-            try {
-              const freshToken = await generateSocketToken()
-              cb({ token: freshToken })
-            } catch (error) {
-              logger.error('Failed to generate fresh token for connection:', error)
-              if (error instanceof Error && error.message === 'Authentication required') {
-                // True auth failure - pass null token, server will reject with "Authentication required"
-                sessionRejectedRef.current = true
-                cb({ token: null })
-              }
-              // For server errors, don't call cb - connection will timeout and Socket.IO will retry
-            }
-          },
-        })
-
         /**
          * Reports a realtime connection that is not coming back.
          *
@@ -448,9 +445,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
          * Fires at most once per socket instance, at the point the toast
          * appears, rather than once per retry.
          *
-         * Called from `connect_error` and nowhere else. That is the only handler
-         * that sees exactly one event per attempt: a failed *reconnect* also
-         * emits the manager's `reconnect_error` (`manager.reconnect()` calls
+         * Called once per failed attempt: from `connect_error`, and from the auth
+         * callback when it ends an attempt itself because no token could be minted
+         * (that attempt never reaches `connect_error`). `connect_error` is the only
+         * socket handler that sees exactly one event per attempt: a failed
+         * *reconnect* also emits the manager's `reconnect_error` (`manager.reconnect()` calls
          * `open()`, whose error path emits `error` — which the socket re-emits as
          * `connect_error` — and then emits `reconnect_error` itself), so counting
          * in both would advance twice per try and trip the threshold early.
@@ -473,11 +472,84 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           })
         }
 
+        // Each auth callback owns one handshake; a token request that outlives it must
+        // not end the attempt that replaced it.
+        let authAttemptGeneration = 0
+
+        const socketInstance = io(socketUrl, {
+          transports: ['websocket', 'polling'],
+          withCredentials: true,
+          reconnectionAttempts: Number.POSITIVE_INFINITY,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 30000,
+          timeout: 10000,
+          auth: async (cb) => {
+            // Reset per attempt so the flag describes THIS handshake only —
+            // otherwise one early 401 would still be set when a later, unrelated
+            // denial exhausts the retry budget.
+            sessionRejectedRef.current = false
+            const attempt = ++authAttemptGeneration
+            try {
+              const freshToken = await generateSocketToken()
+              cb({ token: freshToken })
+            } catch (error) {
+              logger.error('Failed to generate fresh token for connection:', error)
+              if (error instanceof Error && error.message === 'Authentication required') {
+                // True auth failure - pass null token, server will reject with "Authentication required"
+                sessionRejectedRef.current = true
+                cb({ token: null })
+                return
+              }
+              if (
+                attempt !== authAttemptGeneration ||
+                !socketInstance.active ||
+                socketInstance.connected
+              ) {
+                return
+              }
+
+              // Withholding `cb` would park the transport until the server's 45 s connect
+              // timeout, and the Manager resets its backoff on every open, so pace it here.
+              tokenRetryAttemptsRef.current += 1
+              const retryAfterMs =
+                error instanceof SocketTokenUnavailableError ? error.retryAfterMs : null
+              const backoffMs = backoffWithJitter(tokenRetryAttemptsRef.current, null, {
+                baseMs: AUTH_RETRY_BASE_MS,
+                maxMs: AUTH_RETRY_MAX_MS,
+              })
+              // Spread tabs that share the same 429 window.
+              const delayMs =
+                retryAfterMs === null
+                  ? backoffMs
+                  : Math.max(
+                      backoffMs,
+                      retryAfterMs * (1 + SOCKET_TOKEN_RETRY_AFTER_JITTER * randomFloat())
+                    )
+              socketInstance.disconnect()
+              setIsConnected(false)
+              setIsConnecting(false)
+              setCurrentSocketId(null)
+              setIsReconnecting(true)
+              reportPersistentConnectFailure(getErrorMessage(error))
+              logger.warn('Socket token unavailable, reconnecting after delay', {
+                attempt: tokenRetryAttemptsRef.current,
+                delayMs: Math.round(delayMs),
+              })
+              clearAuthRetryTimeout()
+              authRetryTimeoutRef.current = setTimeout(() => {
+                authRetryTimeoutRef.current = null
+                socketInstance.connect()
+              }, delayMs)
+            }
+          },
+        })
+
         socketInstance.on('connect', () => {
           setIsConnected(true)
           setIsConnecting(false)
           setIsReconnecting(false)
           authRetryAttemptsRef.current = 0
+          tokenRetryAttemptsRef.current = 0
           connectFailureCountRef.current = 0
           connectFailureReportedRef.current = false
           clearAuthRetryTimeout()

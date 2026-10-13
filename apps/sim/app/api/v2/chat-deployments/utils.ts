@@ -99,7 +99,7 @@ export function toV2ChatDeployment(
     customizations: normalizeStoredCustomizations(deployment.customizations),
     outputConfigs: normalizeStoredOutputConfigs(deployment.outputConfigs),
     includeThinking: deployment.includeThinking,
-    includeToolCalls: deployment.includeToolCalls ?? false,
+    includeToolCalls: deployment.includeToolCalls,
     createdAt: deployment.createdAt.toISOString(),
     updatedAt: deployment.updatedAt.toISOString(),
   })
@@ -130,7 +130,7 @@ export function toV2ChatDeploymentListItem(
     authType: deployment.authType,
     outputConfigs: normalizeStoredOutputConfigs(deployment.outputConfigs),
     includeThinking: deployment.includeThinking,
-    includeToolCalls: deployment.includeToolCalls ?? false,
+    includeToolCalls: deployment.includeToolCalls,
     createdAt: deployment.createdAt.toISOString(),
     updatedAt: deployment.updatedAt.toISOString(),
   })

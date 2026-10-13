@@ -162,9 +162,16 @@ class LocalPubSubChannel<T> implements PubSubChannel<T> {
   }
 
   subscribe(handler: (event: T) => void): () => void {
-    this.emitter.on(this.config.channel, handler)
+    const isolatedHandler = (event: T) => {
+      try {
+        handler(event)
+      } catch (error) {
+        logger.error(`Error in ${this.config.label} handler:`, error)
+      }
+    }
+    this.emitter.on(this.config.channel, isolatedHandler)
     return () => {
-      this.emitter.off(this.config.channel, handler)
+      this.emitter.off(this.config.channel, isolatedHandler)
     }
   }
 

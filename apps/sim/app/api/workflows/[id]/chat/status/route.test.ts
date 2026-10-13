@@ -67,7 +67,7 @@ function chatRow(overrides: Record<string, unknown> = {}) {
     allowedEmails: ['ceo@victim-corp.com', '@victim-corp.com'],
     outputConfigs: [{ blockId: 'block-1', path: 'output' }],
     includeThinking: true,
-    includeToolCalls: null,
+    includeToolCalls: false,
     archivedAt: null,
     createdAt: new Date('2026-06-12T10:30:00.000Z'),
     updatedAt: new Date('2026-06-12T10:30:00.000Z'),

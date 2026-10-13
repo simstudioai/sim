@@ -5,6 +5,7 @@
  * Runs against real PostgreSQL and Redis through the production pre-persist path, the authorize
  * route, the lease route and the confirm route.
  */
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -202,7 +203,7 @@ describe.runIf(Boolean(redisUrl))('a chat-view import kept alive by its lease', 
         createdAt: now,
         updatedAt: now,
       })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Chat-view lease fixture',
       ownerId: userId,
@@ -226,7 +227,7 @@ describe.runIf(Boolean(redisUrl))('a chat-view import kept alive by its lease', 
 
   afterAll(async () => {
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
     await db.delete(user).where(eq(user.id, otherUserId))
   })

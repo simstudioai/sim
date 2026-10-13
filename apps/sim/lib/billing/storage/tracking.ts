@@ -430,6 +430,29 @@ export async function applyStorageUsageDeltasInTx(
   return destinationUpdatedUsage
 }
 
+/** Locks the canonical workspace before existing-file mutations that later change its storage ledger. */
+export async function lockWorkspaceStorageForMutationInTx(
+  tx: DbOrTx,
+  workspaceId: string
+): Promise<LockedWorkspaceStorage> {
+  const [workspacePayer] = await tx
+    .select({
+      billedAccountUserId: workspace.billedAccountUserId,
+      organizationId: workspace.organizationId,
+      storageUsedBytes: workspace.storageUsedBytes,
+    })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .for('no key update')
+    .limit(1)
+
+  if (!workspacePayer) {
+    throw new Error(`Workspace ${workspaceId} not found for storage accounting`)
+  }
+
+  return { id: workspaceId, ...workspacePayer }
+}
+
 /**
  * Mutates the durable workspace total and its current routed payer as one
  * transaction. The workspace row is the serialization point shared with payer
@@ -447,25 +470,9 @@ async function mutateWorkspaceStorageUsage(
   maximumUsage: number | undefined,
   context: StorageBillingContext
 ): Promise<WorkspaceStorageMutationResult> {
-  const [workspacePayer] = await tx
-    .select({
-      billedAccountUserId: workspace.billedAccountUserId,
-      organizationId: workspace.organizationId,
-      storageUsedBytes: workspace.storageUsedBytes,
-    })
-    .from(workspace)
-    .where(eq(workspace.id, workspaceId))
-    .for('no key update')
-    .limit(1)
+  const workspacePayer = await lockWorkspaceStorageForMutationInTx(tx, workspaceId)
 
-  if (!workspacePayer) {
-    throw new Error(`Workspace ${workspaceId} not found for storage accounting`)
-  }
-
-  const billingEntity = assertWorkspaceStorageContext(
-    { id: workspaceId, ...workspacePayer },
-    context
-  )
+  const billingEntity = assertWorkspaceStorageContext(workspacePayer, context)
   const currentPayerUsage = await lockStorageUsageForMutation(tx, billingEntity)
 
   if (mutation === 'decrement' && workspacePayer.storageUsedBytes < bytes) {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { readAtlassian, searchAtlassian } from '@/lib/sim-search/live/atlassian'
+import { previewConfluence, readAtlassian, searchAtlassian } from '@/lib/sim-search/live/atlassian'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 import type { NativeClient } from '@/lib/sim-search/live/types'
 
@@ -180,5 +180,20 @@ describe('Confluence live documents', () => {
     ])
     expect(page.message).toContain('cannot be read')
     expect(page.partial).toBe(true)
+  })
+
+  it('keeps the search excerpt when a previewed page body has no text', async () => {
+    const page = (value: string) =>
+      client({ [`${v2}/pages/7`]: { id: '7', title: 'Diagram', body: { view: { value } } } })
+    const document = {
+      id: '7',
+      kind: 'page',
+      container: 'cloud',
+      title: 'Diagram',
+      url: '',
+      content: '',
+    }
+    expect(await previewConfluence(page('<img src="x.png">'), document)).toBeUndefined()
+    expect(await previewConfluence(page('<p>Rollout steps</p>'), document)).toBe('Rollout steps')
   })
 })

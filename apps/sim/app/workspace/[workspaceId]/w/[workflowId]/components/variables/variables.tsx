@@ -132,7 +132,7 @@ function VariableHeader({
           e.stopPropagation()
           onRemove()
         }}
-        className='@max-[960px]/workflow:pointer-coarse:size-11 h-auto shrink-0 p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+        className='h-auto shrink-0 p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)] max-md:pointer-coarse:size-11'
         disabled={readOnly}
         aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
       >
@@ -435,7 +435,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
       ref={preventZoomRef}
       role='dialog'
       aria-label='Variables'
-      className='fixed @max-[960px]/workflow:absolute @max-[960px]/workflow:inset-0! z-30 flex @max-[960px]/workflow:size-auto! @max-[960px]/workflow:cursor-default! flex-col overflow-hidden @max-[960px]/workflow:rounded-none rounded-lg border @max-[960px]/workflow:border-0 border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 @max-[960px]/workflow:pb-[max(8px,env(safe-area-inset-bottom))] pb-2'
+      className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2 max-md:absolute max-md:inset-0! max-md:size-auto! max-md:cursor-default! max-md:rounded-none max-md:border-0 max-md:pb-[max(8px,env(safe-area-inset-bottom))]'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -454,7 +454,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
       {/* Header (drag handle) */}
       <div
         role='presentation'
-        className='flex @max-[960px]/workflow:h-11 h-[32px] shrink-0 @max-[960px]/workflow:cursor-default cursor-grab items-center justify-between bg-[var(--surface-1)] p-0 active:cursor-grabbing'
+        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between bg-[var(--surface-1)] p-0 active:cursor-grabbing max-md:h-11 max-md:cursor-default'
         onMouseDown={(event) => {
           if (isFloatingLayout()) handleMouseDown(event)
         }}
@@ -466,7 +466,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
           <Button
             variant='ghost'
             iconPadding='md'
-            className='-m-1.5 @max-[960px]/workflow:pointer-coarse:m-0 @max-[960px]/workflow:pointer-coarse:size-11'
+            className='-m-1.5 max-md:pointer-coarse:m-0 max-md:pointer-coarse:size-11'
             onClick={(e) => {
               e.stopPropagation()
               handleAddVariable()
@@ -479,7 +479,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
           <Button
             variant='ghost'
             iconPadding='md'
-            className='-m-1.5 @max-[960px]/workflow:pointer-coarse:m-0 @max-[960px]/workflow:pointer-coarse:size-11'
+            className='-m-1.5 max-md:pointer-coarse:m-0 max-md:pointer-coarse:size-11'
             onClick={handleClose}
             aria-label='Close variables panel'
           >

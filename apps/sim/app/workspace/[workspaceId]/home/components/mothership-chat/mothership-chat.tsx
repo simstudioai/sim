@@ -844,7 +844,7 @@ export function MothershipChat({
         className={cn(
           'relative flex h-full min-h-0 min-w-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',
           layout === 'mothership-view' &&
-            '@max-[960px]/chat-panel:mt-[var(--resource-header-controls-height)] @max-[960px]/chat-panel:h-auto @max-[960px]/chat-panel:flex-1',
+            'max-md:mt-[var(--resource-header-controls-height)] max-md:h-auto max-md:flex-1',
           inter.className,
           className
         )}

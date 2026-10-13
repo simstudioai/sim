@@ -47,7 +47,7 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 
 const mocks = {
   ...hoisted,
-  list: workspaceFilesListMockFns.mockListAllWorkspaceFiles,
+  find: workspaceFilesListMockFns.mockFindActiveWorkspaceFilesByReference,
   file: workspaceFileManagerMockFns.mockGetWorkspaceFile,
   context: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
   buffer: workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer,
@@ -59,9 +59,6 @@ const mocks = {
 
 /** Reinstalls the file-manager helpers this suite fixes, after `vi.resetAllMocks()` restores defaults. */
 function pinFileManagerHelpers() {
-  workspaceFileManagerMockFns.mockFindWorkspaceFileRecord.mockImplementation(
-    (files: { id: string }[], id: string) => files.find((candidate) => candidate.id === id)
-  )
   workspaceFileManagerMockFns.mockGetSandboxWorkspaceFilePath.mockReturnValue(
     '/home/user/files/source.txt'
   )
@@ -129,7 +126,7 @@ describe('Mothership file mounts bind content and classification to the same rec
     pinFileManagerHelpers()
     resetDbChainMock()
     mocks.file.mockResolvedValue(file)
-    mocks.list.mockResolvedValue({ files: [file] })
+    mocks.find.mockResolvedValue({ files: new Map([['file', file]]) })
     mocks.context.mockResolvedValue({
       workspaceId: 'workspace',
       fileId: 'file',
@@ -427,7 +424,7 @@ describe('organization-owned upload mounts', () => {
       }),
       input: expect.objectContaining({ chatId: 'chat', reference: 'uploads/upload' }),
     })
-    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mocks.find).not.toHaveBeenCalled()
     expect(registry.isComplete()).toBe(true)
   })
   it.each(['missing', 'absence', 'matching-secret'] as const)(
@@ -509,6 +506,6 @@ describe('organization-owned upload mounts', () => {
         registry
       )
     ).rejects.toThrow('Attachment not found')
-    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mocks.find).not.toHaveBeenCalled()
   })
 })

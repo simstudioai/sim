@@ -307,6 +307,42 @@ async function verifyCandidates(session: LiveAccountSession, candidates: LiveCan
   }
 }
 
+/** Top results per account read for a passage when their provider returns only an excerpt. */
+const PREVIEW_READS = 3
+/** A slow preview read keeps the provider's excerpt rather than delaying the search. */
+const PREVIEW_DEADLINE_MS = 2500
+/** Text kept around the match from a preview read, so a long document stays bounded. */
+const PREVIEW_SOURCE_CHARACTERS = 100_000
+
+/**
+ * Replaces the excerpt or metadata of an account's top results with their full text, so their
+ * preview is a passage around the match like other providers' results rather than a prompt to
+ * read. A read that fails or misses the deadline keeps the provider's own preview.
+ */
+async function withPreviewText(
+  session: LiveAccountSession,
+  candidates: LiveCandidate[],
+  query: string
+): Promise<LiveCandidate[]> {
+  const deadline = AbortSignal.timeout(PREVIEW_DEADLINE_MS)
+  const expired = new Promise<undefined>((resolve) =>
+    deadline.addEventListener('abort', () => resolve(undefined), { once: true })
+  )
+  const texts = await Promise.all(
+    candidates
+      .slice(0, PREVIEW_READS)
+      .map((candidate) =>
+        Promise.race([session.previewText(candidate.document).catch(() => undefined), expired])
+      )
+  )
+  return candidates.map((candidate, index) => {
+    const text = texts[index]?.trim()
+    if (!text) return candidate
+    const content = matchPassage(text, query, PREVIEW_SOURCE_CHARACTERS).content
+    return { ...candidate, document: { ...candidate.document, content } }
+  })
+}
+
 /** Keeps the first of candidates a provider marked as the same item, such as a shared meeting. */
 function firstOfEachDocument(candidates: LiveCandidate[]): LiveCandidate[] {
   const seen = new Set<string>()
@@ -507,6 +543,13 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           matchesLiveFilters(document, documentId, account.provider, queryFilters)
         )
       )
+      /** A native query's operators would anchor the passage, so only plain queries preview. */
+      const previewed =
+        !native && input.query.trim()
+          ? await measureSearchStage('live.preview', () =>
+              withPreviewText(session, matching, input.query)
+            )
+          : matching
       const undatedExcluded = permitted.some(({ document }) =>
         lacksFilterDate(document, account.provider, queryFilters)
       )
@@ -571,7 +614,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                 })
               : page.nextCursor,
         },
-        results: matching.map((candidate, index) => {
+        results: previewed.map((candidate, index) => {
           const result = resultFor(
             candidate,
             account,

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, projectWorkspace, workspace } from '@sim/db/schema'
+import { permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -7,7 +7,6 @@ import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import type { Workspace } from '@/lib/api/contracts/workspaces'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
-import { getProjectMembershipPhase } from '@/lib/projects/environment-source'
 import { requireForkProject } from '@/lib/projects/membership'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
@@ -211,7 +210,6 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     workflowMcpServers: [],
   }
   const transaction = await db.transaction(async (tx) => {
-    const phase = await getProjectMembershipPhase(tx)
     await setForkLockTimeout(tx)
     if (admission) {
       await lockWorkspaceOperationRequest(tx, admission.workspaceId, admission.requestId)
@@ -305,7 +303,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
 
     await tx.insert(workspace).values({
       id: childWorkspaceId,
-      projectId: phase === 'column' ? (parentProject?.id ?? null) : null,
+      projectId: parentProject.id,
       name: childName,
       ownerId: userId,
       organizationId: policy.organizationId,
@@ -318,12 +316,6 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       createdAt: now,
       updatedAt: now,
     })
-
-    if (phase === 'connector' && parentProject) {
-      await tx
-        .insert(projectWorkspace)
-        .values({ projectId: parentProject.id, workspaceId: childWorkspaceId })
-    }
 
     const sourcePermissions = await tx
       .select({ userId: permissions.userId, permissionType: permissions.permissionType })
