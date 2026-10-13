@@ -143,14 +143,6 @@ export function buildLogFilters(filters: LogFilters): SQL<unknown> {
 }
 
 /**
- * Whether {@link buildLogFilters} emits a predicate on the `workflow` table for
- * this filter set, so the query it feeds must join `workflow`.
- */
-export function logFiltersReferenceWorkflow(filters: Omit<LogFilters, 'workspaceId'>): boolean {
-  return !!(filters.folderIds?.length || filters.workflowName)
-}
-
-/**
  * Whether a filter set can select job runs at all.
  *
  * `job_execution_logs` has no workflow, no folder, no model projection, and no

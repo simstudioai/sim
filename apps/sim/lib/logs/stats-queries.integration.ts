@@ -1,7 +1,7 @@
 /**
  * Dashboard stats against real PostgreSQL: grouping by `workflow_id` and
- * resolving names afterwards answers exactly what the read did when it joined
- * `workflow` on every row and grouped by the joined name — for every filter, for
+ * joining names once per group answers exactly what the read did when it
+ * grouped by the name joined on every row — for every filter, for
  * runs whose workflow was deleted or never recorded, and past the
  * `MAX_STATS_WORKFLOWS` cut, whose ties are ordered by name.
  */
@@ -20,18 +20,10 @@ import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { MAX_STATS_WORKFLOWS } from '@/lib/api/contracts/logs'
-import {
-  buildFilterConditions,
-  filterParamsReferenceWorkflow,
-  type LogFilterParams,
-} from '@/lib/logs/filters'
+import { buildFilterConditions, type LogFilterParams } from '@/lib/logs/filters'
 import { folderScopeCondition, type LogFolderScope } from '@/lib/logs/folder-scope'
 import { handledErrorSpanCondition } from '@/lib/logs/handled-errors'
-import {
-  buildLogFilters,
-  type LogFilters,
-  logFiltersReferenceWorkflow,
-} from '@/lib/logs/public-filters'
+import { buildLogFilters, type LogFilters } from '@/lib/logs/public-filters'
 import { buildDashboardStats, type LogStatsWindow } from '@/lib/logs/stats'
 import { type LogStatsSegmentRow, readLogStatsSegments } from '@/lib/logs/stats-queries'
 
@@ -63,7 +55,7 @@ function runAt(hour: number, minute: number) {
 }
 
 /**
- * The read as it stood before it stopped joining `workflow` on every row: the
+ * The read as it stood before it stopped grouping by the joined name: the
  * oracle each case is compared against.
  */
 async function readSegmentsBeforeChange(
@@ -110,15 +102,10 @@ function canonical(rows: LogStatsSegmentRow[]) {
   )
 }
 
-async function expectSameStats(
-  where: SQL | undefined,
-  joinsWorkflow: boolean,
-  countHandledErrors = false
-) {
+async function expectSameStats(where: SQL | undefined, countHandledErrors = false) {
   const [before, after] = await Promise.all([
     readSegmentsBeforeChange(where, countHandledErrors),
     readLogStatsSegments(where, WINDOW.startTime.toISOString(), WINDOW.segmentMs, {
-      joinsWorkflow,
       countHandledErrors,
     }),
   ])
@@ -255,7 +242,7 @@ afterAll(async () => {
 
 describe('dashboard stats segments', () => {
   it('keeps runs of deleted and unrecorded workflows in one named series', async () => {
-    const { after } = await expectSameStats(scopedTo(undefined), false)
+    const { after } = await expectSameStats(scopedTo(undefined))
 
     const deleted = after.filter((row) => row.workflowId === 'deleted')
     expect(deleted.every((row) => row.workflowName === 'Deleted Workflow')).toBe(true)
@@ -263,7 +250,7 @@ describe('dashboard stats segments', () => {
   })
 
   it('cuts the per-workflow series at the same workflows, ordered by name inside a tie', async () => {
-    const { after } = await expectSameStats(scopedTo(undefined), false)
+    const { after } = await expectSameStats(scopedTo(undefined))
     const { stats, workflowsTruncated } = buildDashboardStats(
       canonical(after),
       WINDOW,
@@ -309,8 +296,7 @@ describe('dashboard stats segments', () => {
     async (_case, params) => {
       const filterParams: LogFilterParams = { ...params, workspaceId: ids.workspace }
       await expectSameStats(
-        scopedTo(buildFilterConditions(filterParams, { useSimpleLevelFilter: true })),
-        filterParamsReferenceWorkflow(filterParams)
+        scopedTo(buildFilterConditions(filterParams, { useSimpleLevelFilter: true }))
       )
     }
   )
@@ -335,8 +321,7 @@ describe('dashboard stats segments', () => {
         and(
           buildLogFilters({ ...filters, workspaceId: ids.workspace }),
           scope ? folderScopeCondition(scope) : undefined
-        ),
-        scope !== undefined || logFiltersReferenceWorkflow(filters)
+        )
       )
     }
   )
@@ -344,20 +329,8 @@ describe('dashboard stats segments', () => {
   it('counts handled errors the same', async () => {
     const { after } = await expectSameStats(
       buildLogFilters({ workspaceId: ids.workspace, level: 'error', includeHandledErrors: true }),
-      false,
       true
     )
     expect(after.reduce((sum, row) => sum + Number(row.handledErrorRuns), 0)).toBe(1)
-  })
-
-  it('refuses a workflow predicate the read was told it would not need', async () => {
-    await expect(
-      readLogStatsSegments(
-        scopedTo(buildFilterConditions({ workspaceId: ids.workspace, folderIds: ids.folder })),
-        WINDOW.startTime.toISOString(),
-        WINDOW.segmentMs,
-        { joinsWorkflow: false }
-      )
-    ).rejects.toThrow()
   })
 })
