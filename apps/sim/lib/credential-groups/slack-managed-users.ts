@@ -633,6 +633,11 @@ export async function createSlackManagedUsersAttempt(params: {
         'Select the organization’s Slack app. Configure its credentials in Slack app setup.',
         'invalid_response'
       )
+    /**
+     * Read before choosing the app: an install committed earlier is visible to that choice, and
+     * one committed later changes this snapshot, which completion re-checks under the lock.
+     */
+    installationsRevision = await organizationInstallationsRevision(db, scope.organizationId)
     const app = params.appId
       ? await resolveInstalledOrganizationSlackApp(
           scope.organizationId,
@@ -683,7 +688,6 @@ export async function createSlackManagedUsersAttempt(params: {
     }
     if (searchApproval.approved)
       requiredScopes = [...new Set([...requiredScopes, ...SLACK_SEARCH_USER_SCOPES])]
-    installationsRevision = await organizationInstallationsRevision(db, scope.organizationId)
   } else {
     if (!params.slackBotCredentialId)
       throw new SlackManagedUsersError('Select a custom Slack bot.', 'invalid_response')
