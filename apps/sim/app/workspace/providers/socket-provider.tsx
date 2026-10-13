@@ -26,7 +26,7 @@ import type {
   WorkflowUpdatedBroadcast,
 } from '@sim/realtime-protocol/events'
 import { generateId } from '@sim/utils/id'
-import { backoffWithJitter } from '@sim/utils/retry'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import type { Socket } from 'socket.io-client'
@@ -69,6 +69,22 @@ const CONNECT_FAILURES_BEFORE_REPORT = 3
 const MAX_AUTH_RETRY_ATTEMPTS = 5
 const AUTH_RETRY_BASE_MS = 1000
 const AUTH_RETRY_MAX_MS = 30000
+
+/**
+ * Upper bound on an honored socket-token `Retry-After`. The token route's IP
+ * bucket refills over 60 s, so the default 30 s cap would retry into a 429.
+ */
+const SOCKET_TOKEN_RETRY_AFTER_MAX_MS = 5 * 60_000
+
+/** A socket-token mint that failed for a retryable reason, with the server's `Retry-After`. */
+class SocketTokenUnavailableError extends Error {
+  readonly retryAfterMs: number | null
+
+  constructor(retryAfterMs: number | null) {
+    super('Failed to generate socket token')
+    this.retryAfterMs = retryAfterMs
+  }
+}
 
 function getTabSessionId(): string {
   if (typeof window === 'undefined') return ''
@@ -185,6 +201,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const joinRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const authRetryAttemptsRef = useRef(0)
   const authRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tokenRetryAttemptsRef = useRef(0)
   const sessionRejectedRef = useRef(false)
   const connectFailureCountRef = useRef(0)
   const connectFailureReportedRef = useRef(false)
@@ -367,7 +384,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       if (res.status === 401) {
         throw new Error('Authentication required')
       }
-      throw new Error('Failed to generate socket token')
+      throw new SocketTokenUnavailableError(
+        parseRetryAfter(res.headers.get('retry-after'), SOCKET_TOKEN_RETRY_AFTER_MAX_MS)
+      )
     }
     const body = await res.json().catch(() => ({}))
     const token = body?.token
@@ -428,8 +447,36 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
                 // True auth failure - pass null token, server will reject with "Authentication required"
                 sessionRejectedRef.current = true
                 cb({ token: null })
+                return
               }
-              // For server errors, don't call cb - connection will timeout and Socket.IO will retry
+              if (!socketInstance.active || socketInstance.connected) return
+
+              /* Withholding `cb` would hold the open transport until the realtime
+                 server's 45 s connect timeout, and the Manager resets its backoff on
+                 every transport open, so it cannot pace this retry. End the attempt
+                 and reconnect on our own backoff, never before `Retry-After`. */
+              tokenRetryAttemptsRef.current += 1
+              const retryAfterMs =
+                error instanceof SocketTokenUnavailableError ? error.retryAfterMs : null
+              const delayMs = Math.max(
+                backoffWithJitter(tokenRetryAttemptsRef.current, null, {
+                  baseMs: AUTH_RETRY_BASE_MS,
+                  maxMs: AUTH_RETRY_MAX_MS,
+                }),
+                retryAfterMs ?? 0
+              )
+              socketInstance.disconnect()
+              setIsConnecting(false)
+              setIsReconnecting(true)
+              logger.warn('Socket token unavailable, reconnecting after delay', {
+                attempt: tokenRetryAttemptsRef.current,
+                delayMs: Math.round(delayMs),
+              })
+              clearAuthRetryTimeout()
+              authRetryTimeoutRef.current = setTimeout(() => {
+                authRetryTimeoutRef.current = null
+                socketInstance.connect()
+              }, delayMs)
             }
           },
         })
@@ -478,6 +525,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           setIsConnecting(false)
           setIsReconnecting(false)
           authRetryAttemptsRef.current = 0
+          tokenRetryAttemptsRef.current = 0
           connectFailureCountRef.current = 0
           connectFailureReportedRef.current = false
           clearAuthRetryTimeout()
