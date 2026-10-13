@@ -623,6 +623,8 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
         'FIXTURE KEY|KEYLINE'
       )
       for (const fragment of fragments(keyBlock)) expect(projected).not.toContain(fragment)
+      const footer = await grepSecretFile(`config start\n${keyBlock}\nconfig end`, 'config end')
+      expect(footer).toContain(':6: config end')
     })
   })
 

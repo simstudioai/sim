@@ -11,18 +11,20 @@ import {
 } from '@/lib/execution/remote-sandbox'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
-import {
-  type CompiledDocReadOptions,
-  loadCompiledDoc,
-  loadPublishedCompiledDoc,
-  publishCompiledDocArtifact,
-  storeCompiledDoc,
-} from '@/lib/mothership/tools/server/files/doc-compiled-store'
 import { PPTX_SHIM_JS } from '@/lib/mothership/tools/server/files/pptx-shim'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { admitWorkspaceFiles } from '@/lib/workspace-files/application/admit-file-content'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
+import {
+  type CompiledDocReadOptions,
+  loadCompiledDoc,
+  loadPublishedCompiledDoc,
+  COMPILED_PDF_MAGIC as PDF_MAGIC,
+  publishCompiledDocArtifact,
+  storeCompiledDoc,
+  COMPILED_ZIP_MAGIC as ZIP_MAGIC,
+} from '@/lib/workspace-files/compiled-document-store'
 import { getContentType } from '@/app/api/files/utils'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 
@@ -663,9 +665,6 @@ interface CompilableFormat {
   taskId: SandboxTaskId
   contentType: string
 }
-
-const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04])
-const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d])
 
 const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
   '.pptx': { magic: ZIP_MAGIC, taskId: 'pptx-generate', contentType: PPTX_MIME },

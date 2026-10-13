@@ -1,12 +1,20 @@
 import { createHash } from 'node:crypto'
+import type { Readable } from 'node:stream'
+import { StringDecoder } from 'node:string_decoder'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { z } from 'zod'
+import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import { OWNED_FILE_CONTEXTS } from '@/lib/workspace-files/owned-files'
 
 const logger = createLogger('CopilotDocCompiledStore')
+
+export const COMPILED_PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d])
+export const COMPILED_ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04])
 
 /**
  * Compiled-artifact store for Python-generated documents.
@@ -35,6 +43,14 @@ function compiledArtifactKey(
 
 function publishedArtifactPointerKey(workspaceId: string, source: string, ext: string): string {
   const sourceHash = createHash('sha256').update(source, 'utf-8').digest('hex')
+  return publishedArtifactPointerKeyFromHash(workspaceId, sourceHash, ext)
+}
+
+function publishedArtifactPointerKeyFromHash(
+  workspaceId: string,
+  sourceHash: string,
+  ext: string
+): string {
   return `copilot-doc-compiled/${workspaceId}/${sourceHash}.${ext}.published.json`
 }
 
@@ -164,6 +180,63 @@ export async function publishCompiledDocArtifact(
     })
     throw toError(error)
   }
+}
+
+const publishedInputsSchema = z.object({
+  version: z.literal(1),
+  inputs: z.array(
+    z.object({
+      fileId: z.string().min(1),
+      key: z.string().min(1),
+      context: z.enum(['workspace', 'mothership', 'execution', ...OWNED_FILE_CONTEXTS]),
+      contentVersion: z.iso.datetime(),
+    })
+  ),
+})
+
+/**
+ * Reads the published artifact's captured input revisions without loading or rebuilding its bytes.
+ * Matches public format detection: binaries stop at their header; source is hashed as streamed UTF-8.
+ */
+export async function loadPublishedCompiledDocInputs(
+  workspaceId: string,
+  sourceStream: Readable,
+  ext: string
+): Promise<WorkspaceFileSecretProvenanceIdentity[]> {
+  const magic = ext === 'pdf' ? COMPILED_PDF_MAGIC : COMPILED_ZIP_MAGIC
+  let prefix = Buffer.alloc(0)
+  let total = 0
+  const hash = createHash('sha256')
+  const decoder = new StringDecoder('utf8')
+  for await (const chunk of sourceStream) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    if (prefix.length < magic.length) {
+      prefix = Buffer.concat([prefix, bytes.subarray(0, magic.length - prefix.length)])
+      if (prefix.equals(magic)) return []
+    }
+    total += bytes.length
+    assertKnownSizeWithinLimit(total, MAX_BUFFERED_TRANSFER_BYTES, 'Compiled document source')
+    hash.update(decoder.write(bytes), 'utf8')
+  }
+  hash.update(decoder.end(), 'utf8')
+  const pointer = await loadPublishedArtifactPointer(
+    publishedArtifactPointerKeyFromHash(workspaceId, hash.digest('hex'), ext)
+  )
+  if (!pointer) return []
+  let decoded: unknown
+  try {
+    decoded = JSON.parse(pointer.referencedInputIdentity)
+  } catch {
+    throw new Error('Published compiled document inputs are malformed')
+  }
+  const parsed = publishedInputsSchema.safeParse(decoded)
+  if (!parsed.success) throw new Error('Published compiled document inputs are invalid')
+  return parsed.data.inputs.map(({ fileId, key, context, contentVersion }) => ({
+    fileId,
+    key,
+    context,
+    contentUpdatedAt: new Date(contentVersion),
+  }))
 }
 
 /** Loads an artifact previously published by an authorized compile, or null before cutover. */

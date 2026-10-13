@@ -29,7 +29,8 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => 
   readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadataMock },
 }))
 vi.mock('@/lib/execution/sandbox/run-task', () => ({ runSandboxTask: runSandboxTaskMock }))
-vi.mock('./doc-compiled-store', () => ({
+vi.mock('@/lib/workspace-files/compiled-document-store', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workspace-files/compiled-document-store')>()),
   loadCompiledDoc: loadCompiledDocMock,
   loadPublishedCompiledDoc: vi.fn(),
   publishCompiledDocArtifact: publishCompiledDocArtifactMock,

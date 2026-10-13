@@ -461,7 +461,9 @@ function clip(line: string): string {
  */
 function redactForModel(text: string, egress: ResolvedSecretTraceRegistry | undefined) {
   if (!egress) return text
-  const projection = projectResolvedSecretModelContent(text, egress)
+  const projection = projectResolvedSecretModelContent(text, egress, undefined, {
+    preserveLineBreaks: true,
+  })
   return projection.safe && typeof projection.value === 'string' ? projection.value : null
 }
 

@@ -21,16 +21,22 @@ import {
   upsertFileShare,
 } from '@/lib/public-shares/share-manager'
 import {
+  findListedWorkspaceFiles,
   getWorkspaceFile,
   loadActiveWorkspaceContext,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
+  getBoundWorkspaceFileSecretProvenanceByIdentity,
   getCurrentWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { downloadFileStream } from '@/lib/uploads/core/storage-service'
+import { getFileExtension, isRenderableDocumentName } from '@/lib/uploads/utils/file-utils'
+import { workspaceFileProvenanceIdentity } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
+import { loadPublishedCompiledDocInputs } from '@/lib/workspace-files/compiled-document-store'
 import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 import { validatePublicFileSharing } from '@/ee/access-control/utils/permission-check'
 
@@ -97,7 +103,28 @@ async function admitSharedFiles(
   await admitContent(principal, [])
   if (!isCopilotPrincipal(principal) || fileIds.length === 0) return new Set(fileIds)
   const provenance = await getCurrentWorkspaceFileSecretProvenance(workspaceId, fileIds)
-  return new Set(fileIds.filter((id) => isShareableByChat(provenance.get(id))))
+  const shareable = new Set(fileIds.filter((id) => isShareableByChat(provenance.get(id))))
+  if (shareable.size === 0) return shareable
+  const files = await findListedWorkspaceFiles(workspaceId, [...shareable])
+  for (const id of shareable) {
+    const file = files.get(id)
+    if (!file || file.id !== id || !isRenderableDocumentName(file.name)) continue
+    const source = await downloadFileStream({
+      key: file.key,
+      context: file.storageContext ?? 'workspace',
+    })
+    const contributors = await loadPublishedCompiledDocInputs(
+      workspaceId,
+      source,
+      getFileExtension(file.name)
+    )
+    const bound = await getBoundWorkspaceFileSecretProvenanceByIdentity(workspaceId, [
+      workspaceFileProvenanceIdentity(file),
+      ...contributors,
+    ])
+    if ([...bound.values()].some((value) => !isShareableByChat(value))) shareable.delete(id)
+  }
+  return shareable
 }
 
 export const getWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({

@@ -8,6 +8,7 @@ import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { rateLimiterMock } from '@sim/testing/mocks/rate-limiter.mock'
 import { generateId } from '@sim/utils/id'
@@ -108,13 +109,22 @@ import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-de
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import { proxySandboxResourceRequest } from '@/lib/mothership/tools/sandbox-resource-transport'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { resolveServableDoc } from '@/lib/mothership/tools/server/files/doc-compile'
+import { getShareForResource } from '@/lib/public-shares/share-manager'
 import {
   createOwnedWorkspaceFile,
+  getWorkspaceFile,
+  updateWorkspaceFileContent as replaceFixtureFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import {
+  getWorkspaceFileShares,
+  updateWorkspaceFileShare,
+} from '@/lib/workspace-files/application/share-workspace-file'
+import { storeCompiledDoc } from '@/lib/workspace-files/compiled-document-store'
 import { indexWorkspaceFileForSearch } from '@/lib/workspace-files/search/indexing'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -176,6 +186,8 @@ describe('content reaching Chat is admitted per item', () => {
 
   beforeAll(async () => {
     fixtureStorage.root = mkdtempSync(path.join(tmpdir(), 'sim-content-delivery-'))
+    // Compile the lazy tool graph before request deadlines and per-case provider fixtures exist.
+    await matchV2Route('/api/v2/tools/file_get_content/execute')?.load()
     fixture = await seedContentFixture()
     connector = await seedKnowledgeConnector(fixture)
   }, 120_000)
@@ -578,6 +590,147 @@ describe('content reaching Chat is admitted per item', () => {
       expect((await share(fixture.files.entries)).status).toBe(403)
       expect((await share(fixture.files.clean)).status).toBe(200)
     })
+    it.each([
+      'clean',
+      'unrecorded',
+      'secret',
+      'unknown',
+      'old-secret',
+      'malformed',
+      'invalid',
+      'mislabeled',
+      'uploaded',
+      'legacy',
+    ] as const)(
+      'checks the published document inputs before exposing a share (%s)',
+      async (kind) => {
+        const entries = [
+          {
+            name: 'COMPILED_INPUT',
+            encryptedValue: (await encryptSecret(CANARY.secret)).encrypted,
+            sourceUserId: fixture.ids.aliceId,
+            sourceWorkspaceId: ws(),
+          },
+        ]
+        const inputContent = kind === 'clean' ? CANARY.clean : CANARY.secret
+        const input = await uploadWorkspaceFile(
+          ws(),
+          fixture.ids.aliceId,
+          Buffer.from(inputContent),
+          `compiled-input-${generateId()}.txt`,
+          'text/plain',
+          {
+            notifyWorkspaceChange: false,
+            secretProvenance:
+              kind === 'unknown'
+                ? { status: 'unknown' }
+                : kind === 'unrecorded'
+                  ? { status: 'unrecorded' }
+                  : { status: 'exact', entries: kind === 'clean' ? [] : entries },
+          }
+        )
+        const record = await getWorkspaceFile(ws(), input.id, { throwOnError: true })
+        if (!record) throw new Error('Missing compiled input fixture')
+        const source =
+          kind === 'uploaded'
+            ? '%PDF-1.7\nordinary uploaded binary'
+            : `data = open(input_path("${input.id}"), "rb").read()`
+        const document = await uploadWorkspaceFile(
+          ws(),
+          fixture.ids.aliceId,
+          Buffer.from(source),
+          `compiled-share-${generateId()}.pdf`,
+          kind === 'mislabeled' || kind === 'uploaded' ? 'application/pdf' : 'text/x-python-pdf',
+          { notifyWorkspaceChange: false, secretProvenance: { status: 'exact', entries: [] } }
+        )
+        const identity = JSON.stringify({
+          version: 1,
+          inputs: [
+            {
+              fileId: input.id,
+              key: record.key,
+              context: record.storageContext ?? 'workspace',
+              contentVersion: (record.contentUpdatedAt ?? record.updatedAt).toISOString(),
+              size: record.size,
+            },
+          ],
+        })
+        const artifact = Buffer.from(`%PDF-1.7\n${inputContent}`)
+        await storeCompiledDoc(
+          ws(),
+          source,
+          'pdf',
+          'application/pdf',
+          artifact,
+          kind === 'legacy'
+            ? undefined
+            : kind === 'malformed'
+              ? '{invalid'
+              : kind === 'invalid'
+                ? JSON.stringify({ version: 1, inputs: [{}] })
+                : identity
+        )
+        const published = await resolveServableDoc(ws(), Buffer.from(source), document.name)
+        expect(published.kind).toBe(kind === 'uploaded' ? 'passthrough' : 'artifact')
+        if (published.kind === 'artifact') expect(published.buffer).toEqual(artifact)
+        if (kind === 'old-secret') {
+          await replaceFixtureFileContent(
+            ws(),
+            input.id,
+            fixture.ids.aliceId,
+            Buffer.from('now clean'),
+            undefined,
+            {
+              version: { source: 'api', authorUserId: fixture.ids.aliceId },
+              secretProvenancePolicy: {
+                mode: 'replace',
+                provenance: { status: 'exact', entries: [] },
+              },
+            }
+          )
+        }
+        const allowed = ['clean', 'unrecorded', 'legacy', 'uploaded'].includes(kind)
+        const invalid = kind === 'malformed' || kind === 'invalid'
+        const activation = await cli('PATCH', `/api/v2/files/${document.id}/share`, {
+          workspaceId: ws(),
+          isActive: true,
+          authType: 'public',
+        })
+        expect.soft(activation.status).toBe(allowed ? 200 : invalid ? 500 : 403)
+        if (!allowed) expect.soft(await getShareForResource('file', document.id)).toBeNull()
+
+        const humanShare = await updateWorkspaceFileShare.execute({
+          principal: createSessionPrincipal({ userId: fixture.ids.aliceId }),
+          input: { fileId: document.id, isActive: true, authType: 'public' },
+        })
+        expect(humanShare.share.isActive).toBe(true)
+        for (const read of [cli, sandbox]) {
+          const link = await read('GET', `/api/v2/files/${document.id}/share?workspaceId=${ws()}`)
+          expect.soft(link.status).toBe(allowed ? 200 : invalid ? 500 : 403)
+          if (!allowed) expect.soft(link.body).not.toContain(humanShare.share.token)
+        }
+        if (!invalid) {
+          const result = await observeContentDelivery(
+            createRegistryContentGate({
+              registry: new ResolvedSecretTraceRegistry([]),
+              actorUserId: fixture.ids.aliceId,
+              workspaceId: ws(),
+            }),
+            () =>
+              getWorkspaceFileShares.execute({
+                principal: createCopilotChatPrincipal(
+                  { userId: fixture.ids.aliceId, workspaceId: ws() },
+                  WORKSPACE_FILES_DELEGATION_AUDIENCE
+                ),
+                input: { workspaceId: ws(), fileIds: [document.id, fixture.files.clean] },
+              })
+          )
+          expect(result.shares.has(document.id)).toBe(allowed)
+          expect(result.shares.has(fixture.files.clean)).toBe(true)
+        }
+      }
+    )
+
     it('reads one file directly: clean as is, secrets redacted, unknown withheld whole (#1, D7)', async () => {
       const download = (fileId: string) => cli('GET', `/api/v2/files/${fileId}?workspaceId=${ws()}`)
       const clean = await download(fixture.files.clean)
