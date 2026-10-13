@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { generateId } from '@sim/utils/id'
 import { z } from 'zod'
 import { isTimeoutError } from '@/lib/core/execution-limits/types'
 import {
@@ -133,11 +134,10 @@ const extractionSchema = z.object({
 const { $schema: _schemaVersion, ...IMAGE_EXTRACTION_RESPONSE_SCHEMA } =
   z.toJSONSchema(extractionSchema)
 
-/** What indexing keeps from one image; an image skipped before any model call carries no usage. */
+/** What indexing keeps from one image. */
 interface ImageExtractionResult {
   decorative: boolean
   renderedText: string
-  usage?: VisionExtractionUsage
 }
 
 const DECORATIVE: ImageExtractionResult = { decorative: true, renderedText: '' }
@@ -268,6 +268,8 @@ export async function canExtractImages(workspaceId: string | null): Promise<bool
  * under the pixel floor, or anything the model classifies as decorative, comes
  * back as decorative with no text. The validated result is checkpointed before
  * it is returned, so a pass that dies before its index swap does not pay twice.
+ * `onUsage` receives whatever Gemini billed, including for calls whose reply then
+ * failed the extraction, and the checkpointed usage when a pass resumes.
  */
 export async function extractImageText(input: {
   source: Buffer
@@ -276,6 +278,7 @@ export async function extractImageText(input: {
   checkpoint?: OcrCheckpointContext
   deadlineAt?: number
   signal?: AbortSignal
+  onUsage?: (usage: VisionExtractionUsage) => void
 }): Promise<ImageExtractionResult> {
   const { source, filename, workspaceId, signal } = input
   signal?.throwIfAborted()
@@ -304,7 +307,10 @@ export async function extractImageText(input: {
       })
     : undefined
   const cached = await checkpoint?.load(signal)
-  if (cached) return cached
+  if (cached) {
+    input.onUsage?.(cached.usage)
+    return cached
+  }
 
   const deadlineAt = input.deadlineAt ?? Number.POSITIVE_INFINITY
   /** Time left for the admission wait once the call and the post-call work are reserved. */
@@ -334,6 +340,7 @@ export async function extractImageText(input: {
   let extraction: z.infer<typeof extractionSchema>
   /** Every attempt that returned a reply was billed by Gemini, including malformed ones. */
   const spent = { inputTokens: 0, outputTokens: 0 }
+  let usage: VisionExtractionUsage
   try {
     extraction = await retryWithExponentialBackoff(
       async (attemptSignal) => {
@@ -393,21 +400,23 @@ export async function extractImageText(input: {
       await recordProviderCooldown(admission, error.retryAfterMs ?? 1000)
     }
     throw classifyGeminiImageError(error, model)
+  } finally {
+    usage = {
+      chargeId: generateId(),
+      model,
+      cost: calculateBillableModelCost(model, spent.inputTokens, spent.outputTokens, {
+        isBYOK: key.isBYOK,
+      }).total,
+      ...spent,
+    }
+    if (spent.inputTokens > 0 || spent.outputTokens > 0) input.onUsage?.(usage)
   }
 
   const decorative = extraction.kind === 'decorative'
-  const { total: cost } = calculateBillableModelCost(model, spent.inputTokens, spent.outputTokens, {
-    isBYOK: key.isBYOK,
-  })
   const result: VisionExtractionCheckpoint = {
     decorative,
     renderedText: decorative ? '' : extraction.rendered_text.trim(),
-    usage: {
-      model,
-      cost,
-      inputTokens: spent.inputTokens,
-      outputTokens: spent.outputTokens,
-    },
+    usage,
   }
   try {
     await checkpoint?.save(result, signal)
