@@ -66,10 +66,13 @@ describe('Slack access revocation', () => {
         },
       ],
     })
+    const memberGrants = dbChainMockFns.where.mock.calls[1][0]
+    expect(memberGrants.conditions).not.toContainEqual(
+      expect.objectContaining({ left: credential.organizationId })
+    )
     expect(dbChainMockFns.where).toHaveBeenNthCalledWith(2, {
       type: 'and',
       conditions: expect.arrayContaining([
-        { type: 'eq', left: credential.organizationId, right: 'org' },
         { type: 'eq', left: credential.authorizationAppId, right: 'slack:A1:T1' },
         { type: 'inArray', column: credential.providerSubjectId, values: ['U1', 'U2'] },
         {
@@ -86,6 +89,63 @@ describe('Slack access revocation', () => {
       ]),
     })
   })
+  it('keeps a custom app revocation inside the installation organization', async () => {
+    m.app.mockResolvedValue({
+      app: { id: 'A1', kind: 'custom', revision: 'r1', organizationId: 'org' },
+    })
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    await revokeSlackSearchAccess.execute({
+      principal,
+      input: { ...input, event: { type: 'tokens_revoked', tokens: { oauth: ['U1'] } } },
+    })
+    expect(dbChainMockFns.where).toHaveBeenNthCalledWith(2, {
+      type: 'and',
+      conditions: expect.arrayContaining([
+        { type: 'eq', left: credential.organizationId, right: 'org' },
+        { type: 'eq', left: credential.authorizationAppId, right: 'slack:A1:T1' },
+      ]),
+    })
+  })
+  it.each([
+    { type: 'app_uninstalled' as const },
+    { type: 'tokens_revoked' as const, tokens: { oauth: ['U1'] } },
+  ])('revokes shared-app member grants in a workspace with no Search bot: %j', async (event) => {
+    resetDbChainMock()
+    queueTableRows(slackSearchInstallation, [])
+    await revokeSlackSearchAccess.execute({ principal, input: { ...input, event } })
+    expect(dbChainMockFns.update.mock.calls.map(([table]) => table)).toEqual([credential])
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ managedOauthStatus: 'needs_reauth' })
+    )
+    const memberGrants = dbChainMockFns.where.mock.calls[1][0]
+    expect(memberGrants.conditions).toEqual(
+      expect.arrayContaining([
+        { type: 'eq', left: credential.type, right: 'managed_oauth' },
+        { type: 'eq', left: credential.authorizationAppId, right: 'slack:A1:T1' },
+        ...(event.type === 'tokens_revoked'
+          ? [{ type: 'inArray', column: credential.providerSubjectId, values: ['U1'] }]
+          : []),
+      ])
+    )
+    expect(memberGrants.conditions).not.toContainEqual(
+      expect.objectContaining({ left: credential.organizationId })
+    )
+  })
+  it.each([
+    { kind: 'custom', event: { type: 'app_uninstalled' as const } },
+    { kind: 'shared', event: { type: 'tokens_revoked' as const, tokens: { bot: ['UBOT'] } } },
+  ])(
+    'leaves grants untouched with no installation for a custom app or a bot-only revocation: $kind',
+    async ({ kind, event }) => {
+      resetDbChainMock()
+      m.app.mockResolvedValue({
+        app: { id: 'A1', kind, revision: 'r1', organizationId: kind === 'custom' ? 'org' : null },
+      })
+      queueTableRows(slackSearchInstallation, [])
+      await revokeSlackSearchAccess.execute({ principal, input: { ...input, event } })
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    }
+  )
   it.each([{ bot: ['UBOT'] }, { bot: ['UBOT'], oauth: ['U1'] }])(
     'cancels all installation work when its bot is revoked: %j',
     async (tokens) => {

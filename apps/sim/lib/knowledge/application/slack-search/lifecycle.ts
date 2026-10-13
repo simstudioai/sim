@@ -52,6 +52,19 @@ export const revokeSlackSearchAccess: OperationUseCase<
       throw new OrchestrationError('forbidden', 'Slack app configuration changed')
     const occurredAt = new Date(input.event_time * 1000)
     if (occurredAt.getTime() > Date.now() + 60_000) throw new Error('Invalid Slack revocation time')
+    /** A shared-app grant may belong to several organizations; its app and team name it exactly. */
+    const sharedApp = app.app.kind === 'shared'
+    const uninstall = input.event.type === 'app_uninstalled'
+    const revokedUsers =
+      input.event.type === 'tokens_revoked' ? (input.event.tokens.oauth ?? []) : []
+    const memberGrants = (organizationId?: string) =>
+      and(
+        ...(organizationId ? [eq(credential.organizationId, organizationId)] : []),
+        eq(credential.type, 'managed_oauth'),
+        eq(credential.authorizationAppId, `slack:${principal.appId}:${input.team_id}`),
+        or(isNull(credential.grantedAt), lte(credential.grantedAt, occurredAt)),
+        ...(uninstall ? [] : [inArray(credential.providerSubjectId, revokedUsers)])
+      )
     await db.transaction(async (tx) => {
       const [installation] = await tx
         .select()
@@ -64,14 +77,19 @@ export const revokeSlackSearchAccess: OperationUseCase<
         )
         .for('update')
         .limit(1)
-      if (!installation) return
+      /** Member sign-in through the shared app needs no Search bot, so it has no installation. */
+      if (!installation) {
+        if (sharedApp && (uninstall || revokedUsers.length))
+          await tx
+            .update(credential)
+            .set({ managedOauthStatus: 'needs_reauth', updatedAt: new Date() })
+            .where(memberGrants())
+        return
+      }
       if (app.app.kind === 'custom' && app.app.organizationId !== installation.organizationId)
         throw new Error('Slack installation ownership is inconsistent')
-      const uninstall = input.event.type === 'app_uninstalled'
       const staleInstallation = installation.updatedAt > occurredAt
       if (uninstall && staleInstallation) return
-      const revokedUsers =
-        input.event.type === 'tokens_revoked' ? (input.event.tokens.oauth ?? []) : []
       const revokeBot =
         !staleInstallation &&
         (uninstall ||
@@ -82,18 +100,7 @@ export const revokeSlackSearchAccess: OperationUseCase<
         const revokeCredentials = tx
           .update(credential)
           .set({ managedOauthStatus: 'needs_reauth', updatedAt: new Date() })
-          .where(
-            and(
-              eq(credential.organizationId, installation.organizationId),
-              eq(credential.type, 'managed_oauth'),
-              eq(
-                credential.authorizationAppId,
-                `slack:${installation.appId}:${installation.teamId}`
-              ),
-              or(isNull(credential.grantedAt), lte(credential.grantedAt, occurredAt)),
-              ...(uninstall ? [] : [inArray(credential.providerSubjectId, revokedUsers)])
-            )
-          )
+          .where(memberGrants(sharedApp ? undefined : installation.organizationId))
         if (revokeBot) await revokeCredentials
         else {
           const revokedCredentials = await revokeCredentials.returning({

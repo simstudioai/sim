@@ -31,7 +31,10 @@ import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/au
 import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
-import { slackBotCredentialVersion } from '@/lib/slack-search/app-configuration'
+import {
+  ensureSharedSlackAppRow,
+  slackBotCredentialVersion,
+} from '@/lib/slack-search/app-configuration'
 import { SLACK_SEARCH_SCOPES, SLACK_SHARED_SEARCH_BOT_SCOPES } from '@/lib/slack-search/constants'
 import { createSlackSearchManifest, SLACK_SEARCH_CALLBACK_PATH } from '@/lib/slack-search/manifest'
 import {
@@ -418,16 +421,7 @@ async function saveInstallation(
     }
     const appRevision = attempt.sharedApp?.revision ?? generateId()
     if (attempt.sharedApp) {
-      /** The row supplies foreign-key identity only; shared secrets remain in the environment. */
-      await tx
-        .insert(slackApp)
-        .values({
-          id: identity.appId,
-          kind: 'shared',
-          organizationId: null,
-          revision: appRevision,
-        })
-        .onConflictDoNothing()
+      await ensureSharedSlackAppRow(tx, { id: identity.appId, revision: appRevision })
     } else {
       const appValues = {
         id: identity.appId,

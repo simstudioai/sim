@@ -12,8 +12,10 @@ import { and, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzl
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
-import { addOrganizationAccountProvider } from '@/lib/credential-groups/service'
-import { SLACK_SEARCH_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
+import {
+  addOrganizationAccountProvider,
+  ensureWorkspaceAccountsGroup,
+} from '@/lib/credential-groups/service'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
@@ -271,17 +273,20 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
     let memberAccounts: { groupId: string; changed: boolean } | undefined
     const changed = await db.transaction(async (tx) => {
       await lockOrganizationSearchApproval(tx, context.organizationId!)
-      if (memberProvider)
+      /** Slack sign-in belongs to Slack setup (bot install or admin verification), not approval. */
+      if (memberProvider === 'slack') {
+        const group = await ensureWorkspaceAccountsGroup(
+          { kind: 'organization', organizationId: context.organizationId! },
+          requirePrincipalSubjectUserId(principal),
+          undefined,
+          tx
+        )
+        memberAccounts = { groupId: group.id, changed: group.created }
+      } else if (memberProvider)
         memberAccounts = await addOrganizationAccountProvider(
           context.organizationId!,
           requirePrincipalSubjectUserId(principal),
-          {
-            provider: memberProvider,
-            label: source[1].name,
-            ...(memberProvider === 'slack'
-              ? { requiredScopes: [...SLACK_SEARCH_USER_SCOPES] }
-              : {}),
-          },
+          { provider: memberProvider, label: source[1].name },
           tx
         ).catch((error: unknown) => {
           if (error instanceof CredentialGroupProviderConfigurationError)
