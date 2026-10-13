@@ -285,7 +285,7 @@ export const DELETE = withRouteHandler(
         }
         return true
       })
-      if (!removed) return notFoundResponse('Workspace member')
+      if (!removed) return adminNotFoundResponse('Workspace member')
 
       logger.info(`Admin API: Removed member ${memberId} from workspace ${workspaceId}`, {
         userId: existingMember.userId,
