@@ -141,13 +141,19 @@ export function refreshMothershipChatDetail(queryClient: QueryClient, chatId: st
   }
   const refresh: ChatDetailRefresh = { startedAt: Date.now(), requestedAgain: false }
   refreshes.set(chatId, refresh)
-  void queryClient
-    .invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-    .finally(() => {
-      if (refreshes.get(chatId) !== refresh) return
-      refreshes.delete(chatId)
-      if (refresh.requestedAgain) refreshMothershipChatDetail(queryClient, chatId)
-    })
+  const queryKey = mothershipChatKeys.detail(chatId)
+  // A query with no data yet joins its fetch in flight instead of replacing it, so a stuck
+  // one is cancelled first.
+  const reload = inFlight
+    ? queryClient
+        .cancelQueries({ queryKey, exact: true })
+        .then(() => queryClient.invalidateQueries({ queryKey }))
+    : queryClient.invalidateQueries({ queryKey })
+  void reload.finally(() => {
+    if (refreshes.get(chatId) !== refresh) return
+    refreshes.delete(chatId)
+    if (refresh.requestedAgain) refreshMothershipChatDetail(queryClient, chatId)
+  })
 }
 
 /** Shared by the `useMothershipChats` hook and the workspace sidebar prefetch. */

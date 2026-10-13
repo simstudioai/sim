@@ -216,7 +216,7 @@ describe('recovered resource events', () => {
   }
 
   /** A mounted chat whose every read returns the resources stored when the read began. */
-  function mountedChat(queryClient: QueryClient) {
+  function mountedChat(queryClient: QueryClient, { cached = true, hangFirstRead = false } = {}) {
     const server = { stored: [] as MothershipResource[] }
     const reads = vi.fn(
       async (): Promise<MothershipChatHistory> => ({
@@ -227,13 +227,16 @@ describe('recovered resource events', () => {
         resources: [...server.stored],
       })
     )
-    queryClient.setQueryData(detailKey, {
-      id: 'chat-1',
-      title: null,
-      messages: [],
-      activeStreamId: 'stream-1',
-      resources: [],
-    } satisfies MothershipChatHistory)
+    if (hangFirstRead) reads.mockImplementationOnce(() => new Promise(() => {}))
+    if (cached) {
+      queryClient.setQueryData(detailKey, {
+        id: 'chat-1',
+        title: null,
+        messages: [],
+        activeStreamId: 'stream-1',
+        resources: [],
+      } satisfies MothershipChatHistory)
+    }
     const unsubscribe = new QueryObserver(queryClient, {
       queryKey: detailKey,
       queryFn: reads,
@@ -293,31 +296,40 @@ describe('recovered resource events', () => {
     unsubscribe()
   })
 
-  it('stops holding reloads behind one that never settles once 30 seconds pass', async () => {
-    const queryClient = new QueryClient()
-    const { server, reads, unsubscribe } = mountedChat(queryClient)
-    const ctx = createStreamLoopContext(
-      makeStreamLoopDeps({ queryClient, chatIdRef: ref<string | undefined>('chat-1') })
-    )
-    reads.mockImplementationOnce(() => new Promise<MothershipChatHistory>(() => {}))
-    vi.useFakeTimers({ toFake: ['Date'] })
-    try {
-      handleResourceEvent(ctx, replayed(tables[0], 1))
-      await vi.waitFor(() => expect(reads).toHaveBeenCalledOnce())
-      handleResourceEvent(ctx, replayed(tables[1], 2))
-      expect(reads).toHaveBeenCalledOnce()
+  it.each([
+    { name: 'a loaded transcript', cached: true },
+    { name: 'a transcript still on its first load', cached: false },
+  ])(
+    'stops holding reloads of $name behind one that never settles once 30 seconds pass',
+    async ({ cached }) => {
+      const queryClient = new QueryClient()
+      const { server, reads, unsubscribe } = mountedChat(queryClient, {
+        cached,
+        hangFirstRead: true,
+      })
+      const ctx = createStreamLoopContext(
+        makeStreamLoopDeps({ queryClient, chatIdRef: ref<string | undefined>('chat-1') })
+      )
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        handleResourceEvent(ctx, replayed(tables[0], 1))
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledOnce())
+        handleResourceEvent(ctx, replayed(tables[1], 2))
+        expect(reads).toHaveBeenCalledOnce()
 
-      server.stored = tables
-      vi.setSystemTime(Date.now() + 30_000)
-      handleResourceEvent(ctx, replayed(tables[2], 3))
+        server.stored = tables
+        vi.setSystemTime(Date.now() + 30_000)
+        handleResourceEvent(ctx, replayed(tables[2], 3))
 
-      expect(await settledResources(queryClient)).toEqual(tables)
-      expect(reads).toHaveBeenCalledTimes(2)
-    } finally {
-      vi.useRealTimers()
-      unsubscribe()
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(2))
+        expect(await settledResources(queryClient)).toEqual(tables)
+        expect(reads).toHaveBeenCalledTimes(2)
+      } finally {
+        vi.useRealTimers()
+        unsubscribe()
+      }
     }
-  })
+  )
 })
 
 describe('handleResourceEvent saved-view pins', () => {

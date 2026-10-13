@@ -18,9 +18,10 @@ export const detoastedMessageContent: SQL = sql`(select ${copilotMessages.conten
  */
 export function textMessageContent(fields: readonly string[]): SQL {
   const content = sql`detoasted.content`
-  // The strict path copies only the blocks it keeps, never the tool payloads it skips.
+  // The strict path copies only the blocks it keeps, never the tool payloads it skips; `silent`
+  // skips a malformed block instead of failing the read.
   const textBlocks = sql`case when jsonb_typeof(${content} -> 'contentBlocks') = 'array'
-    then jsonb_path_query_array(${content}, 'strict $.contentBlocks[*] ? (@.type == "text")') end`
+    then jsonb_path_query_array(${content}, 'strict $.contentBlocks[*] ? (@.type == "text")', '{}', true) end`
   const entries = [
     ...fields.map((field) => sql`${field}::text, ${content} -> ${field}::text`),
     sql`'contentBlocks', ${textBlocks}`,

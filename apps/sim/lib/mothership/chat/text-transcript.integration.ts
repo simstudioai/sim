@@ -74,7 +74,6 @@ describe('text-only chat transcript in PostgreSQL', () => {
         ],
       },
       { role: 'assistant', content: 'only tools ran', contentBlocks: [toolBlock('tool-2')] },
-      { role: 'assistant', content: 'blocks not an array', contentBlocks: 'oops' },
       { content: 'no role' },
       { role: 'assistant', contentBlocks: [{ type: 'text', content: '   ' }] },
       'a bare string message',
@@ -94,7 +93,6 @@ describe('text-only chat transcript in PostgreSQL', () => {
         'user: Build me a workflow',
         'assistant: Working on it. Done.',
         'assistant: only tools ran',
-        'assistant: blocks not an array',
         'user: no role',
         'assistant:',
         'user:',
@@ -102,6 +100,15 @@ describe('text-only chat transcript in PostgreSQL', () => {
       ].join('\n')
     )
     expect(JSON.stringify(text?.messages).length).toBeLessThan(10_000)
+  })
+
+  it('quotes a message whose contentBlocks is not an array by its content', async () => {
+    const chatId = await seedChat([
+      { role: 'assistant', content: 'blocks not an array', contentBlocks: 'oops' },
+    ])
+
+    const text = await getAccessibleCopilotChatWithTextMessages(chatId, userId)
+    expect(quoteChatTranscript(text?.messages ?? [])).toBe('assistant: blocks not an array')
   })
 
   it('skips deleted messages and refuses a chat the caller does not own', async () => {
