@@ -109,6 +109,37 @@ export const mothershipChatKeys = {
   detail: (chatId: string | undefined) => [...mothershipChatKeys.details(), chatId ?? ''] as const,
 }
 
+/** Per client, the chats with a reload in flight, and whether another was requested meanwhile. */
+const chatDetailRefreshes = new WeakMap<QueryClient, Map<string, boolean>>()
+
+/**
+ * Invalidates a chat's detail so a mounted transcript reloads, coalescing a burst of
+ * requests (a replayed or reconnected stream re-announces every resource it touched)
+ * into one reload in flight plus one trailing reload. The trailing reload starts after
+ * the last request, so the final read reflects every change requested meanwhile; a read
+ * already in flight may predate a request and is never trusted to include it.
+ */
+export function refreshMothershipChatDetail(queryClient: QueryClient, chatId: string): void {
+  let refreshes = chatDetailRefreshes.get(queryClient)
+  if (!refreshes) {
+    refreshes = new Map()
+    chatDetailRefreshes.set(queryClient, refreshes)
+  }
+  if (refreshes.has(chatId)) {
+    refreshes.set(chatId, true)
+    return
+  }
+  const inFlight = refreshes
+  inFlight.set(chatId, false)
+  void queryClient
+    .invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+    .finally(() => {
+      const requestedAgain = inFlight.get(chatId) === true
+      inFlight.delete(chatId)
+      if (requestedAgain) refreshMothershipChatDetail(queryClient, chatId)
+    })
+}
+
 /** Shared by the `useMothershipChats` hook and the workspace sidebar prefetch. */
 export const MOTHERSHIP_CHAT_LIST_STALE_TIME = 60 * 1000
 export const MOTHERSHIP_CHAT_HISTORY_STALE_TIME = 30 * 1000

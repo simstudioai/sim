@@ -22,6 +22,7 @@ import {
   type PersistedMessage,
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
+import { detoastedMessageContent, textMessageContent } from '@/lib/mothership/chat/text-transcript'
 import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   assertActiveWorkspaceAccess,
@@ -380,6 +381,26 @@ export async function getAccessibleCopilotChatWithMessages(
 
   const messages = await loadCopilotChatMessages(chatId)
   return { ...chat, messages }
+}
+
+/**
+ * The chat {@link getAccessibleCopilotChatWithMessages} loads, with each message reduced to
+ * its role and text ({@link textMessageContent}) for a reader that quotes the transcript.
+ */
+export async function getAccessibleCopilotChatWithTextMessages(
+  chatId: string,
+  userId: string
+): Promise<CopilotChatDetailRow | null> {
+  const chat = await getAccessibleCopilotChatDetail(chatId, userId)
+  if (!chat) return null
+
+  const rows = await db
+    .select({ content: textMessageContent(['role', 'content']) })
+    .from(copilotMessages)
+    .crossJoinLateral(detoastedMessageContent)
+    .where(and(eq(copilotMessages.chatId, chatId), isNull(copilotMessages.deletedAt)))
+    .orderBy(...TRANSCRIPT_ORDER)
+  return { ...chat, messages: rows.map((row) => row.content) }
 }
 
 /**

@@ -50,6 +50,7 @@ import {
   safeBrowserSelectionUrl,
   truncateSelectionText,
 } from '@/lib/mothership/chat/selection-context'
+import { quoteChatTranscript } from '@/lib/mothership/chat/text-transcript'
 import { QueryLogs } from '@/lib/mothership/generated/tool-catalog-v1'
 import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
@@ -550,8 +551,8 @@ async function processPastChatFromDb(
   currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
-    const { getAccessibleCopilotChatWithMessages } = await import('./lifecycle')
-    const chat = await getAccessibleCopilotChatWithMessages(chatId, userId)
+    const { getAccessibleCopilotChatWithTextMessages } = await import('./lifecycle')
+    const chat = await getAccessibleCopilotChatWithTextMessages(chatId, userId)
     if (!chat) {
       return null
     }
@@ -567,23 +568,7 @@ async function processPastChatFromDb(
         }
       }
     }
-    const messages = Array.isArray(chat.messages) ? (chat as any).messages : []
-    const content = messages
-      .map((m: any) => {
-        const role = m.role || 'user'
-        let text = ''
-        if (Array.isArray(m.contentBlocks) && m.contentBlocks.length > 0) {
-          text = m.contentBlocks
-            .filter((b: any) => b?.type === 'text')
-            .map((b: any) => String(b.content || ''))
-            .join('')
-            .trim()
-        }
-        if (!text && typeof m.content === 'string') text = m.content
-        return `${role}: ${text}`.trim()
-      })
-      .filter((s: string) => s.length > 0)
-      .join('\n')
+    const content = quoteChatTranscript(chat.messages)
     logger.info('Processed past_chat context from DB', {
       chatId,
       length: content.length,
