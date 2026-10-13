@@ -389,6 +389,7 @@ function helperName(ancestors: Node[]): string | undefined {
   while (ancestors[index]?.type.startsWith('Export')) index++
   const statement = ancestors[index]
   const inner = ancestors[index + 1]
+  const init = inner?.type === 'VariableDeclarator' ? unwrap(inner.init as Node) : undefined
   if (statement?.type === 'FunctionDeclaration') {
     return (statement.id as Node | null)?.name as string | undefined
   }
@@ -396,8 +397,8 @@ function helperName(ancestors: Node[]): string | undefined {
     statement?.type === 'VariableDeclaration' &&
     inner?.type === 'VariableDeclarator' &&
     (inner.id as Node).type === 'Identifier' &&
-    ancestors[index + 2] === inner.init &&
-    FUNCTION_TYPES.has((inner.init as Node).type)
+    init &&
+    FUNCTION_TYPES.has(init.type)
   ) {
     return (inner.id as Node).name as string
   }

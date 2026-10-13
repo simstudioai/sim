@@ -270,6 +270,16 @@ describe('real-wait', () => {
       ['sleep() #1'],
     ],
     [
+      'a wrapped arrow helper called at module scope before a module-scope install',
+      [
+        HELPERS,
+        'const settle = (async () => { await sleep(10) }) satisfies (() => Promise<void>)',
+        'await settle()',
+        'vi.useFakeTimers()',
+      ],
+      ['sleep() #1'],
+    ],
+    [
       'every occurrence, numbered per kind',
       [HELPERS, 'await sleep(10)', 'await new Promise((r) => setTimeout(r, 5))', 'await sleep(20)'],
       ['sleep() #1', 'setTimeout promise #1', 'sleep() #2'],
