@@ -4,6 +4,7 @@
 
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
+import { chunkArray } from '@sim/utils/helpers'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { canonicalJson } from '@/lib/api/cursor-binding'
@@ -19,6 +20,7 @@ import {
   validateColumnTypeLimits,
   validateTypeMetadata,
 } from '@/lib/table/column-types'
+import { equalityCast } from '@/lib/table/column-types/comparison-sql'
 import {
   getMaxRowSizeBytes,
   NAME_PATTERN,
@@ -538,6 +540,13 @@ async function withSeqscanOffOn(
 type UniqueCheckExecutor = Pick<typeof db, 'select' | 'execute'>
 
 /**
+ * Most values one branch of the batch conflict query ORs together. The branches join with UNION ALL
+ * and carry no LIMIT, so each value stays a GIN probe: under a LIMIT the planner walks every row of
+ * the table instead, and a much larger OR adds a scan of the table's whole entry in that index.
+ */
+const UNIQUE_PROBE_GROUP_SIZE = 25
+
+/**
  * Checks unique constraints for a batch of rows using targeted database queries.
  * Validates both against existing database rows and within the batch itself.
  *
@@ -615,8 +624,7 @@ export async function checkBatchUniqueConstraintsDb(
         throw new Error(`Invalid column id: ${columnId}`)
       }
 
-      const valueArray = Array.from(values)
-      const valueConditions = valueArray.map((normalizedValue) => {
+      const valueConditions = Array.from(values, (normalizedValue) => {
         // Reconstruct the original typed value from its normalized key. Both
         // directions go through JSON unconditionally: keying the write on the
         // value's RUNTIME type while keying the read on the column's DECLARED
@@ -627,20 +635,26 @@ export async function checkBatchUniqueConstraintsDb(
         return uniqueValuePredicate(USER_TABLE_ROWS_SQL_NAME, columnId, originalValue, column)
       })
 
-      const conflictingRows = await ex
-        .select({
-          id: userTableRows.id,
-          data: userTableRows.data,
-          position: userTableRows.position,
-        })
-        .from(userTableRows)
-        .where(and(eq(userTableRows.tableId, tableId), or(...valueConditions)))
-        .limit(valueArray.length) // We only need up to one conflict per value
+      // A cast comparison is a filter over the table's rows whatever its shape, so it stays one
+      // pass rather than one per group.
+      const groups = equalityCast(column)
+        ? [valueConditions]
+        : chunkArray(valueConditions, UNIQUE_PROBE_GROUP_SIZE)
+      const conflictingRows = await ex.execute<{ data: RowData; position: number }>(
+        sql.join(
+          groups.map((group) =>
+            ex
+              .select({ data: userTableRows.data, position: userTableRows.position })
+              .from(userTableRows)
+              .where(and(eq(userTableRows.tableId, tableId), or(...group)))
+          ),
+          sql` UNION ALL `
+        )
+      )
 
       // Map conflicts back to batch rows
       for (const conflict of conflictingRows) {
-        const conflictData = conflict.data as RowData
-        const conflictValue = cellOf(conflictData, columnId)
+        const conflictValue = cellOf(conflict.data, columnId)
         if (conflictValue === null || conflictValue === undefined) continue
         // Keyed like the batch, since stored jsonb comes back with its keys reordered.
         const normalizedConflictValue = uniqueValueKey(conflictValue, column)
