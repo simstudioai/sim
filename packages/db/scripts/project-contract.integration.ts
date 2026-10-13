@@ -446,14 +446,14 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
 
   it('retries the registered backfill after a failed batch without repeating committed assignments', async () => {
     await database(async (sql, url) => {
-      await sql`INSERT INTO workspace (id,name,owner_id) SELECT lpad(n::text,3,'0'), 'Env ' || n,'owner' FROM generate_series(1,101) n`
+      await sql`INSERT INTO workspace (id,name,owner_id) SELECT lpad(n::text,3,'0'), 'Env ' || n,'owner' FROM generate_series(1,401) n`
       await sql.unsafe(`CREATE FUNCTION reject_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
-        IF NEW.name = 'Env 75 - Project' THEN RAISE EXCEPTION 'fixture failure'; END IF; RETURN NEW; END $$;
+        IF NEW.name = 'Env 275 - Project' THEN RAISE EXCEPTION 'fixture failure'; END IF; RETURN NEW; END $$;
         CREATE TRIGGER reject_fixture BEFORE INSERT ON project FOR EACH ROW EXECUTE FUNCTION reject_fixture();`)
       await expect(runRegisteredProjectMigration(url)).rejects.toThrow('fixture failure')
       const assignments =
         await sql`SELECT id,project_id FROM workspace WHERE project_id IS NOT NULL ORDER BY id`
-      expect(assignments).toHaveLength(50)
+      expect(assignments).toHaveLength(200)
       expect(await sql`SELECT name FROM script_migrations`).toHaveLength(0)
       expect(await sql`SELECT to_regclass('project_workspace')::text AS connector`).toEqual([
         { connector: 'project_workspace' },
@@ -463,12 +463,49 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       expect(
         await sql`SELECT id,project_id FROM workspace WHERE id = ANY(${assignments.map((row) => row.id)}) ORDER BY id`
       ).toEqual(assignments)
-      expect(await sql`SELECT id FROM project`).toHaveLength(101)
+      expect(await sql`SELECT id FROM project`).toHaveLength(401)
       expect(await sql`SELECT name FROM script_migrations`).toEqual([
         { name: '0032_project_membership' },
       ])
     })
   })
+
+  it.each(['distinct', 'shared'] as const)(
+    'bulk-loads %s Project evidence while preserving identity and replay',
+    async (shape) => {
+      await database(async (sql) => {
+        await sql`INSERT INTO project (id,name,owner_id)
+          SELECT 'project-' || n, 'Existing ' || n, 'owner'
+          FROM generate_series(1, ${shape === 'shared' ? 1 : 50}) n`
+        await sql`INSERT INTO workspace (id,name,owner_id,organization_id)
+          SELECT 'workspace-' || lpad(n::text,3,'0'), 'Environment ' || n, 'owner', 'org'
+          FROM generate_series(1,50) n`
+        await sql`INSERT INTO project_workspace (project_id,workspace_id)
+          SELECT 'project-' || CASE WHEN ${shape === 'shared'} THEN 1 ELSE n END,
+            'workspace-' || lpad(n::text,3,'0') FROM generate_series(1,50) n`
+        const expected =
+          await sql`SELECT workspace_id AS id, project_id FROM project_workspace ORDER BY workspace_id`
+        const manifest = await discoverProjectBackfill(sql, 'fixture')
+        expect(manifest.conflicts).toHaveLength(0)
+        expect(await assignProjectBackfillBatch(sql, manifest.families)).toMatchObject({
+          assigned: 50,
+          projectsCreated: 0,
+        })
+        expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual(expected)
+        expect(
+          await sql`SELECT id FROM project WHERE organization_id IS DISTINCT FROM 'org'`
+        ).toHaveLength(0)
+        expect(await assignProjectBackfillBatch(sql, manifest.families)).toMatchObject({
+          assigned: 0,
+          alreadyAssigned: 50,
+          projectsCreated: 0,
+        })
+        expect(Object.values(await verifyProjectBackfill(sql)).every((count) => count === 0)).toBe(
+          true
+        )
+      })
+    }
+  )
 
   it('commits unrelated assignments while a family stays busy and resumes before enforcement', async () => {
     await database(async (sql, url) => {

@@ -457,20 +457,28 @@ export async function tryProjectBackfillLocks(tx: TransactionSql, keys: string[]
   if (!result?.acquired) throw new ProjectBackfillBusy('Project backfill target is busy')
 }
 
-/** Writes at most 50 independent families, or one complete fork family, in a bounded transaction. */
+/** New Projects need no Project-wide evidence reads; existing Projects retain a smaller batch. */
+export function projectBackfillBatchSize(family: ProjectBackfillFamily): number {
+  return family.projectMembers || family.members.some((row) => effectiveProjectId(row) !== null)
+    ? 50
+    : 200
+}
+
+/** Writes bounded independent singleton batches, or one complete fork family, atomically. */
 export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBackfillFamily[]) {
   if (
     !families.length ||
-    families.length > 50 ||
+    families.some((family) => families.length > projectBackfillBatchSize(family)) ||
     (families.length > 1 && families.some((f) => f.members.length !== 1))
   )
-    throw new Error('Expected 1–50 singletons or one complete fork family')
+    throw new Error(
+      'Expected up to 200 new-Project singletons, 50 existing-Project singletons, or one complete fork family'
+    )
   for (const family of families) validateFamily(family)
   return sql.begin(async (tx) => {
     await tx`SELECT set_config(CASE WHEN current_setting('transaction_timeout', true) IS NULL
-      THEN 'idle_in_transaction_session_timeout' ELSE 'transaction_timeout' END, '5s', true)`
-    await tx`SET LOCAL statement_timeout = '3s'`
-    await tx`SET LOCAL lock_timeout = '250ms'`
+      THEN 'idle_in_transaction_session_timeout' ELSE 'transaction_timeout' END, '5s', true),
+      set_config('statement_timeout', '3s', true), set_config('lock_timeout', '250ms', true)`
     const legacy = await hasLegacyMemberships(tx)
     await assertProjectColumnAuthority(tx)
     const roots = families.map((f) => f.rootId).sort(compareStrings)
@@ -538,15 +546,73 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
           'Reviewed workspace scope, owner, archive state or assignment changed; rediscover'
         )
     }
-    const children =
-      await tx`SELECT id FROM workspace WHERE forked_from_workspace_id = ANY(${ids}) AND NOT id = ANY(${ids}) LIMIT 1`
-    if (children.length)
+    const [validation] = await tx`SELECT
+      EXISTS (SELECT 1 FROM workspace WHERE forked_from_workspace_id = ANY(${ids})
+        AND NOT id = ANY(${ids})) AS children,
+      EXISTS (SELECT 1 FROM workflow f JOIN workspace w ON w.id = f.workspace_id
+        WHERE w.id = ANY(${ids}) AND w.archived_at IS NOT NULL AND f.archived_at IS NULL) AS invalid_archive`
+    if (validation.children)
       throw new ProjectBackfillConflict('Reviewed fork family gained descendants; rediscover')
-    const invalidArchive =
-      await tx`SELECT f.id FROM workflow f JOIN workspace w ON w.id = f.workspace_id
-      WHERE w.id = ANY(${ids}) AND w.archived_at IS NOT NULL AND f.archived_at IS NULL LIMIT 1`
-    if (invalidArchive.length)
+    if (validation.invalid_archive)
       throw new ProjectBackfillConflict('Archive repair is required before assignment')
+    const evidenceRequests = families.flatMap((family) => {
+      const projectIds = [
+        ...new Set(family.members.map((row) => effectiveProjectId(byId.get(row.id)!))),
+      ].filter((id): id is string => id !== null)
+      if (projectIds.length > 1) throw new ProjectBackfillConflict('Family now spans Projects')
+      return projectIds.length
+        ? [
+            {
+              root_id: family.rootId,
+              project_id: projectIds[0],
+              reviewed_ids: family.projectMembers?.map((row) => row.id) ?? [],
+            },
+          ]
+        : []
+    })
+    const existingProjectIds = [...new Set(evidenceRequests.map((request) => request.project_id))]
+    const projectRows = existingProjectIds.length
+      ? await tx<
+          {
+            id: string
+            owner_id: string
+            organization_id: string | null
+            archived_at: string | null
+          }[]
+        >`SELECT id, owner_id, organization_id, archived_at::text FROM project
+      WHERE id = ANY(${existingProjectIds}) ORDER BY id COLLATE "C" FOR NO KEY UPDATE NOWAIT`
+      : []
+    const existingProjects = new Map(projectRows.map((row) => [row.id, row]))
+    const evidence = evidenceRequests.length
+      ? await tx<(ProjectBackfillWorkspace & { rootId: string })[]>`
+      SELECT request.root_id AS "rootId", member.*
+      FROM jsonb_to_recordset(${JSON.stringify(evidenceRequests)}::text::jsonb)
+        AS request(root_id text, project_id text, reviewed_ids text[])
+      CROSS JOIN LATERAL (
+        SELECT w.id, w.owner_id AS "ownerId", w.organization_id AS "organizationId", w.archived_at::text AS "archivedAt",
+          w.forked_from_workspace_id AS "parentId", w.project_id AS "projectId", ${legacyAssignment(tx, legacy)} AS "legacyProjectId"
+        FROM workspace w WHERE w.id IN (
+          SELECT id FROM workspace WHERE project_id = request.project_id
+          ${
+            legacy
+              ? tx`UNION
+            SELECT legacy_member.id FROM project_workspace pw JOIN workspace legacy_member ON legacy_member.id = pw.workspace_id
+            WHERE pw.project_id = request.project_id AND legacy_member.project_id IS NULL`
+              : tx``
+          }
+          UNION SELECT unnest(request.reviewed_ids)
+        )
+        ORDER BY w.id COLLATE "C" LIMIT 1001 FOR NO KEY UPDATE NOWAIT
+      ) member
+      ORDER BY request.root_id COLLATE "C", member.id COLLATE "C"
+    `
+      : []
+    const evidenceByRoot = new Map<string, ProjectBackfillWorkspace[]>()
+    for (const row of evidence) {
+      const rows = evidenceByRoot.get(row.rootId) ?? []
+      rows.push(row)
+      evidenceByRoot.set(row.rootId, rows)
+    }
     const inserts: {
       id: string
       name: string
@@ -574,16 +640,8 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
         : null
       let projectId = projectIds[0]
       if (projectId) {
-        const [existing] =
-          await tx`SELECT owner_id, organization_id, archived_at::text FROM project WHERE id = ${projectId} FOR NO KEY UPDATE NOWAIT`
-        const reviewedIds = family.projectMembers?.map((row) => row.id) ?? []
-        const evidenceRows = await tx<ProjectBackfillWorkspace[]>`
-          SELECT w.id, w.owner_id AS "ownerId", w.organization_id AS "organizationId", w.archived_at::text AS "archivedAt",
-            w.forked_from_workspace_id AS "parentId", w.project_id AS "projectId", ${legacyAssignment(tx, legacy)} AS "legacyProjectId"
-          FROM workspace w WHERE coalesce(w.project_id, ${legacyAssignment(tx, legacy)}) = ${projectId}
-            OR w.id = ANY(${reviewedIds})
-          ORDER BY w.id COLLATE "C" LIMIT 1001 FOR NO KEY UPDATE NOWAIT
-        `
+        const existing = existingProjects.get(projectId)
+        const evidenceRows = evidenceByRoot.get(family.rootId) ?? []
         const environments = evidenceRows.filter((row) => effectiveProjectId(row) === projectId)
         if (!existing || evidenceRows.length > MAX_FAMILY)
           throw new ProjectBackfillConflict(
@@ -644,6 +702,8 @@ export async function assignProjectBackfillBatch(sql: Sql, families: ProjectBack
             )
           await tx`UPDATE project SET organization_id = ${root.organizationId},
             archived_at = ${projectArchiveAt}::text::timestamp, updated_at = now() WHERE id = ${projectId}`
+          existing.organization_id = root.organizationId
+          existing.archived_at = projectArchiveAt
         }
       } else {
         projectId = generateId()
