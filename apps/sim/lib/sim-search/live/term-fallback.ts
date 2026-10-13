@@ -23,8 +23,8 @@ const documentKey = ({ container, kind, id }: NativeDocument) =>
  * often contains one word the right page lacks, which an all-terms search turns into no result.
  *
  * All-terms matches keep their provider order ahead of the rest. At most a few matches are added,
- * each containing at least two of the terms in its title and preview (one, for a two-term query),
- * ordered by how many terms those contain, then how many its title contains, then provider order. The fallback runs only for a plain relevance-ordered query: native queries are
+ * ordered by how many terms their title and preview contain, then how many their title contains,
+ * then provider order. The fallback runs only for a plain relevance-ordered query: native queries are
  * the caller's exact syntax, and a date-sorted page is reordered by date. It never replaces a
  * continuable page, so a cursor always continues the query that produced it. A provider refusal
  * keeps the all-terms page, reported as partial with the provider's message; cancellation and
@@ -56,7 +56,6 @@ export async function searchWithAnyTermFallback(
   if (relaxed instanceof NativeSearchError)
     return { ...strict, partial: true, message: joinMessages([strict.message, relaxed.message]) }
   const seen = new Set(strict.documents.map(documentKey))
-  const minCoverage = Math.min(2, terms.length - 1)
   const additions = relaxed.documents
     .filter((document) => !seen.has(documentKey(document)))
     .map((document, rank) => ({
@@ -65,7 +64,6 @@ export async function searchWithAnyTermFallback(
       coverage: termCoverage(`${document.title}\n${document.content}`, terms),
       titleCoverage: termCoverage(document.title, terms),
     }))
-    .filter(({ coverage }) => coverage >= minCoverage)
     .sort(
       (left, right) =>
         right.coverage - left.coverage ||

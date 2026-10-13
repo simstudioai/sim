@@ -53,24 +53,49 @@ const STOPWORDS = new Set([
 ])
 
 /**
- * The query's distinctive terms, longest first. Fewer than two means an any-term query would
- * match the same pages as the all-terms one.
+ * The query's distinctive terms, longest first, each counted once whatever its case. Fewer than
+ * two means an any-term query would match the same pages as the all-terms one.
  */
 export function significantTerms(query: string): string[] {
+  const seen = new Set<string>()
   return queryTerms(query)
-    .filter((term) => !STOPWORDS.has(term.toLowerCase()))
+    .filter((term) => {
+      const key = term.toLowerCase()
+      if (STOPWORDS.has(key) || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
     .slice(0, MAX_ANY_TERMS)
+}
+
+/**
+ * An any-term clause: every pair of terms ORed together, so a match contains at least two of them
+ * somewhere in its full text, or either term of a two-term query.
+ */
+function anyTermClause(
+  terms: readonly string[],
+  clause: (term: string) => string,
+  and: string,
+  or: string
+): string {
+  const groups =
+    terms.length === 2
+      ? terms.map(clause)
+      : terms.flatMap((first, index) =>
+          terms.slice(index + 1).map((second) => `(${clause(first)} ${and} ${clause(second)})`)
+        )
+  return `(${groups.join(` ${or} `)})`
 }
 
 /** Escapes a value for a quoted JQL or CQL string, treating Lucene operators as literal text. */
 const escapeSearchPhrase = (value: string) =>
   JSON.stringify(value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&'))
 
-/** The `text ~` clause for a plain query in Jira JQL; `any` joins its significant terms with OR. */
+/** The `text ~` clause for a plain query in Jira JQL. */
 export function jiraTextClause(text: string, match: TextMatch = 'all'): string {
   const terms = match === 'any' ? significantTerms(text) : []
   if (terms.length < 2) return `text ~ ${escapeSearchPhrase(text)}`
-  return `(${terms.map((term) => `text ~ ${escapeSearchPhrase(term)}`).join(' OR ')})`
+  return anyTermClause(terms, (term) => `text ~ ${escapeSearchPhrase(term)}`, 'AND', 'OR')
 }
 
 /**
@@ -89,7 +114,12 @@ export const escapeDriveLiteral = (value: string) =>
 export function driveTextClause(text: string, match: TextMatch = 'all'): string {
   const terms = match === 'any' ? significantTerms(text) : []
   if (terms.length < 2) return `fullText contains '${escapeDriveLiteral(text)}'`
-  return `(${terms.map((term) => `fullText contains '${escapeDriveLiteral(term)}'`).join(' or ')})`
+  return anyTermClause(
+    terms,
+    (term) => `fullText contains '${escapeDriveLiteral(term)}'`,
+    'and',
+    'or'
+  )
 }
 
 /** How many distinct terms occur as whole words in the text. */

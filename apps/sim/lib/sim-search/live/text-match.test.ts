@@ -6,13 +6,26 @@ import {
 } from '@/lib/sim-search/live/text-match'
 
 describe('text match clauses', () => {
-  it('joins distinctive terms with OR, leaving out stopwords', () => {
+  it('matches either term of a two-term query, leaving out stopwords', () => {
     expect(jiraTextClause('what is the release process', 'any')).toBe(
       '(text ~ "release" OR text ~ "process")'
     )
     expect(driveTextClause('roadmap for planning', 'any')).toBe(
       "(fullText contains 'planning' or fullText contains 'roadmap')"
     )
+  })
+
+  it('requires two of the terms of a longer query anywhere in the full text', () => {
+    expect(jiraTextClause('contractor offboarding runbook', 'any')).toBe(
+      '((text ~ "offboarding" AND text ~ "contractor") OR (text ~ "offboarding" AND text ~ "runbook") OR (text ~ "contractor" AND text ~ "runbook"))'
+    )
+    expect(driveTextClause('contractor offboarding runbook', 'any')).toBe(
+      "((fullText contains 'offboarding' and fullText contains 'contractor') or (fullText contains 'offboarding' and fullText contains 'runbook') or (fullText contains 'contractor' and fullText contains 'runbook'))"
+    )
+  })
+
+  it('counts a term once whatever its case, so a pair always holds two different words', () => {
+    expect(jiraTextClause('API api rollout', 'any')).toBe('(text ~ "rollout" OR text ~ "API")')
   })
 
   it('relaxes a Confluence query to its relevance-ranked site search', () => {
@@ -23,14 +36,14 @@ describe('text match clauses', () => {
   })
 
   it('escapes every term so a term cannot add query syntax', () => {
-    expect(jiraTextClause('ci/cd say"hi rollout', 'any')).toBe(
-      String.raw`(text ~ "rollout" OR text ~ "say\\\"hi" OR text ~ "ci\\/cd")`
+    expect(jiraTextClause('ci/cd say"hi', 'any')).toBe(
+      String.raw`(text ~ "say\\\"hi" OR text ~ "ci\\/cd")`
     )
     expect(confluenceTextClause('ci/cd say"hi', 'any')).toBe(
       String.raw`siteSearch ~ "ci\\/cd say\\\"hi"`
     )
-    expect(driveTextClause(String.raw`o'brien back\slash rollout`, 'any')).toBe(
-      String.raw`(fullText contains 'back\\slash' or fullText contains 'o\'brien' or fullText contains 'rollout')`
+    expect(driveTextClause(String.raw`o'brien back\slash`, 'any')).toBe(
+      String.raw`(fullText contains 'back\\slash' or fullText contains 'o\'brien')`
     )
   })
 
