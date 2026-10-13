@@ -5,7 +5,13 @@
 
 import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
-import { uploadSession, type WorkspaceFileRow, workspace, workspaceFiles } from '@sim/db/schema'
+import {
+  displaySegmentKey,
+  uploadSession,
+  type WorkspaceFileRow,
+  workspace,
+  workspaceFiles,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import {
@@ -100,7 +106,11 @@ import {
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
-import { decodeVfsPathSegments, displaySegmentPattern } from '@/lib/vfs/path'
+import {
+  decodeVfsPathSegments,
+  displaySegmentPattern,
+  normalizeDisplaySegment,
+} from '@/lib/vfs/path'
 import {
   OWNED_FILE_CONTEXTS,
   type OwnedFileContext,
@@ -1801,8 +1811,65 @@ export async function resolveWorkspaceFileReference(
   const exactReferenceFile = await getWorkspaceFileByExactReference(workspaceId, referenceSegments)
   if (exactReferenceFile) return exactReferenceFile
 
-  const files = await listWorkspaceFiles(workspaceId)
-  return findWorkspaceFileRecord(files, fileReference)
+  return (await findListedWorkspaceFiles(workspaceId, [fileReference])).get(fileReference) ?? null
+}
+
+/**
+ * The live workspace file {@link findWorkspaceFileRecord} would pick for each reference from
+ * the whole `listWorkspaceFiles` listing, read through one query for the references' candidate
+ * rows instead of every file the workspace has. Ties on `uploadedAt` break by id, where the
+ * listing had no order.
+ */
+export async function findListedWorkspaceFiles(
+  workspaceId: string,
+  fileReferences: readonly string[]
+): Promise<Map<string, WorkspaceFileRecord | null>> {
+  const ids = new Set<string>()
+  const leafNames = new Set<string>()
+  for (const reference of fileReferences) {
+    const segments = normalizeWorkspaceFileReferenceSegments(reference)
+    ids.add(reference)
+    ids.add(segments.join('/'))
+    const leaf = segments.at(-1)
+    if (leaf !== undefined) leafNames.add(normalizeDisplaySegment(leaf))
+  }
+  const candidates =
+    fileReferences.length === 0
+      ? []
+      : await listWorkspaceFileReferenceCandidates(workspaceId, [...ids], [...leafNames])
+  return new Map(
+    fileReferences.map((reference) => [reference, findWorkspaceFileRecord(candidates, reference)])
+  )
+}
+
+/**
+ * The live workspace files {@link findWorkspaceFileRecord} can match for a set of references:
+ * those whose id is one of `ids`, or whose name displays as one of `leafNames`. Each of its
+ * rules requires one of the two, so it picks the same file from these rows as from the whole
+ * workspace — read through `workspace_files_workspace_display_name_idx` instead of every file
+ * the workspace has.
+ */
+async function listWorkspaceFileReferenceCandidates(
+  workspaceId: string,
+  ids: string[],
+  leafNames: string[]
+): Promise<WorkspaceFileRecord[]> {
+  const rows = await db
+    .select(workspaceFileListColumns)
+    .from(workspaceFiles)
+    .where(
+      and(
+        workspaceFileScopeCondition(workspaceId, 'active'),
+        or(
+          inArray(workspaceFiles.id, ids),
+          leafNames.length === 0
+            ? undefined
+            : inArray(displaySegmentKey(workspaceFiles.originalName), leafNames)
+        )
+      )
+    )
+    .orderBy(workspaceFiles.uploadedAt, workspaceFiles.id)
+  return hydrateWorkspaceFilePaths(rows, workspaceId)
 }
 
 /**

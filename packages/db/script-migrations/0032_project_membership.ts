@@ -26,7 +26,7 @@ const MAX_DURATION_MS = 20 * 60_000
 
 /** Commits bounded assignments before validation and contraction; retry discovers only remaining work. */
 export const projectMembershipMigration: ScriptMigration = {
-  name: '0031_project_membership',
+  name: '0032_project_membership',
   async up(sql) {
     if (sql.options.max !== 1)
       throw new Error('Project migration requires the runner single-session connection')

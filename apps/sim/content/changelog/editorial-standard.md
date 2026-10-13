@@ -10,13 +10,15 @@ Routine retry fixes, loading improvements, internal refactors, and small polish 
 
 Keep existing article URLs, original dates, and RSS identities when refining historical copy. Do not merge existing entries just to make a larger announcement. Preserve material version, permission, and rollout restrictions.
 
-## Write a compact entry
+## Write a useful, complete entry
 
 - Headline: name the capability or action, at most 65 characters. Avoid generic headlines such as “A better experience.”
 - Summary: 15–40 words for search, sharing, and RSS, naming Sim and explaining the capability in plain language. It must make sense without the image.
-- Body: lead with what changed and what teams can do with it. Aim for 2–4 short sentences, usually 30–90 words, followed by a useful documentation link. There is no minimum word count; keep the body under 120 words. Use one concrete example when it adds clarity. Save setup instructions for the linked guide; do not pad a simple update into a tutorial.
+- Body: say what changed and explain the behavior a reader needs to understand it. There is no target length or minimum; keep the body under 250 words. Do not expand a short announcement with generic use cases, repeated benefits, or a setup tutorial. Name specific capabilities or controls only when they add information.
+- Release coverage: inspect the technical release for other meaningful user-facing changes. Include up to three concise notes under “Also in vX.Y.Z” when source evidence establishes that they belong to the same release. Group them sensibly, avoid repeating notes across articles from that release, and link to the relevant guide or product page. A focused feature announcement can remain short. Do not infer release membership from merge timing or add unrelated changes just to make an entry longer.
+- Detail: every sentence must contribute a product change, useful behavioral detail, or necessary access information. Examples are optional and earn their place only when they make an unfamiliar change easier to understand. Leave full setup instructions and model inventories to the linked docs and catalogs. Never invent customer results or benchmarks.
 - Media: place the reviewed image or video immediately after the article header. Both use the shared lightbox; videos show a plain poster with playback, seeking, and zoom controls inside the viewer. Use concise alt text or an accessible action label without a visible video description. Do not add captions or prose about how the capture was made, whether a query ran, sample credentials, or what a screenshot does not prove. Keep capture provenance and review evidence in production.md.
-- Supporting notes: up to three related, source-backed improvements, each one sentence. Omit empty sections. Do not invent extras to fill a template.
+- Supporting notes: one sentence per change, up to three per article. Omit empty sections and technical maintenance with no meaningful user impact. Keep each note’s source and release evidence in production.md. The lead image need not illustrate every supporting note.
 - Links: one descriptive setup/documentation link, plus an integration, model, or product link when directly relevant. Use the actual catalog slug and guide. Put links in context; avoid a wall of generic “Learn more” links.
 - Availability: keep restrictions that affect whether someone can use the feature, such as a required plan or administrator role, in one concise sentence. Link to documentation for setup details. Keep unverified rollout questions, source analysis, capture instructions, and approval checkboxes in production.md. Never substitute a capture disclaimer for verifying a claim.
 
@@ -35,6 +37,8 @@ Every production brief records:
 5. The real capture environment, build, date, source files, and reviewed final filenames.
 
 Use the same clean demo workspace and product theme. Frame the relevant panel with enough context to locate it, and make the result legible at a 390px viewport. Hide unrelated private sidebar content before recording. Keep UI text and controls intact; never generate a different product state to improve a screenshot. Prefer recording at the intended framing over aggressive crops later.
+
+Complete sign-in and credential setup before capturing. Never save a placeholder key and present it as a working connection, or treat a saved key as evidence that the provider accepted it. A model-picker image can show model selection without a connected account; a demonstration of execution must use a working credential and a real result. Keep these production checks out of public copy.
 
 Begin with the task ready to perform, show the action, and hold on its result. Avoid decorative intros, music, title cards, and excessive cursor movement. Keep the headline and important explanation in HTML. Record videos assembled from still screenshots as edited walkthroughs in the production brief; do not describe them as continuous recordings in public copy.
 

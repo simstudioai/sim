@@ -129,7 +129,7 @@ export async function validateWorkflowAccess(
       }
 
       if (validResult.keyId) {
-        await updateApiKeyLastUsed(validResult.keyId)
+        updateApiKeyLastUsed(validResult.keyId)
       }
     }
     return { workflow }

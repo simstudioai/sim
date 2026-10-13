@@ -13,6 +13,7 @@ const RECONCILIATION_COMMANDS = [
   ['bun', '--env-file=.env', 'run', './script-migrations/0024_knowledge_projection_async.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0026_user_table_schema_for_write.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0030_retire_keyword_writers.ts'],
+  ['bun', '--env-file=.env', 'run', './script-migrations/0031_drop_keyword_tin.ts'],
 ]
 
 /** Keep preparation, Drizzle and reconcilers fenced without a session lock or a retained snapshot. */

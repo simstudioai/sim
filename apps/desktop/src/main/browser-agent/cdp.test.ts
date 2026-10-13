@@ -22,6 +22,7 @@ import {
   releaseFileInput,
   resolveFileInput,
   setFileInputFiles,
+  TabClosedOnReleaseError,
 } from '@/main/browser-agent/cdp'
 
 function createOopifFrameFixture() {
@@ -250,6 +251,78 @@ describe('browser-agent CDP instrumentation', () => {
         clickCount: 1,
       },
     ])
+  })
+
+  describe('a tab that closes during a click', () => {
+    /**
+     * Rejects the mouse event matching `type` and `clickCount` with `failure`, first marking the
+     * tab destroyed when `destroy` is `'at-rejection'`. `'before-release'` instead marks it
+     * destroyed as the press resolves, so the release is sent to an already-dead tab.
+     */
+    function failMouseEvent(
+      contents: WebContents,
+      fail: { type: string; clickCount: number },
+      failure: Error,
+      destroy: 'at-rejection' | 'before-release' | 'never'
+    ) {
+      let destroyed = false
+      vi.mocked(contents.isDestroyed).mockImplementation(() => destroyed)
+      vi.mocked(contents.debugger.sendCommand).mockImplementation(async (_method, params) => {
+        const { type, clickCount } = toRecord(params)
+        if (destroy === 'before-release' && type === 'mousePressed') destroyed = true
+        if (type === fail.type && clickCount === fail.clickCount) {
+          if (destroy === 'at-rejection') destroyed = true
+          throw failure
+        }
+        return {}
+      })
+    }
+
+    it('reports a final release rejected because the tab closed as TabClosedOnReleaseError', async () => {
+      const contents = new WebContentsView().webContents
+      failMouseEvent(
+        contents,
+        { type: 'mouseReleased', clickCount: 1 },
+        new Error('Target closed'),
+        'at-rejection'
+      )
+
+      await expect(clickAt(contents, 12, 24)).rejects.toBeInstanceOf(TabClosedOnReleaseError)
+    })
+
+    it('keeps the original error when the release fails on a tab that is still alive', async () => {
+      const contents = new WebContentsView().webContents
+      const failure = new Error('release rejected')
+      failMouseEvent(contents, { type: 'mouseReleased', clickCount: 1 }, failure, 'never')
+
+      await expect(clickAt(contents, 12, 24)).rejects.toBe(failure)
+    })
+
+    it('keeps the original error when the tab was already gone before the release was sent', async () => {
+      const contents = new WebContentsView().webContents
+      const failure = new Error('Target closed')
+      failMouseEvent(contents, { type: 'mouseReleased', clickCount: 1 }, failure, 'before-release')
+
+      await expect(clickAt(contents, 12, 24)).rejects.toBe(failure)
+    })
+
+    it('keeps the original error when the press fails as the tab closes', async () => {
+      const contents = new WebContentsView().webContents
+      const failure = new Error('Target closed')
+      failMouseEvent(contents, { type: 'mousePressed', clickCount: 1 }, failure, 'at-rejection')
+
+      await expect(clickAt(contents, 12, 24)).rejects.toBe(failure)
+    })
+
+    it('keeps the original error when a non-final release of a multi-click fails as the tab closes', async () => {
+      const contents = new WebContentsView().webContents
+      const failure = new Error('Target closed')
+      failMouseEvent(contents, { type: 'mouseReleased', clickCount: 1 }, failure, 'at-rejection')
+
+      await expect(
+        clickAt(contents, 12, 24, true, { ...PRIMARY_CLICK, clickCount: 2 })
+      ).rejects.toBe(failure)
+    })
   })
 
   it('times out a hung press and sends cleanup before the tool watchdog can release', async () => {

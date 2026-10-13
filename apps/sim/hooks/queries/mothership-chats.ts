@@ -19,6 +19,7 @@ import {
   forkMothershipChatContract,
   getMothershipChatContract,
   getMothershipChatResponseSchema,
+  getMothershipChatStreamStatusContract,
   listMothershipChatsContract,
   type MothershipChat,
   type MothershipChatScope,
@@ -39,6 +40,7 @@ import {
 } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
+import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
@@ -326,6 +328,21 @@ export async function fetchMothershipChatHistory(
   return history
 }
 
+/**
+ * The stream a chat's server copy still lists as active, read without the
+ * transcript — for polling until a finished turn is saved.
+ */
+export async function fetchMothershipChatActiveStreamId(
+  chatId: string,
+  signal?: AbortSignal
+): Promise<string | null> {
+  const data = await requestJson(getMothershipChatStreamStatusContract, {
+    params: { chatId },
+    signal,
+  })
+  return data.activeStreamId
+}
+
 export function mothershipChatHistoryQueryOptions(chatId: string | undefined) {
   return queryOptions({
     queryKey: mothershipChatKeys.detail(chatId),
@@ -389,6 +406,7 @@ export function useRestoreMothershipChat(owner?: MothershipChatOwner) {
       useMothershipQueueStore.getState().liftDelete(chatId, context.deleteSeen)
     },
     onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() })
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
     },
   })

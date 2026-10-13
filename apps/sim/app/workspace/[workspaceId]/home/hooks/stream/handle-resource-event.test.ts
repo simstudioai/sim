@@ -1,3 +1,4 @@
+import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
@@ -26,8 +27,12 @@ vi.mock('@/hooks/queries/utils/workflow-cache', () => ({
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { handleResourceEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/handle-resource-event'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
-import { makeStreamLoopDeps } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-test-helpers'
+import {
+  makeStreamLoopDeps,
+  ref,
+} from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-test-helpers'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 
 type ResourceEvent = Extract<PersistedStreamEventEnvelope, { type: 'resource' }>
@@ -108,6 +113,89 @@ function tableUpsertEvent(id: string, viewId?: string): PersistedStreamEventEnve
     },
   } as PersistedStreamEventEnvelope
 }
+
+describe('live resource effects', () => {
+  const detailKey = mothershipChatKeys.detail('chat-1')
+  const kept: MothershipResource = { type: 'file', id: 'kept', title: 'kept.md' }
+  const dropped: MothershipResource = { type: 'file', id: 'dropped', title: 'dropped.md' }
+  const created: MothershipResource = { type: 'table', id: 'tbl-new', title: 'Leads' }
+
+  /** A server whose stored resources the effects below have already changed. */
+  function serverChat() {
+    let stored = [kept, dropped]
+    const reads = vi.fn(
+      async (): Promise<MothershipChatHistory> => ({
+        id: 'chat-1',
+        title: null,
+        messages: [],
+        activeStreamId: 'stream-1',
+        resources: stored,
+      })
+    )
+    return { reads, persistEffects: () => (stored = [kept, created]) }
+  }
+
+  function effect(op: 'upsert' | 'remove', resource: MothershipResource): ResourceEvent {
+    return {
+      ...removeEvent('file', resource.id),
+      payload: { op, effectId: `effect:${resource.id}`, resource },
+    } as ResourceEvent
+  }
+
+  function applyEffects(queryClient: QueryClient) {
+    const deps = makeStreamLoopDeps({ queryClient, chatIdRef: ref<string | undefined>('chat-1') })
+    handleResourceEvent({ deps } as StreamLoopContext, effect('upsert', created))
+    handleResourceEvent({ deps } as StreamLoopContext, effect('remove', dropped))
+  }
+
+  it('records effects in the cached chat without reloading its transcript', async () => {
+    const queryClient = new QueryClient()
+    const server = serverChat()
+    queryClient.setQueryData(detailKey, await server.reads())
+    server.reads.mockClear()
+    const unsubscribe = new QueryObserver(queryClient, {
+      queryKey: detailKey,
+      queryFn: server.reads,
+      staleTime: Number.POSITIVE_INFINITY,
+    }).subscribe(() => {})
+
+    server.persistEffects()
+    applyEffects(queryClient)
+    await queryClient.refetchQueries({ queryKey: detailKey, stale: true })
+
+    expect(queryClient.getQueryData<MothershipChatHistory>(detailKey)?.resources).toEqual([
+      kept,
+      created,
+    ])
+    expect(server.reads).not.toHaveBeenCalled()
+    unsubscribe()
+  })
+
+  it.each([
+    { cached: true, label: 'a cached chat' },
+    { cached: false, label: 'a chat loading for the first time' },
+  ])(
+    'restarts a transcript read of $label that began before the effects were stored',
+    async ({ cached }) => {
+      const queryClient = new QueryClient()
+      const server = serverChat()
+      if (cached) queryClient.setQueryData(detailKey, await server.reads())
+      const staleRead = queryClient.fetchQuery({ queryKey: detailKey, queryFn: server.reads })
+
+      server.persistEffects()
+      applyEffects(queryClient)
+      await staleRead.catch(() => undefined)
+
+      await vi.waitFor(() => {
+        expect(queryClient.isFetching({ queryKey: detailKey })).toBe(0)
+        expect(queryClient.getQueryData<MothershipChatHistory>(detailKey)?.resources).toEqual([
+          kept,
+          created,
+        ])
+      })
+    }
+  )
+})
 
 describe('handleResourceEvent saved-view pins', () => {
   beforeEach(() => {

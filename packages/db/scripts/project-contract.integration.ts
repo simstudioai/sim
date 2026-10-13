@@ -114,7 +114,7 @@ async function runRegisteredProjectMigration(url: string, reviews?: ProjectGroup
   try {
     await runScriptMigrations(
       runner,
-      scriptMigrations.filter((item) => item.name === '0031_project_membership')
+      scriptMigrations.filter((item) => item.name === '0032_project_membership')
     )
   } finally {
     await runner.end({ timeout: 2 })
@@ -337,7 +337,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         { connector: null },
       ])
       expect(await sql`SELECT name FROM script_migrations`).toEqual([
-        { name: '0031_project_membership' },
+        { name: '0032_project_membership' },
       ])
     })
   })
@@ -465,7 +465,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       ).toEqual(assignments)
       expect(await sql`SELECT id FROM project`).toHaveLength(101)
       expect(await sql`SELECT name FROM script_migrations`).toEqual([
-        { name: '0031_project_membership' },
+        { name: '0032_project_membership' },
       ])
     })
   })
@@ -1139,7 +1139,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       await sql`CREATE TABLE drizzle.__drizzle_migrations (created_at bigint)`
       const expanded = journal.entries.find((item) => item.tag === '0406_workspace_project_column')
       const entry = journal.entries.find(
-        (item) => item.tag === '0407_project_membership_enforcement'
+        (item) => item.tag === '0411_project_membership_enforcement'
       )
       if (!expanded || !entry) throw new Error('Missing Project migration metadata')
       await sql`INSERT INTO drizzle.__drizzle_migrations VALUES (${expanded.when - 1})`
@@ -1178,9 +1178,9 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       await mkdir(join(directory, 'meta'))
       await writeFile(join(directory, '0406_workspace_project_column.sql'), expansion)
       await writeFile(
-        join(directory, '0407_project_membership_enforcement.sql'),
+        join(directory, '0411_project_membership_enforcement.sql'),
         await readFile(
-          new URL('../migrations/0407_project_membership_enforcement.sql', import.meta.url),
+          new URL('../migrations/0411_project_membership_enforcement.sql', import.meta.url),
           'utf8'
         )
       )
@@ -1191,7 +1191,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           entries: journal.entries.filter(
             (entry) =>
               entry.tag === '0406_workspace_project_column' ||
-              entry.tag === '0407_project_membership_enforcement'
+              entry.tag === '0411_project_membership_enforcement'
           ),
         })
       )
@@ -1201,7 +1201,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           await migrate(drizzle(runner), { migrationsFolder: directory })
           await runScriptMigrations(
             runner,
-            scriptMigrations.filter((item) => item.name === '0031_project_membership')
+            scriptMigrations.filter((item) => item.name === '0032_project_membership')
           )
         }
         try {
@@ -1234,7 +1234,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           await run()
           expect(await sql`SELECT * FROM drizzle.__drizzle_migrations`).toHaveLength(2)
           expect(await sql`SELECT name FROM script_migrations`).toEqual([
-            { name: '0031_project_membership' },
+            { name: '0032_project_membership' },
           ])
           expect(await sql`SELECT id,project_id FROM workspace ORDER BY id`).toEqual(assignments)
           await sql`DELETE FROM workspace`

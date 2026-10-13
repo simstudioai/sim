@@ -33,6 +33,7 @@ import type { BreadcrumbDropConfig } from '@/app/workspace/[workspaceId]/compone
 import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import { ResourceOptions } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 import { SearchHighlight } from '@/app/workspace/[workspaceId]/components/search-highlight/search-highlight'
+import { useLoadMoreSentinel } from '@/hooks/use-load-more-sentinel'
 
 export interface ResourceColumn {
   id: string
@@ -287,7 +288,7 @@ const ResourceTable = memo(function ResourceTable({
   emptyState,
 }: ResourceTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const loadMoreRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useLoadMoreSentinel({ onLoadMore, enabled: Boolean(hasMore) })
 
   const showEmptyState = rows.length === 0 && Boolean(emptyState)
 
@@ -320,20 +321,6 @@ const ResourceTable = memo(function ResourceTable({
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [contextMenuRowId])
-
-  useEffect(() => {
-    if (!onLoadMore || !hasMore) return
-    const el = loadMoreRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) onLoadMore()
-      },
-      { rootMargin: '200px' }
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [onLoadMore, hasMore])
 
   const hasCheckbox = selectable != null
   const bodyDrop = rowDragDrop?.body

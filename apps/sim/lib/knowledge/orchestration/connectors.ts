@@ -471,7 +471,7 @@ export async function performCreateKnowledgeConnector(
   try {
     created = await db.transaction(async (tx) => {
       if (owner.organizationId) await lockOrganizationSearchApproval(tx, owner.organizationId)
-      await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${kb.id} FOR UPDATE`)
+      await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${kb.id} FOR NO KEY UPDATE`)
 
       const activeKb = await tx
         .select({ id: knowledgeBase.id })

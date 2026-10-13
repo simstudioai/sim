@@ -2847,8 +2847,36 @@
     {
       "idx": 407,
       "version": "7",
-      "when": 1791594144266,
-      "tag": "0407_project_membership_enforcement",
+      "when": 1791671263222,
+      "tag": "0407_workspace_files_display_name_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 408,
+      "version": "7",
+      "when": 1791785549802,
+      "tag": "0408_index_alignment",
+      "breakpoints": true
+    },
+    {
+      "idx": 409,
+      "version": "7",
+      "when": 1791829981759,
+      "tag": "0409_drop_retired_storage",
+      "breakpoints": true
+    },
+    {
+      "idx": 410,
+      "version": "7",
+      "when": 1791839835067,
+      "tag": "0410_gin_fastupdate_fk_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 411,
+      "version": "7",
+      "when": 1791839835068,
+      "tag": "0411_project_membership_enforcement",
       "breakpoints": true
     }
   ]

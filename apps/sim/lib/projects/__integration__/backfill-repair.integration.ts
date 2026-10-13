@@ -102,7 +102,7 @@ describeWithRedis('Operator archive repair against the full compatible schema', 
       import { migrate } from 'drizzle-orm/postgres-js/migrator';
       import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations/index';
       const sql = postgres(process.env.MIGRATION_DATABASE_URL,{max:1,onnotice:()=>{}});
-      try { await migrate(drizzle(sql),{migrationsFolder:process.env.FIXTURE_MIGRATIONS}); await runScriptMigrations(sql, scriptMigrations.filter((item) => item.name !== '0031_project_membership')); }
+      try { await migrate(drizzle(sql),{migrationsFolder:process.env.FIXTURE_MIGRATIONS}); await runScriptMigrations(sql, scriptMigrations.filter((item) => item.name !== '0032_project_membership')); }
       finally { await sql.end(); }
     `,
       ],
@@ -430,7 +430,7 @@ describeWithRedis('Operator archive repair against the full compatible schema', 
       import postgres from 'postgres';
       import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations/index';
       const sql = postgres(process.env.MIGRATION_DATABASE_URL, {max:1});
-      try { await runScriptMigrations(sql, scriptMigrations.filter((item) => item.name === '0031_project_membership')); }
+      try { await runScriptMigrations(sql, scriptMigrations.filter((item) => item.name === '0032_project_membership')); }
       finally { await sql.end(); }
     `,
         ],
@@ -485,7 +485,7 @@ describeWithRedis('Operator archive repair against the full compatible schema', 
     await client`UPDATE workspace SET archived_at='2026-05-01' WHERE id='entry-b'`
     await expect(migrate(artifacts.manifest)).rejects.toMatchObject({ code: 1 })
     expect(
-      await client`SELECT name FROM script_migrations WHERE name='0031_project_membership'`
+      await client`SELECT name FROM script_migrations WHERE name='0032_project_membership'`
     ).toHaveLength(0)
     expect(
       await client`SELECT to_regclass('public.project_workspace') IS NOT NULL AS present`
@@ -493,7 +493,7 @@ describeWithRedis('Operator archive repair against the full compatible schema', 
     await client`UPDATE workspace SET archived_at=NULL WHERE id='entry-b'`
     await migrate(artifacts.manifest)
     expect(
-      await client`SELECT name FROM script_migrations WHERE name='0031_project_membership'`
+      await client`SELECT name FROM script_migrations WHERE name='0032_project_membership'`
     ).toHaveLength(1)
     expect(await client`SELECT to_regclass('public.project_workspace') AS connector`).toEqual([
       { connector: null },

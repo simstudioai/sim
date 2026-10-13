@@ -115,7 +115,7 @@ async function executeDownloadWorkspaceFileStream({
           contentUpdatedAt: file.contentUpdatedAt ?? undefined,
         })
       : undefined
-  await reportWorkspaceFileDelivery(secretProvenance)
+  await reportWorkspaceFileDelivery(secretProvenance, file.id)
   return streamWorkspaceFileRecord(
     file,
     principal,

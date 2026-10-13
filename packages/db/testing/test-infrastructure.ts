@@ -1,11 +1,11 @@
 /**
  * Environment contract for the real-infrastructure test layer (`*.integration.ts`).
  *
- * `TEST_DATABASE_URL` names a disposable PostgreSQL database and `TEST_REDIS_URL` an optional
- * disposable Redis. Both must use a loopback host, and the database name must contain a `test`
- * segment (`sim_test`, `sim_test_knowledge`, `sim_workflow_test`), so a stray shell variable can
- * never point destructive fixtures at a real database. Every integration run's setup file calls
- * these readers before any suite loads.
+ * `TEST_DATABASE_URL` names a disposable PostgreSQL database and `TEST_REDIS_URL` a disposable
+ * Redis (optional locally, required in CI). Both must use a loopback host, and the database name
+ * must contain a `test` segment (`sim_test`, `sim_test_knowledge`, `sim_workflow_test`), so a stray
+ * shell variable can never point destructive fixtures at a real database. Every integration run's
+ * setup file calls these readers before any suite loads.
  */
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 const DISPOSABLE_DATABASE_NAME = /(^|_)test(_|$)/
@@ -39,7 +39,8 @@ export function readTestDatabaseUrl(): string {
 }
 
 /**
- * Returns the validated `TEST_REDIS_URL`, or undefined when the run has no Redis.
+ * Returns the validated `TEST_REDIS_URL`, or undefined when a local run has no Redis. In CI a
+ * missing value throws: every Redis-gated suite would otherwise pass by skipping.
  *
  * Any query string is rejected, not just `username`/`password` params: Redis clients read
  * connection options (credentials, TLS, sentinels) from it, so an allowlist would have to track
@@ -47,7 +48,14 @@ export function readTestDatabaseUrl(): string {
  */
 export function readTestRedisUrl(): string | undefined {
   const value = process.env.TEST_REDIS_URL
-  if (!value) return undefined
+  if (!value) {
+    if (process.env.CI) {
+      throw new Error(
+        'Set TEST_REDIS_URL in CI: Redis-gated integration suites would silently skip'
+      )
+    }
+    return undefined
+  }
   const url = new URL(value)
   if (
     url.protocol !== 'redis:' ||
