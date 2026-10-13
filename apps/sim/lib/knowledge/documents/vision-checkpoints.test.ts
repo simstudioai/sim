@@ -34,6 +34,7 @@ function checkpoint(overrides: Partial<Parameters<typeof createVisionCheckpoint>
   return createVisionCheckpoint({
     context,
     source,
+    filename: 'architecture.png',
     model: 'gemini-3.8-flash',
     contractVersion: 'image-extract-v1',
     ...overrides,
@@ -94,12 +95,13 @@ describe('vision extraction checkpoints', () => {
 
   it.each([
     { source: Buffer.from('changed image bytes') },
+    { filename: 'renamed.png' },
     { context: { ...context, documentId: 'another-document' } },
     { context: { ...context, indexingPassId: 'new-pass' } },
     { model: 'gpt-5.4-mini' },
     { contractVersion: 'image-extract-v2' },
   ])(
-    'never reuses a checkpoint across source, pass, model or contract changes: %o',
+    'never reuses a checkpoint across source, title, pass, model or contract changes: %o',
     async (change) => {
       await checkpoint().save(result)
       expect(await checkpoint(change).load()).toBeNull()

@@ -116,6 +116,7 @@ import {
 import {
   createKnowledgeConnector,
   updateKnowledgeConnector,
+  updateKnowledgeConnectorDocuments,
 } from '@/lib/knowledge/application/connectors'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
@@ -178,6 +179,17 @@ describe('Confluence image attachments through sync, indexing and reconciliation
       },
     })
     await syncFinished(ids.connectorId)
+  }
+  function setExcluded(documentId: string, operation: 'exclude' | 'restore') {
+    return updateKnowledgeConnectorDocuments.execute({
+      principal: { kind: 'session', userId: ids.aliceId, sessionId: 'confluence-images' },
+      input: {
+        knowledgeBaseId: ids.knowledgeBaseId,
+        connectorId: ids.connectorId,
+        operation,
+        documentIds: [documentId],
+      },
+    })
   }
   async function imageRemovalPending() {
     const [row] = await db
@@ -304,6 +316,23 @@ describe('Confluence image attachments through sync, indexing and reconciliation
     fixture.extractions.length = 0
     await setImageAttachments('semantic')
     expect(fixture.extractions.sort()).toEqual(['image-a.png', 'image-b.png'])
+  }, 120_000)
+
+  it('keeps an excluded image excluded while Image Attachments is off', async () => {
+    fixture.images.set('image-a', 1)
+    await sync()
+    const [excluded] = await images()
+    await setExcluded(excluded.id, 'exclude')
+
+    await setImageAttachments('off')
+    await expect(setExcluded(excluded.id, 'restore')).rejects.toThrow(
+      'Turn on image attachments for this connector before restoring an image.'
+    )
+    const [kept] = await images()
+    expect(kept).toMatchObject({ id: excluded.id, userExcluded: true, enabled: false })
+
+    await setImageAttachments('semantic')
+    expect(await setExcluded(excluded.id, 'restore')).toMatchObject({ count: 1 })
   }, 120_000)
 
   it('keeps images off for a connector created before the setting existed', async () => {
