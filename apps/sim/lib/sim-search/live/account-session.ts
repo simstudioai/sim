@@ -206,7 +206,7 @@ export async function openLiveAccountSession(
         )
       }
       return client && requiresEveryTerm(provider)
-        ? searchWithAnyTermFallback(searchOnce, search)
+        ? searchWithAnyTermFallback(searchOnce, search, signal)
         : searchOnce(search)
     },
     async verify(document) {

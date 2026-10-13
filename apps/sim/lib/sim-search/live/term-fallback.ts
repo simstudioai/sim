@@ -1,3 +1,5 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { dateSortDirection } from '@/lib/sim-search/live/dates'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { joinMessages } from '@/lib/sim-search/live/pages'
@@ -13,6 +15,15 @@ const ANY_TERM_CANDIDATES = 25
 /** Partial matches added to a page, so a loosely matching provider cannot crowd out other sources. */
 const ANY_TERM_RESULTS = 5
 
+/**
+ * Time the any-term search may take before the all-terms page is returned without it. It runs
+ * after the all-terms search inside the account's 12 s deadline and before the 2.5 s preview
+ * reads, and a provider's slow OR query must not cost the account the matches it already has.
+ */
+const ANY_TERM_BUDGET_MS = 4000
+
+const logger = createLogger('SimSearchTermFallback')
+
 /** One provider item, however many queries returned it. */
 const documentKey = ({ container, kind, id }: NativeDocument) =>
   JSON.stringify([container ?? '', kind ?? '', id])
@@ -26,13 +37,17 @@ const documentKey = ({ container, kind, id }: NativeDocument) =>
  * ordered by how many terms their title and preview contain, then how many their title contains,
  * then provider order. The fallback runs only for a plain relevance-ordered query: native queries are
  * the caller's exact syntax, and a date-sorted page is reordered by date. It never replaces a
- * continuable page, so a cursor always continues the query that produced it. A provider refusal
- * keeps the all-terms page, reported as partial with the provider's message; cancellation and
- * transport failures propagate like the first search.
+ * continuable page, so a cursor always continues the query that produced it.
+ *
+ * The any-term search gets its own budget, passed to the provider as the request's signal, so a
+ * slow OR query is cancelled rather than awaited. Whenever it fails short of the caller's own
+ * cancellation (a provider refusal, the budget running out, a transport error), the all-terms page
+ * is kept, reported as partial. Cancellation through `signal` propagates like the first search.
  */
 export async function searchWithAnyTermFallback(
   search: (input: NativeSearchInput) => Promise<NativePage>,
-  input: NativeSearchInput
+  input: NativeSearchInput,
+  signal: AbortSignal
 ): Promise<NativePage> {
   const strict = await search(input)
   const terms = significantTerms(input.query)
@@ -45,16 +60,35 @@ export async function searchWithAnyTermFallback(
     strict.documents.length >= input.limit
   )
     return strict
-  const relaxed = await search({
-    ...input,
-    limit: Math.max(input.limit, ANY_TERM_CANDIDATES),
-    textMatch: 'any',
-  }).catch((error: unknown) => {
-    if (error instanceof NativeSearchError) return error
-    throw error
-  })
-  if (relaxed instanceof NativeSearchError)
-    return { ...strict, partial: true, message: joinMessages([strict.message, relaxed.message]) }
+  const budget = new AbortController()
+  const timer = setTimeout(
+    () => budget.abort(new DOMException('Any-term search budget exhausted', 'TimeoutError')),
+    ANY_TERM_BUDGET_MS
+  )
+  let relaxed: NativePage
+  try {
+    relaxed = await search({
+      ...input,
+      limit: Math.max(input.limit, ANY_TERM_CANDIDATES),
+      textMatch: 'any',
+      signal: AbortSignal.any([signal, budget.signal, ...(input.signal ? [input.signal] : [])]),
+    })
+  } catch (error) {
+    signal.throwIfAborted()
+    input.signal?.throwIfAborted()
+    if (!(error instanceof NativeSearchError))
+      logger.warn('Any-term search failed; keeping the all-terms page', {
+        timedOut: budget.signal.aborted,
+        error: getErrorMessage(error),
+      })
+    const reason =
+      error instanceof NativeSearchError
+        ? error.message
+        : 'Results containing only some of the search terms could not be retrieved, so only results containing every term are shown.'
+    return { ...strict, partial: true, message: joinMessages([strict.message, reason]) }
+  } finally {
+    clearTimeout(timer)
+  }
   const seen = new Set(strict.documents.map(documentKey))
   const additions = relaxed.documents
     .filter((document) => !seen.has(documentKey(document)))
