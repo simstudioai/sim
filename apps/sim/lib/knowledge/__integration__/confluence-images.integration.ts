@@ -183,7 +183,12 @@ describe('Confluence image attachments through sync, indexing and reconciliation
   function setExcluded(documentId: string, operation: 'exclude' | 'restore') {
     return updateKnowledgeConnectorDocuments.execute({
       principal: { kind: 'session', userId: ids.aliceId, sessionId: 'confluence-images' },
-      input: { connectorId: ids.connectorId, operation, documentIds: [documentId] },
+      input: {
+        knowledgeBaseId: ids.knowledgeBaseId,
+        connectorId: ids.connectorId,
+        operation,
+        documentIds: [documentId],
+      },
     })
   }
   async function imageRemovalPending() {

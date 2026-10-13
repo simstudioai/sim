@@ -11,7 +11,7 @@ import {
 } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
 import { escapeLikePattern } from '@sim/utils/string'
-import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
@@ -29,6 +29,7 @@ import {
 import { redactKnownSensitiveValues } from '@/lib/core/security/redaction'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import type { DbTransaction } from '@/lib/db/types'
 import { parseExactEnvironmentReference } from '@/lib/environment/reference'
 import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
@@ -1277,35 +1278,32 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
 /**
  * An excluded image keeps its indexed text, and turning image attachments off
  * skips excluded rows so the exclusion survives turning them back on. Restoring
- * one while images are off would re-enable text the source no longer lists.
+ * one while images are off would re-enable text the source no longer lists. The
+ * connector row stays locked until the restore commits, so a concurrent change of
+ * the setting either sees the restored image or is seen by this check.
  */
 async function assertImageRestoreAllowed(
+  tx: DbTransaction,
   connector: { id: string; connectorType: string },
-  documentIds: string[]
+  restorable: SQL | undefined
 ) {
   const imageExtraction = getConnectorMeta(connector.connectorType)?.imageExtraction
   if (!imageExtraction) return
-  const [stored] = await db
+  const [stored] = await tx
     .select({ sourceConfig: knowledgeConnector.sourceConfig })
     .from(knowledgeConnector)
     .where(eq(knowledgeConnector.id, connector.id))
-    .limit(1)
+    .for('update')
   if (
     !stored ||
     isImageExtractionEnabled(imageExtraction, stored.sourceConfig as Record<string, unknown>)
   ) {
     return
   }
-  const [image] = await db
+  const [image] = await tx
     .select({ id: document.id })
     .from(document)
-    .where(
-      and(
-        eq(document.connectorId, connector.id),
-        inArray(document.id, documentIds),
-        inArray(document.mimeType, [...SEMANTIC_IMAGE_MIME_TYPES])
-      )
-    )
+    .where(and(restorable, inArray(document.mimeType, [...SEMANTIC_IMAGE_MIME_TYPES])))
     .limit(1)
   if (image) {
     throw new OrchestrationError(
@@ -1339,21 +1337,22 @@ export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCas
     if (restoring && !requiresConnectorIndexing(context.knowledgeBase.isSearchIndex)) {
       throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
     }
-    if (restoring) await assertImageRestoreAllowed(context.connector, documentIds)
-    const updated = await db
-      .update(document)
-      .set({ userExcluded: !restoring, enabled: restoring })
-      .where(
-        and(
-          eq(document.connectorId, context.connectorId),
-          inArray(document.id, documentIds),
-          eq(document.userExcluded, restoring),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt),
-          knowledgeAccessCondition(await context.access.get())
-        )
-      )
-      .returning({ id: document.id })
+    const target = and(
+      eq(document.connectorId, context.connectorId),
+      inArray(document.id, documentIds),
+      eq(document.userExcluded, restoring),
+      isNull(document.archivedAt),
+      isNull(document.deletedAt),
+      knowledgeAccessCondition(await context.access.get())
+    )
+    const updated = await db.transaction(async (tx) => {
+      if (restoring) await assertImageRestoreAllowed(tx, context.connector, target)
+      return tx
+        .update(document)
+        .set({ userExcluded: !restoring, enabled: restoring })
+        .where(target)
+        .returning({ id: document.id })
+    })
     return {
       operation: input.operation,
       count: updated.length,
