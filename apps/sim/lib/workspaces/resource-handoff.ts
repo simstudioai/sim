@@ -22,7 +22,7 @@ import {
 } from '@/lib/workspaces/utils'
 
 /** Private chat attachments keep their user's lifecycle even when stored under a workspace key. */
-const SHARED_FILE_CONTEXTS = ['workspace', 'knowledge-base', 'execution', 'chat']
+const SHARED_FILE_CONTEXTS = ['workspace', 'knowledge-base', 'execution', 'chat'] as const
 
 /** Finds surviving containers from ownership references, including departures predating handoff. */
 export async function listSharedResourceWorkspaceIdsForUser(executor: DbOrTx, userId: string) {
