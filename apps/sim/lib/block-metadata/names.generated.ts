@@ -304,6 +304,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   wealthbox: 'Wealthbox',
   webflow: 'Webflow',
   webhook_request: 'Webhook',
+  webz: 'Webz.io',
   whatsapp: 'WhatsApp',
   wikipedia: 'Wikipedia',
   windchill: 'Windchill',

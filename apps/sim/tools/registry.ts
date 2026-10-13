@@ -6070,6 +6070,7 @@ import {
   webflowListItemsTool,
   webflowUpdateItemTool,
 } from '@/tools/webflow'
+import { webzSearchTool } from '@/tools/webz'
 import {
   whatsappGetMediaTool,
   whatsappMarkReadTool,
@@ -11107,6 +11108,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   webflow_create_item: webflowCreateItemTool,
   webflow_update_item: webflowUpdateItemTool,
   webflow_delete_item: webflowDeleteItemTool,
+  webz_search: webzSearchTool,
   wikipedia_summary: wikipediaPageSummaryTool,
   wikipedia_search: wikipediaSearchTool,
   wikipedia_content: wikipediaPageContentTool,

@@ -370,6 +370,7 @@ import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock, WealthboxBlockMeta } from '@/blocks/blocks/wealthbox'
 import { WebflowBlock, WebflowBlockMeta } from '@/blocks/blocks/webflow'
 import { WebhookRequestBlock } from '@/blocks/blocks/webhook_request'
+import { WebzBlock, WebzBlockMeta } from '@/blocks/blocks/webz'
 import { WhatsAppBlock, WhatsAppBlockMeta } from '@/blocks/blocks/whatsapp'
 import { WikipediaBlock, WikipediaBlockMeta } from '@/blocks/blocks/wikipedia'
 import { WindchillBlock, WindchillBlockMeta } from '@/blocks/blocks/windchill'
@@ -740,6 +741,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   wealthbox: WealthboxBlock,
   webflow: WebflowBlock,
   webhook_request: WebhookRequestBlock,
+  webz: WebzBlock,
   whatsapp: WhatsAppBlock,
   wikipedia: WikipediaBlock,
   windchill: WindchillBlock,
@@ -1049,6 +1051,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   vercel: VercelBlockMeta,
   wealthbox: WealthboxBlockMeta,
   webflow: WebflowBlockMeta,
+  webz: WebzBlockMeta,
   whatsapp: WhatsAppBlockMeta,
   wikipedia: WikipediaBlockMeta,
   windchill: WindchillBlockMeta,
