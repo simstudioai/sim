@@ -14,6 +14,7 @@ import {
   permissions,
   ssoProvider,
   user,
+  userStats,
   userTableDefinitions,
   userTableRows,
   workflow,
@@ -31,6 +32,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { deleteUserAccount, getAccountDeletionPlan } from '@/lib/users/account-deletion'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
+import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-workspaces'
 
 readTestDatabaseUrl()
 
@@ -324,6 +326,110 @@ describe('shared resource retention across workspace departure and account erasu
     ).toMatchObject([{ createdBy: fixture.ownerId }])
     await assertRetained(fixture)
   })
+
+  it.each(['deletion', 'detachment'] as const)(
+    'serializes account deletion with organization detachment (%s first)',
+    async (first) => {
+      const fixture = await seedResources(false, false)
+      const organizationId = generateId()
+      const groupId = generateId()
+      await db.insert(userStats).values({ id: generateId(), userId: fixture.ownerId })
+      organizationIds.push(organizationId)
+      await db
+        .insert(organization)
+        .values({ id: organizationId, name: 'Concurrent organization', slug: organizationId })
+      await db.insert(member).values({
+        id: generateId(),
+        organizationId,
+        userId: fixture.ownerId,
+        role: 'owner',
+        createdAt: new Date(),
+      })
+      await db
+        .update(workspace)
+        .set({
+          organizationId,
+          workspaceMode: 'organization',
+          billedAccountUserId: fixture.departingId,
+        })
+        .where(eq(workspace.id, fixture.workspaceId))
+      await db.insert(permissionGroup).values({
+        id: groupId,
+        organizationId,
+        name: 'Retained policy',
+        createdBy: fixture.departingId,
+        config: {},
+      })
+      const ready = createDeferred<number>()
+      const release = createDeferred<void>()
+      const blocker = db.transaction(async (tx) => {
+        await tx
+          .select({ id: workspace.id })
+          .from(workspace)
+          .where(eq(workspace.id, fixture.workspaceId))
+          .for('no key update')
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        ready.resolve(connection.pid)
+        await release.promise
+      })
+      const blockerPid = await ready.promise
+      const operations = {
+        deletion: () => deleteUserAccount(fixture.departingId),
+        detachment: () =>
+          db.transaction((tx) => detachOrganizationWorkspacesTx(tx, organizationId)),
+      }
+      const pending: Promise<PromiseSettledResult<unknown>[]>[] = []
+      try {
+        for (const operation of [
+          first,
+          first === 'deletion' ? 'detachment' : 'deletion',
+        ] as const) {
+          pending.push(Promise.allSettled([operations[operation]()]))
+          await expect
+            .poll(
+              async () =>
+                (
+                  await db.execute(sql`
+                    WITH RECURSIVE blocked(pid) AS (
+                      SELECT pid FROM pg_stat_activity WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))
+                      UNION
+                      SELECT activity.pid FROM pg_stat_activity activity
+                      JOIN blocked ON blocked.pid = ANY(pg_blocking_pids(activity.pid))
+                    ) SELECT pid FROM blocked
+                  `)
+                ).length,
+              { timeout: 5000 }
+            )
+            .toBe(pending.length)
+        }
+      } finally {
+        release.resolve()
+        await blocker
+        expect(
+          (await Promise.all(pending)).flat().filter((result) => result.status === 'rejected')
+        ).toEqual([])
+      }
+      await assertRetained(fixture)
+      expect(
+        await db
+          .select({
+            organizationId: workspace.organizationId,
+            ownerId: workspace.ownerId,
+            billedAccountUserId: workspace.billedAccountUserId,
+          })
+          .from(workspace)
+          .where(eq(workspace.id, fixture.workspaceId))
+      ).toEqual([
+        { organizationId: null, ownerId: fixture.ownerId, billedAccountUserId: fixture.ownerId },
+      ])
+      expect(
+        await db
+          .select({ createdBy: permissionGroup.createdBy })
+          .from(permissionGroup)
+          .where(eq(permissionGroup.id, groupId))
+      ).toEqual([{ createdBy: fixture.ownerId }])
+    }
+  )
 
   it('rejects a late ownership reference after account deletion holds the user barrier', async () => {
     const fixture = await seedResources(false, false)

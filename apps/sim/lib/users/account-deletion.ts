@@ -759,6 +759,11 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       true
     )
     if (executionBlockers.length) throw new AccountDeletionBlockedError(executionBlockers)
+    /** Organization mutations acquire their fence before Project, workspace, and payer locks. */
+    const sharedOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
+    for (const organizationId of sharedOrganizationIds) {
+      await acquireOrganizationMutationLock(tx, organizationId)
+    }
     const projectIdsToDelete = await prepareProjectsForAccountDeletion(
       tx,
       userId,
@@ -826,9 +831,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       ])
     }
 
-    const sharedOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
     for (const organizationId of sharedOrganizationIds) {
-      await acquireOrganizationMutationLock(tx, organizationId)
       await reassignOrganizationSharedResourcesTx(tx, organizationId, userId)
     }
 
