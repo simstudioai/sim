@@ -14,6 +14,7 @@ type Job =
   | 'desktop-live'
   | 'lint'
   | 'test'
+  | 'test-types'
   | 'build'
 type Results = Partial<Record<Job, Result>>
 
@@ -24,6 +25,7 @@ const GATED: Job[] = [
   'e2e-mobile',
   'desktop-live',
   'test',
+  'test-types',
   'build',
 ]
 const ALL_FALSE = { full: 'false', test: 'false', build: 'false', desktop_live: 'false' }
@@ -108,7 +110,7 @@ describe('CI gate', () => {
       name: 'a skip whose flag is differently cased',
       outputs: { ...ALL_FALSE, test: 'False' },
       results: skipGated,
-      reported: ['test: skipped'],
+      reported: ['test-types: skipped', 'test: skipped'],
     },
     {
       name: 'a skip whose flag is empty',
@@ -133,6 +135,7 @@ describe('CI gate', () => {
         'e2e-mobile: skipped',
         'e2e: skipped',
         'integration: skipped',
+        'test-types: skipped',
         'test: skipped',
       ],
     },
@@ -147,6 +150,7 @@ describe('CI gate', () => {
         'e2e-mobile: skipped',
         'e2e: skipped',
         'integration: skipped',
+        'test-types: skipped',
         'test: skipped',
       ],
     },
@@ -162,6 +166,7 @@ describe('CI gate', () => {
         'e2e-mobile: skipped',
         'e2e: skipped',
         'integration: skipped',
+        'test-types: skipped',
         'test: skipped',
       ],
     },

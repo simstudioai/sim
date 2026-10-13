@@ -6,7 +6,8 @@
 # diff sets all of them.
 #
 #   full          integration, e2e, e2e-build, e2e-mobile: any file not allowlisted below
-#   test          the Vitest shards: content, docs app, and desktop changes, plus `full`
+#   test          the Vitest shards and test-types: content, docs app, and desktop changes,
+#                 plus `full`
 #   build         the app's `next build`: content changes, plus `full`
 #   desktop_live  the live Electron suite: any file outside its own skip list
 #

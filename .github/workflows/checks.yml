@@ -653,9 +653,9 @@ jobs:
       # Every workspace, not just realtime. packages/emcn, packages/utils,
       # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
       # source was covered only as a side effect of `next build` in the separate
-      # `build` job. Note this does NOT cover apps/sim's tests — its tsconfig
-      # excludes *.test.ts(x), and including them today surfaces ~2.2k errors,
-      # so that is its own cleanup rather than a gate to switch on here.
+      # `build` job. This does NOT cover apps/sim's tests — its tsconfig
+      # excludes *.test.ts(x), which carry ~2.2k errors; the `test-types` job
+      # ratchets those per file instead.
       - name: Type-check all workspaces
         run: bunx turbo run type-check
 
@@ -671,6 +671,40 @@ jobs:
             exit 1
           fi
           echo "✅ Schema and migrations are in sync"
+
+  # Type errors in apps/sim's unit tests, ratcheted per file against a committed baseline
+  # (scripts/check-test-types.ts). It type-checks the whole app with its ~3.4k test files: lint's
+  # uncached apps/sim type-check alone takes ~35 s on this runner, so it gets its own job beside
+  # lint rather than a place in check:audits, which also runs on laptops. Gated like `test`. On
+  # failure the per-file counts and compiler output are uploaded: `counts.json` shrinks or
+  # bootstraps the baseline without a local compile (see the script's header).
+  test-types:
+    name: test-types
+    needs: changes
+    if: needs.changes.outputs.test == 'true'
+    runs-on: *runner-4vcpu
+    timeout-minutes: 10
+
+    steps:
+      - *checkout-mirror
+      - *checkout-plain
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+
+      - name: Ratchet type errors in apps/sim tests
+        run: bun run scripts/check-test-types.ts --report "$RUNNER_TEMP/test-types"
+
+      - name: Upload per-file counts and compiler output
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-types
+          path: ${{ runner.temp }}/test-types/
+          if-no-files-found: ignore
+          retention-days: 14
 
   # The root scripts and every workspace's Vitest suite (`bun run test`), split in two. apps/sim is
   # about 98% of the time, so only its files are sharded; shard 1 also runs the root scripts and
@@ -876,7 +910,8 @@ jobs:
   # on a cancelled run would report a cancelled head commit as passing.
   ci:
     name: ci
-    needs: [changes, integration, e2e, e2e-mobile, desktop-live, lint, test, build, e2e-build]
+    needs:
+      [changes, integration, e2e, e2e-mobile, desktop-live, lint, test-types, test, build, e2e-build]
     if: ${{ always() }}
     runs-on: *runner-2vcpu
     timeout-minutes: 5
