@@ -41,7 +41,7 @@ const IP_BACKSTOP = 300
 async function mintAs(userId: string | null, ip: string) {
   requestUtilsMockFns.mockGetClientIp.mockReturnValue(ip)
   authMockFns.mockGetSession.mockResolvedValue(userId ? { user: { id: userId } } : null)
-  return POST(createMockRequest('POST'))
+  return POST(createMockRequest('POST'), { params: Promise.resolve({}) })
 }
 
 describe('POST /api/auth/socket-token', () => {
