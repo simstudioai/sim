@@ -1,8 +1,10 @@
 import { asyncJobs, db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
+import { type BackoffOptions, backoffWithJitter } from '@sim/utils/retry'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import {
   AsyncJobEnqueueError,
@@ -18,9 +20,14 @@ import {
   type JobType,
   validateMaxDurationSeconds,
 } from '@/lib/core/async-jobs/types'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
 
 const logger = createLogger('DatabaseJobQueue')
+
+/** About 4 s across all attempts: long enough to ride out a connection reset or failover. */
+const INLINE_CLAIM_MAX_ATTEMPTS = 5
+const INLINE_CLAIM_BACKOFF: BackoffOptions = { baseMs: 250, maxMs: 2_000 }
 
 type AsyncJobRow = typeof asyncJobs.$inferSelect
 type Runner = NonNullable<EnqueueOptions['runner']>
@@ -350,16 +357,52 @@ export class DatabaseJobQueue implements JobQueueBackend {
     return row ? rowToJob(row) : null
   }
 
-  async startJob(jobId: string): Promise<boolean> {
-    const now = new Date()
+  /**
+   * Claims an inline job, retrying a claim that hit a retryable infrastructure error: ingress
+   * has already acknowledged the delivery and nothing re-runs a failed inline job, so failing
+   * it here would drop the delivery for good. The error can arrive after the claim committed,
+   * so each retry first reads the row back; `started_at` fences it, so only a claim this call
+   * wrote counts as won.
+   */
+  private async claimInlineJob(jobId: string): Promise<boolean> {
+    const startedAt = new Date()
+    for (let attempt = 1; ; attempt++) {
+      try {
+        if (attempt > 1) {
+          const job = await this.getJob(jobId)
+          if (
+            job?.status === JOB_STATUS.PROCESSING &&
+            job.startedAt?.getTime() === startedAt.getTime()
+          ) {
+            logger.info('Recovered inline job claim that committed before its error', { jobId })
+            return true
+          }
+          if (job?.status !== JOB_STATUS.PENDING) return false
+        }
+        return await this.startJob(jobId, startedAt)
+      } catch (error) {
+        if (attempt >= INLINE_CLAIM_MAX_ATTEMPTS || !isRetryableInfrastructureError(error)) {
+          throw error
+        }
+        logger.warn('Retrying inline job claim after a retryable error', {
+          jobId,
+          attempt,
+          error: toError(error).message,
+        })
+        await sleep(backoffWithJitter(attempt, null, INLINE_CLAIM_BACKOFF))
+      }
+    }
+  }
 
+  /** `startedAt` lets {@link claimInlineJob} recognize its own claim when it reads the row back. */
+  async startJob(jobId: string, startedAt = new Date()): Promise<boolean> {
     const [claimedJob] = await db
       .update(asyncJobs)
       .set({
         status: JOB_STATUS.PROCESSING,
-        startedAt: now,
+        startedAt,
         attempts: sql`${asyncJobs.attempts} + 1`,
-        updatedAt: now,
+        updatedAt: startedAt,
       })
       .where(and(eq(asyncJobs.id, jobId), eq(asyncJobs.status, JOB_STATUS.PENDING)))
       .returning({ id: asyncJobs.id })
@@ -547,7 +590,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
       }
       try {
         if (abortController.signal.aborted) return
-        const claimed = await this.startJob(jobId)
+        const claimed = await this.claimInlineJob(jobId)
         if (!claimed) return
         if (abortController.signal.aborted) return
         const output = await runner(payload, abortController.signal)
