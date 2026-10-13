@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import {
@@ -20,7 +21,7 @@ export interface RunSandboxTaskOptions {
   signal?: AbortSignal
   /** Records canonical workspace files whose bytes were successfully read by a task broker. */
   onWorkspaceFileAccess?: SandboxBrokerContext['onWorkspaceFileAccess']
-  readableWorkspaceFileIds?: SandboxBrokerContext['readableWorkspaceFileIds']
+  filePrincipal?: SandboxBrokerContext['filePrincipal']
   /** Run id that brokers see as `ctx.requestId`, for callers that keep per-run broker state. */
   requestId?: string
 }
@@ -60,13 +61,12 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
     workspaceId: input.workspaceId,
     requestId,
     onWorkspaceFileAccess: options.onWorkspaceFileAccess,
-    ...(options.readableWorkspaceFileIds
-      ? { readableWorkspaceFileIds: options.readableWorkspaceFileIds }
-      : {}),
+    filePrincipal: options.filePrincipal,
   }
   const brokers: Record<string, IsolatedVMBrokerHandler> = {}
+  const runInCallerContext = AsyncLocalStorage.snapshot()
   for (const broker of task.brokers) {
-    brokers[broker.name] = (args) => broker.handle(brokerContext, args)
+    brokers[broker.name] = (args) => runInCallerContext(() => broker.handle(brokerContext, args))
   }
 
   const request: IsolatedVMExecutionRequest = {

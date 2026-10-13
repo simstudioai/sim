@@ -201,22 +201,18 @@ describe('Mothership table mounts through code calls', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
-  /**
-   * A snapshot whose rows hold a recorded secret, or lack vouched provenance, is opaque to
-   * redaction once mounted, so it is left out on its own and reported; the run itself proceeds.
-   */
-  it('excludes a table whose snapshot is unsafe for Chat, before any byte or URL is acquired', async () => {
+  it('stops before code execution when a requested table snapshot is refused', async () => {
     mocks.safety.mockResolvedValueOnce('stale')
     await expect(run('table-orders')).rejects.toThrow('changed while preparing')
     expect(mocks.presign).not.toHaveBeenCalled()
     mocks.cloud.mockReturnValue(true)
     mocks.safety.mockResolvedValue('unsafe-provenance')
     const result = await run('table-orders')
-    const params = mocks.execute.mock.calls[0][1]
-    expect(params._sandboxFiles).toBeUndefined()
+    expect(mocks.execute).not.toHaveBeenCalled()
     expect(mocks.presign).not.toHaveBeenCalled()
     expect(mocks.download).not.toHaveBeenCalled()
     expect(result.output).toMatchObject({
+      codeExecuted: false,
       excludedInputs: [{ path: 'table-orders', reason: expect.any(String) }],
     })
   })

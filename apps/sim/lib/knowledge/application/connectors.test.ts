@@ -1,5 +1,5 @@
 import { member } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
@@ -116,7 +116,6 @@ import * as encryption from '@/lib/core/security/encryption'
 import {
   createKnowledgeConnector,
   deleteKnowledgeConnector,
-  listKnowledgeConnectorDocuments,
   resolveConnectorCredentialAccessToken,
   syncKnowledgeConnector,
   updateKnowledgeConnector,
@@ -309,39 +308,6 @@ describe('knowledge connector application use cases', () => {
   })
 
   afterAll(resetDbChainMock)
-
-  describe('a searched connector document listing', () => {
-    /** The statements the listing ran whose conditions bind the search pattern. */
-    function searchedStatements(): number {
-      return dbChainMockFns.where.mock.calls.filter(([condition]) =>
-        JSON.stringify(condition, (_key, value) =>
-          value && typeof value.toSQL === 'function' ? value.toSQL() : value
-        ).includes('%report%')
-      ).length
-    }
-
-    async function list(
-      principal: Parameters<typeof listKnowledgeConnectorDocuments.execute>[0]['principal']
-    ) {
-      queueTableRows(schemaMock.document, [{ active: 4, excluded: 1, failed: 0, skipped: 0 }])
-      queueTableRows(schemaMock.document, [])
-      return listKnowledgeConnectorDocuments.execute({
-        principal,
-        input: { knowledgeBaseId: 'knowledge-b', connectorId: 'connector-b', search: 'report' },
-      })
-    }
-
-    it('counts the whole source for Chat, so withheld names cannot answer the search', async () => {
-      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
-      await list({ ...delegatedPrincipal, workspaceId: 'workspace-b' })
-      expect(searchedStatements()).toBe(1)
-    })
-
-    it('counts only the matches for a person, as before', async () => {
-      await list(createSessionPrincipal())
-      expect(searchedStatements()).toBe(2)
-    })
-  })
 
   it('rejects a forged OAuth credential for central Drive creation before using its token', async () => {
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')

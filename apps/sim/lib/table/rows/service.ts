@@ -1101,13 +1101,12 @@ export async function findRowMatches(
 ): Promise<{
   matches: FindRowMatch[]
   truncated: boolean
-  revisions: ReadonlyMap<string, Date | string>
 }> {
   const tableName = USER_TABLE_ROWS_SQL_NAME
   const columns = table.schema.columns
   // Row data is keyed by stable column id, so scan/return JSONB keys as ids.
   const columnIds = columns.map(getColumnId)
-  if (columnIds.length === 0) return { matches: [], truncated: false, revisions: new Map() }
+  if (columnIds.length === 0) return { matches: [], truncated: false }
 
   // Same visibility rule as queryRows: don't surface rows a running delete job will remove.
   const deleteMask = await pendingDeleteMask(table)
@@ -1149,17 +1148,14 @@ export async function findRowMatches(
     return trx.execute<{
       ordinal: string | number
       id: string
-      updated_at_ms: string | number
       column_name: string
     }>(sql`
       WITH ordered AS (
-        SELECT id, data, updated_at, row_number() OVER (ORDER BY ${orderBySql}) - 1 AS ordinal
+        SELECT id, data, row_number() OVER (ORDER BY ${orderBySql}) - 1 AS ordinal
         FROM ${userTableRows}
         WHERE ${whereClause}
       )
-      SELECT o.ordinal, o.id,
-        floor(extract(epoch FROM o.updated_at) * 1000)::bigint AS updated_at_ms,
-        kv.key AS column_name
+      SELECT o.ordinal, o.id, kv.key AS column_name
       FROM ordered o
       CROSS JOIN LATERAL jsonb_each_text(o.data) kv
       WHERE (kv.value ILIKE ${pattern}${nameMatchClause})
@@ -1177,18 +1173,12 @@ export async function findRowMatches(
     rowId: r.id,
     column: r.column_name,
   }))
-  /**
-   * The revision each match was read at, for a caller that classifies what matched. Read as epoch
-   * milliseconds: the raw driver returns this zone-less timestamp as local-time text with
-   * microseconds, which would never equal the ORM's UTC, millisecond `Date` for the same row.
-   */
-  const revisions = new Map(sliced.map((r) => [r.id, new Date(Number(r.updated_at_ms))]))
 
   logger.info(
     `[${requestId}] Find "${options.q}" in table ${table.id}: ${matches.length} match(es)${truncated ? ' (truncated)' : ''}`
   )
 
-  return { matches, truncated, revisions }
+  return { matches, truncated }
 }
 
 /**

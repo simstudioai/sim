@@ -3,6 +3,7 @@ import type { Principal } from '@sim/auth/principal'
 import type { ApplicationOperation } from '@/lib/core/application/operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
+import { mergeDurableSecretProvenanceSources } from '@/lib/execution/provenance-entries'
 
 /**
  * The secret provenance of one stored item: `exact` names every secret its content can hold,
@@ -17,6 +18,7 @@ export type ContentSourceKind =
   | 'knowledge-document'
   | 'knowledge-chunk'
   | 'table-row'
+  | 'tool-result'
 
 /**
  * How an item's content leaves the use case. `complete` is text in which any of its secrets may
@@ -25,7 +27,7 @@ export type ContentSourceKind =
  */
 export type ContentView = 'complete' | 'opaque' | { derived: unknown }
 
-/** One stored item whose content, or content derived from it, a use case is about to return. */
+/** One stored item or tool result whose content a use case is about to return. */
 export interface ContentSource {
   kind: ContentSourceKind
   /** Canonical id, for attribution and per-item exclusion only. */
@@ -51,7 +53,7 @@ export interface ContentDeliveryGate {
  * Whether a declared operation's result can carry content derived from a provenance-bearing store
  * (workspace files and their versions, execution files, knowledge documents and chunks, table
  * rows): bytes, text, excerpts, cells, previews, base64, archives, public links to such content, or
- * a match oracle over it. `none` is spelled out, as `capability` is, so an operation Chat can reach
+ * returned matches. `none` is spelled out, as `capability` is, so an operation Chat can reach
  * cannot reach production without someone deciding.
  */
 export type ContentDeliveryDeclaration = 'sourced' | 'none'
@@ -65,7 +67,7 @@ interface ContentLedger {
   sourcedOperationAdmitted: boolean
   /** A use case accounted for the sources it returns, even when it returned none. */
   accounted: boolean
-  /** Provenance of every admitted item, for a surface that persists the delivered bytes. */
+  /** Bounded aggregate of admitted provenance, for a surface that persists the delivered bytes. */
   admitted: ContentProvenance[]
   /** A committed write's returned item was refused; the operation answers with a refusal. */
   withheldAfterWrite?: ContentSourceKind
@@ -84,6 +86,8 @@ const MODEL_UNSAFE_CONTENT_MESSAGES: Record<ContentSourceKind, string> = {
     'Document cannot be sent to a model because its secret provenance is unavailable',
   'knowledge-chunk': 'Chunk cannot be sent to a model because its secret provenance is unavailable',
   'table-row': 'Row cannot be sent to a model because its secret provenance is unavailable',
+  'tool-result':
+    'Tool result cannot be sent to a model because its secret provenance is unavailable',
 }
 
 /**
@@ -96,7 +100,9 @@ export class ContentRefusedError extends OrchestrationError {
     super(
       'forbidden',
       options.afterWrite
-        ? `The change was saved. ${MODEL_UNSAFE_CONTENT_MESSAGES[kind]}, so the result is not shown; do not retry the change.`
+        ? kind === 'tool-result'
+          ? 'Tool execution settled, but its result could not be returned safely. Do not retry automatically.'
+          : `The change was saved. ${MODEL_UNSAFE_CONTENT_MESSAGES[kind]}, so the result is not shown; do not retry the change.`
         : MODEL_UNSAFE_CONTENT_MESSAGES[kind]
     )
     this.name = 'ContentRefusedError'
@@ -219,10 +225,33 @@ function markAccounted(): void {
   }
 }
 
+function mergeContentProvenance(
+  values: Iterable<ContentProvenance>
+): ContentProvenance | undefined {
+  let admitted = false
+  let unrecorded = false
+  const merged = mergeDurableSecretProvenanceSources(
+    (function* () {
+      for (const value of values) {
+        admitted = true
+        if (value.status === 'unrecorded') unrecorded = true
+        else yield value
+      }
+    })()
+  )
+  if (!admitted) return undefined
+  if (unrecorded && merged.status === 'exact' && merged.entries.length === 0) {
+    return { status: 'unrecorded' }
+  }
+  return merged
+}
+
 /** A committed write returned an item of `kind` its gate refused or could not decide. */
 function withholdAfterWrite(kind: ContentSourceKind): void {
   for (let ledger = ledgers.getStore(); ledger; ledger = ledger.parent) {
-    ledger.withheldAfterWrite ??= kind
+    if (ledger.withheldAfterWrite === undefined || ledger.withheldAfterWrite === 'tool-result') {
+      ledger.withheldAfterWrite = kind
+    }
   }
 }
 
@@ -268,13 +297,20 @@ export async function admitContent(
   }
   markAccounted()
   if (ledger) {
-    sources.forEach((source, index) => {
-      if (verdicts[index]) {
-        for (let current: ContentLedger | undefined = ledger; current; current = current.parent) {
-          current.admitted.push(source.provenance)
+    const batch = mergeContentProvenance(
+      (function* () {
+        for (let index = 0; index < sources.length; index++) {
+          if (verdicts[index]) yield sources[index].provenance
         }
+      })()
+    )
+    if (batch) {
+      for (let current: ContentLedger | undefined = ledger; current; current = current.parent) {
+        const previous = current.admitted[0]
+        const aggregate = previous ? mergeContentProvenance([previous, batch]) : batch
+        if (aggregate) current.admitted.splice(0, current.admitted.length, aggregate)
       }
-    })
+    }
   }
   return new ContentAdmission(sources, verdicts)
 }
@@ -378,7 +414,7 @@ export interface ContentDeliveryRecord<T> {
   gateFailure?: unknown
   /** A write committed, then its returned content was withheld: the change happened. */
   committedWrite: boolean
-  /** Provenance of every admitted item, in admission order. */
+  /** Bounded aggregate of admitted provenance, updated in place during deferred delivery. */
   admitted: readonly ContentProvenance[]
 }
 
@@ -402,12 +438,16 @@ export async function trackContentDelivery<T>(
   } catch (error) {
     /** The request threw because its gate failed; its transport answers that, not the error. */
     if (ledger.gateFailure === undefined) throw error
-    throw new ContentGateFailure(ledger.gateFailure, ledger.withheldAfterWrite !== undefined)
+    throw new ContentGateFailure(
+      ledger.gateFailure,
+      ledger.withheldAfterWrite !== undefined && ledger.withheldAfterWrite !== 'tool-result'
+    )
   }
   return {
     result,
     unaccounted: ledger.sourcedOperationAdmitted && !ledger.accounted,
-    committedWrite: ledger.withheldAfterWrite !== undefined,
+    committedWrite:
+      ledger.withheldAfterWrite !== undefined && ledger.withheldAfterWrite !== 'tool-result',
     admitted: ledger.admitted,
     ...(ledger.gateFailure === undefined ? {} : { gateFailure: ledger.gateFailure }),
   }

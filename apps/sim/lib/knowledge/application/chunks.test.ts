@@ -1,8 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
-import {
-  createDelegatedPrincipal,
-  createSessionPrincipal,
-} from '@sim/testing/factories/principal.factory'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import {
   knowledgeContextsMock,
   knowledgeContextsMockFns,
@@ -108,57 +105,6 @@ describe('knowledge chunk application use cases', () => {
     expect(result.chunk.documentName).toBe('named.txt')
     const [, [item]] = mocks.admitKnowledgeChunks.mock.calls[0]
     expect(item.value).toMatchObject({ documentId: 'document-1', documentName: 'named.txt' })
-  })
-
-  describe('a searched chunk listing', () => {
-    const page = {
-      chunks: [
-        { id: 'chunk-1', content: 'first' },
-        { id: 'chunk-2', content: 'second' },
-      ],
-      pagination: { total: 7, limit: 2, offset: 4, hasMore: true },
-    }
-
-    beforeEach(() => {
-      knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue(
-        {
-          workspaceId: 'workspace-1',
-          workspaceOrganizationId: null,
-          allowPersonalApiKeys: true,
-          billedAccountUserId: 'billing-owner-1',
-          access: { get: async () => WORKSPACE_ACCESS_SCOPE },
-          knowledgeBaseId: 'knowledge-1',
-          knowledgeBase: { id: 'knowledge-1' },
-          documentId: 'document-1',
-          document: { id: 'document-1', processingStatus: 'completed', enabled: true },
-        }
-      )
-      mocks.queryChunks.mockResolvedValue(page)
-      admitOnly(['chunk-1'])
-    })
-
-    it('reports Chat a total of the matches it was given, not of withheld ones', async () => {
-      const result = await listKnowledgeChunks.execute({
-        principal: createDelegatedPrincipal({
-          workspaceId: 'workspace-1',
-          audience: 'sim:knowledge',
-        }),
-        input: { knowledgeBaseId: 'knowledge-1', documentId: 'document-1', search: 'token' },
-      })
-
-      expect(result.chunks.map((chunk) => chunk.id)).toEqual(['chunk-1'])
-      expect(result.pagination).toEqual({ total: 5, limit: 2, offset: 4, hasMore: true })
-    })
-
-    it('keeps the full total for a person', async () => {
-      admitOnly(['chunk-1', 'chunk-2'])
-      const result = await listKnowledgeChunks.execute({
-        principal: createSessionPrincipal(),
-        input: { knowledgeBaseId: 'knowledge-1', documentId: 'document-1', search: 'token' },
-      })
-
-      expect(result.pagination).toEqual(page.pagination)
-    })
   })
 
   it('returns a typed transient failure before querying chunks for a processing document', async () => {

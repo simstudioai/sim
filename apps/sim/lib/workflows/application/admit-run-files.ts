@@ -10,10 +10,6 @@ import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { getStoredFileSecretProvenanceByKey } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { UserFile } from '@/executor/types'
 
-/**
- * Admits each file a run produced on its own, classified by the storage key the run recorded, and
- * returns the ids admitted. A caller no gate observes gets every id back without a provenance read.
- */
 /** Admits each run file on its own; see {@link admitRunFiles}. Returns the admitted files. */
 async function admitRunFileItems(
   principal: Principal,
@@ -38,6 +34,10 @@ async function admitRunFileItems(
   })
 }
 
+/**
+ * Admits each file a run produced on its own, classified by the storage key the run recorded, and
+ * returns the ids admitted. A caller no gate observes gets every id back without a provenance read.
+ */
 export async function admitRunFiles(
   principal: Principal,
   workspaceId: string,
@@ -53,66 +53,83 @@ export async function admitRunFiles(
  * id: an earlier descriptor of the same file without bytes must not hide a later one with them.
  */
 function collectInlinedFiles(value: unknown, files: Map<string, UserFile>, seen: WeakSet<object>) {
-  if (!value || typeof value !== 'object' || seen.has(value)) return
-  seen.add(value)
-  if (isUserFileWithMetadata(value)) {
-    if (typeof value.base64 === 'string' && !files.has(value.key)) files.set(value.key, value)
-    return
-  }
-  for (const item of Array.isArray(value) ? value : Object.values(value)) {
-    collectInlinedFiles(item, files, seen)
+  const pending: Iterator<unknown>[] = [[value].values()]
+  while (pending.length > 0) {
+    const iterator = pending[pending.length - 1]
+    const next = iterator.next()
+    if (next.done) {
+      pending.pop()
+      continue
+    }
+    const current = next.value
+    if (!current || typeof current !== 'object' || seen.has(current)) continue
+    seen.add(current)
+    if (isUserFileWithMetadata(current)) {
+      if (typeof current.base64 === 'string' && !files.has(current.key)) {
+        files.set(current.key, current)
+      }
+      continue
+    }
+    pending.push((Array.isArray(current) ? current : Object.values(current)).values())
   }
 }
 
-function withoutUnadmittedBase64(
-  value: unknown,
-  admittedKeys: ReadonlySet<string>,
-  seen: WeakMap<object, unknown>
-): unknown {
-  if (!value || typeof value !== 'object') return value
-  const copied = seen.get(value)
-  if (copied !== undefined) return copied
-  if (isUserFileWithMetadata(value)) {
-    if (typeof value.base64 !== 'string' || admittedKeys.has(value.key)) return value
-    const { base64: _withheld, ...described } = value
-    seen.set(value, described)
-    return described
-  }
-  /** Each copy is registered before its children are walked, so a cycle resolves to the copy. */
-  if (Array.isArray(value)) {
-    const items: unknown[] = []
-    seen.set(value, items)
-    for (const item of value) items.push(withoutUnadmittedBase64(item, admittedKeys, seen))
-    return items
-  }
-  /**
-   * Only plain data is rebuilt. Another object (a stream, response or date) passes through
-   * untouched unless it carries refused inline bytes, which cannot be removed without rebuilding
-   * it, so the result is refused instead.
-   */
-  const prototype = Object.getPrototypeOf(value)
-  if (prototype !== Object.prototype && prototype !== null) {
-    const held = new Map<string, UserFile>()
-    collectInlinedFiles(value, held, new WeakSet())
-    for (const file of held.values()) {
-      if (!admittedKeys.has(file.key)) {
-        throw new ContentRefusedError('execution-file')
-      }
+function withoutUnadmittedBase64(value: unknown, admittedKeys: ReadonlySet<string>): unknown {
+  const seen = new WeakMap<object, unknown>()
+  const pending: {
+    target: object
+    entries: Iterator<[string | number, unknown]>
+  }[] = []
+  const copy = (current: unknown): unknown => {
+    if (!current || typeof current !== 'object') return current
+    const copied = seen.get(current)
+    if (copied !== undefined) return copied
+    if (isUserFileWithMetadata(current)) {
+      if (typeof current.base64 !== 'string' || admittedKeys.has(current.key)) return current
+      const { base64: _withheld, ...described } = current
+      seen.set(current, described)
+      return described
     }
-    return value
+    /** Register the copy before scheduling its children so shared and cyclic references agree. */
+    if (Array.isArray(current)) {
+      const items: unknown[] = []
+      seen.set(current, items)
+      pending.push({ target: items, entries: current.entries() })
+      return items
+    }
+    /** Non-data objects keep their identity; refused bytes inside one cannot be removed safely. */
+    const prototype = Object.getPrototypeOf(current)
+    if (prototype !== Object.prototype && prototype !== null) {
+      const held = new Map<string, UserFile>()
+      collectInlinedFiles(current, held, new WeakSet())
+      for (const file of held.values()) {
+        if (!admittedKeys.has(file.key)) throw new ContentRefusedError('execution-file')
+      }
+      return current
+    }
+    const record: Record<string, unknown> = prototype === null ? Object.create(null) : {}
+    seen.set(current, record)
+    pending.push({ target: record, entries: Object.entries(current).values() })
+    return record
   }
-  const record: Record<string, unknown> = prototype === null ? Object.create(null) : {}
-  seen.set(value, record)
-  for (const [key, item] of Object.entries(value)) {
-    /** Defined, not assigned: a `__proto__` key stays a key instead of replacing the prototype. */
-    Object.defineProperty(record, key, {
-      value: withoutUnadmittedBase64(item, admittedKeys, seen),
+  const result = copy(value)
+  while (pending.length > 0) {
+    const frame = pending[pending.length - 1]
+    const next = frame.entries.next()
+    if (next.done) {
+      pending.pop()
+      continue
+    }
+    const [key, item] = next.value
+    /** An own `__proto__` key remains data rather than replacing the copied object's prototype. */
+    Object.defineProperty(frame.target, key, {
+      value: copy(item),
       enumerable: true,
       writable: true,
       configurable: true,
     })
   }
-  return record
+  return result
 }
 
 /**
@@ -136,7 +153,7 @@ export async function withholdUnadmittedInlineFiles<T>(
   const admitted = await admitRunFileItems(principal, workspaceId, inlined, 'opaque')
   if (admitted.length === inlined.length) return value
   const admittedKeys = new Set(admitted.map((file) => file.key))
-  return withoutUnadmittedBase64(value, admittedKeys, new WeakMap()) as T
+  return withoutUnadmittedBase64(value, admittedKeys) as T
 }
 
 /**

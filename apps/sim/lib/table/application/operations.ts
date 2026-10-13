@@ -160,7 +160,7 @@ export const tableOperations = {
     principalKinds: ['session'],
   }),
   queryRows: toolReadOperation('tables.rows.query', 'sourced'),
-  searchRows: readOperation('tables.rows.search', 'sourced'),
+  searchRows: readOperation('tables.rows.search', 'none'),
   readRow: toolReadOperation('tables.rows.read', 'sourced'),
   createRows: toolWriteOperation('tables.rows.create', 'tables.use', 'sourced'),
   replaceRows: writeOperation('tables.rows.replace', 'none'),

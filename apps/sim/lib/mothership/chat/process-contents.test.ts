@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import {
@@ -81,11 +82,15 @@ const {
   readWorkspaceFileMetadata: vi.fn(),
   readTableView: vi.fn(),
   readWorkflowMetadata: vi.fn(),
-  listWorkflowFolders: vi.fn(
-    async (): Promise<{ folders: { id: string; name: string; parentId: string | null }[] }> => ({
-      folders: [],
-    })
-  ),
+  listWorkflowFolders: vi.fn<
+    (
+      request: Parameters<
+        typeof import('@/lib/workflows/application/workflow-folders').listWorkflowFolders.execute
+      >[0]
+    ) => Promise<{ folders: { id: string; name: string; parentId: string | null }[] }>
+  >(async () => ({
+    folders: [],
+  })),
   listTableFolders: vi.fn(
     async (): Promise<{ folders: { id: string; name: string; parentId: string | null }[] }> => ({
       folders: [],
@@ -476,8 +481,8 @@ describe('processContextsServer - docs contexts', () => {
     const result = await processContextsServer(
       [
         { kind: 'docs', label: 'Product docs' },
-        { kind: 'blocks', label: 'Read [rows]' },
-        { kind: 'integration', label: 'My service' },
+        { kind: 'blocks', blockIds: [], label: 'Read [rows]' },
+        { kind: 'integration', blockType: 'custom_api', label: 'My service' },
       ],
       'reader',
       '@Product docs compare @Read [rows] with @My service and @unknown',
@@ -1402,7 +1407,15 @@ describe('processContextsServer - table_selection contexts', () => {
       nextCursor: 'next-page',
     })
     const [context] = await processContextsServer(
-      [{ kind: 'table_selection', tableId: 'tbl-1', label: 'Rows', rowIds: ['r1', 'r2'] }],
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Rows',
+          rowIds: ['r1', 'r2'],
+        },
+      ],
       'user-1',
       '',
       'ws-1'
@@ -1422,7 +1435,15 @@ describe('processContextsServer - table_selection contexts', () => {
       nextCursor: null,
     })
     const [context] = await processContextsServer(
-      [{ kind: 'table_selection', tableId: 'tbl-1', label: 'Rows', rowIds: ['r1', 'r2'] }],
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Rows',
+          rowIds: ['r1', 'r2'],
+        },
+      ],
       'user-1',
       '',
       'ws-1'
@@ -1445,7 +1466,15 @@ describe('processContextsServer - table_selection contexts', () => {
       totalCount: 2,
     })
     const [context] = await processContextsServer(
-      [{ kind: 'table_selection', tableId: 'tbl-1', label: 'Rows', rowIds: ['r1', 'r2', 'r1'] }],
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Rows',
+          rowIds: ['r1', 'r2', 'r1'],
+        },
+      ],
       'user-1',
       '',
       'ws-1'
@@ -1461,6 +1490,7 @@ describe('processContextsServer - table_selection contexts', () => {
         {
           kind: 'table_selection',
           tableId: 'tbl-1',
+          tableName: 'Sales',
           label: 'Rows',
           rowIds: Array.from({ length: MAX_TABLE_SELECTION_ROWS + 1 }, (_, i) => `r${i}`),
         },
@@ -1504,7 +1534,15 @@ describe('processContextsServer - table_selection contexts', () => {
       return { rows, totalCount: 1 }
     })
     const [context] = await processContextsServer(
-      [{ kind: 'table_selection', tableId: 'tbl-1', label: 'Keys', rowIds: ['r1'] }],
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Keys',
+          label: 'Keys',
+          rowIds: ['r1'],
+        },
+      ],
       'user-1',
       '',
       'ws-1'
@@ -1530,7 +1568,15 @@ describe('processContextsServer - table_selection contexts', () => {
     })
     queryTableRows.mockResolvedValue({ rows: [{ id: 'r1', data: {} }], totalCount: 1 })
     const [context] = await processContextsServer(
-      [{ kind: 'table_selection', tableId: 'tbl-1', label: 'Rows', rowIds: ['r1'] }],
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Rows',
+          rowIds: ['r1'],
+        },
+      ],
       'user-1',
       '',
       'ws-1'
@@ -2075,15 +2121,16 @@ describe('organization resource mention targets', () => {
    * yields no context.
    */
   const ownedBy =
-    (workspaceId: string, value: unknown) =>
+    <T>(workspaceId: string, value: T) =>
     async ({
       principal,
       input,
     }: {
-      principal: { workspaceId?: string }
+      principal: Principal
       input: { workspaceId?: string; assertedWorkspaceId?: string }
     }) => {
       if (
+        !('workspaceId' in principal) ||
         principal.workspaceId !== workspaceId ||
         (input.workspaceId ?? input.assertedWorkspaceId) !== workspaceId
       ) {

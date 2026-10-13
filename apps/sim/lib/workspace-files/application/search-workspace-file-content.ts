@@ -5,7 +5,6 @@ import { admitWorkspaceFileIdentities } from '@/lib/workspace-files/application/
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
-import { FILE_SEARCH_MAX_RESULTS } from '@/lib/workspace-files/search/constants'
 import { WorkspaceFileSearchUnavailableError } from '@/lib/workspace-files/search/errors'
 import {
   compileFileSearchPattern,
@@ -64,23 +63,15 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
     signal?.throwIfAborted()
 
     try {
-      /**
-       * Chat drops matches from files it may not read, so it fetches the most the index returns
-       * and keeps its own limit afterwards: refused matches never take an admitted match's place.
-       */
       const classified = isCopilotPrincipal(principal)
       const found = await searchWorkspaceFileIndex({
         workspaceId: context.workspaceId,
         pattern: compileFileSearchPattern(input.query, input.mode),
-        maxResults: classified ? FILE_SEARCH_MAX_RESULTS : input.maxResults,
+        maxResults: input.maxResults,
         folderScope,
         signal,
       })
-      /**
-       * A match is evaluated against a file's raw indexed text, so a hit in a file holding a
-       * recorded secret answers a question about that secret whatever its preview shows. Such a
-       * file's lines are therefore withheld like an unknown file's; grep matches redacted text.
-       */
+      /** Index previews are already clipped; protect them without changing match locations or totals. */
       const admitted = await admitWorkspaceFileIdentities(
         principal,
         context.workspaceId,
@@ -88,19 +79,16 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         'opaque'
       )
       if (!classified) return found
-      const matches = found.results.filter((result) => admitted.has(result.fileId))
-      const results = matches.slice(0, input.maxResults)
       return {
         ...found,
-        results,
-        count: results.length,
-        /**
-         * Derived from admitted matches only, so a refused match is never signalled. Matches past
-         * the index's own cap are unknown; they are reported only when this page is full anyway.
-         */
-        truncated:
-          matches.length > input.maxResults ||
-          (found.truncated && matches.length >= input.maxResults),
+        results: found.results.map((result) =>
+          admitted.has(result.fileId)
+            ? result
+            : {
+                ...result,
+                text: '[Preview withheld: read or grep this file to inspect protected text.]',
+              }
+        ),
         sources: found.sources.filter((source) => admitted.has(source.identity.fileId)),
       }
     } catch (error) {

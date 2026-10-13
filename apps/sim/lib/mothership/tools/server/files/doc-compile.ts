@@ -665,23 +665,6 @@ const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
   '.pdf': { magic: PDF_MAGIC, taskId: 'pdf-generate', contentType: PDF_MIME },
 }
 
-/**
- * The files a Chat compile may read through the isolate's broker: every file its source names
- * literally, each admitted by the caller's gate before the task runs. Other callers are
- * unrestricted, as they have always been.
- */
-async function admitBrokerFiles(
-  args: LegacyCompileArgs
-): Promise<ReadonlyMap<string, ResolvedReferencedImage['record']> | undefined> {
-  const principal = args.filePrincipal
-  if (!principal || !mustClassifyContent(principal)) return undefined
-  const { images } = await resolveReferencedImages(args.source, args.workspaceId, principal)
-  const records = images.map((image) => image.record)
-  const admitted = await admitWorkspaceFiles(principal, args.workspaceId, records, 'complete')
-  if (admitted.length < records.length) throw new ContentRefusedError('workspace-file')
-  return new Map(admitted.map((record) => [record.id, record]))
-}
-
 /** Whether a cached build read exactly the versions this compile admitted, and nothing else. */
 function cachedFromAdmittedVersions(
   contributors: readonly WorkspaceFileSecretProvenanceIdentity[],
@@ -713,14 +696,31 @@ async function compileDocInLegacySandbox(
     )
   }
 
-  /** Admitted before the cache too: a cached build may embed a file the gate now refuses. */
-  const admittedFiles = await admitBrokerFiles(args)
-  const readableWorkspaceFileIds = admittedFiles ? new Set(admittedFiles.keys()) : undefined
   const cacheKey = sha256Hex(`.${fmt.ext}${args.source}${args.workspaceId}`)
   const cached = compiledDocCache.get(cacheKey)
-  /** A build that read another file, or another version of one, is rebuilt for this compile. */
-  const cacheReadable =
-    !admittedFiles || cachedFromAdmittedVersions(cached?.contributingFiles ?? [], admittedFiles)
+  let cacheReadable = true
+  if (cached && args.filePrincipal && mustClassifyContent(args.filePrincipal)) {
+    const { images } = await resolveReferencedImages(
+      args.source,
+      args.workspaceId,
+      args.filePrincipal,
+      new Set(cached.contributingFiles?.map((file) => file.fileId))
+    )
+    const records = images.map((image) => image.record)
+    cacheReadable = cachedFromAdmittedVersions(
+      cached.contributingFiles ?? [],
+      new Map(records.map((file) => [file.id, file]))
+    )
+    if (cacheReadable) {
+      const admitted = await admitWorkspaceFiles(
+        args.filePrincipal,
+        args.workspaceId,
+        records,
+        'complete'
+      )
+      if (admitted.length !== records.length) throw new ContentRefusedError('workspace-file')
+    }
+  }
   if (cached && cacheReadable) {
     return {
       buffer: cached.buffer,
@@ -742,7 +742,7 @@ async function compileDocInLegacySandbox(
     {
       ownerKey: args.ownerKey,
       signal: args.signal,
-      ...(readableWorkspaceFileIds ? { readableWorkspaceFileIds } : {}),
+      filePrincipal: args.filePrincipal,
       onWorkspaceFileAccess: (identity) => {
         contributingFiles.set(`${identity.context}:${identity.fileId}:${identity.key}`, identity)
       },
@@ -760,8 +760,8 @@ async function compileDocInLegacySandbox(
 /**
  * Returns the compiled binary for a document. The remote backend reuses and publishes a
  * dependency-bound artifact after statically staging its inputs. The isolated-VM backend preserves
- * its live-broker semantics and keeps only a small process-local cache; it cannot publish a durable
- * artifact until broker calls can report the exact file versions they accessed.
+ * its live-broker semantics and keeps a small process-local cache bound to the actual file revisions
+ * read by its brokers. Each broker read is authorized and admitted before returning bytes.
  */
 export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> {
   const { source, fileName, workspaceId } = args

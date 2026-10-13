@@ -140,8 +140,9 @@ async function proxyAuthorizedSandboxRequest(
       })
       const withheld = Response.json(
         {
-          error:
-            'The API request ran, but its result could not be returned safely. Do not retry a mutation automatically; read the resource to check its current state.',
+          error: error.committedWrite
+            ? 'The change was saved, but its result could not be returned safely. Do not retry the change.'
+            : 'The API request ran, but its result could not be returned safely. Do not retry a mutation automatically; read the resource to check its current state.',
         },
         { status: 502 }
       )

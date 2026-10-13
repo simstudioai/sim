@@ -20,25 +20,15 @@ import {
 } from '@sim/testing/mocks/table-rows-service.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition, TablePredicate } from '@/lib/table/types'
+import type { TableDefinition } from '@/lib/table/types'
 
-const {
-  mockIsScopeCompatible,
-  mockLoadExecutionsForRow,
-  mockLoadEnrichmentDetail,
-  mockRowProvenance,
-  mockFindRowMatches,
-  mockClassifyColumns,
-  mockTableHasCellsUnsafe,
-} = vi.hoisted(() => ({
-  mockTableHasCellsUnsafe: vi.fn(),
-  mockFindRowMatches: vi.fn(),
-  mockClassifyColumns: vi.fn(),
-  mockIsScopeCompatible: vi.fn(),
-  mockLoadExecutionsForRow: vi.fn(),
-  mockLoadEnrichmentDetail: vi.fn(),
-  mockRowProvenance: vi.fn(),
-}))
+const { mockLoadExecutionsForRow, mockLoadEnrichmentDetail, mockRowProvenance } = vi.hoisted(
+  () => ({
+    mockLoadExecutionsForRow: vi.fn(),
+    mockLoadEnrichmentDetail: vi.fn(),
+    mockRowProvenance: vi.fn(),
+  })
+)
 
 vi.mock('@sim/audit', () => auditMock)
 
@@ -46,7 +36,6 @@ vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/table', () => ({
   ...tableMock,
-  findRowMatches: mockFindRowMatches,
   TABLE_LIMITS: { ...tableMock.TABLE_LIMITS, MAX_ROW_RUN_STATE_BYTES: 256 },
 }))
 
@@ -59,8 +48,6 @@ vi.mock('@/lib/table/column-types', () => ({
 /** The reader classifies each row on its own; `mockRowProvenance` answers per row id. */
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
   ...tableRowsSecretProvenanceMock,
-  classifyStoredTableRowColumns: mockClassifyColumns,
-  tableHasCellsUnsafeForPredicate: mockTableHasCellsUnsafe,
   TableRowProvenanceReader: class extends tableRowsSecretProvenanceMock.TableRowProvenanceReader {
     rowProvenance(rowId: string) {
       return mockRowProvenance(rowId)
@@ -70,11 +57,6 @@ vi.mock('@/lib/table/rows/secret-provenance', () => ({
 
 vi.mock('@/lib/table/validation', () => ({
   coerceRowValues: vi.fn(),
-}))
-
-vi.mock('@/lib/execution/durable-secret-provenance', () => ({
-  EXACT_EMPTY_DURABLE_SECRET_PROVENANCE: { status: 'exact', entries: [] },
-  isPrivateSecretProvenanceScopeCompatible: mockIsScopeCompatible,
 }))
 
 vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
@@ -109,7 +91,6 @@ import {
   readTableRowEnrichmentDetail,
   replaceProjectedWireRows,
   replaceTableRows,
-  searchTableRows,
   TableRowsValidationError,
   updateTableRow,
   updateTableRows,
@@ -231,7 +212,6 @@ describe('replaceProjectedWireRows application command', () => {
     )
     mockReplaceRowsWithTx.mockResolvedValue({ deletedCount: 2, insertedCount: 1 })
     mockCreateSecretProvenance.mockReturnValue({ complete: true, columns: {} })
-    mockIsScopeCompatible.mockReturnValue(true)
   })
 
   it('validates and replaces against the fresh schema held under the table lock', async () => {
@@ -333,10 +313,6 @@ describe('replaceProjectedWireRows application command', () => {
       { 'column-fresh': 'secret-value' },
       registry
     )
-    expect(mockIsScopeCompatible).toHaveBeenCalledWith(
-      { userId: 'user-1', workspaceId: TABLE.workspaceId },
-      { workspaceId: TABLE.workspaceId }
-    )
     expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ secretProvenance: [provenance] }),
@@ -356,7 +332,6 @@ describe('replaceProjectedWireRows application command', () => {
         },
       },
     })
-    mockIsScopeCompatible.mockReturnValue(false)
 
     await replaceProjectedWireRows.execute({
       principal: delegatedPrincipal,
@@ -371,10 +346,6 @@ describe('replaceProjectedWireRows application command', () => {
       },
     })
 
-    expect(mockIsScopeCompatible).toHaveBeenCalledWith(
-      { userId: 'user-1', workspaceId: 'workspace-other' },
-      { workspaceId: TABLE.workspaceId }
-    )
     expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
@@ -680,7 +651,6 @@ describe('row data keying', () => {
     mockResolveContext.mockResolvedValue(contextFor())
     mockAssertRowCapacity.mockResolvedValue(10_000)
     mockCreateSecretProvenance.mockReturnValue({ complete: true, columns: {} })
-    mockIsScopeCompatible.mockReturnValue(true)
   })
 
   it('does not silently drop an id-keyed write, which the name path would', async () => {
@@ -997,89 +967,6 @@ describe('row delivery to Chat', () => {
     }
   )
 
-  describe('predicates Chat runs over cell values', () => {
-    const query = (principal: Caller, predicate?: TablePredicate) =>
-      queryTableRows.execute({
-        principal,
-        input: { tableId: TABLE.id, limit: 25, includeTotal: true, predicate },
-      })
-    const BY_NAME: TablePredicate = { all: [{ field: 'name', op: 'eq', value: 'guess' }] }
-
-    beforeEach(() => {
-      mockQueryRows.mockResolvedValue({ ...PAGE, rowCount: 1, totalCount: 3 })
-      mockTableHasCellsUnsafe.mockResolvedValue(false)
-    })
-
-    it('counts only the rows delivered on the page', async () => {
-      mockRowProvenance.mockReturnValue({ status: 'unknown' })
-      const result = await observeContentDelivery({ admit: gate(false) }, () =>
-        query(CHAT, BY_NAME)
-      )
-      expect(result).toMatchObject({ rows: [], rowCount: 0, totalCount: 3 })
-    })
-
-    it('refuses a predicate over cells it cannot vouch for, before running it', async () => {
-      mockTableHasCellsUnsafe.mockResolvedValue(true)
-      await expect(
-        observeContentDelivery({ admit: gate(true) }, () => query(CHAT, BY_NAME))
-      ).rejects.toBeInstanceOf(ContentRefusedError)
-      expect(mockTableHasCellsUnsafe).toHaveBeenCalledWith(TABLE.id, new Set(['column-name']))
-      expect(mockQueryRows).not.toHaveBeenCalled()
-    })
-
-    it('refuses when a cell it reads becomes unsafe during the read', async () => {
-      mockTableHasCellsUnsafe.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
-      mockRowProvenance.mockReturnValue({ status: 'exact', entries: [] })
-      await expect(
-        observeContentDelivery({ admit: gate(true) }, () => query(CHAT, BY_NAME))
-      ).rejects.toBeInstanceOf(ContentRefusedError)
-    })
-
-    it('checks nothing for an id-only predicate or no predicate, which read no cell', async () => {
-      mockRowProvenance.mockReturnValue({ status: 'exact', entries: [] })
-      await observeContentDelivery({ admit: gate(true) }, () => query(CHAT))
-      await observeContentDelivery({ admit: gate(true) }, () =>
-        query(CHAT, { all: [{ field: 'id', op: 'in', value: ['row-1'] }] })
-      )
-      expect(mockTableHasCellsUnsafe).not.toHaveBeenCalled()
-    })
-
-    it('refuses a free-text search over a table with any unsafe cell', async () => {
-      mockTableHasCellsUnsafe.mockResolvedValue(true)
-      await expect(
-        observeContentDelivery({ admit: gate(true) }, () =>
-          searchTableRows.execute({ principal: CHAT, input: { tableId: TABLE.id, q: 'guess' } })
-        )
-      ).rejects.toBeInstanceOf(ContentRefusedError)
-      expect(mockTableHasCellsUnsafe).toHaveBeenCalledWith(TABLE.id, 'all')
-      expect(mockFindRowMatches).not.toHaveBeenCalled()
-    })
-
-    it('refuses an update by filter over unsafe cells before changing anything', async () => {
-      mockTableHasCellsUnsafe.mockResolvedValue(true)
-      await expect(
-        observeContentDelivery({ admit: gate(true) }, () =>
-          updateTableRows.execute({
-            principal: CHAT,
-            input: {
-              tableId: TABLE.id,
-              filter: { name: 'guess' },
-              data: { name: 'x' },
-              dataKeying: 'names',
-            },
-          })
-        )
-      ).rejects.toBeInstanceOf(ContentRefusedError)
-      expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
-    })
-
-    it('answers a person with the stored counts, unchecked', async () => {
-      const result = await query(PRINCIPAL, BY_NAME)
-      expect(result).toMatchObject({ rowCount: 1, totalCount: 3 })
-      expect(mockTableHasCellsUnsafe).not.toHaveBeenCalled()
-    })
-  })
-
   it.each(['read', 'enrichment'] as const)('%s refuses a refused row with a 403', async (name) => {
     mockRowProvenance.mockReturnValue({ status: 'unknown' })
     await expect(
@@ -1175,75 +1062,5 @@ describe('row delivery to Chat', () => {
         expect(chat.rows[0]?.executions).toEqual(executions)
       }
     )
-  })
-
-  describe('row search for Chat', () => {
-    const MATCHES = [
-      { ordinal: 0, rowId: 'row-a', column: 'col-plain' },
-      { ordinal: 0, rowId: 'row-a', column: 'col-secret' },
-      { ordinal: 1, rowId: 'row-b', column: 'col-plain' },
-    ]
-    const READ_AT = new Date('2026-01-01')
-    const REVISIONS = new Map([
-      ['row-a', READ_AT],
-      ['row-b', READ_AT],
-    ])
-    const search = (principal: Caller) =>
-      searchTableRows.execute({ principal, input: { tableId: TABLE.id, q: 'needle' } })
-
-    beforeEach(() => {
-      mockClassifyColumns.mockResolvedValue(
-        new Map([
-          ['row-a', { status: 'exact', secretColumns: new Set(['col-secret']) }],
-          ['row-b', { status: 'unknown' }],
-        ])
-      )
-    })
-
-    it('does not signal truncation through a match it withheld', async () => {
-      mockFindRowMatches.mockResolvedValue({
-        matches: MATCHES,
-        truncated: true,
-        revisions: REVISIONS,
-      })
-      const result = await observeContentDelivery({ admit: gate(true) }, () => search(CHAT))
-      expect(result.matches).toEqual([MATCHES[0]])
-      expect(result.truncated).toBe(false)
-    })
-
-    it('keeps truncation when every match on a capped page was admitted', async () => {
-      mockFindRowMatches.mockResolvedValue({
-        matches: [MATCHES[0]],
-        truncated: true,
-        revisions: REVISIONS,
-      })
-      const result = await observeContentDelivery({ admit: gate(true) }, () => search(CHAT))
-      expect(result).toMatchObject({ matches: [MATCHES[0]], truncated: true })
-    })
-
-    it('classifies each match at the revision the search read, dropping one it cannot bind', async () => {
-      mockFindRowMatches.mockResolvedValue({
-        matches: MATCHES,
-        truncated: false,
-        revisions: new Map([['row-a', READ_AT]]),
-      })
-      const result = await observeContentDelivery({ admit: gate(true) }, () => search(CHAT))
-      expect(mockClassifyColumns).toHaveBeenCalledWith([
-        { id: 'row-a', updatedAt: READ_AT },
-        { id: 'row-a', updatedAt: READ_AT },
-      ])
-      expect(result.matches).toEqual([MATCHES[0]])
-    })
-
-    it('answers a person with every match and the raw truncation', async () => {
-      mockFindRowMatches.mockResolvedValue({
-        matches: MATCHES,
-        truncated: true,
-        revisions: REVISIONS,
-      })
-      const result = await search(PRINCIPAL)
-      expect(result).toMatchObject({ matches: MATCHES, truncated: true })
-      expect(mockClassifyColumns).not.toHaveBeenCalled()
-    })
   })
 })

@@ -16,11 +16,6 @@
   },
   {
     "method": "GET",
-    "path": "/api/v2/knowledge/[knowledgeBaseId]/export",
-    "operation": "knowledge.export"
-  },
-  {
-    "method": "GET",
     "path": "/api/v2/meta",
     "operation": "meta.capabilities.read"
   },

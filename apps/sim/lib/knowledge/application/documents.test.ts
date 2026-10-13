@@ -294,49 +294,6 @@ describe('knowledge document application use cases', () => {
     expect(mocks.deleteDocumentById).not.toHaveBeenCalled()
   })
 
-  describe('a filtered document listing', () => {
-    const page = {
-      documents: [{ id: 'document-1' }, { id: 'withheld-1' }],
-      pagination: { total: 9, limit: 2, offset: 2, hasMore: true },
-    }
-    const chat = {
-      kind: 'delegated' as const,
-      serviceId: 'copilot',
-      subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
-      delegationId: 'tool-call-1',
-      audience: 'sim:knowledge',
-      issuedAt: new Date(),
-      expiresAt: new Date(Date.now() + 60_000),
-    }
-    const input = { knowledgeBaseId: 'knowledge-1', limit: 2, offset: 2, search: 'secret' }
-
-    beforeEach(() => {
-      mocks.getDocuments.mockResolvedValue(page)
-    })
-
-    it('reports Chat a total of the matches it was given, not of withheld ones', async () => {
-      const result = await listKnowledgeDocuments.execute({ principal: chat, input })
-
-      expect(result.documents.map((doc: { id: string }) => doc.id)).toEqual(['document-1'])
-      expect(result.pagination).toEqual({ total: 3, limit: 2, offset: 2, hasMore: true })
-    })
-
-    it('keeps the full total for a person and for Chat without a filter', async () => {
-      const person = await listKnowledgeDocuments.execute({
-        principal: createSessionPrincipal(),
-        input,
-      })
-      expect(person.pagination).toEqual(page.pagination)
-
-      const unfiltered = await listKnowledgeDocuments.execute({
-        principal: chat,
-        input: { knowledgeBaseId: 'knowledge-1', limit: 2, offset: 2 },
-      })
-      expect(unfiltered.pagination).toEqual(page.pagination)
-    })
-  })
-
   it('authorizes the canonical knowledge base before listing documents', async () => {
     await listKnowledgeDocuments.execute({
       principal: createSessionPrincipal(),

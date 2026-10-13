@@ -1536,14 +1536,6 @@ async function consumePrivateToolResponseMetadata(
   }
 }
 
-/**
- * Whether a tool's result carries secret provenance its caller must project: it reads stored
- * content (workspace files, knowledge, tables, memory), runs code, or calls an MCP server.
- */
-export function toolResultCarriesSecretProvenance(toolId: string): boolean {
-  return getPrivateToolMetadataPolicy(toolId) !== undefined
-}
-
 function getPrivateToolMetadataPolicy(toolId: string): PrivateToolMetadataPolicy | undefined {
   const normalizedToolId = normalizeToolId(toolId)
   if (normalizedToolId === 'file_get_content' || isMcpTool(normalizedToolId)) {

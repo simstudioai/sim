@@ -35,7 +35,6 @@ import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-w
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { searchWorkspaceFileContent } from '@/lib/workspace-files/application/search-workspace-file-content'
-import { FILE_SEARCH_MAX_RESULTS } from '@/lib/workspace-files/search/constants'
 
 const mocks = {
   load: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
@@ -77,7 +76,7 @@ describe('searchWorkspaceFileContent cancellation', () => {
   })
 })
 
-/** Admits clean files only, as Chat's gate does for a match oracle (an opaque view). */
+/** A clipped preview cannot reliably redact a value split by the index. */
 const cleanOnlyGate: ContentDeliveryGate = {
   async admit(sources) {
     return sources.map(
@@ -125,10 +124,10 @@ describe('searchWorkspaceFileContent for Chat', () => {
     )
   })
 
-  it('keeps refused matches from taking the place of admitted ones', async () => {
+  it('preserves match locations while withholding unreadable previews', async () => {
     mocks.search.mockResolvedValue({
-      results: [hit('refused', 1), hit('refused', 2), hit('clean', 3), hit('clean', 4)],
-      count: 4,
+      results: [hit('refused', 1), hit('clean', 3)],
+      count: 2,
       truncated: false,
       complete: true,
       indexStatus: 'ready',
@@ -140,13 +139,15 @@ describe('searchWorkspaceFileContent for Chat', () => {
         input: { ...input, maxResults: 2 },
       })
     )
-    expect(mocks.search.mock.calls[0]?.[0].maxResults).toBe(FILE_SEARCH_MAX_RESULTS)
-    expect(found.results.map((result) => result.lineNumber)).toEqual([3, 4])
+    expect(mocks.search.mock.calls[0]?.[0].maxResults).toBe(2)
+    expect(found.results.map((result) => result.lineNumber)).toEqual([1, 3])
+    expect(found.results[0].text).toMatch(/preview withheld/i)
+    expect(found.results[1].text).toBe('needle 3')
     expect(found).toMatchObject({ count: 2, truncated: false })
     expect(found.sources.map((entry) => entry.identity.fileId)).toEqual(['clean'])
   })
 
-  it('does not signal more matches when only refused files matched', async () => {
+  it('keeps truthful truncation when a page contains only unreadable previews', async () => {
     mocks.search.mockResolvedValue({
       results: [hit('refused', 1)],
       count: 1,
@@ -161,25 +162,9 @@ describe('searchWorkspaceFileContent for Chat', () => {
         input: { ...input, maxResults: 1 },
       })
     )
-    expect(found).toMatchObject({ results: [], count: 0, truncated: false })
-  })
-
-  it("reports truncation from admitted matches past the caller's limit", async () => {
-    mocks.search.mockResolvedValue({
-      results: [hit('clean', 1), hit('clean', 2), hit('clean', 3)],
-      count: 3,
-      truncated: false,
-      complete: true,
-      indexStatus: 'ready',
-      sources: [source('clean')],
-    })
-    const found = await observeContentDelivery(cleanOnlyGate, () =>
-      searchWorkspaceFileContent.execute({
-        principal: copilotPrincipal(),
-        input: { ...input, maxResults: 2 },
-      })
-    )
-    expect(found).toMatchObject({ count: 2, truncated: true })
+    expect(found).toMatchObject({ count: 1, truncated: true })
+    expect(found.results[0]).toMatchObject({ fileId: 'refused', lineNumber: 1 })
+    expect(found.results[0].text).toMatch(/preview withheld/i)
   })
 
   it("leaves a person's search limit and result untouched", async () => {

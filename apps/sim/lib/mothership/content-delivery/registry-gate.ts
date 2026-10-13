@@ -10,7 +10,7 @@ import {
   reportContentRefusal,
 } from '@/lib/mothership/content-delivery/telemetry'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface RegistryContentGateScope {
   /** The registry whose projection is the output Chat's model receives. */
@@ -27,8 +27,8 @@ export interface RegistryContentGateScope {
 
 /**
  * Decides items against a model registry: an item's exact secrets are imported so egress redacts
- * them. Each item is first imported into a throwaway registry, so an item whose secrets cannot be
- * imported is refused on its own instead of latching the registry for every other item.
+ * them. Atomic admission checks decryption and the registry's remaining capacity before activating
+ * any entry, so a refused item cannot latch the registry for every other item.
  */
 export function createRegistryContentGate(scope: RegistryContentGateScope): ContentDeliveryGate {
   const refuse = (source: ContentSource, reason: ContentRefusalReason): false =>
@@ -62,16 +62,9 @@ export function createRegistryContentGate(scope: RegistryContentGateScope): Cont
     /** A derived view that shows nothing needs no entry; `undefined` would mean the whole item. */
     if (typeof source.view === 'object' && source.view.derived === undefined) return true
     const value = typeof source.view === 'object' ? source.view.derived : undefined
-    const staged = new ResolvedSecretTraceRegistry([], undefined, { staged: true })
-    if (!(await importDurableSecretProvenance(staged, provenance, value))) {
+    if (!(await importDurableSecretProvenance(registry, provenance, value, { atomic: true }))) {
       return refuse(source, 'import')
     }
-    /**
-     * The staged import proved every entry decrypts, so this one only activates them. Its result
-     * also reflects whether the registry was already incomplete for another reason; that output is
-     * withheld anyway, so this item is not refused for it.
-     */
-    await importDurableSecretProvenance(registry, provenance, value)
     return true
   }
 

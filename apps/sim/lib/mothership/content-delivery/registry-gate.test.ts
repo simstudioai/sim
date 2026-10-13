@@ -17,6 +17,7 @@ import {
   observeContentDelivery,
   redactBeforeCutting,
 } from '@/lib/core/application/content-delivery'
+import { PROVENANCE_MAX_ENTRIES } from '@/lib/execution/provenance-limits'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import { sliceFileTextLines } from '@/lib/workspace-files/text-lines'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -104,6 +105,7 @@ describe('createRegistryContentGate', () => {
     expect(modelView(`token=${SECRET}`, registry)).not.toContain(SECRET)
     /** The other secret is not in what this result shows, so it is not activated by it. */
     expect(modelView(`other=${OTHER_SECRET}`, registry)).toContain(OTHER_SECRET)
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledTimes(2)
   })
 
   it('activates nothing for a derived view that shows nothing', async () => {
@@ -168,6 +170,46 @@ describe('createRegistryContentGate', () => {
     expect(verdicts).toEqual([false, true, true])
     expect(registry.isPermanentlyIncomplete()).toBe(false)
     expect(modelView(`token=${SECRET}`, registry)).not.toContain(SECRET)
+  })
+
+  it('refuses an item that exceeds the remaining capacity without withholding earlier content', async () => {
+    const registry = newRegistry()
+    const values = Array.from(
+      { length: PROVENANCE_MAX_ENTRIES - 1 },
+      (_, index) => `SYNTHETIC_EXISTING_SECRET_${index}`
+    )
+    const gate = createRegistryContentGate({ registry, actorUserId: 'user-1' })
+    expect(await gate.admit([item('existing', exact(...values))])).toEqual([true])
+
+    expect(await gate.admit([item('overflow', exact(SECRET, OTHER_SECRET))])).toEqual([false])
+
+    expect(registry.isPermanentlyIncomplete()).toBe(false)
+    expect(modelView(`public notes token=${values[0]}`, registry)).toBe(
+      'public notes token={{FIXTURE_TOKEN}}'
+    )
+    expect(modelView(`new token=${SECRET}`, registry)).toContain(SECRET)
+  })
+
+  it('admits only the concurrent item that fits without tainting the shared registry', async () => {
+    const registry = newRegistry()
+    const values = Array.from(
+      { length: PROVENANCE_MAX_ENTRIES - 1 },
+      (_, index) => `SYNTHETIC_EXISTING_SECRET_${index}`
+    )
+    const gate = createRegistryContentGate({ registry, actorUserId: 'user-1' })
+    expect(await gate.admit([item('existing', exact(...values))])).toEqual([true])
+
+    const verdicts = await Promise.all([
+      gate.admit([item('first', exact(SECRET))]),
+      gate.admit([item('second', exact(OTHER_SECRET))]),
+    ])
+
+    expect(verdicts.flat().sort()).toEqual([false, true])
+    expect(registry.isPermanentlyIncomplete()).toBe(false)
+    expect(modelView(`public notes token=${values[0]}`, registry)).toBe(
+      'public notes token={{FIXTURE_TOKEN}}'
+    )
+    expect(registry.exportProvenance().entries).toHaveLength(PROVENANCE_MAX_ENTRIES)
   })
 
   it('redacts a multi-line secret before a line window could cut one line out of it', async () => {

@@ -1,7 +1,10 @@
 /**
  * @vitest-environment node
  */
-import type { Principal } from '@sim/auth/principal'
+import {
+  createDelegatedPrincipal,
+  createExecutorPrincipal,
+} from '@sim/testing/factories/principal.factory'
 import {
   workspaceFileSecretProvenanceMock,
   workspaceFileSecretProvenanceMockFns,
@@ -30,20 +33,8 @@ import {
 import type { UserFile } from '@/executor/types'
 
 const now = Date.now()
-function delegated(serviceId: string): Principal {
-  return {
-    kind: 'delegated',
-    serviceId,
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
-    delegationId: 'delegation-1',
-    audience: 'sim:test',
-    issuedAt: new Date(now),
-    expiresAt: new Date(now + 60_000),
-  }
-}
-const CHAT = delegated('copilot')
-const EXECUTOR = delegated('executor')
+const CHAT = createDelegatedPrincipal()
+const EXECUTOR = createExecutorPrincipal()
 
 const ENTRY = { encryptedValue: 'ciphertext', sourceUserId: 'user-1' }
 
@@ -116,6 +107,22 @@ describe('admitRunFiles', () => {
 })
 
 describe('withholdUnadmittedInlineFiles', () => {
+  it.each(['clean', 'secret'])(
+    'handles deeply nested %s files without a call-stack limit',
+    async (kind) => {
+      let output: unknown = runFile(kind, { base64: 'Ynl0ZXM=' })
+      for (let depth = 0; depth < 12_000; depth++) output = [output]
+      const result = await observeContentDelivery(GATE, () =>
+        withholdUnadmittedInlineFiles(CHAT, 'workspace-1', output)
+      )
+      let leaf = result
+      while (Array.isArray(leaf)) leaf = leaf[0]
+      expect(leaf).toMatchObject({ id: `file-${kind}` })
+      if (kind === 'secret') expect(leaf).not.toHaveProperty('base64')
+      else expect(result).toBe(output)
+    }
+  )
+
   it('strips base64 only from files Chat may not receive, keeping their descriptors', async () => {
     const clean = runFile('clean', { base64: 'Y2xlYW4=' })
     const secret = runFile('secret', { base64: 'c2VjcmV0' })

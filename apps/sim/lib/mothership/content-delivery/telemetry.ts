@@ -13,6 +13,7 @@ export const CONTENT_SURFACE: Record<ContentSourceKind, DurableSecretProvenanceS
   'knowledge-document': 'knowledge',
   'knowledge-chunk': 'knowledge',
   'table-row': 'table-row',
+  'tool-result': 'tool-result',
 }
 
 const FILE_CAUSES: Record<ContentRefusalReason, DurableSecretProvenanceRefusalCause> = {
@@ -39,6 +40,12 @@ const CAUSES: Record<
     opaque: 'knowledge-opaque-secret-content',
     registry: 'content-registry-unavailable',
     import: 'knowledge-result-provenance-unavailable',
+  },
+  'tool-result': {
+    unknown: 'tool-result-provenance-unavailable',
+    opaque: 'tool-result-provenance-unavailable',
+    registry: 'content-registry-unavailable',
+    import: 'tool-result-provenance-unavailable',
   },
   'table-row': {
     unknown: 'table-row-provenance-unavailable',

@@ -229,7 +229,7 @@ describe('Mothership file mounts bind content and classification to the same rec
    * The run's code can read every mounted byte, so the per-call registry the Copilot projection
    * and output-file writers read must carry the mount's own verdict across the crossing: exact
    * mounts keep redacting and clean mounts stay readable, while an unknown file never enters the
-   * runtime and the output names it as left out.
+   * runtime and the requested code never runs with incomplete inputs.
    */
   it.each(['safe', 'secret', 'unknown'] as const)(
     'carries a %s mount verdict across the run_code crossing',
@@ -253,9 +253,11 @@ describe('Mothership file mounts bind content and classification to the same rec
       )
 
       if (kind === 'unknown') {
-        expect(toolsMockFns.mockExecuteTool.mock.calls[0]?.[1]?._sandboxFiles).toBeUndefined()
+        expect(toolsMockFns.mockExecuteTool).not.toHaveBeenCalled()
+        expect(result.success).toBe(false)
         expect(mocks.buffer).not.toHaveBeenCalled()
         expect(result.output).toMatchObject({
+          codeExecuted: false,
           excludedInputs: [{ path: '/tmp/source.txt', reason: expect.any(String) }],
         })
         return

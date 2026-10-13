@@ -96,14 +96,6 @@ const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
   delegatedServices: ['copilot', 'executor'],
 } as const
 
-/**
- * Callers acting for themselves. A whole-base archive is opaque bytes no per-chunk secret
- * redaction reaches, so Chat is not delegated to it; it reads a base chunk by chunk instead.
- */
-const DIRECT_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
-} as const
-
 const HUMAN_AND_DELEGATED_PRINCIPAL_KINDS = [
   'session',
   'personal_api_key',
@@ -312,7 +304,8 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.export',
-      ...DIRECT_PRINCIPAL_POLICY,
+      contentDelivery: 'sourced',
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   /**
@@ -667,7 +660,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
-      contentDelivery: 'sourced',
+      contentDelivery: 'none',
       ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),

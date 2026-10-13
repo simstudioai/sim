@@ -86,8 +86,8 @@
   },
   {
     "method": "GET",
-    "path": "/api/v2/knowledge/[knowledgeBaseId]/tags/usage",
-    "operation": "knowledge.tags.read_usage"
+    "path": "/api/v2/knowledge/[knowledgeBaseId]/export",
+    "operation": "knowledge.export"
   },
   {
     "method": "POST",
@@ -131,13 +131,13 @@
   },
   {
     "method": "POST",
-    "path": "/api/v2/tables/[tableId]/rows/search",
-    "operation": "tables.rows.search"
+    "path": "/api/v2/tables/[tableId]/rows/upsert",
+    "operation": "tables.rows.upsert"
   },
   {
     "method": "POST",
-    "path": "/api/v2/tables/[tableId]/rows/upsert",
-    "operation": "tables.rows.upsert"
+    "path": "/api/v2/tools/[toolId]/execute",
+    "operation": "tools.execute"
   },
   {
     "method": "POST",

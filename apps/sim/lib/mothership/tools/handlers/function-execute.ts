@@ -88,12 +88,12 @@ export interface ExcludedInput {
 }
 
 const UNVERIFIED_INPUT_REASON =
-  'Its secret provenance could not be verified, so it was not mounted. Other inputs were mounted.'
+  'Its secret provenance could not be verified, so code was not executed.'
 
 /**
  * Mounts one file whose classification the installed gate admits. A file the gate refuses is left
- * out on its own and reported, so one unknown file neither withholds the run's output nor enters
- * the workbench's history, where it would withhold every later run in the chat.
+ * out and reported. The caller stops before executing code if any requested mount is refused;
+ * refused bytes never enter workbench history or disable later calls without those inputs.
  */
 async function pushWorkspaceFileMount(
   mounts: ResolvedInputMounts,
@@ -568,7 +568,6 @@ export async function executeFunctionExecute(
       : undefined
   let mountedRegistry: ResolvedSecretTraceRegistry | undefined
   let crossingValue: unknown
-  let excludedInputs: ExcludedInput[] = []
 
   /**
    * Hoisted so the usage trail in `finally` attributes the run to the same identity the mount
@@ -650,7 +649,14 @@ export async function executeFunctionExecute(
           }),
           () => resolveInputFiles(context, inputFiles, inputTables, inputDirectories)
         )
-        excludedInputs = resolved.excluded
+        if (resolved.excluded.length > 0) {
+          return {
+            success: false,
+            error:
+              'One or more requested inputs could not be mounted safely. Code was not executed.',
+            output: { codeExecuted: false, excludedInputs: resolved.excluded },
+          }
+        }
         if (resolved.files.length > 0) {
           const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []
           enrichedParams._sandboxFiles = [...existing, ...resolved.files]
@@ -726,9 +732,7 @@ export async function executeFunctionExecute(
       const cost = toRecord(toRecord(result.output)?.cost)
       if (typeof cost?.raw === 'number') await recordServiceCost('sandbox', cost.raw)
       crossingValue = result
-      return excludedInputs.length > 0
-        ? { ...result, output: { ...toRecord(result.output), excludedInputs } }
-        : result
+      return result
     } catch (error) {
       crossingValue = error
       throw error

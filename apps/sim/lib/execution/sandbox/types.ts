@@ -1,3 +1,5 @@
+import type { Principal } from '@sim/auth/principal'
+
 /**
  * Types for the sandbox task system.
  *
@@ -24,11 +26,8 @@ export interface SandboxBroker<TArgs = unknown, TResult = unknown> {
 export interface SandboxBrokerContext {
   workspaceId: string
   requestId: string
-  /**
-   * The only workspace files the broker may read, when set: each was admitted for the caller
-   * before the task ran, since the isolate's calls cannot be classified as they arrive.
-   */
-  readableWorkspaceFileIds?: ReadonlySet<string>
+  /** Host-side identity used to authorize and admit each actual broker read. Never sent to the isolate. */
+  filePrincipal?: Principal
   onWorkspaceFileAccess?: (identity: {
     fileId: string
     key: string

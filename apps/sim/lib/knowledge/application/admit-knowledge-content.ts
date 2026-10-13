@@ -59,14 +59,25 @@ export async function admitKnowledgeDocuments(
  */
 export async function admitKnowledgeChunks(
   principal: Principal,
-  chunks: readonly { id: string; documentId: string; content: string; value?: unknown }[],
+  chunks: readonly {
+    id: string
+    documentId: string
+    content: string
+    value?: unknown
+    snapshot?: KnowledgeDocumentSnapshot
+  }[],
   options: KnowledgeAdmissionOptions = {}
 ): Promise<Set<string>> {
   const admitted = await admitEach(
     principal,
     chunks,
     async (items) => {
-      const provenance = await classifyKnowledgeChunks(items)
+      const provenance = await classifyKnowledgeChunks(
+        items.map((chunk) => ({
+          ...chunk,
+          snapshot: chunk.snapshot ?? knowledgeDocumentSnapshot(chunk.value ?? chunk),
+        }))
+      )
       return items.map((chunk) => ({
         kind: 'knowledge-chunk' as const,
         id: chunk.id,

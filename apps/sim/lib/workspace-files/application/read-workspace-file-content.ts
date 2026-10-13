@@ -1,4 +1,5 @@
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
+import { isCopilotPrincipal } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ActiveWorkspaceFileContext,
@@ -48,17 +49,36 @@ async function executeReadWorkspaceFileContent({
     includeOwnedFiles: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
-  await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'complete')
-  const content = await fetchWorkspaceFileBuffer(file, {
-    maxBytes: input.maxBytes ?? MAX_BUFFERED_TRANSFER_BYTES,
-  })
   const secretProvenance = input.includeSecretProvenance
     ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
         fileId: file.id,
         key: file.key,
         context: file.storageContext ?? 'workspace',
+        contentUpdatedAt: file.contentUpdatedAt ?? undefined,
       })
     : undefined
+  await requireAdmittedWorkspaceFile(
+    principal,
+    context.workspaceId,
+    file,
+    'complete',
+    secretProvenance
+  )
+  let content: Buffer
+  try {
+    content = await fetchWorkspaceFileBuffer(file, {
+      maxBytes: input.maxBytes ?? MAX_BUFFERED_TRANSFER_BYTES,
+    })
+  } catch (error) {
+    if (
+      isCopilotPrincipal(principal) &&
+      (secretProvenance?.status === 'unknown' ||
+        (secretProvenance?.status === 'exact' && secretProvenance.entries.length > 0))
+    ) {
+      throw new OrchestrationError('internal', 'File content could not be read')
+    }
+    throw error
+  }
   return {
     file,
     content,

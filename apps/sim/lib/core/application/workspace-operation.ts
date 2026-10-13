@@ -75,10 +75,14 @@ type DelegatedPrincipalConsistency<
  * Chat delivers whatever a Copilot-admitted operation returns to its model, so each one says
  * whether that can be stored content; no other operation may claim to.
  */
-type ContentDeliveryConsistency<DelegatedServices extends readonly DelegatedServiceId[]> =
-  'copilot' extends DelegatedServices[number]
+type ContentDeliveryConsistency<
+  PrincipalKinds extends readonly PrincipalKind[],
+  DelegatedServices extends readonly DelegatedServiceId[],
+> = 'delegated' extends PrincipalKinds[number]
+  ? 'copilot' extends DelegatedServices[number]
     ? { readonly contentDelivery: ContentDeliveryDeclaration }
     : { readonly contentDelivery?: never }
+  : { readonly contentDelivery?: never }
 
 type ResourcePolicyOperationConsistency<Binding extends ResourcePolicyBinding | undefined> =
   Binding extends ResourcePolicyBinding
@@ -96,7 +100,7 @@ export function defineWorkspaceOperation<
     OAuthOperationPolicy<PrincipalKinds> &
     WorkspaceApiKeyPrincipalConsistency<Role, PrincipalKinds> &
     DelegatedPrincipalConsistency<PrincipalKinds, DelegatedServices> &
-    ContentDeliveryConsistency<DelegatedServices> &
+    ContentDeliveryConsistency<PrincipalKinds, DelegatedServices> &
     ResourcePolicyOperationConsistency<ResourcePolicy>
 ): WorkspaceOperation<Id, Role, PrincipalKinds, DelegatedServices> &
   OAuthOperationPolicy<PrincipalKinds> &

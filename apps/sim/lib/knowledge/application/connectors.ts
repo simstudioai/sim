@@ -16,7 +16,6 @@ import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
-import { isCopilotPrincipal } from '@/lib/core/application/content-delivery'
 import { resolvePrincipalEnvironmentVariable } from '@/lib/core/application/environment-reference'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
 import {
@@ -1230,11 +1229,6 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
       ? sql`${document.filename} ILIKE ${`%${escapeLikePattern(search)}%`} ESCAPE '\\'`
       : undefined
     const baseConditions = [...scopeConditions, searchCondition] as const
-    /**
-     * Searched counts include documents Chat is refused, so they would say whether a withheld name
-     * matched; Chat's counts cover the whole source, as an unsearched listing reports them.
-     */
-    const countConditions = isCopilotPrincipal(principal) ? scopeConditions : baseConditions
     const active = sql`${document.userExcluded} = false`
     /** One pass over the source's readable documents; excluded rows are scanned only when counted. */
     const [[counts], rows] = await Promise.all([
@@ -1248,7 +1242,7 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
         .from(document)
         .where(
           and(
-            ...countConditions,
+            ...baseConditions,
             input.filter || input.includeExcluded ? undefined : eq(document.userExcluded, false)
           )
         ),

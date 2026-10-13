@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import type { Principal } from '@sim/auth/principal'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import type { DelegatedServiceId, Principal } from '@sim/auth/principal'
 import { describe, expect, it, vi } from 'vitest'
 import {
   admitContent,
@@ -20,8 +21,9 @@ import {
   trackContentDelivery,
 } from '@/lib/core/application/content-delivery'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
+import { PROVENANCE_MAX_ENTRIES } from '@/lib/execution/provenance-limits'
 
-function delegated(serviceId: string): Principal {
+function delegated(serviceId: DelegatedServiceId): Principal {
   const now = Date.now()
   return {
     kind: 'delegated',
@@ -208,43 +210,60 @@ describe('runDeclaredContentOperation', () => {
     expect(refusal).toMatchObject({ message: expect.stringContaining('The change was saved') })
   })
 
-  it('answers a write whose gate failed as saved-not-shown, after its effects completed', async () => {
-    const failure = new Error('history unavailable')
-    const failing: ContentDeliveryGate = {
-      async admit() {
-        throw failure
-      },
-    }
-    const events: string[] = []
-    const outcome = await observeContentDelivery(failing, () =>
-      runDeclaredContentOperation(
-        SOURCED,
-        CHAT,
-        async () => {
-          const admission = await admitWrittenContent(CHAT, [source('written')])
-          events.push(`withheld=${admission.refused.length}`)
-          return 'saved row'
+  it.each(['workspace-file', 'tool-result'] as const)(
+    'finishes %s effects before reporting a gate failure with its actual completion state',
+    async (kind) => {
+      const failure = new Error('history unavailable')
+      const failing: ContentDeliveryGate = {
+        async admit() {
+          throw failure
         },
-        async () => {
-          events.push('audit recorded')
-        }
-      ).catch((error: unknown) => error)
-    )
-    expect(events).toEqual(['withheld=1', 'audit recorded'])
-    /** Not the gate's error: that would invite a retry of a write that already committed. */
-    expect(outcome).toBeInstanceOf(ContentRefusedError)
-    expect(outcome).toMatchObject({ message: expect.stringContaining('The change was saved') })
-    /** The request's transport still sees the failure, to answer it itself (the proxy's 502). */
-    const record = await observeContentDelivery(failing, () =>
-      trackContentDelivery(() =>
-        runDeclaredContentOperation(SOURCED, CHAT, async () => {
-          await admitWrittenContent(CHAT, [source('written')])
-          return 'saved row'
-        }).catch(() => 'answered')
+      }
+      const events: string[] = []
+      const outcome = await observeContentDelivery(failing, () =>
+        runDeclaredContentOperation(
+          SOURCED,
+          CHAT,
+          async () => {
+            const admission = await admitWrittenContent(CHAT, [{ ...source('written'), kind }])
+            events.push(`withheld=${admission.refused.length}`)
+            return 'saved row'
+          },
+          async () => {
+            events.push('audit recorded')
+          }
+        ).catch((error: unknown) => error)
       )
-    )
-    expect(record.gateFailure).toBe(failure)
-  })
+      expect(events).toEqual(['withheld=1', 'audit recorded'])
+      /** Not the gate's error: that would invite a retry of a write that already committed. */
+      expect(outcome).toBeInstanceOf(ContentRefusedError)
+      expect(outcome).toMatchObject({
+        message: expect.stringContaining(
+          kind === 'tool-result' ? 'Tool execution settled' : 'The change was saved'
+        ),
+      })
+      /** The request's transport still sees the failure, to answer it itself (the proxy's 502). */
+      const record = await observeContentDelivery(failing, () =>
+        trackContentDelivery(() =>
+          runDeclaredContentOperation(SOURCED, CHAT, async () => {
+            await admitWrittenContent(CHAT, [{ ...source('written'), kind }])
+            return 'saved row'
+          }).catch(() => 'answered')
+        )
+      )
+      expect(record.gateFailure).toBe(failure)
+      expect(record.committedWrite).toBe(kind !== 'tool-result')
+      await expect(
+        observeContentDelivery(failing, () =>
+          trackContentDelivery(() =>
+            runDeclaredContentOperation(SOURCED, CHAT, async () => {
+              await admitWrittenContent(CHAT, [{ ...source('written'), kind }])
+            })
+          )
+        )
+      ).rejects.toMatchObject({ gateFailure: failure, committedWrite: kind !== 'tool-result' })
+    }
+  )
 
   it('does not account for a result whose admission failed and was caught', async () => {
     const failing: ContentDeliveryGate = {
@@ -350,7 +369,91 @@ describe('trackContentDelivery', () => {
       )
     )
     expect(record.unaccounted).toBe(false)
-    expect(record.admitted).toEqual([entries, { status: 'exact', entries: [] }])
+    expect(record.admitted).toEqual([entries])
+  })
+
+  it('keeps one bounded provenance union when nested deferred pages repeat admitted evidence', async () => {
+    const gate: ContentDeliveryGate = {
+      async admit(items) {
+        return items.map(() => true)
+      },
+    }
+    const entries = [
+      { encryptedValue: 'first-ciphertext', sourceUserId: 'user-1' },
+      { encryptedValue: 'second-ciphertext', sourceUserId: 'user-1' },
+    ]
+    const record = await observeContentDelivery(gate, () =>
+      trackContentDelivery(() =>
+        runDeclaredContentOperation(SOURCED, CHAT, async () => {
+          await admitContent(CHAT, [])
+          const inRequest = AsyncLocalStorage.snapshot()
+          return () =>
+            inRequest(() =>
+              trackContentDelivery(async () => {
+                await admitContent(
+                  CHAT,
+                  entries.map((entry, index) => ({
+                    ...source(`chunk-${index}`),
+                    provenance: { status: 'exact', entries: [entry] },
+                  }))
+                )
+              })
+            )
+        })
+      )
+    )
+    expect(record.admitted).toEqual([])
+    for (let page = 0; page < 200; page += 1) {
+      const nested = await record.result()
+      expect(nested.admitted).toEqual([{ status: 'exact', entries }])
+    }
+    expect(record.admitted).toEqual([{ status: 'exact', entries }])
+  })
+
+  it('retains unrecorded coverage without retaining every clean or unrecorded source', async () => {
+    const gate: ContentDeliveryGate = {
+      async admit(items) {
+        return items.map(() => true)
+      },
+    }
+    const record = await observeContentDelivery(gate, () =>
+      trackContentDelivery(async () => {
+        for (let page = 0; page < 200; page += 1) {
+          await admitContent(CHAT, [
+            source('clean'),
+            { ...source('legacy'), provenance: { status: 'unrecorded' } },
+          ])
+        }
+      })
+    )
+    expect(record.admitted).toEqual([{ status: 'unrecorded' }])
+  })
+
+  it('uses the existing provenance budget for combined delivered evidence', async () => {
+    const gate: ContentDeliveryGate = {
+      async admit(items) {
+        return items.map(() => true)
+      },
+    }
+    const entries = Array.from({ length: PROVENANCE_MAX_ENTRIES }, (_, index) => ({
+      encryptedValue: `ciphertext-${index}`,
+      sourceUserId: 'user-1',
+    }))
+    const record = await observeContentDelivery(gate, () =>
+      trackContentDelivery(async () => {
+        await admitContent(CHAT, [{ ...source('first'), provenance: { status: 'exact', entries } }])
+        await admitContent(CHAT, [
+          {
+            ...source('overflow'),
+            provenance: {
+              status: 'exact',
+              entries: [{ encryptedValue: 'one-more', sourceUserId: 'user-1' }],
+            },
+          },
+        ])
+      })
+    )
+    expect(record.admitted).toEqual([{ status: 'unknown' }])
   })
 
   it('keeps a nested request’s accounting from satisfying a sibling that never accounted', async () => {

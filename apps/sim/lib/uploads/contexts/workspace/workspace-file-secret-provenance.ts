@@ -989,12 +989,15 @@ export async function getBoundWorkspaceFileSecretProvenanceByIdentity(
       )
     for (const row of rows) rowsById.set(row.id, row)
   }
-  return new Map(
-    identities.map((identity) => [
+  const result = new Map<string, WorkspaceFileSecretProvenance>()
+  for (const identity of identities) {
+    if (result.get(identity.fileId)?.status === 'unknown') continue
+    result.set(
       identity.fileId,
-      bindWorkspaceFileSecretProvenance(identity, rowsById.get(identity.fileId)),
-    ])
-  )
+      bindWorkspaceFileSecretProvenance(identity, rowsById.get(identity.fileId))
+    )
+  }
+  return result
 }
 
 /**

@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { ContentRefusedError, isCopilotPrincipal } from '@/lib/core/application/content-delivery'
+import { ContentRefusedError } from '@/lib/core/application/content-delivery'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -28,6 +28,7 @@ import {
 } from '@/lib/knowledge/chunks/service'
 import type { ChunkFilters } from '@/lib/knowledge/chunks/types'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
+import type { KnowledgeDocumentSnapshot } from '@/lib/knowledge/secret-provenance'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('KnowledgeChunkApplication')
@@ -75,13 +76,17 @@ async function requireAdmittedChunk(
   principal: Principal,
   documentId: string,
   chunk: { id: string; content: string },
-  options: { written?: boolean; shown?: Record<string, unknown> } = {}
+  options: {
+    written?: boolean
+    shown?: Record<string, unknown>
+    snapshot?: KnowledgeDocumentSnapshot
+  } = {}
 ): Promise<void> {
   /** `shown` is every other field the response adds beside the chunk, such as its document name. */
   const value = options.shown ? { ...chunk, ...options.shown } : chunk
   const admitted = await admitKnowledgeChunks(
     principal,
-    [{ id: chunk.id, documentId, content: chunk.content, value }],
+    [{ id: chunk.id, documentId, content: chunk.content, value, snapshot: options.snapshot }],
     { written: options.written }
   )
   if (!options.written && !admitted.has(chunk.id)) throw new ContentRefusedError('knowledge-chunk')
@@ -165,13 +170,6 @@ export const listKnowledgeChunks = defineAuthorizedKnowledgeUseCase({
     return {
       ...result,
       chunks,
-      /**
-       * A search total counts every matching chunk, refused ones included, so for Chat it would
-       * say whether withheld text matched. Chat sees only the matches it was given.
-       */
-      ...(filters.search && isCopilotPrincipal(principal)
-        ? { pagination: { ...result.pagination, total: result.pagination.offset + chunks.length } }
-        : {}),
       workspaceId: context.workspaceId,
       documentId,
     }
@@ -244,6 +242,7 @@ export const createKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
     await requireAdmittedChunk(principal, context.documentId, chunk, {
       written: true,
       shown: { documentId: context.documentId, documentName: context.document.filename },
+      snapshot: { filename: context.document.filename },
     })
     return {
       chunk: {

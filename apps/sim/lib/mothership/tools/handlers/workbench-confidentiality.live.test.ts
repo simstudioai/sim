@@ -63,7 +63,12 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
 
 import { functionExecuteBodySchema } from '@/lib/api/contracts'
 import * as inProcessTransport from '@/lib/api/server/routes/in-process-transport'
-import { admitContent, type ContentProvenance } from '@/lib/core/application/content-delivery'
+import {
+  admitContent,
+  admitWrittenContent,
+  type ContentProvenance,
+  runDeclaredContentOperation,
+} from '@/lib/core/application/content-delivery'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {
@@ -92,6 +97,7 @@ import {
 } from '@/lib/mothership/tools/sandbox-resources'
 import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-session'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { tableOperations } from '@/lib/table/application/operations'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
@@ -620,10 +626,13 @@ describe('sandbox API provenance admission', () => {
 
   it('preserves mutation completion and withholds its body when provenance storage fails', async () => {
     const mutationPath = join(root, 'mutation.json')
+    const principal = createDelegatedPrincipal({
+      subjectUserId: scope.userId,
+      workspaceId: scope.workspaceId,
+    })
     const response = await sandboxApi(
       '/api/v2/tables/fixture/rows',
       async () => {
-        await writeFile(mutationPath, JSON.stringify({ committed: true, completed: false }))
         const evalCommand = redis.eval.bind(redis)
         vi.spyOn(redis, 'eval').mockImplementation((...args) => {
           if (String(args[2]).startsWith('mothership:workbench-provenance:v2:')) {
@@ -631,13 +640,24 @@ describe('sandbox API provenance admission', () => {
           }
           return evalCommand(...args)
         })
-        /** A committed write's gate failure is deferred past its effects, as the use case does. */
-        let failure: unknown
-        await deliver('table', TOKEN_PROVENANCE(), canary).catch((error: unknown) => {
-          failure = error
-        })
-        await writeFile(mutationPath, JSON.stringify({ committed: true, completed: true }))
-        if (failure) throw failure
+        await runDeclaredContentOperation(
+          tableOperations.createRows,
+          principal,
+          async () => {
+            await writeFile(mutationPath, JSON.stringify({ committed: true, completed: false }))
+            await admitWrittenContent(principal, [
+              {
+                kind: 'table-row',
+                id: 'fixture',
+                provenance: TOKEN_PROVENANCE(),
+                view: { derived: canary },
+              },
+            ])
+          },
+          async () => {
+            await writeFile(mutationPath, JSON.stringify({ committed: true, completed: true }))
+          }
+        )
         return Response.json({ data: { value: canary } }, { status: 201 })
       },
       'POST'
@@ -649,8 +669,8 @@ describe('sandbox API provenance admission', () => {
     expect(response.status).toBe(502)
     const body = await response.text()
     expect(body).not.toContain(canary)
-    expect(body).toContain('completed with HTTP 201')
-    expect(body).toContain('Do not retry a mutation automatically')
+    expect(body).toContain('The change was saved')
+    expect(body).toContain('Do not retry the change')
   })
 
   it.each(['file', 'table'] as const)(

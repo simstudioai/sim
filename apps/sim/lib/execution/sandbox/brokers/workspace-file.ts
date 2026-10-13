@@ -8,6 +8,7 @@ import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 
 const logger = createLogger('SandboxWorkspaceFileBroker')
 
@@ -34,13 +35,24 @@ export const workspaceFileBroker: SandboxBroker<WorkspaceFileArgs, WorkspaceFile
     if (!ctx.workspaceId) {
       throw new Error('workspaceFile broker requires a workspaceId')
     }
-    if (ctx.readableWorkspaceFileIds && !ctx.readableWorkspaceFileIds.has(args.fileId)) {
-      throw new Error(
-        `File ${args.fileId} is not readable here; reference input files by their literal id, e.g. getFileBase64("<file id>")`
-      )
-    }
+    const admitted = ctx.filePrincipal
+      ? await readWorkspaceFileContent.execute({
+          principal: ctx.filePrincipal,
+          input: {
+            fileId: args.fileId,
+            assertedWorkspaceId: ctx.workspaceId,
+            maxBytes:
+              Math.floor(
+                Math.min(
+                  MAX_SANDBOX_IMAGE_DATA_URI_CHARS,
+                  MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS
+                ) / 4
+              ) * 3,
+          },
+        })
+      : undefined
 
-    const record = await getWorkspaceFile(ctx.workspaceId, args.fileId)
+    const record = admitted?.file ?? (await getWorkspaceFile(ctx.workspaceId, args.fileId))
     if (!record) {
       logger.warn('Workspace file not found for sandbox broker', {
         workspaceId: ctx.workspaceId,
@@ -60,7 +72,9 @@ export const workspaceFileBroker: SandboxBroker<WorkspaceFileArgs, WorkspaceFile
       )
     )
     const maxBytes = Math.floor(availableBase64Chars / 4) * 3
-    const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes })
+    const buffer = admitted?.content ?? (await fetchWorkspaceFileBuffer(record, { maxBytes }))
+    if (buffer.length > maxBytes)
+      throw new Error('Workspace file exceeds the sandbox image byte limit')
     ctx.onWorkspaceFileAccess?.({
       fileId: record.id,
       key: record.key,

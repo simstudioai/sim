@@ -14,16 +14,12 @@ import {
   mustClassifyContent,
 } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
-  isPrivateSecretProvenanceScopeCompatible,
-} from '@/lib/execution/durable-secret-provenance'
+import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import type {
   BulkDeleteByIdsResult,
   BulkOperationResult,
   EnrichmentRunDetail,
   Filter,
-  PredicateNode,
   ReplaceRowsResult,
   RowData,
   RowExecutionMetadata,
@@ -90,12 +86,10 @@ import {
 import { assertCursorQueryBinding, decodeCursor } from '@/lib/table/rows/cursor'
 import { loadEnrichmentDetail, loadExecutionsForRow } from '@/lib/table/rows/executions'
 import {
-  classifyStoredTableRowColumns,
   createExactEmptyTableRowSecretProvenance,
   createTableRowSecretProvenanceFromRegistry,
   createUnknownTableRowSecretProvenance,
   TableRowProvenanceReader,
-  tableHasCellsUnsafeForPredicate,
 } from '@/lib/table/rows/secret-provenance'
 import type { FindRowMatch, RowWriteOptions } from '@/lib/table/rows/service'
 import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
@@ -566,65 +560,6 @@ export interface QueryTableRowsResult extends TableResult {
   secretProvenance?: TableRowsProvenance
 }
 
-/**
- * The schema columns whose cells a predicate, filter or sort reads (storage ids). A field that is
- * not a schema column, such as the row id, reads no cell.
- */
-function cellColumnsRead(
-  table: TableDefinition,
-  query: { predicate?: TablePredicate; filter?: Filter; sort?: Sort }
-): Set<string> {
-  const schemaColumns = new Set(table.schema.columns.map(getColumnId))
-  const read = new Set<string>()
-  const note = (field: string) => {
-    if (schemaColumns.has(field)) read.add(field)
-  }
-  const walkPredicate = (node: PredicateNode): void => {
-    if ('field' in node) note(node.field)
-    else for (const child of 'all' in node ? node.all : node.any) walkPredicate(child)
-  }
-  const walkFilter = (filter: Filter): void => {
-    for (const [key, value] of Object.entries(filter)) {
-      if ((key === '$or' || key === '$and') && Array.isArray(value)) {
-        for (const child of value) walkFilter(child as Filter)
-      } else note(key)
-    }
-  }
-  if (query.predicate) walkPredicate(query.predicate)
-  if (query.filter) walkFilter(query.filter)
-  for (const field of Object.keys(query.sort ?? {})) note(field)
-  return read
-}
-
-/**
- * Runs a read whose rows, counts or page boundaries depend on cell values, for Chat only over a
- * table where those cells are all vouched for (see `tableHasCellsUnsafeForPredicate`). The check
- * runs before and after the read, so a row that becomes unsafe meanwhile refuses it too; a row
- * unsafe only between the two checks is the residual. Other callers read with no check.
- */
-async function requireCellsSafeForPredicate(
-  principal: Principal,
-  tableId: string,
-  columns: ReadonlySet<string> | 'all'
-): Promise<void> {
-  if (!isCopilotPrincipal(principal) || (columns !== 'all' && columns.size === 0)) return
-  if (await tableHasCellsUnsafeForPredicate(tableId, columns)) {
-    throw new ContentRefusedError('table-row')
-  }
-}
-
-async function readUnderCellPredicate<T>(
-  principal: Principal,
-  tableId: string,
-  columns: ReadonlySet<string> | 'all',
-  read: () => Promise<T>
-): Promise<T> {
-  await requireCellsSafeForPredicate(principal, tableId, columns)
-  const result = await read()
-  await requireCellsSafeForPredicate(principal, tableId, columns)
-  return result
-}
-
 export const queryTableRows = defineAuthorizedTableUseCase({
   operation: tableOperations.queryRows,
   resolveContext: ({ input }: { input: QueryTableRowsInput }) => resolveActiveTableContext(input),
@@ -695,34 +630,27 @@ export const queryTableRows = defineAuthorizedTableUseCase({
           if (column) columnIds.add(getColumnId(column))
         }
       }
-      const result = await readUnderCellPredicate(
-        principal,
-        context.table.id,
-        cellColumnsRead(context.table, { predicate, filter: legacyFilter, sort }),
-        () =>
-          queryRows(
-            context.table,
-            {
-              predicate,
-              filter: legacyFilter,
-              sort,
-              limit: input.limit,
-              after: cursor?.after ?? input.after,
-              offset: cursor?.offset ?? input.offset,
-              includeTotal: input.includeTotal ?? false,
-              withExecutions: input.includeRunState ?? false,
-              runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
-              columnIds,
-            },
-            requestId(input),
-            readProvenance
-          )
+      const result = await queryRows(
+        context.table,
+        {
+          predicate,
+          filter: legacyFilter,
+          sort,
+          limit: input.limit,
+          after: cursor?.after ?? input.after,
+          offset: cursor?.offset ?? input.offset,
+          includeTotal: input.includeTotal ?? false,
+          withExecutions: input.includeRunState ?? false,
+          runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
+          columnIds,
+        },
+        requestId(input),
+        readProvenance
       )
       const rows = await deliverRows(principal, readProvenance, result.rows)
       return {
         table: context.table,
         ...result,
-        /** Chat's page count is what it was delivered; totals are safe once the read was allowed. */
         rowCount: isCopilotPrincipal(principal) ? rows.length : result.rowCount,
         rows: rowsForReader(principal, rows),
         ...(input.includePersistedSecretProvenance && readProvenance
@@ -734,50 +662,6 @@ export const queryTableRows = defineAuthorizedTableUseCase({
     }
   },
 })
-
-/**
- * A match says a cell's text contains the query, which answers a question about that text even
- * though no value is returned. Chat keeps only matches in rows it could read and in cells holding
- * no recorded secret; every other caller sees every match.
- */
-async function admitRowMatches(
-  principal: Principal,
-  matches: FindRowMatch[],
-  revisions: ReadonlyMap<string, Date | string>
-): Promise<FindRowMatch[]> {
-  if (matches.length === 0 || !mustClassifyContent(principal)) {
-    await admitContent(principal, [])
-    return matches
-  }
-  /** Classified at the revision the search matched, so a later write cannot vouch for it. */
-  const columns = await classifyStoredTableRowColumns(
-    matches.flatMap((match) => {
-      const updatedAt = revisions.get(match.rowId)
-      return updatedAt === undefined ? [] : [{ id: match.rowId, updatedAt }]
-    })
-  )
-  const sources = [...columns].map(([rowId, classification]) => ({
-    kind: 'table-row' as const,
-    id: rowId,
-    provenance:
-      classification.status === 'exact'
-        ? EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
-        : ({ status: 'unknown' } as const),
-    view: 'opaque' as const,
-  }))
-  const admission = await admitContent(principal, sources)
-  const admitted = new Set(
-    sources.filter((source) => admission.admits(source)).map((source) => source.id)
-  )
-  return matches.filter((match) => {
-    const classification = columns.get(match.rowId)
-    return (
-      admitted.has(match.rowId) &&
-      classification?.status === 'exact' &&
-      !classification.secretColumns.has(match.column)
-    )
-  })
-}
 
 export interface SearchTableRowsInput extends TableScopedInput {
   q: string
@@ -793,7 +677,7 @@ export interface SearchTableRowsResult extends TableResult {
 export const searchTableRows = defineAuthorizedTableUseCase({
   operation: tableOperations.searchRows,
   resolveContext: ({ input }: { input: SearchTableRowsInput }) => resolveActiveTableContext(input),
-  async execute({ principal, input, context }): Promise<SearchTableRowsResult> {
+  async execute({ input, context }): Promise<SearchTableRowsResult> {
     try {
       if (input.q.length === 0) {
         throw new TableRowsValidationError('q must be a non-empty search string')
@@ -807,21 +691,12 @@ export const searchTableRows = defineAuthorizedTableUseCase({
         const translated = sortSpecNamesToIds(input.sort, buildIdByName(context.table.schema))
         sort = Object.fromEntries(translated.map((item) => [item.field, item.direction]))
       }
-      /** Free text is matched against every column, so every column's cells are read. */
-      const result = await readUnderCellPredicate(principal, context.table.id, 'all', () =>
-        findRowMatches(context.table, { q: input.q, filter, sort }, requestId(input))
+      const result = await findRowMatches(
+        context.table,
+        { q: input.q, filter, sort },
+        requestId(input)
       )
-      const matches = await admitRowMatches(principal, result.matches, result.revisions)
-      return {
-        table: context.table,
-        matches,
-        /**
-         * A capped search that withheld a match cannot say whether what lies past the cap is
-         * admissible, so truncation is reported only when every match on the page was admitted;
-         * otherwise a refused match would be signalled through the flag alone.
-         */
-        truncated: result.truncated && matches.length === result.matches.length,
-      }
+      return { table: context.table, ...result }
     } catch (error) {
       rethrowQueryValidation(error)
     }
@@ -1493,12 +1368,6 @@ export const updateTableRows = defineAuthorizedTableUseCase({
         context.table,
         input.filterKeying ?? 'names'
       )
-      /** The affected count answers the filter's question, so Chat filters only vouched cells. */
-      await requireCellsSafeForPredicate(
-        principal,
-        context.table.id,
-        cellColumnsRead(context.table, { filter })
-      )
       const result = await updateRowsByFilter(
         context.table,
         {
@@ -1685,7 +1554,7 @@ export type DeleteTableRowsResult = TableResult &
 export const deleteTableRows = defineAuthorizedTableUseCase({
   operation: tableOperations.deleteRows,
   resolveContext: ({ input }: { input: DeleteTableRowsInput }) => resolveActiveTableContext(input),
-  async execute({ principal, input, context }): Promise<DeleteTableRowsResult> {
+  async execute({ input, context }): Promise<DeleteTableRowsResult> {
     try {
       if (input.kind === 'ids') {
         if (input.rowIds.length < 1 || input.rowIds.length > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
@@ -1711,11 +1580,6 @@ export const deleteTableRows = defineAuthorizedTableUseCase({
         input.filter,
         context.table,
         input.filterKeying ?? 'names'
-      )
-      await requireCellsSafeForPredicate(
-        principal,
-        context.table.id,
-        cellColumnsRead(context.table, { filter })
       )
       const result = await deleteRowsByFilter(
         context.table,

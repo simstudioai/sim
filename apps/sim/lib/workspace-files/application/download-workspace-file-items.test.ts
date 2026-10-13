@@ -60,18 +60,13 @@ const mockProvenance =
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
 
-const { mockGetUserPermissionConfig } = permissionGroupsResolveMockFns
+const { mockResolveVerifiedUserAccessControlContext: mockAccessContext } =
+  permissionGroupsResolveMockFns
 const {
   mockIsGeneratedDocumentSourceType: mockIsGenerated,
   mockIsRenderableDocumentName: mockIsRenderable,
 } = fileUtilsMockFns
 
-/** The use case passes the organization the authorized context already loaded. */
-permissionGroupsResolveMockFns.mockResolveVerifiedUserAccessControlContext.mockImplementation(
-  async (userId: string, workspaceId: string) => ({
-    config: await mockGetUserPermissionConfig(userId, workspaceId),
-  })
-)
 fileUtilsMockFns.mockFormatFileSize.mockImplementation((bytes: number) => `${bytes} bytes`)
 fileUtilsMockFns.mockNeedsRenderedArtifact.mockImplementation(
   (contentType: string | null | undefined, fileName: string) =>
@@ -128,7 +123,12 @@ describe('downloadWorkspaceFileItems', () => {
     mockIsGenerated.mockReturnValue(false)
     mockIsRenderable.mockReturnValue(false)
     mockIsDocNotReady.mockReturnValue(false)
-    mockGetUserPermissionConfig.mockResolvedValue(null)
+    mockAccessContext.mockResolvedValue({
+      organizationId: null,
+      entitled: false,
+      permissionGroup: null,
+      config: null,
+    })
     mockProvenance.mockImplementation(
       async (_workspaceId: string, identities: readonly { fileId: string }[]) =>
         new Map(identities.map((identity) => [identity.fileId, { status: 'exact', entries: [] }]))
@@ -177,7 +177,7 @@ describe('downloadWorkspaceFileItems', () => {
       file('f1', 'clean.txt', null, 10),
       { ...file('f2', 'report.docx', null, 25), type: 'text/x-generated-document' },
     ])
-    mockIsGenerated.mockImplementation((type: string) => type === 'text/x-generated-document')
+    mockIsGenerated.mockImplementation((type) => type === 'text/x-generated-document')
     mockFetchServable.mockResolvedValue({
       buffer: Buffer.from('rendered'),
       contributingFiles: [{ fileId: 'c1', key: 'key-c1', context: 'workspace' }],
@@ -312,9 +312,14 @@ describe('downloadWorkspaceFileItems', () => {
 
   describe('permission-group capability', () => {
     beforeEach(() => {
-      mockGetUserPermissionConfig.mockResolvedValue({
-        ...DEFAULT_PERMISSION_GROUP_CONFIG,
-        disableBulkFileDownload: true,
+      mockAccessContext.mockResolvedValue({
+        organizationId: null,
+        entitled: true,
+        permissionGroup: null,
+        config: {
+          ...DEFAULT_PERMISSION_GROUP_CONFIG,
+          disableBulkFileDownload: true,
+        },
       })
       mockListFolders.mockResolvedValue([{ id: 'folder-1', parentId: null, name: 'Reports' }])
       mockListFiles.mockImplementation(async () => {

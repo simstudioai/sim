@@ -7,11 +7,12 @@ import {
 } from '@/lib/table/rows/secret-provenance'
 import type { RowData, TableRowSecretProvenanceWrite, TableSchema } from '@/lib/table/types'
 import { getStoredFileSecretProvenanceByKey } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /**
  * Stamps each imported row with the provenance its cells inherit from the source file. `source`
- * is the row's text as the file held it, keyed by column id, before coercion rewrote any cell.
+ * holds parsed CSV cells, keyed by column id, before column coercion rewrote any value.
  */
 export type ImportedRowProvenance = (
   row: RowData,
@@ -46,6 +47,23 @@ export async function resolveImportedRowProvenance(source: {
   if (!(await importDurableSecretProvenance(registry, provenance))) {
     return createUnknownTableRowSecretProvenance
   }
+  const snapshot = registry.getModelEgressSnapshot()
+  if (!snapshot.complete) return createUnknownTableRowSecretProvenance
+  const trimmedCandidates = snapshot.matches.flatMap(({ plaintext }) => {
+    const start = plaintext.trimStart()
+    const end = plaintext.trimEnd()
+    const whole = plaintext.trim()
+    const candidate = {
+      plaintext,
+      start: start !== plaintext && !isNonIdentifyingSecretLiteral(start) ? start : undefined,
+      end: end !== plaintext && !isNonIdentifyingSecretLiteral(end) ? end : undefined,
+      whole:
+        start !== plaintext && end !== plaintext && !isNonIdentifyingSecretLiteral(whole)
+          ? whole
+          : undefined,
+    }
+    return candidate.start || candidate.end || candidate.whole ? [candidate] : []
+  })
   return (row, source) => {
     /**
      * Coercion can rewrite a secret (a number parsed, a date normalized) into text redaction no
@@ -53,7 +71,21 @@ export async function resolveImportedRowProvenance(source: {
      */
     for (const [columnId, raw] of Object.entries(source ?? {})) {
       const stored = row[columnId]
-      if (stored === null || stored === undefined || Object.is(stored, raw)) continue
+      if (stored === null || stored === undefined) continue
+      /** CSV trims unquoted field edges before coercion sees them; source candidates stay exact. */
+      if (
+        typeof raw === 'string' &&
+        trimmedCandidates.some(
+          ({ plaintext, start, end, whole }) =>
+            !raw.includes(plaintext) &&
+            ((start !== undefined && raw.startsWith(start)) ||
+              (end !== undefined && raw.endsWith(end)) ||
+              (whole !== undefined && raw === whole))
+        )
+      ) {
+        return createUnknownTableRowSecretProvenance()
+      }
+      if (Object.is(stored, raw)) continue
       const rawProvenance = registry.exportCommittedProvenanceForValue(raw)
       if (!rawProvenance.complete || rawProvenance.entries.length > 0) {
         return createUnknownTableRowSecretProvenance()
@@ -64,8 +96,8 @@ export async function resolveImportedRowProvenance(source: {
 }
 
 /**
- * Each parsed row's cells as the file held them, keyed by the column id coercion writes, aligned
- * with what `coerceRowsForTable` returns for the same rows.
+ * Parsed cells before column coercion, keyed by the column id it writes and aligned with
+ * what `coerceRowsForTable` returns for the same rows.
  */
 export function importedRowSources(
   rows: readonly Record<string, unknown>[],

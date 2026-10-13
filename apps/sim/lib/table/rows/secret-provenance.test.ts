@@ -5,7 +5,6 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbTransaction } from '@/lib/table/planner'
 import {
-  classifyStoredTableRowColumns,
   classifyTableRowSecretProvenanceForCopy,
   getTableSnapshotModelMountSafety,
   loadTableRowSecretProvenance,
@@ -296,49 +295,6 @@ describe('table row secret provenance', () => {
       entries: [],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
-  })
-
-  it('classifies matched columns only at the revision the search read', async () => {
-    const SECRET_ENTRY = {
-      columnId: 'secret-column',
-      encryptedValue: 'encrypted-local',
-      name: 'LOCAL_SECRET',
-      sourceUserId: 'user-1',
-      sourceWorkspaceId: 'workspace-1',
-    }
-    const later = new Date(ROW_UPDATED_AT.getTime() + 1)
-    queueTableRows(userTableRows, [
-      {
-        id: 'read-row',
-        updatedAt: ROW_UPDATED_AT,
-        secretProvenanceVersion: 1,
-        sidecarRowId: 'read-row',
-        sidecarStatus: 'exact',
-        sidecarEntries: [SECRET_ENTRY],
-        sidecarIsCurrent: true,
-      },
-      {
-        id: 'rewritten-row',
-        updatedAt: later,
-        secretProvenanceVersion: 1,
-        sidecarRowId: 'rewritten-row',
-        sidecarStatus: 'exact',
-        sidecarEntries: [],
-        sidecarIsCurrent: true,
-      },
-    ])
-    const columns = await classifyStoredTableRowColumns([
-      { id: 'read-row', updatedAt: ROW_UPDATED_AT },
-      { id: 'rewritten-row', updatedAt: ROW_UPDATED_AT },
-      { id: 'missing-row', updatedAt: ROW_UPDATED_AT },
-    ])
-    expect(columns.get('read-row')).toEqual({
-      status: 'exact',
-      secretColumns: new Set(['secret-column']),
-    })
-    /** Its clean sidecar describes text written after the match: it cannot vouch for the match. */
-    expect(columns.get('rewritten-row')).toEqual({ status: 'unknown' })
-    expect(columns.get('missing-row')).toEqual({ status: 'unknown' })
   })
 
   it('rejects contradictory duplicate row crossings before reading provenance', async () => {

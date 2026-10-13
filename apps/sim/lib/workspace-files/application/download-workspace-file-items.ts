@@ -52,6 +52,7 @@ export interface DownloadWorkspaceFileItemsResult {
   folderPaths: Map<string, string>
   renderedDocuments: Map<string, Buffer>
   declaredBytes: number
+  excludedFileIds: string[]
 }
 
 function collectDescendantFolderIds(
@@ -232,7 +233,9 @@ async function executeDownloadWorkspaceFileItems({
     throw new ContentRefusedError('workspace-file')
   }
 
+  const included = new Set(filesToZip.map((file) => file.id))
   return {
+    excludedFileIds: selectedFiles.filter((file) => !included.has(file.id)).map((file) => file.id),
     filesToZip,
     folderPaths,
     renderedDocuments,

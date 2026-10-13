@@ -11,8 +11,8 @@ const inventory = vi.hoisted(
     [] as Array<{
       method: string
       path: string
-      operation: ApplicationOperation
-      useCase: CopilotRouteUseCase
+      operation: RouteOperation
+      useCase?: CopilotRouteUseCase
     }>
 )
 const built = vi.hoisted(() => new WeakSet<object>())
@@ -20,8 +20,8 @@ const builder = vi.hoisted(
   () =>
     (options: {
       contract: { method: string; path: string }
-      operation: ApplicationOperation
-      useCase: CopilotRouteUseCase
+      operation: RouteOperation
+      useCase?: CopilotRouteUseCase
     }) => {
       inventory.push({
         method: options.contract.method,
@@ -40,7 +40,7 @@ const recordAdmission = vi.hoisted(
   () =>
     async (
       _request: Request,
-      operation: ApplicationOperation,
+      operation: RouteOperation,
       _auth: unknown,
       _rateLimit: unknown,
       useCase?: CopilotRouteUseCase
@@ -71,6 +71,10 @@ import {
 } from '@/lib/api/server/routes/copilot-request'
 import { V2_ROUTES } from '@/lib/api/server/routes/v2-route-table.generated'
 import type { ApplicationOperation } from '@/lib/core/application/operation'
+import type { WorkspaceOperation } from '@/lib/core/application/workspace-operation'
+
+type RouteOperation = ApplicationOperation &
+  Pick<WorkspaceOperation, 'principalKinds' | 'delegatedServices'>
 
 /**
  * Routes Mothership refuses, judged by the rule admission itself runs. The CLI command
@@ -90,7 +94,7 @@ const CONTENT_ROUTES_FILE = './copilot-content-routes.json'
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
 
 /** Whether authorization lets a Chat principal through, not only whether the route mints one. */
-function admitsCopilotPrincipal(operation: ApplicationOperation): boolean {
+function admitsCopilotPrincipal(operation: RouteOperation): boolean {
   const kinds: readonly string[] = operation.principalKinds
   const services: readonly string[] | undefined = operation.delegatedServices
   return (

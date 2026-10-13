@@ -35,8 +35,8 @@ import {
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
-import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
+import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import {
   deleteWorkspaceFileVersion,
@@ -58,13 +58,7 @@ import {
   queryWorkspaceFileVersions,
   releaseWorkspaceFileVersionsForPurgeInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
-import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
-import {
-  downloadWorkspaceFileVersion,
-  readWorkspaceFileVersionText,
-  revertWorkspaceFileVersion,
-} from '@/lib/workspace-files/application/file-versions'
+import { revertWorkspaceFileVersion } from '@/lib/workspace-files/application/file-versions'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { runCleanupFileVersions } from '@/background/cleanup-file-versions'
 import { runCleanupSoftDeletes } from '@/background/cleanup-soft-deletes'

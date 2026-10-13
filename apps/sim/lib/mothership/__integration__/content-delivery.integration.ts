@@ -50,6 +50,23 @@ vi.mock('@/lib/mothership/async-runs/repository', async (importOriginal) => ({
   isActiveSandboxResourceOwner: async () => true,
 }))
 
+/** Provider bytes are synthetic; generic-tool execution and its private metadata consumer are real. */
+const toolProvider = vi.hoisted(() => ({ response: undefined as Response | undefined }))
+vi.mock('@/lib/internal/tool-operations/registry.server', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/internal/tool-operations/registry.server')>()
+  return {
+    ...actual,
+    getInternalToolOperationHandler: async (toolId: string) => {
+      if (toolId === 'file_get_content' && toolProvider.response) {
+        const response = toolProvider.response
+        return async () => response
+      }
+      return actual.getInternalToolOperationHandler(toolId)
+    },
+  }
+})
+
 import { db } from '@sim/db'
 import { copilotChats, userTableRowSecretProvenance } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
@@ -58,6 +75,11 @@ import contentRoutes from '@/lib/api/server/routes/copilot-content-routes.json'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { encryptSecret } from '@/lib/core/security/encryption'
+import {
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+  serializePrivateToolMetadataResponseEnvelope,
+} from '@/lib/execution/private-tool-metadata'
 import {
   initializeSessionFileProvenance,
   readSessionSecretProvenance,
@@ -244,17 +266,103 @@ describe('content reaching Chat is admitted per item', () => {
     else expect(read.body).not.toContain(CANARY.secret)
   }
 
+  describe('generic tool route and private provider envelopes', () => {
+    async function providerResponse(options: { complete: boolean; success: boolean }) {
+      const envelope = serializePrivateToolMetadataResponseEnvelope(
+        options.success
+          ? { success: true, data: { content: `provider content ${CANARY.secret}` } }
+          : { success: false, error: `provider refused ${CANARY.secret}` },
+        RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+        {
+          version: 1,
+          complete: options.complete,
+          scope: { userId: fixture.ids.aliceId, workspaceId: ws() },
+          entries: options.complete
+            ? [
+                {
+                  name: 'PROVIDER_TOKEN',
+                  encryptedValue: (await encryptSecret(CANARY.secret)).encrypted,
+                },
+              ]
+            : [],
+        }
+      )
+      toolProvider.response = Response.json(envelope.body, {
+        status: options.success ? 200 : 400,
+        headers: envelope.headers,
+      })
+    }
+
+    it.each([true, false])(
+      'projects private provider evidence through the CLI tool route (success=%s)',
+      async (success) => {
+        await providerResponse({ complete: true, success })
+        try {
+          const read = await cli('POST', '/api/v2/tools/file_get_content/execute', {
+            workspaceId: ws(),
+            input: { fileId: fixture.files.entries },
+          })
+          expect(read.status).toBe(200)
+          expect(JSON.parse(read.body).data.status).toBe(success ? 'succeeded' : 'failed')
+          expect(modelView(read)).toContain('{{PROVIDER_TOKEN}}')
+          expect(modelView(read)).not.toContain(CANARY.secret)
+          expect(read.registry.isPermanentlyIncomplete()).toBe(false)
+        } finally {
+          toolProvider.response = undefined
+        }
+      }
+    )
+
+    it('withholds an incomplete private provider envelope after the generic tool settles', async () => {
+      await providerResponse({ complete: false, success: true })
+      try {
+        const read = await cli('POST', '/api/v2/tools/file_get_content/execute', {
+          workspaceId: ws(),
+          input: { fileId: fixture.files.unknown },
+        })
+        expect(read.status).not.toBe(200)
+        expect(read.body).not.toContain(CANARY.secret)
+        expect(read.body).toMatch(/settled|completed/)
+        expect(read.body).toMatch(/do not retry/i)
+        expect(read.registry.isPermanentlyIncomplete()).toBe(false)
+      } finally {
+        toolProvider.response = undefined
+      }
+    })
+
+    it('records private provider evidence before sandbox tool response bytes are released', async () => {
+      await providerResponse({ complete: true, success: true })
+      try {
+        const read = await sandbox('POST', '/api/v2/tools/file_get_content/execute', {
+          workspaceId: ws(),
+          input: { fileId: fixture.files.entries },
+        })
+        expect(read.status).toBe(200)
+        expect(read.body).toContain(CANARY.secret)
+        expect(await workbenchHistory(read.sessionKey)).toMatchObject({
+          status: 'exact',
+          entries: [{ name: 'PROVIDER_TOKEN' }],
+        })
+      } finally {
+        toolProvider.response = undefined
+      }
+    })
+  })
+
   describe('Chat CLI', () => {
-    it('zips only admitted files into a bulk download (P1/P2, #4)', async () => {
+    it('reports omitted files in a partial bulk download (P1/P2, #4)', async () => {
       const read = await cli(
         'GET',
         `/api/v2/files/bulk-download?workspaceId=${ws()}&fileIds=${Object.values(fixture.files)}`
       )
       expectPerItem(read, { secretAdmitted: false })
       expect(read.body).toContain(CANARY.unrecorded)
+      expect(read.body).toContain('sim-download-report.json')
+      expect(read.body).toContain(fixture.files.unknown)
+      expect(read.body).toContain(fixture.files.entries)
     })
 
-    it('answers files search, dropping lines from refused files (#5, misroute)', async () => {
+    it('answers files search with locations and withheld unreadable previews (#5, misroute)', async () => {
       const read = await cli(
         'GET',
         `/api/v2/files/search?workspaceId=${ws()}&query=${encodeURIComponent('PROVENANCE')}`
@@ -264,7 +372,10 @@ describe('content reaching Chat is admitted per item', () => {
       const files = new Set(results.map((result) => result.fileId))
       expect(files.has(fixture.files.clean)).toBe(true)
       expect(files.has(fixture.files.unrecorded)).toBe(true)
-      expect(files.has(fixture.files.unknown)).toBe(false)
+      expect(files.has(fixture.files.unknown)).toBe(true)
+      expect(results.find((result) => result.fileId === fixture.files.unknown)?.text).toMatch(
+        /preview withheld/i
+      )
       expect(read.body).not.toContain(CANARY.unknown)
       expect(read.registry.isPermanentlyIncomplete()).toBe(false)
     })
@@ -316,9 +427,10 @@ describe('content reaching Chat is admitted per item', () => {
       expectPerItem(read, { secretAdmitted: true })
     })
 
-    it('does not admit Chat to a whole knowledge base export (#12)', async () => {
+    it('exports the allowed knowledge scope without including restricted documents (#12)', async () => {
       const read = await cli('GET', `${kbPath()}/export?workspaceId=${ws()}`)
-      expect(read.status).toBe(403)
+      expect(read.status).toBe(200)
+      expect(read.body).toContain('manifest.json')
       expect(read.body).not.toContain(CANARY.unknown)
     })
 
@@ -330,29 +442,63 @@ describe('content reaching Chat is admitted per item', () => {
       expectPerItem(read, { secretAdmitted: true })
     })
 
-    it('refuses predicates over a table whose cells it cannot vouch for (#18b)', async () => {
+    it('filters and sorts mixed-provenance rows without refusing unrelated content (#18b)', async () => {
       const table = `/api/v2/tables/${fixture.table.tableId}`
-      const guess = { field: 'note', op: 'contains', value: 'second' }
-      const refused = [
-        await cli('POST', `${table}/rows/search`, { workspaceId: ws(), q: 'second' }),
-        await cli('POST', `${table}/query`, { workspaceId: ws(), predicate: guess, limit: 1 }),
-        await cli('POST', `${table}/query/count`, { workspaceId: ws(), predicate: guess }),
-      ]
-      for (const read of refused) {
-        expect(read.status).toBe(403)
-        expect(read.body).not.toContain(CANARY.unknown)
-        expect(read.body).not.toContain(CANARY.secret)
-      }
-      /** The same predicate reads nothing but row ids, so it stays available. */
-      const byId = await cli('POST', `${table}/query`, {
+      const predicate = { field: 'note', op: 'contains', value: 'second' }
+      const query = await cli('POST', `${table}/query`, {
         workspaceId: ws(),
-        predicate: { field: 'id', op: 'in', value: [fixture.table.rows.clean] },
+        predicate,
+        sort: [{ field: 'note', direction: 'asc' }],
       })
-      expect(byId.status).toBe(200)
-      expect(modelView(byId)).toContain(CANARY.clean)
+      expectPerItem(query, { secretAdmitted: true })
+      const count = await cli('POST', `${table}/query/count`, { workspaceId: ws(), predicate })
+      expect(count.status).toBe(200)
+      expect(count.body).not.toContain(CANARY.secret)
+      expect(count.body).not.toContain(CANARY.unknown)
     })
 
-    it('runs predicates over a table whose every cell is vouched for', async () => {
+    it('returns search locations without copying cell values or refusing a mixed table', async () => {
+      const search = await cli('POST', `/api/v2/tables/${fixture.table.tableId}/rows/search`, {
+        workspaceId: ws(),
+        q: 'second',
+      })
+      expect(search.status).toBe(200)
+      const matches: { rowId: string; column: string; ordinal: number }[] = JSON.parse(search.body)
+        .data.matches
+      expect(matches.map((match) => match.rowId).sort()).toEqual(
+        Object.values(fixture.table.rows).sort()
+      )
+      expect(search.body).not.toContain(CANARY.secret)
+      expect(search.body).not.toContain(CANARY.unknown)
+    })
+
+    it.each(['PATCH', 'DELETE'])(
+      'allows a filtered %s beside an unrelated unknown row',
+      async (method) => {
+        const table = `/api/v2/tables/${fixture.table.tableId}`
+        const marker = `temporary-${generateId()}`
+        const created = await cli('POST', `${table}/rows`, {
+          workspaceId: ws(),
+          data: { note: marker },
+        })
+        expect(created.status).toBe(201)
+        const rowId: string = JSON.parse(created.body).data.id
+        const written = await cli(method, `${table}/rows`, {
+          workspaceId: ws(),
+          filter: { field: 'note', op: 'eq', value: marker },
+          ...(method === 'PATCH' ? { data: { note: `${marker}-updated` } } : {}),
+        })
+        expect(written.status).toBe(200)
+        expect(JSON.parse(written.body).data).toMatchObject(
+          method === 'PATCH' ? { updatedCount: 1 } : { deletedCount: 1 }
+        )
+        const read = await cli('GET', `${table}/rows/${rowId}?workspaceId=${ws()}`)
+        expect(read.status).toBe(method === 'PATCH' ? 200 : 404)
+        if (method === 'PATCH') expect(modelView(read)).toContain(`${marker}-updated`)
+      }
+    )
+
+    it('keeps clean matches usable when another row has corrupt provenance', async () => {
       const created = await cli('POST', '/api/v2/tables', {
         workspaceId: ws(),
         name: `clean_${generateId().slice(0, 8)}`,
@@ -391,7 +537,14 @@ describe('content reaching Chat is admitted per item', () => {
         workspaceId: ws(),
         predicate: guess,
       })
-      expect(afterCorruption.status).toBe(403)
+      expect(afterCorruption.status).toBe(200)
+      expect(modelView(afterCorruption)).toContain('alpha second')
+      const refused = await cli(
+        'GET',
+        `${table}/rows/${JSON.parse(malformed.body).data.id}?workspaceId=${ws()}`
+      )
+      expect(refused.status).toBe(403)
+      expect(refused.body).not.toContain('gamma')
     })
 
     it('shares only clean files publicly on Chat’s behalf (#9, D1)', async () => {
@@ -644,13 +797,17 @@ describe('content reaching Chat is admitted per item', () => {
       expect(zip.status).toBe(200)
       expect(zip.body).toContain(CANARY.clean)
       expect(zip.body).not.toContain(CANARY.unknown)
+      expect(zip.body).toContain('sim-download-report.json')
+      expect(zip.body).toContain(fixture.files.unknown)
 
       const search = await sandbox(
         'GET',
         `/api/v2/files/search?workspaceId=${ws()}&query=${encodeURIComponent('PROVENANCE')}`
       )
       expect(search.status).toBe(200)
-      expect(search.body).not.toContain(fixture.files.unknown)
+      expect(search.body).toContain(fixture.files.unknown)
+      expect(search.body).toMatch(/preview withheld/i)
+      expect(search.body).not.toContain(CANARY.unknown)
       expect((await workbenchHistory(search.sessionKey)).status).toBe('exact')
     })
 
@@ -680,7 +837,8 @@ describe('content reaching Chat is admitted per item', () => {
       }
       expect(write.status).toBe(502)
       expect(write.body).not.toContain(note)
-      expect(write.body).toContain('Do not retry a mutation automatically')
+      expect(write.body).toContain('The change was saved')
+      expect(write.body).toContain('Do not retry the change')
       const rows = await cli(
         'GET',
         `/api/v2/tables/${fixture.table.tableId}/rows?workspaceId=${ws()}`
