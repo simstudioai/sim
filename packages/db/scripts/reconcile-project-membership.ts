@@ -19,7 +19,7 @@ try {
   `
   if (state.workspace && (state.connector || !state.required || !state.project)) {
     throw new Error(
-      'Existing Project databases must complete the Project script migration 0031 before schema push. Use the phased migration path for retained data; schema push cannot bypass the writer-drain requirement'
+      'Existing Project databases must complete the Project script migration 0032_project_membership before schema push. Use the phased migration path for retained data; schema push cannot bypass the writer-drain requirement'
     )
   }
   if (!process.argv.includes('--prepare') && state.workspace && state.project) {

@@ -104,6 +104,32 @@ describe('messages-store', () => {
       )
     })
 
+    it('stores settled tool-call params whole, so drains and copies keep them', async () => {
+      const stdout = 'x'.repeat(50_000)
+      await appendCopilotChatMessages('chat-1', [
+        {
+          ...toolMsg,
+          contentBlocks: [
+            {
+              type: 'tool',
+              phase: 'call',
+              toolCall: {
+                id: 'tc-sandbox',
+                name: 'cli_to_sandbox',
+                state: 'success',
+                params: { request: { invocation: { kind: 'cli', stdout } } },
+                result: { success: true },
+              },
+            },
+          ],
+        },
+      ])
+
+      expect(lastRowContent(0).contentBlocks?.[0].toolCall?.params).toEqual({
+        request: { invocation: { kind: 'cli', stdout } },
+      })
+    })
+
     it('strips tool-result output before persisting, keeping success/error', async () => {
       await appendCopilotChatMessages('chat-1', [toolMsg])
 

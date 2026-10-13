@@ -137,7 +137,7 @@ async function finish(
       organizationId: snapshot.organizationId,
     }
   })
-  await reportWorkspaceFileDelivery(result.secretProvenance)
+  await reportWorkspaceFileDelivery(result.secretProvenance, servedFile.id)
   recordAudit({
     actorId: null,
     workspaceId: manifest.snapshot.workspaceId,

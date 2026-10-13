@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { validateFileOwnershipMigration } from '@sim/db/script-migrations/0031_validate_file_ownership'
+import { validateFileOwnershipMigration } from '@sim/db/script-migrations/0033_validate_file_ownership'
 import { runScriptMigrations } from '@sim/db/script-migrations/index'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred } from '@sim/testing/helpers/deferred'
@@ -9,7 +9,7 @@ import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const databaseUrl = readTestDatabaseUrl()
-const migrations = ['0408_file_entity_ownership.sql', '0409_file_folder_version_ownership.sql'].map(
+const migrations = ['0413_file_entity_ownership.sql', '0414_file_folder_version_ownership.sql'].map(
   (name) => readFileSync(new URL(`./migrations/${name}`, import.meta.url), 'utf8')
 )
 
@@ -143,7 +143,7 @@ describe('file folder and version ownership in PostgreSQL', () => {
     await runScriptMigrations(sql, [validateFileOwnershipMigration])
     await runScriptMigrations(sql, [validateFileOwnershipMigration])
     expect(await sql`SELECT name FROM script_migrations`).toEqual([
-      { name: '0031_validate_file_ownership' },
+      { name: '0033_validate_file_ownership' },
     ])
     expect(
       await sql`SELECT workspace_id, key FROM workspace_file_version WHERE id = 'conflicting-version'`

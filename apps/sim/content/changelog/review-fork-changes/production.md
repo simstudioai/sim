@@ -39,3 +39,7 @@ Email body:
 > Open your fork's mapping settings and choose Compare from a deployed workflow's menu. Inspect source changes since the last successful sync before updating the fork. Availability and demo: https://www.sim.ai/changelog/review-fork-changes
 
 These are drafts, not sent announcements.
+
+## Editorial revision
+
+Revised October 12, 2026, to clarify supported behavior and include selected changes from the same technical release where useful. Every public sentence describes a capability, a meaningful change, or necessary access information. Original dates, release references, RSS identities, and reviewed media are preserved. The `updated` timestamp records the substantive revision. Browser and CI evidence belongs in the revision PR.

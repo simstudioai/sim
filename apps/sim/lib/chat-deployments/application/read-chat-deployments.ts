@@ -24,11 +24,7 @@ export interface ChatDeploymentView extends Omit<ChatDeploymentRow, 'password'> 
 
 export function toChatDeploymentView(row: ChatDeploymentRow): ChatDeploymentView {
   const { password, ...rest } = row
-  return {
-    ...rest,
-    includeToolCalls: rest.includeToolCalls ?? false,
-    hasPassword: Boolean(password),
-  }
+  return { ...rest, hasPassword: Boolean(password) }
 }
 
 /** A chat can answer only while both it and its workflow deployment are active. */

@@ -48,6 +48,28 @@ function fixture() {
   return { root, repo, base, before, head, pr }
 }
 
+function ordinaryFixture(baseBranch: string, commits: number) {
+  const data = fixture()
+  git(data.repo, 'checkout', '--quiet', '-b', baseBranch, data.base)
+  git(data.repo, 'checkout', '--quiet', '-b', 'feature')
+  for (let index = 1; index <= commits; index++) {
+    writeFileSync(join(data.repo, `change-${index}.ts`), `export const value = ${index}\n`)
+    git(data.repo, 'add', '.')
+    git(data.repo, 'commit', '--quiet', '-m', `change ${index}`)
+  }
+  const head = git(data.repo, 'rev-parse', 'HEAD')
+  git(data.repo, 'push', '--quiet', 'origin', baseBranch, 'feature')
+  return {
+    ...data,
+    head,
+    pr: {
+      ...data.pr,
+      head: { ...data.pr.head, ref: 'feature', sha: head },
+      base: { ref: baseBranch, sha: data.base },
+    },
+  }
+}
+
 function resolveBase(data: ReturnType<typeof fixture>, overrides: Record<string, string> = {}) {
   const output = join(data.root, 'output')
   writeFileSync(output, '')
@@ -87,6 +109,54 @@ afterEach(() => {
 })
 
 describe('diff audit base selection', () => {
+  it.each(['main', 'staging', 'dev'])(
+    'audits every commit of an ordinary PR into %s for both PR and manual events',
+    (baseBranch) => {
+      const data = ordinaryFixture(baseBranch, 3)
+      for (const event of ['pull_request', 'workflow_dispatch']) {
+        const result = resolveBase(data, {
+          GITHUB_EVENT_NAME: event,
+          GITHUB_REF_NAME: 'feature',
+          GITHUB_BASE_REF: baseBranch,
+        })
+        expect(result.status, result.stderr).toBe(0)
+        const ref = result.output.slice('ref='.length)
+        expect(git(data.repo, 'rev-parse', ref)).toBe(data.base)
+        expect(git(data.repo, 'diff', '--name-only', ref, data.head)).toBe(
+          'change-1.ts\nchange-2.ts\nchange-3.ts'
+        )
+      }
+    }
+  )
+
+  it('resolves an ordinary single-commit PR', () => {
+    const data = ordinaryFixture('staging', 1)
+    const result = resolveBase(data, { GITHUB_REF_NAME: 'feature' })
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.output).toBe(`ref=${data.base}`)
+    expect(git(data.repo, 'diff', '--name-only', data.base, data.head)).toBe('change-1.ts')
+  })
+
+  it('audits a squash merge into staging against the pre-push staging commit', () => {
+    const data = ordinaryFixture('staging', 3)
+    git(data.repo, 'checkout', '--quiet', 'staging')
+    git(data.repo, 'merge', '--quiet', '--squash', 'feature')
+    git(data.repo, 'commit', '--quiet', '-m', 'squash feature')
+    data.head = git(data.repo, 'rev-parse', 'HEAD')
+    git(data.repo, 'push', '--quiet', 'origin', 'staging')
+    const result = resolveBase(data, {
+      GITHUB_EVENT_NAME: 'push',
+      GITHUB_REF_NAME: 'staging',
+      GITHUB_BEFORE: data.base,
+      API_EXIT: '73',
+    })
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.output).toBe(`ref=${data.base}`)
+    expect(git(data.repo, 'diff', '--name-only', data.base, data.head)).toBe(
+      'change-1.ts\nchange-2.ts\nchange-3.ts'
+    )
+  })
+
   it('pins the actual PR base for a dispatched merge head instead of its first parent', () => {
     const data = fixture()
     const result = resolveBase(data)

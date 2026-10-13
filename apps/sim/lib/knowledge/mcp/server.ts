@@ -26,6 +26,7 @@ import {
 import { liveCitationId } from '@/lib/knowledge/search/citation'
 import { toolError } from '@/lib/mcp/tool-result'
 import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
+import { LiveReadError } from '@/lib/sim-search/live/read-error'
 import { v2CaughtOrchestrationError } from '@/app/api/v2/lib/response'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -67,6 +68,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
       return result
     } catch (error) {
       if (signal.aborted) outcome = 'cancelled'
+      if (error instanceof LiveReadError) return toolError(error.message)
       const response = v2CaughtOrchestrationError(error)
       if (response) {
         const body: unknown = await response.json()

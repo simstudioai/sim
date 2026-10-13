@@ -50,7 +50,10 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  replaceWorkspaceFileSecretProvenanceInTx,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import * as storageCleanup from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   getCurrentWorkspaceFileVersion,
@@ -456,6 +459,33 @@ describe('workspace file version history in PostgreSQL', () => {
       .select()
       .from(workspaceFiles)
       .where(eq(workspaceFiles.id, fixture.fileId))
+    const provenance = {
+      status: 'exact' as const,
+      entries: [
+        {
+          sourceUserId: fixture.aliceId,
+          sourceWorkspaceId: fixture.workspaceId,
+          name: 'HISTORY_FIXTURE',
+          encryptedValue: (await encryptSecret('synthetic-history-value')).encrypted,
+        },
+      ],
+    }
+    await db.transaction((tx) =>
+      replaceWorkspaceFileSecretProvenanceInTx(
+        tx,
+        fixture.fileId,
+        before.contentUpdatedAt,
+        provenance
+      )
+    )
+    const sidecarsBefore = await db
+      .select()
+      .from(workspaceFileSecretProvenance)
+      .where(eq(workspaceFileSecretProvenance.fileId, fixture.fileId))
+    const [workspaceBefore] = await db
+      .select({ bytes: workspace.storageUsedBytes })
+      .from(workspace)
+      .where(eq(workspace.id, fixture.workspaceId))
     for (const successor of [fixture.bobId, fixture.aliceId, fixture.bobId]) {
       await db.transaction((tx) =>
         handoffFileCreatorsInTx(tx, eq(workspaceFiles.id, fixture.fileId), successor)
@@ -472,7 +502,24 @@ describe('workspace file version history in PostgreSQL', () => {
       sizeBytes: before.sizeBytes,
       userId: fixture.bobId,
     })
-    expect(await versionRows(fixture.fileId)).toHaveLength(1)
+    const preserved = await versionRows(fixture.fileId)
+    expect(preserved).toHaveLength(1)
+    expect(preserved[0]).toMatchObject({
+      secretProvenanceStatus: 'exact',
+      secretProvenanceEntries: provenance.entries,
+    })
+    expect(
+      await db
+        .select()
+        .from(workspaceFileSecretProvenance)
+        .where(eq(workspaceFileSecretProvenance.fileId, fixture.fileId))
+    ).toEqual(sidecarsBefore)
+    expect(
+      await db
+        .select({ bytes: workspace.storageUsedBytes })
+        .from(workspace)
+        .where(eq(workspace.id, fixture.workspaceId))
+    ).toEqual([workspaceBefore])
     await updateWorkspaceFileContent(
       fixture.workspaceId,
       fixture.fileId,

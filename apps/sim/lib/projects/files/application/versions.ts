@@ -271,7 +271,8 @@ const readVersionContent = defineAuthorizedProjectFileUseCase({
       secretProvenance: workspaceFileSecretProvenanceFromSnapshot(current.provenance),
     }
   },
-  afterSuccess: ({ result }) => reportWorkspaceFileDelivery(result.secretProvenance),
+  afterSuccess: ({ result }) =>
+    reportWorkspaceFileDelivery(result.secretProvenance, result.file.id),
 })
 
 /** HEAD validates retention and the selected version under the same operation without storage I/O. */

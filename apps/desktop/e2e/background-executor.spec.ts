@@ -15,6 +15,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { recordCheck } from './check-report'
 import {
+  answerShellDialog,
   type FixtureCall,
   FixtureSim,
   launch,
@@ -36,6 +37,9 @@ import {
  * suite depends on a chat view, which is the point. Each check lands in a JSON report at
  * BACKGROUND_EXECUTOR_REPORT_PATH as it finishes.
  */
+
+/** Sim's window for a device to claim an offered call (DESKTOP_TOOL_PICKUP_GRACE_MS in Sim). */
+const SIM_PICKUP_GRACE_MS = 15_000
 
 const CHAT_A = 'chat-browser-a'
 const CHAT_B = 'chat-terminal-b'
@@ -89,6 +93,7 @@ test.describe('background executor', () => {
     await window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
 
     const marker = join(userData, 'terminal-marker.txt')
+    const releaseCommands = join(userData, 'release-commands')
     const readable = join(userData, 'notes.txt')
     writeFileSync(readable, 'background read fixture')
 
@@ -109,16 +114,49 @@ test.describe('background executor', () => {
     const terminalRuns = [1, 2, 3].map((n) =>
       sim.issue(deviceId, CHAT_B, 'terminal', {
         operation: 'run',
-        args: { command: `sleep 1; echo B-${n} >> '${marker}'`, waitSeconds: 30 },
+        args: {
+          command: `until [ -e '${releaseCommands}' ]; do sleep 0.1; done; echo B-${n} >> '${marker}'`,
+          waitSeconds: 30,
+        },
       })
     )
     const readConsent = launched.app.waitForEvent('window')
     const localRead = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
-    await (await readConsent).getByRole('button', { name: 'Allow folder', exact: true }).click()
+    try {
+      await answerShellDialog(await readConsent, 'Allow folder')
 
-    await window.goto(`${sim.origin}/workspace/ws-other/home`)
-    await window.reload()
-    await window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
+      await window.goto(`${sim.origin}/workspace/ws-other/home`)
+      await window.reload()
+      await window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
+
+      // Chat B's first command holds its queue until released, so a claim that waited for the
+      // calls ahead of it to run could never happen in time.
+      await check("A: every call is claimed while chat B's first command still runs", async () => {
+        await expect
+          .poll(
+            () =>
+              [...sim.calls.values()]
+                .filter((call) => call.claimedAt === undefined)
+                .map((call) => call.toolCallId),
+            { timeout: SIM_PICKUP_GRACE_MS }
+          )
+          .toEqual([])
+        for (const call of sim.calls.values()) {
+          expect(
+            (call.claimedAt ?? Number.POSITIVE_INFINITY) - call.issuedAt,
+            call.toolCallId
+          ).toBeLessThan(SIM_PICKUP_GRACE_MS)
+        }
+      })
+
+      await check('A: the lease is renewed while calls wait and run', async () => {
+        await expect
+          .poll(() => terminalRuns.filter((id) => sim.requireCall(id).renewals === 0))
+          .toEqual([])
+      })
+    } finally {
+      writeFileSync(releaseCommands, '')
+    }
 
     await check('A: every call completes exactly once with its own token', async () => {
       for (const id of [...clicks, ...terminalRuns, localRead]) {
@@ -153,18 +191,6 @@ test.describe('background executor', () => {
         sim.requests.filter((request) => request.includes('/api/desktop/tool/authorize'))
       ).toEqual([])
     })
-
-    await check('A: calls are picked up within 1.5 s at p95', async () => {
-      const latencies = [...sim.calls.values()]
-        .map((call) => (call.claimedAt ?? Number.POSITIVE_INFINITY) - call.issuedAt)
-        .sort((a, b) => a - b)
-      const p95 = latencies[Math.ceil(latencies.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY
-      expect(p95).toBeLessThan(1_500)
-    })
-
-    await check('A: the lease is renewed while calls wait and run', async () => {
-      expect(Math.max(...terminalRuns.map((id) => sim.requireCall(id).renewals))).toBeGreaterThan(0)
-    })
   })
 
   test('background file reads require consent and Stop cancels pending permission', async () => {
@@ -181,7 +207,7 @@ test.describe('background executor', () => {
       const prompt = await shown
       await expect(prompt.getByRole('button', { name: 'Allow folder', exact: true })).toBeVisible()
       expect(sim.requireCall(call).completions).toHaveLength(0)
-      await prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      await answerShellDialog(prompt, "Don't allow")
       const completion = await settled(sim, call)
       expect(completion.status).toBe('error')
       expect(JSON.stringify(completion)).not.toContain('background consent fixture')
@@ -202,7 +228,7 @@ test.describe('background executor', () => {
       const shown = launched.app.waitForEvent('window', { timeout: 10_000 })
       const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
       const prompt = await shown
-      await prompt.getByRole('button', { name: 'Allow folder', exact: true }).click()
+      await answerShellDialog(prompt, 'Allow folder')
       expect((await settled(sim, call)).status).toBe('success')
       const next = sim.issue(deviceId, CHAT_A, 'read_local_file', { path: readable })
       expect(JSON.stringify((await settled(sim, next)).data)).toContain(
@@ -225,7 +251,7 @@ test.describe('background executor', () => {
       const prompt = await shown
       await expect(prompt.getByRole('button', { name: 'Allow folder', exact: true })).toBeVisible()
       sim.disconnect()
-      await prompt.getByRole('button', { name: 'Allow folder', exact: true }).click()
+      await answerShellDialog(prompt, 'Allow folder')
       await expect
         .poll(() =>
           launched.app.evaluate(({ safeStorage }, toolCallId) => {
@@ -245,7 +271,7 @@ test.describe('background executor', () => {
       expect(JSON.stringify(completion)).not.toContain('offline consent fixture')
       const nextPrompt = launched.app.waitForEvent('window')
       const next = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
-      await (await nextPrompt).getByRole('button', { name: "Don't allow", exact: true }).click()
+      await answerShellDialog(await nextPrompt, "Don't allow")
       expect((await settled(sim, next)).status).toBe('error')
     })
   })
@@ -270,7 +296,7 @@ test.describe('background executor', () => {
           BrowserWindow.getAllWindows().map((window) => window.getParentWindow() === null)
         )
       ).toEqual([true])
-      await prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      await answerShellDialog(prompt, "Don't allow")
       expect((await settled(sim, call)).status).toBe('error')
     })
   })
@@ -284,7 +310,7 @@ test.describe('background executor', () => {
     writeFileSync(readable, 'cleanup consent fixture')
     const shown = launched.app.waitForEvent('window')
     const call = sim.issue(deviceId, CHAT_B, 'read_local_file', { path: readable })
-    await (await shown).getByRole('button', { name: 'Allow folder', exact: true }).click()
+    await answerShellDialog(await shown, 'Allow folder')
     expect((await settled(sim, call)).status).toBe('success')
     const grants = join(userData, 'local-filesystem-grants.json')
     expect(existsSync(grants)).toBe(true)
@@ -321,7 +347,7 @@ test.describe('background executor', () => {
             item.click()
           })
           const failure = await failedSignOut
-          await failure.getByRole('button', { name: 'OK', exact: true }).click()
+          await answerShellDialog(failure, 'OK')
           expect(existsSync(join(userData, 'account-data-teardown-required.json'))).toBe(true)
           await expect.poll(() => existsSync(grants)).toBe(false)
         }
@@ -419,7 +445,7 @@ test.describe('background executor', () => {
       folderId: 'folder-e2e',
     })
 
-    await (await importConsent).getByRole('button', { name: 'Allow folder', exact: true }).click()
+    await answerShellDialog(await importConsent, 'Allow folder')
 
     await check('D: the import completes with every entry it stored', async () => {
       const completion = await settled(sim, call, 60_000)

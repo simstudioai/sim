@@ -30,6 +30,7 @@ import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import type { UserFile } from '@/executor/types'
 import { resolveFileQueryOwner } from '@/hooks/queries/utils/file-owner-query-adapters'
 import { findWorkspaceFileBySrc } from '@/hooks/queries/utils/find-workspace-file-by-src'
+import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import {
   fetchWorkspaceFiles,
   getWorkspaceFilesQueryOptions,
@@ -769,6 +770,7 @@ export function useRestoreWorkspaceFile() {
       toast.error(toError(err).message)
     },
     onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() })
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
       })

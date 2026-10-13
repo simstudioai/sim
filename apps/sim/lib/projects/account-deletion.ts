@@ -153,7 +153,8 @@ export async function getProjectAccountDeletionBlockers(
 export async function prepareProjectsForAccountDeletion(
   tx: DbTransaction,
   userId: string,
-  doomedWorkspaceIds: string[]
+  doomedWorkspaceIds: string[],
+  additionalWorkspaceIds: string[] = []
 ): Promise<{ projectIdsToDelete: string[]; storageCleanupEventIds: string[] }> {
   const ownedEnvironments = await tx
     .select({ id: workspace.id })
@@ -177,6 +178,22 @@ export async function prepareProjectsForAccountDeletion(
     tx,
     records.map((record) => record.id)
   )
+  /** Acquire every workspace before successor grants; member removal uses the same order. */
+  const workspaceIds = [
+    ...new Set([
+      ...doomedWorkspaceIds,
+      ...additionalWorkspaceIds,
+      ...[...environments.values()].flatMap((rows) => rows.map((row) => row.id)),
+    ]),
+  ]
+  if (workspaceIds.length) {
+    await tx
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(inArray(workspace.id, workspaceIds))
+      .orderBy(asc(workspace.id))
+      .for('update')
+  }
   const doomed = new Set(doomedWorkspaceIds)
   const projectsToDelete: string[] = []
   const now = new Date()

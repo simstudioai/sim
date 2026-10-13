@@ -33,8 +33,8 @@ interface ChatConfigSource {
   customizations: unknown
   authType: string | null
   outputConfigs: unknown
-  includeThinking?: boolean | null
-  includeToolCalls?: boolean | null
+  includeThinking: boolean
+  includeToolCalls: boolean
 }
 
 function toChatConfigResponse(deployment: ChatConfigSource) {
@@ -45,8 +45,8 @@ function toChatConfigResponse(deployment: ChatConfigSource) {
     customizations: deployment.customizations,
     authType: deployment.authType,
     outputConfigs: deployment.outputConfigs,
-    includeThinking: deployment.includeThinking ?? false,
-    includeToolCalls: deployment.includeToolCalls ?? false,
+    includeThinking: deployment.includeThinking,
+    includeToolCalls: deployment.includeToolCalls,
   }
 }
 
@@ -332,8 +332,7 @@ export const POST = withRouteHandler(
           variables: (workflowRecord?.variables as Record<string, unknown>) ?? undefined,
         }
 
-        const includeThinking = deployment.includeThinking ?? false
-        const includeToolCalls = deployment.includeToolCalls ?? false
+        const { includeThinking, includeToolCalls } = deployment
         const agentEvents = shouldEmitAgentStreamEvents({
           includeThinking,
           includeToolCalls,

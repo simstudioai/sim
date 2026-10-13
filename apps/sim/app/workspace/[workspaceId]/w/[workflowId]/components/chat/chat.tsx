@@ -150,7 +150,7 @@ function ChatFilePreview({ file, onRemove }: ChatFilePreviewProps) {
           event.stopPropagation()
           onRemove(file.id)
         }}
-        className='pointer-coarse:static absolute top-0.5 right-0.5 pointer-coarse:size-11 pointer-coarse:shrink-0 @min-[960px]/workflow:pointer-fine:opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100'
+        className='pointer-coarse:static absolute top-0.5 right-0.5 pointer-coarse:size-11 pointer-coarse:shrink-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 md:pointer-fine:opacity-0'
       >
         <span
           className={cn(
@@ -904,7 +904,7 @@ export function Chat() {
       ref={preventZoomRef}
       role='dialog'
       aria-label='Chat'
-      className='fixed @max-[960px]/workflow:absolute @max-[960px]/workflow:inset-0! z-30 flex @max-[960px]/workflow:size-auto! @max-[960px]/workflow:cursor-default! flex-col overflow-hidden @max-[960px]/workflow:rounded-none rounded-lg border @max-[960px]/workflow:border-0 border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 @max-[960px]/workflow:pb-[max(8px,env(safe-area-inset-bottom))] pb-2 motion-reduce:transition-none'
+      className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2 motion-reduce:transition-none max-md:absolute max-md:inset-0! max-md:size-auto! max-md:cursor-default! max-md:rounded-none max-md:border-0 max-md:pb-[max(8px,env(safe-area-inset-bottom))]'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -923,7 +923,7 @@ export function Chat() {
       {/* Header with drag handle */}
       <div
         role='presentation'
-        className='flex @max-[960px]/workflow:h-auto h-[32px] @max-[960px]/workflow:min-h-11 shrink-0 @max-[960px]/workflow:cursor-default cursor-grab @max-[960px]/workflow:flex-wrap items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
+        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing max-md:h-auto max-md:min-h-11 max-md:cursor-default max-md:flex-wrap'
         onMouseDown={(event) => {
           if (isFloatingLayout()) handleMouseDown(event)
         }}
@@ -932,13 +932,13 @@ export function Chat() {
 
         {/* Start inputs button and output selector - with max-width to prevent overflow */}
         <div
-          className='@max-[960px]/workflow:order-3 ml-auto flex @max-[960px]/workflow:w-full min-w-0 shrink items-center @max-[960px]/workflow:justify-end gap-1.5 @max-[960px]/workflow:pb-2'
+          className='ml-auto flex min-w-0 shrink items-center gap-1.5 max-md:order-3 max-md:w-full max-md:justify-end max-md:pb-2'
           onMouseDown={(e) => e.stopPropagation()}
         >
           {shouldShowConfigureStartInputsButton && (
             <button
               type='button'
-              className='flex @max-[960px]/workflow:pointer-coarse:min-h-11 flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)]'
+              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)] max-md:pointer-coarse:min-h-11'
               title='Add chat inputs to Start block'
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
@@ -958,7 +958,7 @@ export function Chat() {
             placeholder='Outputs'
             align='end'
             maxHeight={180}
-            className='@max-[960px]/workflow:pointer-coarse:min-h-11'
+            className='max-md:pointer-coarse:min-h-11'
           />
         </div>
 
@@ -970,7 +970,7 @@ export function Chat() {
                 aria-label='Chat actions'
                 variant='ghost'
                 iconPadding='md'
-                className='-m-1.5 @max-[960px]/workflow:m-0 @max-[960px]/workflow:size-11'
+                className='-m-1.5 max-md:m-0 max-md:size-11'
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical className='size-[14px]' />
@@ -1013,7 +1013,7 @@ export function Chat() {
             aria-label='Close chat'
             variant='ghost'
             iconPadding='md'
-            className='-m-1.5 @max-[960px]/workflow:m-0 @max-[960px]/workflow:size-11'
+            className='-m-1.5 max-md:m-0 max-md:size-11'
             onClick={handleClose}
           >
             <X className='size-[16px]' />
@@ -1096,7 +1096,7 @@ export function Chat() {
             )}
 
             {/* Input field with inline buttons */}
-            <div className='relative @max-[960px]/workflow:flex @max-[960px]/workflow:items-center'>
+            <div className='relative max-md:flex max-md:items-center'>
               <Input
                 ref={inputRef}
                 value={chatMessage}
@@ -1106,12 +1106,12 @@ export function Chat() {
                 }}
                 onKeyDown={handleKeyPress}
                 placeholder={isDragOver ? 'Drop files here...' : 'Type a message...'}
-                className='w-full @max-[960px]/workflow:min-w-0 @max-[960px]/workflow:flex-1 border-0 bg-transparent @max-[960px]/workflow:pr-1 pr-[56px] pl-1 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                className='w-full border-0 bg-transparent pr-[56px] pl-1 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 max-md:min-w-0 max-md:flex-1 max-md:pr-1'
                 disabled={!activeWorkflowId}
               />
 
               {/* Buttons positioned absolutely on the right */}
-              <div className='-translate-y-1/2 @max-[960px]/workflow:static absolute top-1/2 right-[2px] flex @max-[960px]/workflow:translate-y-0 items-center @max-[960px]/workflow:gap-1 gap-2.5'>
+              <div className='-translate-y-1/2 absolute top-1/2 right-[2px] flex items-center gap-2.5 max-md:static max-md:translate-y-0 max-md:gap-1'>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
@@ -1123,7 +1123,7 @@ export function Chat() {
                       }
                       onClick={() => document.getElementById('floating-chat-file-input')?.click()}
                       className={cn(
-                        '@max-[960px]/workflow:size-11 size-[14px] cursor-pointer rounded-md border-0! bg-transparent! p-0',
+                        'size-[14px] cursor-pointer rounded-md border-0! bg-transparent! p-0 max-md:size-11',
                         (!activeWorkflowId || isExecuting || chatFiles.length >= MAX_CHAT_FILES) &&
                           'cursor-not-allowed opacity-50'
                       )}
@@ -1139,7 +1139,7 @@ export function Chat() {
                     aria-label='Stop generation'
                     onClick={handleStopStreaming}
                     size='sm'
-                    className='@max-[960px]/workflow:size-11'
+                    className='max-md:size-11'
                   >
                     <Square className='size-2.5 fill-white text-white dark:fill-black dark:text-black' />
                   </ComposerActionButton>
@@ -1148,7 +1148,7 @@ export function Chat() {
                     aria-label='Send message'
                     onClick={handleSendMessage}
                     size='sm'
-                    className='@max-[960px]/workflow:size-11'
+                    className='max-md:size-11'
                     disabled={
                       (!chatMessage.trim() && chatFiles.length === 0) ||
                       !activeWorkflowId ||

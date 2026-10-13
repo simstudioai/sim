@@ -13,6 +13,8 @@ import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
 import { getKnowledgeBaseContract } from '@/lib/api/contracts/knowledge'
 import { getTableContract } from '@/lib/api/contracts/tables'
+import { getAccountDeletionPlanContract } from '@/lib/api/contracts/user'
+import { v2ListFileVersionsContract } from '@/lib/api/contracts/v2/file-versions'
 import { readWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
 
 /** Real HTTP lifecycle exercise; SQL seeds identities, access fixtures, and a provider-independent document. */
@@ -40,6 +42,7 @@ const checks: { name: string; status: string; durationMs: number; error?: string
 const requests: { method: string; path: string; status: number }[] = []
 const startedAt = new Date().toISOString()
 let fileId = ''
+let implicitFileId = ''
 let folderId = ''
 let tableId = ''
 let kbId = ''
@@ -66,6 +69,7 @@ async function request(
       Cookie: `better-auth.session_token=${cookies.get(userId) ?? ''}`,
       Origin: baseUrl.origin,
       'Content-Type': 'application/json',
+      ...(path.startsWith('/api/v2/') ? { 'X-API-Key': ownerKey } : {}),
       ...(path.startsWith('/api/v1/admin/') ? { 'x-admin-key': adminKey } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -81,8 +85,8 @@ async function request(
   )
   return text ? record(JSON.parse(text)) : {}
 }
-async function readVersionBytes(version: number, expected: string) {
-  const path = `/api/v2/files/${fileId}/versions/${version}/content?workspaceId=${workspaceId}`
+async function readVersionBytes(version: number, expected: string, targetFileId = fileId) {
+  const path = `/api/v2/files/${targetFileId}/versions/${version}/content?workspaceId=${workspaceId}`
   const response = await fetch(new URL(path, baseUrl), {
     headers: { 'X-API-Key': ownerKey },
     signal: AbortSignal.timeout(120_000),
@@ -186,6 +190,29 @@ try {
       content: 'version two',
     })
   })
+  implicitFileId = id(
+    record(
+      (
+        await request(
+          departingId,
+          `/api/workspaces/${workspaceId}/files`,
+          'POST',
+          {
+            name: 'implicit-upload.txt',
+            folderId,
+            content: 'original upload',
+          },
+          201
+        )
+      ).file
+    ).id
+  )
+  const [implicitBefore] =
+    await sql`SELECT key, size_bytes, content_updated_at, uploaded_at, secret_provenance_version FROM workspace_files WHERE id = ${implicitFileId}`
+  assert.equal(
+    (await sql`SELECT id FROM workspace_file_version WHERE file_id = ${implicitFileId}`).length,
+    0
+  )
   const beforeStorage =
     await sql`SELECT billed_account_user_id, storage_used_bytes FROM workspace WHERE id = ${workspaceId}`
   const versionsBefore =
@@ -308,6 +335,114 @@ try {
       403
     )
   })
+  await check(
+    'Membership removal preserves implicit upload authorship before and after a survivor write',
+    async () => {
+      const path = `/api/v2/files/${implicitFileId}/versions?workspaceId=${workspaceId}&sortOrder=asc`
+      const history = v2ListFileVersionsContract.response.schema.parse(await request(ownerId, path))
+      assert.deepEqual(
+        history.data.map((version) => [
+          version.version,
+          version.source,
+          version.authors.map((author) => author.id),
+        ]),
+        [[1, 'upload', [departingId]]]
+      )
+      const [implicitAfter] =
+        await sql`SELECT key, size_bytes, content_updated_at, uploaded_at, secret_provenance_version FROM workspace_files WHERE id = ${implicitFileId}`
+      assert.deepEqual(implicitAfter, implicitBefore)
+      assert.equal(
+        (await sql`SELECT user_id FROM workspace_files WHERE id = ${implicitFileId}`)[0].user_id,
+        ownerId
+      )
+      assert.deepEqual(
+        await sql`SELECT billed_account_user_id, storage_used_bytes FROM workspace WHERE id = ${workspaceId}`,
+        beforeStorage
+      )
+      await readVersionBytes(1, 'original upload', implicitFileId)
+      await request(
+        ownerId,
+        `/api/workspaces/${workspaceId}/files/${implicitFileId}/content`,
+        'PUT',
+        { content: 'survivor writes' }
+      )
+      const afterWrite = v2ListFileVersionsContract.response.schema.parse(
+        await request(ownerId, path)
+      )
+      assert.deepEqual(
+        afterWrite.data.map((version) => [
+          version.version,
+          version.authors.map((author) => author.id),
+        ]),
+        [
+          [1, [departingId]],
+          [2, [ownerId]],
+        ]
+      )
+      await readVersionBytes(1, 'original upload', implicitFileId)
+      await readVersionBytes(2, 'survivor writes', implicitFileId)
+    }
+  )
+  await check(
+    'Deletion preview reports stranded shared resources and clears after access is restored',
+    async () => {
+      await sql`UPDATE knowledge_base SET user_id = ${departingId} WHERE id = ${kbId}`
+      const [grant] =
+        await sql`DELETE FROM permissions WHERE entity_id = ${workspaceId} AND user_id = ${ownerId} RETURNING id`
+      try {
+        const preview = getAccountDeletionPlanContract.response.schema.parse(
+          await request(departingId, '/api/users/me/deletion')
+        )
+        assert(
+          preview.plan.blockers.some((blocker) =>
+            blocker.message.includes('active billing account')
+          )
+        )
+        await request(
+          departingId,
+          '/api/users/me/deletion',
+          'POST',
+          { confirmEmail: `${departingId}@example.test` },
+          409
+        )
+        assert.equal(
+          (await sql`SELECT user_id FROM knowledge_base WHERE id = ${kbId}`)[0].user_id,
+          departingId
+        )
+        assert.equal((await sql`SELECT id FROM "user" WHERE id = ${departingId}`).length, 1)
+      } finally {
+        await sql`INSERT INTO permissions (id, user_id, entity_type, entity_id, permission_type) VALUES (${grant.id}, ${ownerId}, 'workspace', ${workspaceId}, 'admin')`
+      }
+      const restored = getAccountDeletionPlanContract.response.schema.parse(
+        await request(departingId, '/api/users/me/deletion')
+      )
+      assert.deepEqual(restored.plan.blockers, [])
+    }
+  )
+  await check(
+    'An in-flight account reference refuses erasure atomically with HTTP 409',
+    async () => {
+      await sql.begin(async (tx) => {
+        await tx`SELECT id FROM "user" WHERE id = ${departingId} FOR KEY SHARE`
+        const response = await request(
+          departingId,
+          '/api/users/me/deletion',
+          'POST',
+          {
+            confirmEmail: `${departingId}@example.test`,
+          },
+          409
+        )
+        assert.match(String(response.error), /in use/)
+        assert.equal((await tx`SELECT id FROM "user" WHERE id = ${departingId}`).length, 1)
+        assert.equal((await tx`SELECT id FROM workspace WHERE id = ${workspaceId}`).length, 1)
+        assert.deepEqual(
+          await tx`SELECT id, author_user_ids FROM workspace_file_version WHERE file_id = ${fileId} ORDER BY version`,
+          versionsBefore
+        )
+      })
+    }
+  )
   await check('Delete departed account through authenticated HTTP', async () => {
     await request(departingId, '/api/users/me/deletion', 'POST', {
       confirmEmail: `${departingId}@example.test`,
@@ -362,11 +497,11 @@ try {
   process.exitCode = 1
 } finally {
   try {
-    if (fileId) {
+    for (const cleanupFileId of [fileId, implicitFileId].filter(Boolean)) {
       const versions =
-        await sql`SELECT version FROM workspace_file_version WHERE file_id = ${fileId} ORDER BY version`
+        await sql`SELECT version FROM workspace_file_version WHERE file_id = ${cleanupFileId} ORDER BY version`
       for (const version of versions.slice(0, -1)) {
-        const path = `/api/v2/files/${fileId}/versions/${version.version}?workspaceId=${workspaceId}`
+        const path = `/api/v2/files/${cleanupFileId}/versions/${version.version}?workspaceId=${workspaceId}`
         const response = await fetch(new URL(path, baseUrl), {
           method: 'DELETE',
           headers: { 'X-API-Key': ownerKey },
@@ -374,7 +509,7 @@ try {
         })
         assert.equal(response.status, 200, await response.text())
       }
-      const [file] = await sql`SELECT key FROM workspace_files WHERE id = ${fileId}`
+      const [file] = await sql`SELECT key FROM workspace_files WHERE id = ${cleanupFileId}`
       if (file)
         await request(ownerId, '/api/files/delete', 'POST', {
           filePath: `/api/files/serve/${file.key}`,
@@ -414,7 +549,9 @@ try {
             startedAt,
             finishedAt: new Date().toISOString(),
             sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
-            trackedDiffSha256: sha256Hex(execFileSync('git', ['diff', 'HEAD'])),
+            trackedDiffSha256: sha256Hex(
+              execFileSync('git', ['diff', 'HEAD'], { maxBuffer: 64 * 1024 * 1024 })
+            ),
             untrackedHashes,
             checks,
             requests,

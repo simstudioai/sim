@@ -1,3 +1,4 @@
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
@@ -17,6 +18,7 @@ import {
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
 import { env } from '@/lib/core/config/env'
+import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ResourceOwner,
@@ -25,6 +27,7 @@ import {
 } from '@/lib/core/resource-scope'
 import { createPinnedConnectionPool } from '@/lib/core/security/input-validation.server'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
@@ -33,6 +36,7 @@ import { measureSearchStage } from '@/lib/knowledge/search/diagnostics'
 import { RRF_K } from '@/lib/knowledge/search/recency'
 import { matchPassage } from '@/lib/knowledge/search/snippet'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
+import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import {
   type LiveAccountSession,
   openLiveAccountSession,
@@ -51,10 +55,12 @@ import {
   withImpliedListingBound,
 } from '@/lib/sim-search/live/dates'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
+import { isManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
 import { joinMessages } from '@/lib/sim-search/live/pages'
 import { loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog'
 import { liveSearchGuidance } from '@/lib/sim-search/live/providers'
+import { LiveReadError } from '@/lib/sim-search/live/read-error'
 import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -746,6 +752,58 @@ export type LiveReadInput = ResourceOwner & {
   signal?: AbortSignal
 }
 
+/** Milliseconds one document read may spend on provider calls, after account resolution. */
+const READ_DEADLINE_MS = 15_000
+
+function liveProviderName(provider: string): string {
+  return isManagedSearchMcpProvider(provider)
+    ? MANAGED_MCP_CONNECTORS[provider].name
+    : connectorDisplayName(provider)
+}
+
+/**
+ * Classifies a provider failure during a read so the caller can act on it: a missing or
+ * non-readable document, a grant to reconnect, or a transient failure worth retrying.
+ * Classified and unrecognized errors pass through unchanged.
+ */
+function liveReadFailure(error: unknown, provider: string, deadline?: AbortSignal): unknown {
+  if (error instanceof OrchestrationError) return error
+  const name = liveProviderName(provider)
+  if (error instanceof NativeSearchError) {
+    if (error.status === 'reconnect')
+      return new OrchestrationError(
+        'unauthorized',
+        `Reconnect ${name} to read this document. ${error.message}`
+      )
+    if (error.status === 'rate_limited')
+      return new LiveReadError(error.message, true, error.retryAfterSeconds)
+    if (error.status === 'timeout' || error.httpStatus === 408)
+      return new LiveReadError(`${name} timed out reading this document. Try again.`, true)
+    if (error.httpStatus === 404 || error.httpStatus === 410)
+      return new OrchestrationError(
+        'not_found',
+        `${name} could not find this document: it was deleted, moved, or is not a readable page. Search again or read a different result.`
+      )
+    if (error.httpStatus !== undefined && error.httpStatus >= 500)
+      return new LiveReadError(
+        `${name} is temporarily unavailable (${error.httpStatus}). Try again shortly.`,
+        true
+      )
+    return new LiveReadError(error.message, false)
+  }
+  if (deadline?.aborted || (error instanceof McpError && error.code === ErrorCode.RequestTimeout))
+    return new LiveReadError(
+      `${name} took too long to return this document. Try again, or read a different result.`,
+      true
+    )
+  if (isRetryableNetworkError(error))
+    return new LiveReadError(
+      `${name} did not respond while reading this document. Try again shortly.`,
+      true
+    )
+  return error
+}
+
 export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readDocument,
   resolveContext: ({ input }: { input: LiveReadInput }) => resolveKnowledgeOwnerContext(input),
@@ -765,15 +823,19 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
       (input.filters?.documentIds && !input.filters.documentIds.includes(input.documentId))
     )
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
+    /** Cancellation by the caller passes through unclassified. */
+    const readFailure = (error: unknown, deadline?: AbortSignal) =>
+      input.signal?.aborted ? error : liveReadFailure(error, reference.provider, deadline)
     const [resolved, policies] = await Promise.all([
       resolveLiveAccount(input, userId, reference.account),
       loadLiveSearchPolicies(input),
-    ])
+    ]).catch((error: unknown) => {
+      throw readFailure(error)
+    })
     if (resolved.account.provider !== reference.provider)
       throw new OrchestrationError('not_found', 'Document account changed')
-    const signal = input.signal
-      ? AbortSignal.any([input.signal, AbortSignal.timeout(15_000)])
-      : AbortSignal.timeout(15_000)
+    const deadline = AbortSignal.timeout(READ_DEADLINE_MS)
+    const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline
     const pool = createPinnedConnectionPool()
     let document: NativeDocument
     let session: LiveAccountSession | undefined
@@ -805,6 +867,8 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
           'not_found',
           'Document is outside your organization’s search scope'
         )
+    } catch (error) {
+      throw readFailure(error, deadline)
     } finally {
       try {
         await session?.close()

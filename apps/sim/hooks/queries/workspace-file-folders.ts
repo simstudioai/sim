@@ -15,6 +15,7 @@ import {
   buildWorkspaceFileFolderDisplayPath,
   parseWorkspaceFileFolderDisplayPath,
 } from '@/lib/workspace-files/folder-display-path'
+import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-query'
 
 type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
@@ -229,6 +230,7 @@ export function useRestoreWorkspaceFileFolder() {
       toast.error(toError(err).message)
     },
     onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() })
       invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
     },
   })

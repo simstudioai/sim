@@ -14,7 +14,7 @@
 import { db } from '@sim/db'
 import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import type { Column, SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, inArray, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { CsvSkippedRecord } from '@/lib/table/import'
 import { pendingDeleteMask } from '@/lib/table/rows/pending-delete-mask'
 import type {
@@ -360,27 +360,36 @@ export async function selectExportRowPage(
   limit: number
 ): Promise<Array<{ id: string; data: RowData; orderKey: string | null }>> {
   const deleteMask = await pendingDeleteMask(table)
-  const rows = await db
-    .select({ id: userTableRows.id, data: userTableRows.data, orderKey: userTableRows.orderKey })
-    .from(userTableRows)
-    .where(
-      and(
-        eq(userTableRows.tableId, table.id),
-        eq(userTableRows.workspaceId, table.workspaceId),
-        deleteMask,
-        // `order_key` is nullable and sorts LAST, so the page order is "keyed rows by
-        // key, then the unkeyed tail by id". A bare row-constructor comparison is NULL
-        // for unkeyed rows (dropping them) and NULL for an unkeyed anchor (dropping
-        // everything), which silently truncates exports. Seek per anchor kind instead.
-        after
-          ? after.orderKey === null
-            ? sql`${userTableRows.orderKey} IS NULL AND ${userTableRows.id} > ${after.id}`
-            : sql`(${userTableRows.orderKey} IS NULL OR (${userTableRows.orderKey}, ${userTableRows.id}) > (${after.orderKey}, ${after.id}))`
-          : undefined
-      )
-    )
-    .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
-    .limit(limit)
+  const tableRows = and(
+    eq(userTableRows.tableId, table.id),
+    eq(userTableRows.workspaceId, table.workspaceId),
+    deleteMask
+  )
+  const selectPage = (seek: SQL | undefined) =>
+    db
+      .select({ id: userTableRows.id, data: userTableRows.data, orderKey: userTableRows.orderKey })
+      .from(userTableRows)
+      .where(and(tableRows, seek))
+      .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
+      .limit(limit)
+  // `order_key` is nullable and sorts LAST, so the page order is "keyed rows by key, then the
+  // unkeyed tail by id". A bare row-constructor comparison is NULL for unkeyed rows (dropping
+  // them) and NULL for an unkeyed anchor (dropping everything), which silently truncates exports.
+  // Past a keyed anchor the next page is the keyed rows after it followed by the unkeyed tail;
+  // each half is its own `(table_id, order_key, id)` range, merged in order. One WHERE with
+  // `order_key IS NULL OR (...)` returns the same rows but scans from the table's first key.
+  const rows = !after
+    ? await selectPage(undefined)
+    : after.orderKey === null
+      ? await selectPage(
+          sql`${userTableRows.orderKey} IS NULL AND ${userTableRows.id} > ${after.id}`
+        )
+      : await selectPage(
+          sql`(${userTableRows.orderKey}, ${userTableRows.id}) > (${after.orderKey}, ${after.id})`
+        )
+          .unionAll(selectPage(isNull(userTableRows.orderKey)))
+          .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
+          .limit(limit)
   // drizzle types a jsonb column as `unknown`; every writer goes through the
   // row-data validators, so narrowing here is a projection, not an assumption.
   return rows.map((r) => ({ ...r, data: r.data as RowData }))

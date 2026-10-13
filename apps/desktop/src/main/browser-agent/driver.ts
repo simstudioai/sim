@@ -1802,6 +1802,34 @@ function navigationRescue(
   }
 }
 
+/**
+ * The tab closed while the click's final release was in flight (cdp.clickAt raises
+ * TabClosedOnReleaseError only then). Whether the release reached the page cannot be confirmed,
+ * so the result reports the tab change but not the click's effect, and forbids a repeat. Any other
+ * dispatch failure keeps its own error.
+ */
+function closedTabRescue(
+  error: unknown,
+  base: { trusted: boolean; activation: string }
+): Record<string, unknown> | null {
+  if (!(error instanceof cdp.TabClosedOnReleaseError)) return null
+  const activeTab = session.automationTab()
+  return {
+    dispatched: true,
+    trusted: base.trusted,
+    activation: base.activation,
+    possibleEffectObserved: true,
+    closedDuringDispatch: true,
+    doNotRetry: true,
+    effect: { tabChanged: true },
+    dialogs: [],
+    ...(activeTab
+      ? { activeTab: { tabId: activeTab.id, url: activeTab.view.webContents.getURL() } }
+      : {}),
+    note: "The tab closed while the click's release was in flight, so the click's outcome could not be confirmed. Do not repeat the click; verify the outcome with browser_snapshot before relying on it.",
+  }
+}
+
 function assertActiveContents(contents: WebContents, expectedNavigationEpoch?: number): void {
   const active = session.automationTab()
   if (
@@ -3296,10 +3324,10 @@ async function executeToolInner(
           trusted = true
           activation = 'native-pointer'
         } catch (error) {
-          const rescued = navigationRescue(contents, epochAtDispatch, urlAtDispatch, {
-            trusted: true,
-            activation: 'native-pointer',
-          })
+          const nativePointer = { trusted: true, activation: 'native-pointer' }
+          const rescued =
+            navigationRescue(contents, epochAtDispatch, urlAtDispatch, nativePointer) ??
+            closedTabRescue(error, nativePointer)
           if (rescued) return rescued
           throw new ToolError(
             `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
@@ -3338,10 +3366,10 @@ async function executeToolInner(
             activation = 'native-pointer'
             prepared = finalSurface
           } catch (error) {
-            const rescued = navigationRescue(contents, epochAtDispatch, urlAtDispatch, {
-              trusted: true,
-              activation: 'native-pointer',
-            })
+            const nativePointer = { trusted: true, activation: 'native-pointer' }
+            const rescued =
+              navigationRescue(contents, epochAtDispatch, urlAtDispatch, nativePointer) ??
+              closedTabRescue(error, nativePointer)
             if (rescued) return rescued
             throw new ToolError(
               `Native framed click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
@@ -4763,10 +4791,10 @@ async function executeToolInner(
       try {
         await cdp.clickAt(contents, x, y, true, click, signal)
       } catch (error) {
-        const rescued = navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, {
-          trusted: true,
-          activation: 'native-pointer',
-        })
+        const nativePointer = { trusted: true, activation: 'native-pointer' }
+        const rescued =
+          navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, nativePointer) ??
+          closedTabRescue(error, nativePointer)
         if (rescued) return rescued
         throw new ToolError(
           `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`

@@ -426,7 +426,8 @@ export const exportProjectFileSnapshot = defineAuthorizedProjectFileUseCase<
       ),
     }
   },
-  afterSuccess: ({ result }) => reportWorkspaceFileDelivery(result.secretProvenance),
+  afterSuccess: ({ result }) =>
+    reportWorkspaceFileDelivery(result.secretProvenance, result.file.id),
   projectAudit: ({ context, result }) => ({
     action: AuditAction.FILE_DOWNLOADED,
     resourceType: AuditResourceType.FILE,
