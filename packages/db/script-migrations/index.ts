@@ -10,6 +10,7 @@ import { knowledgeProjectionAsyncMigration } from '@sim/db/script-migrations/002
 import { userTableSchemaForWriteMigration } from '@sim/db/script-migrations/0026_user_table_schema_for_write'
 import { retireKeywordWritersMigration } from '@sim/db/script-migrations/0030_retire_keyword_writers'
 import { dropKeywordTinMigration } from '@sim/db/script-migrations/0031_drop_keyword_tin'
+import { projectMembershipMigration } from '@sim/db/script-migrations/0032_project_membership'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -57,6 +58,7 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   userTableSchemaForWriteMigration,
   retireKeywordWritersMigration,
   dropKeywordTinMigration,
+  projectMembershipMigration,
   /**
    * Search data retirement is an operator-run maintenance command, not a deploy step:
    * run `packages/db/scripts/retire-indexed-search.ts --help` for usage.

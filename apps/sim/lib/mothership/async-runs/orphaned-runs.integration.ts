@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * Settlement of Chat runs that no controller owns, against real PostgreSQL and Redis:
  * the chat stream lock, the replay buffer keys, the run and chat rows, and the Stop
@@ -111,7 +112,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Orphaned run fixture',
       ownerId: userId,
@@ -129,7 +130,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
   afterAll(async () => {
     if (chatIds.length) await db.delete(copilotChats).where(inArray(copilotChats.id, chatIds))
     await db.delete(permissions).where(eq(permissions.userId, userId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 

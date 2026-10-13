@@ -2871,6 +2871,13 @@
       "when": 1791839835067,
       "tag": "0410_gin_fastupdate_fk_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 411,
+      "version": "7",
+      "when": 1791839835068,
+      "tag": "0411_project_membership_enforcement",
+      "breakpoints": true
     }
   ]
 }

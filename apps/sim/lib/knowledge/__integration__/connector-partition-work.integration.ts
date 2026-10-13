@@ -7,6 +7,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -66,7 +67,7 @@ describe('Connector partition checkpoint storage', () => {
   })
   afterEach(async () => {
     vi.unstubAllEnvs()
-    await db.delete(workspace).where(eq(workspace.id, owner.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, owner.workspaceId))
     await db.delete(organization).where(eq(organization.id, owner.organizationId))
     await db.delete(user).where(inArray(user.id, [owner.aliceId, owner.bobId]))
   })

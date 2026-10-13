@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * The leased Chat stream writer and its replay-budget failure path against real
  * Redis and PostgreSQL. A local HTTP server stands in for the worker's abort
@@ -479,7 +480,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Replay budget fixture',
       ownerId: userId,
@@ -502,7 +503,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
   afterAll(async () => {
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
     await db.delete(permissions).where(eq(permissions.userId, userId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 

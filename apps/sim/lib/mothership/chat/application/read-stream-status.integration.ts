@@ -1,6 +1,7 @@
 /** Exercises the transcript-free stream status read against real PostgreSQL rows. */
 import { db } from '@sim/db'
 import { copilotChats, permissions, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
@@ -33,7 +34,7 @@ beforeAll(async () => {
       updatedAt: now,
     }))
   )
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: workspaceId,
     name: 'Chat stream status fixture',
     ownerId,
@@ -52,7 +53,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.delete(copilotChats).where(eq(copilotChats.workspaceId, workspaceId))
-  await db.delete(workspace).where(eq(workspace.id, workspaceId))
+  await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(user).where(inArray(user.id, [ownerId, memberId]))
   await db.$client.end()
 })

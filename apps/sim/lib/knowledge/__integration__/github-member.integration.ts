@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * Fixture-backed GitHub API with real PostgreSQL, credential policy/token resolution,
  * connector registry, member sync, storage, chunking, and application authorization.
@@ -549,7 +550,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
           )
         )
       )
-      await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
       await db.delete(organization).where(eq(organization.id, ids.organizationId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
       vi.restoreAllMocks()
