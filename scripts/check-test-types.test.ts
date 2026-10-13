@@ -225,9 +225,19 @@ describe('check-test-types command', () => {
     return path.join(fixture, 'scripts/check-test-types.baseline.json')
   }
 
+  /** Runs on `lines` with the status a finished compile of them would have recorded. */
   function run(lines: string[], ...args: string[]) {
+    const errorCount = lines.filter((line) => line.includes(': error TS')).length
+    return runWithStatus(lines, { exitCode: errorCount ? 2 : 0, errorCount }, ...args)
+  }
+
+  /** `status: null` leaves `status.json` out, as a compile that never finished would. */
+  function runWithStatus(lines: string[], status: unknown, ...args: string[]) {
     const diagnostics = path.join(fixture, 'diagnostics.txt')
-    writeFileSync(diagnostics, `${lines.join('\n')}\n`)
+    writeFileSync(diagnostics, lines.length ? `${lines.join('\n')}\n` : '')
+    if (status !== null) {
+      writeFileSync(path.join(fixture, 'status.json'), JSON.stringify(status))
+    }
     return spawnSync(
       'bun',
       [path.join(fixture, 'scripts/check-test-types.ts'), '--diagnostics', diagnostics, ...args],
@@ -312,6 +322,51 @@ describe('check-test-types command', () => {
     expect(result.stderr).toContain('not a located error')
     expect(result.stderr).toContain(line)
     expect(existsSync(path.join(fixture, 'report/counts.json'))).toBe(false)
+    expect(readFileSync(baselineFile(), 'utf8')).toBe(before)
+  })
+
+  it.each([
+    {
+      name: 'empty diagnostics with no recorded status',
+      lines: [],
+      status: null,
+      message: 'status.json is missing',
+    },
+    {
+      name: 'empty diagnostics from a compile that exited with errors',
+      lines: [],
+      status: { exitCode: 2, errorCount: 3 },
+      message: 'tsc exited with 2 but 0 errors were parsed',
+    },
+    {
+      name: 'errors from a compile that exited clean',
+      lines: UNCHANGED,
+      status: { exitCode: 0, errorCount: 3 },
+      message: 'tsc exited with 0 but 3 errors were parsed',
+    },
+    {
+      name: 'truncated diagnostics',
+      lines: UNCHANGED.slice(1),
+      status: { exitCode: 2, errorCount: 3 },
+      message: 'holds 2 errors but its compile printed 3',
+    },
+    {
+      name: 'a crashed compile’s exit code',
+      lines: UNCHANGED,
+      status: { exitCode: 134, errorCount: 3 },
+      message: 'is not { "exitCode"',
+    },
+    {
+      name: 'a status with no error count',
+      lines: UNCHANGED,
+      status: { exitCode: 2 },
+      message: 'is not { "exitCode"',
+    },
+  ])('fails on $name and never updates the baseline', ({ lines, status, message }) => {
+    const before = readFileSync(baselineFile(), 'utf8')
+    const result = runWithStatus(lines, status, '--update')
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain(message)
     expect(readFileSync(baselineFile(), 'utf8')).toBe(before)
   })
 

@@ -25,11 +25,13 @@
  * finding never needs a local run: the failing step prints each new error.
  *
  * Flags:
- * - `--report <dir>` writes `diagnostics.txt` (the compiler's output) and `counts.json` (the
+ * - `--report <dir>` writes `diagnostics.txt` (the compiler's output), `status.json` (its exit
+ *   code and how many errors it printed, written only once those agree), and `counts.json` (the
  *   counts, in the baseline's shape) to `<dir>`. CI uploads it as the `test-types` artifact when
  *   the job fails.
- * - `--diagnostics <file>` reads such a `diagnostics.txt` (output of `tsc --pretty false` run in
- *   apps/sim) instead of running the compiler, through the same parser and checks.
+ * - `--diagnostics <file>` reads such a `diagnostics.txt` instead of running the compiler, and
+ *   requires the `status.json` beside it: an empty or truncated file must never read as fewer
+ *   errors, so the parse has to match the recorded exit code and error count.
  * - `--update` rewrites the baseline, refusing to raise any count. A missing baseline is restored
  *   from git, never regenerated.
  *
@@ -238,6 +240,19 @@ function checkedCounts(parsed: ParsedOutput): Counts {
   return counts
 }
 
+/** What `--report` records about a compile, so a saved `diagnostics.txt` can be checked later. */
+interface CompileStatus {
+  exitCode: number
+  errorCount: number
+}
+
+/** Exit 0 means no errors and 1 or 2 means some; any other pairing is a failed or partial run. */
+function checkExitCode(exitCode: number, found: number): void {
+  if ((exitCode === 0) !== (found === 0)) {
+    fail([`✗ tsc exited with ${exitCode} but ${found} errors were parsed`])
+  }
+}
+
 /** Runs the compiler on the tests config and returns its parsed output. */
 function compile(reportDir: string | null): { counts: Counts; errors: ParsedOutput['errors'] } {
   const result = Bun.spawnSync([localBin('tsc'), '--noEmit', '--pretty', 'false', '-p', TSCONFIG], {
@@ -258,16 +273,51 @@ function compile(reportDir: string | null): { counts: Counts; errors: ParsedOutp
   }
   const parsed = parseCompilerOutput(stdout, APP_DIR, ROOT)
   const counts = checkedCounts(parsed)
-  if ((result.exitCode === 0) !== (total(counts) === 0)) {
-    fail([`✗ tsc exited with ${result.exitCode} but ${total(counts)} errors were parsed`])
+  checkExitCode(result.exitCode, total(counts))
+  if (reportDir) {
+    const status: CompileStatus = { exitCode: result.exitCode, errorCount: total(counts) }
+    writeFileSync(path.join(reportDir, 'status.json'), `${JSON.stringify(status, null, 2)}\n`)
   }
   return { counts, errors: parsed.errors }
 }
 
-/** Parses a saved compiler output (the CI artifact's `diagnostics.txt`) without compiling. */
+function readStatus(file: string): CompileStatus {
+  if (!existsSync(file)) {
+    fail([
+      `✗ ${file} is missing, so the compile that wrote these diagnostics cannot be verified.`,
+      '  Use the whole test-types artifact of a run whose compile finished.',
+    ])
+  }
+  const value: unknown = JSON.parse(readFileSync(file, 'utf8'))
+  const { exitCode, errorCount } = isRecordLike(value) ? value : {}
+  if (
+    typeof exitCode !== 'number' ||
+    ![0, 1, 2].includes(exitCode) ||
+    typeof errorCount !== 'number' ||
+    !Number.isInteger(errorCount) ||
+    errorCount < 0
+  ) {
+    fail([`✗ ${file} is not { "exitCode": 0 | 1 | 2, "errorCount": integer ≥ 0 }`])
+  }
+  return { exitCode, errorCount }
+}
+
+/**
+ * Parses a saved compiler output (the CI artifact's `diagnostics.txt`) without compiling, held
+ * to the same checks as a live compile plus the error count recorded beside it.
+ */
 function readDiagnostics(file: string): { counts: Counts; errors: ParsedOutput['errors'] } {
+  const status = readStatus(path.join(path.dirname(file), 'status.json'))
   const parsed = parseCompilerOutput(readFileSync(file, 'utf8'), APP_DIR, ROOT)
-  return { counts: checkedCounts(parsed), errors: parsed.errors }
+  const counts = checkedCounts(parsed)
+  checkExitCode(status.exitCode, total(counts))
+  if (status.errorCount !== total(counts)) {
+    fail([
+      `✗ ${file} holds ${total(counts)} errors but its compile printed ${status.errorCount}; ` +
+        'it is truncated or from another run.',
+    ])
+  }
+  return { counts, errors: parsed.errors }
 }
 
 function main(): void {
