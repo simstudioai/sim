@@ -194,7 +194,11 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
       ((children != null && children !== false) || props['aria-label'] || props['aria-labelledby'])
   )
   return (
-    <MobileTouchTarget enabled={compactOnMobile || Boolean(mobileCompact)} square={compactOnMobile}>
+    <MobileTouchTarget
+      enabled={compactOnMobile || Boolean(mobileCompact)}
+      square={compactOnMobile}
+      fullWidth={Boolean(fullWidth)}
+    >
       <button
         ref={ref}
         type={type ?? 'button'}
@@ -253,7 +257,11 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
       ((children != null && children !== false) || props['aria-label'] || props['aria-labelledby'])
   )
   return (
-    <MobileTouchTarget enabled={compactOnMobile || Boolean(mobileCompact)} square={compactOnMobile}>
+    <MobileTouchTarget
+      enabled={compactOnMobile || Boolean(mobileCompact)}
+      square={compactOnMobile}
+      fullWidth={Boolean(fullWidth)}
+    >
       <Link
         ref={ref}
         className={cn(
