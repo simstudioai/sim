@@ -62,8 +62,8 @@ export async function readLogStatsBounds(where: SQL | undefined): Promise<LogSta
  * Groups by the log's own `workflow_id`, then joins `workflow` once per group
  * for its name, in the same statement. A name is a function of the id, so this
  * yields the same groups as grouping by both without carrying name text through
- * the aggregate. The inner join to `workflow` serves only the filters that
- * reference it; Postgres removes it when nothing does.
+ * the aggregate. The subquery's LEFT join to `workflow` serves only the filters
+ * that reference it; Postgres removes it when nothing does.
  *
  * A run whose workflow has been deleted still counts — it collapses into a
  * single `'deleted'` series rather than disappearing, so the workspace totals

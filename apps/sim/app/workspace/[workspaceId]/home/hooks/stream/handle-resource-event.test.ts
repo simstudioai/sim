@@ -1,3 +1,4 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -324,6 +325,52 @@ describe('recovered resource events', () => {
         await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(2))
         expect(await settledResources(queryClient)).toEqual(tables)
         expect(reads).toHaveBeenCalledTimes(2)
+      } finally {
+        vi.useRealTimers()
+        unsubscribe()
+      }
+    }
+  )
+
+  it.each([
+    { name: 'a loaded transcript', cached: true },
+    { name: 'a transcript still on its first load', cached: false },
+  ])(
+    'cancels a stuck read of $name at most once, so a slow replacement finishes and is read again',
+    async ({ cached }) => {
+      const queryClient = new QueryClient()
+      const { server, reads, unsubscribe } = mountedChat(queryClient, {
+        cached,
+        hangFirstRead: true,
+      })
+      const slowReadReleased = createDeferred<void>()
+      reads.mockImplementationOnce(async () => {
+        const resources = [...server.stored]
+        await slowReadReleased.promise
+        return { id: 'chat-1', title: null, messages: [], activeStreamId: 'stream-1', resources }
+      })
+      const ctx = createStreamLoopContext(
+        makeStreamLoopDeps({ queryClient, chatIdRef: ref<string | undefined>('chat-1') })
+      )
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        handleResourceEvent(ctx, replayed(tables[0], 1))
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledOnce())
+
+        vi.setSystemTime(Date.now() + 30_000)
+        handleResourceEvent(ctx, replayed(tables[1], 2))
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(2))
+
+        server.stored = tables
+        vi.setSystemTime(Date.now() + 30_000)
+        handleResourceEvent(ctx, replayed(tables[2], 3))
+        await flushMacrotask()
+        expect(reads).toHaveBeenCalledTimes(2)
+
+        slowReadReleased.resolve()
+        await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(3))
+        expect(await settledResources(queryClient)).toEqual(tables)
+        expect(reads).toHaveBeenCalledTimes(3)
       } finally {
         vi.useRealTimers()
         unsubscribe()

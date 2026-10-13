@@ -118,6 +118,8 @@ const CHAT_DETAIL_REFRESH_HOLD_MS = 30 * 1000
 interface ChatDetailRefresh {
   startedAt: number
   requestedAgain: boolean
+  /** Whether this reload replaced one past the hold; a chain cancels a slow load at most once. */
+  replaced: boolean
 }
 
 /** Per client, the chats with a reload in flight. */
@@ -139,16 +141,23 @@ export function refreshMothershipChatDetail(queryClient: QueryClient, chatId: st
     inFlight.requestedAgain = true
     return
   }
-  const refresh: ChatDetailRefresh = { startedAt: Date.now(), requestedAgain: false }
+  // A query with no data yet joins its fetch in flight instead of replacing it, so a stuck
+  // one is cancelled first, but only once per chain: a load that is slow rather than hung
+  // would otherwise restart every hold and never finish. Later reloads in the chain join the
+  // read in flight, cached or not, and since it may predate this request, read again after.
+  const refresh: ChatDetailRefresh = {
+    startedAt: Date.now(),
+    requestedAgain: inFlight?.replaced === true,
+    replaced: inFlight !== undefined,
+  }
   refreshes.set(chatId, refresh)
   const queryKey = mothershipChatKeys.detail(chatId)
-  // A query with no data yet joins its fetch in flight instead of replacing it, so a stuck
-  // one is cancelled first.
-  const reload = inFlight
-    ? queryClient
-        .cancelQueries({ queryKey, exact: true })
-        .then(() => queryClient.invalidateQueries({ queryKey }))
-    : queryClient.invalidateQueries({ queryKey })
+  const reload =
+    inFlight && !inFlight.replaced
+      ? queryClient
+          .cancelQueries({ queryKey, exact: true })
+          .then(() => queryClient.invalidateQueries({ queryKey }))
+      : queryClient.invalidateQueries({ queryKey }, { cancelRefetch: !inFlight })
   void reload.finally(() => {
     if (refreshes.get(chatId) !== refresh) return
     refreshes.delete(chatId)

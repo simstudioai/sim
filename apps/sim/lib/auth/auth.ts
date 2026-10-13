@@ -86,6 +86,7 @@ import {
   releaseCheckoutAdmission,
   resolveCheckoutReferenceId,
 } from '@/lib/billing/checkout-admission'
+import { invalidateReportingUsagePrefixes } from '@/lib/billing/core/reporting-usage-epoch'
 import {
   getOrganizationIdForSubscriptionReference,
   syncSubscriptionPlan,
@@ -440,6 +441,16 @@ export const auth = betterAuth({
           if (user.banned) {
             await disableUserResources(user.id)
           }
+        },
+      },
+      /**
+       * The admin plugin's `/admin/remove-user` deletes the user row through Better Auth, so its
+       * usage rows cascade away without `deleteUserAccount`. Better Auth runs this once the delete
+       * commits, which is when the stored reporting prefixes that counted them must be discarded.
+       */
+      delete: {
+        after: async () => {
+          await invalidateReportingUsagePrefixes()
         },
       },
     },
