@@ -215,41 +215,73 @@ describe('Confluence attachment listing', () => {
     expect(last.hasMore).toBe(false)
   })
 
-  it.each([403, 401])(
-    'preserves parent pages and cumulative partial progress for attachment access failure %s',
+  it('preserves parent pages and cumulative partial progress when the attachment scope is missing', async () => {
+    fetchMock.mockImplementation(async () =>
+      Response.json({ code: 401, message: 'Unauthorized; scope does not match' }, { status: 401 })
+    )
+    const listParents = vi.fn(
+      async (cursor: string | undefined): Promise<ExternalDocumentList> => ({
+        documents: [parent(cursor ? 'p2' : 'p1')],
+        hasMore: !cursor,
+        nextCursor: cursor ? undefined : 'next',
+      })
+    )
+    const first = await listConfluenceAttachments({ ...INPUT, listParents })
+    const context: Record<string, unknown> = {}
+    const last = await listConfluenceAttachments({
+      ...INPUT,
+      listParents,
+      cursor: first.nextCursor,
+      syncContext: context,
+    })
+    expect(first.documents.map((doc) => doc.externalId)).toEqual(['p1'])
+    expect(last.documents.map((doc) => doc.externalId)).toEqual(['p2'])
+    expect(last.listingFailures).toEqual({
+      count: 2,
+      samples: ['p1', 'p2'].map((scope) => ({
+        scope,
+        operation: 'confluence.attachments.list',
+        status: 401,
+        reasons: ['attachment_scope_mismatch'],
+      })),
+    })
+    expect(last.reconciliationSafe).toBe(false)
+    expect(context.reconciliationUnsafe).toBe(true)
+  })
+
+  /**
+   * One page whose attachments the credential cannot open must not leave every pass incomplete,
+   * which would keep the connector from ever finishing a sync. Its attachments were not listed,
+   * so the page still withholds deletion of anything it did not list.
+   */
+  it.each([403, 404])(
+    'skips a parent whose attachments answer %s without failing the listing or deleting what it did not list',
     async (status) => {
-      fetchMock.mockImplementation(async () =>
-        status === 401
-          ? Response.json({ code: 401, message: 'Unauthorized; scope does not match' }, { status })
-          : new Response(null, { status })
-      )
+      fetchMock.mockImplementation(async (input) => {
+        const parentId = new URL(String(input)).pathname.split('/').at(-2) ?? ''
+        if (parentId === 'p1') return new Response(null, { status })
+        return Response.json({ results: [file({ id: `${parentId}-file`, pageId: parentId })] })
+      })
       const listParents = vi.fn(
-        async (cursor: string | undefined): Promise<ExternalDocumentList> => ({
-          documents: [parent(cursor ? 'p2' : 'p1')],
-          hasMore: !cursor,
-          nextCursor: cursor ? undefined : 'next',
+        async (): Promise<ExternalDocumentList> => ({
+          documents: [parent('p1'), parent('p2')],
+          hasMore: false,
         })
       )
-      const first = await listConfluenceAttachments({ ...INPUT, listParents })
       const context: Record<string, unknown> = {}
-      const last = await listConfluenceAttachments({
+      const result = await listConfluenceAttachments({
         ...INPUT,
         listParents,
-        cursor: first.nextCursor,
         syncContext: context,
       })
-      expect(first.documents.map((doc) => doc.externalId)).toEqual(['p1'])
-      expect(last.documents.map((doc) => doc.externalId)).toEqual(['p2'])
-      expect(last.listingFailures).toEqual({
-        count: 2,
-        samples: ['p1', 'p2'].map((scope) => ({
-          scope,
-          operation: 'confluence.attachments.list',
-          status,
-          reasons: [status === 401 ? 'attachment_scope_mismatch' : 'attachment_access_denied'],
-        })),
-      })
-      expect(last.reconciliationSafe).toBe(false)
+      expect(result.documents.map((doc) => doc.externalId)).toEqual([
+        'p1',
+        'p2',
+        'attachment:page:p2:p2-file',
+      ])
+      expect(result.hasMore).toBe(false)
+      expect(result.listingFailures).toBeUndefined()
+      expect(result.reconciliationSafe).toBe(false)
       expect(context.reconciliationUnsafe).toBe(true)
     }
   )

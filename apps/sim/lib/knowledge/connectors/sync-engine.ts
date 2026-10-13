@@ -89,6 +89,8 @@ import {
   ConnectorDeletedException,
   ConnectorSyncCapacityError,
   checkSyncTargetPresence,
+  countLiveConnectorDocuments,
+  keepsRecordedDocCount,
   RETRY_WINDOW_DAYS,
   shouldRunIncrementalSync,
   sweepStuckDocuments,
@@ -368,22 +370,6 @@ export function isContentPassIncomplete(
   )
 }
 
-/** Live documents the connector owns: what the connector list shows as its document count. */
-async function countLiveConnectorDocuments(connectorId: string): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(document)
-    .where(
-      and(
-        eq(document.connectorId, connectorId),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
-  return row?.count ?? 0
-}
-
 /**
  * Atomically publishes the completed log and connector terminal state.
  *
@@ -435,29 +421,19 @@ export async function completeSuccessfulSync(
    * owned count the next pass's mass-deletion guard starts from, so a tally of this run's
    * adds and deletes would drift; when it cannot be read the previous count stands, which the
    * guard already treats as a floor.
-   *
-   * Once a pass has finished, a slice that leaves the next pass unfinished keeps the count that
-   * finished pass recorded, the same pass `lastSyncAt` still names, so a large connector is not
-   * counted again on every slice of a pass whose count is replaced when it finishes. Unfinished
-   * slices never advance `lastSyncAt`, so until a pass finishes every slice is counted and a
-   * first pass shows its progress.
    */
-  const keepRecordedCount =
-    contentPass !== undefined &&
-    !contentPass.complete &&
-    lockedConnector?.lastSyncAt != null &&
-    lockedConnector.lastSyncDocCount !== null
-  const actualDocCount = keepRecordedCount
-    ? null
-    : await countLiveConnectorDocuments(connectorId).catch((error: unknown) => {
-        const diagnostic = getConnectorFailureDiagnostic(error)
-        if (diagnostic?.category !== 'database') throw error
-        logger.warn('Could not count connector documents; keeping the previous count', {
-          connectorId,
-          diagnostic,
+  const actualDocCount =
+    contentPass !== undefined && keepsRecordedDocCount(contentPass.complete, lockedConnector)
+      ? null
+      : await countLiveConnectorDocuments(connectorId).catch((error: unknown) => {
+          const diagnostic = getConnectorFailureDiagnostic(error)
+          if (diagnostic?.category !== 'database') throw error
+          logger.warn('Could not count connector documents; keeping the previous count', {
+            connectorId,
+            diagnostic,
+          })
+          return null
         })
-        return null
-      })
   try {
     return await db.transaction(async (tx) => {
       const [lockedKnowledgeBase] = await tx
