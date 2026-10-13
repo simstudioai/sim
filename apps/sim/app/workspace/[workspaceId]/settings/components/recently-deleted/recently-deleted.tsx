@@ -234,12 +234,19 @@ export function RecentlyDeleted() {
   const restoreWorkspaceFileFolder = useRestoreWorkspaceFileFolder()
   const restoreChat = useRestoreMothershipChat(workspaceId)
 
-  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage, isLoading, error } =
-    deletedQuery
+  const {
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+    isLoading,
+    isPlaceholderData,
+    error,
+  } = deletedQuery
 
   const loadMoreRef = useLoadMoreSentinel({
     onLoadMore: fetchNextPage,
-    enabled: hasNextPage && !isFetchingNextPage && !isFetchNextPageError,
+    enabled: hasNextPage && !isFetchingNextPage && !isFetchNextPageError && !isPlaceholderData,
   })
 
   const filtered = useMemo(() => {
@@ -436,7 +443,11 @@ export function RecentlyDeleted() {
                       View
                     </Chip>
                   ) : (
-                    <Chip variant='primary' onClick={() => void handleRestore(resource)}>
+                    <Chip
+                      variant='primary'
+                      disabled={isPlaceholderData}
+                      onClick={() => void handleRestore(resource)}
+                    >
                       Restore
                     </Chip>
                   )
