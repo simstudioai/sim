@@ -50,11 +50,16 @@ const documentKey = ({ container, kind, id }: NativeDocument) =>
  * With `requireHalfTheTerms`, a partial match must contain at least half the query's terms in its
  * title or text, for providers whose OR query matches items sharing only a couple of common words.
  */
+export interface AnyTermFallbackOptions {
+  /** Keep only partial matches holding at least half the query's terms. */
+  requireHalfTheTerms?: boolean
+}
+
 export async function searchWithAnyTermFallback(
   search: (input: NativeSearchInput) => Promise<NativePage>,
   input: NativeSearchInput,
   signal: AbortSignal,
-  options: { requireHalfTheTerms?: boolean } = {}
+  options: AnyTermFallbackOptions = {}
 ): Promise<NativePage> {
   const strict = await search(input)
   const terms = significantTerms(input.query)
