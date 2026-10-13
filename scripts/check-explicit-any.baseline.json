@@ -232,7 +232,7 @@
     "apps/sim/lib/logs/types.ts": 1,
     "apps/sim/lib/mcp/client.ts": 1,
     "apps/sim/lib/messaging/email/mailer.test.ts": 3,
-    "apps/sim/lib/mothership/chat/process-contents.ts": 5,
+    "apps/sim/lib/mothership/chat/process-contents.ts": 1,
     "apps/sim/lib/mothership/persistence/tool-confirm/tool-confirm.test.ts": 3,
     "apps/sim/lib/mothership/tool-executor/register-handlers.ts": 3,
     "apps/sim/lib/mothership/tools/server/user/get-credentials.ts": 2,
