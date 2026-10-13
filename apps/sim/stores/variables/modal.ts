@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { getTerminalHeight } from '@/lib/workflows/layout'
+import { getPanelWidth, getTerminalHeight } from '@/lib/workflows/layout'
 import type { VariablesModalStore, VariablesPosition } from '@/stores/variables/types'
 
 /**
@@ -33,9 +33,7 @@ const calculateDefaultPosition = (): VariablesPosition => {
   const sidebarWidth = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
   )
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
+  const panelWidth = getPanelWidth()
   const terminalHeight = getTerminalHeight()
 
   const availableWidth = window.innerWidth - sidebarWidth - CONTENT_WINDOW_GAP - panelWidth
@@ -58,9 +56,7 @@ const constrainPosition = (
   const sidebarWidth = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
   )
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
+  const panelWidth = getPanelWidth()
   const terminalHeight = getTerminalHeight()
 
   const minX = sidebarWidth

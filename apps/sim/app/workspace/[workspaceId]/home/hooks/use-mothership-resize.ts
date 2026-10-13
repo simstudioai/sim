@@ -13,23 +13,23 @@ import { MOTHERSHIP_WIDTH } from '@/stores/constants'
  * — the row absorbs the difference silently, leaving the inline style reading a
  * value the panel is not actually at.
  *
- * Floored at MIN so a window too narrow to satisfy both keeps a usable panel
- * rather than collapsing it; below that the row overflows, which is the same
- * thing it did before and is only reachable at the minimum window size with the
- * sidebar expanded.
+ * In narrow regular layouts, both columns yield up to half the available space.
  */
 export function maxPanelWidth(viewportWidth: number, containerWidth: number): number {
   return Math.max(
-    MOTHERSHIP_WIDTH.MIN,
+    Math.min(MOTHERSHIP_WIDTH.MIN, containerWidth / 2),
     Math.min(
       viewportWidth * MOTHERSHIP_WIDTH.MAX_PERCENTAGE,
-      containerWidth - MOTHERSHIP_WIDTH.CHAT_MIN
+      containerWidth - Math.min(MOTHERSHIP_WIDTH.CHAT_MIN, containerWidth / 2)
     )
   )
 }
 
 function measureMaxWidth(el: HTMLElement): number {
-  return maxPanelWidth(window.innerWidth, el.parentElement?.clientWidth ?? window.innerWidth)
+  return maxPanelWidth(
+    window.innerWidth,
+    el.parentElement?.getBoundingClientRect().width ?? window.innerWidth
+  )
 }
 
 /** What a divider drag measures once at pointerdown and holds for the gesture. */
@@ -49,7 +49,10 @@ export interface DragGeometry {
 /** Panel width for a pointer position. The only place the clamps live. */
 export function panelWidthAt(clientX: number, geometry: DragGeometry): number {
   const { panelRight, grabOffset, maxWidth } = geometry
-  return Math.max(MOTHERSHIP_WIDTH.MIN, Math.min(panelRight - (clientX - grabOffset), maxWidth))
+  return Math.max(
+    Math.min(MOTHERSHIP_WIDTH.MIN, maxWidth),
+    Math.min(panelRight - (clientX - grabOffset), maxWidth)
+  )
 }
 
 /**
@@ -80,10 +83,11 @@ export function keyboardPanelWidth(
   currentWidth: number,
   maxWidth: number
 ): number {
-  if (key === 'min') return MOTHERSHIP_WIDTH.MIN
+  const minWidth = Math.min(MOTHERSHIP_WIDTH.MIN, maxWidth)
+  if (key === 'min') return minWidth
   if (key === 'max') return maxWidth
   const delta = key === 'left' ? KEYBOARD_STEP_PX : -KEYBOARD_STEP_PX
-  return Math.max(MOTHERSHIP_WIDTH.MIN, Math.min(currentWidth + delta, maxWidth))
+  return Math.max(minWidth, Math.min(currentWidth + delta, maxWidth))
 }
 
 /**
@@ -110,7 +114,7 @@ function restorePanelWidth(el: HTMLElement, preferred: number | undefined) {
 
 /** Mirrors the panel's current width and bounds onto the divider for assistive tech. */
 function syncDividerValue(handle: HTMLElement, el: HTMLElement, maxWidth = measureMaxWidth(el)) {
-  handle.setAttribute('aria-valuemin', String(MOTHERSHIP_WIDTH.MIN))
+  handle.setAttribute('aria-valuemin', String(Math.round(Math.min(MOTHERSHIP_WIDTH.MIN, maxWidth))))
   handle.setAttribute('aria-valuemax', String(Math.round(maxWidth)))
   handle.setAttribute('aria-valuenow', String(Math.round(el.getBoundingClientRect().width)))
 }
@@ -148,8 +152,9 @@ export function useMothershipResize(
 
   const rememberWidth = useCallback(
     (width: number) => {
-      preferredWidthRef.current = width
-      if (userId) useChatPanelStore.getState().setWidth(userId, desktopScopeId, width)
+      const preferredWidth = Math.max(MOTHERSHIP_WIDTH.MIN, width)
+      preferredWidthRef.current = preferredWidth
+      if (userId) useChatPanelStore.getState().setWidth(userId, desktopScopeId, preferredWidth)
     },
     [userId, desktopScopeId]
   )

@@ -12,7 +12,6 @@ import { ArrowLeft, PanelLeft } from '@sim/emcn/icons'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 
 interface ChatPanelLayoutProps {
-  ref?: Ref<HTMLDivElement>
   children: ReactNode
   panel: ReactNode
   collapsed: boolean
@@ -27,7 +26,6 @@ interface ChatPanelLayoutProps {
 
 /** Shared resize handle and collapse control for resources and Search results. */
 export function ChatPanelLayout({
-  ref,
   children,
   panel,
   collapsed,
@@ -45,17 +43,14 @@ export function ChatPanelLayout({
   }`
   return (
     <div
-      ref={ref}
       className={cn(
-        '@container/chat-panel relative flex h-full min-h-0 min-w-0 bg-[var(--bg)]',
+        'relative flex h-full min-h-0 min-w-0 bg-[var(--bg)]',
         RESOURCE_HEADER_CLASSES.layout
       )}
     >
-      <div className={cn('contents', !collapsed && '@max-[960px]/chat-panel:hidden')}>
-        {children}
-      </div>
+      <div className={cn('contents', !collapsed && 'max-md:hidden')}>{children}</div>
       {!collapsed && (
-        <div className='relative z-20 @max-[960px]/chat-panel:hidden w-0 flex-none'>
+        <div className='relative z-20 w-0 flex-none max-md:hidden'>
           <div
             className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--selection)]'
             role='separator'
@@ -83,20 +78,16 @@ export function ChatPanelLayout({
           onClick={onToggle}
           className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
         >
-          <span className={cn('sr-only', !collapsed && '@max-[960px]/chat-panel:hidden')}>
-            {toggleLabel}
-          </span>
-          {!collapsed && (
-            <span className='sr-only @max-[960px]/chat-panel:block hidden'>Back to chat</span>
-          )}
+          <span className={cn('sr-only', !collapsed && 'max-md:hidden')}>{toggleLabel}</span>
+          {!collapsed && <span className='sr-only hidden max-md:block'>Back to chat</span>}
           <span className='relative'>
             {!collapsed && (
-              <ArrowLeft className='@max-[960px]/chat-panel:block hidden size-[16px] text-[var(--text-icon)]' />
+              <ArrowLeft className='hidden size-[16px] text-[var(--text-icon)] max-md:block' />
             )}
             <PanelLeft
               className={cn(
                 '-scale-x-100 size-[16px] text-[var(--text-icon)]',
-                !collapsed && '@max-[960px]/chat-panel:hidden'
+                !collapsed && 'max-md:hidden'
               )}
             />
             {collapsed && activityCount > 0 && (
@@ -136,8 +127,8 @@ export function ChatPanelContent({
       onKeyDownCapture={onInteraction}
       inert={collapsed}
       className={cn(
-        '@max-[960px]/chat-panel:absolute relative @max-[960px]/chat-panel:inset-0 z-10 flex h-full @max-[960px]/chat-panel:w-full! @max-[960px]/chat-panel:min-w-0! flex-col overflow-hidden border-[var(--border)] @max-[960px]/chat-panel:border-l-0 bg-[var(--bg)] @max-[960px]/chat-panel:transition-none transition-[width,min-width,border-width] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none',
-        collapsed ? '@max-[960px]/chat-panel:hidden w-0 min-w-0 border-l-0' : 'w-1/2 border-l',
+        'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none max-md:absolute max-md:inset-0 max-md:w-full! max-md:min-w-0! max-md:border-l-0 max-md:transition-none',
+        collapsed ? 'w-0 min-w-0 border-l-0 max-md:hidden' : 'w-1/2 border-l',
         '[--workspace-content-title-bar-inset:0px]',
         className
       )}
