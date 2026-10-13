@@ -73,6 +73,7 @@ interface ContentPassInput {
     listingCheckpoint?: unknown
     lastSyncDocCount?: number | null
     syncIntervalMinutes?: number
+    imageRemovalPending?: boolean
   }
   connectorConfig: ConnectorConfig
   sourceConfig: Record<string, unknown>
@@ -142,7 +143,6 @@ export async function runConnectorContentPass(input: ContentPassInput) {
     })
   }
   let hydratedCount = 0
-  /** The image count last written to the stored checkpoint. */
   let storedImageCount = {
     imageExtractionsAdmitted: checkpoint.imageExtractionsAdmitted,
     imagesDeferred: checkpoint.imagesDeferred,
@@ -391,31 +391,22 @@ export async function runConnectorContentPass(input: ContentPassInput) {
   }
 }
 
-/** Reconciles absence only after EOF, with bounded queries and the existing deletion guards. */
 /**
- * Removes a connector's indexed vision images once its settings stop indexing
- * images. Turning images off is a setting change, not a source deletion, so it
- * skips the soft-delete and the mass-deletion hold that guard a listing which
- * suddenly lost documents; switching back reads the images again.
+ * Removes the indexed vision images a settings change queued for removal
+ * (`imageRemovalPending`), then clears the flag. Turning images off is a setting
+ * change, not a source deletion, so it skips the soft-delete and the
+ * mass-deletion hold that guard a listing which suddenly lost documents;
+ * switching back reads the images again.
  */
 export async function removeDisabledImages(
   input: Pick<
     ContentPassInput,
-    | 'connectorId'
-    | 'connector'
-    | 'connectorConfig'
-    | 'sourceConfig'
-    | 'lease'
-    | 'leaseKind'
-    | 'runId'
-    | 'deadlineAt'
-    | 'result'
+    'connectorId' | 'connector' | 'lease' | 'leaseKind' | 'runId' | 'deadlineAt' | 'result'
   >
 ): Promise<boolean> {
-  const enabled = input.connectorConfig.imageExtractionEnabled
-  if (!enabled || enabled(input.sourceConfig)) return true
-  if (imageExtractionPolicyFor(input.connector.connectorType) !== 'semantic') return true
-  while (Date.now() < input.deadlineAt) {
+  if (!input.connector.imageRemovalPending) return true
+  while (true) {
+    if (Date.now() >= input.deadlineAt) return false
     await input.lease.beatIfDue()
     const rows = await db
       .select({ id: document.id })
@@ -429,7 +420,7 @@ export async function removeDisabledImages(
         )
       )
       .limit(25)
-    if (rows.length === 0) return true
+    if (rows.length === 0) break
     const removed = await hardDeleteDocuments(
       rows.map((row) => row.id),
       input.runId,
@@ -443,12 +434,17 @@ export async function removeDisabledImages(
       }
     )
     /** Nothing removable is left, e.g. a row detached from this connector mid-walk. */
-    if (removed === 0) return true
+    if (removed === 0) break
     input.result.docsDeleted += removed
   }
-  return false
+  await db
+    .update(knowledgeConnector)
+    .set({ imageRemovalPending: false })
+    .where(input.lease.stillHeld())
+  return true
 }
 
+/** Reconciles absence only after EOF, with bounded queries and the existing deletion guards. */
 async function reconcileCompletedListing(
   input: ContentPassInput,
   checkpoint: ListingCheckpoint,

@@ -411,20 +411,6 @@ describe('knowledge image extraction usage', () => {
     )
   }
 
-  it.each([
-    ['confluence', 'semantic'],
-    ['google_drive', 'ocr'],
-    [null, 'ocr'],
-  ])('passes the %s source image policy to the processor as %s', async (type, policy) => {
-    armImageReads(type)
-    mockProcessDocument.mockResolvedValue({
-      chunks: [{ text: 'chunk text', metadata: { startIndex: 0, endIndex: 10 } }],
-      metadata: { chunkCount: 1, tokenCount: 4, characterCount: 10 },
-    })
-    await process()
-    expect(mockProcessDocument.mock.calls[0][6]).toMatchObject({ imageExtraction: policy })
-  })
-
   it('bills a decorative image and clears what an earlier pass indexed', async () => {
     armImageReads('confluence')
     mockProcessDocument.mockResolvedValue({

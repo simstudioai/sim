@@ -89,7 +89,6 @@ export function createVisionCheckpoint(options: {
   }
 }
 
-/** Cleanup is durable before an upload starts, including a worker crash mid-write. */
 export const cleanupVisionCheckpoint: OutboxHandler = createCheckpointCleanupHandler({
   keyPattern: KEY_PATTERN,
   label: 'Vision',

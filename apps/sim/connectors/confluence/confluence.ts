@@ -12,6 +12,7 @@ import {
   confluencePageAcl,
 } from '@/lib/knowledge/access/confluence-permissions'
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
+import { isImageExtractionEnabled } from '@/lib/knowledge/documents/image-extraction-policy'
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
   createRetryableHttpError,
@@ -19,7 +20,6 @@ import {
   VALIDATE_RETRY_OPTIONS,
 } from '@/lib/knowledge/documents/utils'
 import {
-  confluenceImagesEnabled,
   getConfluenceAttachment,
   isConfluenceAttachment,
   listConfluenceAttachments,
@@ -838,8 +838,6 @@ export const confluenceConnector: ConnectorConfig = {
     error instanceof Error && 'status' in error && error.status === 401,
   ...confluenceConnectorMeta,
 
-  imageExtractionEnabled: confluenceImagesEnabled,
-
   listDocuments: async (accessToken, sourceConfig, cursor, syncContext) => {
     const selectionError = getSourceSelectionError(sourceConfig.spaceKey)
     if (selectionError) throw new Error(selectionError)
@@ -848,7 +846,10 @@ export const confluenceConnector: ConnectorConfig = {
       accessToken,
       cloudId,
       domain: normalizeConfluenceDomainHost(sourceConfig.domain as string),
-      includeImages: confluenceImagesEnabled(sourceConfig),
+      includeImages: isImageExtractionEnabled(
+        confluenceConnectorMeta.imageExtraction,
+        sourceConfig
+      ),
       cursor,
       syncContext,
       /** Attachment versions change independently of their parent pages. */

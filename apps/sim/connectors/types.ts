@@ -1,7 +1,7 @@
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import type { ConnectorPermissionConfigCapability } from '@/lib/knowledge/connectors/permission-config'
-import type { ImageExtractionPolicy } from '@/lib/knowledge/documents/image-extraction-policy'
+import type { ImageExtractionDeclaration } from '@/lib/knowledge/documents/image-extraction-policy'
 import type { OAuthService } from '@/lib/oauth/types'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { ConnectorSourceReasonState } from '@/connectors/source-error'
@@ -431,11 +431,12 @@ export interface ConnectorMeta {
   rehydrateOnFullSync?: boolean
 
   /**
-   * How this connector's image documents become text. `semantic` sends each
-   * image through the vision extractor; absent keeps the OCR path. Processing
-   * reads it per document, so a connector that never lists images is unaffected.
+   * Declared when this connector's image documents go through the vision
+   * extractor instead of OCR, gated by the named source setting. When the
+   * setting stops indexing images, the sync removes the images already indexed,
+   * as a setting change rather than a source deletion.
    */
-  imageExtraction?: Extract<ImageExtractionPolicy, 'semantic'>
+  imageExtraction?: ImageExtractionDeclaration
 
   /**
    * Tag definitions this connector populates. Shown in the add-connector modal
@@ -594,13 +595,6 @@ export interface ConnectorConfig extends ConnectorMeta {
    * Without it, hashes match only when identical.
    */
   matchContentHash?: (candidate: string, stored: string) => 'current' | 'equivalent' | 'stale'
-
-  /**
-   * Whether this source's settings still index images, for a connector whose meta
-   * declares `imageExtraction`. When it returns false the sync removes the images
-   * already indexed, as a setting change rather than a source deletion.
-   */
-  imageExtractionEnabled?: (sourceConfig: Record<string, unknown>) => boolean
 
   /**
    * External-ID prefixes of everything the caller can still read, when access is

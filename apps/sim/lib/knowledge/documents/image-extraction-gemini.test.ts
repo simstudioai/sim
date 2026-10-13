@@ -71,6 +71,7 @@ describe('requestGeminiImageExtraction', () => {
       responseMimeType: 'application/json',
       responseJsonSchema: { type: 'object' },
       maxOutputTokens: 32_768,
+      thinkingConfig: { thinkingLevel: 'LOW' },
     })
   })
 

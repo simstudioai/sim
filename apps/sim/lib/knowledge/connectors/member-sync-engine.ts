@@ -99,6 +99,7 @@ import {
   MEMBER_SUSPENDED_PURGE_DAYS,
   MEMBER_SYNC_MAX_PAGES_PER_MEMBER,
   MEMBER_SYNC_SOFT_BUDGET_SECONDS,
+  noticeRequiresFullListing,
   SOURCE_CONTENT_ERROR,
 } from '@/lib/knowledge/connectors/sync-limits'
 import {
@@ -1336,8 +1337,7 @@ async function listForMember(input: {
     (!feed && !connectorConfig.supportsIncrementalSync) ||
     connectorConfig.supportsChangeFeed?.(sourceConfig) === false ||
     Boolean(member.listingCheckpoint) ||
-    member.lastError === SOURCE_CONTENT_ERROR ||
-    member.lastError === IMAGES_DEFERRED_NOTICE ||
+    noticeRequiresFullListing(member.lastError) ||
     input.forceFull === true ||
     shouldListFully(
       member.memberSyncedThrough,
@@ -2270,8 +2270,6 @@ export async function executeMemberSync(
         imageRemovalFinished = await removeDisabledImages({
           connectorId,
           connector,
-          connectorConfig,
-          sourceConfig,
           lease: run.lease,
           leaseKind: 'member',
           runId,

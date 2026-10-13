@@ -4,10 +4,7 @@ import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import {
-  confluenceImagesEnabled,
-  listConfluenceAttachments,
-} from '@/connectors/confluence/attachments'
+import { listConfluenceAttachments } from '@/connectors/confluence/attachments'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 import type { ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { CONNECTOR_MAX_FILE_BYTES } from '@/connectors/utils'
@@ -493,10 +490,10 @@ describe('Confluence image attachments', () => {
     expect(hydrated?.skippedExistingDisposition).toBe('replace')
   })
 
-  it('keeps images off for a connector created before the setting existed', () => {
-    expect(confluenceImagesEnabled({})).toBe(false)
-    expect(confluenceImagesEnabled({ imageAttachments: 'semantic' })).toBe(true)
-    expect(confluenceImagesEnabled({ imageAttachments: 'off' })).toBe(false)
+  it('keeps images off for a connector created before the setting existed', async () => {
+    fixture(file({ title: 'Quarterly schedule', mediaType: 'image/png', fileSize: 40_000 }))
+    const hydrated = await get('attachment:page:p1:att123', CONFIG)
+    expect(hydrated?.skippedReason).toBe('Image attachments are turned off for this connector')
   })
 
   it('replaces an attachment that stopped being a supported image', async () => {

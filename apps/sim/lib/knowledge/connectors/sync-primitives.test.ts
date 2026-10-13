@@ -40,7 +40,6 @@ vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock
 vi.mock('@/lib/embeddings/keys', () => ({ resolveProviderKey: hoisted.resolveKey }))
 vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
 
-import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
 import { SyncLockLostException, stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import {
   classifyExternalDoc,
@@ -447,38 +446,6 @@ describe('processDocOps image extraction cap', () => {
 
     expect(input.hydration.getDocument).toHaveBeenCalledWith('image-1')
     expect(input.imageAdmission).toEqual({ imageExtractionsAdmitted: 500, imagesDeferred: false })
-  })
-
-  it('spends the budget on changed images too, and reports the held-back ones as still listed', async () => {
-    const input = inputFor(0)
-    input.pendingOps = [imageOp('image-1', 'update'), imageOp('image-2', 'update')]
-    input.hydration.getDocument = vi.fn(async (externalId) => sourceDocument(externalId))
-    input.imageAdmission = { imageExtractionsAdmitted: 499, imagesDeferred: false }
-    const heldBack: string[] = []
-    input.onBatchComplete = async (_documents, heldBackExisting) => {
-      heldBack.push(...heldBackExisting.map((document) => document.externalId))
-    }
-
-    await expect(processDocOps(input)).resolves.toBe(true)
-
-    expect(vi.mocked(input.hydration.getDocument).mock.calls.map(([id]) => id)).toEqual(['image-1'])
-    expect(heldBack).toEqual(['image-2'])
-    expect(input.imageAdmission).toEqual({ imageExtractionsAdmitted: 500, imagesDeferred: true })
-  })
-
-  it('leaves images unfetched, without a deferral, when no Gemini key can read them', async () => {
-    mocks.resolveKey.mockRejectedValue(new EmbeddingConfigurationError())
-    const input = inputFor(1)
-    input.pendingOps = [imageOp('image-1'), ...input.pendingOps]
-    input.hydration.getDocument = vi.fn(async (externalId) => sourceDocument(externalId))
-    input.imageAdmission = { imageExtractionsAdmitted: 0, imagesDeferred: false }
-
-    await expect(processDocOps(input)).resolves.toBe(true)
-
-    expect(vi.mocked(input.hydration.getDocument).mock.calls.map(([id]) => id)).toEqual([
-      'source-1',
-    ])
-    expect(input.imageAdmission).toEqual({ imageExtractionsAdmitted: 0, imagesDeferred: false })
   })
 })
 

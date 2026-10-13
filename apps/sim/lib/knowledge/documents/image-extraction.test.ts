@@ -4,28 +4,17 @@
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequest, mockResolveKey, mockAdmission, mockLoad, mockSave, GeminiError } = vi.hoisted(
-  () => ({
-    mockRequest: vi.fn(),
-    mockResolveKey: vi.fn(),
-    mockAdmission: vi.fn(),
-    mockLoad: vi.fn(),
-    mockSave: vi.fn(),
-    GeminiError: class GeminiImageExtractionError extends Error {
-      constructor(
-        readonly status: number,
-        readonly retryAfterMs: number | undefined,
-        readonly detail = ''
-      ) {
-        super(`Gemini image extraction failed (${status})`)
-      }
-    },
-  })
-)
+const { mockRequest, mockResolveKey, mockAdmission, mockLoad, mockSave } = vi.hoisted(() => ({
+  mockRequest: vi.fn(),
+  mockResolveKey: vi.fn(),
+  mockAdmission: vi.fn(),
+  mockLoad: vi.fn(),
+  mockSave: vi.fn(),
+}))
 
-vi.mock('@/lib/knowledge/documents/image-extraction-gemini', () => ({
+vi.mock('@/lib/knowledge/documents/image-extraction-gemini', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/knowledge/documents/image-extraction-gemini')>()),
   requestGeminiImageExtraction: mockRequest,
-  GeminiImageExtractionError: GeminiError,
 }))
 vi.mock('@/lib/embeddings/keys', () => ({ resolveProviderKey: mockResolveKey }))
 vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
@@ -38,12 +27,12 @@ vi.mock('@/lib/knowledge/documents/vision-checkpoints', () => ({
 import { env } from '@/lib/core/config/env'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
+import { extractImageText } from '@/lib/knowledge/documents/image-extraction'
 import {
   DEFAULT_IMAGE_EXTRACTION_MODEL,
-  extractImageText,
-  IMAGE_EXTRACTION_RESPONSE_SCHEMA,
+  GeminiImageExtractionError,
   resolveImageExtractionModel,
-} from '@/lib/knowledge/documents/image-extraction'
+} from '@/lib/knowledge/documents/image-extraction-gemini'
 
 const CHECKPOINT = { knowledgeBaseId: 'kb-1', documentId: 'doc-1', indexingPassId: 'pass-1' }
 
@@ -102,7 +91,7 @@ describe('extractImageText', () => {
     respond(extraction())
   })
 
-  it('sends one image with the schema and output budget, and keeps only the searchable text', async () => {
+  it('keeps only the searchable text, with its cost, and checkpoints the result', async () => {
     const result = await extract(400, 300, { workspaceId: 'ws-1', checkpoint: CHECKPOINT })
 
     expect(result).toMatchObject({
@@ -111,19 +100,7 @@ describe('extractImageText', () => {
       usage: { model: DEFAULT_IMAGE_EXTRACTION_MODEL, inputTokens: 1200, outputTokens: 300 },
     })
     expect(result.usage?.cost).toBeGreaterThan(0)
-    expect(mockResolveKey).toHaveBeenCalledWith('gemini', 'ws-1')
-    expect(mockAdmission).toHaveBeenCalledWith(
-      expect.objectContaining({ providerId: 'google', operation: 'ocr' })
-    )
     expect(mockRequest).toHaveBeenCalledTimes(1)
-    const [request] = mockRequest.mock.calls[0]
-    expect(request).toMatchObject({
-      model: DEFAULT_IMAGE_EXTRACTION_MODEL,
-      apiKey: 'platform-key',
-      responseJsonSchema: IMAGE_EXTRACTION_RESPONSE_SCHEMA,
-      maxOutputTokens: 32_768,
-    })
-    expect(request.image.mimeType).toBe('image/png')
     expect(mockSave).toHaveBeenCalledWith(result, undefined)
   })
 
@@ -219,6 +196,10 @@ describe('extractImageText', () => {
 
     respond('', 'SAFETY')
     await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_invalid' })
+
+    respond('{"kind": "scan", "rendered_text": "Chapter one', 'RECITATION')
+    await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_invalid' })
+    expect(mockRequest).toHaveBeenCalledTimes(3)
   })
 
   it('fails a response cut off at the token limit instead of paying for retries', async () => {
@@ -228,24 +209,24 @@ describe('extractImageText', () => {
   })
 
   it('defers on throttling and fails on a rejected key or image', async () => {
-    mockRequest.mockRejectedValueOnce(new GeminiError(429, 5000))
+    mockRequest.mockRejectedValueOnce(new GeminiImageExtractionError(429, 5000, ''))
     await expect(extract()).rejects.toMatchObject({ reason: 'rate_limit', retryAfterMs: 5000 })
 
-    mockRequest.mockRejectedValueOnce(new GeminiError(403, undefined))
+    mockRequest.mockRejectedValueOnce(new GeminiImageExtractionError(403, undefined, ''))
     await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_unavailable' })
 
-    mockRequest.mockRejectedValueOnce(new GeminiError(400, undefined))
+    mockRequest.mockRejectedValueOnce(new GeminiImageExtractionError(400, undefined, ''))
     await expect(extract()).rejects.toMatchObject({ code: 'invalid_file' })
 
     mockRequest.mockRejectedValueOnce(
-      new GeminiError(400, undefined, '"reason": "API_KEY_INVALID"')
+      new GeminiImageExtractionError(400, undefined, 'INVALID_ARGUMENT API_KEY_INVALID')
     )
     await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_unavailable' })
 
-    mockRequest.mockRejectedValueOnce(new GeminiError(404, undefined))
+    mockRequest.mockRejectedValueOnce(new GeminiImageExtractionError(404, undefined, ''))
     await expect(extract()).rejects.toMatchObject({ code: 'image_extraction_unavailable' })
 
-    const unexpected = new GeminiError(501, undefined)
+    const unexpected = new GeminiImageExtractionError(501, undefined, '')
     mockRequest.mockRejectedValueOnce(unexpected)
     await expect(extract()).rejects.toBe(unexpected)
     /** One call per failure above: none of them is retried within the extraction. */
@@ -255,7 +236,7 @@ describe('extractImageText', () => {
   it('retries a transient Gemini server error within the same extraction', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     try {
-      mockRequest.mockRejectedValueOnce(new GeminiError(500, undefined))
+      mockRequest.mockRejectedValueOnce(new GeminiImageExtractionError(500, undefined, ''))
       const pending = extract()
       await vi.waitFor(() => expect(mockRequest).toHaveBeenCalledTimes(1))
       await vi.advanceTimersByTimeAsync(10_000)
@@ -320,7 +301,7 @@ describe('resolveImageExtractionModel', () => {
     Object.assign(env, { KB_IMAGE_EXTRACTION_MODEL: undefined })
   })
 
-  it.each(['not-a-model', 'gpt-5.4-mini', 'gemini-does-not-exist'])(
+  it.each(['not-a-model', 'gpt-5.4-mini', 'gemini-does-not-exist', 'gemini-2.5-flash'])(
     'falls back to the default for %s',
     (model) => {
       Object.assign(env, { KB_IMAGE_EXTRACTION_MODEL: model })

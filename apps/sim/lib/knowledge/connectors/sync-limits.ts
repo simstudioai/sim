@@ -161,6 +161,14 @@ export const IMAGES_DEFERRED_NOTICE =
   'Some new or changed images were left for the next scheduled sync to keep this sync within its image extraction limit.'
 
 /**
+ * Whether a member's last notice means its listing left documents behind, so the
+ * next listing must be full: a change feed would not offer them again.
+ */
+export function noticeRequiresFullListing(notice: string | null): boolean {
+  return notice === SOURCE_CONTENT_ERROR || notice === IMAGES_DEFERRED_NOTICE
+}
+
+/**
  * Documents whose permission evidence is refreshed per statement. Documents are
  * grouped by identical ACL first — files under one folder overwhelmingly share
  * theirs — so a crawl of thousands usually resolves to a handful of statements.

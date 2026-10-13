@@ -1,9 +1,40 @@
+import { createLogger } from '@sim/logger'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { z } from 'zod'
+import { env } from '@/lib/core/config/env'
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
+import { resolveProviderKey } from '@/lib/embeddings/keys'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import { readBoundedHttpErrorPayload } from '@/lib/knowledge/documents/utils'
+import { getProviderModels } from '@/providers/models'
+import { isGemini3Model } from '@/providers/utils'
+
+const logger = createLogger('GeminiImageExtraction')
 
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+
+/** The provider identity image extraction is admitted and billed under. */
+export const GEMINI_IMAGE_PROVIDER_ID = 'google'
+
+export const DEFAULT_IMAGE_EXTRACTION_MODEL = 'gemini-3.8-flash'
+
+/**
+ * Transcription needs little reasoning, and Gemini bills thinking as output that
+ * also spends the output budget. Every Gemini 3 model accepts `LOW`.
+ */
+const THINKING_LEVEL = 'LOW'
+
+/**
+ * Failures worth an immediate retry inside one extraction: transient server
+ * errors, which Gemini does not bill. Throttling (429) and overload (503) defer
+ * the pass through provider admission instead.
+ */
+const TRANSIENT_STATUSES = new Set([500, 502, 504])
+
+/** 400 reasons caused by the deployment's key or region, never by the image. */
+const CONFIGURATION_REASONS = ['API_KEY_INVALID', 'API_KEY_EXPIRED', 'FAILED_PRECONDITION']
 
 interface GeminiGenerateContentResponse {
   candidates?: Array<{
@@ -32,6 +63,86 @@ export class GeminiImageExtractionError extends Error {
     super(`Gemini image extraction failed (${status}): ${detail}`)
     this.name = 'GeminiImageExtractionError'
   }
+
+  /** Whether the same request may succeed on an immediate retry. */
+  get transient(): boolean {
+    return TRANSIENT_STATUSES.has(this.status)
+  }
+}
+
+/**
+ * The model from `KB_IMAGE_EXTRACTION_MODEL`, or the default when it is unset or
+ * not a Gemini 3 model in the catalog: the request uses Gemini 3's JSON-schema
+ * output and thinking level, and only catalog models carry the pricing that
+ * bills each image. Never throws: a bad value must not stop indexing.
+ */
+export function resolveImageExtractionModel(): string {
+  const configured = env.KB_IMAGE_EXTRACTION_MODEL?.trim()
+  if (!configured) return DEFAULT_IMAGE_EXTRACTION_MODEL
+  const catalogModel = getProviderModels('google').find(
+    (id) => id.toLowerCase() === configured.toLowerCase() && isGemini3Model(id)
+  )
+  if (catalogModel) return catalogModel
+  logger.warn(
+    `KB_IMAGE_EXTRACTION_MODEL="${configured}" is not a supported Gemini 3 model, falling back to ${DEFAULT_IMAGE_EXTRACTION_MODEL}`
+  )
+  return DEFAULT_IMAGE_EXTRACTION_MODEL
+}
+
+/**
+ * The workspace's Gemini key, then the deployment's, exactly as knowledge
+ * embeddings resolve; `null` when neither exists.
+ */
+export async function resolveGeminiImageKey(
+  workspaceId: string | null | undefined
+): Promise<{ apiKey: string; isBYOK: boolean } | null> {
+  try {
+    return await resolveProviderKey('gemini', workspaceId)
+  } catch (error) {
+    if (error instanceof EmbeddingConfigurationError) return null
+    throw error
+  }
+}
+
+/**
+ * Maps a Gemini failure onto processing outcomes: throttling and overload defer
+ * the pass, a rejected key, model or region fails the document as unavailable,
+ * a rejected image fails it as invalid, anything else is returned unchanged.
+ */
+export function classifyGeminiImageError(error: GeminiImageExtractionError, model: string): Error {
+  if (error.status === 429 || error.status === 503) {
+    return new ProviderCapacityDeferredError('rate_limit', {
+      providerId: GEMINI_IMAGE_PROVIDER_ID,
+      retryAfterMs: error.retryAfterMs,
+      cause: error,
+    })
+  }
+  if (
+    error.status === 401 ||
+    error.status === 403 ||
+    (error.status === 400 && CONFIGURATION_REASONS.some((reason) => error.detail.includes(reason)))
+  ) {
+    return new PermanentDocumentProcessingError(
+      'image_extraction_unavailable',
+      `Gemini rejected the API key used for ${model}. Check the workspace or deployment Gemini key, then retry.`,
+      error
+    )
+  }
+  if (error.status === 404) {
+    return new PermanentDocumentProcessingError(
+      'image_extraction_unavailable',
+      `Gemini does not serve the model ${model}. Set KB_IMAGE_EXTRACTION_MODEL to an available Gemini model, then retry.`,
+      error
+    )
+  }
+  if (error.status === 400) {
+    return new PermanentDocumentProcessingError(
+      'invalid_file',
+      'Gemini could not read this image. Replace the attachment with a valid PNG, JPEG, WebP or GIF image, then retry.',
+      error
+    )
+  }
+  return error
 }
 
 export interface GeminiImageExtractionResponse {
@@ -113,6 +224,7 @@ export async function requestGeminiImageExtraction(input: {
           responseMimeType: 'application/json',
           responseJsonSchema: input.responseJsonSchema,
           maxOutputTokens: input.maxOutputTokens,
+          thinkingConfig: { thinkingLevel: THINKING_LEVEL },
         },
       }),
       signal: input.signal,

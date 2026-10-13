@@ -53,7 +53,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
   rehydrateOnFullSync: true,
 
   /** Image attachments hold tables, scans and screenshots, so they go through the vision extractor. */
-  imageExtraction: 'semantic',
+  imageExtraction: { settingId: 'imageAttachments' },
 
   /** New connectors read images; existing ones keep them off until their owner opts in. */
   defaultSourceConfig: { imageAttachments: 'semantic' },

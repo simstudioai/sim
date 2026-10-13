@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   IMAGE_EXTRACTION_REPRESENTATION_VERSION,
+  isImageExtractionEnabled,
   SEMANTIC_IMAGE_MIN_BYTES,
   semanticImageMimeType,
 } from '@/lib/knowledge/documents/image-extraction-policy'
@@ -14,6 +15,7 @@ import {
   readBoundedHttpErrorPayload,
 } from '@/lib/knowledge/documents/utils'
 import { extractCursor } from '@/connectors/confluence/cursor'
+import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { listingFailuresSchema, MAX_LISTING_FAILURE_SAMPLES } from '@/connectors/listing-failures'
 import { isAllSourceItems } from '@/connectors/selection'
 import { ConnectorSourceError } from '@/connectors/source-error'
@@ -105,15 +107,6 @@ interface AttachmentRequest {
   cloudId: string
   domain: string
   syncContext?: Record<string, unknown>
-}
-
-/**
- * The connector's "Image attachments" setting. New connectors are created with it
- * on; unset means off, so a connector created before the setting existed only
- * reads images once its owner turns them on.
- */
-export function confluenceImagesEnabled(sourceConfig: Record<string, unknown>): boolean {
-  return sourceConfig.imageAttachments === 'semantic'
 }
 
 class ConfluenceAttachmentScopeError extends Error {
@@ -240,13 +233,13 @@ function sameParent(left: AttachmentParent, right: AttachmentParent): boolean {
 }
 
 /**
- * The single eligibility rule for listing and hydration; the two must agree, or a
+ * The single format rule for listing and hydration; the two must agree, or a
  * listed attachment becomes a failed row when it is downloaded.
  */
-function attachmentMimeType(attachment: Attachment, includeImages = true): string | undefined {
+function attachmentMimeType(attachment: Attachment): string | undefined {
   const extension = connectorFileExtension(attachment.title)
   if (extension && FILE_EXTENSIONS.has(extension)) return pipelineParsedMimeType(attachment.title)
-  return includeImages ? semanticImageMimeType(attachment.mediaType) : undefined
+  return semanticImageMimeType(attachment.mediaType)
 }
 
 function isImageAttachment(attachment: Attachment): boolean {
@@ -255,11 +248,7 @@ function isImageAttachment(attachment: Attachment): boolean {
 
 /** Icons and spacers never become documents; an image without a reported size is kept. */
 function isBelowImageFloor(attachment: Attachment): boolean {
-  return (
-    isImageAttachment(attachment) &&
-    attachment.fileSize !== undefined &&
-    attachment.fileSize < SEMANTIC_IMAGE_MIN_BYTES
-  )
+  return attachment.fileSize !== undefined && attachment.fileSize < SEMANTIC_IMAGE_MIN_BYTES
 }
 
 function attachmentToStub(
@@ -441,9 +430,9 @@ export async function listConfluenceAttachments(
     state.serverFailureStreak = 0
     const { page } = listing
     for (const attachment of page.results) {
-      if (attachment.status !== 'current' || !attachmentMimeType(attachment, input.includeImages))
+      if (attachment.status !== 'current' || !attachmentMimeType(attachment)) continue
+      if (isImageAttachment(attachment) && (!input.includeImages || isBelowImageFloor(attachment)))
         continue
-      if (isBelowImageFloor(attachment)) continue
       if (!sameParent(attachmentParent(attachment), parent)) {
         throw new Error('Confluence returned an attachment belonging to another parent')
       }
@@ -595,15 +584,22 @@ export async function getConfluenceAttachment(
   const parent = attachmentParent(attachment)
   if (!(await parentLocation(input, parent, sourceConfig))) return null
   const stub = attachmentToStub(attachment, parent, input.domain)
-  const mimeType = attachmentMimeType(attachment, confluenceImagesEnabled(sourceConfig))
+  const mimeType = attachmentMimeType(attachment)
   if (!mimeType) {
     return {
       ...markSkipped(
         stub,
-        isImageAttachment(attachment)
-          ? 'Image attachments are turned off for this connector'
-          : 'Attachment is no longer a PDF, Word, Excel, PowerPoint or supported image file'
+        'Attachment is no longer a PDF, Word, Excel, PowerPoint or supported image file'
       ),
+      skippedExistingDisposition: 'replace',
+    }
+  }
+  if (
+    isImageAttachment(attachment) &&
+    !isImageExtractionEnabled(confluenceConnectorMeta.imageExtraction, sourceConfig)
+  ) {
+    return {
+      ...markSkipped(stub, 'Image attachments are turned off for this connector'),
       skippedExistingDisposition: 'replace',
     }
   }

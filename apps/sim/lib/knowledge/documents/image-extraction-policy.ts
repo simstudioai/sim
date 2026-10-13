@@ -1,12 +1,14 @@
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
+
 /**
  * How a knowledge source's image documents are turned into text. `semantic` runs
- * one vision-model extraction per image; `ocr` is the original OCR path. A source
+ * one vision-model extraction per image; `ocr` is the shared OCR path. A source
  * that declares nothing keeps `ocr`, so declaring the policy is the only way an
  * image reaches the vision extractor.
  */
 export type ImageExtractionPolicy = 'semantic' | 'ocr'
 
-/** Raster formats every vision provider accepts inline; SVG, HEIC and AVIF are excluded. */
+/** Raster formats the vision extractor reads (a GIF as its first frame); SVG, HEIC and AVIF are excluded. */
 export const SEMANTIC_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
   'image/png',
   'image/jpeg',
@@ -28,12 +30,34 @@ export const IMAGE_EXTRACTION_REPRESENTATION_VERSION = 'image-extract-v1'
 
 /** Normalizes a source-reported media type (`image/JPG; charset=...`) to a semantic image type. */
 export function semanticImageMimeType(mediaType: string | undefined): string | undefined {
-  const normalized = mediaType?.split(';')[0]?.trim().toLowerCase()
-  if (!normalized) return undefined
+  const normalized = normalizeMimeType(mediaType)
   const canonical = normalized === 'image/jpg' ? 'image/jpeg' : normalized
   return SEMANTIC_IMAGE_MIME_TYPES.has(canonical) ? canonical : undefined
 }
 
-export function isSemanticImage(policy: ImageExtractionPolicy, mimeType: string): boolean {
-  return policy === 'semantic' && SEMANTIC_IMAGE_MIME_TYPES.has(mimeType)
+export function isSemanticImage(
+  policy: ImageExtractionPolicy,
+  mimeType: string | undefined
+): boolean {
+  return policy === 'semantic' && SEMANTIC_IMAGE_MIME_TYPES.has(mimeType ?? '')
+}
+
+/**
+ * A source's declaration that it reads images with the vision extractor, behind
+ * one of its own settings. The setting's `semantic` value turns reading on; any
+ * other value, or none, leaves images unindexed: the source stops listing them,
+ * and turning the setting off removes every indexed document of a semantic image
+ * type. A source adopting this must accept that its images have no OCR fallback.
+ */
+export interface ImageExtractionDeclaration {
+  /** The `sourceConfig` field holding the setting. */
+  settingId: string
+}
+
+/** Whether a source's current settings index its images. */
+export function isImageExtractionEnabled(
+  declaration: ImageExtractionDeclaration | undefined,
+  sourceConfig: Record<string, unknown>
+): boolean {
+  return declaration !== undefined && sourceConfig[declaration.settingId] === 'semantic'
 }

@@ -1,12 +1,7 @@
 import { env, envNumber } from '@/lib/core/config/env'
-import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
-import { resolveProviderKey } from '@/lib/embeddings/keys'
-import {
-  type ImageExtractionPolicy,
-  isSemanticImage,
-} from '@/lib/knowledge/documents/image-extraction-policy'
+import { resolveGeminiImageKey } from '@/lib/knowledge/documents/image-extraction-gemini'
+import type { ImageExtractionPolicy } from '@/lib/knowledge/documents/image-extraction-policy'
 import { getConnectorMeta } from '@/connectors/registry'
-import type { ExternalDocument } from '@/connectors/types'
 
 /** Images one sync may send for vision extraction, new or changed; the rest wait for the next sync. */
 const IMAGE_EXTRACTIONS_PER_SYNC = envNumber(env.KB_IMAGE_EXTRACTIONS_PER_SYNC, 500, {
@@ -16,15 +11,7 @@ const IMAGE_EXTRACTIONS_PER_SYNC = envNumber(env.KB_IMAGE_EXTRACTIONS_PER_SYNC, 
 
 /** A source's image policy, declared on its connector; uploads and undeclared sources keep OCR. */
 export function imageExtractionPolicyFor(connectorType: string | null): ImageExtractionPolicy {
-  return (connectorType && getConnectorMeta(connectorType)?.imageExtraction) || 'ocr'
-}
-
-/** Whether a listed document is an image this source reads with the vision model. */
-export function isVisionImage(
-  document: Pick<ExternalDocument, 'mimeType'>,
-  policy: ImageExtractionPolicy
-): boolean {
-  return isSemanticImage(policy, document.mimeType ?? '')
+  return connectorType && getConnectorMeta(connectorType)?.imageExtraction ? 'semantic' : 'ocr'
 }
 
 /**
@@ -32,13 +19,7 @@ export function isVisionImage(
  * on the deployment. Without either, images are left unlisted rather than failed.
  */
 export async function canExtractImages(workspaceId: string | null): Promise<boolean> {
-  try {
-    await resolveProviderKey('gemini', workspaceId)
-    return true
-  } catch (error) {
-    if (error instanceof EmbeddingConfigurationError) return false
-    throw error
-  }
+  return (await resolveGeminiImageKey(workspaceId)) !== null
 }
 
 /**

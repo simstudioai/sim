@@ -76,7 +76,6 @@ vi.mock('@/connectors/registry.server', async () => {
     CONNECTOR_REGISTRY: {
       confluence: {
         ...confluenceConnectorMeta,
-        imageExtractionEnabled: enabled,
         validateConfig: async () => ({ valid: true }),
         listDocuments: async (_token: string, config: Record<string, unknown>) => ({
           documents: enabled(config) ? [...fixture.images.keys()].map(stub) : [],
@@ -106,7 +105,10 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { createKnowledgeConnector } from '@/lib/knowledge/application/connectors'
+import {
+  createKnowledgeConnector,
+  updateKnowledgeConnector,
+} from '@/lib/knowledge/application/connectors'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
 import { IMAGES_DEFERRED_NOTICE } from '@/lib/knowledge/connectors/sync-limits'
@@ -128,8 +130,40 @@ describe('Confluence image attachments through sync, indexing and reconciliation
         accessMode: 'workspace',
         status: 'active',
         syncLockToken: null,
+        imageRemovalPending: false,
       })
       .where(eq(knowledgeConnector.id, ids.connectorId))
+  }
+  /** Changes the setting the way a user does; the update dispatches the next sync, which runs in-process. */
+  async function setImageAttachments(imageAttachments: 'semantic' | 'off') {
+    await updateKnowledgeConnector.execute({
+      principal: { kind: 'session', userId: ids.aliceId, sessionId: 'confluence-images' },
+      input: {
+        knowledgeBaseId: ids.knowledgeBaseId,
+        connectorId: ids.connectorId,
+        updates: {
+          sourceConfig: { domain: 'fixture.atlassian.net', spaceKey: 'ENG', imageAttachments },
+        },
+      },
+    })
+    await vi.waitFor(
+      async () => {
+        const [row] = await db
+          .select({ status: knowledgeConnector.status, lastSyncAt: knowledgeConnector.lastSyncAt })
+          .from(knowledgeConnector)
+          .where(eq(knowledgeConnector.id, ids.connectorId))
+        expect(row?.status).not.toBe('error')
+        expect(row).toMatchObject({ status: 'active', lastSyncAt: expect.any(Date) })
+      },
+      { timeout: 30_000, interval: 100 }
+    )
+  }
+  async function imageRemovalPending() {
+    const [row] = await db
+      .select({ pending: knowledgeConnector.imageRemovalPending })
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, ids.connectorId))
+    return row?.pending
   }
   async function sync(options: { fullSync?: boolean; rehydrate?: boolean } = {}) {
     const result = await executeSync(ids.connectorId, {
@@ -239,17 +273,15 @@ describe('Confluence image attachments through sync, indexing and reconciliation
     const indexed = await images()
     expect(indexed).toHaveLength(2)
 
-    await configure('off')
-    const off = await sync({ fullSync: false })
-    expect(off.docsDeleted).toBe(2)
+    await setImageAttachments('off')
     expect(
       await db.select().from(document).where(eq(document.connectorId, ids.connectorId))
     ).toEqual([])
     expect(await vectors(indexed.map((row) => row.id))).toEqual([])
+    expect(await imageRemovalPending()).toBe(false)
 
-    await configure('semantic')
     fixture.extractions.length = 0
-    await sync()
+    await setImageAttachments('semantic')
     expect(fixture.extractions.sort()).toEqual(['image-a.png', 'image-b.png'])
   })
 

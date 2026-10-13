@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { sha256Hex } from '@sim/security/hash'
 import type { OutboxHandler } from '@/lib/core/outbox/service'
 import { OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT } from '@/lib/knowledge/documents/checkpoint-events'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
@@ -26,10 +26,6 @@ interface PageRange {
   endPage: number
 }
 
-function hash(value: Buffer | string): string {
-  return createHash('sha256').update(value).digest('hex')
-}
-
 function assertTextLimit(content: string, maxBytes: number): void {
   if (Buffer.byteLength(content, 'utf8') > maxBytes) {
     throw new PermanentDocumentProcessingError(
@@ -55,11 +51,11 @@ export function createOcrCheckpoints(options: {
   if (!context.knowledgeBaseId || !context.documentId || !context.indexingPassId) {
     throw new Error('OCR checkpoint requires a canonical processing identity')
   }
-  const identity = hash(
+  const identity = sha256Hex(
     JSON.stringify({
       version: 1,
       ...context,
-      sourceHash: hash(source),
+      sourceHash: sha256Hex(source),
       providerIdentity,
       maxBytes: policy.maxBytes,
       maxPages: policy.maxPages,

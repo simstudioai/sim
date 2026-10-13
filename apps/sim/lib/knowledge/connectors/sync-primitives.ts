@@ -24,7 +24,6 @@ import {
   canExtractImages,
   type ImageAdmissionState,
   imageExtractionPolicyFor,
-  isVisionImage,
 } from '@/lib/knowledge/connectors/image-admission'
 import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { SyncLockLostException, type SyncRunLease } from '@/lib/knowledge/connectors/sync-lock'
@@ -37,7 +36,10 @@ import {
   type SourceMetadataFields,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
-import type { ImageExtractionPolicy } from '@/lib/knowledge/documents/image-extraction-policy'
+import {
+  type ImageExtractionPolicy,
+  isSemanticImage,
+} from '@/lib/knowledge/documents/image-extraction-policy'
 import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
 import {
   DOCUMENT_LIVENESS_BATCH_SIZE,
@@ -963,7 +965,7 @@ export function classifyListing(input: {
     const classification = classifyExternalDoc(
       extDoc,
       existing,
-      forceRehydrate && !isVisionImage(extDoc, input.imagePolicy ?? 'ocr'),
+      forceRehydrate && !isSemanticImage(input.imagePolicy ?? 'ocr', extDoc.mimeType),
       input.matchContentHash
     )
 
@@ -1131,19 +1133,19 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
        * budget is spent; the next listing offers them again.
        */
       const imageOps = rawBatch.filter(
-        (op) => op.type !== 'skip' && isVisionImage(op.extDoc, imagePolicy)
+        (op) => op.type !== 'skip' && isSemanticImage(imagePolicy, op.extDoc.mimeType)
       )
       const canRead =
         imageOps.length > 0 &&
         (await (extractionAvailable ??= canExtractImages(kbOwner.workspaceId)))
-      const imagesHeldBack = new Set(
-        imageOps
-          .filter(() => !canRead || !admitVisionImage(input.imageAdmission))
-          .map((op) => op.extDoc.externalId)
+      const imagesHeldBack = new Set<string>()
+      for (const op of imageOps) {
+        if (!canRead || !admitVisionImage(input.imageAdmission))
+          imagesHeldBack.add(op.extDoc.externalId)
+      }
+      const contentOps = rawBatch.filter(
+        (op) => op.type !== 'skip' && !imagesHeldBack.has(op.extDoc.externalId)
       )
-      const contentOps = rawBatch
-        .filter((op) => op.type !== 'skip')
-        .filter((op) => !imagesHeldBack.has(op.extDoc.externalId))
       const deferredOps = contentOps.filter((op) => op.extDoc.contentDeferred)
       const readyOps = contentOps.filter((op) => !op.extDoc.contentDeferred)
       let hydrationDeferral: unknown

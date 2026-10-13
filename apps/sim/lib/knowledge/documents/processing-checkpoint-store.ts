@@ -80,17 +80,14 @@ export async function readFramedCheckpoint(
   if (!isRecordLike(header)) return null
   const body = encoded.subarray(separator + 1)
   if (
-    !('version' in header) ||
     header.version !== 1 ||
-    !('expiresAt' in header) ||
     typeof header.expiresAt !== 'number' ||
     !Number.isFinite(header.expiresAt) ||
     header.expiresAt <= Date.now() ||
-    !('contentHash' in header) ||
     header.contentHash !== sha256Hex(body)
   )
     return null
-  return { header: header as Record<string, unknown>, body }
+  return { header, body }
 }
 
 /**
@@ -181,12 +178,9 @@ export function createCheckpointCleanupHandler(options: {
   const { keyPattern, label } = options
   return async (payload, context) => {
     if (
-      !payload ||
-      typeof payload !== 'object' ||
-      !('key' in payload) ||
+      !isRecordLike(payload) ||
       typeof payload.key !== 'string' ||
       !keyPattern.test(payload.key) ||
-      !('expiresAt' in payload) ||
       typeof payload.expiresAt !== 'number' ||
       !Number.isFinite(payload.expiresAt)
     )
