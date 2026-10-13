@@ -27,11 +27,11 @@ export type OrganizationSurfaceSettingsSection =
  * The account sections the organization surface hosts, rendered by the account
  * plane's own renderer. General is the one that belongs to the person alone: the
  * personal Subscription gives way to the organization's, which sits beside
- * General in the Account group, and the Desktop, Browser, and Terminal sections
- * are bound to the workspace they are opened from.
+ * General in the Account group. Platform administration keeps the account
+ * plane's access rules; Desktop, Browser, and Terminal are workspace-bound.
  */
 export const ORGANIZATION_SURFACE_ACCOUNT_ITEMS: SettingsNavigationItem<AccountSettingsSection>[] =
-  ACCOUNT_SETTINGS_ITEMS.filter((item) => item.id === 'general')
+  ACCOUNT_SETTINGS_ITEMS.filter((item) => item.id === 'general' || item.group === 'platform')
 
 export function resolveOrganizationSettingsSection(
   path: string
@@ -108,10 +108,13 @@ export function organizationSettingsNavigation(
 export function organizationSurfaceSettingsNavigation(
   isAdmin: boolean,
   features: OrganizationSettingsFeatures,
-  availability: { connectedAccounts: boolean; search: boolean; knowledgeGraphs?: boolean }
+  availability: { connectedAccounts: boolean; search: boolean; knowledgeGraphs?: boolean },
+  isPlatformAdmin: boolean
 ): SettingsNavigationItem<AccountSettingsSection | OrganizationSettingsSection>[] {
   return [
-    ...ORGANIZATION_SURFACE_ACCOUNT_ITEMS,
+    ...ORGANIZATION_SURFACE_ACCOUNT_ITEMS.filter(
+      (item) => item.group !== 'platform' || isPlatformAdmin
+    ),
     ...organizationSettingsNavigation(isAdmin, features, availability),
   ]
 }
