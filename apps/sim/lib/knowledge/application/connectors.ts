@@ -10,6 +10,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { escapeLikePattern } from '@sim/utils/string'
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
@@ -1299,10 +1300,7 @@ async function assertImageRestoreAllowed(
     .from(knowledgeConnector)
     .where(eq(knowledgeConnector.id, connector.id))
     .for('share')
-  if (
-    stored &&
-    !isImageExtractionEnabled(imageExtraction, stored.sourceConfig as Record<string, unknown>)
-  ) {
+  if (stored && !isImageExtractionEnabled(imageExtraction, toRecord(stored.sourceConfig))) {
     throw new OrchestrationError(
       'validation',
       'Turn on image attachments for this connector before restoring an image.'
