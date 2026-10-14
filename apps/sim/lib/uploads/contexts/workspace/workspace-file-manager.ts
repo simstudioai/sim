@@ -134,6 +134,7 @@ import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 import {
+  assertFileFolderTarget,
   assertWorkspaceFileFolderTarget,
   buildWorkspaceFileFolderPathMap,
   fileNameExistsInWorkspaceFolder,
@@ -653,8 +654,10 @@ async function commitFileCreateInTx(
   }
   if (args.owner.entityType === 'workspace') await lockWorkspaceProject(tx, args.owner.entityId)
   await lockFileDirectories(tx, [args.owner])
-  const target = await resolveFileFolderTarget(args.owner, args, tx)
-  const folderId = target?.id ?? null
+  const folderId =
+    args.folderPath === undefined
+      ? await assertFileFolderTarget(args.owner, args.folderId, tx)
+      : ((await resolveFileFolderTarget(args.owner, args, tx))?.id ?? null)
   const exists = async (name: string) => {
     const [row] = await tx
       .select({ id: workspaceFiles.id })
@@ -1748,6 +1751,7 @@ const WORKSPACE_FILE_SORTS = {
 } satisfies Record<V2FileSortBy, readonly KeysetKey<OwnedFileRecord>[]>
 
 export interface QueryWorkspaceFilesOptions {
+  /** Exact file ids. */
   fileIds?: readonly string[]
   scope?: WorkspaceFileScope
   /** Restrict to one file folder. */
@@ -1762,8 +1766,6 @@ export interface QueryWorkspaceFilesOptions {
   folderId?: string | null | readonly string[]
   /** A resolved union of folder ids and workspace-root files. */
   folderScope?: FolderIdScope
-  /** Exact file id. */
-  fileId?: string
   /** Exact file name. */
   name?: string
   /** Case-insensitive substring match on the file name. */
@@ -1830,7 +1832,6 @@ async function queryFileRecords<const O extends EditableFileOwner>(
     scope = 'active',
     folderId,
     folderScope,
-    fileId,
     name,
     search,
     sortBy,
@@ -1860,7 +1861,6 @@ async function queryFileRecords<const O extends EditableFileOwner>(
         : isNull(workspaceFiles.deletedAt),
     workspaceFileFolderCondition(folderId),
     workspaceFileFolderScopeCondition(folderScope),
-    fileId === undefined ? undefined : eq(workspaceFiles.id, fileId),
     name === undefined ? undefined : eq(workspaceFiles.originalName, name),
     searchFilter(workspaceFiles.originalName, search),
     resumeAfter,
@@ -2411,10 +2411,9 @@ interface CommitFileContentOptions {
   secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
 }
 
-/** Commits bytes, history and provenance after the caller has locked its canonical billing payer. */
+/** Commits bytes, history and provenance after the caller has prepared the owner's accounting. */
 async function commitFileContentInTx(tx: DbTransaction, options: CommitFileContentOptions) {
   const { owner, fileId, staged } = options
-  if (owner.entityType === 'workspace') await lockWorkspaceProject(tx, owner.entityId)
   if (staged.contentHash === null)
     throw new Error('Content replacement requires staged bytes with a verified content hash')
   assertStagedFileOwner(owner, staged)

@@ -122,7 +122,7 @@ export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
       scope: input.scope,
       folderId,
       folderScope: input.folderScope,
-      fileId: input.fileId,
+      fileIds: input.fileId === undefined ? undefined : [input.fileId],
       name: input.name,
       search: input.search,
       sortBy: input.sortBy,
