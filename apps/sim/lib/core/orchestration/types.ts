@@ -116,5 +116,7 @@ export function asOrchestrationError(error: unknown): OrchestrationError | null 
 /** Transport metadata available to an application operation for audit capture. */
 export interface OrchestrationRequestContext {
   headers: { get(name: string): string | null }
+  /** The URL the request was addressed to. */
+  url?: string
   signal?: AbortSignal
 }
