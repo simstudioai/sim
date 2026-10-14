@@ -594,8 +594,7 @@ async function resolveFileFolderTarget<O extends EditableFileOwner>(
   if (target.folderPath !== undefined) {
     const path = buildFolderPath(folderPathSegments(target.folderPath))
     if (path === '/') return null
-    const rows = await selectFileFolderPathRows(owner, client)
-    folderId = buildFolderPathIndex(rows).idByPath.get(path) ?? null
+    folderId = (await loadActiveFileFolderPathIndex(owner, client)).idByPath.get(path) ?? null
     if (!folderId) throw new OrchestrationError('not_found', 'Target folder not found')
   }
   if (!folderId) return null
