@@ -23,6 +23,7 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import postgres from 'postgres'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,6 +36,7 @@ import { type CleanupJobPayload, runCleanupWithLimits } from '@/lib/billing/clea
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import { createCleanupBudgets } from '@/lib/cleanup/limits'
 import { beginFileArchiveCleanup, cleanupFileVersions } from '@/lib/file-retention'
+import { FILES_PER_QUERY } from '@/lib/file-retention/versions'
 import { authorizeProject } from '@/lib/projects/application/authorization'
 import { projectOperations } from '@/lib/projects/application/operations'
 import { lockWorkspaceProject } from '@/lib/projects/membership'
@@ -342,6 +344,50 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
       const remaining = await versions(workspaceFile.fileId)
       expect(remaining).toHaveLength(11)
       expect(remaining.at(-1)).toEqual({ version: 12 })
+    }
+  )
+
+  check(
+    'a Project that fails after committing a version batch still spends the shared run limit',
+    async () => {
+      const [first, second] = [await fixture(), await fixture()].sort((a, b) =>
+        a.projectId < b.projectId ? -1 : 1
+      )
+      // One more file than a batch reads, so the first batch commits and the second one fails.
+      const files = await Promise.all(
+        Array.from({ length: FILES_PER_QUERY + 1 }, () => seedFile(first, 60 * 24))
+      )
+      const failingFileId = files
+        .map(({ fileId }) => fileId)
+        .sort(compareStrings)
+        .at(-1)
+      const survivor = await seedFile(second, 60 * 24)
+      const trigger = `version_retention_failure_${generateId().replaceAll('-', '')}`
+      await db.execute(
+        sql.raw(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        IF OLD.file_id = '${failingFileId}' THEN RAISE EXCEPTION 'version retention failure fixture'; END IF; RETURN OLD; END $$`)
+      )
+      await db.execute(
+        sql.raw(
+          `CREATE TRIGGER ${trigger} BEFORE DELETE ON workspace_file_version FOR EACH ROW EXECUTE FUNCTION ${trigger}()`
+        )
+      )
+      const committedByFirst = FILES_PER_QUERY * 2
+      try {
+        const deleted = await cleanupFileVersions(
+          [
+            { entityType: 'project', entityId: first.projectId },
+            { entityType: 'project', entityId: second.projectId },
+          ],
+          { plan: 'free', cutoff: new Date(), label: 'failed-owner-spends-limit' },
+          committedByFirst + 1
+        )
+        expect(deleted).toBe(committedByFirst + 1)
+        expect(await versions(survivor.fileId)).toHaveLength(11)
+      } finally {
+        await db.execute(sql.raw(`DROP TRIGGER ${trigger} ON workspace_file_version`))
+        await db.execute(sql.raw(`DROP FUNCTION ${trigger}()`))
+      }
     }
   )
 

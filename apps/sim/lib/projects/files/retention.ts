@@ -64,14 +64,18 @@ function projectFiles(projectId: string) {
   return fileOwnerCondition({ entityType: 'project', entityId: projectId })
 }
 
-/** Releases only superseded history, retaining the current head and the newest nine predecessors. */
+/**
+ * Releases only superseded history, retaining the current head and the newest nine predecessors.
+ * Each committed batch is charged to `budget` as it commits, so a later failure cannot erase
+ * progress the shared run limit has to count.
+ */
 export async function cleanupProjectFileVersions(
   projectId: string,
-  limit: number
+  budget: RowBudget
 ): Promise<number> {
   let released = 0
   let afterId = ''
-  while (released < limit) {
+  while (budget.remaining > 0) {
     const batch = await cleanupDb.transaction(async (tx) => {
       const policy = await prepareRetention(tx, projectId, 'cleanup-file-versions')
       if (!policy) return null
@@ -115,7 +119,7 @@ export async function cleanupProjectFileVersions(
         )
         .orderBy(asc(workspaceFiles.id))
         .for('update')
-      const versionLimit = Math.min(DEFAULT_DELETE_CHUNK_SIZE, limit - released)
+      const versionLimit = Math.min(DEFAULT_DELETE_CHUNK_SIZE, budget.remaining)
       const expired = await selectExpiredFileVersions(
         tx,
         candidates.map(({ id }) => id),
@@ -130,6 +134,7 @@ export async function cleanupProjectFileVersions(
       }
     })
     if (!batch) break
+    consumeRowBudget(budget, batch.removed)
     afterId = batch.lastId
     released += batch.removed
   }

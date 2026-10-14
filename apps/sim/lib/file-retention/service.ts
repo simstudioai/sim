@@ -2,6 +2,7 @@ import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
 import {
   DEFAULT_DELETE_CHUNK_SIZE,
   DEFAULT_MAX_BATCHES_PER_TABLE,
+  type RowBudget,
 } from '@/lib/cleanup/batch-delete'
 import { isolateOwnerFailure } from '@/lib/file-retention/failure'
 import { prepareLegacyFileArchiveCleanup } from '@/lib/file-retention/legacy-archive'
@@ -43,13 +44,14 @@ const OWNER_ADAPTERS: FileOwnerAdapters<RetentionAdapter> = {
   },
   project: {
     async versions(ids, { budgets, label }, limit) {
-      let deleted = 0
+      const budget: RowBudget = { remaining: limit }
       for (const id of ids) {
-        if (deleted >= limit) break
-        deleted += await isolateOwnerFailure(Boolean(budgets), { label, projectId: id }, () =>
-          cleanupProjectFileVersions(id, limit - deleted)
+        if (budget.remaining <= 0) break
+        await isolateOwnerFailure(Boolean(budgets), { label, projectId: id }, () =>
+          cleanupProjectFileVersions(id, budget)
         )
       }
+      const deleted = limit - budget.remaining
       return { deleted, attempted: deleted }
     },
     async archive(ids, { budgets, label }) {
