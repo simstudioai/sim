@@ -48,8 +48,8 @@ const OPENAPI_TRANSLATIONS = {
   deviceAuthorization: 'Device authorization',
   clientSecret: 'Client secret',
   serverUrlFieldPlaceholder: 'Enter value',
-  schemaShowArray: 'Array item',
-  schemaHideArray: 'Array item',
+  schemaShowArray: 'Show array item',
+  schemaHideArray: 'Hide array item',
   schemaFilterPropertiesPlaceholder: 'Filter properties',
   playgroundShowProperty: 'Show property',
   playgroundPropertyPlaceholder: 'Enter property name',
@@ -86,7 +86,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
         />
       </head>
-      <body className='flex min-h-screen flex-col font-sans'>
+      <body className='flex min-h-screen flex-col font-sans [&_div:has(>input[data-object-search-input])]:h-[30px] [&_div:has(>input[data-object-search-input])]:min-w-0 [&_div:has(>input[data-object-search-input])]:rounded-lg [&_div:has(>input[data-object-search-input])]:border-[var(--border)] [&_div:has(>input[data-object-search-input])]:bg-[var(--surface-5)] [&_div:has(>input[data-object-search-input])]:shadow-none! [&_div:has(>input[data-object-search-input])]:focus-within:bg-[var(--surface-hover)]! [&_div:has(>input[data-object-search-input])]:focus-within:ring-0! max-md:pointer-coarse:[&_div:has(>input[data-object-search-input])]:min-h-11 dark:[&_div:has(>input[data-object-search-input])]:bg-[var(--surface-4)] [&_input[data-object-search-input]]:h-full [&_input[data-object-search-input]]:min-w-0 [&_input[data-object-search-input]]:py-0 [&_input[data-object-search-input]]:text-[var(--text-body)] max-md:pointer-coarse:[&_input[data-object-search-input]]:text-md'>
         <ThemeProvider
           attribute='class'
           defaultTheme='system'

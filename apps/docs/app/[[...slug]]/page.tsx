@@ -1,5 +1,12 @@
 import type React from 'react'
 import { Children, cloneElement, isValidElement } from 'react'
+import {
+  chipFieldSurfaceClass,
+  chipFieldTextClass,
+  chipGeometryClass,
+  chipHoverSurfaceClass,
+  cn,
+} from '@sim/emcn'
 import { highlight } from 'fumadocs-core/highlight'
 import { findNeighbour } from 'fumadocs-core/page-tree'
 import type { ApiPageProps } from 'fumadocs-openapi/ui'
@@ -41,6 +48,9 @@ const AUTH_SCHEME_LABELS: Record<string, string> = {
   oauthBearer: 'OAuth access token',
 }
 
+const DOCS_BODY_CLASS_NAME =
+  '[overflow-wrap:anywhere] [&_:not(pre)>code:not([class])]:rounded! [&_:not(pre)>code:not([class])]:px-1! [&_:not(pre)>code:not([class])]:py-px! [&_:not(pre)>code:not([class])]:font-normal! [&_:not(pre)>code:not([class])]:text-[var(--text-primary)]! [&_:not(pre)>code:not([class])]:[font-size:inherit]! [&_:not(pre)>code:not([class])]:bg-[var(--surface-5)]! dark:[&_:not(pre)>code:not([class])]:bg-[var(--surface-4)]!'
+
 function isContentHeading(item: { url: string }): boolean {
   return !ONWARD_NAV_SLUG.test(item.url)
 }
@@ -72,11 +82,23 @@ function labelAuthSelectors(node: React.ReactNode): React.ReactNode {
   const children =
     props.children === undefined ? undefined : Children.map(props.children, labelAuthSelectors)
 
+  if (node.type === 'code') {
+    return <span className='font-normal text-sm [&>span]:font-normal'>{children}</span>
+  }
+
   if (Array.isArray(props.items)) {
     return cloneElement(
       node,
       {
         'aria-label': 'Authentication method',
+        className: cn(
+          props.className,
+          chipGeometryClass,
+          chipFieldSurfaceClass,
+          chipFieldTextClass,
+          chipHoverSurfaceClass,
+          'relative shrink-0 py-0 focus:ring-0 focus-visible:bg-[var(--surface-hover)] before:absolute before:inset-x-0 before:-inset-y-[7px] before:content-[""]'
+        ),
         items: props.items.map((item) => ({
           ...item,
           label: labelAuthSelectors(item.label),
@@ -111,7 +133,7 @@ const APIPage = createAPIPage(openapi, {
             {slots.description}
             {slots.apiPlayground}
             {slots.authSchemes && (
-              <div className='api-section-divider'>
+              <div className='api-section-divider [&>div:first-child]:flex-wrap [&>div:first-child]:gap-y-3'>
                 {labelAuthSelectors(slots.authSchemes)}
                 <p className='text-[var(--text-muted)] text-sm'>
                   Request examples use an API key. For OAuth, replace the <code>X-API-Key</code>{' '}
@@ -246,7 +268,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
             </div>
             <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
           </PageHeader>
-          <DocsBody className='[overflow-wrap:anywhere]'>
+          <DocsBody className={DOCS_BODY_CLASS_NAME}>
             <APIPage {...apiProps} />
           </DocsBody>
         </DocsPage>
@@ -292,7 +314,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
           </div>
           <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
         </PageHeader>
-        <DocsBody className='[overflow-wrap:anywhere]'>
+        <DocsBody className={DOCS_BODY_CLASS_NAME}>
           {integrationLandingPage && (
             <p>
               {INTEGRATION_LANDING_LABEL}{' '}
