@@ -5,6 +5,21 @@ import { outlookCalendarRespondTool } from '@/tools/outlook/calendar_respond'
 import { outlookCalendarUpdateEventTool } from '@/tools/outlook/calendar_update_event'
 
 describe('outlook calendar tools', () => {
+  it('scopes to a selected calendar, treats a blank pick as the default calendar, and rejects path ids', () => {
+    const listUrl = outlookCalendarListEventsTool.request.url as (p: unknown) => string
+    const window = {
+      accessToken: 't',
+      startDateTime: '2025-06-03T00:00:00Z',
+      endDateTime: '2025-06-10T00:00:00Z',
+    }
+
+    expect(listUrl({ ...window, calendarId: 'AAMk=' })).toContain(
+      '/v1.0/me/calendars/AAMk%3D/calendarView?'
+    )
+    expect(listUrl({ ...window, calendarId: '  ' })).toContain('/v1.0/me/calendarView?')
+    expect(() => listUrl({ ...window, calendarId: '..' })).toThrow()
+  })
+
   it('treats date-only bounds as an all-day event even without the flag', () => {
     const createBody = outlookCalendarCreateEventTool.request.body as (
       p: unknown

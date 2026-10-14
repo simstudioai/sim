@@ -39,7 +39,8 @@ const TOKEN_EXPIRY_BUFFER_MS = 60_000
  * coalesces concurrent exchanges per key and sets each entry's TTL from the
  * provider's `expires_in`. The exchange owns its timeout and ignores
  * cache-driven aborts, so an eviction never fails callers already waiting on
- * it; a caller's own signal only detaches that caller.
+ * it; a caller's own signal only detaches that caller. TTLs run on the wall clock at
+ * exact resolution, the same clock as the provider's `expires_in`.
  */
 const tokenCache = new LRUCache<string, string, SailPointCredentials>({
   max: 100,
