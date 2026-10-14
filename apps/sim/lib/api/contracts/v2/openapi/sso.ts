@@ -26,17 +26,20 @@ export const ssoOpenApiRoutes = [
     {
       applicationOperation: ssoProviderOperations.list,
       operationId: 'listSsoProviders',
-      summary: 'List SSO Providers',
-      description: `List identity providers owned by the organization. Requires organization administrator access. OIDC client secrets are redacted and SAML private keys are omitted. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'List SSO providers',
+      description: `List identity providers owned by the organization. Requires organization Admin access. OIDC client secrets are redacted and SAML private keys are omitted. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'List SSO Providers result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'A page of identity providers with redacted configuration.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2ListSsoProvidersContract.params,
         'ListSsoProvidersParams',
-        'List SSO Providers parameters',
+        'List SSO providers parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -48,8 +51,8 @@ export const ssoOpenApiRoutes = [
       response: documentedSchema(
         v2ListSsoProvidersContract.response.schema,
         'ListSsoProvidersResponse',
-        'List SSO Providers response',
-        'List SSO Providers result.'
+        'List SSO providers response',
+        'A page of identity providers with redacted configuration.'
       ),
     }
   ),
@@ -58,17 +61,20 @@ export const ssoOpenApiRoutes = [
     {
       applicationOperation: ssoProviderOperations.list,
       operationId: 'getSsoProvider',
-      summary: 'Get SSO Provider',
-      description: `Get an identity provider owned by the organization. Requires organization administrator access. OIDC client secrets are redacted and SAML private keys are omitted. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Get SSO provider',
+      description: `Get an identity provider owned by the organization. Requires organization Admin access. OIDC client secrets are redacted and SAML private keys are omitted. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Get SSO Provider result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The identity provider with redacted configuration.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2GetSsoProviderContract.params,
         'GetSsoProviderParams',
-        'Get SSO Provider parameters',
+        'Get SSO provider parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -80,8 +86,8 @@ export const ssoOpenApiRoutes = [
       response: documentedSchema(
         v2GetSsoProviderContract.response.schema,
         'GetSsoProviderResponse',
-        'Get SSO Provider response',
-        'Get SSO Provider result.'
+        'Get SSO provider response',
+        'The identity provider with redacted configuration.'
       ),
     }
   ),
@@ -90,17 +96,20 @@ export const ssoOpenApiRoutes = [
     {
       applicationOperation: ssoProviderOperations.save,
       operationId: 'saveSsoProvider',
-      summary: 'Save SSO Provider',
-      description: `Create or update an organization identity provider’s configuration on a verified domain. Requires organization administrator access and SSO entitlement. Existing providers return 200; creation returns 201. Omission behavior is field-specific; OIDC’s redacted secret marker preserves the saved secret. Identity changes with linked accounts conflict. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Save SSO provider',
+      description: `Create or update an organization identity provider’s configuration on a verified domain. Requires organization Admin access and SSO entitlement. Existing providers return 200; creation returns 201. Omission behavior is field-specific; OIDC’s redacted secret marker preserves the saved secret. Identity changes with linked accounts conflict. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Save SSO Provider result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The saved identity provider and whether it was created.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2SaveSsoProviderContract.params,
         'SaveSsoProviderParams',
-        'Save SSO Provider parameters',
+        'Save SSO provider parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -112,14 +121,14 @@ export const ssoOpenApiRoutes = [
       body: documentedSchema(
         v2SaveSsoProviderContract.body,
         'SaveSsoProviderBody',
-        'Save SSO Provider body',
-        'Configuration accepted by Save SSO Provider.'
+        'Save SSO provider body',
+        'Provider protocol, verified domain, and identity-provider configuration. Omission behavior is field-specific.'
       ),
       response: documentedSchema(
         v2SaveSsoProviderContract.response.schema,
         'SaveSsoProviderResponse',
-        'Save SSO Provider response',
-        'Save SSO Provider result.'
+        'Save SSO provider response',
+        'The saved identity provider and whether it was created.'
       ),
     }
   ),
@@ -128,17 +137,20 @@ export const ssoOpenApiRoutes = [
     {
       applicationOperation: ssoProviderOperations.delete,
       operationId: 'deleteSsoProvider',
-      summary: 'Delete SSO Provider',
-      description: `Remove an identity provider and clear its primary selection. Requires organization administrator access. Existing accounts, memberships, and sessions remain; sign-in falls back to another verified provider on the domain. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Delete SSO provider',
+      description: `Remove an identity provider and clear its primary selection. Requires organization Admin access. Existing accounts, memberships, and sessions remain. Domain sign-in falls back to another verified provider if one remains; use Get SSO policy to inspect whether SSO is still enforced. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Delete SSO Provider result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'Acknowledgement that the identity provider was removed.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2DeleteSsoProviderContract.params,
         'DeleteSsoProviderParams',
-        'Delete SSO Provider parameters',
+        'Delete SSO provider parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -150,8 +162,8 @@ export const ssoOpenApiRoutes = [
       response: documentedSchema(
         v2DeleteSsoProviderContract.response.schema,
         'DeleteSsoProviderResponse',
-        'Delete SSO Provider response',
-        'Delete SSO Provider result.'
+        'Delete SSO provider response',
+        'Acknowledgement that the identity provider was removed.'
       ),
     }
   ),
@@ -160,17 +172,20 @@ export const ssoOpenApiRoutes = [
     {
       applicationOperation: ssoSettingsOperations.setPrimary,
       operationId: 'setPrimarySsoProvider',
-      summary: 'Set Primary SSO Provider',
-      description: `Make a verified organization provider handle sign-in for its domain. Requires organization administrator access. Other providers remain available for testing and later switching. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Set primary SSO provider',
+      description: `Make a verified organization provider handle sign-in for its domain. Requires organization Admin access. Other providers remain available for testing and later switching. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Set Primary SSO Provider result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The provider selected for its verified domain.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2SetPrimarySsoProviderContract.params,
         'SetPrimarySsoProviderParams',
-        'Set Primary SSO Provider parameters',
+        'Set primary SSO provider parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -182,14 +197,14 @@ export const ssoOpenApiRoutes = [
       body: documentedSchema(
         v2SetPrimarySsoProviderContract.body,
         'SetPrimarySsoProviderBody',
-        'Set Primary SSO Provider body',
-        'Configuration accepted by Set Primary SSO Provider.'
+        'Set primary SSO provider body',
+        'An empty JSON object; the path identifies the provider to make primary.'
       ),
       response: documentedSchema(
         v2SetPrimarySsoProviderContract.response.schema,
         'SetPrimarySsoProviderResponse',
-        'Set Primary SSO Provider response',
-        'Set Primary SSO Provider result.'
+        'Set primary SSO provider response',
+        'The provider selected for its verified domain.'
       ),
     }
   ),
@@ -198,17 +213,20 @@ export const ssoOpenApiRoutes = [
     {
       applicationOperation: ssoSettingsOperations.readRequirement,
       operationId: 'getSsoPolicy',
-      summary: 'Get SSO Policy',
+      summary: 'Get SSO policy',
       description: `Get the stored organization SSO requirement and whether it is currently enforced. Requires organization membership. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Get SSO Policy result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The stored SSO requirement and its effective enforcement state.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2GetSsoPolicyContract.params,
         'GetSsoPolicyParams',
-        'Get SSO Policy parameters',
+        'Get SSO policy parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -220,8 +238,8 @@ export const ssoOpenApiRoutes = [
       response: documentedSchema(
         v2GetSsoPolicyContract.response.schema,
         'GetSsoPolicyResponse',
-        'Get SSO Policy response',
-        'Get SSO Policy result.'
+        'Get SSO policy response',
+        'The stored SSO requirement and its effective enforcement state.'
       ),
     }
   ),
@@ -230,17 +248,20 @@ export const ssoOpenApiRoutes = [
     {
       applicationOperation: ssoSettingsOperations.setRequirement,
       operationId: 'updateSsoPolicy',
-      summary: 'Update SSO Policy',
-      description: `Require or stop requiring SSO on future sign-ins. Requires organization administrator access. Enabling requires SSO entitlement and a verified provider; disabling remains available after entitlement is lost. Existing sessions remain active. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Update SSO policy',
+      description: `Require or stop requiring SSO on future sign-ins. Requires organization Admin access. Enabling requires SSO entitlement and a verified provider; disabling remains available after entitlement is lost. Existing sessions remain active. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Update SSO Policy result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The saved SSO requirement and its effective enforcement state.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2UpdateSsoPolicyContract.params,
         'UpdateSsoPolicyParams',
-        'Update SSO Policy parameters',
+        'Update SSO policy parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -252,14 +273,14 @@ export const ssoOpenApiRoutes = [
       body: documentedSchema(
         v2UpdateSsoPolicyContract.body,
         'UpdateSsoPolicyBody',
-        'Update SSO Policy body',
-        'Configuration accepted by Update SSO Policy.'
+        'Update SSO policy body',
+        'Whether future sign-ins must use SSO.'
       ),
       response: documentedSchema(
         v2UpdateSsoPolicyContract.response.schema,
         'UpdateSsoPolicyResponse',
-        'Update SSO Policy response',
-        'Update SSO Policy result.'
+        'Update SSO policy response',
+        'The saved SSO requirement and its effective enforcement state.'
       ),
     }
   ),
@@ -268,17 +289,20 @@ export const ssoOpenApiRoutes = [
     {
       applicationOperation: organizationSecurityOperations.listDomains,
       operationId: 'listOrganizationDomains',
-      summary: 'List Organization Domains',
+      summary: 'List organization domains',
       description: `List the organization’s domain claims with cursor pagination. Requires organization membership. Pending DNS challenge values are returned only to administrators using their own credentials. Organizations without Enterprise domain entitlement return an empty list. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'List Organization Domains result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'A page of domain claims; pending challenges are limited to Admins.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2ListOrganizationDomainsContract.params,
         'ListOrganizationDomainsParams',
-        'List Organization Domains parameters',
+        'List organization domains parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -290,8 +314,8 @@ export const ssoOpenApiRoutes = [
       response: documentedSchema(
         v2ListOrganizationDomainsContract.response.schema,
         'ListOrganizationDomainsResponse',
-        'List Organization Domains response',
-        'List Organization Domains result.'
+        'List organization domains response',
+        'A page of domain claims; pending challenges are limited to Admins.'
       ),
     }
   ),
@@ -300,17 +324,20 @@ export const ssoOpenApiRoutes = [
     {
       applicationOperation: organizationSecurityOperations.addDomain,
       operationId: 'addOrganizationDomain',
-      summary: 'Add Organization Domain',
-      description: `Claim a domain and receive its DNS TXT challenge. Requires organization administrator access and Enterprise domain entitlement. An existing claim returns 200; a new claim returns 201. A domain verified by another organization conflicts. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Add organization domain',
+      description: `Claim a domain and receive its DNS TXT challenge. Requires organization Admin access and, when billing is enabled, Enterprise domain entitlement. An organization can claim at most 25 domains. Existing claims return \`200\`; new claims return \`201\`. A domain verified by another organization returns \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Add Organization Domain result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The domain claim and its pending DNS challenge, when applicable.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2AddOrganizationDomainContract.params,
         'AddOrganizationDomainParams',
-        'Add Organization Domain parameters',
+        'Add organization domain parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -322,14 +349,14 @@ export const ssoOpenApiRoutes = [
       body: documentedSchema(
         v2AddOrganizationDomainContract.body,
         'AddOrganizationDomainBody',
-        'Add Organization Domain body',
-        'Configuration accepted by Add Organization Domain.'
+        'Add organization domain body',
+        'The domain to claim and verify.'
       ),
       response: documentedSchema(
         v2AddOrganizationDomainContract.response.schema,
         'AddOrganizationDomainResponse',
-        'Add Organization Domain response',
-        'Add Organization Domain result.'
+        'Add organization domain response',
+        'The domain claim and its pending DNS challenge, when applicable.'
       ),
     }
   ),
@@ -338,17 +365,20 @@ export const ssoOpenApiRoutes = [
     {
       applicationOperation: organizationSecurityOperations.verifyDomain,
       operationId: 'verifyOrganizationDomain',
-      summary: 'Verify Organization Domain',
-      description: `Verify domain ownership through the published DNS TXT challenge and grant domain trust to matching organization providers. Requires organization administrator access and Enterprise domain entitlement. An already-verified domain is returned unchanged. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Verify organization domain',
+      description: `Verify domain ownership through its DNS TXT challenge and grant domain trust to matching organization providers. Requires organization Admin access and, when billing is enabled, Enterprise domain entitlement. Billing-disabled self-hosted deployments may configure operator verification. An already-verified domain is returned unchanged. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Verify Organization Domain result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The domain claim after ownership verification.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2VerifyOrganizationDomainContract.params,
         'VerifyOrganizationDomainParams',
-        'Verify Organization Domain parameters',
+        'Verify organization domain parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -360,14 +390,14 @@ export const ssoOpenApiRoutes = [
       body: documentedSchema(
         v2VerifyOrganizationDomainContract.body,
         'VerifyOrganizationDomainBody',
-        'Verify Organization Domain body',
-        'Configuration accepted by Verify Organization Domain.'
+        'Verify organization domain body',
+        'An empty JSON object; verification uses the claim’s current DNS challenge.'
       ),
       response: documentedSchema(
         v2VerifyOrganizationDomainContract.response.schema,
         'VerifyOrganizationDomainResponse',
-        'Verify Organization Domain response',
-        'Verify Organization Domain result.'
+        'Verify organization domain response',
+        'The domain claim after ownership verification.'
       ),
     }
   ),
@@ -376,17 +406,20 @@ export const ssoOpenApiRoutes = [
     {
       applicationOperation: organizationSecurityOperations.removeDomain,
       operationId: 'removeOrganizationDomain',
-      summary: 'Remove Organization Domain',
-      description: `Remove a domain claim and revoke verified sign-in authority from matching organization providers. Requires organization administrator access and Enterprise domain entitlement. Existing accounts and memberships remain. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Remove organization domain',
+      description: `Remove a domain claim and revoke verified sign-in authority from matching organization providers. Requires organization Admin access and, when billing is enabled, Enterprise domain entitlement. Existing accounts and memberships remain. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Remove Organization Domain result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'Acknowledgement that the domain claim was removed.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2RemoveOrganizationDomainContract.params,
         'RemoveOrganizationDomainParams',
-        'Remove Organization Domain parameters',
+        'Remove organization domain parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -398,8 +431,8 @@ export const ssoOpenApiRoutes = [
       response: documentedSchema(
         v2RemoveOrganizationDomainContract.response.schema,
         'RemoveOrganizationDomainResponse',
-        'Remove Organization Domain response',
-        'Remove Organization Domain result.'
+        'Remove organization domain response',
+        'Acknowledgement that the domain claim was removed.'
       ),
     }
   ),

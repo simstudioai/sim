@@ -1,24 +1,22 @@
 ---
 title: Sim MCP
-description: Build, run, and manage everything in your Sim workspace from Claude, Codex, Cursor, and other MCP apps
+description: Connect an AI app to Sim's JSON API operations through MCP.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-The Sim MCP server gives an AI app the whole Sim API through the
-[Model Context Protocol](https://modelcontextprotocol.io). Your agent can list
-workspaces, run and deploy workflows, query and edit tables, manage files and
-knowledge bases, read run logs, and more. It covers the same operations as the
-[API](/api-reference/getting-started) and the [CLI](/cli).
+Connect an AI app to Sim to manage workspaces, run and deploy workflows, and work with tables, files, knowledge bases, and logs. Sim MCP exposes JSON API operations through the [Model Context Protocol](https://modelcontextprotocol.io), a standard for connecting AI apps to tools. See [Tools](/mcp/tools) for supported requests and limits.
+
+## Choose the server URL
 
 | Deployment | Server URL |
 | --- | --- |
 | Sim Cloud | `https://mcp.sim.ai/mcp` |
 | Self-hosted | `https://<your-sim-host>/api/mcp`, or your [`SIM_MCP_URL`](/platform/self-hosting/environment-variables) |
 
-The server uses the Streamable HTTP transport. Sign in with OAuth, the default
-in every app below, or send an [API key](/mcp/authentication#api-keys).
+The server uses Streamable HTTP. Sign in with OAuth or send an [API key](/mcp/authentication#api-keys). Replace the Cloud URL in every example below when connecting to a self-hosted deployment.
+
+Claude's hosted connectors call from Anthropic's infrastructure, so your server must be reachable from it over the internet. A `localhost` URL works with clients that connect from your machine, such as Claude Code, Codex, Cursor, and VS Code. See [Claude's network requirements](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
 
 ## Connect an app
 
@@ -32,9 +30,9 @@ in every app below, or send an [API key](/mcp/authentication#api-keys).
     browser.
   </Tab>
   <Tab value="Claude">
-    Add `https://mcp.sim.ai/mcp` as a custom connector under **Settings →
+    Add `https://mcp.sim.ai/mcp` as a custom connector under **Customize →
     Connectors**, then connect it and sign in to Sim. For Team or Enterprise,
-    an owner first adds it under **Organization settings → Connectors**. See
+    an authorized organization administrator first adds it under **Organization settings → Connectors**. If asked for an OAuth client strategy, choose **Register automatically**. See
     [Claude's custom connector instructions](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
   </Tab>
   <Tab value="Codex">
@@ -70,15 +68,7 @@ in every app below, or send an [API key](/mcp/authentication#api-keys).
   </Tab>
 </Tabs>
 
-Any other app that supports remote MCP servers with OAuth works the same way:
-give it the server URL and choose **Streamable HTTP** if asked.
-
-<Callout type="info">
-  Claude's hosted connectors call your server from Claude's infrastructure, so a
-  self-hosted Sim must be reachable from the internet. A `localhost` URL works
-  only with apps that run on your machine, such as Claude Code, Codex, Cursor,
-  and VS Code.
-</Callout>
+For another app that supports remote MCP servers with OAuth, enter the server URL and choose **Streamable HTTP** if asked. Follow that app's connection and sign-in procedure.
 
 ## Try it
 
@@ -92,18 +82,22 @@ Ask your app:
 The agent finds the right operation, reads its inputs, and calls it. See
 [Tools](/mcp/tools) for how that works.
 
-## What your agent can do
+## Access and approvals
 
-The server acts as you. It sees the workspaces you can see, with your role in
-each, and every call is authorized, rate limited, and logged exactly like the
-same request to the API. Reads leave your resources unchanged, and apps can ask
-you to confirm each change. See [Authentication](/mcp/authentication) to limit
-an app to reads.
+Access follows the connection credential, workspace role, and operation policy. Each call uses the API's authorization, rate limits, validation, and logging. Personal credentials use your current access; workspace API keys are limited to their workspace. See [Authentication](/mcp/authentication) to choose credential scope or read-only OAuth access.
+
+The server separates read and write tools; your app controls whether it asks for confirmation before a change.
 
 ## Other Sim MCP surfaces
 
-This server is for operating Sim. Two other MCP features do different jobs:
+These features have separate purposes:
 
 - [Search MCP](/search/mcp) searches your organization's live provider sources with current access checks.
 - [MCP deployment](/workflows/deployment/mcp) exposes your own workflows as
   tools, and [MCP tools](/agents/mcp) connect external servers to Sim agents.
+
+## Related docs
+
+- [Authentication](/mcp/authentication) for scopes, credentials, and revocation
+- [Tools](/mcp/tools) for operation discovery, calls, and result limits
+- [API getting started](/api-reference/getting-started) and [CLI](/cli) for other ways to operate Sim

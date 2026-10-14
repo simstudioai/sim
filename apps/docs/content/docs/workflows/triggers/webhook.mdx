@@ -1,75 +1,104 @@
 ---
 title: Webhook
-description: The Webhook trigger runs a workflow on any inbound HTTP request to a URL Sim generates.
+description: Start a deployed workflow from an authenticated HTTP delivery to its generated URL.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { BlockPreview } from '@/components/workflow-preview'
-import { Video } from '@/components/ui/video'
-import { FAQ } from '@/components/ui/faq'
 
-The **Webhook trigger** runs a workflow whenever an inbound HTTP request reaches a URL Sim generates for it. Use it to start a workflow from any external service or custom app that can send an HTTP request — when no dedicated [integration trigger](/workflows#triggers) exists.
+The **Webhook trigger** starts a run from an accepted request to its generated URL. Use it when an external service or application has no suitable [integration trigger](/integrations). This is inbound; the [Webhook block](/workflows/blocks/webhook) sends outbound requests.
 
 <BlockPreview type="webhook_trigger" />
 
 ## How it works
 
-1. Add the Webhook trigger as the workflow's entry point.
-2. Copy the unique webhook URL Sim generates.
-3. Point your external service at it with a `POST`.
-4. Every request to the URL runs the workflow, with the request payload available downstream.
+1. Add the Webhook trigger and connect the blocks that should receive its payload.
+2. Configure authentication and optional input fields.
+3. Deploy the workflow, then copy **Webhook URL**.
+4. Send a request and verify its run in [Logs](/logs-debugging).
+
+Normal deliveries require the deployed trigger. The URL does not execute an undeployed workflow; provider or explicitly enabled setup-verification responses are separate from execution.
 
 ## Configuration
 
-### Input Format
+### Input format
 
-Optionally define the JSON shape you expect. The fields are documented on the block and read downstream by name. Use a `file[]` field for uploads.
+Optionally define expected body fields in **Input Format** to document their shape. Use `file[]` for supported file inputs. Generic payload fields are passed through by name; the definition does not replace the need for downstream validation.
 
 ### Authentication
 
-Turn on **Require Authentication** and set a token. Callers send it as a Bearer token in the `Authorization` header, or you name a custom header (like `X-Secret-Key`) and the token is matched against that instead.
+**Require Authentication** defaults on for new triggers, with a generated **Authentication Token**. Leave **Secret Header Name (Optional)** blank to require:
 
-### Response
+```http
+Authorization: Bearer YOUR_WEBHOOK_TOKEN
+```
 
-By default the endpoint acknowledges receipt. Switch to a custom response to return your own status code and JSON body to the caller.
+If you set a custom secret header, send the token in that header instead. Only the configured authentication method is accepted; setting a custom header does not also permit Bearer authentication.
+
+<Callout type="warn">
+Keep authentication enabled for workflows that access private data or perform actions. A plain browser link cannot supply the required token header. Validate payload fields before using them to select resources or perform side effects.
+</Callout>
+
+### HTTP methods and request headers
+
+POST starts runs by default. Enable **Accept Other HTTP Methods** to accept GET, PUT, PATCH, and DELETE as deliveries too. Unsupported methods return `405`; provider-specific GET verification challenges are separate.
+
+**Expose Request Headers** defaults off. When enabled, it adds a filtered `headers` object. Authorization, cookies, known credential headers, the configured secret header, and matching token values are withheld.
+
+### Deduplication
+
+Send a stable `Idempotency-Key` for each event, or set **Deduplication Field (Optional)** to a scalar payload path such as `event.id`. Reuse that value for retries of the same event. Duplicate delivery identifiers are skipped within the deduplication window, currently seven days.
+
+Without an identifier, repeated identical payloads can start separate runs. A field containing an object is not a scalar delivery identifier.
+
+### Acknowledgement [#response]
+
+**Acknowledgement → Default** returns a receipt after the run is queued. **Custom** lets you set **Response Status Code** and **Response Body**; a JSON body returns JSON, while other text returns plain text.
+
+This acknowledges delivery, not workflow completion. A downstream Response block does not change the acknowledgement. Use [workflow API execution](/workflows/deployment/api) when a caller needs the completed workflow result.
+
+Enable **Verify Test Events** only when the sender needs a setup-time validation response. It does not make an undeployed workflow runnable.
 
 ## Outputs
 
-The request is parsed and made available to the rest of the workflow — the body's fields by name (a `userId` in the body reads as `<webhook.userId>`), plus the request headers and query parameters. Common fields like `event`, `id`, and `data` are pulled out of the payload when present.
+These examples use a trigger named Webhook:
 
-## Behavior
+| Reference | Value |
+| --- | --- |
+| `<webhook.userId>` | `userId` from the body, when present |
+| `<webhook.data>` | The body's `data` field, when present |
+| `<webhook.query.id>` | URL query parameter, when supplied |
+| `<webhook.method>` | HTTP method, when accepting other methods is enabled |
+| `<webhook.headers.x-event-name>` | Filtered request header, when header exposure is enabled |
 
-- **Deduplication** — idempotency checks prevent duplicate runs from repeated identical requests.
-- **Rate limiting** — built-in protection against abuse.
-- **Deploy required** — the URL only fires once the workflow is deployed; otherwise it returns not-found.
-- **No auto-disable** — unlike polling triggers (RSS, Gmail, IMAP), a push webhook processes each request independently and doesn't disable itself after failed runs.
-
-<Callout type="warn">
-Validate and sanitize incoming webhook data before you use it downstream.
-</Callout>
+Body fields take precedence when they already contain `query`, `method`, or `headers`. Metadata is merged only into object bodies. The generic trigger does not manufacture `event`, `id`, or `data` if the sender omitted them.
 
 ## Test it
 
-Send a request to the webhook URL with `curl` (or Postman) and watch the run appear in [Logs](/logs-debugging):
+This example uses the default Bearer authentication and a stable event identifier:
 
 ```bash
-curl -X POST "<your webhook URL>" \
-  -H "Content-Type: application/json" \
-  -d '{"event": "test", "userId": "123"}'
+curl -X POST 'YOUR_WEBHOOK_URL' \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $WEBHOOK_TOKEN" \
+  -H 'Idempotency-Key: webhook-test-4821' \
+  -d '{"event":"test","userId":"123"}'
 ```
 
-Open the run to confirm the payload landed the way downstream blocks expect — that `<webhook.userId>` resolves, and that authentication rejects a request without the token if you turned it on.
+Confirm `<webhook.userId>` in the run output. Send the request again with the same identifier to check deduplication, and omit the token to check authentication rejection. Use a new identifier for a new test event.
+
+## Behavior
+
+Accepted deliveries are rate-limited and can be deduplicated or refused before execution. Receipt does not guarantee the downstream run succeeds; inspect its log.
+
+Push webhooks do not auto-disable after failed runs. Polling triggers such as RSS have separate failure counters and disabling behavior.
 
 ## Service triggers
 
-Many integrations can act as triggers too: toggle **Use as Trigger** on a service block (Slack, GitHub, Stripe, and more) to register a service-specific webhook with event filtering and structured data — no generic endpoint to wire up.
+For a service-specific trigger, enable **Use as Trigger** on a supported integration block and follow that integration's setup. Provider registration, verification, event filtering, and authentication vary by service. See [integrations](/integrations) for the supported trigger configuration.
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="slack-trigger.mp4" width={700} height={450} />
-</div>
+## Related docs
 
-See [Triggers](/workflows#triggers) for every service that supports this.
-
-<FAQ items={[
-  { question: "What HTTP methods does the webhook endpoint accept?", answer: "POST triggers workflows. GET is used only for provider-specific verification challenges (such as Microsoft Graph or WhatsApp). Other methods return 405 Method Not Allowed." },
-]} />
+- [API deployment](/workflows/deployment/api)
+- [Outbound Webhook block](/workflows/blocks/webhook)
+- [Start](/workflows/triggers/start)

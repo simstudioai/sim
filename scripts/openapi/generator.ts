@@ -377,7 +377,7 @@ function defaultSuccessContent(
     const generated = generateSchema(schema, 'output', components, `${label} response`)
     validateExamples(schema, generated.metadata.examples, 'output', `${label} response`)
     return {
-      'application/json': { schema: { $ref: `#/components/schemas/${generated.name}` } },
+      'application/json': schemaMediaFor(generated, 'Response'),
     }
   }
 
@@ -412,7 +412,7 @@ function statusSuccessContent(
   const generated = generateSchema(schema, 'output', components, `${label} response`)
   validateExamples(schema, generated.metadata.examples, 'output', `${label} response`)
   const content: JsonObject = {
-    'application/json': { schema: { $ref: `#/components/schemas/${generated.name}` } },
+    'application/json': schemaMediaFor(generated, 'Response'),
   }
   for (const contentType of success.additionalContentTypes ?? []) {
     invariant(contentType !== 'application/json', `${label} repeats the JSON content type`)
@@ -455,6 +455,24 @@ function validateExamples(schema: ApiSchema, examples: unknown, io: SchemaIo, la
   }
 }
 
+function schemaMediaFor(
+  generated: ReturnType<typeof generateSchema>,
+  exampleKind: 'Request' | 'Response'
+): JsonObject {
+  const examples = generated.metadata.examples
+    ? Object.fromEntries(
+        generated.metadata.examples.map((value, index) => [
+          `example${index + 1}`,
+          { summary: `${exampleKind} example ${index + 1}`, value },
+        ])
+      )
+    : undefined
+  return {
+    schema: { $ref: `#/components/schemas/${generated.name}` },
+    ...(examples ? { examples } : {}),
+  }
+}
+
 function requestBodyFor(
   route: OpenApiRouteDefinition,
   components: JsonObject,
@@ -478,10 +496,7 @@ function requestBodyFor(
     required: !schema.safeParse(undefined).success,
     description: generated.metadata.description,
     content: Object.fromEntries(
-      contentTypes.map((contentType) => [
-        contentType,
-        { schema: { $ref: `#/components/schemas/${generated.name}` } },
-      ])
+      contentTypes.map((contentType) => [contentType, schemaMediaFor(generated, 'Request')])
     ),
   }
 }

@@ -123,7 +123,7 @@ export const v2McpServerSchema = z
      * defaults rather than asserting a connection nothing has verified.
      */
     connectionStatus: mcpServerSchema.shape.connectionStatus.describe(
-      'Result of the most recent connection attempt. Registration and re-registration establish no connection — the auth-type probe they may send does not count as one — so a server begins, and returns to, `disconnected` until a tool discovery runs.'
+      'Result of the most recent tool connection attempt. Registration and re-registration set `disconnected`; their authentication probes do not establish a tool connection. Tool discovery updates this state.'
     ),
     lastError: mcpServerSchema.shape.lastError.describe(
       'Message from the most recent failed connection, or null when absent. A re-registration clears it, since the configuration it described no longer applies.'
@@ -230,7 +230,7 @@ export const v2CreateMcpServerBodySchema = z
     authType: mcpAuthTypeSchema
       .optional()
       .describe(
-        'Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.'
+        'Authentication method. If omitted without `headers`, registration probes once for OAuth protected-resource metadata (RFC 9728), otherwise falling back to `headers`. Set this field explicitly to choose header authentication for a server advertising OAuth; adding headers later does not change the saved method.'
       ),
     /** Write-only. Reads expose `hasHeaders` and `headerNames` instead. */
     headers: v2McpServerHeadersSchema

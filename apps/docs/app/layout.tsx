@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { INTEGRATION_REACH } from '@sim/deployment-config/integration-claims'
+import { defaultTranslations as openApiTranslations } from 'fumadocs-openapi/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { SidebarProvider, SidebarTrigger, useSidebar } from 'fumadocs-ui/layouts/docs/slots/sidebar'
 import { RootProvider } from 'fumadocs-ui/provider/next'
@@ -22,13 +22,46 @@ const inter = Inter({
   display: 'swap',
 })
 
-const DOCS_DESCRIPTION = `Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect ${INTEGRATION_REACH} and every major LLM.`
+const DOCUMENTATION_DESCRIPTION =
+  'Guides and API references for Sim, the open-source AI workspace. Learn how to use Chat, build workflows, manage data, and operate your deployment.'
+
+const OPENAPI_TRANSLATIONS = {
+  ...openApiTranslations,
+  titleRequestTabs: 'Request examples',
+  queryParameters: 'Query parameters',
+  pathParameters: 'Path parameters',
+  headerParameters: 'Header parameters',
+  cookieParameters: 'Cookie parameters',
+  titleRequestBody: 'Request body',
+  titleResponseBody: 'Response body',
+  typeScriptDefinitions: 'TypeScript definitions',
+  schemaMultipleOf: 'Multiple of',
+  closeJsonEditor: 'Close JSON editor',
+  openJsonEditor: 'Open JSON editor',
+  accessToken: 'Access token',
+  statusBadRequest: 'Bad request',
+  statusNotFound: 'Not found',
+  statusInternalServerError: 'Internal server error',
+  statusClientError: 'Client error',
+  resourceOwnerPassword: 'Resource owner password flow',
+  clientCredentials: 'Client credentials',
+  deviceAuthorization: 'Device authorization',
+  clientSecret: 'Client secret',
+  serverUrlFieldPlaceholder: 'Enter value',
+  schemaShowArray: 'Array item',
+  schemaHideArray: 'Array item',
+  schemaFilterPropertiesPlaceholder: 'Filter properties',
+  playgroundShowProperty: 'Show property',
+  playgroundPropertyPlaceholder: 'Enter property name',
+  playgroundNewItem: 'New item',
+  playgroundRemoveItem: 'Remove item',
+}
 
 const structuredData = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
   name: 'Sim Documentation',
-  description: DOCS_DESCRIPTION,
+  description: DOCUMENTATION_DESCRIPTION,
   url: DOCS_BASE_URL,
   publisher: {
     '@type': 'Organization',
@@ -60,7 +93,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           enableSystem
           disableTransitionOnChange
         >
-          <RootProvider theme={{ enabled: false }}>
+          <RootProvider
+            theme={{ enabled: false }}
+            i18n={{ translations: { openapi: OPENAPI_TRANSLATIONS } }}
+          >
             <a
               href='#nd-page'
               className='sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-lg focus:bg-[var(--bg)] focus:px-4 focus:py-2 focus:text-[var(--text-primary)]'
@@ -118,10 +154,10 @@ export const viewport: Viewport = {
 export const metadata = {
   metadataBase: new URL(DOCS_BASE_URL),
   title: {
-    default: 'Sim Documentation — The AI Workspace for Teams',
+    default: 'Sim documentation',
     template: '%s | Sim Docs',
   },
-  description: DOCS_DESCRIPTION,
+  description: DOCUMENTATION_DESCRIPTION,
   applicationName: 'Sim Docs',
   generator: 'Next.js',
   referrer: 'origin-when-cross-origin' as const,
@@ -166,8 +202,8 @@ export const metadata = {
     locale: 'en_US',
     url: DOCS_BASE_URL,
     siteName: 'Sim Documentation',
-    title: 'Sim Documentation — The AI Workspace for Teams',
-    description: DOCS_DESCRIPTION,
+    title: 'Sim documentation',
+    description: DOCUMENTATION_DESCRIPTION,
     images: [
       {
         url: `${DOCS_BASE_URL}/api/og?title=Sim%20Documentation`,
@@ -179,8 +215,8 @@ export const metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Sim Documentation — The AI Workspace for Teams',
-    description: DOCS_DESCRIPTION,
+    title: 'Sim documentation',
+    description: DOCUMENTATION_DESCRIPTION,
     creator: '@simdotai',
     site: '@simdotai',
     images: [`${DOCS_BASE_URL}/api/og?title=Sim%20Documentation`],

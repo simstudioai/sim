@@ -70,7 +70,7 @@ import { FILE_SEARCH_MODES } from '@/lib/workspace-files/search/pattern'
 /** A workspace file as exposed by the v2 surface. */
 /**
  * Makes a content write conditional on the file still holding the content the caller read, named
- * by the `revision` Get File Metadata returns. A version number cannot express this: collaborative
+ * by the `revision` Get file metadata returns. A version number cannot express this: collaborative
  * and workflow writes fold into the current version rather than adding one.
  */
 /** The token naming the content a write produced, for the caller's next conditional write. */
@@ -86,7 +86,7 @@ const expectedFileRevisionSchema = z
   .min(1)
   .optional()
   .describe(
-    'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.'
+    'Revision from Get file metadata or an earlier write; the request is refused with `409` when the content moved on.'
   )
 
 export const v2FileSchema = z
@@ -186,7 +186,7 @@ export const v2FileMetadataSchema = v2FileSchema
         "Opaque token for the file's current content. Send it back as `expectedRevision` so a write or revert is refused when the content moved on. Absent for a file with no recorded content version."
       ),
     currentVersion: versionNumberSchema.describe(
-      'Version number of the current content. List File Versions returns the history; pass this as `expectedCurrentVersion` to revert only if nothing changed since.'
+      'Current version number. List file versions returns the history. Pass this as `expectedCurrentVersion` to require that version to remain current; use `expectedRevision` to detect edits folded into the same version.'
     ),
   })
   .meta({

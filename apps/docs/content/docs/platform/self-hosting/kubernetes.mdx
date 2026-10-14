@@ -1,46 +1,62 @@
 ---
 title: Kubernetes
-description: Deploy Sim with Helm
+description: Install the Sim Helm chart, configure public access, and verify the release
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 
-<Callout type="info">
-  The chart's own [`helm/sim/README.md`](https://github.com/simstudioai/sim/tree/main/helm/sim) is the reference for every value, and goes deeper than this page on secret strategies, network policy, PII redaction, and per-error troubleshooting. This page covers the deployment path; read that alongside it.
-</Callout>
+Deploy Sim on a Kubernetes cluster you operate. The chart bundles PostgreSQL with pgvector and Redis, runs migrations before the app starts, and enables scheduled jobs by default.
+
+The examples pin published chart `1.11.8`, whose published app version is `v0.9.17`. This is a pinned example, not a claim about the newest release. Inspect the [chart values](https://github.com/simstudioai/sim/blob/v0.9.17/helm/sim/values.yaml) or run `helm show values oci://ghcr.io/simstudioai/charts/sim --version 1.11.8` for its configuration.
 
 ## Prerequisites
 
-- Kubernetes 1.25+
-- Helm 3.8+
-- PV provisioner support (a default StorageClass supporting `ReadWriteOnce`)
-- An ingress controller, if `ingress.enabled=true`
-- `metrics-server`, if you enable autoscaling
-- **Redis** — bundled by the chart (`redis.enabled: true`). To use your own, set `app.env.REDIS_URL`: a non-empty value overrides the bundled URL and suppresses its Deployment on its own. `redis.enabled: false` is the explicit opt-out. See [Redis](/platform/self-hosting/redis)
+- A maintained Kubernetes cluster. The chart's declared compatibility minimum is 1.25.
+- Helm 3.8 or later for OCI installation.
+- A default StorageClass supporting `ReadWriteOnce` for bundled PostgreSQL.
+- An installed ingress controller if you enable ingress, plus a certificate for public TLS.
+- `metrics-server` if you enable autoscaling.
+- External Secrets Operator and a configured SecretStore/ClusterSecretStore if you choose that secret strategy.
+
+Redis is bundled by default. A non-empty `app.env.REDIS_URL` overrides its URL and suppresses the bundled Redis Deployment. `redis.enabled=false` is the explicit opt-out; supply an external URL if you need cross-replica events. See [Redis](/platform/self-hosting/redis).
 
 ## Installation
 
-The chart is published to GitHub Container Registry as an OCI artifact at
-`oci://ghcr.io/simstudioai/charts/sim`. Install it directly — no clone required.
+### 1. Choose the secret strategy
 
-It is also available from a classic Helm repository at `https://charts.sim.ai`
-for tooling that expects one; see [Helm repository](#helm-repository) below.
-Prefer OCI where you can, since the signature and provenance are attached to the
-OCI artifact.
+| Strategy | Configuration |
+| --- | --- |
+| Inline values | The chart writes `app.env`/`realtime.env` into a shared Kubernetes Secret. Values are also stored in Helm release data; do not commit credentials to Git. |
+| Existing Secret | Set `app.secrets.existingSecret.enabled=true` and its `name`. Prepare every required key using the standard env names. There is no key remapping. |
+| External Secrets Operator (ESO) | Set `externalSecrets.enabled=true` and map keys under `externalSecrets.remoteRefs.app`. ESO supplies the Secret; the chart does not create its inline app Secret. |
+
+In existing-Secret mode, non-empty `app.env` and `realtime.env` values are inlined into pod specs. Keep secret material in the pre-created Secret. In ESO mode, every non-empty key under those env maps must also have a remote reference; the chart rejects missing mappings. Put non-secret URL/configuration values in `envDefaults` instead.
+
+### 2. Prepare new-install secrets
+
+The following installation uses inline values to demonstrate a local release. For an existing release, recover and retain its current values rather than generating replacements. For a secret-store installation, store the same required values there and use the [secret-store examples](#secret-stores).
 
 ```bash
-# Generate secrets
+CHART_VERSION=1.11.8
 BETTER_AUTH_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 INTERNAL_API_SECRET=$(openssl rand -hex 32)
 API_ENCRYPTION_KEY=$(openssl rand -hex 32)
 CRON_SECRET=$(openssl rand -hex 32)
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
+```
 
-# Install
+<Callout type="error">
+  Save the secrets durably before installing. `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` must be 64-character hex strings. Losing a key makes the values encrypted with it unreadable. Without `API_ENCRYPTION_KEY`, legacy Sim API keys can be stored in plain text; the app logs a warning when its key getter is called.
+</Callout>
+
+`CRON_SECRET` is required with the default `cronjobs.enabled=true`. The chart rejects an absent inline value. With an existing Secret, the key must be present there; with ESO, it must be mapped. Set `cronjobs.enabled=false` only if you intend to run no chart-scheduled jobs.
+
+### 3. Install the pinned chart
+
+```bash
 helm install sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.5 \
+  --version "$CHART_VERSION" \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
@@ -50,69 +66,187 @@ helm install sim oci://ghcr.io/simstudioai/charts/sim \
   --namespace simstudio --create-namespace
 ```
 
-<Callout type="warn">
-  Save all six values somewhere durable before moving on. `ENCRYPTION_KEY` in particular cannot be regenerated — losing it makes workspace environment variables and stored provider keys permanently unreadable.
-
-  `API_ENCRYPTION_KEY` is optional, and the failure mode is silent: leave it unset and Sim stores user-generated API keys **in plain text**, logging one warning and nothing else. Set it at install time — it must be a 64-character hex string, which is exactly what `openssl rand -hex 32` produces — and back it up like `ENCRYPTION_KEY`.
-
-  `CRON_SECRET` is required whenever background jobs are enabled, which is the chart's default: the chart will not render without it, unless it comes from `app.secrets.existingSecret` or External Secrets — in which case the key must be present there or every cron pod fails to start. Set `cronjobs.enabled=false` instead if you deliberately want no scheduled jobs.
-</Callout>
-
-<Callout type="info">
-  This installs the chart's default image tag. For production, **pin `app`, `realtime`, and `migrations` to the same explicit release tag** — see [Upgrades](/platform/self-hosting/upgrades).
-</Callout>
-
-## Helm repository
-
-For clusters or GitOps configs that consume `helm repo add` rather than OCI:
+Ingress is disabled by default. For local access, forward the app and realtime ports in separate terminals:
 
 ```bash
-helm repo add sim https://charts.sim.ai
-helm repo update
-
-helm install sim sim/sim --version 1.9.5 --namespace simstudio --create-namespace \
-  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
-  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
-  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
-  --set app.env.API_ENCRYPTION_KEY="$API_ENCRYPTION_KEY" \
-  --set app.env.CRON_SECRET="$CRON_SECRET" \
-  --set postgresql.auth.password="$POSTGRES_PASSWORD"
+kubectl port-forward deployment/sim-app 3000:3000 -n simstudio
 ```
 
-It serves the same chart as the OCI registry. The signature and provenance below
-apply to the OCI artifact only.
-
-## Verifying the chart
-
-Every published version is signed with Sigstore keyless signing and carries a SLSA build-provenance attestation. Both live in the registry alongside the chart, so they survive a mirror into an internal registry.
-
 ```bash
-cosign verify oci://ghcr.io/simstudioai/charts/sim:1.9.5 \
-  --certificate-identity-regexp '^https://github.com/simstudioai/sim/' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-
-gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.9.5 --repo simstudioai/sim
+kubectl port-forward deployment/sim-realtime 3002:3002 -n simstudio
 ```
 
-Signing is Sigstore-only — there is no GPG `.prov` file, so `helm install --verify` does not apply.
+Open [http://localhost:3000](http://localhost:3000). For public access, complete the topology below and apply it with the same secrets or secret-store configuration.
 
-<Callout type="warn">
-  Verification requires **cosign v3.0 or newer**. Signatures use the Sigstore protobuf bundle format, which cosign v3 writes by default and cosign v2 cannot read. cosign v3.1+ auto-detects both formats.
-</Callout>
+## Public access [#key-configuration]
 
-## Cloud-Specific Values
+Configure a public app origin, realtime routing, allowed origins, and TLS together. This same-host example belongs in `public-values.yaml`; replace the ingress class with your installed controller's class:
 
-These are cloud-tuned **alternatives** to the generic install above — pick one path, don't run both. The commands reuse the `$BETTER_AUTH_SECRET`, `$ENCRYPTION_KEY`, `$INTERNAL_API_SECRET`, `$API_ENCRYPTION_KEY`, `$CRON_SECRET`, and `$POSTGRES_PASSWORD` variables generated in [Installation](#installation) above, so run that block's `openssl` lines first in the same shell. They use `helm upgrade --install`, so they work whether or not a release exists yet. Two caveats when converting an existing generic install rather than starting fresh: (1) **reuse the original secret values** — recover them with `helm get values sim -n simstudio` if your shell no longer has them; supplying a newly generated `ENCRYPTION_KEY` makes every previously encrypted value (workspace environment variables, stored provider keys, MCP OAuth credentials) undecryptable. (2) The cloud values rename the bundled PostgreSQL database to `simstudio`, but Postgres only applies that setting on first initialization — add `--set postgresql.auth.database=sim` to keep your existing database. If you'd rather start clean, `helm uninstall sim -n simstudio`, delete its PVCs, and run the cloud command fresh.
+```yaml
+app:
+  image:
+    tag: "v0.9.17"
+  env:
+    NEXT_PUBLIC_APP_URL: "https://sim.yourdomain.com"
+    BETTER_AUTH_URL: "https://sim.yourdomain.com"
+    NEXT_PUBLIC_SOCKET_URL: "https://sim.yourdomain.com"
+
+realtime:
+  image:
+    tag: "v0.9.17"
+  env:
+    ALLOWED_ORIGINS: "https://sim.yourdomain.com"
+
+migrations:
+  image:
+    tag: "v0.9.17"
+
+postgresql:
+  persistence:
+    size: 50Gi
+
+ingress:
+  enabled: true
+  className: "<your-ingress-class>"
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: null
+  app:
+    host: sim.yourdomain.com
+  realtime:
+    host: sim.yourdomain.com
+    paths:
+      - path: /socket.io
+        pathType: Prefix
+  tls:
+    enabled: true
+    secretName: sim-tls
+```
+
+The app and realtime consume shared app env values; `ALLOWED_ORIGINS` explicitly admits the public app origin. Matching ingress hosts lets the chart route `/socket.io` before the app's `/` path. Keep app, realtime, and migrations on the same image release.
+
+Create `sim-tls` in `simstudio` from your certificate and private key, or configure your certificate manager to populate that Secret:
 
 ```bash
-# The example values files are not part of the packaged chart, so fetch the one
-# you want at a release tag — pinning the chart but reading values off a moving
-# branch would still make this command produce different deployments over time.
-SIM_RELEASE=v0.8.24
+kubectl create secret tls sim-tls -n simstudio \
+  --cert=fullchain.pem --key=privkey.pem
+```
+
+For a fresh public installation, create the namespace before creating the Secret. Configure DNS and the controller's own HTTPS redirect, upload-size, WebSocket, timeout, and streaming settings. The `null` above removes the chart's legacy nginx redirect annotation; it does not configure another controller.
+
+For a separate realtime hostname, change all three fields together:
+
+```yaml
+app:
+  env:
+    NEXT_PUBLIC_SOCKET_URL: "https://sim-ws.yourdomain.com"
+ingress:
+  realtime:
+    host: sim-ws.yourdomain.com
+    paths:
+      - path: /
+        pathType: Prefix
+```
+
+Keep `ALLOWED_ORIGINS` set to the app origin, and use a TLS certificate covering both hosts. App/auth URLs remain on `sim.yourdomain.com`.
+
+Apply your complete values with `helm upgrade --install`, retaining the same secrets as installation. For inline mode, repeat the secret `--set` arguments from the install command and add `-f public-values.yaml`. For secret-store mode, use a complete values file defining that strategy.
+
+## Ingress and TLS
+
+The chart defaults still name `nginx` and its annotations. Kubernetes ingress-nginx retired in March 2026 and no longer receives security fixes. Use a maintained controller supported by your cluster; the chart renders Ingress objects and does not provision a controller or Gateway API resources. See the [Kubernetes retirement announcement](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/).
+
+For an existing legacy ingress-nginx deployment, these settings describe the required body-size and streaming behavior:
+
+```yaml
+ingress:
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "250m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+```
+
+These annotations do not apply to other controllers. On GKE, configure a `BackendConfig` timeout for long-lived WebSockets and create the `ManagedCertificate` referenced by the values. See [Networking](/platform/self-hosting/networking).
+
+## Secret stores
+
+### Existing Secret
+
+Prepare an app Secret containing at least `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`, `API_ENCRYPTION_KEY`, and `CRON_SECRET`, plus any provider credentials you use. For bundled PostgreSQL, prepare its password Secret too:
+
+```yaml
+app:
+  secrets:
+    existingSecret:
+      enabled: true
+      name: sim-app-secrets
+postgresql:
+  auth:
+    existingSecret:
+      enabled: true
+      name: sim-postgresql-secret
+      passwordKey: POSTGRES_PASSWORD
+```
+
+Use the public URL configuration above without putting credentials under `app.env`. Both Deployments consume the app Secret. See the [complete existing-Secret example](https://github.com/simstudioai/sim/blob/v0.9.17/helm/sim/examples/values-existing-secret.yaml).
+
+### External Secrets Operator
+
+Populate the remote keys and create the referenced store before installing. For a same-host public installation, move URL values from `app.env` and `realtime.env` into these `envDefaults` maps, then add the ingress/TLS configuration above:
+
+```yaml
+app:
+  envDefaults:
+    NEXT_PUBLIC_APP_URL: "https://sim.yourdomain.com"
+    BETTER_AUTH_URL: "https://sim.yourdomain.com"
+    NEXT_PUBLIC_SOCKET_URL: "https://sim.yourdomain.com"
+realtime:
+  envDefaults:
+    NEXT_PUBLIC_APP_URL: "https://sim.yourdomain.com"
+    BETTER_AUTH_URL: "https://sim.yourdomain.com"
+    ALLOWED_ORIGINS: "https://sim.yourdomain.com"
+externalSecrets:
+  enabled: true
+  apiVersion: "v1"
+  secretStoreRef:
+    name: sim-secret-store
+    kind: ClusterSecretStore
+  remoteRefs:
+    app:
+      BETTER_AUTH_SECRET: "sim/app/better-auth-secret"
+      ENCRYPTION_KEY: "sim/app/encryption-key"
+      INTERNAL_API_SECRET: "sim/app/internal-api-secret"
+      API_ENCRYPTION_KEY: "sim/app/api-encryption-key"
+      CRON_SECRET: "sim/app/cron-secret"
+    postgresql:
+      password: "sim/postgresql/password"
+```
+
+Map additional credentials, such as `RESEND_API_KEY`, under `remoteRefs.app`. Remote value changes do not themselves restart processes; recreate the affected pods after credentials change. See the [complete ESO example](https://github.com/simstudioai/sim/blob/v0.9.17/helm/sim/examples/values-external-secrets.yaml).
+
+Configure model provider keys, such as `OPENAI_API_KEY`, through the same selected secret strategy. A healthy release does not establish that a model provider is configured.
+
+## Cloud-specific values
+
+Use a cloud example as a starting file, not a complete install configuration. Fetch it from the release corresponding to the pinned chart example:
+
+```bash
+SIM_RELEASE=v0.9.17
 curl -fsSLO "https://raw.githubusercontent.com/simstudioai/sim/$SIM_RELEASE/helm/sim/examples/values-aws.yaml"
+```
 
+Choose `values-aws.yaml` for EKS, `values-azure.yaml` for AKS, or `values-gcp.yaml` for GKE. Review and replace provider-specific fields before installation:
+
+| Example | Required review |
+| --- | --- |
+| AWS | StorageClass, region/buckets, IAM role ARN, ACM certificate ARN, ALB controller, and network policy. |
+| Azure | StorageClass, Blob account/containers/credentials, certificate issuer, and legacy ingress-nginx settings. |
+| GCP | Project/buckets, Workload Identity, static IP, ManagedCertificate, backend timeout, and network policy. |
+
+Each file also has six placeholder public-address values. In inline mode, reuse your saved secrets and override those addresses together:
+
+```bash
 helm upgrade --install sim oci://ghcr.io/simstudioai/charts/sim \
-  --version 1.9.5 \
+  --version 1.11.8 \
   --values values-aws.yaml \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
@@ -129,90 +263,46 @@ helm upgrade --install sim oci://ghcr.io/simstudioai/charts/sim \
   --namespace simstudio --create-namespace
 ```
 
-Every one of those overrides is required. The cloud values files hardcode a placeholder domain in all six places, and overriding only `NEXT_PUBLIC_APP_URL` leaves sign-in pointed at the placeholder, realtime rejecting every socket upgrade, and the Ingress serving the wrong host.
+Replace the file name for another cloud and keep your reviewed file in your configuration repository. With ESO, use its env/default and remote-reference rules rather than the inline-secret arguments.
 
-Swap the `--values` file for your cloud: `values-aws.yaml` (EKS), `values-azure.yaml` (AKS), or `values-gcp.yaml` (GKE). Everything else is identical. Keep the downloaded file in your own config repo — the `--set` overrides above cover the six placeholder domains, but anything else you tune belongs in the file.
-
-## Key Configuration
-
-```yaml
-# Custom values.yaml
-app:
-  replicaCount: 2
-  image:
-    tag: "v1.2.3"  # a tag from the releases page
-  env:
-    NEXT_PUBLIC_APP_URL: "https://sim.yourdomain.com"
-    BETTER_AUTH_URL: "https://sim.yourdomain.com"
-    OPENAI_API_KEY: "sk-..."
-    # Only needed when redis.enabled is false — the bundled Redis is injected otherwise
-    REDIS_URL: "redis://:<password>@redis.internal:6379"
-
-realtime:
-  image:
-    tag: "v1.2.3"  # a tag from the releases page
-
-migrations:
-  image:
-    tag: "v1.2.3"  # a tag from the releases page
-
-postgresql:
-  persistence:
-    size: 50Gi
-
-ingress:
-  enabled: true
-  className: nginx
-  tls:
-    enabled: true
-  app:
-    host: sim.yourdomain.com
-```
-
-<Callout type="error">
-  `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL` must both be your real public origin. Leaving either at `localhost` breaks sign-in.
+<Callout type="warn">
+  When converting an existing generic release, retain its original encryption secrets and database name. The generic chart initializes database `sim`; cloud examples use `simstudio`, and changing the value does not rename an existing database. Add `--set postgresql.auth.database=sim` when retaining that database. `helm uninstall` does not delete StatefulSet PVCs; deleting them to start fresh erases the stored data.
 </Callout>
 
-<Callout type="info">
-  Keys set under `app.env` land on the realtime pod too — the chart writes them into one Secret that both Deployments consume via `envFrom`. Use `realtime.env` only for keys that must differ between the two, such as `ALLOWED_ORIGINS`.
-</Callout>
+For an inline installation, `helm get values sim -n simstudio` can recover saved values. For external secret modes, use the existing secret store. Do not generate new encryption keys during conversion.
 
-<Callout type="error">
-  The chart ships Redis (`redis.enabled: true`) and injects its `REDIS_URL` into both the app and realtime Deployments, so raising `replicaCount` works out of the box. The hazard is setting `redis.enabled: false` without supplying `app.env.REDIS_URL`: cross-pod events are then dropped with no error anywhere, silently breaking live collaboration and status updates. See [Redis](/platform/self-hosting/redis) and [Scaling & HA](/platform/self-hosting/scaling).
-</Callout>
-
-See `helm/sim/values.yaml` for all options, and the chart's [README](https://github.com/simstudioai/sim/tree/main/helm/sim) for the production checklist.
-
-## Background jobs
-
-The chart deploys CronJobs by default, driving scheduled workflows, polling triggers, connector syncs, OAuth token cleanup, data drains, and outbox processing. They require `CRON_SECRET`; set `cronjobs.enabled=false` to deploy none.
+## Verify the release
 
 ```bash
+kubectl get pods -n simstudio
+kubectl logs -l app.kubernetes.io/component=app -n simstudio --tail=100
 kubectl get cronjobs -n simstudio
+curl -fsS https://sim.yourdomain.com/api/health
 ```
 
-A CronJob with a stale `LAST SCHEDULE` means the corresponding feature has stopped working. See [Background Jobs](/platform/self-hosting/background-jobs).
+Scheduled jobs cover workflows, polling triggers, connector syncs, token cleanup, data drains, and outbox processing. Inspect failed job pods and endpoint responses, then run [Verify your install](/platform/self-hosting/verify).
 
-## Ingress and TLS
+## Verify the chart [#verifying-the-chart]
 
-For nginx-style ingress controllers, raise the body-size and timeout limits — Sim's defaults allow large chat attachments and long-running executions:
+Published charts have Sigstore keyless signatures and build-provenance attestations in the source registry. Use cosign 3.0 or later for the bundle format; 3.1+ auto-detects old and new formats:
 
-```yaml
-ingress:
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "250m"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+```bash
+cosign verify ghcr.io/simstudioai/charts/sim:1.11.8 \
+  --certificate-identity-regexp '^https://github.com/simstudioai/sim/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+gh attestation verify oci://ghcr.io/simstudioai/charts/sim:1.11.8 --repo simstudioai/sim
 ```
 
-On GKE, the load balancer's 30-second default backend timeout closes websockets and needs a `BackendConfig`, and the `ManagedCertificate` the chart references must be created by you. Both are covered in [Networking](/platform/self-hosting/networking).
+There is no GPG `.prov` file; `helm install --verify` does not verify these signatures. When mirroring charts, copy the associated signature and attestation artifacts as well as the chart. A chart-only copy does not preserve verification material.
 
-## External Database
+## External database
+
+Configure a database with pgvector and the required migration permissions. The chart constructs the shared app/realtime/migration DSN from:
 
 ```yaml
 postgresql:
   enabled: false
-
 externalDatabase:
   enabled: true
   host: "your-db-host"
@@ -223,22 +313,38 @@ externalDatabase:
   sslMode: "require"
 ```
 
-## Commands
+Replace the credentials or supply the chart's external-database Secret strategy. Inline passwords must use letters, digits, `.`, `_`, or `-` to pass chart DSN validation. See [Cloud platforms](/platform/self-hosting/platforms#managed-postgresql) and [Upgrades](/platform/self-hosting/upgrades) for extensions and direct migration connections.
+
+## Helm repository
+
+For tooling that requires a classic repository:
 
 ```bash
-# Port forward for local access
-kubectl port-forward deployment/sim-app 3000:3000 -n simstudio
+helm repo add sim https://charts.sim.ai
+helm repo update
+```
 
-# View logs
-kubectl logs -l app.kubernetes.io/component=app -n simstudio --tail=100
+Use `sim/sim` in place of the OCI URL in the install/upgrade command, preserving the version, complete values, namespace, and secret configuration. Signature/provenance verification above applies to the OCI artifact.
 
-# Upgrade (always pin the target chart version)
-helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.5 --namespace simstudio
+## Operator commands [#commands]
 
-# Uninstall
+Upgrade with the full configuration and an explicitly chosen chart version:
+
+```bash
+helm upgrade sim oci://ghcr.io/simstudioai/charts/sim \
+  --version 1.11.8 --namespace simstudio --values values.yaml
+```
+
+Retain the original secrets. See [Upgrades](/platform/self-hosting/upgrades) before changing the target version.
+
+Uninstall removes the release but leaves PostgreSQL StatefulSet PVCs:
+
+```bash
 helm uninstall sim --namespace simstudio
 ```
 
-<FAQ items={[
-  { question: "How do I manage secrets securely in Kubernetes?", answer: "The Helm chart supports pre-existing Kubernetes secrets via app.secrets.existingSecret. Set enabled to true and provide the secret name. This integrates with External Secrets Operator, HashiCorp Vault, Azure Key Vault, and similar tools. The secret must use the standard key names (BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_API_SECRET, API_ENCRYPTION_KEY, CRON_SECRET, ...) — it is consumed wholesale, so key remapping is not supported."},
-]} />
+## Related docs
+
+- [Environment variables](/platform/self-hosting/environment-variables)
+- [Object storage](/platform/self-hosting/object-storage)
+- [Scaling and high availability](/platform/self-hosting/scaling)

@@ -1,6 +1,6 @@
 ---
 title: How workflows run
-description: How Sim orders the blocks, runs independent ones in parallel, and follows branches.
+description: Understand dependency order, concurrent branches, errors, and execution duration.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -12,50 +12,74 @@ import {
   WorkflowPreview,
 } from '@/components/workflow-preview'
 
-When you run a workflow, Sim works out the order from the [connections](/workflows/connections): a block runs as soon as the blocks it depends on have finished.
+Sim orders a run from its connections. A block becomes ready when the active upstream blocks it depends on have finished.
 
 ## Blocks run as soon as they can
 
-Multiple blocks in a workflow can be executing at the same time. A block starts the moment its dependencies finish, and it waits on nothing else.
+Independent blocks can execute at the same time:
 
 <WorkflowPreview workflow={CONCURRENCY_WORKFLOW} height={220} />
 
-Here the Customer Support and Deep Researcher agents each depend only on Start, so neither waits for the other.
+Customer Support and Deep Researcher each depend only on Start, so neither waits for the other.
 
 ## A block waits for all its inputs
 
-When several blocks feed into one, that block waits for every feeder that is going to run, then runs once with each of their outputs available to read. A feeder on a branch that wasn't taken doesn't hold it up. You don't merge the outputs yourself.
+When several blocks feed one block, it waits for every feeder on an active path, then runs once with their outputs available. An unselected branch does not hold up the join.
 
 <WorkflowPreview workflow={COMBINATION_WORKFLOW} height={220} />
 
-The Function block here runs after both agents complete, with both of their outputs ready.
+Combine runs after both agents finish. It reads each output by name; you do not need a separate merge operation to make those outputs available.
+
+If several branches end without joining, the last terminal block to finish supplies the default workflow result. Use a final block or [Response](/workflows/blocks/response) to choose the result explicitly.
 
 ## Branches follow one path
 
-A workflow can split. A [Condition](/workflows/blocks/condition) block branches on an explicit rule; a [Router](/workflows/blocks/router) block lets a model choose the path. Only the branch that is taken runs. A block on a branch that didn't run produces no output, which is why a [connection tag](/workflows/connections) pointing at it comes back empty.
+[Condition](/workflows/blocks/condition) selects a branch using a rule. [Router](/workflows/blocks/router) lets a model choose a route. Only the selected path runs:
 
 <WorkflowPreview workflow={ROUTING_WORKFLOW} height={400} />
 
-To repeat work, a [Loop](/workflows/blocks/loop) block runs its inner blocks over a list, a count, or while a condition holds, and a [Parallel](/workflows/blocks/parallel) block runs them for several items at once.
+A skipped block produces no output. A reference to that known block resolves empty; see [connection syntax](/workflows/connections).
+
+[Loop](/workflows/blocks/loop) repeats its inner blocks over a collection, a count, or a condition. [Parallel](/workflows/blocks/parallel) runs inner blocks for several items at once. Their item/index context and block outputs are scoped to the iteration or branch, but workflow variables are shared across the run. Avoid concurrent writes to the same variable.
 
 <Callout type="info">
-A workflow can call other workflows, through a Workflow block, an MCP tool, or an API block. Sim tracks the call chain and stops a run that exceeds 25 hops, so workflows that call each other can't loop forever.
+Sim tracks calls between workflows through Workflow blocks, MCP tools, and API blocks. It rejects a call chain at the 25-hop limit, preventing unbounded recursion through those paths.
 </Callout>
 
 ## When a block fails
 
-A block that errors fails the run: blocks already running finish, and nothing new starts. To handle the failure instead, connect the block's **error port** — the run follows the [error path](/workflows/connections) and continues.
+An unhandled block error fails the run. Already-running blocks may finish, but no new work starts. Connect the block's **error port** to handle the failure and continue along an error path:
 
 <WorkflowPreview workflow={ERROR_PATH_WORKFLOW} height={260} />
 
-Here `throwError` fails, so the run leaves through its red error port to `handleError`; `handleSuccess` on the normal path never runs.
+When throwError fails, handleError runs through the red error port; handleSuccess is skipped. A handled error can appear in the trace without failing the whole run.
 
-{/* Why this section exists: run timeouts are the only hard-error class provable at scale in platform logs (2,415 five-minute timeouts in 14 days, 2026-06). Limits verified in lib/core/execution-limits/types.ts; env-overridable. */}
+For an API block, non-2xx HTTP responses, network failures, and timeouts follow its error behavior. Do not expect a normal downstream status check to catch an unsuccessful request.
 
 ## How long a run can take
 
-A synchronous run is capped at **5 minutes on the free plan** and **50 minutes on paid plans**. Async runs get **90 minutes** by default; Enterprise administrators can configure their workflow policy up to **7 days**. Direct async API callers may shorten that policy for an individual request, but cannot extend it. A run that hits the ceiling fails with "Execution timed out." The usual causes are a loop over a large list or a slow agent or API call — split the work, or run it async. Self-hosted deployments can configure these limits.
+Current billing-enabled defaults are:
+
+| Plan | Synchronous run | Asynchronous run |
+| --- | --- | --- |
+| Community | 5 minutes | 90 minutes |
+| Pro / Max / Team | 50 minutes | 90 minutes |
+| Enterprise | 50 minutes | 90 minutes; configurable up to 7 days |
+
+The effective policy and deployment configuration determine the limit. An async API caller can shorten the account policy with `executionTimeoutSeconds`, but cannot extend it. A timeout fails the run with `Execution timed out`.
+
+Large loops and slow model or API calls can use up the budget. Batch a large collection or use [async API execution](/workflows/deployment/api#asynchronous) when appropriate. Async runs still have a limit.
+
+Billing-disabled self-hosted deployments run without a plan-based timeout by default. Operators can set execution timeout environment variables; see [self-hosted limits](/platform/self-hosting/environment-variables#limits).
 
 ## Watching a run
 
-While a workflow runs, the editor shows each block's state live: queued, running, done, or errored. Every run is recorded, so you can open the [logs](/logs-debugging) to see what each block received and returned after it finishes.
+The workflow builder shows live block states while an editor run executes. Open [Logs](/logs-debugging) to inspect recorded inputs, outputs, and errors. Available history depends on access and retention; a request rejected before a run starts may not have an execution log.
+
+Editor runs use the draft. API, chat, MCP, and automatic trigger runs normally use a deployed snapshot; [deployment](/workflows/deployment) explains updates and the v2 API's explicit manual draft mode.
+
+## Related docs
+
+- [How blocks pass data](/workflows/data-flow)
+- [Deployment](/workflows/deployment)
+- [Logs](/logs-debugging)

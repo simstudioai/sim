@@ -26,7 +26,7 @@ import { DOCS_BASE_URL } from '@/lib/urls'
 const BASE_URL = DOCS_BASE_URL
 
 /**
- * Most pages close with a `## Next` / `## Next steps` grid of onward links.
+ * Pages close with related-documentation links or legacy next-step links.
  * That heading is navigation, not content, so it is kept out of the table of
  * contents — the ToC should say what the page covers, not where to go after it.
  * The heading itself still renders above the cards.
@@ -34,7 +34,12 @@ const BASE_URL = DOCS_BASE_URL
  * Matched on the slug rather than the rendered title because a ToC title is a
  * `ReactNode`; the trailing group tolerates the slugger's dedupe suffix.
  */
-const ONWARD_NAV_SLUG = /^#next(-steps)?(-\d+)?$/i
+const ONWARD_NAV_SLUG = /^#(?:next(?:-steps)?|related-docs)(?:-\d+)?$/i
+
+const AUTH_SCHEME_LABELS: Record<string, string> = {
+  apiKey: 'API key',
+  oauthBearer: 'OAuth access token',
+}
 
 function isContentHeading(item: { url: string }): boolean {
   return !ONWARD_NAV_SLUG.test(item.url)
@@ -55,11 +60,12 @@ async function ApiCodeBlock({ lang, code }: { lang: string; code: string }) {
 }
 
 interface ApiSlotElementProps extends React.HTMLAttributes<HTMLElement> {
-  items?: unknown[]
+  items?: Array<{ value: string; label: React.ReactNode }>
 }
 
 /** Labels Fumadocs auth selectors while retaining their selection state and content. */
 function labelAuthSelectors(node: React.ReactNode): React.ReactNode {
+  if (typeof node === 'string') return AUTH_SCHEME_LABELS[node] ?? node
   if (!isValidElement<ApiSlotElementProps>(node)) return node
 
   const props = node.props
@@ -67,7 +73,17 @@ function labelAuthSelectors(node: React.ReactNode): React.ReactNode {
     props.children === undefined ? undefined : Children.map(props.children, labelAuthSelectors)
 
   if (Array.isArray(props.items)) {
-    return cloneElement(node, { 'aria-label': 'Authentication method' }, children)
+    return cloneElement(
+      node,
+      {
+        'aria-label': 'Authentication method',
+        items: props.items.map((item) => ({
+          ...item,
+          label: labelAuthSelectors(item.label),
+        })),
+      },
+      children
+    )
   }
   return children === undefined ? node : cloneElement(node, undefined, children)
 }
@@ -89,21 +105,29 @@ const APIPage = createAPIPage(openapi, {
   content: {
     renderOperationLayout: (slots) => {
       return (
-        <div className='flex @4xl:flex-row flex-col @4xl:items-start gap-x-6 gap-y-4 [--badge-amber-text:#854d0e] [--badge-blue-text:#1e40af] [--badge-error-text:#991b1b] [--badge-orange-text:#9a3412] [--badge-success-text:#166534] dark:[--badge-amber-text:#fcd34d] dark:[--badge-blue-text:#93c5fd] dark:[--badge-error-text:#fca5a5] dark:[--badge-orange-text:#fdba74] dark:[--badge-success-text:#86efac] [&_button[aria-haspopup=dialog]]:min-h-6'>
-          <div className='min-w-0 flex-1'>
+        <div className='grid @4xl:grid-cols-[minmax(0,1fr)_400px] grid-cols-1 @4xl:items-start gap-x-6 gap-y-4 [--badge-amber-text:#854d0e] [--badge-blue-text:#1e40af] [--badge-error-text:#991b1b] [--badge-orange-text:#9a3412] [--badge-success-text:#166534] dark:[--badge-amber-text:#fcd34d] dark:[--badge-blue-text:#93c5fd] dark:[--badge-error-text:#fca5a5] dark:[--badge-orange-text:#fdba74] dark:[--badge-success-text:#86efac] [&_button[aria-haspopup=dialog]]:min-h-6'>
+          <div className='@4xl:col-start-1 @4xl:row-start-1 min-w-0 flex-1'>
             {slots.header}
             {slots.description}
             {slots.apiPlayground}
             {slots.authSchemes && (
-              <div className='api-section-divider'>{labelAuthSelectors(slots.authSchemes)}</div>
+              <div className='api-section-divider'>
+                {labelAuthSelectors(slots.authSchemes)}
+                <p className='text-[var(--text-muted)] text-sm'>
+                  Request examples use an API key. For OAuth, replace the <code>X-API-Key</code>{' '}
+                  header with <code>Authorization: Bearer YOUR_ACCESS_TOKEN</code>.
+                </p>
+              </div>
             )}
+          </div>
+          <div className='@4xl:sticky @4xl:top-[calc(var(--fd-docs-row-1,2rem)+1rem)] @4xl:col-start-2 @4xl:row-span-2 @4xl:row-start-1 min-w-0'>
+            {slots.apiExample}
+          </div>
+          <div className='@4xl:col-start-1 @4xl:row-start-2 min-w-0 flex-1'>
             {slots.parameters}
             {slots.body && <div className='api-section-divider'>{slots.body}</div>}
             <ResponseSection>{slots.responses}</ResponseSection>
             {slots.callbacks}
-          </div>
-          <div className='@4xl:sticky @4xl:top-[calc(var(--fd-docs-row-1,2rem)+1rem)] @4xl:w-[400px]'>
-            {slots.apiExample}
           </div>
         </div>
       )
@@ -196,6 +220,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
           breadcrumb={breadcrumbs}
         />
         <DocsPage
+          className='min-w-0 max-md:col-[main]! max-md:px-4!'
           role='main'
           tabIndex={-1}
           toc={data.toc.filter(isContentHeading)}

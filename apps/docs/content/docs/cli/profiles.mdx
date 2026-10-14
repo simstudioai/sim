@@ -1,13 +1,17 @@
 ---
 title: Profiles
-description: List profiles or add a workspace profile that shares a stored login — every subcommand, argument, and flag
+description: List profiles and add a workspace profile that shares a stored login.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
+List profiles and add a workspace profile that shares a stored login.
+
+Adding a profile reuses the active stored login and selects a default workspace. Supply `--workspace` when running without an interactive terminal.
+
 `sim profiles` is also spelled `sim profile`.
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+These commands accept the [global options](/cli/commands#global-options).
 
 ## List configured profiles
 
@@ -40,3 +44,10 @@ sim profiles add <name> [options]
 | `-w, --workspace <id>` | No | Existing workspace to use; omit for an interactive picker. |
 
 </CommandTable>
+
+API request and response schemas: [getWorkspace](/api-reference/workspaces/getWorkspace), [listWorkspaces](/api-reference/workspaces/listWorkspaces).
+
+## Related docs
+
+- [Configuration](/cli/configuration)
+- [Authentication](/cli/authentication)

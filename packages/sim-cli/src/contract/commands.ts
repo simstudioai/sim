@@ -69,7 +69,7 @@ const FOLDER_PATH_FLAG = {
 } as const
 const FOLDER_DELETE_FLAGS = {
   path: FOLDER_PATH_INPUT,
-  recursive: { boolean: true, describe: 'Delete the folder and its descendants' },
+  recursive: { boolean: true, describe: 'Archive the folder and its descendants' },
 } as const
 const KNOWLEDGE_BASE_PATH_ARGUMENT = { knowledgeBaseId: 'knowledgeBaseId' } as const
 /**
@@ -180,7 +180,9 @@ export const CLI_CONTRACT: CliContract = {
     describe:
       "List credit usage events (an OAuth login or personal API key reports only your events; a workspace API key reports every member's in aggregate, unattributed)",
     flags: {
-      source: { describe: 'Filter by usage source; sim-chat combines Copilot and workspace chat' },
+      source: {
+        describe: 'Filter by usage source; sim-chat combines Sim agent and workspace Chat usage',
+      },
       period: { describe: 'Billing period' },
       startDate: { describe: 'Custom period start (ISO 8601)' },
       endDate: { describe: 'Custom period end (ISO 8601)' },
@@ -640,7 +642,8 @@ export const CLI_CONTRACT: CliContract = {
     // collision rename as `files batch-delete` above and takes the same word.
     command: 'tables batch-delete',
     flags: { folderPaths: FOLDER_PATHS_FLAG },
-    confirm: 'This deletes every listed table and all of their rows.',
+    confirm:
+      'This archives the selected tables and folders, including their rows. Restore eligible tables with `tables restore`.',
   },
   searchFileContent: {
     flags: {
@@ -737,7 +740,15 @@ export const CLI_CONTRACT: CliContract = {
       folderPath: FOLDER_PATH_FLAG,
     },
   },
-  createFile: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  createFile: {
+    flags: {
+      folderPath: FOLDER_PATH_FLAG,
+      content: {
+        describe:
+          'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; decoded content must be at most 50 MiB, and longer base64 content is rejected with 413. For larger files, use `sim files upload <path>`',
+      },
+    },
+  },
   createKnowledgeBase: { flags: { folderPath: FOLDER_PATH_FLAG } },
   updateKnowledgeBase: {
     variants: [moveResource('knowledge mv', 'knowledge base')],
@@ -1392,7 +1403,7 @@ export const CLI_CONTRACT: CliContract = {
       organizationId: {
         name: 'organization',
         describe:
-          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required)',
+          'Organization whose audit trail to read; defaults to the caller’s organization. A caller that belongs to no organization, or names one it does not belong to, is refused with 403',
       },
     },
     columns: [
@@ -1411,7 +1422,7 @@ export const CLI_CONTRACT: CliContract = {
       organizationId: {
         name: 'organization',
         describe:
-          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required)',
+          'Organization whose audit trail to read; defaults to the caller’s organization. A caller that belongs to no organization, or names one it does not belong to, is refused with 403',
       },
     },
   },
@@ -1426,7 +1437,7 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       fileIds: { list: true },
     },
-    confirm: 'This deletes every listed file.',
+    confirm: 'This archives the listed files; restore them with `files restore`.',
   },
   getFile: {
     command: 'files describe',
@@ -1575,7 +1586,7 @@ export const CLI_CONTRACT: CliContract = {
   },
   replaceWorkflowChatDeployment: {
     command: 'workflows chat publish',
-    describe: 'Publish or replace a workflow’s chat deployment',
+    describe: 'Deploy or replace a workflow chat',
     confirm:
       'This replaces the chat deployment wholesale. Any field you omit returns to its default, including a stored password or allow-list.',
   },

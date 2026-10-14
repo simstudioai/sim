@@ -10,9 +10,8 @@ import type {
 
 interface ErrorResponseOptions {
   /**
-   * The `message` a caller actually receives for this status. Every one below is a literal
-   * the runtime emits — the generic path for that status, not a domain's phrasing of it —
-   * so the reference can be read as the response rather than as an illustration.
+   * Representative response message. Fixed surface errors use their runtime
+   * literal; domain errors use an illustrative message because wording varies.
    */
   message: string
   /** `error.details`, for the statuses that populate it. Omitted where none is sent. */
@@ -124,12 +123,7 @@ export const ERROR_RESPONSES = {
     message: 'Not found',
   }),
   Conflict: errorResponse(409, 'The request conflicts with current resource state.', {
-    /**
-     * The workflows phrasing, which is the default because that document does not override
-     * it. Nothing in the response layer supplies a 409 message, so every other document
-     * carrying this status names its own through {@link withErrorExamples}.
-     */
-    message: 'Webhook path already in use',
+    message: 'The request conflicts with current resource state',
   }),
   RunIdConflict: errorResponse(
     409,
@@ -203,7 +197,7 @@ export const ERROR_RESPONSES = {
   }),
   ServiceUnavailable: errorResponse(
     503,
-    'A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.',
+    'A required service is temporarily unavailable. When present, `Retry-After` gives the minimum seconds to wait; add jitter before retrying. Check operation-specific guidance before repeating a change after an uncertain response.',
     { message: 'Service temporarily unavailable', headers: ['Retry-After'] }
   ),
 } as const satisfies Readonly<Record<string, OpenApiErrorResponse>>
@@ -357,7 +351,7 @@ export const FOLDER_TREE_TOO_LARGE = 'Workspace folder trees exceeding 10,000 fo
  * promise. The authoritative membership is pinned in
  * `contracts/v2/list-pagination.test.ts` as `FULL_SET_LISTS`.
  */
-export const FULL_SET_LIST = 'Returns the complete set in one page; `nextCursor` is always null.'
+export const FULL_SET_LIST = 'Returns one page; `nextCursor` is always null.'
 
 /**
  * Appended to a `GET` whose route declares `headSafe: false` because the read
@@ -378,7 +372,7 @@ export const HEAD_MIRRORS_GET =
  * `headSafe: false` exists to skip.
  */
 export const HEAD_OMITS_PAYLOAD_HEADERS =
-  '`HEAD` omits `Content-Length`; use file metadata to size downloads.'
+  '`HEAD` omits `Content-Length` and cannot determine the download size.'
 
 /**
  * Appended to an operation whose semantic operation sets `workspaceApiKey: 'deny'`.
@@ -414,9 +408,9 @@ export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
  * — meaning the plan is skipped entirely and nothing is deleted — on Pro and
  * Team. Enterprise resolves per organization through
  * `resolveEffectiveRetentionHours`, with a per-workspace override, and is
- * likewise unbounded until someone configures it. Self-hosted classifies every
- * workspace as enterprise and dispatches nothing unless data retention is
- * enabled.
+ * likewise unbounded until someone configures it. Billing-disabled deployments
+ * have no plan-based default expiry and dispatch configured cleanup only when
+ * data retention is enabled.
  *
  * Stated because deletion is otherwise invisible: an aged-out run is not a
  * tombstone or a 404, it is simply absent. The matching `runCount` caveat lives
@@ -424,7 +418,7 @@ export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
  * cannot drift into two paraphrases of one window.
  */
 export const RUN_RETENTION =
-  'Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides.'
+  'Expired runs are permanently deleted by retention cleanup. Sim Cloud Free defaults to 30 days from run start; paid plans and billing-disabled deployments have no default expiry. Organization policies and workspace overrides can set an effective window. Billing-disabled cleanup requires enabled data retention. Runs referenced by active pauses are protected from cleanup.'
 
 /**
  * Response headers a binary download declares on top of the common set. Shared

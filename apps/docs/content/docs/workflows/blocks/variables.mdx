@@ -1,55 +1,52 @@
 ---
 title: Variables
-description: The Variables block updates workflow variables during a run, read from any block by name.
+description: Update typed workflow variables during a run.
 ---
 
 import { BlockPreview, WorkflowPreview, VARIABLES_RETRY_WORKFLOW, VARIABLES_CONFIG_WORKFLOW } from '@/components/workflow-preview'
-import { FAQ } from '@/components/ui/faq'
 
-The **Variables block** updates workflow variables while a run is in progress. Variables are workflow-scoped state you create once in the workflow's Variables panel; this block changes their values as the run proceeds. Read a variable from any block with `<variable.name>`.
+The **Variables block** updates variables created in the workflow's **Variables** panel. Read their current values with `<variable.name>`. Each run starts from the panel's initial values.
 
 <BlockPreview type="variables" />
 
+## Update a counter
+
+Create a number variable `retryCount` with initial value `0`. In the retry pattern below, failed requests increment it until the While condition becomes false; a successful request sets it to `3` to end retries.
+
+Calculate the next value in a Function block named **Increment**:
+
+```javascript
+return <variable.retryCount> + 1;
+```
+
+Then select `retryCount` in a Variables block and set its value to `<increment.result>`.
+
+<WorkflowPreview workflow={VARIABLES_RETRY_WORKFLOW} height={440} />
+
 ## Configuration
 
-### Variable Assignments
+**Variable Assignments** contains the variables to update and their new values. Select an existing variable, then enter a literal value or an earlier output, such as `<api.data.email>`.
 
-A list of assignments, run in order. The right side is an expression that can reference earlier outputs and the variable's own current value:
+The block converts each value to the selected variable's type. It does not evaluate JavaScript arithmetic. Use a Function for calculations, then assign its result.
 
-```
-customerEmail = <api.email>
-retryCount     = <variable.retryCount> + 1
-currentStatus  = "processing"
-```
+Assignments are written in order, but all references are resolved before the assignments run. A later row in the same block does not read a value just written by an earlier row.
 
-The variables must already exist in the workflow's **Variables** panel, where you set their initial values.
+## Outputs and scope
 
-## Outputs
+Read variables from any block with `<variable.name>`, such as `<variable.retryCount>`. Assigned values are also available on the Variables block, for example `<update.retryCount>` for a block named **Update**.
 
-Variables are global rather than block outputs: read them anywhere with `<variable.name>`, like `<variable.retryCount>`. Each variable you assign is also exposed on this block as `<variables.name>` if you want to reference it from the block directly.
+Variables last for one execution. Multiple Variables blocks share the workflow's variable namespace, and a later assignment can overwrite an earlier value. Parallel branches share that namespace too; avoid concurrent writes to the same variable.
 
-## Examples
+References ignore case, whitespace, and periods. Avoid names that normalize to the same value, such as `retryCount` and `Retry Count`.
 
-### Count retries
-
-<WorkflowPreview workflow={VARIABLES_RETRY_WORKFLOW} />
-
-Each attempt bumps `retryCount`, and a Condition stops the loop after a few tries.
-
-### Hold config for the run
+## Store configuration for later steps
 
 <WorkflowPreview workflow={VARIABLES_CONFIG_WORKFLOW} />
 
-Profile fields are stored once, then read by later blocks with `<variable.userTier>` without fetching again.
+Create `userId` and `userTier` variables in the Variables panel. Assign their values from the API response once, then read them later with `<variable.userTier>`.
 
-## Best Practices
+## Related docs
 
-- **Initialize variables first.** Create them in the workflow's Variables panel before a Variables block sets them.
-- **Track state across steps.** Variables suit counters and status that several blocks read and update, including inside a [Loop](/workflows/blocks/loop).
-- **Name them clearly.** References ignore case and spaces, so avoid variable names that normalize to the same value, such as `retryCount` and `RetryCount`.
-- **Assign from earlier outputs.** Set a variable from any block output, like `customerEmail = <api.email>`.
-
-<FAQ items={[
-  { question: "Do variables persist between workflow executions?", answer: "No. Variables are workflow-scoped and persist only for a single run. Each new run starts from the initial values defined in the workflow's Variables panel." },
-  { question: "Can multiple Variables blocks update the same variable?", answer: "Yes. All Variables blocks share one namespace, so a later block can overwrite a value set by an earlier one by using the same name." },
-]} />
+- [Workflow variables](/workflows/variables)
+- [Function](/workflows/blocks/function)
+- [Loop](/workflows/blocks/loop)

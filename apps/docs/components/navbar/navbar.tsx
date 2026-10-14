@@ -34,7 +34,7 @@ const NAV_TABS = [
     external: false,
   },
   {
-    label: 'API Reference',
+    label: 'API reference',
     href: '/api-reference/getting-started',
     match: (p: string) => isInSection(p, 'api-reference'),
     external: false,
